@@ -8,6 +8,7 @@ pub mod checksum;
 pub mod error_responses;
 mod id_policy;
 mod input_processor;
+pub mod mutual_exclusivity;
 pub mod rich_scalars;
 pub mod rules;
 pub mod validators;
@@ -21,6 +22,9 @@ pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
 };
 pub use input_processor::{InputProcessingConfig, ProcessingError, process_variables};
+pub use mutual_exclusivity::{
+    AnyOfValidator, ConditionalRequiredValidator, OneOfValidator, RequiredIfAbsentValidator,
+};
 pub use rich_scalars::{EmailValidator, PhoneNumberValidator, VinValidator, CountryCodeValidator};
 pub use rules::ValidationRule;
 pub use validators::{Validator, PatternValidator, LengthValidator, RangeValidator, EnumValidator};

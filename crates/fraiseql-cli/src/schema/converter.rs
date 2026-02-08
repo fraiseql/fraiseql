@@ -217,6 +217,7 @@ impl SchemaConverter {
             description: intermediate.description,
             default_value,
             deprecation,
+            validation_rules: Vec::new(),
         }
     }
 

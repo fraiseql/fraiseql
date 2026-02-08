@@ -82,6 +82,78 @@ pub enum ValidationRule {
     /// Composite rule - at least one rule must pass.
     #[serde(rename = "any")]
     Any(Vec<ValidationRule>),
+
+    /// Exactly one field from the set must be provided (mutually exclusive).
+    ///
+    /// Useful for "create or reference" patterns where you must provide EITHER
+    /// an ID to reference an existing entity OR the fields to create a new one,
+    /// but not both.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Either provide entityId OR (name + description), but not both
+    /// OneOf { fields: vec!["name".to_string(), "description".to_string()] }
+    /// ```
+    #[serde(rename = "one_of")]
+    OneOf {
+        /// List of field names - exactly one must be provided
+        fields: Vec<String>,
+    },
+
+    /// At least one field from the set must be provided.
+    ///
+    /// Useful for optional but not-all-empty patterns.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Provide at least one of: email, phone, address
+    /// AnyOf { fields: vec!["email".to_string(), "phone".to_string(), "address".to_string()] }
+    /// ```
+    #[serde(rename = "any_of")]
+    AnyOf {
+        /// List of field names - at least one must be provided
+        fields: Vec<String>,
+    },
+
+    /// If a field is present, then other fields are required.
+    ///
+    /// Used for conditional requirements based on presence of another field.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // If entityId is provided, then createdAt is required
+    /// ConditionalRequired {
+    ///     if_field_present: "entityId".to_string(),
+    ///     then_required: vec!["createdAt".to_string()]
+    /// }
+    /// ```
+    #[serde(rename = "conditional_required")]
+    ConditionalRequired {
+        /// If this field is present (not null/missing)
+        if_field_present: String,
+        /// Then these fields are required
+        then_required: Vec<String>,
+    },
+
+    /// If a field is absent/null, then other fields are required.
+    ///
+    /// Used for "provide this OR that" patterns at the object level.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // If addressId is missing, then street+city+zip are required
+    /// RequiredIfAbsent {
+    ///     absent_field: "addressId".to_string(),
+    ///     then_required: vec!["street".to_string(), "city".to_string(), "zip".to_string()]
+    /// }
+    /// ```
+    #[serde(rename = "required_if_absent")]
+    RequiredIfAbsent {
+        /// If this field is absent/null
+        absent_field: String,
+        /// Then these fields are required
+        then_required: Vec<String>,
+    },
 }
 
 impl ValidationRule {
@@ -115,6 +187,32 @@ impl ValidationRule {
             Self::Conditional { .. } => "Conditional validation".to_string(),
             Self::All(_) => "All rules must pass".to_string(),
             Self::Any(_) => "At least one rule must pass".to_string(),
+            Self::OneOf { fields } => {
+                format!("Exactly one of these must be provided: {}", fields.join(", "))
+            }
+            Self::AnyOf { fields } => {
+                format!("At least one of these must be provided: {}", fields.join(", "))
+            }
+            Self::ConditionalRequired {
+                if_field_present,
+                then_required,
+            } => {
+                format!(
+                    "If '{}' is provided, then {} must be provided",
+                    if_field_present,
+                    then_required.join(", ")
+                )
+            }
+            Self::RequiredIfAbsent {
+                absent_field,
+                then_required,
+            } => {
+                format!(
+                    "If '{}' is absent, then {} must be provided",
+                    absent_field,
+                    then_required.join(", ")
+                )
+            }
         }
     }
 }
@@ -172,5 +270,98 @@ mod tests {
         ]);
         let desc = rule.description();
         assert!(desc.contains("All rules"));
+    }
+
+    #[test]
+    fn test_one_of_rule() {
+        let rule = ValidationRule::OneOf {
+            fields: vec!["entityId".to_string(), "entityPayload".to_string()],
+        };
+        assert!(!rule.is_required());
+        let desc = rule.description();
+        assert!(desc.contains("Exactly one"));
+        assert!(desc.contains("entityId"));
+        assert!(desc.contains("entityPayload"));
+    }
+
+    #[test]
+    fn test_any_of_rule() {
+        let rule = ValidationRule::AnyOf {
+            fields: vec![
+                "email".to_string(),
+                "phone".to_string(),
+                "address".to_string(),
+            ],
+        };
+        let desc = rule.description();
+        assert!(desc.contains("At least one"));
+        assert!(desc.contains("email"));
+        assert!(desc.contains("phone"));
+        assert!(desc.contains("address"));
+    }
+
+    #[test]
+    fn test_conditional_required_rule() {
+        let rule = ValidationRule::ConditionalRequired {
+            if_field_present: "entityId".to_string(),
+            then_required: vec!["createdAt".to_string(), "updatedAt".to_string()],
+        };
+        let desc = rule.description();
+        assert!(desc.contains("If"));
+        assert!(desc.contains("entityId"));
+        assert!(desc.contains("createdAt"));
+        assert!(desc.contains("updatedAt"));
+    }
+
+    #[test]
+    fn test_required_if_absent_rule() {
+        let rule = ValidationRule::RequiredIfAbsent {
+            absent_field: "addressId".to_string(),
+            then_required: vec![
+                "street".to_string(),
+                "city".to_string(),
+                "zip".to_string(),
+            ],
+        };
+        let desc = rule.description();
+        assert!(desc.contains("If"));
+        assert!(desc.contains("addressId"));
+        assert!(desc.contains("absent"));
+        assert!(desc.contains("street"));
+    }
+
+    #[test]
+    fn test_one_of_serialization() {
+        let rule = ValidationRule::OneOf {
+            fields: vec!["id".to_string(), "payload".to_string()],
+        };
+        let json = serde_json::to_string(&rule).expect("serialization failed");
+        let deserialized: ValidationRule =
+            serde_json::from_str(&json).expect("deserialization failed");
+        assert!(matches!(deserialized, ValidationRule::OneOf { .. }));
+    }
+
+    #[test]
+    fn test_conditional_required_serialization() {
+        let rule = ValidationRule::ConditionalRequired {
+            if_field_present: "isPremium".to_string(),
+            then_required: vec!["paymentMethod".to_string()],
+        };
+        let json = serde_json::to_string(&rule).expect("serialization failed");
+        let deserialized: ValidationRule =
+            serde_json::from_str(&json).expect("deserialization failed");
+        assert!(matches!(deserialized, ValidationRule::ConditionalRequired { .. }));
+    }
+
+    #[test]
+    fn test_required_if_absent_serialization() {
+        let rule = ValidationRule::RequiredIfAbsent {
+            absent_field: "presetId".to_string(),
+            then_required: vec!["settings".to_string()],
+        };
+        let json = serde_json::to_string(&rule).expect("serialization failed");
+        let deserialized: ValidationRule =
+            serde_json::from_str(&json).expect("deserialization failed");
+        assert!(matches!(deserialized, ValidationRule::RequiredIfAbsent { .. }));
     }
 }
