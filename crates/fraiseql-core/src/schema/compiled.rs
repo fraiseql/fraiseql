@@ -18,6 +18,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::validation::ValidationRule;
 use super::field_type::{FieldDefinition, FieldType};
 
 /// Role definition for field-level RBAC.
@@ -1010,6 +1011,10 @@ pub struct InputFieldDefinition {
     /// Deprecation information (if this field is deprecated).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<super::field_type::DeprecationInfo>,
+
+    /// Validation rules applied to this field (from @validate directives).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub validation_rules: Vec<ValidationRule>,
 }
 
 impl InputFieldDefinition {
@@ -1017,11 +1022,12 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, field_type: impl Into<String>) -> Self {
         Self {
-            name:          name.into(),
-            field_type:    field_type.into(),
-            description:   None,
-            default_value: None,
-            deprecation:   None,
+            name:             name.into(),
+            field_type:       field_type.into(),
+            description:      None,
+            default_value:    None,
+            deprecation:      None,
+            validation_rules: Vec::new(),
         }
     }
 
@@ -1056,6 +1062,26 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn is_required(&self) -> bool {
         self.field_type.ends_with('!') && self.default_value.is_none()
+    }
+
+    /// Add a validation rule to this field.
+    #[must_use]
+    pub fn with_validation_rule(mut self, rule: ValidationRule) -> Self {
+        self.validation_rules.push(rule);
+        self
+    }
+
+    /// Add multiple validation rules to this field.
+    #[must_use]
+    pub fn with_validation_rules(mut self, rules: Vec<ValidationRule>) -> Self {
+        self.validation_rules.extend(rules);
+        self
+    }
+
+    /// Check if this field has validation rules.
+    #[must_use]
+    pub fn has_validation_rules(&self) -> bool {
+        !self.validation_rules.is_empty()
     }
 }
 

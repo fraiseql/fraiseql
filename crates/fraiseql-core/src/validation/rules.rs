@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Rules define constraints on field values and are evaluated during input validation.
 /// Multiple rules can be combined on a single field.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum ValidationRule {
     /// Field is required (non-null) and must have a value.
