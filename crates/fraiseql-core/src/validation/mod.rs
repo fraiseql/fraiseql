@@ -10,6 +10,7 @@ pub mod cross_field;
 pub mod error_responses;
 mod id_policy;
 mod input_processor;
+pub mod inheritance;
 pub mod input_object;
 pub mod mutual_exclusivity;
 pub mod rich_scalars;
@@ -27,6 +28,10 @@ pub use composite::{
 pub use cross_field::{ComparisonOperator, validate_cross_field_comparison};
 pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
+};
+pub use inheritance::{
+    inherit_validation_rules, validate_inheritance, InheritanceMode, RuleMetadata,
+    ValidationRuleRegistry,
 };
 pub use input_object::{
     validate_input_object, InputObjectRule, InputObjectValidationResult,
