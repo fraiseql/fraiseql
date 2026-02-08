@@ -8,6 +8,7 @@ pub mod checksum;
 pub mod composite;
 pub mod cross_field;
 pub mod date_validators;
+pub mod elo_expressions;
 pub mod error_responses;
 mod id_policy;
 mod input_processor;
@@ -31,6 +32,7 @@ pub use date_validators::{
     validate_min_date, validate_max_date, validate_date_range, validate_min_age, validate_max_age,
     validate_max_days_in_future, validate_max_days_in_past,
 };
+pub use elo_expressions::{EloExpressionEvaluator, EloValidationResult};
 pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
 };
