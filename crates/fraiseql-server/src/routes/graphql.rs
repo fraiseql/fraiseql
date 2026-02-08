@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig},
     error::{ErrorResponse, GraphQLError},
     extractors::OptionalSecurityContext,
     metrics_server::MetricsCollector,
@@ -91,6 +92,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub cache:    Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
     pub config:   Option<Arc<crate::config::ServerConfig>>,
+    /// Rate limiter for GraphQL validation errors (per IP).
+    pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -102,6 +105,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             cache: None,
             config: None,
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -113,6 +119,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics,
             cache: None,
             config: None,
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -129,6 +138,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             cache: Some(cache),
             config: None,
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -146,6 +158,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             cache: Some(cache),
             config: Some(config),
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -202,7 +217,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         debug!("Authenticated request with security context");
     }
 
-    execute_graphql_request(state, request, trace_context, security_context).await
+    execute_graphql_request(state, request, trace_context, security_context, &headers).await
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -274,7 +289,24 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // NOTE: SecurityContext extraction will be handled via middleware in next iteration
     // For now, execute without security context
-    execute_graphql_request(state, request, trace_context, None).await
+    execute_graphql_request(state, request, trace_context, None, &headers).await
+}
+
+/// Extract client IP address from headers.
+fn extract_ip_from_headers(headers: &HeaderMap) -> String {
+    // Check X-Forwarded-For first (for proxied requests)
+    if let Some(forwarded_for) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(ip) = forwarded_for.split(',').next() {
+            return ip.trim().to_string();
+        }
+    }
+
+    // Check X-Real-IP
+    if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
+        return real_ip.to_string();
+    }
+
+    "unknown".to_string()
 }
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
@@ -283,6 +315,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     request: GraphQLRequest,
     _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
     security_context: Option<SecurityContext>,
+    headers: &HeaderMap,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     let start_time = Instant::now();
     let metrics = &state.metrics;
@@ -309,6 +342,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         );
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
+
+        // Extract IP for rate limiting
+        let client_ip = extract_ip_from_headers(headers);
+
+        // Check rate limiting for validation errors
+        if state.graphql_rate_limiter.check(&client_ip).is_err() {
+            return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
+                "Too many validation errors. Please reduce query complexity and try again.",
+            )));
+        }
+
         let graphql_error = match e {
             crate::validation::ValidationError::QueryTooDeep {
                 max_depth,
@@ -340,6 +384,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         );
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
+
+        // Extract IP for rate limiting
+        let client_ip = extract_ip_from_headers(headers);
+
+        // Check rate limiting for validation errors
+        if state.graphql_rate_limiter.check(&client_ip).is_err() {
+            return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
+                "Too many validation errors. Please reduce query complexity and try again.",
+            )));
+        }
+
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
     }
 
@@ -631,5 +686,105 @@ mod tests {
         // Documents: API endpoints should be able to access schema
         let _note = "API routes can access schema via state.executor for introspection";
         assert!(!_note.is_empty());
+    }
+
+    // Vulnerability #14: GraphQL rate limiting tests
+    #[test]
+    fn test_extract_ip_from_headers_x_forwarded_for() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
+
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "192.0.2.1");
+    }
+
+    #[test]
+    fn test_extract_ip_from_headers_x_real_ip() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
+
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "10.0.0.2");
+    }
+
+    #[test]
+    fn test_extract_ip_from_headers_missing() {
+        let headers = axum::http::HeaderMap::new();
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "unknown");
+    }
+
+    #[test]
+    fn test_extract_ip_from_headers_x_forwarded_for_takes_precedence() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "192.0.2.1".parse().unwrap());
+        headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
+
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "192.0.2.1");
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_is_per_ip() {
+        let config = RateLimitConfig {
+            enabled: true,
+            max_requests: 3,
+            window_secs: 60,
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        // IP 1 should be allowed 3 times
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+
+        // IP 2 should have independent limit
+        assert!(limiter.check("10.0.0.1").is_ok());
+        assert!(limiter.check("10.0.0.1").is_ok());
+        assert!(limiter.check("10.0.0.1").is_ok());
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_enforces_limit() {
+        let config = RateLimitConfig {
+            enabled: true,
+            max_requests: 2,
+            window_secs: 60,
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_err());
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_disabled() {
+        let config = RateLimitConfig {
+            enabled: false,
+            max_requests: 1,
+            window_secs: 60,
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        // When disabled, should allow unlimited requests
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_window_reset() {
+        let config = RateLimitConfig {
+            enabled: true,
+            max_requests: 1,
+            window_secs: 0, // Immediate window reset for testing
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        assert!(limiter.check("192.0.2.1").is_ok());
+        // With 0 second window, the window should reset immediately
+        // In practice, the window immediately expires and resets
+        assert!(limiter.check("192.0.2.1").is_ok());
     }
 }
