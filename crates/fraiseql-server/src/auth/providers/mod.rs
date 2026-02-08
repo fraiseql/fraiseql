@@ -1,26 +1,30 @@
 // OAuth provider implementations
-// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, Okta, and Azure AD
+// Provides provider-specific wrappers for Auth0, GitHub, Google, Keycloak, Okta, Azure AD, Ory, and Logto
 
 pub mod auth0;
 pub mod azure_ad;
 pub mod github;
 pub mod google;
 pub mod keycloak;
+pub mod logto;
 pub mod okta;
+pub mod ory;
 
 pub use auth0::Auth0OAuth;
 pub use azure_ad::AzureADOAuth;
 pub use github::GitHubOAuth;
 pub use google::GoogleOAuth;
 pub use keycloak::KeycloakOAuth;
+pub use logto::LogtoOAuth;
 pub use okta::OktaOAuth;
+pub use ory::OryOAuth;
 
 use crate::auth::{error::Result, provider::OAuthProvider};
 
 /// Factory for creating OAuth providers from configuration
 ///
 /// # Arguments
-/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "okta", "azure_ad"
+/// * `provider_type` - Provider type: "auth0", "github", "google", "keycloak", "okta", "azure_ad", "ory", "logto"
 /// * `client_id` - OAuth client ID
 /// * `client_secret` - OAuth client secret
 /// * `config` - Provider-specific configuration (JSON value)
@@ -121,6 +125,40 @@ pub async fn create_provider(
                 AzureADOAuth::new(client_id, client_secret, tenant, redirect_uri).await?;
             Ok(Box::new(provider))
         },
+        "ory" => {
+            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+                message: "Ory provider requires config with ory_issuer_url".to_string(),
+            })?;
+
+            let ory_issuer_url = config
+                .get("ory_issuer_url")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing ory_issuer_url in config".to_string(),
+                })?
+                .to_string();
+
+            let provider =
+                OryOAuth::new(client_id, client_secret, ory_issuer_url, redirect_uri).await?;
+            Ok(Box::new(provider))
+        },
+        "logto" => {
+            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+                message: "Logto provider requires config with logto_endpoint".to_string(),
+            })?;
+
+            let logto_endpoint = config
+                .get("logto_endpoint")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                    message: "Missing logto_endpoint in config".to_string(),
+                })?
+                .to_string();
+
+            let provider = LogtoOAuth::new(client_id, client_secret, logto_endpoint, redirect_uri)
+                .await?;
+            Ok(Box::new(provider))
+        },
         _ => Err(crate::auth::AuthError::ConfigError {
             message: format!("Unknown provider type: {}", provider_type),
         }),
@@ -177,5 +215,27 @@ mod tests {
         let roles =
             azure_ad::AzureADOAuth::map_azure_roles_to_fraiseql(vec!["fraiseql.admin".to_string()]);
         assert!(roles.contains(&"admin".to_string()));
+    }
+
+    #[test]
+    fn test_ory_group_mapping() {
+        let groups = ory::OryOAuth::map_ory_groups_to_fraiseql(vec![
+            "admin".to_string(),
+            "ory-operator".to_string(),
+        ]);
+        assert_eq!(groups.len(), 2);
+        assert!(groups.contains(&"admin".to_string()));
+        assert!(groups.contains(&"operator".to_string()));
+    }
+
+    #[test]
+    fn test_logto_role_mapping() {
+        let roles = logto::LogtoOAuth::map_logto_roles_to_fraiseql(vec![
+            "admin".to_string(),
+            "logto-operator".to_string(),
+        ]);
+        assert_eq!(roles.len(), 2);
+        assert!(roles.contains(&"admin".to_string()));
+        assert!(roles.contains(&"operator".to_string()));
     }
 }
