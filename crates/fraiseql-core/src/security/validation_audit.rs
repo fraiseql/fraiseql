@@ -97,8 +97,13 @@ impl ValidationAuditLogger {
 
         // Only log failures or successful entries if configured to capture successes
         if !entry.valid || self.config.capture_successful_validations {
-            if let Ok(mut entries) = self.entries.lock() {
-                entries.push(entry);
+            match self.entries.lock() {
+                Ok(mut entries) => entries.push(entry),
+                Err(e) => {
+                    eprintln!("CRITICAL: Audit log mutex poisoned, entry lost. Error: {:?}", e);
+                    eprintln!("Lost entry: {:?}", entry);
+                    // In production, this should trigger an alert/metric
+                }
             }
         }
     }

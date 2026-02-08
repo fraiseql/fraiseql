@@ -50,7 +50,7 @@ use futures::{Stream, StreamExt}; // StreamExt required for .next() on Pin<Box<d
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use tonic::{Request, Response, Status, Streaming};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     cache::QueryCache,
@@ -1227,10 +1227,12 @@ fn create_session_token(
     };
 
     // Use HMAC-SHA256 for session tokens (fast, doesn't require JWKS)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET").unwrap_or_else(|_| {
-        warn!("FLIGHT_SESSION_SECRET not set, using default (insecure for production)");
-        "flight-session-default-secret".to_string()
-    });
+    let secret = std::env::var("FLIGHT_SESSION_SECRET")
+        .expect("FLIGHT_SESSION_SECRET environment variable must be set for Flight authentication (use 'openssl rand -hex 32' to generate)");
+
+    if secret.is_empty() {
+        return Err(Status::internal("FLIGHT_SESSION_SECRET must not be empty"));
+    }
 
     let key = EncodingKey::from_secret(secret.as_bytes());
     let header = Header::new(Algorithm::HS256);
@@ -1258,7 +1260,11 @@ fn validate_session_token(
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
     // Get secret (same as create_session_token)
     let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+        .expect("FLIGHT_SESSION_SECRET environment variable must be set for Flight authentication");
+
+    if secret.is_empty() {
+        return Err(Status::unauthenticated("FLIGHT_SESSION_SECRET is empty"));
+    }
 
     let key = DecodingKey::from_secret(secret.as_bytes());
     let mut validation = Validation::new(Algorithm::HS256);
@@ -1390,49 +1396,40 @@ impl FlightService for FraiseQLFlightService {
             },
         };
 
-        // Validate JWT if OIDC validator is configured
-        if let Some(ref validator) = self.oidc_validator {
-            let authenticated_user = match validator.validate_token(&_token).await {
-                Ok(user) => {
-                    info!(user_id = %user.user_id, "JWT validation successful");
-                    user
-                },
-                Err(e) => {
-                    warn!(error = %e, "JWT validation failed");
-                    return Err(map_security_error_to_status(e));
-                },
-            };
+        // CRITICAL: OIDC validator MUST be configured - authentication is mandatory
+        let validator = self.oidc_validator.as_ref()
+            .ok_or_else(|| {
+                error!("OIDC validator not configured - authentication is mandatory. Set FLIGHT_OIDC_* environment variables.");
+                Status::internal("Authentication not configured. Contact system administrator.")
+            })?;
 
-            // Create session token
-            let session_token = create_session_token(&authenticated_user)?;
-            info!(user_id = %authenticated_user.user_id, "Handshake complete");
+        // Validate JWT
+        let authenticated_user = match validator.validate_token(&_token).await {
+            Ok(user) => {
+                info!(user_id = %user.user_id, "JWT validation successful");
+                user
+            },
+            Err(e) => {
+                warn!(error = %e, "JWT validation failed");
+                return Err(map_security_error_to_status(e));
+            },
+        };
 
-            // Create response with session token
-            let response = HandshakeResponse {
-                protocol_version: 0,
-                payload:          session_token.as_bytes().to_vec().into(),
-            };
+        // Create session token
+        let session_token = create_session_token(&authenticated_user)?;
+        info!(user_id = %authenticated_user.user_id, "Handshake complete");
 
-            // Build stream response
-            let stream = futures::stream::once(async move { Ok(response) });
-            let boxed_stream: Self::HandshakeStream = Box::pin(stream);
+        // Create response with session token
+        let response = HandshakeResponse {
+            protocol_version: 0,
+            payload:          session_token.as_bytes().to_vec().into(),
+        };
 
-            Ok(Response::new(boxed_stream))
-        } else {
-            // No validator configured - dev/test mode
-            warn!("OIDC validator not configured - allowing unauthenticated access");
-            let session_token = format!("dev-session-{}", uuid::Uuid::new_v4());
+        // Build stream response
+        let stream = futures::stream::once(async move { Ok(response) });
+        let boxed_stream: Self::HandshakeStream = Box::pin(stream);
 
-            let response = HandshakeResponse {
-                protocol_version: 0,
-                payload:          session_token.as_bytes().to_vec().into(),
-            };
-
-            let stream = futures::stream::once(async move { Ok(response) });
-            let boxed_stream: Self::HandshakeStream = Box::pin(stream);
-
-            Ok(Response::new(boxed_stream))
-        }
+        Ok(Response::new(boxed_stream))
     }
 
     /// List available datasets/queries.
@@ -3249,7 +3246,7 @@ mod tests {
         };
 
         let secret = std::env::var("FLIGHT_SESSION_SECRET")
-            .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+            .unwrap_or_else(|_| "test-session-secret-do-not-use-in-production-12345".to_string());
 
         let key = EncodingKey::from_secret(secret.as_bytes());
         let header = Header::new(Algorithm::HS256);
@@ -3303,7 +3300,7 @@ mod tests {
         };
 
         let secret = std::env::var("FLIGHT_SESSION_SECRET")
-            .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+            .unwrap_or_else(|_| "test-session-secret-do-not-use-in-production-67890".to_string());
 
         let key = EncodingKey::from_secret(secret.as_bytes());
         let header = Header::new(Algorithm::HS256);
