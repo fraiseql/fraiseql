@@ -58,7 +58,7 @@ pub use field_type::{
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,
-    IntrospectionType, IntrospectionTypeRef, TypeKind,
+    IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
 };
 
 #[cfg(test)]

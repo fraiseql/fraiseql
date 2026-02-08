@@ -2,8 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use fraiseql_core::schema::introspection::{IntrospectionBuilder, IntrospectionValidationRule, TypeKind};
-    use fraiseql_core::schema::{CompiledSchema, InputObjectDefinition, InputFieldDefinition};
+    use fraiseql_core::schema::{CompiledSchema, InputObjectDefinition, InputFieldDefinition, TypeKind, IntrospectionBuilder};
     use fraiseql_core::validation::rules::ValidationRule;
 
     fn create_test_schema_with_validation() -> CompiledSchema {
@@ -93,7 +92,7 @@ mod tests {
         });
         fields.push(address_id_field);
 
-        let input_type = InputObjectDefinition::new("TestInput".to_string(), fields);
+        let input_type = InputObjectDefinition::new("TestInput").with_fields(fields);
         schema.input_types.push(input_type);
 
         schema
@@ -330,7 +329,7 @@ mod tests {
     fn test_field_without_validation_rules() {
         let mut schema = CompiledSchema::default();
         let field = InputFieldDefinition::new("unvalidated", "String".to_string());
-        let input_type = InputObjectDefinition::new("SimpleInput".to_string(), vec![field]);
+        let input_type = InputObjectDefinition::new("SimpleInput").with_fields(vec![field]);
         schema.input_types.push(input_type);
 
         let introspection = IntrospectionBuilder::build(&schema);
@@ -346,13 +345,14 @@ mod tests {
 
     #[test]
     fn test_apollo_sandbox_compatibility() {
+        use fraiseql_core::schema::IntrospectionSchema;
+
         let schema = create_test_schema_with_validation();
         let introspection = IntrospectionBuilder::build(&schema);
         let json = serde_json::to_string_pretty(&introspection).unwrap();
 
         // Apollo Sandbox should be able to parse the response
-        let deserialized: fraiseql_core::schema::introspection::IntrospectionSchema =
-            serde_json::from_str(&json).unwrap();
+        let deserialized: IntrospectionSchema = serde_json::from_str(&json).unwrap();
 
         assert!(!deserialized.types.is_empty());
     }

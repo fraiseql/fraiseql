@@ -181,6 +181,57 @@ pub struct IntrospectionField {
     pub deprecation_reason: Option<String>,
 }
 
+/// Validation rule for input field in introspection format (Phase 4).
+///
+/// Converts internal ValidationRule enums to introspection-friendly format
+/// that clients can query and use for UI generation, form validation, etc.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntrospectionValidationRule {
+    /// Rule type name (required, pattern, range, enum, etc.)
+    pub rule_type: String,
+
+    /// Pattern regex (for pattern rules)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+
+    /// Pattern error message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern_message: Option<String>,
+
+    /// Minimum value or length
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<i64>,
+
+    /// Maximum value or length
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<i64>,
+
+    /// Allowed enum values
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_values: Option<Vec<String>>,
+
+    /// Checksum algorithm name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<String>,
+
+    /// Referenced field name (for cross-field rules)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_reference: Option<String>,
+
+    /// Comparison operator (for cross-field rules)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator: Option<String>,
+
+    /// List of field names (for one_of, any_of, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_list: Option<Vec<String>>,
+
+    /// Human-readable description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// `__InputValue` introspection type.
 ///
 /// Per GraphQL spec, input values (arguments and input fields) can be deprecated.
@@ -209,6 +260,10 @@ pub struct IntrospectionInputValue {
     /// Deprecation reason (if deprecated).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecation_reason: Option<String>,
+
+    /// Validation rules for this input value (Phase 4).
+    #[serde(default)]
+    pub validation_rules: Vec<IntrospectionValidationRule>,
 }
 
 /// `__EnumValue` introspection type.
@@ -558,13 +613,22 @@ impl IntrospectionBuilder {
         let input_fields = input_def
             .fields
             .iter()
-            .map(|f| IntrospectionInputValue {
-                name:               f.name.clone(),
-                description:        f.description.clone(),
-                input_type:         Self::type_ref(&f.field_type),
-                default_value:      f.default_value.clone(),
-                is_deprecated:      f.is_deprecated(),
-                deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),
+            .map(|f| {
+                let validation_rules = f
+                    .validation_rules
+                    .iter()
+                    .map(|rule| Self::build_validation_rule(rule))
+                    .collect();
+
+                IntrospectionInputValue {
+                    name:               f.name.clone(),
+                    description:        f.description.clone(),
+                    input_type:         Self::type_ref(&f.field_type),
+                    default_value:      f.default_value.clone(),
+                    is_deprecated:      f.is_deprecated(),
+                    deprecation_reason: f.deprecation.as_ref().and_then(|d| d.reason.clone()),
+                    validation_rules,
+                }
             })
             .collect();
 
@@ -729,6 +793,196 @@ impl IntrospectionBuilder {
         }
     }
 
+    /// Convert ValidationRule to IntrospectionValidationRule.
+    fn build_validation_rule(rule: &crate::validation::rules::ValidationRule) -> IntrospectionValidationRule {
+        use crate::validation::rules::ValidationRule;
+
+        match rule {
+            ValidationRule::Required => IntrospectionValidationRule {
+                rule_type: "required".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: Some("Field is required".to_string()),
+            },
+            ValidationRule::Pattern { pattern, message } => IntrospectionValidationRule {
+                rule_type: "pattern".to_string(),
+                pattern: Some(pattern.clone()),
+                pattern_message: message.clone(),
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: message.clone(),
+            },
+            ValidationRule::Length { min, max } => IntrospectionValidationRule {
+                rule_type: "length".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: min.map(|v| v as i64),
+                max: max.map(|v| v as i64),
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: None,
+            },
+            ValidationRule::Range { min, max } => IntrospectionValidationRule {
+                rule_type: "range".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: *min,
+                max: *max,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: None,
+            },
+            ValidationRule::Enum { values } => IntrospectionValidationRule {
+                rule_type: "enum".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: Some(values.clone()),
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: None,
+            },
+            ValidationRule::Checksum { algorithm } => IntrospectionValidationRule {
+                rule_type: "checksum".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: Some(algorithm.clone()),
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: None,
+            },
+            ValidationRule::CrossField { field, operator } => IntrospectionValidationRule {
+                rule_type: "cross_field".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: Some(field.clone()),
+                operator: Some(operator.clone()),
+                field_list: None,
+                description: None,
+            },
+            ValidationRule::Conditional { .. } => IntrospectionValidationRule {
+                rule_type: "conditional".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: Some("Conditional validation".to_string()),
+            },
+            ValidationRule::All(_) => IntrospectionValidationRule {
+                rule_type: "all".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: Some("All rules must pass".to_string()),
+            },
+            ValidationRule::Any(_) => IntrospectionValidationRule {
+                rule_type: "any".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: Some("At least one rule must pass".to_string()),
+            },
+            ValidationRule::OneOf { fields } => IntrospectionValidationRule {
+                rule_type: "one_of".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: Some(fields.clone()),
+                description: None,
+            },
+            ValidationRule::AnyOf { fields } => IntrospectionValidationRule {
+                rule_type: "any_of".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: Some(fields.clone()),
+                description: None,
+            },
+            ValidationRule::ConditionalRequired { .. } => IntrospectionValidationRule {
+                rule_type: "conditional_required".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: None,
+            },
+            ValidationRule::RequiredIfAbsent { .. } => IntrospectionValidationRule {
+                rule_type: "required_if_absent".to_string(),
+                pattern: None,
+                pattern_message: None,
+                min: None,
+                max: None,
+                allowed_values: None,
+                algorithm: None,
+                field_reference: None,
+                operator: None,
+                field_list: None,
+                description: None,
+            },
+        }
+    }
+
     /// Build Query root type.
     fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
         let fields: Vec<IntrospectionField> =
@@ -834,6 +1088,7 @@ impl IntrospectionBuilder {
                 default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
                 is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
+                validation_rules:   vec![],
             })
             .collect();
 
@@ -863,6 +1118,7 @@ impl IntrospectionBuilder {
                 default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
                 is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
+                validation_rules:   vec![],
             })
             .collect();
 
@@ -894,6 +1150,7 @@ impl IntrospectionBuilder {
                 default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
                 is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
+                validation_rules:   vec![],
             })
             .collect();
 
@@ -939,6 +1196,7 @@ impl IntrospectionBuilder {
                     default_value: None,
                     is_deprecated: false,
                     deprecation_reason: None,
+                    validation_rules: vec![],
                 }],
                 is_repeatable: false,
             },
@@ -971,6 +1229,7 @@ impl IntrospectionBuilder {
                     default_value: None,
                     is_deprecated: false,
                     deprecation_reason: None,
+                    validation_rules: vec![],
                 }],
                 is_repeatable: false,
             },
@@ -994,6 +1253,7 @@ impl IntrospectionBuilder {
                     default_value: Some("\"No longer supported\"".to_string()),
                     is_deprecated: false,
                     deprecation_reason: None,
+                    validation_rules: vec![],
                 }],
                 is_repeatable: false,
             },
@@ -1020,6 +1280,7 @@ impl IntrospectionBuilder {
                 default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
                 is_deprecated:      arg.is_deprecated(),
                 deprecation_reason: arg.deprecation_reason().map(ToString::to_string),
+                validation_rules:   vec![],
             })
             .collect();
 
