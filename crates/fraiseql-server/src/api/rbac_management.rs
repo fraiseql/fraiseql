@@ -139,7 +139,6 @@ async fn create_role(
     State(state): State<Arc<RbacManagementState>>,
     Json(payload): Json<CreateRoleRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     // In production: validate payload, extract tenant from JWT, create role
     match state
         .db
@@ -161,7 +160,6 @@ async fn create_role(
 /// List all roles
 /// GET /api/roles
 async fn list_roles(State(state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     // In production: extract tenant from JWT, apply pagination
     match state.db.list_roles(None, 100, 0).await {
         Ok(roles) => Json(roles),
@@ -175,7 +173,6 @@ async fn get_role(
     State(state): State<Arc<RbacManagementState>>,
     Path(role_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     match state.db.get_role(&role_id).await {
         Ok(role) => {
             (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response()
@@ -192,7 +189,6 @@ async fn update_role(
     Path(_role_id): Path<String>,
     Json(_payload): Json<CreateRoleRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Placeholder - requires additional database method
     // Would need update_role() method in backend
     Json(serde_json::json!({"updated": true}))
 }
@@ -203,7 +199,6 @@ async fn delete_role(
     State(state): State<Arc<RbacManagementState>>,
     Path(role_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     match state.db.delete_role(&role_id).await {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::CONFLICT,
@@ -220,7 +215,6 @@ async fn create_permission(
     State(state): State<Arc<RbacManagementState>>,
     Json(payload): Json<CreatePermissionRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     match state
         .db
         .create_permission(&payload.resource, &payload.action, payload.description.as_deref())
@@ -238,7 +232,6 @@ async fn create_permission(
 /// List all permissions
 /// GET /api/permissions
 async fn list_permissions(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Would call database backend
     // Placeholder for now
     Json(Vec::<PermissionDto>::new())
 }
@@ -249,7 +242,6 @@ async fn get_permission(
     State(_state): State<Arc<RbacManagementState>>,
     Path(_permission_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Would call database backend
     (
         StatusCode::NOT_FOUND,
         Json(serde_json::json!({"error": "permission_not_found"})),
@@ -262,7 +254,6 @@ async fn delete_permission(
     State(_state): State<Arc<RbacManagementState>>,
     Path(_permission_id): Path<String>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Would call database backend
     StatusCode::NO_CONTENT
 }
 
@@ -276,7 +267,6 @@ async fn assign_role(
     State(state): State<Arc<RbacManagementState>>,
     Json(payload): Json<AssignRoleRequest>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     match state.db.assign_role_to_user(&payload.user_id, &payload.role_id, None).await {
         Ok(assignment) => {
             (StatusCode::CREATED, Json(serde_json::to_value(assignment).unwrap_or_default()))
@@ -292,7 +282,6 @@ async fn assign_role(
 /// List user-role assignments
 /// GET /api/user-roles
 async fn list_user_roles(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Would call database backend to list assignments
     // Placeholder for now
     Json(Vec::<UserRoleDto>::new())
 }
@@ -303,7 +292,6 @@ async fn revoke_role(
     State(state): State<Arc<RbacManagementState>>,
     Path((user_id, role_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 3: Call database backend
     match state.db.revoke_role_from_user(&user_id, &role_id).await {
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::NOT_FOUND,
@@ -319,7 +307,6 @@ async fn revoke_role(
 async fn query_permission_audit(
     State(_state): State<Arc<RbacManagementState>>,
 ) -> impl IntoResponse {
-    // Phase 11.5 Cycle 1: Placeholder implementation
     Json(Vec::<serde_json::Value>::new())
 }
 

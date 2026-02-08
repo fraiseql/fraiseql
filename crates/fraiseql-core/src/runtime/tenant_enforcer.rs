@@ -90,6 +90,11 @@ impl TenantEnforcer {
     /// Adds WHERE org_id = '<org_id>' to raw SQL if needed.
     /// This is a simpler approach for raw queries.
     ///
+    /// # Security
+    ///
+    /// The org_id value is escaped to prevent SQL injection. Prefer using
+    /// `enforce_tenant_scope()` with `WhereClause` AST for parameterized queries.
+    ///
     /// # Arguments
     /// * `sql` - Original SQL query
     ///
@@ -106,18 +111,21 @@ impl TenantEnforcer {
             return Ok(sql.to_string());
         };
 
+        // SECURITY: Escape single quotes to prevent SQL injection via org_id
+        let escaped_org_id = org_id.replace('\'', "''");
+
         // For raw SQL, we need to be careful about WHERE clause placement
         let sql_upper = sql.to_uppercase();
 
         // Add WHERE clause if none exists
         let enforced_sql = if sql_upper.contains("WHERE") {
             // Append to existing WHERE with AND
-            format!("{} AND org_id = '{}'", sql, org_id)
+            format!("{sql} AND org_id = '{escaped_org_id}'")
         } else if sql_upper.contains("GROUP BY") {
             // Insert before GROUP BY
             let parts: Vec<&str> = sql.splitn(2, "GROUP BY").collect();
             if parts.len() == 2 {
-                format!("{} WHERE org_id = '{}' GROUP BY {}", parts[0], org_id, parts[1])
+                format!("{} WHERE org_id = '{}' GROUP BY {}", parts[0], escaped_org_id, parts[1])
             } else {
                 sql.to_string()
             }
@@ -125,13 +133,13 @@ impl TenantEnforcer {
             // Insert before ORDER BY
             let parts: Vec<&str> = sql.splitn(2, "ORDER BY").collect();
             if parts.len() == 2 {
-                format!("{} WHERE org_id = '{}' ORDER BY {}", parts[0], org_id, parts[1])
+                format!("{} WHERE org_id = '{}' ORDER BY {}", parts[0], escaped_org_id, parts[1])
             } else {
                 sql.to_string()
             }
         } else {
             // Append at end
-            format!("{} WHERE org_id = '{}'", sql, org_id)
+            format!("{sql} WHERE org_id = '{escaped_org_id}'")
         };
 
         Ok(enforced_sql)
@@ -254,6 +262,26 @@ mod tests {
         // Should return original clause unchanged
         let enforced = result.unwrap();
         assert!(matches!(enforced, Some(WhereClause::Field { .. })));
+    }
+
+    #[test]
+    fn test_enforce_tenant_scope_sql_injection_prevention() {
+        // SECURITY: Ensure SQL injection via org_id is prevented
+        let enforcer = TenantEnforcer::new(Some("'; DROP TABLE users; --".to_string()));
+        let sql = "SELECT * FROM users";
+        let result = enforcer.enforce_tenant_scope_sql(sql);
+
+        assert!(result.is_ok());
+        let enforced = result.unwrap();
+        // The malicious single quote must be escaped (doubled) so it stays inside the string
+        // Expected: ... WHERE org_id = '''; DROP TABLE users; --'
+        // The '' keeps the quote inside the SQL string literal
+        assert!(enforced.contains("''"), "Single quotes in org_id must be escaped (doubled)");
+        // The org_id value should be wrapped in a SQL string literal, not terminated early
+        assert!(
+            enforced.contains("WHERE org_id = '''"),
+            "The escaped single quote should keep the value inside the string literal"
+        );
     }
 
     #[test]

@@ -3,11 +3,15 @@
 //! This module handles the intermediate schema format (language-agnostic)
 //! and converts it to `CompiledSchema` (Rust-specific).
 
+pub mod advanced_types;
 pub mod converter;
 pub mod intermediate;
+pub mod lookup_data;
 pub mod merger;
 pub mod multi_file_loader;
 pub mod optimizer;
+pub mod rich_filters;
+pub mod sql_templates;
 pub mod validator;
 
 pub use converter::SchemaConverter;

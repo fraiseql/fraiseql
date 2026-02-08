@@ -2,8 +2,9 @@
 //!
 //! Manages active subscriptions and streams events to subscribers with filtering.
 
-use dashmap::DashMap;
 use std::sync::Arc;
+
+use dashmap::DashMap;
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -15,11 +16,11 @@ pub struct EventSubscription {
     /// Subscription ID (correlation ID from request)
     pub subscription_id: String,
     /// Entity type filter
-    pub entity_type: String,
+    pub entity_type:     String,
     /// Optional filter expression (for future use)
-    pub filter: Option<String>,
+    pub filter:          Option<String>,
     /// Sender for pushing events to this subscriber
-    pub tx: mpsc::UnboundedSender<crate::HistoricalEvent>,
+    pub tx:              mpsc::UnboundedSender<crate::HistoricalEvent>,
 }
 
 /// Manages active subscriptions and event routing.
@@ -149,10 +150,11 @@ impl Default for SubscriptionManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::HistoricalEvent;
     use chrono::Utc;
     use uuid::Uuid;
+
+    use super::*;
+    use crate::HistoricalEvent;
 
     #[test]
     fn test_create_subscription() {
@@ -194,14 +196,14 @@ mod tests {
         let mut rx2 = manager.subscribe("sub-2".to_string(), "User".to_string(), None);
 
         let event = HistoricalEvent {
-            id: Uuid::new_v4(),
-            event_type: "INSERT".to_string(),
+            id:          Uuid::new_v4(),
+            event_type:  "INSERT".to_string(),
             entity_type: "Order".to_string(),
-            entity_id: Uuid::new_v4(),
-            data: serde_json::json!({"total": 100}),
-            user_id: None,
-            tenant_id: None,
-            timestamp: Utc::now(),
+            entity_id:   Uuid::new_v4(),
+            data:        serde_json::json!({"total": 100}),
+            user_id:     None,
+            tenant_id:   None,
+            timestamp:   Utc::now(),
         };
 
         manager.broadcast_event(&event);
@@ -223,14 +225,14 @@ mod tests {
         let mut rx2 = manager.subscribe("sub-2".to_string(), "Order".to_string(), None);
 
         let event = HistoricalEvent {
-            id: Uuid::new_v4(),
-            event_type: "INSERT".to_string(),
+            id:          Uuid::new_v4(),
+            event_type:  "INSERT".to_string(),
             entity_type: "Order".to_string(),
-            entity_id: Uuid::new_v4(),
-            data: serde_json::json!({"total": 100}),
-            user_id: None,
-            tenant_id: None,
-            timestamp: Utc::now(),
+            entity_id:   Uuid::new_v4(),
+            data:        serde_json::json!({"total": 100}),
+            user_id:     None,
+            tenant_id:   None,
+            timestamp:   Utc::now(),
         };
 
         manager.broadcast_event(&event);
@@ -243,20 +245,17 @@ mod tests {
     #[test]
     fn test_matches_filter_no_filter() {
         let event = HistoricalEvent {
-            id: Uuid::new_v4(),
-            event_type: "INSERT".to_string(),
+            id:          Uuid::new_v4(),
+            event_type:  "INSERT".to_string(),
             entity_type: "Order".to_string(),
-            entity_id: Uuid::new_v4(),
-            data: serde_json::json!({"total": 100}),
-            user_id: None,
-            tenant_id: None,
-            timestamp: Utc::now(),
+            entity_id:   Uuid::new_v4(),
+            data:        serde_json::json!({"total": 100}),
+            user_id:     None,
+            tenant_id:   None,
+            timestamp:   Utc::now(),
         };
 
         assert!(SubscriptionManager::matches_filter(&event, &None));
-        assert!(SubscriptionManager::matches_filter(
-            &event,
-            &Some("total > 50".to_string())
-        )); // TODO: Implement actual filter matching
+        assert!(SubscriptionManager::matches_filter(&event, &Some("total > 50".to_string()))); // TODO: Implement actual filter matching
     }
 }

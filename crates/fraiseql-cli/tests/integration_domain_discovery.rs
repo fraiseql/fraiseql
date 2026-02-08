@@ -12,12 +12,10 @@ use tempfile::TempDir;
 
 /// Helper to compile a schema and verify success
 fn compile_schema(toml_path: &Path) -> Result<String, String> {
-    let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project_root = current_dir.parent().unwrap().parent().unwrap();
-    let cli_path = project_root.join("target/release/fraiseql-cli");
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
 
     // Run fraiseql compile
-    let output = std::process::Command::new(&cli_path)
+    let output = std::process::Command::new(cli_path)
         .arg("compile")
         .arg(toml_path)
         .current_dir(toml_path.parent().unwrap())
@@ -48,7 +46,7 @@ fn test_ecommerce_example_compiles() {
     assert!(output.contains("Mutations: 8"), "Expected 8 mutations");
 }
 
-/// Test SaaS example with 4 domains
+/// Test `SaaS` example with 4 domains
 #[test]
 fn test_saas_example_compiles() {
     let saas_path = PathBuf::from("examples/saas/fraiseql.toml");

@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig},
     error::{ErrorResponse, GraphQLError},
     extractors::OptionalSecurityContext,
     metrics_server::MetricsCollector,
@@ -84,13 +85,15 @@ impl IntoResponse for GraphQLResponse {
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor.
-    pub executor: Arc<Executor<A>>,
+    pub executor:             Arc<Executor<A>>,
     /// Metrics collector.
-    pub metrics:  Arc<MetricsCollector>,
+    pub metrics:              Arc<MetricsCollector>,
     /// Query result cache (optional).
-    pub cache:    Option<Arc<fraiseql_arrow::cache::QueryCache>>,
+    pub cache:                Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
-    pub config:   Option<Arc<crate::config::ServerConfig>>,
+    pub config:               Option<Arc<crate::config::ServerConfig>>,
+    /// Rate limiter for GraphQL validation errors (per IP).
+    pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -102,6 +105,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             cache: None,
             config: None,
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -113,6 +119,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics,
             cache: None,
             config: None,
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -129,6 +138,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             cache: Some(cache),
             config: None,
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -146,6 +158,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             metrics: Arc::new(MetricsCollector::new()),
             cache: Some(cache),
             config: Some(config),
+            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
+                RateLimitConfig::per_ip_standard(),
+            )),
         }
     }
 
@@ -202,7 +217,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         debug!("Authenticated request with security context");
     }
 
-    execute_graphql_request(state, request, trace_context, security_context).await
+    execute_graphql_request(state, request, trace_context, security_context, &headers).await
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -274,7 +289,21 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // NOTE: SecurityContext extraction will be handled via middleware in next iteration
     // For now, execute without security context
-    execute_graphql_request(state, request, trace_context, None).await
+    execute_graphql_request(state, request, trace_context, None, &headers).await
+}
+
+/// Extract client IP address from headers.
+///
+/// # Security
+///
+/// Does NOT trust X-Forwarded-For or X-Real-IP headers, as these are trivially
+/// spoofable by attackers to bypass rate limiting. Returns "unknown" as a safe
+/// fallback — callers requiring real IPs should use `ConnectInfo<SocketAddr>`
+/// or `ProxyConfig::extract_client_ip()` with validated proxy chains.
+fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
+    // SECURITY: Spoofable headers removed. Use ConnectInfo<SocketAddr> or
+    // ProxyConfig::extract_client_ip() for validated IP extraction.
+    "unknown".to_string()
 }
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
@@ -283,6 +312,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     request: GraphQLRequest,
     _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
     security_context: Option<SecurityContext>,
+    headers: &HeaderMap,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     let start_time = Instant::now();
     let metrics = &state.metrics;
@@ -309,6 +339,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         );
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
+
+        // Extract IP for rate limiting
+        let client_ip = extract_ip_from_headers(headers);
+
+        // Check rate limiting for validation errors
+        if state.graphql_rate_limiter.check(&client_ip).is_err() {
+            return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
+                "Too many validation errors. Please reduce query complexity and try again.",
+            )));
+        }
+
         let graphql_error = match e {
             crate::validation::ValidationError::QueryTooDeep {
                 max_depth,
@@ -340,6 +381,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         );
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
+
+        // Extract IP for rate limiting
+        let client_ip = extract_ip_from_headers(headers);
+
+        // Check rate limiting for validation errors
+        if state.graphql_rate_limiter.check(&client_ip).is_err() {
+            return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
+                "Too many validation errors. Please reduce query complexity and try again.",
+            )));
+        }
+
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
     }
 
@@ -494,42 +546,42 @@ mod tests {
     fn test_appstate_has_cache_field() {
         // Documents: AppState must have cache field
         let _note = "AppState<A> includes: executor, metrics, cache, config";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     #[test]
     fn test_appstate_has_config_field() {
         // Documents: AppState must have config field
         let _note = "AppState<A>::cache: Option<Arc<QueryCache>>";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     #[test]
     fn test_appstate_with_cache_constructor() {
         // Documents: AppState must have with_cache() constructor
         let _note = "AppState::with_cache(executor, cache) -> Self";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     #[test]
     fn test_appstate_with_cache_and_config_constructor() {
         // Documents: AppState must have with_cache_and_config() constructor
         let _note = "AppState::with_cache_and_config(executor, cache, config) -> Self";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     #[test]
     fn test_appstate_cache_accessor() {
         // Documents: AppState must have cache() accessor
         let _note = "AppState::cache() -> Option<&Arc<QueryCache>>";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     #[test]
     fn test_appstate_server_config_accessor() {
         // Documents: AppState must have server_config() accessor
         let _note = "AppState::server_config() -> Option<&Arc<ServerConfig>>";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     // Phase 4.2: Tests for Configuration Access with Sanitization
@@ -623,13 +675,113 @@ mod tests {
     fn test_appstate_executor_provides_access_to_schema() {
         // Documents: AppState should provide access to schema through executor
         let _note = "AppState<A>::executor can be queried for schema information";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
     }
 
     #[test]
     fn test_schema_access_for_api_endpoints() {
         // Documents: API endpoints should be able to access schema
         let _note = "API routes can access schema via state.executor for introspection";
-        assert!(_note.len() > 0);
+        assert!(!_note.is_empty());
+    }
+
+    // SECURITY: IP extraction no longer trusts spoofable headers
+    #[test]
+    fn test_extract_ip_ignores_x_forwarded_for() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
+
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "unknown", "Must not trust X-Forwarded-For header");
+    }
+
+    #[test]
+    fn test_extract_ip_ignores_x_real_ip() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
+
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "unknown", "Must not trust X-Real-IP header");
+    }
+
+    #[test]
+    fn test_extract_ip_from_headers_missing() {
+        let headers = axum::http::HeaderMap::new();
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "unknown");
+    }
+
+    #[test]
+    fn test_extract_ip_ignores_all_spoofable_headers() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-forwarded-for", "192.0.2.1".parse().unwrap());
+        headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
+
+        let ip = extract_ip_from_headers(&headers);
+        assert_eq!(ip, "unknown", "Must not trust any spoofable header");
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_is_per_ip() {
+        let config = RateLimitConfig {
+            enabled:      true,
+            max_requests: 3,
+            window_secs:  60,
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        // IP 1 should be allowed 3 times
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+
+        // IP 2 should have independent limit
+        assert!(limiter.check("10.0.0.1").is_ok());
+        assert!(limiter.check("10.0.0.1").is_ok());
+        assert!(limiter.check("10.0.0.1").is_ok());
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_enforces_limit() {
+        let config = RateLimitConfig {
+            enabled:      true,
+            max_requests: 2,
+            window_secs:  60,
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_err());
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_disabled() {
+        let config = RateLimitConfig {
+            enabled:      false,
+            max_requests: 1,
+            window_secs:  60,
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        // When disabled, should allow unlimited requests
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok());
+    }
+
+    #[test]
+    fn test_graphql_rate_limiter_window_reset() {
+        let config = RateLimitConfig {
+            enabled:      true,
+            max_requests: 1,
+            window_secs:  0, // Immediate window reset for testing
+        };
+        let limiter = KeyedRateLimiter::new(config);
+
+        assert!(limiter.check("192.0.2.1").is_ok());
+        // With 0 second window, the window should reset immediately
+        // In practice, the window immediately expires and resets
+        assert!(limiter.check("192.0.2.1").is_ok());
     }
 }

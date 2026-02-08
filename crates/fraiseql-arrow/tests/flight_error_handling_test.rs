@@ -132,6 +132,24 @@ impl Drop for TestDb {
 mod tests {
     use super::*;
 
+    /// Create an appropriate database adapter based on feature flags.
+    async fn create_flight_adapter(
+        conn_string: &str,
+    ) -> Result<Arc<fraiseql_server::arrow::FlightDatabaseAdapter>, Box<dyn std::error::Error>>
+    {
+        #[cfg(not(feature = "wire-backend"))]
+        {
+            let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;
+            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter)))
+        }
+
+        #[cfg(feature = "wire-backend")]
+        {
+            let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(conn_string);
+            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter)))
+        }
+    }
+
     /// Test invalid view name returns appropriate error
     ///
     /// Verifies:
@@ -143,9 +161,7 @@ mod tests {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
 
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
@@ -190,9 +206,7 @@ mod tests {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
 
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
@@ -218,9 +232,7 @@ mod tests {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
 
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
@@ -243,9 +255,7 @@ mod tests {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
 
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 
@@ -272,9 +282,7 @@ mod tests {
         let test_db = TestDb::setup().await?;
         let conn_string = test_db.connection_string();
 
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&conn_string).await?;
-        let flight_adapter =
-            Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter));
+        let flight_adapter = create_flight_adapter(&conn_string).await?;
 
         let service = fraiseql_arrow::FraiseQLFlightService::new_with_db(flight_adapter);
 

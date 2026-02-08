@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: Secrets Manager Backends
 //! Multiple backend implementations for secrets management
 
 pub mod env;
@@ -10,6 +9,7 @@ pub use file::FileBackend;
 pub use vault::VaultBackend;
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     /// Test all backends available
     #[test]
@@ -17,7 +17,6 @@ mod tests {
         // EnvBackend - reads from environment variables
         // FileBackend - reads from local files
         // VaultBackend - connects to HashiCorp Vault
-        assert!(true);
     }
 
     /// Test backend selection logic
@@ -28,6 +27,5 @@ mod tests {
         // - EnvBackend for simple config/dev
         // - FileBackend for local testing
         // - VaultBackend for production with dynamic secrets
-        assert!(true);
     }
 }

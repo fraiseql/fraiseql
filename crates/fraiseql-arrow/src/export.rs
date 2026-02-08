@@ -2,6 +2,8 @@
 //!
 //! Supports exporting Arrow RecordBatches to Parquet, CSV, and JSON formats.
 
+use std::str::FromStr;
+
 use arrow::array::RecordBatch;
 
 /// Supported export formats
@@ -15,19 +17,33 @@ pub enum ExportFormat {
     Json,
 }
 
-impl ExportFormat {
-    /// Parse export format from string (case-insensitive).
-    ///
-    /// # Errors
-    ///
-    /// Returns error if format string is not recognized.
-    pub fn from_str(s: &str) -> Result<Self, String> {
+impl FromStr for ExportFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "parquet" => Ok(Self::Parquet),
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
             _ => Err(format!("Unsupported export format: {}", s)),
         }
+    }
+}
+
+impl ExportFormat {
+    /// Parse export format from string (case-insensitive).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if format string is not recognized.
+    ///
+    /// # Note
+    ///
+    /// This method is a convenience wrapper around the `FromStr` trait impl.
+    /// Prefer using `.parse()` for idiomatic Rust code.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        <Self as FromStr>::from_str(s)
     }
 
     /// Get file extension for this format.
@@ -69,10 +85,7 @@ impl BulkExporter {
     /// # Errors
     ///
     /// Returns error if export fails (e.g., Parquet encoding error)
-    pub fn export_batch(
-        batch: &RecordBatch,
-        format: ExportFormat,
-    ) -> Result<Vec<u8>, String> {
+    pub fn export_batch(batch: &RecordBatch, format: ExportFormat) -> Result<Vec<u8>, String> {
         match format {
             ExportFormat::Parquet => Self::export_parquet(batch),
             ExportFormat::Csv => Self::export_csv(batch),
@@ -97,9 +110,7 @@ impl BulkExporter {
                 .write(batch)
                 .map_err(|e| format!("Failed to write Parquet data: {}", e))?;
 
-            writer
-                .close()
-                .map_err(|e| format!("Failed to close Parquet writer: {}", e))?;
+            writer.close().map_err(|e| format!("Failed to close Parquet writer: {}", e))?;
         }
 
         Ok(buf)
@@ -117,9 +128,7 @@ impl BulkExporter {
         {
             let mut writer = Writer::new(&mut buf);
 
-            writer
-                .write(batch)
-                .map_err(|e| format!("Failed to write CSV data: {}", e))?;
+            writer.write(batch).map_err(|e| format!("Failed to write CSV data: {}", e))?;
         }
 
         Ok(buf)
@@ -137,13 +146,9 @@ impl BulkExporter {
         {
             let mut writer = LineDelimitedWriter::new(&mut buf);
 
-            writer
-                .write(batch)
-                .map_err(|e| format!("Failed to write JSON data: {}", e))?;
+            writer.write(batch).map_err(|e| format!("Failed to write JSON data: {}", e))?;
 
-            writer
-                .finish()
-                .map_err(|e| format!("Failed to finish JSON writer: {}", e))?;
+            writer.finish().map_err(|e| format!("Failed to finish JSON writer: {}", e))?;
         }
 
         Ok(buf)
@@ -169,9 +174,9 @@ impl BulkExporter {
 #[derive(Debug, Clone)]
 pub struct BatchStats {
     /// Number of rows
-    pub num_rows: usize,
+    pub num_rows:     usize,
     /// Number of columns
-    pub num_columns: usize,
+    pub num_columns:  usize,
     /// Approximate memory usage in bytes
     pub memory_bytes: usize,
 }
@@ -191,10 +196,14 @@ impl BatchStats {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use arrow::array::{ArrayRef, StringArray};
-    use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
+
+    use arrow::{
+        array::{ArrayRef, StringArray},
+        datatypes::{DataType, Field, Schema},
+    };
+
+    use super::*;
 
     fn create_test_batch() -> RecordBatch {
         let schema = Schema::new(vec![
@@ -202,29 +211,20 @@ mod tests {
             Field::new("age", DataType::Utf8, false),
         ]);
 
-        let names = Arc::new(StringArray::from(vec![
-            "Alice", "Bob", "Charlie",
-        ]));
+        let names = Arc::new(StringArray::from(vec!["Alice", "Bob", "Charlie"]));
         let ages = Arc::new(StringArray::from(vec!["30", "25", "35"]));
 
-        RecordBatch::try_new(Arc::new(schema), vec![names, ages])
-            .expect("should create batch")
+        RecordBatch::try_new(Arc::new(schema), vec![names, ages]).expect("should create batch")
     }
 
     #[test]
     fn test_export_format_from_str() {
-        assert_eq!(
-            ExportFormat::from_str("parquet").unwrap(),
-            ExportFormat::Parquet
-        );
+        assert_eq!(ExportFormat::from_str("parquet").unwrap(), ExportFormat::Parquet);
         assert_eq!(ExportFormat::from_str("csv").unwrap(), ExportFormat::Csv);
         assert_eq!(ExportFormat::from_str("json").unwrap(), ExportFormat::Json);
 
         // Case-insensitive
-        assert_eq!(
-            ExportFormat::from_str("PARQUET").unwrap(),
-            ExportFormat::Parquet
-        );
+        assert_eq!(ExportFormat::from_str("PARQUET").unwrap(), ExportFormat::Parquet);
 
         // Invalid format
         assert!(ExportFormat::from_str("invalid").is_err());
@@ -239,10 +239,7 @@ mod tests {
 
     #[test]
     fn test_export_format_mime_type() {
-        assert_eq!(
-            ExportFormat::Parquet.mime_type(),
-            "application/octet-stream"
-        );
+        assert_eq!(ExportFormat::Parquet.mime_type(), "application/octet-stream");
         assert_eq!(ExportFormat::Csv.mime_type(), "text/csv");
         assert_eq!(ExportFormat::Json.mime_type(), "application/x-ndjson");
     }

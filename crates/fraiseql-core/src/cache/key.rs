@@ -506,6 +506,7 @@ mod tests {
                 has_offset:   false,
             },
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -531,6 +532,7 @@ mod tests {
                 has_offset:   false,
             },
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         };
 
         let views = extract_accessed_views(&query_def);

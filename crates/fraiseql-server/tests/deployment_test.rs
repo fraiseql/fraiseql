@@ -278,9 +278,9 @@ fn test_k8s_manifests_valid_yaml() {
 
     for manifest_path in manifests {
         let content = fs::read_to_string(&manifest_path)
-            .expect(&format!("Failed to read {:?}", manifest_path));
+            .unwrap_or_else(|_| panic!("Failed to read {:?}", manifest_path));
         let parsed: serde_yaml::Value = serde_yaml::from_str(&content)
-            .expect(&format!("{:?} must be valid YAML", manifest_path));
+            .unwrap_or_else(|_| panic!("{:?} must be valid YAML", manifest_path));
         assert!(parsed.get("apiVersion").is_some(), "{:?} must have apiVersion", manifest_path);
         assert!(parsed.get("kind").is_some(), "{:?} must have kind", manifest_path);
         assert!(parsed.get("metadata").is_some(), "{:?} must have metadata", manifest_path);
@@ -356,9 +356,10 @@ fn test_docker_compose_files_valid_yaml() {
     ];
 
     for path in files {
-        let content = fs::read_to_string(&path).expect(&format!("Failed to read {:?}", path));
-        let _: serde_yaml::Value =
-            serde_yaml::from_str(&content).expect(&format!("{:?} must be valid YAML", path));
+        let content =
+            fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to read {:?}", path));
+        let _: serde_yaml::Value = serde_yaml::from_str(&content)
+            .unwrap_or_else(|_| panic!("{:?} must be valid YAML", path));
     }
 }
 

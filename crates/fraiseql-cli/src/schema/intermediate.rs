@@ -315,6 +315,11 @@ pub struct IntermediateQuery {
     /// Deprecation info (from @deprecated directive)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
+
+    /// JSONB column name for extracting data (e.g., "data")
+    /// Used for tv_* (denormalized JSONB tables) pattern
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jsonb_column: Option<String>,
 }
 
 /// Mutation definition in intermediate format

@@ -187,10 +187,21 @@ fn flight_adapter_latency(c: &mut Criterion) {
     group.bench_function("adapter_wrapping_overhead", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
-                .await
-                .expect("Failed to create adapter");
-            let _flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
+            #[cfg(not(feature = "wire-backend"))]
+            {
+                let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+                    .await
+                    .expect("Failed to create adapter");
+                let _flight_adapter =
+                    fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
+            }
+
+            #[cfg(feature = "wire-backend")]
+            {
+                let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(&db_url);
+                let _flight_adapter =
+                    fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
+            }
         });
     });
 
@@ -198,13 +209,26 @@ fn flight_adapter_latency(c: &mut Criterion) {
     group.bench_function("flight_query_5_rows", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
-                .await
-                .expect("Failed to create adapter");
-            let flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
-            flight_adapter
-                .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
-                .await
+            #[cfg(not(feature = "wire-backend"))]
+            {
+                let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+                    .await
+                    .expect("Failed to create adapter");
+                let flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
+                flight_adapter
+                    .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
+                    .await
+            }
+
+            #[cfg(feature = "wire-backend")]
+            {
+                let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(&db_url);
+                let flight_adapter =
+                    fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
+                flight_adapter
+                    .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
+                    .await
+            }
         });
     });
 

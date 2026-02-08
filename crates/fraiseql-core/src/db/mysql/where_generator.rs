@@ -222,6 +222,12 @@ impl MySqlWhereGenerator {
             | WhereOperator::Lca => {
                 Err(FraiseQLError::validation("LTree operators not supported in MySQL".to_string()))
             },
+
+            // Extended operators for rich scalar types
+            WhereOperator::Extended(op) => {
+                use crate::filters::ExtendedOperatorHandler;
+                self.generate_extended_sql(op, &field_path, params)
+            },
         }
     }
 
@@ -391,6 +397,71 @@ impl MySqlWhereGenerator {
 impl Default for MySqlWhereGenerator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
+    fn generate_extended_sql(
+        &self,
+        operator: &crate::filters::ExtendedOperator,
+        field_sql: &str,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        match operator {
+            // Email domain extraction: extract part after @
+            crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
+                params.push(serde_json::Value::String(domain.clone()));
+                // MySQL: SUBSTRING_INDEX(field, '@', -1) = ?
+                Ok(format!("SUBSTRING_INDEX({}, '@', -1) = ?", field_sql))
+            },
+
+            crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
+                let placeholders: Vec<&str> = domains
+                    .iter()
+                    .map(|d| {
+                        params.push(serde_json::Value::String(d.clone()));
+                        "?"
+                    })
+                    .collect();
+                Ok(format!(
+                    "SUBSTRING_INDEX({}, '@', -1) IN ({})",
+                    field_sql,
+                    placeholders.join(", ")
+                ))
+            },
+
+            crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
+                params.push(serde_json::Value::String(suffix.clone()));
+                // MySQL: SUBSTRING_INDEX(field, '@', -1) LIKE CONCAT('%', ?)
+                Ok(format!("SUBSTRING_INDEX({}, '@', -1) LIKE CONCAT('%', ?)", field_sql))
+            },
+
+            crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
+                params.push(serde_json::Value::String(prefix.clone()));
+                // MySQL: SUBSTRING_INDEX(field, '@', 1) LIKE CONCAT(?, '%')
+                Ok(format!("SUBSTRING_INDEX({}, '@', 1) LIKE CONCAT(?, '%')", field_sql))
+            },
+
+            // VIN operations
+            crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
+                params.push(serde_json::Value::String(wmi.clone()));
+                // MySQL: SUBSTRING(field, 1, 3) = ?
+                Ok(format!("SUBSTRING({}, 1, 3) = ?", field_sql))
+            },
+
+            // IBAN operations
+            crate::filters::ExtendedOperator::IbanCountryEq(country) => {
+                params.push(serde_json::Value::String(country.clone()));
+                // MySQL: SUBSTRING(field, 1, 2) = ?
+                Ok(format!("SUBSTRING({}, 1, 2) = ?", field_sql))
+            },
+
+            // Fallback: not implemented
+            _ => Err(FraiseQLError::validation(format!(
+                "Extended operator not yet implemented: {}",
+                operator
+            ))),
+        }
     }
 }
 

@@ -30,9 +30,9 @@ fn test_require_permission_directive_registration() {
     let directive_name = "require_permission";
 
     // Verify the handler can be created (will fail - not implemented yet)
-    let _handler = create_require_permission_handler();
+    let handler = create_require_permission_handler();
 
-    assert_eq!(_handler.name(), directive_name);
+    assert_eq!(handler.name(), directive_name);
 }
 
 /// Test that directive with valid permission argument is accepted

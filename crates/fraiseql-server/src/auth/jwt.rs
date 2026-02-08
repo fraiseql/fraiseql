@@ -34,11 +34,25 @@ impl Claims {
     }
 
     /// Check if token is expired
+    ///
+    /// SECURITY: If system time cannot be determined, returns true (treats token as expired)
+    /// This is a fail-safe approach to prevent accepting tokens when we can't verify expiry
     pub fn is_expired(&self) -> bool {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(duration) => duration.as_secs(),
+            Err(e) => {
+                // CRITICAL: System time failure - treat token as expired (fail-safe)
+                // Log this critical error for operators to investigate
+                eprintln!(
+                    "CRITICAL: System time error in token expiry check: {}. \
+                     This indicates a system clock issue or other critical failure. \
+                     Token will be rejected as a safety measure.",
+                    e
+                );
+                // Return current time as far in the future to ensure token is expired
+                u64::MAX
+            },
+        };
         self.exp <= now
     }
 }
@@ -87,7 +101,7 @@ impl JwtValidator {
         }
 
         self.validation
-            .set_audience(&audiences.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+            .set_audience(&audiences.iter().map(|s| (*s).to_string()).collect::<Vec<_>>());
         self.validation.validate_aud = true;
 
         Ok(self)

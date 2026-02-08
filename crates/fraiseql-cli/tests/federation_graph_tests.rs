@@ -129,7 +129,7 @@ fn test_federation_graph_dot_is_valid_format() {
     assert!(graph.content.starts_with("digraph"));
     assert!(graph.content.contains("[label="));
     assert!(graph.content.contains("->"));
-    assert!(graph.content.contains("}"));
+    assert!(graph.content.contains('}'));
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn test_federation_graph_mermaid_is_valid_format() {
     // - node definitions
     // - arrows/connections
     assert!(graph.content.contains("graph"));
-    assert!(graph.content.contains("["));
+    assert!(graph.content.contains('['));
     assert!(graph.content.contains("-->"));
 }
 

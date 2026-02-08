@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 3: Rotation API Endpoints - GREEN
 //! Credential rotation REST API endpoints for status, manual rotation,
 //! history retrieval, and configuration management.
 
@@ -219,9 +218,8 @@ pub struct RotationConfigResponse {
     pub manual_rotation_cooldown_minutes: u32,
 }
 
-impl RotationConfigResponse {
-    /// Create default config
-    pub fn default() -> Self {
+impl Default for RotationConfigResponse {
+    fn default() -> Self {
         Self {
             auto_refresh_enabled: true,
             refresh_check_interval_hours: 24,
@@ -255,19 +253,19 @@ impl RotationConfigUpdateRequest {
     /// Validate configuration values
     pub fn validate(&self) -> Result<(), String> {
         if let Some(threshold) = self.refresh_threshold_percent {
-            if threshold < 1 || threshold > 99 {
+            if !(1..=99).contains(&threshold) {
                 return Err("Threshold must be 1-99".to_string());
             }
         }
 
         if let Some(ttl) = self.ttl_days {
-            if ttl < 1 || ttl > 365 {
+            if !(1..=365).contains(&ttl) {
                 return Err("TTL must be 1-365 days".to_string());
             }
         }
 
         if let Some(interval) = self.refresh_check_interval_hours {
-            if interval < 1 || interval > 720 {
+            if !(1..=720).contains(&interval) {
                 return Err("Interval must be 1-720 hours".to_string());
             }
         }
@@ -508,9 +506,8 @@ pub struct PresetInfo {
     pub threshold_percent:    u32,
 }
 
-impl CompliancePresetsResponse {
-    /// Create default presets response
-    pub fn default() -> Self {
+impl Default for CompliancePresetsResponse {
+    fn default() -> Self {
         Self {
             presets: vec![
                 PresetInfo {

@@ -180,7 +180,7 @@ fn create_user_context(role: &str) -> SecurityContext {
 }
 
 // ============================================================================
-// RED Phase Tests: Cycle 6 - E2E Field RBAC Pipeline
+// E2E Field RBAC Pipeline Tests
 // ============================================================================
 
 #[test]

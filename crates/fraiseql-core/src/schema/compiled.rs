@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::field_type::{FieldDefinition, FieldType};
+use crate::validation::ValidationRule;
 
 /// Role definition for field-level RBAC.
 ///
@@ -911,6 +912,7 @@ impl EnumValueDefinition {
 ///         InputFieldDefinition::new("active", "Boolean"),
 ///     ],
 ///     description: Some("Filter criteria for users".to_string()),
+///     metadata: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -925,6 +927,11 @@ pub struct InputObjectDefinition {
     /// Description of the input type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+
+    /// Optional metadata for specialized input types (e.g., SQL templates for rich filters).
+    /// Used by the compiler and runtime for code generation and query execution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 impl InputObjectDefinition {
@@ -935,6 +942,7 @@ impl InputObjectDefinition {
             name:        name.into(),
             fields:      Vec::new(),
             description: None,
+            metadata:    None,
         }
     }
 
@@ -956,6 +964,13 @@ impl InputObjectDefinition {
     #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
+        self
+    }
+
+    /// Set metadata (for specialized input types like rich filters).
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
+        self.metadata = Some(metadata);
         self
     }
 
@@ -996,6 +1011,10 @@ pub struct InputFieldDefinition {
     /// Deprecation information (if this field is deprecated).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<super::field_type::DeprecationInfo>,
+
+    /// Validation rules applied to this field (from @validate directives).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub validation_rules: Vec<ValidationRule>,
 }
 
 impl InputFieldDefinition {
@@ -1003,11 +1022,12 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, field_type: impl Into<String>) -> Self {
         Self {
-            name:          name.into(),
-            field_type:    field_type.into(),
-            description:   None,
-            default_value: None,
-            deprecation:   None,
+            name:             name.into(),
+            field_type:       field_type.into(),
+            description:      None,
+            default_value:    None,
+            deprecation:      None,
+            validation_rules: Vec::new(),
         }
     }
 
@@ -1042,6 +1062,26 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn is_required(&self) -> bool {
         self.field_type.ends_with('!') && self.default_value.is_none()
+    }
+
+    /// Add a validation rule to this field.
+    #[must_use]
+    pub fn with_validation_rule(mut self, rule: ValidationRule) -> Self {
+        self.validation_rules.push(rule);
+        self
+    }
+
+    /// Add multiple validation rules to this field.
+    #[must_use]
+    pub fn with_validation_rules(mut self, rules: Vec<ValidationRule>) -> Self {
+        self.validation_rules.extend(rules);
+        self
+    }
+
+    /// Check if this field has validation rules.
+    #[must_use]
+    pub fn has_validation_rules(&self) -> bool {
+        !self.validation_rules.is_empty()
     }
 }
 
@@ -1215,6 +1255,7 @@ impl UnionDefinition {
 ///     description: Some("Get all users".to_string()),
 ///     auto_params: AutoParams::default(),
 ///     deprecation: None,
+///     jsonb_column: "data".to_string(),
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1253,6 +1294,11 @@ pub struct QueryDefinition {
     /// When set, this query is marked as deprecated in the schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<super::field_type::DeprecationInfo>,
+
+    /// JSONB column name (e.g., "data").
+    /// Used to extract data from JSONB columns in query results.
+    #[serde(default = "default_jsonb_column")]
+    pub jsonb_column: String,
 }
 
 impl QueryDefinition {
@@ -1269,6 +1315,7 @@ impl QueryDefinition {
             description:  None,
             auto_params:  AutoParams::default(),
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         }
     }
 

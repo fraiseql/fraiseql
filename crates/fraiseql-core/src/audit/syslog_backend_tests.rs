@@ -5,12 +5,15 @@
 
 #![allow(dead_code)]
 
-use super::*;
-use super::syslog_backend::{SyslogFacility, SyslogSeverity};
+use std::{net::UdpSocket, sync::Arc};
+
 use serde_json::json;
-use std::net::UdpSocket;
-use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use super::{
+    syslog_backend::{SyslogFacility, SyslogSeverity},
+    *,
+};
 
 // ============================================================================
 // Mock Syslog Server
@@ -19,8 +22,8 @@ use tokio::sync::Mutex;
 /// Simple mock syslog server for testing
 #[allow(dead_code)]
 struct MockSyslogServer {
-    socket: UdpSocket,
-    port: u16,
+    socket:   UdpSocket,
+    port:     u16,
     messages: Arc<Mutex<Vec<String>>>,
 }
 
@@ -143,8 +146,7 @@ async fn test_syslog_backend_creation() {
 /// Test backend with facility builder
 #[tokio::test]
 async fn test_syslog_backend_with_facility() {
-    let backend = SyslogAuditBackend::new("127.0.0.1", 514)
-        .with_facility(SyslogFacility::Local3);
+    let backend = SyslogAuditBackend::new("127.0.0.1", 514).with_facility(SyslogFacility::Local3);
 
     // Verify it's cloneable (builder pattern works)
     let _backend2 = backend.clone();
@@ -168,7 +170,8 @@ async fn test_syslog_backend_with_app_name() {
 #[tokio::test]
 async fn test_syslog_rfc3164_format() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     // Access the format method through the backend (note: it's private in implementation)
     // Instead, we'll test by logging and checking the format requirements
@@ -197,18 +200,21 @@ async fn test_syslog_priority_calculation() {
 async fn test_syslog_severity_mapping() {
     // Success -> Informational (6)
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
-    let event_success = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event_success =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
     let result = backend.log_event(event_success).await;
     assert!(result.is_ok());
 
     // Failure -> Warning (4)
     let event_failure =
-        AuditEvent::new_user_action("u2", "bob", "192.168.1.2", "users", "delete", "failure").with_error("Permission denied");
+        AuditEvent::new_user_action("u2", "bob", "192.168.1.2", "users", "delete", "failure")
+            .with_error("Permission denied");
     let result = backend.log_event(event_failure).await;
     assert!(result.is_ok());
 
     // Denied -> Notice (5)
-    let event_denied = AuditEvent::new_user_action("u3", "charlie", "192.168.1.3", "users", "read", "denied");
+    let event_denied =
+        AuditEvent::new_user_action("u3", "charlie", "192.168.1.3", "users", "read", "denied");
     let result = backend.log_event(event_denied).await;
     assert!(result.is_ok());
 }
@@ -230,7 +236,8 @@ async fn test_syslog_timestamp_format() {
 async fn test_syslog_hostname_field() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     let result = backend.log_event(event).await;
     assert!(result.is_ok());
@@ -243,7 +250,8 @@ async fn test_syslog_message_truncation() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
     // Create event with large metadata
-    let mut event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let mut event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
     let large_value = "x".repeat(5000);
     event.metadata = json!({ "large_field": large_value });
 
@@ -260,7 +268,8 @@ async fn test_syslog_message_truncation() {
 async fn test_syslog_log_single_event() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     let result = backend.log_event(event).await;
     assert!(result.is_ok(), "Should log event successfully");
@@ -272,7 +281,8 @@ async fn test_syslog_event_validation() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
     // Create invalid event (failure without error message)
-    let mut event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "failure");
+    let mut event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "failure");
     event.error_message = None;
 
     let result = backend.log_event(event).await;
@@ -304,9 +314,10 @@ async fn test_syslog_log_multiple_events() {
 async fn test_syslog_json_serialization() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success")
-        .with_resource_id("user_123")
-        .with_metadata("user_agent", json!("Mozilla/5.0"));
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success")
+            .with_resource_id("user_123")
+            .with_metadata("user_agent", json!("Mozilla/5.0"));
 
     let result = backend.log_event(event).await;
     assert!(result.is_ok());
@@ -317,13 +328,14 @@ async fn test_syslog_json_serialization() {
 async fn test_syslog_complex_event() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "update", "success")
-        .with_resource_id("user_123")
-        .with_before_state(json!({"status": "inactive"}))
-        .with_after_state(json!({"status": "active"}))
-        .with_tenant_id("tenant_1")
-        .with_metadata("correlation_id", json!("req-789"))
-        .with_metadata("user_agent", json!("Mozilla/5.0"));
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "update", "success")
+            .with_resource_id("user_123")
+            .with_before_state(json!({"status": "inactive"}))
+            .with_after_state(json!({"status": "active"}))
+            .with_tenant_id("tenant_1")
+            .with_metadata("correlation_id", json!("req-789"))
+            .with_metadata("user_agent", json!("Mozilla/5.0"));
 
     let result = backend.log_event(event).await;
     assert!(result.is_ok());
@@ -377,7 +389,8 @@ async fn test_syslog_query_ignores_filters() {
 async fn test_syslog_empty_host_error() {
     let backend = SyslogAuditBackend::new("", 514);
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     let result = backend.log_event(event).await;
     assert!(result.is_err(), "Should error on empty host");
@@ -389,7 +402,8 @@ async fn test_syslog_unreachable_host() {
     // Use an IP address that's unlikely to be reachable
     let backend = SyslogAuditBackend::new("192.0.2.1", 514);
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     // This may or may not error depending on network configuration
     // For now, just verify the log_event completes without panicking
@@ -399,8 +413,8 @@ async fn test_syslog_unreachable_host() {
 /// Test timeout configuration
 #[tokio::test]
 async fn test_syslog_timeout_configuration() {
-    let backend = SyslogAuditBackend::new("127.0.0.1", 514)
-        .with_timeout(std::time::Duration::from_secs(1));
+    let backend =
+        SyslogAuditBackend::new("127.0.0.1", 514).with_timeout(std::time::Duration::from_secs(1));
 
     // Verify backend is properly configured
     let _backend2 = backend.clone();
@@ -453,7 +467,8 @@ async fn test_syslog_severity_values() {
 async fn test_syslog_status_severity_mapping() {
     // Success -> Informational (6)
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
-    let e1 = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let e1 =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
     assert!(backend.log_event(e1).await.is_ok());
 
     // Failure -> Warning (4)
@@ -506,7 +521,8 @@ async fn test_syslog_clone_and_send() {
 
     // Verify it can be sent across task boundary
     let handle = tokio::spawn(async move {
-        let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+        let event =
+            AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
         let _ = backend_clone.log_event(event).await;
     });
 
@@ -523,7 +539,8 @@ async fn test_syslog_implements_trait() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
     // Verify it implements AuditBackend by calling trait methods
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     // These are trait methods
     let result = backend.log_event(event).await;
@@ -540,7 +557,8 @@ async fn test_syslog_e2e_all_statuses() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
 
     // Log success event
-    let e1 = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let e1 =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
     assert!(backend.log_event(e1).await.is_ok());
 
     // Log failure event
@@ -567,7 +585,8 @@ async fn test_syslog_builder_pattern() {
         .with_app_name("fraiseql-prod")
         .with_timeout(std::time::Duration::from_secs(30));
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
 
     let result = backend.log_event(event).await;
     assert!(result.is_ok());

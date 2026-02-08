@@ -8,43 +8,34 @@ use crate::middleware::oidc_auth::AuthUser;
 
 /// Extract org_id from request and add to context
 ///
-/// Attempts to extract org_id from:
-/// 1. JWT claims (if authenticated) via custom claim "org_id"
-/// 2. X-Org-ID header (for service-to-service or explicit tenant routing)
-/// 3. None if not provided (unauthenticated requests)
+/// # Security
+///
+/// Only accepts X-Org-ID header from **authenticated requests**. Unauthenticated
+/// requests cannot set tenant context, preventing tenant isolation bypass attacks.
 ///
 /// # Tenant Routing Priority
-/// 1. **Authenticated with JWT claim "org_id"**: Use JWT claim (most secure)
-/// 2. **X-Org-ID header**: Use header (for service-to-service)
-/// 3. **Neither**: Request is not tenant-scoped (public/unauthenticated)
+/// 1. **Authenticated + X-Org-ID header**: Use header value (validated by auth)
+/// 2. **Authenticated, no header**: No tenant scope (user-level access)
+/// 3. **Unauthenticated**: No tenant scope, X-Org-ID header is ignored
 pub async fn tenant_middleware(mut request: Request<Body>, next: Next) -> Response {
     let mut org_id: Option<String> = None;
 
-    // Try to extract org_id from authenticated user's JWT claims
+    // SECURITY: Only accept X-Org-ID from authenticated requests.
+    // Unauthenticated requests MUST NOT be able to set tenant context.
     if let Some(auth_user) = request.extensions().get::<AuthUser>() {
-        // org_id should be in custom claims (provider-specific)
-        // Common claim names: org_id, organization_id, tenant_id, oid
-        // This will be populated by the OAuth provider during token exchange
-        debug!(
-            user_id = %auth_user.0.user_id,
-            "Authenticated user context available for tenant extraction"
-        );
-
-        // Note: Actual org_id extraction happens at the GraphQL handler level
-        // where we have access to full JWT claims via AuthenticatedUser or request context
-    }
-
-    // Try to extract org_id from X-Org-ID header
-    // This allows service-to-service requests to specify tenant
-    if let Some(header_value) = request.headers().get("X-Org-ID") {
-        if let Ok(org_id_str) = header_value.to_str() {
-            org_id = Some(org_id_str.to_string());
-            debug!(
-                org_id = %org_id_str,
-                source = "header",
-                "Extracted org_id from X-Org-ID header"
-            );
+        if let Some(header_value) = request.headers().get("X-Org-ID") {
+            if let Ok(org_id_str) = header_value.to_str() {
+                org_id = Some(org_id_str.to_string());
+                debug!(
+                    user_id = %auth_user.0.user_id,
+                    org_id = %org_id_str,
+                    source = "header",
+                    "Extracted org_id from X-Org-ID header for authenticated user"
+                );
+            }
         }
+    } else if request.headers().contains_key("X-Org-ID") {
+        tracing::warn!("Rejected X-Org-ID header from unauthenticated request");
     }
 
     // Store org_id in request extensions for downstream handlers

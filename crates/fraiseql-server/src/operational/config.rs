@@ -116,8 +116,8 @@ mod tests {
     fn test_invalid_config() {
         let config = ServerConfig {
             port:                 0,
-            host:                 "".to_string(),
-            database_url:         "".to_string(),
+            host:                 String::new(),
+            database_url:         String::new(),
             log_level:            "invalid".to_string(),
             request_timeout_secs: 0,
         };

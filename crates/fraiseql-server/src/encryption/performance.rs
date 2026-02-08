@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 9: Performance Optimization (GREEN)
 //! Performance optimization for encryption operations including batching,
 //! parallelization, caching, and metrics collection.
 
@@ -284,7 +283,7 @@ impl PerformanceMonitor {
             return 0;
         }
         let mut latencies: Vec<_> = self.metrics.iter().map(|m| m.latency_us).collect();
-        latencies.sort();
+        latencies.sort_unstable();
         let idx = latencies.len() / 2;
         latencies[idx]
     }
@@ -295,7 +294,7 @@ impl PerformanceMonitor {
             return 0;
         }
         let mut latencies: Vec<_> = self.metrics.iter().map(|m| m.latency_us).collect();
-        latencies.sort();
+        latencies.sort_unstable();
         let idx = (latencies.len() as f64 * 0.99) as usize;
         latencies[idx]
     }
@@ -349,7 +348,7 @@ impl PerformanceMonitor {
 
     /// Get all SLO violations
     pub fn check_all_slos(&self) -> Vec<(String, bool)> {
-        self.slos.iter().map(|(op, _)| (op.clone(), self.check_slo(op))).collect()
+        self.slos.keys().map(|op| (op.clone(), self.check_slo(op))).collect()
     }
 
     /// Get metric count

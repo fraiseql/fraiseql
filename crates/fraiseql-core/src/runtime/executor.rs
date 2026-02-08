@@ -17,7 +17,8 @@
 use std::{sync::Arc, time::Duration};
 
 use super::{
-    ExecutionContext, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig, filter_fields,
+    ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
+    filter_fields,
 };
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
@@ -635,7 +636,10 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })?;
 
         // 6. Generate SQL projection hint for requested fields (optimization)
-        let projection_hint = if !plan.projection_fields.is_empty() {
+        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
                 .generate_projection_sql(&plan.projection_fields)
@@ -647,6 +651,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 estimated_reduction_percent: 50,
             })
         } else {
+            // Stream strategy: return full JSONB, no projection hint
             None
         };
 
@@ -703,8 +708,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         })?;
 
         // 3a. Generate SQL projection hint for requested fields (optimization)
+        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
         // This reduces payload by 40-55% by projecting only requested fields at the database level
-        let projection_hint = if !plan.projection_fields.is_empty() {
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
                 .generate_projection_sql(&plan.projection_fields)
@@ -716,6 +724,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 estimated_reduction_percent: 50,
             })
         } else {
+            // Stream strategy: return full JSONB, no projection hint
             None
         };
 
@@ -1214,6 +1223,7 @@ mod tests {
     use super::*;
     use crate::{
         db::{types::JsonbValue, where_clause::WhereClause},
+        runtime::JsonbOptimizationOptions,
         schema::{AutoParams, CompiledSchema, QueryDefinition},
     };
 
@@ -1289,6 +1299,7 @@ mod tests {
             description:  None,
             auto_params:  AutoParams::default(),
             deprecation:  None,
+            jsonb_column: "data".to_string(),
         });
         schema
     }
@@ -1349,6 +1360,7 @@ mod tests {
             field_filter:         None,
             rls_policy:           None,
             query_timeout_ms:     30_000,
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
         };
 
         let executor = Executor::with_config(schema, adapter, config);
@@ -1547,5 +1559,50 @@ mod tests {
         assert_eq!(err.error_code(), "CANCELLED");
         assert!(err.is_retryable());
         assert!(err.is_server_error());
+    }
+
+    // ========================================================================
+
+    // ========================================================================
+
+    #[test]
+    fn test_jsonb_strategy_in_runtime_config() {
+        // Verify that RuntimeConfig includes JSONB optimization options
+        let config = RuntimeConfig {
+            cache_query_plans:    false,
+            max_query_depth:      5,
+            max_query_complexity: 500,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
+        };
+
+        assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
+        assert_eq!(config.jsonb_optimization.auto_threshold_percent, 80);
+    }
+
+    #[test]
+    fn test_jsonb_strategy_custom_config() {
+        // Verify custom JSONB strategy options in config
+        let custom_options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Stream,
+            auto_threshold_percent: 50,
+        };
+
+        let config = RuntimeConfig {
+            cache_query_plans:    false,
+            max_query_depth:      5,
+            max_query_complexity: 500,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   custom_options,
+        };
+
+        assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
+        assert_eq!(config.jsonb_optimization.auto_threshold_percent, 50);
     }
 }

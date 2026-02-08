@@ -18,10 +18,19 @@ fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
     }
 }
 
+const TEST_FLIGHT_SECRET: &str = "flight-test-session-secret-for-integration-tests";
+
+/// Ensure FLIGHT_SESSION_SECRET env var is set for tests.
+fn ensure_flight_secret() {
+    std::env::set_var("FLIGHT_SESSION_SECRET", TEST_FLIGHT_SECRET);
+}
+
 /// Create a session token for a test user (mimics handshake).
 fn create_test_session_token(user: &AuthenticatedUser) -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
+
+    ensure_flight_secret();
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestSessionTokenClaims {
@@ -43,8 +52,7 @@ fn create_test_session_token(user: &AuthenticatedUser) -> String {
         session_type: "flight".to_string(),
     };
 
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+    let secret = TEST_FLIGHT_SECRET.to_string();
 
     let key = EncodingKey::from_secret(secret.as_bytes());
     let header = Header::new(Algorithm::HS256);
@@ -550,7 +558,4 @@ fn test_rls_policy_evaluation_architecture() {
     // - scopes: ["read:order", "write:order"]
     // - tenant_id: "org-456" (for multi-tenancy)
     // - attributes: {"department": "sales"} (custom claims)
-
-    let note = "RLS policy evaluation architecture documented in Phase 2.3";
-    assert!(note.len() > 0);
 }

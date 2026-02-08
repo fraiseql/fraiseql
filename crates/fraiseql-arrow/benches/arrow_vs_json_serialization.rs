@@ -283,7 +283,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
         .bind(format!("user-{:04}", i))
         .bind(format!("user{}@example.com", i))
         .bind(format!("User {}", i))
-        .bind(20 + (i % 60) as i32)
+        .bind(20i32 + (i % 60i32))
         .bind(i % 3 != 0)
         .bind(1000.0 + (i as f64 * 10.0))
         .bind(vec!["tag1".to_string(), "tag2".to_string()])

@@ -2,12 +2,10 @@
 
 use std::{env, path::Path, sync::Arc};
 
-#[cfg(not(feature = "wire-backend"))]
-use fraiseql_core::db::postgres::PostgresAdapter;
-
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
-
+#[cfg(not(feature = "wire-backend"))]
+use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{
     CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
 };
@@ -102,7 +100,9 @@ async fn main() -> anyhow::Result<()> {
     // Rate limiting configuration from environment
     if let Ok(rate_limiting_enabled) = env::var("FRAISEQL_RATE_LIMITING_ENABLED") {
         let enabled = rate_limiting_enabled == "true" || rate_limiting_enabled == "1";
-        if config.rate_limiting.is_none() {
+        if let Some(ref mut rate_limit) = config.rate_limiting {
+            rate_limit.enabled = enabled;
+        } else {
             config.rate_limiting = Some(RateLimitingConfig {
                 enabled,
                 rps_per_ip: 100,
@@ -110,8 +110,6 @@ async fn main() -> anyhow::Result<()> {
                 burst_size: 500,
                 cleanup_interval_secs: 300,
             });
-        } else {
-            config.rate_limiting.as_mut().unwrap().enabled = enabled;
         }
     }
     if let Ok(rps_per_ip) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP") {

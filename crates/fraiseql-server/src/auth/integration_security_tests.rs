@@ -95,9 +95,9 @@ mod integration_security {
         let target_user = "alice@example.com";
 
         // Attack from multiple IPs
-        let attack_ips = vec!["10.0.0.1", "10.0.0.2", "10.0.0.3"];
+        let attack_ips = ["10.0.0.1", "10.0.0.2", "10.0.0.3"];
 
-        for (_idx, ip) in attack_ips.iter().enumerate() {
+        for ip in &attack_ips {
             let result = scenario.auth_start(ip, target_user);
             // All should be allowed in mock
             assert!(result.is_ok(), "auth_start should not panic");
@@ -305,7 +305,7 @@ mod integration_security {
         let valid_token = scenario.get_session_token();
 
         // Measure timing for different types of mismatches
-        let timings = vec![
+        let timings = [
             ("mismatch_start", scenario.measure_rejection_time_mismatch_start(&valid_token)),
             ("mismatch_middle", scenario.measure_rejection_time_mismatch_middle(&valid_token)),
             ("mismatch_end", scenario.measure_rejection_time_mismatch_end(&valid_token)),
@@ -392,7 +392,7 @@ mod integration_security {
 
         // 2. State encrypted and CSRF protected
         let state = scenario.get_encrypted_state();
-        assert!(state.len() > 0);
+        assert!(!state.is_empty());
         assert_ne!(state, scenario.get_original_state());
 
         // 3. Auth callback validates everything

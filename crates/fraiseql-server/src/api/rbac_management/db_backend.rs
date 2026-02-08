@@ -204,18 +204,17 @@ impl RbacDbBackend {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     /// Test backend creation (placeholder)
     #[test]
     fn test_backend_creation() {
         // Backend should be created without errors
-        assert!(true);
     }
 
     /// Test schema initialization placeholder
     #[test]
     fn test_schema_init() {
         // Schema initialization should succeed
-        assert!(true);
     }
 }

@@ -51,7 +51,7 @@ mod integration_performance_tests {
         // Baseline: uncached latency
         let uncached_start = Instant::now();
         for _ in 0..num_iterations {
-            let _result = simulate_complex_query_execution(query_size);
+            simulate_complex_query_execution(query_size);
             // Simulates: DB query + result projection + metric recording
         }
         let uncached_elapsed = uncached_start.elapsed();
@@ -75,7 +75,7 @@ mod integration_performance_tests {
                 c.load(Ordering::Relaxed)
             };
             // If cache miss, execute query
-            let _result = simulate_complex_query_execution(query_size);
+            simulate_complex_query_execution(query_size);
         }
         let cached_elapsed = cached_start.elapsed();
         let cached_avg_latency_us = if cached_elapsed.as_micros() > 0 {
@@ -122,11 +122,11 @@ mod integration_performance_tests {
 
                     let is_hit = {
                         let mut c = cache.lock().unwrap();
-                        if c.contains_key(&query_key) {
-                            true
-                        } else {
-                            c.insert(query_key, 1);
+                        if let std::collections::hash_map::Entry::Vacant(e) = c.entry(query_key) {
+                            e.insert(1);
                             false
+                        } else {
+                            true
                         }
                     };
 
@@ -315,7 +315,7 @@ mod integration_performance_tests {
             let start = Instant::now();
 
             // Simulate request: query (optimized) → cache check → result projection
-            let _result = simulate_optimized_query_with_metrics();
+            simulate_optimized_query_with_metrics();
 
             let elapsed = start.elapsed().as_micros() as u64;
             latencies.push(elapsed);
@@ -349,7 +349,7 @@ mod integration_performance_tests {
         // Unoptimized: fetch full result set
         let unopt_start = Instant::now();
         for _ in 0..num_iterations {
-            let _result = simulate_unoptimized_query(large_result_size);
+            simulate_unoptimized_query(large_result_size);
         }
         let unopt_elapsed = unopt_start.elapsed();
         let unopt_avg_us = if unopt_elapsed.as_micros() > 0 {
@@ -361,7 +361,7 @@ mod integration_performance_tests {
         // Optimized: fetch only requested fields
         let opt_start = Instant::now();
         for _ in 0..num_iterations {
-            let _result = simulate_optimized_query(large_result_size);
+            simulate_optimized_query(large_result_size);
         }
         let opt_elapsed = opt_start.elapsed();
         let opt_avg_us = if opt_elapsed.as_micros() > 0 {
@@ -435,7 +435,7 @@ mod integration_performance_tests {
         ]);
 
         for _iteration in 0..100 {
-            let _result = simulate_query_with_field_mapping(&fields, &alias_map);
+            simulate_query_with_field_mapping(&fields, &alias_map);
         }
 
         // All iterations should complete without errors
@@ -455,14 +455,14 @@ mod integration_performance_tests {
         // Without metrics
         let no_metrics_start = Instant::now();
         for _ in 0..num_requests {
-            let _result = simulate_query_without_metrics();
+            simulate_query_without_metrics();
         }
         let no_metrics_elapsed = no_metrics_start.elapsed();
 
         // With metrics
         let metrics_start = Instant::now();
         for _ in 0..num_requests {
-            let _result = simulate_query_with_metrics();
+            simulate_query_with_metrics();
         }
         let metrics_elapsed = metrics_start.elapsed();
 
@@ -540,7 +540,7 @@ mod integration_performance_tests {
             let start = Instant::now();
 
             // Full integration: cache check → optimized query → metrics → result projection
-            let _result = simulate_full_integration_request();
+            simulate_full_integration_request();
 
             let elapsed = start.elapsed().as_micros() as u64;
             latencies.push(elapsed);
@@ -596,7 +596,7 @@ mod integration_performance_tests {
         }
 
         let total_success = successful_requests.load(Ordering::Relaxed);
-        let expected = (num_requests_per_task * num_tasks) as u64;
+        let expected = num_requests_per_task * num_tasks;
 
         // All requests should succeed despite cache operations
         assert_eq!(
@@ -625,11 +625,11 @@ mod integration_performance_tests {
             // Check cache
             let hit = {
                 let mut c = cache.lock().unwrap();
-                if c.contains_key(&query_key) {
-                    true
-                } else {
-                    c.insert(query_key, 1);
+                if let std::collections::hash_map::Entry::Vacant(e) = c.entry(query_key) {
+                    e.insert(1);
                     false
+                } else {
+                    true
                 }
             };
 
@@ -663,13 +663,13 @@ mod integration_performance_tests {
         for _ in 0..num_iterations {
             // Optimized path: SQL projection + caching + metrics
             let start = Instant::now();
-            let _result = simulate_optimized_full_path();
+            simulate_optimized_full_path();
             let opt_elapsed = start.elapsed().as_micros() as u64;
             opt_latencies.push(opt_elapsed);
 
             // Unoptimized path: full result + caching + metrics
             let start = Instant::now();
-            let _result = simulate_unoptimized_full_path();
+            simulate_unoptimized_full_path();
             let unopt_elapsed = start.elapsed().as_micros() as u64;
             unopt_latencies.push(unopt_elapsed);
         }

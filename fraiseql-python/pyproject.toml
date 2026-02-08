@@ -24,7 +24,7 @@ license = {text = "MIT"}
 name = "fraiseql"
 readme = "README.md"
 requires-python = ">=3.10"
-version = "2.0.0-a1"
+version = "2.0.0-alpha.3"
 
 [project.urls]
 Documentation = "https://fraiseql.readthedocs.io"

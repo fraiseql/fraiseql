@@ -11,7 +11,6 @@ name = "arrow_vs_json_serialization"
 arrow = {version = "53", features = ["csv", "json"]}
 arrow-flight = "53"
 arrow-schema = "53"
-parquet = "53"
 # Async utilities
 async-stream = "0.3"
 async-trait = "0.1"
@@ -22,10 +21,11 @@ clickhouse = {version = "0.14", features = ["inserter"], optional = true}
 # Concurrent data structures
 dashmap = "6.1"
 # FraiseQL core (for Executor and query execution)
-fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.2"}
+fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.3"}
 futures = "0.3"
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "9"
+parquet = "53"
 prost = "0.13"
 # Serialization
 serde = {version = "1", features = ["derive"]}
@@ -57,6 +57,7 @@ uuid = {version = "1", features = ["v4"]}
 [features]
 clickhouse = ["dep:clickhouse"]
 default = []
+wire-backend = ["fraiseql-server/wire-backend"]
 
 [lib]
 name = "fraiseql_arrow"

@@ -29,18 +29,17 @@ pub use database_adapter::FlightDatabaseAdapter;
 pub use executor_wrapper::ExecutorQueryAdapter;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
-
-#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
-use fraiseql_core::db::postgres::PostgresAdapter;
-
 #[cfg(all(feature = "arrow", feature = "wire-backend"))]
 use fraiseql_core::db::FraiseWireAdapter;
+#[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+use fraiseql_core::db::postgres::PostgresAdapter;
 
 /// Create an Arrow Flight service with a real database adapter.
 ///
 /// Supports both PostgreSQL and FraiseQL Wire adapters depending on feature flags:
 /// - Default: PostgreSQL adapter for traditional database connections
-/// - `wire-backend` feature: FraiseQL Wire adapter for streaming JSON queries with low memory overhead
+/// - `wire-backend` feature: FraiseQL Wire adapter for streaming JSON queries with low memory
+///   overhead
 ///
 /// # Arguments
 ///

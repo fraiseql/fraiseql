@@ -43,6 +43,8 @@ mod aggregate_projector;
 pub mod aggregation;
 mod executor;
 pub mod field_filter;
+pub mod input_validator;
+pub mod jsonb_strategy;
 mod matcher;
 mod planner;
 mod projection;
@@ -61,6 +63,7 @@ pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSql, AggregationSqlGenerator};
 pub use executor::Executor;
 pub use field_filter::{can_access_field, filter_fields};
+pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
@@ -106,6 +109,9 @@ pub struct RuntimeConfig {
 
     /// Query timeout in milliseconds (0 = no timeout).
     pub query_timeout_ms: u64,
+
+    /// JSONB field optimization strategy options
+    pub jsonb_optimization: JsonbOptimizationOptions,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -118,6 +124,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
+            .field("jsonb_optimization", &self.jsonb_optimization)
             .finish()
     }
 }
@@ -132,6 +139,7 @@ impl Default for RuntimeConfig {
             field_filter:         None,
             rls_policy:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
         }
     }
 }

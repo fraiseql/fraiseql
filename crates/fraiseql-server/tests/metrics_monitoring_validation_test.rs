@@ -97,11 +97,7 @@ mod metrics_monitoring_tests {
         );
 
         // Verify accuracy (should be last value written)
-        assert_eq!(
-            gauge.load(Ordering::Relaxed),
-            (iterations - 1) as u64,
-            "Gauge should be accurate"
-        );
+        assert_eq!(gauge.load(Ordering::Relaxed), (iterations - 1), "Gauge should be accurate");
     }
 
     #[test]
@@ -226,7 +222,7 @@ mod metrics_monitoring_tests {
         let pool_depth = Arc::new(AtomicU64::new(0));
 
         // Simulate connections being acquired and released
-        let actions = vec!["acquire", "acquire", "acquire", "release", "release"];
+        let actions = ["acquire", "acquire", "acquire", "release", "release"];
 
         for action in actions {
             let current = pool_depth.load(Ordering::Relaxed);
@@ -260,12 +256,12 @@ mod metrics_monitoring_tests {
     #[test]
     fn test_histogram_bucket_distribution() {
         // Verify histogram buckets correctly categorize latencies
-        let slo_buckets = vec![
+        let slo_buckets = [
             0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
         ];
 
         // Simulate latency samples
-        let latencies = vec![
+        let latencies = [
             0.001, 0.002, 0.008, 0.015, 0.040, 0.045, 0.075, 0.080, 0.150, 0.200, 0.400, 0.600,
             1.000, 1.500, 2.000, 3.000, 5.500, 8.000,
         ];
@@ -450,7 +446,7 @@ mod metrics_monitoring_tests {
     #[test]
     fn test_cache_hit_rate_extremes() {
         // Verify hit rate is correct for 0%, 50%, 100% hit rates
-        let test_cases = vec![
+        let test_cases = [
             (100, 0, 1.0), // 100% hit rate
             (50, 50, 0.5), // 50% hit rate
             (0, 100, 0.0), // 0% hit rate
@@ -481,7 +477,7 @@ mod metrics_monitoring_tests {
     #[test]
     fn test_slo_latency_violation_detection() {
         // Verify SLO violations are detected correctly
-        let slo_targets = vec![
+        let slo_targets = [
             ("graphql_p99", 0.5), // 500ms target
             ("webhook_p99", 1.0), // 1000ms target
             ("auth_p99", 0.1),    // 100ms target
@@ -526,27 +522,26 @@ mod metrics_monitoring_tests {
 
         assert!(fully_spent.abs() < 0.001, "Budget should be fully spent");
     }
-}
 
-// ============================================================================
-// Test Helpers - Metric simulation utilities
-// ============================================================================
+    // ========================================================================
+    // Test Helpers - Metric simulation utilities
+    // ========================================================================
 
-/// Simulate latency measurement
-#[allow(dead_code)]
-fn measure_latency(operations: usize) -> f64 {
-    let start = Instant::now();
-    for _ in 0..operations {
-        let _result = 1 + 1; // Minimal work
+    #[allow(dead_code)]
+    fn measure_latency(operations: usize) -> f64 {
+        let start = Instant::now();
+        for _ in 0..operations {
+            let _result = 1 + 1; // Minimal work
+        }
+        start.elapsed().as_secs_f64()
     }
-    start.elapsed().as_secs_f64()
-}
 
-#[allow(dead_code)]
-fn simulate_cache_operation(hit: bool) -> (u64, u64) {
-    if hit {
-        (1, 0) // 1 hit, 0 misses
-    } else {
-        (0, 1) // 0 hits, 1 miss
+    #[allow(dead_code)]
+    fn simulate_cache_operation(hit: bool) -> (u64, u64) {
+        if hit {
+            (1, 0) // 1 hit, 0 misses
+        } else {
+            (0, 1) // 0 hits, 1 miss
+        }
     }
 }

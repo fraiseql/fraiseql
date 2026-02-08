@@ -1,9 +1,9 @@
 // HTTP handlers for authentication endpoints
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -13,6 +13,7 @@ use crate::auth::{
     audit_logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
     provider::OAuthProvider,
+    rate_limiting::RateLimiters,
     session::SessionStore,
     state_store::StateStore,
 };
@@ -26,6 +27,8 @@ pub struct AuthState {
     pub session_store:  Arc<dyn SessionStore>,
     /// CSRF state store backend (in-memory for single-instance, Redis for distributed)
     pub state_store:    Arc<dyn StateStore>,
+    /// Rate limiters for auth endpoints (per-IP based)
+    pub rate_limiters:  Arc<RateLimiters>,
 }
 
 /// Request body for auth/start endpoint
@@ -96,10 +99,25 @@ pub struct AuthLogoutRequest {
 /// POST /auth/start - Initiate OAuth flow
 ///
 /// Returns an authorization URL that the client should redirect the user to.
+///
+/// # Rate Limiting
+///
+/// This endpoint is rate-limited per IP address to prevent brute-force attacks.
+/// The limit is configurable via FRAISEQL_AUTH_START_MAX_REQUESTS and
+/// FRAISEQL_AUTH_START_WINDOW_SECS environment variables.
 pub async fn auth_start(
     State(state): State<AuthState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<AuthStartRequest>,
 ) -> Result<Json<AuthStartResponse>> {
+    // SECURITY: Check rate limiting for auth/start endpoint (per IP)
+    let client_ip = addr.ip().to_string();
+    if state.rate_limiters.auth_start.check(&client_ip).is_err() {
+        return Err(AuthError::RateLimited {
+            retry_after_secs: state.rate_limiters.auth_start.clone_config().window_secs,
+        });
+    }
+
     // Generate random state for CSRF protection using cryptographically secure RNG
     let state_value = generate_secure_state();
 
@@ -127,10 +145,25 @@ pub async fn auth_start(
 /// GET /auth/callback - OAuth provider redirects here
 ///
 /// Exchanges the authorization code for tokens and creates a session.
+///
+/// # Rate Limiting
+///
+/// This endpoint is rate-limited per IP address to prevent brute-force attacks.
+/// The limit is configurable via FRAISEQL_AUTH_CALLBACK_MAX_REQUESTS and
+/// FRAISEQL_AUTH_CALLBACK_WINDOW_SECS environment variables.
 pub async fn auth_callback(
     State(state): State<AuthState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(query): Query<AuthCallbackQuery>,
 ) -> Result<impl IntoResponse> {
+    // SECURITY: Check rate limiting for auth/callback endpoint (per IP)
+    let client_ip = addr.ip().to_string();
+    if state.rate_limiters.auth_callback.check(&client_ip).is_err() {
+        return Err(AuthError::RateLimited {
+            retry_after_secs: state.rate_limiters.auth_callback.clone_config().window_secs,
+        });
+    }
+
     // Check for provider error
     if let Some(error) = query.error {
         let audit_logger = get_audit_logger();
@@ -230,6 +263,12 @@ pub async fn auth_callback(
 /// POST /auth/refresh - Refresh access token
 ///
 /// Uses refresh token to obtain a new access token.
+///
+/// # Rate Limiting
+///
+/// This endpoint is rate-limited per user ID to prevent token refresh attacks.
+/// The limit is configurable via FRAISEQL_AUTH_REFRESH_MAX_REQUESTS and
+/// FRAISEQL_AUTH_REFRESH_WINDOW_SECS environment variables.
 pub async fn auth_refresh(
     State(state): State<AuthState>,
     Json(req): Json<AuthRefreshRequest>,
@@ -238,6 +277,13 @@ pub async fn auth_refresh(
     use crate::auth::session::hash_token;
     let token_hash = hash_token(&req.refresh_token);
     let session = state.session_store.get_session(&token_hash).await?;
+
+    // SECURITY: Check rate limiting for auth/refresh endpoint (per user)
+    if state.rate_limiters.auth_refresh.check(&session.user_id).is_err() {
+        return Err(AuthError::RateLimited {
+            retry_after_secs: state.rate_limiters.auth_refresh.clone_config().window_secs,
+        });
+    }
 
     // Audit log: Refresh token validation success
     let audit_logger = get_audit_logger();
@@ -271,14 +317,50 @@ pub async fn auth_refresh(
 /// POST /auth/logout - Logout and revoke session
 ///
 /// Revokes the refresh token, effectively logging out the user.
+///
+/// # Rate Limiting
+///
+/// This endpoint is rate-limited per user ID to prevent logout token exhaustion attacks.
+/// The limit is configurable via FRAISEQL_AUTH_LOGOUT_MAX_REQUESTS and
+/// FRAISEQL_AUTH_LOGOUT_WINDOW_SECS environment variables.
 pub async fn auth_logout(
     State(state): State<AuthState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(req): Json<AuthLogoutRequest>,
 ) -> Result<StatusCode> {
+    let client_ip = addr.ip().to_string();
+
     if let Some(refresh_token) = req.refresh_token {
         use crate::auth::session::hash_token;
         let token_hash = hash_token(&refresh_token);
+
+        // Get session to extract user ID for per-user rate limiting
+        let session = state.session_store.get_session(&token_hash).await?;
+
+        // SECURITY: Check rate limiting for auth/logout endpoint (per user)
+        if state.rate_limiters.auth_logout.check(&session.user_id).is_err() {
+            return Err(AuthError::RateLimited {
+                retry_after_secs: state.rate_limiters.auth_logout.clone_config().window_secs,
+            });
+        }
+
         state.session_store.revoke_session(&token_hash).await?;
+
+        // Audit log: Session revoked
+        let audit_logger = get_audit_logger();
+        audit_logger.log_success(
+            AuditEventType::SessionTokenRevoked,
+            SecretType::RefreshToken,
+            Some(session.user_id),
+            "revoke",
+        );
+    } else {
+        // No refresh token - use IP-based rate limiting as fallback
+        if state.rate_limiters.auth_logout.check(&client_ip).is_err() {
+            return Err(AuthError::RateLimited {
+                retry_after_secs: state.rate_limiters.auth_logout.clone_config().window_secs,
+            });
+        }
     }
 
     Ok(StatusCode::NO_CONTENT)

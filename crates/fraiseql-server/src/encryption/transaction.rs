@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 7: Transaction Integration (GREEN)
 //! Transaction context management for encrypted operations.
 //!
 //! Tracks transaction metadata, user context, and ensures consistent
@@ -101,7 +100,7 @@ impl TransactionContext {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros(),
-            uuid::Uuid::new_v4().to_string()[..8].to_string()
+            &uuid::Uuid::new_v4().to_string()[..8]
         );
 
         Self {
@@ -284,10 +283,7 @@ impl TransactionManager {
     pub fn savepoint(&mut self, txn_id: &str, name: impl Into<String>) -> Result<(), SecretsError> {
         if let Some(txn) = self.active_transactions.get(txn_id) {
             let savepoint = Savepoint::new(name, txn_id, txn.operation_count());
-            self.savepoints
-                .entry(txn_id.to_string())
-                .or_insert_with(Vec::new)
-                .push(savepoint);
+            self.savepoints.entry(txn_id.to_string()).or_default().push(savepoint);
             Ok(())
         } else {
             Err(SecretsError::ValidationError(format!("Transaction {} not found", txn_id)))

@@ -1,7 +1,11 @@
 //! Query plan selection - chooses optimal execution strategy.
 
 use super::matcher::QueryMatch;
-use crate::{error::Result, graphql::FieldSelection};
+use crate::{
+    error::Result,
+    graphql::FieldSelection,
+    runtime::{JsonbOptimizationOptions, JsonbStrategy},
+};
 
 /// Execution plan for a query.
 #[derive(Debug, Clone)]
@@ -20,19 +24,37 @@ pub struct ExecutionPlan {
 
     /// Fields to project from JSONB result.
     pub projection_fields: Vec<String>,
+
+    /// JSONB handling strategy for this query
+    pub jsonb_strategy: JsonbStrategy,
 }
 
 /// Query planner - selects optimal execution strategy.
 pub struct QueryPlanner {
     /// Enable query plan caching.
     cache_enabled: bool,
+
+    /// JSONB optimization options for strategy selection
+    jsonb_options: JsonbOptimizationOptions,
 }
 
 impl QueryPlanner {
-    /// Create new query planner.
+    /// Create new query planner with default JSONB optimization options.
     #[must_use]
     pub fn new(cache_enabled: bool) -> Self {
-        Self { cache_enabled }
+        Self::with_jsonb_options(cache_enabled, JsonbOptimizationOptions::default())
+    }
+
+    /// Create query planner with custom JSONB optimization options.
+    #[must_use]
+    pub fn with_jsonb_options(
+        cache_enabled: bool,
+        jsonb_options: JsonbOptimizationOptions,
+    ) -> Self {
+        Self {
+            cache_enabled,
+            jsonb_options,
+        }
     }
 
     /// Create an execution plan for a matched query.
@@ -68,13 +90,26 @@ impl QueryPlanner {
         // The first selection is typically the root query field (e.g., "users")
         let projection_fields = self.extract_projection_fields(&query_match.selections);
 
+        // Determine JSONB optimization strategy based on field count
+        let jsonb_strategy = self.choose_jsonb_strategy(&projection_fields);
+
         Ok(ExecutionPlan {
             sql,
             parameters,
             is_cached: false,
             estimated_cost: self.estimate_cost(query_match),
             projection_fields,
+            jsonb_strategy,
         })
+    }
+
+    /// Choose JSONB handling strategy based on number of requested fields.
+    fn choose_jsonb_strategy(&self, projection_fields: &[String]) -> JsonbStrategy {
+        // Estimate total fields - in reality this would come from schema
+        // For now, use a reasonable estimate based on common field counts
+        let estimated_total_fields = projection_fields.len().max(10); // assume at least 10 fields available
+        self.jsonb_options
+            .choose_strategy(projection_fields.len(), estimated_total_fields)
     }
 
     /// Extract field names for projection from parsed selections.
@@ -153,6 +188,7 @@ mod tests {
                 description:  None,
                 auto_params:  AutoParams::default(),
                 deprecation:  None,
+                jsonb_column: "data".to_string(),
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {
@@ -240,5 +276,75 @@ mod tests {
         assert_eq!(plan.projection_fields.len(), 2);
         assert!(!plan.is_cached);
         assert_eq!(plan.estimated_cost, 120);
+        // RED: Plan should now include jsonb_strategy
+        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
+    }
+
+    // ========================================================================
+
+    // ========================================================================
+
+    #[test]
+    fn test_plan_includes_jsonb_strategy() {
+        let planner = QueryPlanner::new(true);
+        let query_match = test_query_match();
+
+        let plan = planner.plan(&query_match).unwrap();
+        // Should include strategy in execution plan
+        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_planner_with_custom_jsonb_options() {
+        let custom_options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Stream,
+            auto_threshold_percent: 50,
+        };
+        let planner = QueryPlanner::with_jsonb_options(true, custom_options);
+        let query_match = test_query_match();
+
+        let plan = planner.plan(&query_match).unwrap();
+        // With custom options, strategy selection changes
+        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Stream);
+    }
+
+    #[test]
+    fn test_choose_jsonb_strategy_below_threshold() {
+        let options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Project,
+            auto_threshold_percent: 80,
+        };
+        let planner = QueryPlanner::with_jsonb_options(true, options);
+
+        // 2 fields requested out of ~10 estimated = 20% < 80% threshold
+        let strategy = planner.choose_jsonb_strategy(&["id".to_string(), "name".to_string()]);
+        assert_eq!(strategy, JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_choose_jsonb_strategy_at_threshold() {
+        let options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Project,
+            auto_threshold_percent: 80,
+        };
+        let planner = QueryPlanner::with_jsonb_options(true, options);
+
+        // 9 fields requested out of ~10 estimated = 90% >= 80% threshold
+        let many_fields = (0..9).map(|i| format!("field_{}", i)).collect::<Vec<_>>();
+        let strategy = planner.choose_jsonb_strategy(&many_fields);
+        assert_eq!(strategy, JsonbStrategy::Stream);
+    }
+
+    #[test]
+    fn test_choose_jsonb_strategy_respects_default() {
+        let options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Stream,
+            auto_threshold_percent: 80,
+        };
+        let planner = QueryPlanner::with_jsonb_options(true, options);
+
+        // Even with few fields, should use Stream as default
+        let strategy = planner.choose_jsonb_strategy(&["id".to_string()]);
+        assert_eq!(strategy, JsonbStrategy::Stream);
     }
 }

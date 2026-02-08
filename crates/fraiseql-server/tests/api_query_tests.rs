@@ -213,8 +213,8 @@ fn test_stats_response_json_serialization() {
 
 /// Helper function to calculate brace depth
 fn count_brace_depth(query: &str) -> usize {
-    let mut max_depth = 0;
-    let mut current_depth = 0;
+    let mut max_depth: usize = 0;
+    let mut current_depth: usize = 0;
 
     for ch in query.chars() {
         match ch {
@@ -223,9 +223,7 @@ fn count_brace_depth(query: &str) -> usize {
                 max_depth = max_depth.max(current_depth);
             },
             '}' => {
-                if current_depth > 0 {
-                    current_depth -= 1;
-                }
+                current_depth = current_depth.saturating_sub(1);
             },
             _ => {},
         }

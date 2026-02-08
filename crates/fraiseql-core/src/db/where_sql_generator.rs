@@ -210,7 +210,8 @@ impl WhereSqlGenerator {
             | WhereOperator::DepthGte
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
-            | WhereOperator::Lca => {
+            | WhereOperator::Lca
+            | WhereOperator::Extended(_) => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
                         "Advanced operators not yet supported in fraiseql-wire: {operator:?}"
@@ -255,8 +256,16 @@ impl WhereSqlGenerator {
                 | WhereOperator::ArrayContainedBy
                 | WhereOperator::ArrayOverlaps,
             ) => {
-                // For array operators, use JSONB representation
-                Ok(format!("'{}'::jsonb", value))
+                // SECURITY: Serialize to JSON string and escape single quotes to prevent
+                // SQL injection. The serde_json serializer handles internal escaping, and
+                // we escape single quotes for the SQL string literal context.
+                let json_str =
+                    serde_json::to_string(value).map_err(|e| FraiseQLError::Internal {
+                        message: format!("Failed to serialize JSON for array operator: {e}"),
+                        source:  None,
+                    })?;
+                let escaped = json_str.replace('\'', "''");
+                Ok(format!("'{}'::jsonb", escaped))
             },
 
             _ => Err(FraiseQLError::Internal {
@@ -518,6 +527,29 @@ mod tests {
         // With escaping, DROP TABLE becomes part of the field string, not executable
         assert!(sql.contains("data->>'"));
         assert!(sql.contains("= 'value'")); // Proper value comparison
+    }
+
+    #[test]
+    fn test_sql_injection_prevention_in_array_operator() {
+        // SECURITY: Ensure JSON injection in array operators is escaped
+        let clause = WhereClause::Field {
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!(["normal", "'; DROP TABLE users; --"]),
+        };
+
+        let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
+        // The JSON serializer will escape the inner quotes, and we escape SQL single quotes.
+        // The result should be a properly escaped JSONB literal, not executable SQL.
+        assert!(sql.contains("::jsonb"), "Must produce valid JSONB cast");
+        // Verify the value is inside a JSON string (double-quoted), not a raw SQL string.
+        // serde_json serializes this as: ["normal","'; DROP TABLE users; --"]
+        // After SQL escaping: [\"normal\",\"''; DROP TABLE users; --\"]
+        // The single quote inside the JSON value is doubled for SQL safety.
+        assert!(
+            sql.contains("''"),
+            "Single quotes inside JSON values must be doubled for SQL safety"
+        );
     }
 
     #[test]

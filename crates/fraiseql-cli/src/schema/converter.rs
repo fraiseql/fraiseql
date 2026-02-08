@@ -13,11 +13,14 @@ use fraiseql_core::schema::{
 };
 use tracing::{info, warn};
 
-use super::intermediate::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
-    IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
-    IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
-    IntermediateSubscription, IntermediateType, IntermediateUnion,
+use super::{
+    intermediate::{
+        IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
+        IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
+        IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
+        IntermediateSubscription, IntermediateType, IntermediateUnion,
+    },
+    rich_filters::{RichFilterConfig, compile_rich_filters},
 };
 
 /// Converts intermediate format to compiled format
@@ -113,7 +116,7 @@ impl SchemaConverter {
             })
             .collect();
 
-        let compiled = CompiledSchema {
+        let mut compiled = CompiledSchema {
             types,
             enums,
             input_types,
@@ -130,6 +133,11 @@ impl SchemaConverter {
             security: intermediate.security, // Security configuration from TOML
             schema_sdl: None,                // Raw GraphQL SDL
         };
+
+        // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
+        let rich_filter_config = RichFilterConfig::default();
+        compile_rich_filters(&mut compiled, &rich_filter_config)
+            .context("Failed to compile rich filter types")?;
 
         // Validate the compiled schema
         Self::validate(&compiled)?;
@@ -190,6 +198,7 @@ impl SchemaConverter {
             name: intermediate.name,
             fields,
             description: intermediate.description,
+            metadata: None,
         }
     }
 
@@ -208,6 +217,7 @@ impl SchemaConverter {
             description: intermediate.description,
             default_value,
             deprecation,
+            validation_rules: Vec::new(),
         }
     }
 
@@ -315,6 +325,7 @@ impl SchemaConverter {
             description: intermediate.description,
             auto_params,
             deprecation,
+            jsonb_column: intermediate.jsonb_column.unwrap_or_else(|| "data".to_string()),
         })
     }
 
@@ -741,6 +752,7 @@ mod tests {
                 sql_source:   Some("v_user".to_string()),
                 auto_params:  None,
                 deprecated:   None,
+                jsonb_column: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -792,6 +804,7 @@ mod tests {
                     order_by:     false,
                 }),
                 deprecated:   None,
+                jsonb_column: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -999,9 +1012,11 @@ mod tests {
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
-        assert_eq!(compiled.input_types.len(), 1);
+        // 1 user-defined input type + 49 rich type WhereInput types
+        assert_eq!(compiled.input_types.len(), 50);
 
-        let filter = &compiled.input_types[0];
+        // Find the UserFilter type (rich types are added at the end)
+        let filter = compiled.input_types.iter().find(|t| t.name == "UserFilter").unwrap();
         assert_eq!(filter.name, "UserFilter");
         assert_eq!(filter.description, Some("User filter input".to_string()));
         assert_eq!(filter.fields.len(), 3);
@@ -1020,6 +1035,189 @@ mod tests {
         // Check deprecated field
         let old_field = filter.find_field("oldField").unwrap();
         assert!(old_field.is_deprecated());
+    }
+
+    #[test]
+    fn test_rich_filter_types_generated() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Should have 49 rich type WhereInput types
+        assert_eq!(compiled.input_types.len(), 49);
+
+        // Check that EmailAddressWhereInput exists
+        let email_where = compiled
+            .input_types
+            .iter()
+            .find(|t| t.name == "EmailAddressWhereInput")
+            .expect("EmailAddressWhereInput should be generated");
+
+        // Should have standard operators (eq, neq, in, nin, contains, isnull) + rich operators
+        assert!(email_where.fields.len() > 6);
+        assert!(email_where.fields.iter().any(|f| f.name == "eq"));
+        assert!(email_where.fields.iter().any(|f| f.name == "neq"));
+        assert!(email_where.fields.iter().any(|f| f.name == "contains"));
+        assert!(email_where.fields.iter().any(|f| f.name == "isnull"));
+
+        // Check that VINWhereInput exists
+        let vin_where = compiled
+            .input_types
+            .iter()
+            .find(|t| t.name == "VINWhereInput")
+            .expect("VINWhereInput should be generated");
+
+        assert!(vin_where.fields.len() > 6);
+        assert!(vin_where.fields.iter().any(|f| f.name == "eq"));
+    }
+
+    #[test]
+    fn test_rich_filter_types_have_sql_templates() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Check that EmailAddressWhereInput has SQL template metadata
+        let email_where = compiled
+            .input_types
+            .iter()
+            .find(|t| t.name == "EmailAddressWhereInput")
+            .expect("EmailAddressWhereInput should be generated");
+
+        // Verify metadata exists and contains operators
+        assert!(
+            email_where.metadata.is_some(),
+            "Metadata should exist for EmailAddressWhereInput"
+        );
+        let metadata = email_where.metadata.as_ref().unwrap();
+        assert!(
+            metadata.get("operators").is_some(),
+            "Operators should be in metadata: {metadata:?}"
+        );
+
+        let operators = metadata["operators"].as_object().unwrap();
+        // Should have templates for email-specific operators
+        assert!(!operators.is_empty(), "Operators map should not be empty: {operators:?}");
+        assert!(
+            operators.contains_key("domainEq"),
+            "Missing domainEq in operators: {:?}",
+            operators.keys().collect::<Vec<_>>()
+        );
+
+        // Verify domainEq has templates for all 4 databases
+        let email_domain_eq = operators["domainEq"].as_object().unwrap();
+        assert!(email_domain_eq.contains_key("postgres"));
+        assert!(email_domain_eq.contains_key("mysql"));
+        assert!(email_domain_eq.contains_key("sqlite"));
+        assert!(email_domain_eq.contains_key("sqlserver"));
+
+        // Verify PostgreSQL template is correct
+        let postgres_template = email_domain_eq["postgres"].as_str().unwrap();
+        assert!(postgres_template.contains("SPLIT_PART"));
+        assert!(postgres_template.contains("$field"));
+    }
+
+    #[test]
+    fn test_lookup_data_embedded_in_schema() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+
+        // Verify lookup data is embedded in schema.security
+        assert!(compiled.security.is_some(), "Security section should exist");
+        let security = compiled.security.as_ref().unwrap();
+        assert!(
+            security.get("lookup_data").is_some(),
+            "Lookup data should be in security section"
+        );
+
+        let lookup_data = security["lookup_data"].as_object().unwrap();
+
+        // Verify all lookup tables are present
+        assert!(lookup_data.contains_key("countries"), "Countries lookup should be present");
+        assert!(lookup_data.contains_key("currencies"), "Currencies lookup should be present");
+        assert!(lookup_data.contains_key("timezones"), "Timezones lookup should be present");
+        assert!(lookup_data.contains_key("languages"), "Languages lookup should be present");
+
+        // Verify countries data
+        let countries = lookup_data["countries"].as_object().unwrap();
+        assert!(countries.contains_key("US"), "US should be in countries");
+        assert!(countries.contains_key("FR"), "France should be in countries");
+        assert!(countries.contains_key("GB"), "UK should be in countries");
+
+        // Verify US data
+        let us = countries["US"].as_object().unwrap();
+        assert_eq!(us["continent"].as_str().unwrap(), "North America");
+        assert!(!us["in_eu"].as_bool().unwrap());
+
+        // Verify France is EU and Schengen
+        let fr = countries["FR"].as_object().unwrap();
+        assert!(fr["in_eu"].as_bool().unwrap());
+        assert!(fr["in_schengen"].as_bool().unwrap());
+
+        // Verify currencies data
+        let currencies = lookup_data["currencies"].as_object().unwrap();
+        assert!(currencies.contains_key("USD"));
+        assert!(currencies.contains_key("EUR"));
+        let usd = currencies["USD"].as_object().unwrap();
+        assert_eq!(usd["symbol"].as_str().unwrap(), "$");
+        assert_eq!(usd["decimal_places"].as_i64().unwrap(), 2);
+
+        // Verify timezones data
+        let timezones = lookup_data["timezones"].as_object().unwrap();
+        assert!(timezones.contains_key("UTC"));
+        assert!(timezones.contains_key("EST"));
+        let est = timezones["EST"].as_object().unwrap();
+        assert_eq!(est["offset_minutes"].as_i64().unwrap(), -300);
+        assert!(est["has_dst"].as_bool().unwrap());
     }
 
     #[test]

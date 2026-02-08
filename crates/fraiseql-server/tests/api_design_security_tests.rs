@@ -65,8 +65,7 @@ fn test_design_audit_handles_null_schema() {
         schema: null_schema,
     };
 
-    // Should not panic
-    assert!(true, "Null schema should be handled without panic");
+    // Successful construction without panic is the test
 }
 
 #[test]
@@ -112,17 +111,15 @@ fn test_design_audit_handles_deeply_nested_json() {
         nested.push_str(r#": {"value"#);
     }
     for _ in 0..1000 {
-        nested.push_str("}");
+        nested.push('}');
     }
     nested.push('}');
 
     let result = serde_json::from_str::<serde_json::Value>(&nested);
 
     // Should either parse or fail gracefully
-    if result.is_ok() {
-        let req = DesignAuditRequest {
-            schema: result.unwrap(),
-        };
+    if let Ok(schema) = result {
+        let req = DesignAuditRequest { schema };
         assert!(req.schema.is_object());
     } else {
         assert!(result.is_err(), "Deep nesting should be handled");
@@ -187,7 +184,7 @@ fn test_design_audit_doesnt_expose_internal_state() {
 
     // Verify that arbitrary fields don't affect schema analysis
     // (Proto pollution is a JavaScript issue, not relevant for Rust JSON)
-    assert!(true, "Arbitrary JSON fields should be safely ignored");
+    // Successful construction without panic is the test
 }
 
 // ============================================================================

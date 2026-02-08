@@ -75,6 +75,7 @@ deadpool-postgres.workspace = true
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+serial_test = "3"
 tempfile = {workspace = true}
 tokio-test = "0.4"
 
@@ -83,10 +84,13 @@ tokio-test = "0.4"
 # Provides arrow_executor module for Arrow RecordBatch conversion.
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
-default = ["postgres"]
+default = ["postgres", "rich-filters"]
 kafka = ["rdkafka"]
 mysql = ["sqlx/mysql"]
 postgres = []
+# Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
+# Includes specialized filter operators for 44 rich scalar types
+rich-filters = []
 sqlite = ["sqlx/sqlite"]
 sqlserver = ["tiberius", "bb8", "bb8-tiberius"]
 # Run with: cargo test --features test-mysql -- --test-threads=1

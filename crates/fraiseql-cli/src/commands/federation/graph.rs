@@ -208,7 +208,7 @@ mod tests {
 
         let dot = to_dot(&graph);
         assert!(dot.contains("digraph"));
-        assert!(dot.contains("a"));
+        assert!(dot.contains('a'));
     }
 
     #[test]
@@ -224,6 +224,6 @@ mod tests {
 
         let mermaid = to_mermaid(&graph);
         assert!(mermaid.contains("graph"));
-        assert!(mermaid.contains("a"));
+        assert!(mermaid.contains('a'));
     }
 }

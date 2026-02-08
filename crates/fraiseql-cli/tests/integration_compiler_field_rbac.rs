@@ -166,7 +166,7 @@ fn test_compiler_merges_role_definitions_from_toml() {
     // RED: Test that role definitions from fraiseql.toml are included in compiled schema
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
-    let _toml_path = create_test_toml_with_roles(&temp_dir);
+    let toml_path = create_test_toml_with_roles(&temp_dir);
 
     // This test verifies that when role definitions are in TOML and field scopes are in
     // schema.json, the compiler can load and merge both. Currently this fails because:
@@ -174,7 +174,7 @@ fn test_compiler_merges_role_definitions_from_toml() {
     // 2. Compiler doesn't merge field scopes with roles
 
     // For now, just verify the TOML can be parsed
-    let toml_content = fs::read_to_string(_toml_path).expect("Failed to read TOML");
+    let toml_content = fs::read_to_string(&toml_path).expect("Failed to read TOML");
     assert!(
         toml_content.contains("role_definitions"),
         "TOML should contain role_definitions"

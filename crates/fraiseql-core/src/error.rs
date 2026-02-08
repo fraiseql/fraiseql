@@ -145,6 +145,17 @@ pub enum FraiseQLError {
         message: String,
     },
 
+    /// Rate limiting error.
+    ///
+    /// Returned when a request is rate limited due to too many errors.
+    #[error("Rate limit exceeded: {message}")]
+    RateLimited {
+        /// Error message.
+        message:          String,
+        /// Number of seconds to wait before retrying.
+        retry_after_secs: u64,
+    },
+
     // ========================================================================
     // Resource Errors
     // ========================================================================
@@ -308,6 +319,7 @@ impl FraiseQLError {
                 | Self::Authentication { .. }
                 | Self::NotFound { .. }
                 | Self::Conflict { .. }
+                | Self::RateLimited { .. }
         )
     }
 
@@ -346,6 +358,7 @@ impl FraiseQLError {
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,
             Self::Conflict { .. } => 409,
+            Self::RateLimited { .. } => 429,
             Self::Timeout { .. } | Self::Cancelled { .. } => 408,
             Self::Database { .. }
             | Self::ConnectionPool { .. }
@@ -368,6 +381,7 @@ impl FraiseQLError {
             Self::Cancelled { .. } => "CANCELLED",
             Self::Authorization { .. } => "FORBIDDEN",
             Self::Authentication { .. } => "UNAUTHENTICATED",
+            Self::RateLimited { .. } => "RATE_LIMITED",
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
@@ -529,6 +543,46 @@ impl<T, E: Into<FraiseQLError>> ErrorContext<T> for std::result::Result<T, E> {
 }
 
 // ============================================================================
+// Validation Field Error (Phase 1, Cycle 1)
+// ============================================================================
+
+/// A validation error for a specific field in an input object.
+///
+/// Used to report validation failures with field-level granularity,
+/// including the field path, validation rule type, and error message.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidationFieldError {
+    /// Path to the field that failed validation (e.g., "user.email", "addresses.0.zipcode").
+    pub field:     String,
+    /// Type of validation rule that failed (e.g., "pattern", "required", "range").
+    pub rule_type: String,
+    /// Human-readable error message explaining what went wrong.
+    pub message:   String,
+}
+
+impl ValidationFieldError {
+    /// Create a new validation field error.
+    #[must_use]
+    pub fn new(
+        field: impl Into<String>,
+        rule_type: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            field:     field.into(),
+            rule_type: rule_type.into(),
+            message:   message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for ValidationFieldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({}): {}", self.field, self.rule_type, self.message)
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -597,5 +651,33 @@ mod tests {
 
         let err = result.unwrap_err();
         assert!(err.to_string().contains("failed to load config"));
+    }
+
+    // Phase 1, Cycle 1: Enhanced Validation Error Types
+    #[test]
+    fn test_validation_field_error_creation() {
+        let field_err = ValidationFieldError::new("user.email", "pattern", "Invalid email format");
+        assert_eq!(field_err.field, "user.email");
+        assert_eq!(field_err.rule_type, "pattern");
+        assert_eq!(field_err.message, "Invalid email format");
+    }
+
+    #[test]
+    fn test_validation_field_error_display() {
+        let field_err =
+            ValidationFieldError::new("address.zipcode", "length", "Zipcode must be 5 digits");
+        let display = format!("{}", field_err);
+        assert_eq!(display, "address.zipcode (length): Zipcode must be 5 digits");
+    }
+
+    #[test]
+    fn test_validation_field_error_serialization() {
+        let field_err = ValidationFieldError::new("user.phone", "pattern", "Invalid phone number");
+        let json = serde_json::to_string(&field_err).expect("serialization failed");
+        let deserialized: ValidationFieldError =
+            serde_json::from_str(&json).expect("deserialization failed");
+        assert_eq!(deserialized.field, "user.phone");
+        assert_eq!(deserialized.rule_type, "pattern");
+        assert_eq!(deserialized.message, "Invalid phone number");
     }
 }

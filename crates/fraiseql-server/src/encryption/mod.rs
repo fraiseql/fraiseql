@@ -48,7 +48,7 @@ pub mod transaction;
 
 const NONCE_SIZE: usize = 12; // 96 bits for GCM
 #[allow(dead_code)]
-const TAG_SIZE: usize = 16; // 128 bits authentication tag (used in Phase 12.3+ cycles)
+const TAG_SIZE: usize = 16; // 128 bits authentication tag
 const KEY_SIZE: usize = 32; // 256 bits for AES-256
 
 /// Cipher for field-level encryption using AES-256-GCM
@@ -89,9 +89,12 @@ impl FieldEncryption {
     /// # Panics
     /// If key length is not exactly 32 bytes
     pub fn new(key: &[u8]) -> Self {
-        if key.len() != KEY_SIZE {
-            panic!("Encryption key must be exactly {} bytes, got {}", KEY_SIZE, key.len());
-        }
+        assert!(
+            key.len() == KEY_SIZE,
+            "Encryption key must be exactly {} bytes, got {}",
+            KEY_SIZE,
+            key.len()
+        );
 
         let cipher = Aes256Gcm::new_from_slice(key).expect("Key size already validated");
 
@@ -277,7 +280,7 @@ mod tests {
     fn test_field_encryption_creation() {
         let key = [0u8; KEY_SIZE];
         let _cipher = FieldEncryption::new(&key);
-        assert!(true); // Just verify creation succeeds
+        // Successful construction is the test
     }
 
     /// Test basic encryption/decryption roundtrip

@@ -3,9 +3,11 @@
 //! Comprehensive tests for PostgreSQL-based audit logging with connection pooling,
 //! JSONB operations, multi-tenancy, and error handling.
 
-use super::*;
 use deadpool_postgres::{Pool, Runtime};
 use serde_json::json;
+use serial_test::serial;
+
+use super::*;
 
 // ============================================================================
 // Helper Functions
@@ -47,7 +49,9 @@ async fn clean_audit_table(pool: &Pool) -> AuditResult<()> {
 
 /// Count rows in audit table
 async fn count_audit_rows(pool: &Pool) -> i64 {
-    let Ok(client) = pool.get().await else { return -1 };
+    let Ok(client) = pool.get().await else {
+        return -1;
+    };
 
     match client.query_one("SELECT COUNT(*) FROM audit_log", &[]).await {
         Ok(row) => row.get(0),
@@ -57,9 +61,13 @@ async fn count_audit_rows(pool: &Pool) -> i64 {
 
 /// Check if event exists in database by ID
 async fn event_exists_in_db(pool: &Pool, event_id: &str) -> bool {
-    let Ok(client) = pool.get().await else { return false };
+    let Ok(client) = pool.get().await else {
+        return false;
+    };
 
-    let Ok(uuid) = uuid::Uuid::parse_str(event_id) else { return false };
+    let Ok(uuid) = uuid::Uuid::parse_str(event_id) else {
+        return false;
+    };
 
     client
         .query_one("SELECT 1 FROM audit_log WHERE id = $1", &[&uuid])
@@ -73,6 +81,7 @@ async fn event_exists_in_db(pool: &Pool, event_id: &str) -> bool {
 
 /// Test PostgreSQL backend creation
 #[tokio::test]
+#[serial]
 async fn test_postgres_backend_creation() {
     let pool = create_test_pool().await;
     let result = PostgresAuditBackend::new(pool).await;
@@ -81,20 +90,16 @@ async fn test_postgres_backend_creation() {
 
 /// Test table creation with proper schema
 #[tokio::test]
+#[serial]
 async fn test_postgres_table_creation() {
     let pool = create_test_pool().await;
-    let _backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let _backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let client = pool.get().await.expect("Failed to get connection");
 
     // Check if table exists
     let result = client
-        .query(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log'",
-            &[],
-        )
+        .query("SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_log'", &[])
         .await;
 
     assert!(result.is_ok(), "audit_log table should exist");
@@ -102,11 +107,10 @@ async fn test_postgres_table_creation() {
 
 /// Test index creation
 #[tokio::test]
+#[serial]
 async fn test_postgres_index_creation() {
     let pool = create_test_pool().await;
-    let _backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let _backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let client = pool.get().await.expect("Failed to get connection");
 
@@ -123,10 +127,7 @@ async fn test_postgres_index_creation() {
 
     for index_name in expected_indexes {
         let result = client
-            .query(
-                "SELECT 1 FROM pg_indexes WHERE indexname = $1",
-                &[&index_name],
-            )
+            .query("SELECT 1 FROM pg_indexes WHERE indexname = $1", &[&index_name])
             .await;
 
         assert!(
@@ -143,13 +144,12 @@ async fn test_postgres_index_creation() {
 
 /// Test logging single event
 #[tokio::test]
+#[serial]
 async fn test_postgres_log_single_event() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let event = AuditEvent::new_user_action(
         "user123",
@@ -164,38 +164,32 @@ async fn test_postgres_log_single_event() {
     let result = backend.log_event(event).await;
 
     assert!(result.is_ok(), "Should log event successfully");
-    assert!(
-        event_exists_in_db(&pool, &event_id).await,
-        "Event should be in database"
-    );
+    assert!(event_exists_in_db(&pool, &event_id).await, "Event should be in database");
 }
 
 /// Test logging event with all optional fields
 #[tokio::test]
+#[serial]
 async fn test_postgres_log_event_with_all_fields() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let event = AuditEvent::new_user_action("user456", "bob", "192.168.1.2", "posts", "update", "success")
-        .with_resource_id("post_123")
-        .with_before_state(json!({"title": "Old Title", "content": "Old content"}))
-        .with_after_state(json!({"title": "New Title", "content": "New content"}))
-        .with_tenant_id("tenant_1")
-        .with_metadata("user_agent", json!("Mozilla/5.0"))
-        .with_metadata("correlation_id", json!("req-789"));
+    let event =
+        AuditEvent::new_user_action("user456", "bob", "192.168.1.2", "posts", "update", "success")
+            .with_resource_id("post_123")
+            .with_before_state(json!({"title": "Old Title", "content": "Old content"}))
+            .with_after_state(json!({"title": "New Title", "content": "New content"}))
+            .with_tenant_id("tenant_1")
+            .with_metadata("user_agent", json!("Mozilla/5.0"))
+            .with_metadata("correlation_id", json!("req-789"));
 
     let event_id = event.id.clone();
     let result = backend.log_event(event).await;
 
     assert!(result.is_ok(), "Should log event with all fields");
-    assert!(
-        event_exists_in_db(&pool, &event_id).await,
-        "Event should exist in database"
-    );
+    assert!(event_exists_in_db(&pool, &event_id).await, "Event should exist in database");
 }
 
 // ============================================================================
@@ -204,13 +198,12 @@ async fn test_postgres_log_event_with_all_fields() {
 
 /// Test querying all events
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_all_events() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     // Log 5 events
     for i in 0..5 {
@@ -234,17 +227,18 @@ async fn test_postgres_query_all_events() {
 
 /// Test querying by event_type
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_event_type() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     // Log events of different types
-    let e1 = AuditEvent::new_user_action("user1", "alice", "192.168.1.1", "users", "create", "success");
-    let e2 = AuditEvent::new_user_action("user2", "bob", "192.168.1.2", "posts", "delete", "success");
+    let e1 =
+        AuditEvent::new_user_action("user1", "alice", "192.168.1.1", "users", "create", "success");
+    let e2 =
+        AuditEvent::new_user_action("user2", "bob", "192.168.1.2", "posts", "delete", "success");
     backend.log_event(e1).await.ok();
     backend.log_event(e2).await.ok();
 
@@ -260,15 +254,15 @@ async fn test_postgres_query_by_event_type() {
 
 /// Test querying by user_id
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_user_id() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let e1 = AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "users", "create", "success");
+    let e1 =
+        AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "users", "create", "success");
     let e2 = AuditEvent::new_user_action("bob", "bob", "192.168.1.2", "posts", "delete", "success");
     backend.log_event(e1).await.ok();
     backend.log_event(e2).await.ok();
@@ -285,13 +279,12 @@ async fn test_postgres_query_by_user_id() {
 
 /// Test querying by resource_type
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_resource_type() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let e1 = AuditEvent::new_user_action("u1", "u1", "192.168.1.1", "users", "create", "success");
     let e2 = AuditEvent::new_user_action("u2", "u2", "192.168.1.2", "posts", "create", "success");
@@ -310,13 +303,12 @@ async fn test_postgres_query_by_resource_type() {
 
 /// Test querying by status
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_status() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let e1 = AuditEvent::new_user_action("u1", "u1", "192.168.1.1", "users", "create", "success");
     let e2 = AuditEvent::new_user_action("u2", "u2", "192.168.1.2", "users", "delete", "failure")
@@ -336,18 +328,23 @@ async fn test_postgres_query_by_status() {
 
 /// Test querying with pagination limit
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_with_limit() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     // Log 10 events
     for i in 0..10 {
-        let event =
-            AuditEvent::new_user_action(format!("u{}", i), format!("u{}", i), "192.168.1.1", "users", "create", "success");
+        let event = AuditEvent::new_user_action(
+            format!("u{}", i),
+            format!("u{}", i),
+            "192.168.1.1",
+            "users",
+            "create",
+            "success",
+        );
         backend.log_event(event).await.ok();
     }
 
@@ -362,17 +359,22 @@ async fn test_postgres_query_with_limit() {
 
 /// Test querying with pagination offset
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_with_offset() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     for i in 0..10 {
-        let event =
-            AuditEvent::new_user_action(format!("u{}", i), format!("u{}", i), "192.168.1.1", "users", "create", "success");
+        let event = AuditEvent::new_user_action(
+            format!("u{}", i),
+            format!("u{}", i),
+            "192.168.1.1",
+            "users",
+            "create",
+            "success",
+        );
         backend.log_event(event).await.ok();
     }
 
@@ -400,18 +402,23 @@ async fn test_postgres_query_with_offset() {
 
 /// Test events are ordered by timestamp DESC
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_ordering() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     // Log events with slight delays to ensure different timestamps
     for i in 0..3 {
-        let event =
-            AuditEvent::new_user_action(format!("u{}", i), format!("u{}", i), "192.168.1.1", "users", "create", "success");
+        let event = AuditEvent::new_user_action(
+            format!("u{}", i),
+            format!("u{}", i),
+            "192.168.1.1",
+            "users",
+            "create",
+            "success",
+        );
         backend.log_event(event).await.ok();
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
@@ -430,13 +437,12 @@ async fn test_postgres_query_ordering() {
 
 /// Test query with no matching results
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_no_results() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let filters = AuditQueryFilters {
         user_id: Some("nonexistent_user".to_string()),
@@ -453,18 +459,18 @@ async fn test_postgres_query_no_results() {
 
 /// Test storing and retrieving complex JSONB metadata
 #[tokio::test]
+#[serial]
 async fn test_postgres_jsonb_metadata() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success")
-        .with_metadata("user_agent", json!("Mozilla/5.0"))
-        .with_metadata("correlation_id", json!("req-123"))
-        .with_metadata("request_path", json!("/api/users"));
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success")
+            .with_metadata("user_agent", json!("Mozilla/5.0"))
+            .with_metadata("correlation_id", json!("req-123"))
+            .with_metadata("request_path", json!("/api/users"));
 
     backend.log_event(event.clone()).await.ok();
 
@@ -481,20 +487,20 @@ async fn test_postgres_jsonb_metadata() {
 
 /// Test storing before_state and after_state
 #[tokio::test]
+#[serial]
 async fn test_postgres_jsonb_state_snapshots() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     let before = json!({"status": "inactive", "count": 0});
     let after = json!({"status": "active", "count": 5});
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "update", "success")
-        .with_before_state(before.clone())
-        .with_after_state(after.clone());
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "update", "success")
+            .with_before_state(before.clone())
+            .with_after_state(after.clone());
 
     backend.log_event(event).await.ok();
 
@@ -512,15 +518,15 @@ async fn test_postgres_jsonb_state_snapshots() {
 
 /// Test null before_state and after_state
 #[tokio::test]
+#[serial]
 async fn test_postgres_null_state_snapshots() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "read", "success");
+    let event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "read", "success");
 
     backend.log_event(event).await.ok();
 
@@ -542,16 +548,16 @@ async fn test_postgres_null_state_snapshots() {
 
 /// Test tenant isolation
 #[tokio::test]
+#[serial]
 async fn test_postgres_tenant_isolation() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let e1 = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success")
-        .with_tenant_id("tenant_1");
+    let e1 =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success")
+            .with_tenant_id("tenant_1");
     let e2 = AuditEvent::new_user_action("u2", "bob", "192.168.1.2", "users", "create", "success")
         .with_tenant_id("tenant_2");
 
@@ -571,17 +577,17 @@ async fn test_postgres_tenant_isolation() {
 
 /// Test null tenant_id handling
 #[tokio::test]
+#[serial]
 async fn test_postgres_null_tenant_id() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let e1 = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
-    let e2 =
-        AuditEvent::new_user_action("u2", "bob", "192.168.1.2", "users", "create", "success").with_tenant_id("tenant_1");
+    let e1 =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let e2 = AuditEvent::new_user_action("u2", "bob", "192.168.1.2", "users", "create", "success")
+        .with_tenant_id("tenant_1");
 
     backend.log_event(e1).await.ok();
     backend.log_event(e2).await.ok();
@@ -603,12 +609,14 @@ async fn test_postgres_null_tenant_id() {
 
 /// Test validation error: invalid status
 #[tokio::test]
+#[serial]
 async fn test_postgres_validation_error_invalid_status() {
     let pool = create_test_pool().await;
     let backend = PostgresAuditBackend::new(pool).await.expect("Failed to create backend");
 
     // Create event with invalid status (must be success/failure/denied)
-    let mut event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let mut event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
     event.status = "invalid_status".to_string();
 
     let result = backend.log_event(event).await;
@@ -617,11 +625,13 @@ async fn test_postgres_validation_error_invalid_status() {
 
 /// Test validation error: failure without error_message
 #[tokio::test]
+#[serial]
 async fn test_postgres_validation_error_failure_no_message() {
     let pool = create_test_pool().await;
     let backend = PostgresAuditBackend::new(pool).await.expect("Failed to create backend");
 
-    let mut event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "failure");
+    let mut event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "failure");
     event.error_message = None;
 
     let result = backend.log_event(event).await;
@@ -630,11 +640,13 @@ async fn test_postgres_validation_error_failure_no_message() {
 
 /// Test UUID parsing error
 #[tokio::test]
+#[serial]
 async fn test_postgres_uuid_parsing_error() {
     let pool = create_test_pool().await;
     let backend = PostgresAuditBackend::new(pool).await.expect("Failed to create backend");
 
-    let mut event = AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
+    let mut event =
+        AuditEvent::new_user_action("u1", "alice", "192.168.1.1", "users", "create", "success");
     event.id = "invalid-uuid".to_string();
 
     let result = backend.log_event(event).await;
@@ -647,13 +659,12 @@ async fn test_postgres_uuid_parsing_error() {
 
 /// Test bulk logging (500 events)
 #[tokio::test]
+#[serial]
 async fn test_postgres_bulk_logging() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
     for i in 0..500 {
         let event = AuditEvent::new_user_action(
@@ -673,11 +684,14 @@ async fn test_postgres_bulk_logging() {
 
 /// Test concurrent writes
 #[tokio::test]
+#[serial]
 async fn test_postgres_concurrent_writes() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = std::sync::Arc::new(PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend"));
+    let backend = std::sync::Arc::new(
+        PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend"),
+    );
 
     let mut handles = vec![];
     for i in 0..20 {
@@ -712,6 +726,7 @@ async fn test_postgres_concurrent_writes() {
 
 /// Test table creation idempotency
 #[tokio::test]
+#[serial]
 async fn test_postgres_table_creation_idempotent() {
     let pool = create_test_pool().await;
 
@@ -720,13 +735,12 @@ async fn test_postgres_table_creation_idempotent() {
         .await
         .expect("First creation should succeed");
 
-    let _backend2 = PostgresAuditBackend::new(pool)
-        .await
-        .expect("Second creation should succeed");
+    let _backend2 = PostgresAuditBackend::new(pool).await.expect("Second creation should succeed");
 }
 
 /// Test index creation idempotency
 #[tokio::test]
+#[serial]
 async fn test_postgres_index_creation_idempotent() {
     let pool = create_test_pool().await;
 
@@ -743,18 +757,19 @@ async fn test_postgres_index_creation_idempotent() {
 
 /// Test query with multiple combined filters
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_multiple_filters() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
-    let backend = PostgresAuditBackend::new(pool.clone())
-        .await
-        .expect("Failed to create backend");
+    let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
-    let e1 = AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "users", "create", "success")
-        .with_tenant_id("tenant_1");
-    let e2 = AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "posts", "create", "success")
-        .with_tenant_id("tenant_1");
+    let e1 =
+        AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "users", "create", "success")
+            .with_tenant_id("tenant_1");
+    let e2 =
+        AuditEvent::new_user_action("alice", "alice", "192.168.1.1", "posts", "create", "success")
+            .with_tenant_id("tenant_1");
     let e3 = AuditEvent::new_user_action("bob", "bob", "192.168.1.2", "users", "create", "success")
         .with_tenant_id("tenant_2");
 

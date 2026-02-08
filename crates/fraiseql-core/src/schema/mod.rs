@@ -39,6 +39,7 @@
 //! ```
 
 mod compiled;
+mod dependency_graph;
 mod field_type;
 mod introspection;
 
@@ -50,13 +51,14 @@ pub use compiled::{
     SqlProjectionHint, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
     TypeDefinition, UnionDefinition,
 };
+pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType,
 };
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,
-    IntrospectionType, IntrospectionTypeRef, TypeKind,
+    IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
 };
 
 #[cfg(test)]

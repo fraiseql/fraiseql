@@ -602,7 +602,7 @@ fn test_federation_issue_content() {
     };
 
     // Verify issue has all required fields
-    assert!(vec!["critical", "warning", "info"].contains(&issue.severity.as_str()));
+    assert!(["critical", "warning", "info"].contains(&issue.severity.as_str()));
     assert!(!issue.message.is_empty());
     assert!(!issue.suggestion.is_empty());
 }
@@ -639,7 +639,7 @@ fn test_minimal_schema_audit() {
     let schema = minimal_schema();
     assert!(schema.get("types").is_some());
     let types = schema["types"].as_array().unwrap();
-    assert!(types.len() > 0);
+    assert!(!types.is_empty());
 }
 
 #[test]

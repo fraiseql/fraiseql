@@ -153,7 +153,7 @@ fn create_context(role: &str) -> SecurityContext {
 }
 
 // ============================================================================
-// RED Phase Tests: Cycle 8 - Error Handling & Edge Cases
+// Error Handling & Edge Cases Tests
 // ============================================================================
 
 #[test]

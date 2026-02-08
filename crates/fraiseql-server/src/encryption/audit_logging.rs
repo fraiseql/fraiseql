@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 5: Audit Logging & Advanced Features (GREEN)
 //! Audit logging for encryption/decryption operations
 //!
 //! Provides comprehensive logging of all field-level encryption operations

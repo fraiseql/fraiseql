@@ -1,4 +1,3 @@
-// Phase 12.5 Cycle 2: Database Schema for Secrets & Keys - GREEN
 //! Database schema definitions for secrets management, encryption keys,
 //! external authentication providers, and OAuth sessions.
 
@@ -346,7 +345,7 @@ impl SchemaMigration {
 
     /// Get migration 0013 for secrets audit schema
     pub fn secrets_audit_migration() -> Self {
-        let sql = r#"
+        let sql = r"
 CREATE TABLE IF NOT EXISTS secret_rotation_audit (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     secret_name VARCHAR(255) NOT NULL,
@@ -413,7 +412,7 @@ CREATE INDEX IF NOT EXISTS idx_oauth_sessions_provider_user
 
 CREATE INDEX IF NOT EXISTS idx_oauth_sessions_expiry
     ON oauth_sessions(token_expiry);
-"#;
+";
 
         Self {
             filename:    "0013_secrets_audit.sql".to_string(),

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use fraiseql_core::{
-    runtime::{RuntimeConfig, can_access_field, filter_fields},
+    runtime::{JsonbOptimizationOptions, RuntimeConfig, can_access_field, filter_fields},
     schema::{
         CompiledSchema, FieldDefinition, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,
     },
@@ -147,7 +147,7 @@ fn create_executor_context(role: &str) -> SecurityContext {
 }
 
 // ============================================================================
-// RED Phase Tests: Cycle 7 - Executor Field RBAC Integration
+// Executor Field RBAC Integration Tests
 // ============================================================================
 
 #[test]
@@ -289,6 +289,7 @@ fn test_executor_runtime_config_with_field_filter() {
         field_filter:         None, // Not yet implemented - will be GREEN phase
         rls_policy:           None,
         query_timeout_ms:     30_000,
+        jsonb_optimization:   JsonbOptimizationOptions::default(),
     };
 
     // WHEN: Config is created

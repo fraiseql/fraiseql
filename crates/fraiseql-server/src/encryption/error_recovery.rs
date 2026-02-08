@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 10: Error Recovery (GREEN)
 //! Error recovery for encryption operations including Vault outages,
 //! key expiry, network partitions, and graceful degradation strategies.
 
@@ -280,7 +279,7 @@ mod atomic {
         }
 
         pub fn store(&self, val: CircuitState) {
-            self.0.store(val.to_usize(), std::sync::atomic::Ordering::Relaxed)
+            self.0.store(val.to_usize(), std::sync::atomic::Ordering::Relaxed);
         }
     }
 

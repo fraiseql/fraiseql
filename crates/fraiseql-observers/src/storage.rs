@@ -21,8 +21,8 @@ pub trait EventStorage: Send + Sync {
     /// * `entity_type` - Filter events for this entity type (e.g., "Order", "User")
     /// * `start_date` - Optional start of date range (inclusive)
     /// * `end_date` - Optional end of date range (inclusive)
-    /// * `limit` - Maximum number of events to return (None = no limit, but implementations
-    ///   may cap this)
+    /// * `limit` - Maximum number of events to return (None = no limit, but implementations may cap
+    ///   this)
     ///
     /// # Returns
     ///
@@ -59,12 +59,11 @@ pub mod postgres {
     use sqlx::PgPool;
     use uuid::Uuid;
 
+    use super::EventStorage;
     use crate::{
         error::{ObserverError, Result},
         event::{EntityEvent, EventKind},
     };
-
-    use super::EventStorage;
 
     /// PostgreSQL-backed event storage using fraiseql_events table.
     ///
@@ -91,7 +90,7 @@ pub mod postgres {
 
     impl PostgresEventStorage {
         /// Create a new PostgreSQL event storage backend.
-        pub fn new(pool: PgPool) -> Self {
+        pub const fn new(pool: PgPool) -> Self {
             Self { pool }
         }
     }
@@ -107,42 +106,45 @@ pub mod postgres {
         ) -> Result<Vec<EntityEvent>> {
             // Build query with optional date filters
             let mut query_str = String::from(
-                r#"
+                r"
                 SELECT id, event_type, entity_type, entity_id, timestamp, data, user_id, tenant_id
                 FROM fraiseql_events
                 WHERE entity_type = $1
-                "#,
+                ",
             );
 
             let mut param_index = 2;
 
             if start_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp >= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp >= ${param_index}"));
                 param_index += 1;
             }
 
             if end_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp <= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 
             // Default sort: most recent first
             query_str.push_str(" ORDER BY timestamp DESC");
 
             if let Some(lim) = limit {
-                query_str.push_str(&format!(" LIMIT {}", lim));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" LIMIT {lim}"));
             }
 
             // Execute query
             #[derive(sqlx::FromRow)]
             struct EventRow {
-                id: Uuid,
-                event_type: String,
+                id:          Uuid,
+                event_type:  String,
                 entity_type: String,
-                entity_id: Uuid,
-                timestamp: DateTime<Utc>,
-                data: serde_json::Value,
-                user_id: Option<String>,
-                tenant_id: Option<String>,
+                entity_id:   Uuid,
+                timestamp:   DateTime<Utc>,
+                data:        serde_json::Value,
+                user_id:     Option<String>,
+                tenant_id:   Option<String>,
             }
 
             let mut query = sqlx::query_as::<_, EventRow>(&query_str);
@@ -157,11 +159,10 @@ pub mod postgres {
                 query = query.bind(end);
             }
 
-            let rows = query.fetch_all(&self.pool).await.map_err(|e| {
-                ObserverError::StorageError {
-                    reason: format!("Failed to query events: {}", e),
-                }
-            })?;
+            let rows =
+                query.fetch_all(&self.pool).await.map_err(|e| ObserverError::StorageError {
+                    reason: format!("Failed to query events: {e}"),
+                })?;
 
             // Convert rows to EntityEvents
             let events = rows
@@ -197,22 +198,24 @@ pub mod postgres {
             start_date: Option<DateTime<Utc>>,
             end_date: Option<DateTime<Utc>>,
         ) -> Result<usize> {
-            let mut query_str =
-                String::from("SELECT COUNT(*) as count FROM fraiseql_events WHERE entity_type = $1");
+            let mut query_str = String::from(
+                "SELECT COUNT(*) as count FROM fraiseql_events WHERE entity_type = $1",
+            );
 
             let mut param_index = 2;
 
             if start_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp >= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp >= ${param_index}"));
                 param_index += 1;
             }
 
             if end_date.is_some() {
-                query_str.push_str(&format!(" AND timestamp <= ${}", param_index));
+                #[allow(clippy::format_push_string)]
+                query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 
-            let mut query =
-                sqlx::query_scalar::<_, i64>(&query_str).bind(entity_type);
+            let mut query = sqlx::query_scalar::<_, i64>(&query_str).bind(entity_type);
 
             if let Some(start) = start_date {
                 query = query.bind(start);
@@ -222,11 +225,10 @@ pub mod postgres {
                 query = query.bind(end);
             }
 
-            let count = query.fetch_one(&self.pool).await.map_err(|e| {
-                ObserverError::StorageError {
-                    reason: format!("Failed to count events: {}", e),
-                }
-            })?;
+            let count =
+                query.fetch_one(&self.pool).await.map_err(|e| ObserverError::StorageError {
+                    reason: format!("Failed to count events: {e}"),
+                })?;
 
             Ok(count as usize)
         }
@@ -236,7 +238,7 @@ pub mod postgres {
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[ignore] // Requires PostgreSQL connection
+    #[ignore = "Requires PostgreSQL connection"]
     async fn test_postgres_query_events() {
         // This test would require a test database setup
         // Skipping for now - integration tests will cover this

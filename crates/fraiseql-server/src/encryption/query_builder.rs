@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 3: Query Builder Integration (REFACTOR)
 //! Query builder integration for transparent field-level encryption/decryption
 //!
 //! Provides automatic encryption on write operations and decryption on read
@@ -98,7 +97,7 @@ impl QueryBuilderIntegration {
     /// - Application-level filtering
     pub fn validate_where_clause(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
-            if self.encrypted_fields.contains(&field.to_string()) {
+            if self.encrypted_fields.contains(*field) {
                 return Err(SecretsError::ValidationError(format!(
                     "Cannot use encrypted field '{}' in WHERE clause. \
                      Encrypted fields are not queryable due to non-deterministic encryption. \
@@ -118,7 +117,7 @@ impl QueryBuilderIntegration {
     /// does not preserve plaintext order.
     pub fn validate_order_by_clause(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
-            if self.encrypted_fields.contains(&field.to_string()) {
+            if self.encrypted_fields.contains(*field) {
                 return Err(SecretsError::ValidationError(format!(
                     "Cannot use encrypted field '{}' in ORDER BY clause. \
                      Encrypted ciphertext does not preserve plaintext sort order. \
@@ -137,7 +136,7 @@ impl QueryBuilderIntegration {
     /// ciphertext is non-deterministic (different every time even for same plaintext).
     pub fn validate_join_condition(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
-            if self.encrypted_fields.contains(&field.to_string()) {
+            if self.encrypted_fields.contains(*field) {
                 return Err(SecretsError::ValidationError(format!(
                     "Cannot use encrypted field '{}' in JOIN condition. \
                      Encrypted fields are not comparable. \
@@ -153,7 +152,7 @@ impl QueryBuilderIntegration {
     /// Validate that encrypted fields are not used in GROUP BY clause
     pub fn validate_group_by_clause(&self, fields: &[&str]) -> Result<(), SecretsError> {
         for field in fields {
-            if self.encrypted_fields.contains(&field.to_string()) {
+            if self.encrypted_fields.contains(*field) {
                 return Err(SecretsError::ValidationError(format!(
                     "Cannot use encrypted field '{}' in GROUP BY clause. \
                      Encrypted ciphertext values are not stable for grouping.",
@@ -196,12 +195,16 @@ impl QueryBuilderIntegration {
 
     /// Check if field is encrypted
     pub fn is_encrypted(&self, field: &str) -> bool {
-        self.encrypted_fields.contains(&field.to_string())
+        self.encrypted_fields.contains(field)
     }
 
     /// Get encrypted fields that appear in field list
     pub fn get_encrypted_fields_in_list(&self, fields: &[&str]) -> Vec<String> {
-        fields.iter().filter(|f| self.is_encrypted(f)).map(|f| f.to_string()).collect()
+        fields
+            .iter()
+            .filter(|f| self.is_encrypted(f))
+            .map(|f| (*f).to_string())
+            .collect()
     }
 
     /// Validate entire query structure

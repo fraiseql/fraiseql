@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 8: Compliance Features (GREEN)
 //! Compliance framework validation and reporting for HIPAA, PCI-DSS, GDPR, SOC 2.
 //!
 //! Provides compliance validators, audit trail enforcement, and compliance reporting
@@ -277,7 +276,7 @@ impl ComplianceValidator {
         let statuses: Vec<_> = enabled.iter().map(|f| self.check_framework_status(*f)).collect();
 
         let all_compliant = statuses.iter().all(|s| *s == ComplianceStatus::Compliant);
-        let any_compliant = statuses.iter().any(|s| *s == ComplianceStatus::Compliant);
+        let any_compliant = statuses.contains(&ComplianceStatus::Compliant);
 
         if all_compliant {
             ComplianceStatus::Compliant

@@ -277,7 +277,10 @@ impl EventTransport for NatsTransport {
                                             "Skipping event due to tenant_id mismatch"
                                         );
                                         if let Err(e) = msg.ack().await {
-                                            tracing::error!("Failed to acknowledge NATS message: {}", e);
+                                            tracing::error!(
+                                                "Failed to acknowledge NATS message: {}",
+                                                e
+                                            );
                                         }
                                         return None;
                                     }

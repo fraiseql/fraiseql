@@ -25,11 +25,13 @@ dirs = "5"
 # Phase 4: Cache support for API endpoints
 fraiseql-arrow = {path = "../fraiseql-arrow", version = "0.1.0"}
 # FraiseQL core
-fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.2", features = ["postgres"]}
-fraiseql-error = {path = "../fraiseql-error", version = "2.0.0-alpha.2"}
+fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.3", features = ["postgres"]}
+fraiseql-error = {path = "../fraiseql-error", version = "2.0.0-alpha.3"}
 # FraiseQL observers (optional)
-fraiseql-observers = {path = "../fraiseql-observers", version = "2.0.0-alpha.2", optional = true}
+fraiseql-observers = {path = "../fraiseql-observers", version = "2.0.0-alpha.3", optional = true}
 futures = "0.3"
+# GraphQL AST parsing for secure query validation
+graphql-parser = {workspace = true}
 hex = "0.4"
 # Webhook signature verification
 hmac = "0.12"
@@ -127,4 +129,4 @@ license = "MIT OR Apache-2.0"
 name = "fraiseql-server"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.75"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"

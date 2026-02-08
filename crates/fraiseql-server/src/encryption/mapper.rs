@@ -1,4 +1,3 @@
-// Phase 12.3 Cycle 4: Mapper Integration (REFACTOR)
 //! Mapper integration for transparent field-level encryption/decryption
 //!
 //! Provides automatic encryption on write operations and decryption on read

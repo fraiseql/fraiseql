@@ -165,6 +165,154 @@ pub struct CommandResult {
     pub exit_code: i32,
 }
 
+// ============================================================================
+// AI Agent Introspection Types
+// ============================================================================
+
+/// Complete CLI help information for AI agents
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CliHelp {
+    /// CLI name
+    pub name: String,
+
+    /// CLI version
+    pub version: String,
+
+    /// CLI description
+    pub about: String,
+
+    /// Global options available on all commands
+    pub global_options: Vec<ArgumentHelp>,
+
+    /// Available subcommands
+    pub subcommands: Vec<CommandHelp>,
+
+    /// Exit codes used by the CLI
+    pub exit_codes: Vec<ExitCodeHelp>,
+}
+
+/// Help information for a single command
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandHelp {
+    /// Command name
+    pub name: String,
+
+    /// Command description
+    pub about: String,
+
+    /// Positional arguments
+    pub arguments: Vec<ArgumentHelp>,
+
+    /// Optional flags and options
+    pub options: Vec<ArgumentHelp>,
+
+    /// Nested subcommands (if any)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub subcommands: Vec<CommandHelp>,
+
+    /// Example invocations
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub examples: Vec<String>,
+}
+
+/// Help information for a single argument or option
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArgumentHelp {
+    /// Argument name
+    pub name: String,
+
+    /// Short flag (e.g., "-v")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub short: Option<String>,
+
+    /// Long flag (e.g., "--verbose")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub long: Option<String>,
+
+    /// Help text
+    pub help: String,
+
+    /// Whether this argument is required
+    pub required: bool,
+
+    /// Default value if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
+
+    /// Whether this option takes a value
+    pub takes_value: bool,
+
+    /// Possible values (for enums/choices)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub possible_values: Vec<String>,
+}
+
+/// Exit code documentation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExitCodeHelp {
+    /// Numeric exit code
+    pub code: i32,
+
+    /// Name/identifier for the code
+    pub name: String,
+
+    /// Description of when this code is returned
+    pub description: String,
+}
+
+/// Output schema for a command (JSON Schema format)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputSchema {
+    /// Command this schema applies to
+    pub command: String,
+
+    /// Schema version
+    pub schema_version: String,
+
+    /// Output format (always "json")
+    pub format: String,
+
+    /// Schema for successful response
+    pub success: serde_json::Value,
+
+    /// Schema for error response
+    pub error: serde_json::Value,
+}
+
+/// Summary of a command for listing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandSummary {
+    /// Command name
+    pub name: String,
+
+    /// Brief description
+    pub description: String,
+
+    /// Whether this command has subcommands
+    pub has_subcommands: bool,
+}
+
+/// Get the standard exit codes used by the CLI
+pub fn get_exit_codes() -> Vec<ExitCodeHelp> {
+    vec![
+        ExitCodeHelp {
+            code:        0,
+            name:        "success".to_string(),
+            description: "Command completed successfully".to_string(),
+        },
+        ExitCodeHelp {
+            code:        1,
+            name:        "error".to_string(),
+            description: "Command failed with an error".to_string(),
+        },
+        ExitCodeHelp {
+            code:        2,
+            name:        "validation_failed".to_string(),
+            description: "Validation failed (schema or input invalid)".to_string(),
+        },
+    ]
+}
+
 impl CommandResult {
     /// Create a successful command result with data
     pub fn success(command: &str, data: Value) -> Self {

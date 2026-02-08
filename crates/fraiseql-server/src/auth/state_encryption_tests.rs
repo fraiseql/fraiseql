@@ -1,6 +1,7 @@
 // State encryption integration tests
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod state_encryption_tests {
     use crate::auth::state_encryption::{StateEncryption, generate_state_encryption_key};
 
@@ -23,7 +24,7 @@ mod state_encryption_tests {
         let state = "secret_state_value";
 
         let encrypted = encryption.encrypt(state).expect("Encryption failed");
-        assert!(encrypted.ciphertext.len() > 0);
+        assert!(!encrypted.ciphertext.is_empty());
     }
 
     #[test]
@@ -140,7 +141,7 @@ mod state_encryption_tests {
         let encrypted = encryption.encrypt(state).expect("Encryption failed");
         let bytes = encrypted.to_bytes();
 
-        assert!(bytes.len() > 0, "Serialized state should not be empty");
+        assert!(!bytes.is_empty(), "Serialized state should not be empty");
 
         // Deserialize and decrypt
         let encrypted_deserialized = encrypted.to_bytes();

@@ -361,6 +361,12 @@ impl PostgresWhereGenerator {
             WhereOperator::DepthLt => self.generate_ltree_depth(&field_path, "<", value, params),
             WhereOperator::DepthLte => self.generate_ltree_depth(&field_path, "<=", value, params),
             WhereOperator::Lca => self.generate_ltree_lca(&field_path, value, params),
+
+            // Extended operators for rich scalar types
+            WhereOperator::Extended(op) => {
+                use crate::filters::ExtendedOperatorHandler;
+                self.generate_extended_sql(op, &field_path, params)
+            },
         }
     }
 
@@ -669,6 +675,72 @@ impl PostgresWhereGenerator {
 impl Default for PostgresWhereGenerator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl crate::filters::ExtendedOperatorHandler for PostgresWhereGenerator {
+    fn generate_extended_sql(
+        &self,
+        operator: &crate::filters::ExtendedOperator,
+        field_sql: &str,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        match operator {
+            // Email domain extraction: extract part after @
+            crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
+                params.push(serde_json::Value::String(domain.clone()));
+                let param_idx = params.len();
+                // PostgreSQL: SPLIT_PART(field, '@', 2) = $param_idx
+                Ok(format!("SPLIT_PART({}, '@', 2) = ${}", field_sql, param_idx))
+            },
+
+            crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
+                let placeholders: Vec<String> = domains
+                    .iter()
+                    .map(|d| {
+                        params.push(serde_json::Value::String(d.clone()));
+                        format!("${}", params.len())
+                    })
+                    .collect();
+                Ok(format!("SPLIT_PART({}, '@', 2) IN ({})", field_sql, placeholders.join(", ")))
+            },
+
+            crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
+                params.push(serde_json::Value::String(suffix.clone()));
+                let param_idx = params.len();
+                // PostgreSQL: SPLIT_PART(field, '@', 2) LIKE '%' || $param
+                Ok(format!("SPLIT_PART({}, '@', 2) LIKE '%' || ${}", field_sql, param_idx))
+            },
+
+            crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
+                params.push(serde_json::Value::String(prefix.clone()));
+                let param_idx = params.len();
+                // PostgreSQL: SPLIT_PART(field, '@', 1) LIKE $param || '%'
+                Ok(format!("SPLIT_PART({}, '@', 1) LIKE ${} || '%'", field_sql, param_idx))
+            },
+
+            // VIN operations
+            crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
+                params.push(serde_json::Value::String(wmi.clone()));
+                let param_idx = params.len();
+                // PostgreSQL: SUBSTRING(field FROM 1 FOR 3) = $param
+                Ok(format!("SUBSTRING({} FROM 1 FOR 3) = ${}", field_sql, param_idx))
+            },
+
+            // IBAN operations
+            crate::filters::ExtendedOperator::IbanCountryEq(country) => {
+                params.push(serde_json::Value::String(country.clone()));
+                let param_idx = params.len();
+                // PostgreSQL: SUBSTRING(field FROM 1 FOR 2) = $param
+                Ok(format!("SUBSTRING({} FROM 1 FOR 2) = ${}", field_sql, param_idx))
+            },
+
+            // Fallback: not implemented
+            _ => Err(FraiseQLError::validation(format!(
+                "Extended operator not yet implemented: {}",
+                operator
+            ))),
+        }
     }
 }
 

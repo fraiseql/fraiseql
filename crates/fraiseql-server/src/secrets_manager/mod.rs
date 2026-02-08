@@ -1,4 +1,3 @@
-// Phase 12.1 Cycle 1: Secrets Manager Interface
 //! Abstraction layer for multiple secrets backends (Vault, Environment Variables, File)
 //!
 //! This module provides a unified interface to manage secrets from different sources:
@@ -78,13 +77,13 @@ impl fmt::Display for SecretsError {
 impl std::error::Error for SecretsError {}
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     /// Test SecretsManager initialization
     #[test]
     fn test_secrets_manager_creation() {
         // SecretsManager should be created with a backend
         // No operations performed during creation
-        assert!(true);
     }
 
     /// Test get_secret returns value from backend
@@ -94,7 +93,6 @@ mod tests {
         // Should delegate to backend.get_secret("key")
         // Should return the secret value as String
         // Should return error if backend returns error
-        assert!(true);
     }
 
     /// Test get_secret_with_expiry returns both value and expiration
@@ -104,7 +102,6 @@ mod tests {
         // Should return tuple of (secret_value, expiry_datetime)
         // Expiry should be in future (DateTime<Utc> > now)
         // Should work for dynamic credentials from Vault
-        assert!(true);
     }
 
     /// Test rotate_secret calls backend and returns new value
@@ -114,7 +111,6 @@ mod tests {
         // Should delegate to backend.rotate_secret()
         // Should return new secret value
         // Should invalidate any caches
-        assert!(true);
     }
 
     /// Test secrets not logged in debug output
@@ -124,7 +120,6 @@ mod tests {
         // Debug impl should output Secret(***) not actual value
         // Display impl should output *** not actual value
         // Prevents accidental secret exposure in logs
-        assert!(true);
     }
 
     /// Test secret can be accessed via expose() when needed
@@ -134,7 +129,6 @@ mod tests {
         // expose() returns &str reference to actual value
         // Should only be called when actually using the secret
         // Not called during logging/debugging
-        assert!(true);
     }
 
     /// Test error types are comprehensive
@@ -147,7 +141,6 @@ mod tests {
         // - EncryptionError(String) - encryption/decryption failed
         // - RotationError(String) - rotation operation failed
         // - ExpiredCredential - credential TTL expired
-        assert!(true);
     }
 
     /// Test backend trait is properly generic
@@ -159,7 +152,6 @@ mod tests {
         // - rotate_secret(name: &str) -> Result<String>
         // - Send + Sync for thread safety
         // - Async operations with tokio
-        assert!(true);
     }
 
     /// Test backend implementations exist
@@ -170,7 +162,6 @@ mod tests {
         // - FileBackend (reads from files)
         // - VaultBackend (connects to HashiCorp Vault)
         // Each should implement SecretsBackend trait
-        assert!(true);
     }
 
     /// Test manager with env backend
@@ -179,7 +170,6 @@ mod tests {
         // std::env::set_var("TEST_SECRET", "secret_value")
         // manager.get_secret("TEST_SECRET") should return "secret_value"
         // Should work without external services
-        assert!(true);
     }
 
     /// Test multiple secret types
@@ -191,6 +181,5 @@ mod tests {
         // - JWT secrets (PEM format)
         // - Encryption keys (binary data)
         // - OAuth tokens (with refresh tokens)
-        assert!(true);
     }
 }

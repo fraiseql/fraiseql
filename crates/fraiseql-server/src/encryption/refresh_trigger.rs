@@ -1,4 +1,3 @@
-// Phase 12.4 Cycle 2: Automatic Refresh Triggers - GREEN
 //! Automatic key refresh triggering with background job coordination,
 //! TTL monitoring, and non-blocking refresh during operations.
 
@@ -154,7 +153,7 @@ impl RefreshTrigger {
             (self.config.quiet_hours_start, self.config.quiet_hours_end)
         {
             let now = Utc::now();
-            let hour = now.hour() as u32;
+            let hour = now.hour();
 
             if start < end {
                 // Normal case: 2am-4am
@@ -427,11 +426,11 @@ impl RefreshManager {
 
     /// Manually trigger refresh (bypass TTL check)
     pub fn trigger_manual(&self) -> Result<(), String> {
-        if !self.trigger.is_pending() {
+        if self.trigger.is_pending() {
+            Err("Refresh already pending".to_string())
+        } else {
             self.trigger.mark_pending();
             Ok(())
-        } else {
-            Err("Refresh already pending".to_string())
         }
     }
 
