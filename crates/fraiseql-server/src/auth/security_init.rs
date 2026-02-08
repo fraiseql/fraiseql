@@ -9,11 +9,24 @@ use tracing::{debug, info, warn};
 use super::security_config::SecurityConfigFromSchema;
 use crate::auth::{AuthError, error::Result};
 
+/// Maximum size for schema JSON to prevent DOS attacks
+/// 10 MB should be more than sufficient for any realistic schema
+const MAX_SCHEMA_JSON_SIZE: usize = 10 * 1024 * 1024; // 10 MB
+
+/// Maximum size for security configuration section
+/// Security config should be < 100 KB in realistic deployments
+const MAX_SECURITY_CONFIG_SIZE: usize = 100 * 1024; // 100 KB
+
 /// Initialize security configuration from compiled schema JSON string
 ///
 /// Loads security settings from the schema.compiled.json and applies
 /// environment variable overrides. This function should be called during
 /// server startup after loading the compiled schema.
+///
+/// # SECURITY
+/// - Validates schema JSON size to prevent DOS attacks
+/// - Rejects JSON > 10 MB
+/// - Rejects security config section > 100 KB
 ///
 /// # Arguments
 ///
@@ -26,6 +39,7 @@ use crate::auth::{AuthError, error::Result};
 /// # Errors
 ///
 /// Returns error if:
+/// - JSON size exceeds limits
 /// - JSON parsing fails
 /// - Security configuration section is invalid or missing required fields
 ///
@@ -38,6 +52,21 @@ use crate::auth::{AuthError, error::Result};
 /// ```
 pub fn init_security_config(schema_json_str: &str) -> Result<SecurityConfigFromSchema> {
     debug!("Parsing schema JSON for security configuration");
+
+    // SECURITY: Check JSON size to prevent DOS from oversized payloads
+    if schema_json_str.len() > MAX_SCHEMA_JSON_SIZE {
+        warn!(
+            "Schema JSON exceeds maximum size: {} > {} bytes",
+            schema_json_str.len(),
+            MAX_SCHEMA_JSON_SIZE
+        );
+        return Err(AuthError::ConfigError {
+            message: format!(
+                "Schema JSON exceeds maximum size of {} bytes",
+                MAX_SCHEMA_JSON_SIZE
+            ),
+        });
+    }
 
     // Parse JSON string to JsonValue
     let schema_json: JsonValue = serde_json::from_str(schema_json_str).map_err(|e| {
@@ -53,6 +82,10 @@ pub fn init_security_config(schema_json_str: &str) -> Result<SecurityConfigFromS
 /// Initialize security configuration from compiled schema JSON value
 ///
 /// Internal function that works with parsed JsonValue. Use `init_security_config` for strings.
+///
+/// # SECURITY
+/// - Validates security configuration size to prevent DOS attacks
+/// - Rejects security config > 100 KB
 ///
 /// # Arguments
 ///
@@ -75,6 +108,22 @@ fn init_security_config_from_value(schema_json: &JsonValue) -> Result<SecurityCo
             message: "Missing security configuration in schema".to_string(),
         }
     })?;
+
+    // SECURITY: Check security config size to prevent DOS
+    let security_json_str = security_value.to_string();
+    if security_json_str.len() > MAX_SECURITY_CONFIG_SIZE {
+        warn!(
+            "Security configuration exceeds maximum size: {} > {} bytes",
+            security_json_str.len(),
+            MAX_SECURITY_CONFIG_SIZE
+        );
+        return Err(AuthError::ConfigError {
+            message: format!(
+                "Security configuration exceeds maximum size of {} bytes",
+                MAX_SECURITY_CONFIG_SIZE
+            ),
+        });
+    }
 
     // Parse security configuration from schema
     let mut config = SecurityConfigFromSchema::from_json(security_value).map_err(|e| {
