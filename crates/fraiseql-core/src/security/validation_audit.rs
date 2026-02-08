@@ -200,7 +200,7 @@ mod tests {
     fn test_config_default() {
         let config = ValidationAuditLoggerConfig::default();
         assert!(config.enabled);
-        assert!(!config.capture_successful_validations);
+        assert!(config.capture_successful_validations);
         assert!(config.capture_query_strings);
     }
 
