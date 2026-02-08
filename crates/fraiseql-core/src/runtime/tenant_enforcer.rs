@@ -276,10 +276,7 @@ mod tests {
         // The malicious single quote must be escaped (doubled) so it stays inside the string
         // Expected: ... WHERE org_id = '''; DROP TABLE users; --'
         // The '' keeps the quote inside the SQL string literal
-        assert!(
-            enforced.contains("''"),
-            "Single quotes in org_id must be escaped (doubled)"
-        );
+        assert!(enforced.contains("''"), "Single quotes in org_id must be escaped (doubled)");
         // The org_id value should be wrapped in a SQL string literal, not terminated early
         assert!(
             enforced.contains("WHERE org_id = '''"),

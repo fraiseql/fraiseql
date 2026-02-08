@@ -129,10 +129,7 @@ impl CompileTimeValidator {
         let Some(right_type) = self.context.fields.get(&right_key) else {
             errors.push(CompileTimeError {
                 field:      right_field.to_string(),
-                message:    format!(
-                    "Field '{}' not found in type '{}'",
-                    right_field, type_name
-                ),
+                message:    format!("Field '{}' not found in type '{}'", right_field, type_name),
                 suggestion: Some(self.suggest_field(type_name, right_field)),
             });
             return CompileTimeValidationResult {

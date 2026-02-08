@@ -259,12 +259,11 @@ impl WhereSqlGenerator {
                 // SECURITY: Serialize to JSON string and escape single quotes to prevent
                 // SQL injection. The serde_json serializer handles internal escaping, and
                 // we escape single quotes for the SQL string literal context.
-                let json_str = serde_json::to_string(value).map_err(|e| {
-                    FraiseQLError::Internal {
+                let json_str =
+                    serde_json::to_string(value).map_err(|e| FraiseQLError::Internal {
                         message: format!("Failed to serialize JSON for array operator: {e}"),
                         source:  None,
-                    }
-                })?;
+                    })?;
                 let escaped = json_str.replace('\'', "''");
                 Ok(format!("'{}'::jsonb", escaped))
             },

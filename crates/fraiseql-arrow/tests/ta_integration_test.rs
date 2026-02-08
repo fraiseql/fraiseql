@@ -49,6 +49,8 @@ fn create_test_session_token() -> String {
 ///
 /// Returns the server address (e.g., "http://127.0.0.1:12345").
 async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
+    // Ensure FLIGHT_SESSION_SECRET is available for token validation
+    std::env::set_var("FLIGHT_SESSION_SECRET", "flight-test-session-secret-for-integration-tests");
     let service = FraiseQLFlightService::new();
 
     // Use port 0 to get a random available port

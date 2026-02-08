@@ -2977,6 +2977,14 @@ impl QueryExecutor for DummyExecutor {
 mod tests {
     use super::*;
 
+    /// Ensure FLIGHT_SESSION_SECRET is set for all tests in this module.
+    /// Returns the secret value for use in token creation.
+    fn ensure_flight_secret() -> String {
+        let secret = "test-flight-session-secret-for-unit-tests-only";
+        std::env::set_var("FLIGHT_SESSION_SECRET", secret);
+        secret.to_string()
+    }
+
     /// Tests service initialization without database adapter
     #[test]
     fn test_new_creates_service_without_db_adapter() {
@@ -3226,6 +3234,8 @@ mod tests {
         use arrow_flight::flight_service_server::FlightService;
         use tonic::Request;
 
+        let secret = ensure_flight_secret();
+
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "HealthCheck".to_string(),
@@ -3244,9 +3254,6 @@ mod tests {
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
-
-        let secret = std::env::var("FLIGHT_SESSION_SECRET")
-            .unwrap_or_else(|_| "test-session-secret-do-not-use-in-production-12345".to_string());
 
         let key = EncodingKey::from_secret(secret.as_bytes());
         let header = Header::new(Algorithm::HS256);
@@ -3281,6 +3288,8 @@ mod tests {
         use arrow_flight::flight_service_server::FlightService;
         use tonic::Request;
 
+        let secret = ensure_flight_secret();
+
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "UnknownAction".to_string(),
@@ -3298,9 +3307,6 @@ mod tests {
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
-
-        let secret = std::env::var("FLIGHT_SESSION_SECRET")
-            .unwrap_or_else(|_| "test-session-secret-do-not-use-in-production-67890".to_string());
 
         let key = EncodingKey::from_secret(secret.as_bytes());
         let header = Header::new(Algorithm::HS256);

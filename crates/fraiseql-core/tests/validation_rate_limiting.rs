@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn test_validation_rate_limiting_window_expiry() {
         let config = ValidationRateLimitingConfig {
-            validation_errors_window_secs:  1,
+            validation_errors_window_secs: 1,
             validation_errors_max_requests: 3,
             ..ValidationRateLimitingConfig::default()
         };
@@ -224,7 +224,7 @@ mod tests {
     fn test_validation_rate_limiting_custom_config() {
         let config = ValidationRateLimitingConfig {
             validation_errors_max_requests: 5,
-            validation_errors_window_secs:  60,
+            validation_errors_window_secs: 60,
             ..ValidationRateLimitingConfig::default()
         };
 

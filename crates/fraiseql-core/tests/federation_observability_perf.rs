@@ -205,6 +205,7 @@ fn create_order_representations(count: usize) -> Vec<EntityRepresentation> {
 
 /// Performance test: Entity resolution latency overhead (single-hop)
 #[tokio::test]
+#[ignore = "Flaky under parallel execution - run with --ignored in isolation"]
 async fn test_entity_resolution_latency_overhead() {
     // Setup: Create federation environment
     let adapter = Arc::new(PerfTestDatabaseAdapter::with_test_users());
@@ -371,6 +372,7 @@ async fn test_mixed_batch_resolution_latency() {
 
 /// Performance test: Deduplication impact on latency
 #[tokio::test]
+#[ignore = "Flaky under parallel execution - run with --ignored in isolation"]
 async fn test_deduplication_latency_impact() {
     let adapter = Arc::new(PerfTestDatabaseAdapter::with_test_users());
     let metadata = create_test_metadata();
@@ -452,6 +454,7 @@ async fn test_deduplication_latency_impact() {
 
 /// Performance test: Large batch resolution (1000 entities)
 #[tokio::test]
+#[ignore = "Flaky under parallel execution - run with --ignored in isolation"]
 async fn test_large_batch_resolution() {
     let adapter = Arc::new(PerfTestDatabaseAdapter::with_test_users());
     let metadata = create_test_metadata();

@@ -22,7 +22,7 @@ use crate::auth::error::{AuthError, Result};
 #[derive(Debug, Clone)]
 pub struct RateLimitConfig {
     /// Whether rate limiting is enabled for this endpoint
-    pub enabled: bool,
+    pub enabled:      bool,
     /// Maximum number of requests allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
@@ -34,7 +34,7 @@ impl RateLimitConfig {
     /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
     pub fn per_ip_standard() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
             window_secs:  60,
         }
@@ -44,7 +44,7 @@ impl RateLimitConfig {
     /// 50 requests per 60 seconds
     pub fn per_ip_strict() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 50,
             window_secs:  60,
         }
@@ -54,7 +54,7 @@ impl RateLimitConfig {
     /// 10 requests per 60 seconds
     pub fn per_user_standard() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
             window_secs:  60,
         }
@@ -64,7 +64,7 @@ impl RateLimitConfig {
     /// 5 failed attempts per 3600 seconds (1 hour)
     pub fn failed_login_attempts() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 5,
             window_secs:  3600,
         }
@@ -131,7 +131,7 @@ impl KeyedRateLimiter {
                     e
                 );
                 u64::MAX
-            }
+            },
         }
     }
 
@@ -172,8 +172,10 @@ impl KeyedRateLimiter {
         }
 
         // CRITICAL: Acquire lock - this ensures all operations below are atomic
-        let mut records = self.records.lock()
-        .expect("rate limiter mutex poisoned - system in critical state");
+        let mut records = self
+            .records
+            .lock()
+            .expect("rate limiter mutex poisoned - system in critical state");
         let now = Self::current_timestamp();
 
         // Get or create record for this key (first request from this key)
@@ -206,15 +208,19 @@ impl KeyedRateLimiter {
 
     /// Get the number of active rate limiters (for monitoring)
     pub fn active_limiters(&self) -> usize {
-        let records = self.records.lock()
-        .expect("rate limiter mutex poisoned - system in critical state");
+        let records = self
+            .records
+            .lock()
+            .expect("rate limiter mutex poisoned - system in critical state");
         records.len()
     }
 
     /// Clear all rate limiters (for testing or reset)
     pub fn clear(&self) {
-        let mut records = self.records.lock()
-        .expect("rate limiter mutex poisoned - system in critical state");
+        let mut records = self
+            .records
+            .lock()
+            .expect("rate limiter mutex poisoned - system in critical state");
         records.clear();
     }
 
@@ -281,7 +287,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_allows_within_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
             window_secs:  60,
         });
@@ -296,7 +302,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_rejects_over_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
             window_secs:  60,
         });
@@ -312,7 +318,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_per_key() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
             window_secs:  60,
         });
@@ -329,7 +335,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_error_contains_retry_after() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
             window_secs:  60,
         });
@@ -348,7 +354,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_active_limiters_count() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
             window_secs:  60,
         });
@@ -447,7 +453,7 @@ mod tests {
     #[test]
     fn test_clear_limiters() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
             window_secs:  60,
         });
@@ -468,7 +474,7 @@ mod tests {
         use std::sync::Arc as StdArc;
 
         let limiter = StdArc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
             window_secs:  60,
         }));
@@ -497,7 +503,7 @@ mod tests {
     #[test]
     fn test_rate_limiting_many_keys() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
             window_secs:  60,
         });
@@ -539,7 +545,7 @@ mod tests {
     #[test]
     fn test_attack_prevention_scenario() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
             window_secs:  60,
         });
@@ -559,7 +565,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_disabled() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: false,
+            enabled:      false,
             max_requests: 1,
             window_secs:  60,
         });
@@ -578,11 +584,10 @@ mod tests {
     fn test_concurrent_requests_from_same_key_respects_limit() {
         // RACE CONDITION CHECK: Multiple threads simultaneously checking the same key
         // This verifies that atomic operations prevent exceeding the limit
-        use std::sync::Arc;
-        use std::thread;
+        use std::{sync::Arc, thread};
 
         let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 50,
             window_secs:  60,
         }));
@@ -626,11 +631,10 @@ mod tests {
     fn test_concurrent_requests_different_keys_independent() {
         // RACE CONDITION CHECK: Multiple threads checking different keys
         // This verifies that per-key isolation works under concurrent access
-        use std::sync::Arc;
-        use std::thread;
+        use std::{sync::Arc, thread};
 
         let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
             window_secs:  60,
         }));
@@ -677,7 +681,7 @@ mod tests {
         // This test verifies that the check-and-update sequence is atomic
         // by ensuring the counter never gets into an inconsistent state
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
             window_secs:  60,
         });
@@ -707,7 +711,7 @@ mod tests {
         // Verify that window reset (when window expires) is atomic
         // even under concurrent access
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
             window_secs:  3600, // 1 hour - won't expire in test
         });
@@ -735,7 +739,7 @@ mod tests {
         // Time-of-Check-Time-of-Use (TOCTOU) race condition test
         // Verifies that checking the limit and updating the counter happen atomically
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1, // Very strict: only 1 request allowed
             window_secs:  60,
         });

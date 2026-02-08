@@ -90,9 +90,11 @@ impl IntoResponse for AuthError {
             AuthError::TokenExpired => {
                 (StatusCode::UNAUTHORIZED, "token_expired", "Authentication failed".to_string())
             },
-            AuthError::InvalidSignature => {
-                (StatusCode::UNAUTHORIZED, "invalid_signature", "Authentication failed".to_string())
-            },
+            AuthError::InvalidSignature => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_signature",
+                "Authentication failed".to_string(),
+            ),
             AuthError::InvalidToken { ref reason } => {
                 // SECURITY: Log internal reason but return generic message
                 warn!("Invalid token error: {}", reason);
@@ -103,7 +105,10 @@ impl IntoResponse for AuthError {
                 warn!("Missing required claim: {}", claim);
                 (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
             },
-            AuthError::InvalidClaimValue { ref claim, ref reason } => {
+            AuthError::InvalidClaimValue {
+                ref claim,
+                ref reason,
+            } => {
                 // SECURITY: Don't expose claim names or validation rules to attackers
                 warn!("Invalid claim value for '{}': {}", claim, reason);
                 (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
@@ -135,17 +140,29 @@ impl IntoResponse for AuthError {
             AuthError::DatabaseError { ref message } => {
                 // SECURITY: NEVER expose database errors to clients
                 warn!("Database error (should not reach client): {}", message);
-                (StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Service temporarily unavailable".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "Service temporarily unavailable".to_string(),
+                )
             },
             AuthError::ConfigError { ref message } => {
                 // SECURITY: NEVER expose configuration details to clients
                 warn!("Configuration error (should not reach client): {}", message);
-                (StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Service temporarily unavailable".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "Service temporarily unavailable".to_string(),
+                )
             },
             AuthError::OidcMetadataError { ref message } => {
                 // SECURITY: Don't expose OIDC provider metadata details
                 warn!("OIDC metadata error: {}", message);
-                (StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Service temporarily unavailable".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "Service temporarily unavailable".to_string(),
+                )
             },
             AuthError::PkceError { ref message } => {
                 // SECURITY: Don't expose PKCE implementation details
@@ -155,16 +172,26 @@ impl IntoResponse for AuthError {
             AuthError::Internal { ref message } => {
                 // SECURITY: NEVER expose internal errors to clients
                 warn!("Internal error (should not reach client): {}", message);
-                (StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Service temporarily unavailable".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "Service temporarily unavailable".to_string(),
+                )
             },
             AuthError::SystemTimeError { ref message } => {
                 // SECURITY: Don't expose system errors to clients
                 warn!("System time error (should not reach client): {}", message);
-                (StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Service temporarily unavailable".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "server_error",
+                    "Service temporarily unavailable".to_string(),
+                )
             },
-            AuthError::RateLimited { retry_after_secs } => {
-                (StatusCode::TOO_MANY_REQUESTS, "rate_limited", format!("Too many requests. Retry after {} seconds", retry_after_secs))
-            },
+            AuthError::RateLimited { retry_after_secs } => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+                format!("Too many requests. Retry after {} seconds", retry_after_secs),
+            ),
         };
 
         let body = serde_json::json!({
@@ -318,7 +345,7 @@ mod tests {
     fn test_invalid_claim_value_sanitized() {
         // SECURITY: Ensure claim validation rules are not exposed
         let error = AuthError::InvalidClaimValue {
-            claim: "exp".to_string(),
+            claim:  "exp".to_string(),
             reason: "Must match pattern: ^[0-9]{10,}$".to_string(),
         };
         let response = error.into_response();
@@ -351,7 +378,8 @@ mod tests {
     fn test_oauth_error_sanitized() {
         // SECURITY: Don't expose OAuth provider details
         let error = AuthError::OAuthError {
-            message: "GitHub API returned 500 from https://api.github.com/user (rate limited)".to_string(),
+            message: "GitHub API returned 500 from https://api.github.com/user (rate limited)"
+                .to_string(),
         };
         let response = error.into_response();
         // OAuth errors should return UNAUTHORIZED
@@ -464,10 +492,14 @@ mod tests {
             AuthError::InvalidState,
             AuthError::TokenNotFound,
             AuthError::SessionRevoked,
-            AuthError::InvalidToken { reason: "test".to_string() },
-            AuthError::MissingClaim { claim: "test".to_string() },
-            AuthError::InvalidClaimValue {
+            AuthError::InvalidToken {
+                reason: "test".to_string(),
+            },
+            AuthError::MissingClaim {
                 claim: "test".to_string(),
+            },
+            AuthError::InvalidClaimValue {
+                claim:  "test".to_string(),
                 reason: "test".to_string(),
             },
             AuthError::OAuthError {

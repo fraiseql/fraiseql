@@ -189,7 +189,8 @@ impl ConstantTimeOps {
     /// Compare two tokens and return detailed results (for testing/validation)
     ///
     /// Returns: (is_equal, timing_safe)
-    /// This is useful for test cases that need to verify both correctness and constant-time behavior.
+    /// This is useful for test cases that need to verify both correctness and constant-time
+    /// behavior.
     ///
     /// # Security Note
     /// This function is only for testing/analysis. Production code should use
@@ -430,10 +431,7 @@ mod tests {
 
         // Both comparisons should take similar time despite length difference
         // (constant-time due to padding to 512 bytes)
-        assert!(!ConstantTimeOps::compare_jwt_constant(
-            short_invalid_jwt,
-            long_valid_jwt
-        ));
+        assert!(!ConstantTimeOps::compare_jwt_constant(short_invalid_jwt, long_valid_jwt));
     }
 
     #[test]

@@ -103,7 +103,7 @@ impl ValidationAuditLogger {
                     eprintln!("CRITICAL: Audit log mutex poisoned, entry lost. Error: {:?}", e);
                     eprintln!("Lost entry: {:?}", entry);
                     // In production, this should trigger an alert/metric
-                }
+                },
             }
         }
     }

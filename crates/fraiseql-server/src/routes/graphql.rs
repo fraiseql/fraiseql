@@ -85,13 +85,13 @@ impl IntoResponse for GraphQLResponse {
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor.
-    pub executor: Arc<Executor<A>>,
+    pub executor:             Arc<Executor<A>>,
     /// Metrics collector.
-    pub metrics:  Arc<MetricsCollector>,
+    pub metrics:              Arc<MetricsCollector>,
     /// Query result cache (optional).
-    pub cache:    Option<Arc<fraiseql_arrow::cache::QueryCache>>,
+    pub cache:                Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
-    pub config:   Option<Arc<crate::config::ServerConfig>>,
+    pub config:               Option<Arc<crate::config::ServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
 }
@@ -724,9 +724,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_is_per_ip() {
         let config = RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
-            window_secs: 60,
+            window_secs:  60,
         };
         let limiter = KeyedRateLimiter::new(config);
 
@@ -744,9 +744,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_enforces_limit() {
         let config = RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         };
         let limiter = KeyedRateLimiter::new(config);
 
@@ -758,9 +758,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_disabled() {
         let config = RateLimitConfig {
-            enabled: false,
+            enabled:      false,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         };
         let limiter = KeyedRateLimiter::new(config);
 
@@ -773,9 +773,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_window_reset() {
         let config = RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 0, // Immediate window reset for testing
+            window_secs:  0, // Immediate window reset for testing
         };
         let limiter = KeyedRateLimiter::new(config);
 

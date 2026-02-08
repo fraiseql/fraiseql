@@ -35,9 +35,7 @@ pub async fn tenant_middleware(mut request: Request<Body>, next: Next) -> Respon
             }
         }
     } else if request.headers().contains_key("X-Org-ID") {
-        tracing::warn!(
-            "Rejected X-Org-ID header from unauthenticated request"
-        );
+        tracing::warn!("Rejected X-Org-ID header from unauthenticated request");
     }
 
     // Store org_id in request extensions for downstream handlers

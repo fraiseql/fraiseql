@@ -61,10 +61,7 @@ pub fn init_security_config(schema_json_str: &str) -> Result<SecurityConfigFromS
             MAX_SCHEMA_JSON_SIZE
         );
         return Err(AuthError::ConfigError {
-            message: format!(
-                "Schema JSON exceeds maximum size of {} bytes",
-                MAX_SCHEMA_JSON_SIZE
-            ),
+            message: format!("Schema JSON exceeds maximum size of {} bytes", MAX_SCHEMA_JSON_SIZE),
         });
     }
 

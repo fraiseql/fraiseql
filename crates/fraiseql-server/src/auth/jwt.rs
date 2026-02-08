@@ -51,7 +51,7 @@ impl Claims {
                 );
                 // Return current time as far in the future to ensure token is expired
                 u64::MAX
-            }
+            },
         };
         self.exp <= now
     }

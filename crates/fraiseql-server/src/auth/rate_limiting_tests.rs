@@ -8,7 +8,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_rate_limit_allows_requests_within_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
             window_secs:  60,
         });
@@ -22,7 +22,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_rate_limit_rejects_over_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
             window_secs:  60,
         });
@@ -39,7 +39,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_rate_limit_per_key_independent() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
             window_secs:  60,
         });
@@ -54,7 +54,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_rate_limit_error_contains_retry_info() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
             window_secs:  60,
         });
@@ -73,7 +73,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_rate_limit_by_ip() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 5,
             window_secs:  60,
         });
@@ -92,7 +92,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_different_ips_independent_limits() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
             window_secs:  60,
         });
@@ -114,7 +114,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_failed_login_attempts() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 5,
             window_secs:  3600,
         });
@@ -133,7 +133,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_multiple_users_independent() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 5,
             window_secs:  3600,
         });
@@ -152,7 +152,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_active_limiters_count() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
             window_secs:  60,
         });
@@ -169,7 +169,7 @@ mod rate_limiting_tests {
     #[test]
     fn test_clear_limiters() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
             window_secs:  60,
         });
@@ -189,7 +189,7 @@ mod rate_limiting_tests {
         use std::sync::Arc;
 
         let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
             window_secs:  60,
         }));

@@ -30,12 +30,11 @@
 //
 // ## Production Recommendations
 //
-// 1. **Database-Backed Logging**: Deploy with database-backed audit logger for
-//    production to avoid memory limits entirely.
-// 2. **Retention Policies**: Implement automated cleanup of old entries in
-//    in-memory loggers (e.g., entries older than 24 hours).
-// 3. **Sampling**: For high-throughput environments, consider sampling less
-//    critical events.
+// 1. **Database-Backed Logging**: Deploy with database-backed audit logger for production to avoid
+//    memory limits entirely.
+// 2. **Retention Policies**: Implement automated cleanup of old entries in in-memory loggers (e.g.,
+//    entries older than 24 hours).
+// 3. **Sampling**: For high-throughput environments, consider sampling less critical events.
 // 4. **Monitoring**: Alert if audit log buffer reaches 80% capacity.
 //
 // See also: `crate::security::ComplianceAuditLogger` for database-backed logging.
@@ -174,19 +173,18 @@ pub struct AuditEntry {
 ///
 /// # Implementation Requirements
 ///
-/// - **Thread Safety**: All implementations must be `Send + Sync` and safe for
-///   concurrent access from multiple threads.
-/// - **Bounds Enforcement**: Implementations MAY enforce the bounds defined in
-///   this module, or delegate to a database backend that handles large-scale logging.
-/// - **Availability**: Should not block request handling; consider async/buffered
-///   implementations for performance.
-/// - **Error Handling**: Should never panic; swallow errors and log them via
-///   tracing instead.
+/// - **Thread Safety**: All implementations must be `Send + Sync` and safe for concurrent access
+///   from multiple threads.
+/// - **Bounds Enforcement**: Implementations MAY enforce the bounds defined in this module, or
+///   delegate to a database backend that handles large-scale logging.
+/// - **Availability**: Should not block request handling; consider async/buffered implementations
+///   for performance.
+/// - **Error Handling**: Should never panic; swallow errors and log them via tracing instead.
 ///
 /// # Memory Considerations
 ///
-/// - **In-memory implementations**: Should limit to `bounds::MAX_ENTRIES_IN_MEMORY`
-///   to prevent unbounded growth.
+/// - **In-memory implementations**: Should limit to `bounds::MAX_ENTRIES_IN_MEMORY` to prevent
+///   unbounded growth.
 /// - **Production deployments**: Should use database-backed implementations
 ///   (`ComplianceAuditLogger`) for scalability and retention.
 pub trait AuditLogger: Send + Sync {
@@ -448,15 +446,9 @@ mod tests {
         // Verify documented bounds match constants
         assert_eq!(bounds::MAX_SUBJECT_LEN, 256, "Subject length bound mismatch");
         assert_eq!(bounds::MAX_OPERATION_LEN, 50, "Operation length bound mismatch");
-        assert_eq!(
-            bounds::MAX_ERROR_MESSAGE_LEN, 1024,
-            "Error message length bound mismatch"
-        );
+        assert_eq!(bounds::MAX_ERROR_MESSAGE_LEN, 1024, "Error message length bound mismatch");
         assert_eq!(bounds::MAX_CONTEXT_LEN, 2048, "Context length bound mismatch");
-        assert_eq!(
-            bounds::MAX_ENTRIES_IN_MEMORY, 10_000,
-            "Max entries in memory bound mismatch"
-        );
+        assert_eq!(bounds::MAX_ENTRIES_IN_MEMORY, 10_000, "Max entries in memory bound mismatch");
     }
 
     #[test]
@@ -488,13 +480,13 @@ mod tests {
         use crate::auth::audit_logger::bounds;
 
         let entry = AuditEntry {
-            event_type: AuditEventType::JwtValidation,
-            secret_type: SecretType::JwtToken,
-            subject: Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
-            operation: "validate".to_string(),
-            success: true,
+            event_type:    AuditEventType::JwtValidation,
+            secret_type:   SecretType::JwtToken,
+            subject:       Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
+            operation:     "validate".to_string(),
+            success:       true,
             error_message: None,
-            context: None,
+            context:       None,
         };
 
         // Verify subject fits within bounds
@@ -529,7 +521,9 @@ mod tests {
         use crate::auth::audit_logger::bounds;
 
         // All documented operation names should fit
-        let operations = vec!["validate", "create", "revoke", "refresh", "exchange", "logout"];
+        let operations = vec![
+            "validate", "create", "revoke", "refresh", "exchange", "logout",
+        ];
 
         for op in operations {
             assert!(
@@ -561,13 +555,13 @@ mod tests {
 
         // Create a maximum-size entry
         let max_entry = AuditEntry {
-            event_type: AuditEventType::JwtValidation,
-            secret_type: SecretType::JwtToken,
-            subject: Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
-            operation: "validate".to_string(),
-            success: false,
+            event_type:    AuditEventType::JwtValidation,
+            secret_type:   SecretType::JwtToken,
+            subject:       Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
+            operation:     "validate".to_string(),
+            success:       false,
             error_message: Some("e".repeat(bounds::MAX_ERROR_MESSAGE_LEN)),
-            context: Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
+            context:       Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
         };
 
         // Serialize to JSON to estimate size

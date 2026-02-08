@@ -183,10 +183,7 @@ fn generate_pkce_verifier() -> Result<String> {
 
     if verifier.len() > 128 {
         return Err(AuthError::PkceError {
-            message: format!(
-                "Generated PKCE verifier too long: {} > 128 chars",
-                verifier.len()
-            ),
+            message: format!("Generated PKCE verifier too long: {} > 128 chars", verifier.len()),
         });
     }
 
@@ -224,10 +221,7 @@ mod tests {
     fn test_pkce_challenge_generation() {
         // Test proper error handling - generation should always succeed
         let challenge_result = PkceChallenge::generate();
-        assert!(
-            challenge_result.is_ok(),
-            "PKCE challenge generation should succeed"
-        );
+        assert!(challenge_result.is_ok(), "PKCE challenge generation should succeed");
 
         let challenge = challenge_result.unwrap();
         assert!(!challenge.verifier.is_empty(), "Verifier should not be empty");
@@ -249,11 +243,7 @@ mod tests {
                 .collect();
 
         for c in challenge.verifier.chars() {
-            assert!(
-                allowed_chars.contains(&c),
-                "PKCE verifier contains invalid character: {}",
-                c
-            );
+            assert!(allowed_chars.contains(&c), "PKCE verifier contains invalid character: {}", c);
         }
     }
 
@@ -267,10 +257,7 @@ mod tests {
         );
 
         let wrong_verifier = "wrong_verifier";
-        assert!(
-            !challenge.validate(wrong_verifier),
-            "Challenge should reject invalid verifier"
-        );
+        assert!(!challenge.validate(wrong_verifier), "Challenge should reject invalid verifier");
     }
 
     #[test]

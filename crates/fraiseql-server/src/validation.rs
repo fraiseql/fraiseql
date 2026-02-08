@@ -233,19 +233,11 @@ impl RequestValidator {
                     if field.selection_set.items.is_empty() {
                         0
                     } else {
-                        self.selection_set_depth(
-                            &field.selection_set,
-                            fragments,
-                            recursion_depth,
-                        )
+                        self.selection_set_depth(&field.selection_set, fragments, recursion_depth)
                     }
                 },
                 Selection::InlineFragment(inline) => {
-                    self.selection_set_depth(
-                        &inline.selection_set,
-                        fragments,
-                        recursion_depth,
-                    )
+                    self.selection_set_depth(&inline.selection_set, fragments, recursion_depth)
                 },
                 Selection::FragmentSpread(spread) => {
                     // Find the fragment definition and calculate its depth
@@ -335,15 +327,11 @@ impl RequestValidator {
                         1 + nested * multiplier
                     }
                 },
-                Selection::InlineFragment(inline) => self.selection_set_complexity(
-                    &inline.selection_set,
-                    fragments,
-                    recursion_depth,
-                ),
+                Selection::InlineFragment(inline) => {
+                    self.selection_set_complexity(&inline.selection_set, fragments, recursion_depth)
+                },
                 Selection::FragmentSpread(spread) => {
-                    if let Some(frag) =
-                        fragments.iter().find(|f| f.name == spread.fragment_name)
-                    {
+                    if let Some(frag) = fragments.iter().find(|f| f.name == spread.fragment_name) {
                         self.selection_set_complexity(
                             &frag.selection_set,
                             fragments,
@@ -480,10 +468,7 @@ mod tests {
             }
         ";
         let result = validator.validate_query(query);
-        assert!(
-            result.is_err(),
-            "Inline fragment depth must be counted correctly"
-        );
+        assert!(result.is_err(), "Inline fragment depth must be counted correctly");
     }
 
     #[test]
@@ -497,10 +482,7 @@ mod tests {
             query { ...A }
         ";
         let result = validator.validate_query(query);
-        assert!(
-            result.is_err(),
-            "Chained fragment depth must be detected"
-        );
+        assert!(result.is_err(), "Chained fragment depth must be detected");
     }
 
     #[test]
@@ -511,10 +493,7 @@ mod tests {
             fragment UserFields on User { id name email }
             query { user { ...UserFields } }
         ";
-        assert!(
-            validator.validate_query(query).is_ok(),
-            "Shallow fragments should be allowed"
-        );
+        assert!(validator.validate_query(query).is_ok(), "Shallow fragments should be allowed");
     }
 
     // SECURITY: Complexity scoring with multipliers (VULN #6)
@@ -527,10 +506,7 @@ mod tests {
         // users(first: 100) { id name } => 1 + (1 + 1) * 100 = 201
         let query = "query { users(first: 100) { id name } }";
         let result = validator.validate_query(query);
-        assert!(
-            result.is_err(),
-            "High pagination limits must increase complexity"
-        );
+        assert!(result.is_err(), "High pagination limits must increase complexity");
     }
 
     #[test]
@@ -541,10 +517,7 @@ mod tests {
         // = 1 + (1 + (1)*10)*10 = 1 + 110 = 111
         let query = "query { users(first: 10) { friends(first: 10) { id } } }";
         let result = validator.validate_query(query);
-        assert!(
-            result.is_err(),
-            "Nested list multipliers must compound"
-        );
+        assert!(result.is_err(), "Nested list multipliers must compound");
     }
 
     #[test]

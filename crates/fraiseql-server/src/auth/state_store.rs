@@ -53,7 +53,7 @@ pub trait StateStore: Send + Sync {
 #[derive(Debug)]
 pub struct InMemoryStateStore {
     // Map of state -> (provider, expiry_secs)
-    states: Arc<DashMap<String, (String, u64)>>,
+    states:     Arc<DashMap<String, (String, u64)>>,
     // Maximum number of states to store (prevents memory exhaustion)
     max_states: usize,
 }
@@ -66,7 +66,7 @@ impl InMemoryStateStore {
     /// Create a new in-memory state store with default limits
     pub fn new() -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states:     Arc::new(DashMap::new()),
             max_states: Self::MAX_STATES,
         }
     }
@@ -77,7 +77,7 @@ impl InMemoryStateStore {
     /// * `max_states` - Maximum number of states to store
     pub fn with_max_states(max_states: usize) -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states:     Arc::new(DashMap::new()),
             max_states: max_states.max(1), // Ensure at least 1 state
         }
     }
@@ -102,7 +102,6 @@ impl InMemoryStateStore {
         self.states.len() >= self.max_states
     }
 }
-
 
 impl Default for InMemoryStateStore {
     fn default() -> Self {
@@ -379,8 +378,14 @@ mod tests {
         assert!(result.is_ok(), "Should succeed after cleaning up expired states");
 
         // Store 2 more valid states
-        store.store("valid_state_2".to_string(), "google".to_string(), expiry).await.unwrap();
-        store.store("valid_state_3".to_string(), "okta".to_string(), expiry).await.unwrap();
+        store
+            .store("valid_state_2".to_string(), "google".to_string(), expiry)
+            .await
+            .unwrap();
+        store
+            .store("valid_state_3".to_string(), "okta".to_string(), expiry)
+            .await
+            .unwrap();
 
         // Now at capacity with valid states
         let result = store.store("valid_state_4".to_string(), "auth0".to_string(), expiry).await;

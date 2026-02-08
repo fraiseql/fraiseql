@@ -1,5 +1,5 @@
 // HTTP handlers for authentication endpoints
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
@@ -7,7 +7,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{

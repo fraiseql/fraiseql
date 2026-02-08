@@ -16,7 +16,7 @@ fn validate_ip_format(ip_str: &str) -> Option<IpAddr> {
 pub struct ProxyConfig {
     /// List of trusted proxy IPs (e.g., load balancer, Nginx, HAProxy IPs)
     /// Only X-Forwarded-For headers from these IPs are trusted
-    pub trusted_proxies: Vec<IpAddr>,
+    pub trusted_proxies:       Vec<IpAddr>,
     /// If true, require request to come from a trusted proxy to use X-Forwarded-For
     pub require_trusted_proxy: bool,
 }
@@ -33,7 +33,7 @@ impl ProxyConfig {
     /// Create a proxy config that trusts all local proxies (127.0.0.1 only)
     pub fn localhost_only() -> Self {
         Self {
-            trusted_proxies: vec!["127.0.0.1".parse().expect("valid IP")],
+            trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")],
             require_trusted_proxy: true,
         }
     }
@@ -41,7 +41,7 @@ impl ProxyConfig {
     /// Create a proxy config with no trusted proxies
     pub fn none() -> Self {
         Self {
-            trusted_proxies: vec![],
+            trusted_proxies:       vec![],
             require_trusted_proxy: false,
         }
     }
@@ -83,8 +83,7 @@ impl ProxyConfig {
         let direct_ip_str = direct_ip.as_deref().unwrap_or("");
 
         // Check X-Forwarded-For if proxy is trusted
-        if let Some(forwarded_for) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
-        {
+        if let Some(forwarded_for) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
             if self.is_trusted_proxy(direct_ip_str) {
                 // Extract first IP from X-Forwarded-For (client IP in chain)
                 if let Some(ip_str) = forwarded_for.split(',').next().map(|ip| ip.trim()) {
@@ -232,10 +231,7 @@ mod tests {
 
         let mut headers = axum::http::HeaderMap::new();
         // Attacker sends malformed IP that's not a valid IP
-        headers.insert(
-            "x-forwarded-for",
-            "not-a-valid-ip-address, 10.0.0.1".parse().unwrap(),
-        );
+        headers.insert("x-forwarded-for", "not-a-valid-ip-address, 10.0.0.1".parse().unwrap());
 
         let trusted_source_ip = "10.0.0.1".parse::<std::net::IpAddr>().ok();
         let socket = trusted_source_ip.map(|ip| std::net::SocketAddr::new(ip, 8000));
@@ -270,10 +266,7 @@ mod tests {
         let config = ProxyConfig::new(vec![trusted_ip], true);
 
         let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            "x-forwarded-for",
-            "2001:db8::1, ::1".parse().unwrap(),
-        );
+        headers.insert("x-forwarded-for", "2001:db8::1, ::1".parse().unwrap());
 
         let trusted_source_ip = "::1".parse::<std::net::IpAddr>().ok();
         let socket = trusted_source_ip.map(|ip| std::net::SocketAddr::new(ip, 8000));

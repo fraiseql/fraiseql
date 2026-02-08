@@ -292,10 +292,7 @@ fn test_string_literal_handling() {
     // the AST parser correctly rejects them
     let query = r#"{ user { name: "John \"Doe\"" } }"#;
     let result = validator.validate_query(query);
-    assert!(
-        result.is_err(),
-        "String literals in selection sets are invalid GraphQL syntax"
-    );
+    assert!(result.is_err(), "String literals in selection sets are invalid GraphQL syntax");
 
     // Valid: query with string argument
     let valid_query = r#"query { user(name: "John") { id name } }"#;
