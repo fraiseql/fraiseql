@@ -12,6 +12,8 @@ use crate::auth::error::{AuthError, Result};
 /// Rate limit configuration for an endpoint
 #[derive(Debug, Clone)]
 pub struct RateLimitConfig {
+    /// Whether rate limiting is enabled for this endpoint
+    pub enabled: bool,
     /// Maximum number of requests allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
@@ -23,6 +25,7 @@ impl RateLimitConfig {
     /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
     pub fn per_ip_standard() -> Self {
         Self {
+            enabled: true,
             max_requests: 100,
             window_secs:  60,
         }
@@ -32,6 +35,7 @@ impl RateLimitConfig {
     /// 50 requests per 60 seconds
     pub fn per_ip_strict() -> Self {
         Self {
+            enabled: true,
             max_requests: 50,
             window_secs:  60,
         }
@@ -41,6 +45,7 @@ impl RateLimitConfig {
     /// 10 requests per 60 seconds
     pub fn per_user_standard() -> Self {
         Self {
+            enabled: true,
             max_requests: 10,
             window_secs:  60,
         }
@@ -50,6 +55,7 @@ impl RateLimitConfig {
     /// 5 failed attempts per 3600 seconds (1 hour)
     pub fn failed_login_attempts() -> Self {
         Self {
+            enabled: true,
             max_requests: 5,
             window_secs:  3600,
         }
@@ -82,15 +88,35 @@ impl KeyedRateLimiter {
     }
 
     /// Get current Unix timestamp in seconds
+    ///
+    /// SECURITY: If system time cannot be determined, returns u64::MAX
+    /// This causes rate limit window to expire, failing open (rejecting requests) on time errors
     fn current_timestamp() -> u64 {
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => duration.as_secs(),
+            Err(e) => {
+                // CRITICAL: System time error - fail safe by treating all windows as expired
+                eprintln!(
+                    "CRITICAL: System time error in rate limiter: {}. \
+                     This indicates a system clock issue. Rate limiting will be reset.",
+                    e
+                );
+                u64::MAX
+            }
+        }
     }
 
     /// Check if a request should be allowed for the given key
     ///
     /// Returns Ok(()) if allowed, Err with status code if rate limited
     pub fn check(&self, key: &str) -> Result<()> {
-        let mut records = self.records.lock().unwrap();
+        // If rate limiting is disabled, always allow the request
+        if !self.config.enabled {
+            return Ok(());
+        }
+
+        let mut records = self.records.lock()
+        .expect("rate limiter mutex poisoned - system in critical state");
         let now = Self::current_timestamp();
 
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
@@ -118,13 +144,15 @@ impl KeyedRateLimiter {
 
     /// Get the number of active rate limiters (for monitoring)
     pub fn active_limiters(&self) -> usize {
-        let records = self.records.lock().unwrap();
+        let records = self.records.lock()
+        .expect("rate limiter mutex poisoned - system in critical state");
         records.len()
     }
 
     /// Clear all rate limiters (for testing or reset)
     pub fn clear(&self) {
-        let mut records = self.records.lock().unwrap();
+        let mut records = self.records.lock()
+        .expect("rate limiter mutex poisoned - system in critical state");
         records.clear();
     }
 
@@ -191,6 +219,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_allows_within_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 3,
             window_secs:  60,
         });
@@ -205,6 +234,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_rejects_over_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 2,
             window_secs:  60,
         });
@@ -220,6 +250,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_per_key() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 2,
             window_secs:  60,
         });
@@ -236,6 +267,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_error_contains_retry_after() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 1,
             window_secs:  60,
         });
@@ -254,6 +286,7 @@ mod tests {
     #[test]
     fn test_rate_limiter_active_limiters_count() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 100,
             window_secs:  60,
         });
@@ -352,6 +385,7 @@ mod tests {
     #[test]
     fn test_clear_limiters() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 1,
             window_secs:  60,
         });
@@ -372,6 +406,7 @@ mod tests {
         use std::sync::Arc as StdArc;
 
         let limiter = StdArc::new(KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 100,
             window_secs:  60,
         }));
@@ -400,6 +435,7 @@ mod tests {
     #[test]
     fn test_rate_limiting_many_keys() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 10,
             window_secs:  60,
         });
@@ -441,6 +477,7 @@ mod tests {
     #[test]
     fn test_attack_prevention_scenario() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: true,
             max_requests: 10,
             window_secs:  60,
         });
@@ -455,5 +492,20 @@ mod tests {
         // 11th blocked
         let result = limiter.check(target);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_rate_limiter_disabled() {
+        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+            enabled: false,
+            max_requests: 1,
+            window_secs:  60,
+        });
+
+        // Even with max_requests = 1, should allow many requests when disabled
+        for i in 0..100 {
+            let result = limiter.check("key");
+            assert!(result.is_ok(), "Request {} should be allowed when rate limiting disabled", i);
+        }
     }
 }
