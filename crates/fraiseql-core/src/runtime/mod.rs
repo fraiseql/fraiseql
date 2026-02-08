@@ -43,6 +43,7 @@ mod aggregate_projector;
 pub mod aggregation;
 mod executor;
 pub mod field_filter;
+pub mod input_validator;
 pub mod jsonb_strategy;
 mod matcher;
 mod planner;
