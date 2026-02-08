@@ -1,8 +1,9 @@
 //! Input validation module.
 //!
 //! Provides ID policy validation, GraphQL input processing, and comprehensive
-//! field-level validation rules including checksum and rich scalar validation.
+//! field-level validation rules including checksum, rich scalar, and async validation.
 
+pub mod async_validators;
 pub mod checksum;
 mod id_policy;
 mod input_processor;
@@ -10,6 +11,10 @@ pub mod rich_scalars;
 pub mod rules;
 pub mod validators;
 
+pub use async_validators::{
+    AsyncValidator, AsyncValidatorConfig, AsyncValidatorProvider, MockEmailDomainValidator,
+    MockPhoneNumberValidator,
+};
 pub use checksum::{LuhnValidator, Mod97Validator};
 pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
