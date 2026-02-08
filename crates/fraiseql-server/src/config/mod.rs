@@ -224,8 +224,6 @@ fn default_ready_path() -> String {
     "/ready".to_string()
 }
 
-// Placeholder structs for future phases (TODO: will be defined in later phases)
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebhookConfig {
     pub secret_env: String,
