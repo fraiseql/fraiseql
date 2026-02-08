@@ -3118,7 +3118,6 @@ mod tests {
         // (will be done in GREEN phase implementation)
     }
 
-
     /// Phase 3.1: Tests that get_flight_info returns schema for views
     #[tokio::test]
     async fn test_get_flight_info_for_optimized_view() {

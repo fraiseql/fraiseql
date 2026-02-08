@@ -32,12 +32,12 @@ pub mod operators;
 pub mod validators;
 
 pub use default_rules::get_default_rules;
-pub use operator_mapping::{get_operators_for_type, OperatorInfo, ParameterType};
+pub use operator_mapping::{OperatorInfo, ParameterType, get_operators_for_type};
 pub use operators::ExtendedOperator;
+use serde_json::Value;
 pub use validators::{ChecksumType, ValidationRule};
 
 use crate::error::Result;
-use serde_json::Value;
 
 /// Handler for extended operator SQL generation.
 ///
@@ -87,10 +87,10 @@ pub trait ExtendedOperatorHandler {
     /// # Arguments
     ///
     /// * `operator` - The extended operator to generate SQL for
-    /// * `field_sql` - The field reference in database-specific format
-    ///   (e.g., `data->>'email'` for PostgreSQL JSONB)
-    /// * `params` - Mutable vector to accumulate query parameters;
-    ///   implementer must add any parameters needed by this operator
+    /// * `field_sql` - The field reference in database-specific format (e.g., `data->>'email'` for
+    ///   PostgreSQL JSONB)
+    /// * `params` - Mutable vector to accumulate query parameters; implementer must add any
+    ///   parameters needed by this operator
     ///
     /// # Returns
     ///

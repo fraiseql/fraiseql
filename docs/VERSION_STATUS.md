@@ -1,34 +1,48 @@
 # FraiseQL Development Status & Roadmap
 
-**Last Updated**: December 21, 2025
+**Last Updated**: February 8, 2026
 **Current Stable**: v1.8.9
-**Architecture Status**: Phase 10 Complete (Production-Ready Authentication)
+**Latest Alpha**: v2.0.0-alpha.3
+**Architecture Status**: Week 6 Complete (Rich Filters & Compiler Optimization)
 
 ---
 
 ## 🚀 Current Development Status
 
-### **Phase 10: Authentication & JWT Validation** ✅ COMPLETE
+### **v2.0.0-alpha.3 Release Preparation** 🔄 IN PROGRESS
 
-**Status**: Production-ready
-**Completion Date**: December 21, 2025
-**Components**:
+**Status**: Final QA and bugfixes
+**Target Date**: February 8, 2026
+**Completion Date**: [To be filled]
 
-- ✅ Rust auth module with Auth0 and custom JWT support
-- ✅ PyO3 bindings exposing auth providers to Python
-- ✅ Token validation with JWKS caching
-- ✅ User context caching with LRU eviction
-- ✅ 26 comprehensive tests (100% passing)
-- ✅ Security: HTTPS enforcement, token validation, audience checking
-- ✅ Performance: < 10ms uncached validation, < 1ms cached
+**Changes in alpha.3**:
+- Fixed PostgreSQL audit backend test failures
+  * Resolved duplicate event logging in concurrent scenarios
+  * Enhanced database cleanup and isolation
+  * Fixed bulk insert assertions
+- Resolved all Clippy pedantic warnings
+  * Split oversized `get_default_rules()` function
+  * Optimized parameter passing for `Copy` types
+  * Removed unused imports
+- Updated documentation and version markers
 
-**Key Files**:
+**Components Ready**:
+- ✅ Rich filter compilation and type operators
+- ✅ Advanced type operators (PostGIS, Phone, Ranges)
+- ✅ SQL template generation for 40+ operators
+- ✅ Comprehensive test coverage (1700+ tests in core alone)
+- ✅ Audit logging with PostgreSQL backend
+- ✅ Arrow Flight integration
+- ✅ Zero Clippy pedantic warnings
+- ✅ Full test suite passing (3576+ tests)
 
-- `fraiseql_rs/src/auth/` - Rust implementation
-- `fraiseql_rs/src/auth/py_bindings.rs` - Python integration
-- `tests/test_rust_auth.py` - Test suite (26 tests)
+**Key Achievements**:
+- Full GraphQL compilation engine optimized and tested
+- Advanced schema validation and type checking
+- Production-ready audit logging system
+- Complete test coverage for all major features
 
-**Production Readiness**: ✅ 100% - Ready for deployment
+**Production Readiness**: ✅ 95% - Ready for alpha testing
 
 ---
 

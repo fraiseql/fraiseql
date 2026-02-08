@@ -5,6 +5,42 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.3] - 2026-02-08
+
+### Fixed
+
+**Test Suite**:
+- Fixed PostgreSQL audit backend concurrent test failures
+  * Resolved duplicate event logging in concurrent scenarios
+  * Enhanced database cleanup and isolation between tests
+  * Fixed bulk logging test assertions
+  * All 27 PostgreSQL audit backend tests now passing
+
+**Code Quality**:
+- Removed all Clippy pedantic warnings
+  * Split oversized `get_default_rules()` function into 8 focused helpers
+  * Fixed lossless casts (u32 to u64 using `u64::from`)
+  * Optimized parameter passing for `Copy` types
+  * Removed unused imports
+  * Fixed formatting issues across codebase
+
+**Documentation**:
+- Updated VERSION_STATUS.md with v2.0.0-alpha.3 status
+- Updated CHANGELOG.md with current changes
+- Verified all version markers in Cargo.toml files
+
+### Verified
+
+- Full test suite passing: 3576+ tests (with --test-threads=1)
+- Zero Clippy warnings with pedantic rules
+- All features working: audit, subscriptions, federation, caching, RBAC
+- Release build compiles without warnings
+
+### Changed
+
+- Documentation updated for v2.0.0-alpha.3 status
+- Version markers synchronized across all crates
+
 ## [2.0.0-alpha.2] - 2026-02-06
 
 ### Added

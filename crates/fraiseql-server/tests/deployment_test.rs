@@ -356,9 +356,10 @@ fn test_docker_compose_files_valid_yaml() {
     ];
 
     for path in files {
-        let content = fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to read {:?}", path));
-        let _: serde_yaml::Value =
-            serde_yaml::from_str(&content).unwrap_or_else(|_| panic!("{:?} must be valid YAML", path));
+        let content =
+            fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to read {:?}", path));
+        let _: serde_yaml::Value = serde_yaml::from_str(&content)
+            .unwrap_or_else(|_| panic!("{:?} must be valid YAML", path));
     }
 }
 

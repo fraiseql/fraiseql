@@ -7,11 +7,11 @@
 #[derive(Debug, Clone)]
 pub struct OperatorInfo {
     /// GraphQL field name (camelCase)
-    pub graphql_name: String,
+    pub graphql_name:   String,
     /// Type of the parameter(s)
     pub parameter_type: ParameterType,
     /// Human-readable description
-    pub description: String,
+    pub description:    String,
 }
 
 /// Type of parameters the operator accepts
@@ -118,24 +118,24 @@ pub fn get_operators_for_type(type_name: &str) -> Option<Vec<OperatorInfo>> {
 fn email_address_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "domainEq".to_string(),
+            graphql_name:   "domainEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Email domain equals (e.g., 'example.com')".to_string(),
+            description:    "Email domain equals (e.g., 'example.com')".to_string(),
         },
         OperatorInfo {
-            graphql_name: "domainIn".to_string(),
+            graphql_name:   "domainIn".to_string(),
             parameter_type: ParameterType::StringArray,
-            description: "Email domain in list".to_string(),
+            description:    "Email domain in list".to_string(),
         },
         OperatorInfo {
-            graphql_name: "domainEndswith".to_string(),
+            graphql_name:   "domainEndswith".to_string(),
             parameter_type: ParameterType::String,
-            description: "Email domain ends with suffix (e.g., '.edu')".to_string(),
+            description:    "Email domain ends with suffix (e.g., '.edu')".to_string(),
         },
         OperatorInfo {
-            graphql_name: "localPartStartswith".to_string(),
+            graphql_name:   "localPartStartswith".to_string(),
             parameter_type: ParameterType::String,
-            description: "Local part (before @) starts with prefix".to_string(),
+            description:    "Local part (before @) starts with prefix".to_string(),
         },
     ]
 }
@@ -143,24 +143,24 @@ fn email_address_operators() -> Vec<OperatorInfo> {
 fn phone_number_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "countryCodeEq".to_string(),
+            graphql_name:   "countryCodeEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Country code equals".to_string(),
+            description:    "Country code equals".to_string(),
         },
         OperatorInfo {
-            graphql_name: "countryCodeIn".to_string(),
+            graphql_name:   "countryCodeIn".to_string(),
             parameter_type: ParameterType::StringArray,
-            description: "Country code in list".to_string(),
+            description:    "Country code in list".to_string(),
         },
         OperatorInfo {
-            graphql_name: "isValid".to_string(),
+            graphql_name:   "isValid".to_string(),
             parameter_type: ParameterType::Boolean,
-            description: "Is valid E.164 format".to_string(),
+            description:    "Is valid E.164 format".to_string(),
         },
         OperatorInfo {
-            graphql_name: "typeEq".to_string(),
+            graphql_name:   "typeEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Type equals (mobile, fixed, etc.)".to_string(),
+            description:    "Type equals (mobile, fixed, etc.)".to_string(),
         },
     ]
 }
@@ -168,19 +168,19 @@ fn phone_number_operators() -> Vec<OperatorInfo> {
 fn url_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "protocolEq".to_string(),
+            graphql_name:   "protocolEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Protocol equals (http, https, etc.)".to_string(),
+            description:    "Protocol equals (http, https, etc.)".to_string(),
         },
         OperatorInfo {
-            graphql_name: "hostEq".to_string(),
+            graphql_name:   "hostEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Host equals".to_string(),
+            description:    "Host equals".to_string(),
         },
         OperatorInfo {
-            graphql_name: "pathStartswith".to_string(),
+            graphql_name:   "pathStartswith".to_string(),
             parameter_type: ParameterType::String,
-            description: "Path starts with".to_string(),
+            description:    "Path starts with".to_string(),
         },
     ]
 }
@@ -188,14 +188,14 @@ fn url_operators() -> Vec<OperatorInfo> {
 fn domain_name_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "tldEq".to_string(),
+            graphql_name:   "tldEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "TLD equals".to_string(),
+            description:    "TLD equals".to_string(),
         },
         OperatorInfo {
-            graphql_name: "tldIn".to_string(),
+            graphql_name:   "tldIn".to_string(),
             parameter_type: ParameterType::StringArray,
-            description: "TLD in list".to_string(),
+            description:    "TLD in list".to_string(),
         },
     ]
 }
@@ -203,14 +203,14 @@ fn domain_name_operators() -> Vec<OperatorInfo> {
 fn hostname_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "isFqdn".to_string(),
+            graphql_name:   "isFqdn".to_string(),
             parameter_type: ParameterType::Boolean,
-            description: "Is fully qualified domain name".to_string(),
+            description:    "Is fully qualified domain name".to_string(),
         },
         OperatorInfo {
-            graphql_name: "depthEq".to_string(),
+            graphql_name:   "depthEq".to_string(),
             parameter_type: ParameterType::Number,
-            description: "Label depth equals".to_string(),
+            description:    "Label depth equals".to_string(),
         },
     ]
 }
@@ -218,23 +218,23 @@ fn hostname_operators() -> Vec<OperatorInfo> {
 // Location operators
 fn postal_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "countryEq".to_string(),
+        graphql_name:   "countryEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Country code equals".to_string(),
+        description:    "Country code equals".to_string(),
     }]
 }
 
 fn latitude_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "withinRange".to_string(),
+            graphql_name:   "withinRange".to_string(),
             parameter_type: ParameterType::NumberRange,
-            description: "Latitude within range (degrees)".to_string(),
+            description:    "Latitude within range (degrees)".to_string(),
         },
         OperatorInfo {
-            graphql_name: "hemisphereEq".to_string(),
+            graphql_name:   "hemisphereEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Hemisphere equals (North/South)".to_string(),
+            description:    "Hemisphere equals (North/South)".to_string(),
         },
     ]
 }
@@ -242,55 +242,55 @@ fn latitude_operators() -> Vec<OperatorInfo> {
 fn longitude_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "withinRange".to_string(),
+            graphql_name:   "withinRange".to_string(),
             parameter_type: ParameterType::NumberRange,
-            description: "Longitude within range (degrees)".to_string(),
+            description:    "Longitude within range (degrees)".to_string(),
         },
         OperatorInfo {
-            graphql_name: "hemisphereEq".to_string(),
+            graphql_name:   "hemisphereEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Hemisphere equals (East/West)".to_string(),
+            description:    "Hemisphere equals (East/West)".to_string(),
         },
     ]
 }
 
 fn coordinates_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "distanceWithin".to_string(),
+        graphql_name:   "distanceWithin".to_string(),
         parameter_type: ParameterType::NumberRange,
-        description: "Distance within radius (km)".to_string(),
+        description:    "Distance within radius (km)".to_string(),
     }]
 }
 
 fn timezone_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Timezone equals".to_string(),
+        description:    "Timezone equals".to_string(),
     }]
 }
 
 fn locale_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Locale code equals".to_string(),
+        description:    "Locale code equals".to_string(),
     }]
 }
 
 fn language_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Language code equals".to_string(),
+        description:    "Language code equals".to_string(),
     }]
 }
 
 fn country_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Country code equals".to_string(),
+        description:    "Country code equals".to_string(),
     }]
 }
 
@@ -298,314 +298,314 @@ fn country_code_operators() -> Vec<OperatorInfo> {
 fn iban_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "countryEq".to_string(),
+            graphql_name:   "countryEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Country equals".to_string(),
+            description:    "Country equals".to_string(),
         },
         OperatorInfo {
-            graphql_name: "checkDigitEq".to_string(),
+            graphql_name:   "checkDigitEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Check digit equals".to_string(),
+            description:    "Check digit equals".to_string(),
         },
     ]
 }
 
 fn cusip_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "issuerEq".to_string(),
+        graphql_name:   "issuerEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Issuer code equals".to_string(),
+        description:    "Issuer code equals".to_string(),
     }]
 }
 
 fn isin_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "countryEq".to_string(),
+        graphql_name:   "countryEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Country equals".to_string(),
+        description:    "Country equals".to_string(),
     }]
 }
 
 fn sedol_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "checkDigitEq".to_string(),
+        graphql_name:   "checkDigitEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Check digit equals".to_string(),
+        description:    "Check digit equals".to_string(),
     }]
 }
 
 fn lei_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "countryEq".to_string(),
+        graphql_name:   "countryEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Country equals".to_string(),
+        description:    "Country equals".to_string(),
     }]
 }
 
 fn mic_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "countryEq".to_string(),
+        graphql_name:   "countryEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Country equals".to_string(),
+        description:    "Country equals".to_string(),
     }]
 }
 
 fn currency_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Currency code equals".to_string(),
+        description:    "Currency code equals".to_string(),
     }]
 }
 
 fn money_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "currencyEq".to_string(),
+            graphql_name:   "currencyEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Currency equals".to_string(),
+            description:    "Currency equals".to_string(),
         },
         OperatorInfo {
-            graphql_name: "amountWithinRange".to_string(),
+            graphql_name:   "amountWithinRange".to_string(),
             parameter_type: ParameterType::NumberRange,
-            description: "Amount within range".to_string(),
+            description:    "Amount within range".to_string(),
         },
     ]
 }
 
 fn exchange_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Exchange code equals".to_string(),
+        description:    "Exchange code equals".to_string(),
     }]
 }
 
 fn exchange_rate_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "withinRange".to_string(),
+        graphql_name:   "withinRange".to_string(),
         parameter_type: ParameterType::NumberRange,
-        description: "Exchange rate within range".to_string(),
+        description:    "Exchange rate within range".to_string(),
     }]
 }
 
 fn stock_symbol_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Stock symbol equals".to_string(),
+        description:    "Stock symbol equals".to_string(),
     }]
 }
 
 // Identifier operators
 fn slug_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Slug equals".to_string(),
+        description:    "Slug equals".to_string(),
     }]
 }
 
 fn semantic_version_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Semantic version equals".to_string(),
+        description:    "Semantic version equals".to_string(),
     }]
 }
 
 fn hash_sha256_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Hash equals".to_string(),
+        description:    "Hash equals".to_string(),
     }]
 }
 
 fn api_key_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "API key equals".to_string(),
+        description:    "API key equals".to_string(),
     }]
 }
 
 // Transportation operators
 fn license_plate_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "countryEq".to_string(),
+        graphql_name:   "countryEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Country equals".to_string(),
+        description:    "Country equals".to_string(),
     }]
 }
 
 fn vin_operators() -> Vec<OperatorInfo> {
     vec![
         OperatorInfo {
-            graphql_name: "wmiEq".to_string(),
+            graphql_name:   "wmiEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "World Manufacturer Identifier equals".to_string(),
+            description:    "World Manufacturer Identifier equals".to_string(),
         },
         OperatorInfo {
-            graphql_name: "manufacturerEq".to_string(),
+            graphql_name:   "manufacturerEq".to_string(),
             parameter_type: ParameterType::String,
-            description: "Manufacturer code equals".to_string(),
+            description:    "Manufacturer code equals".to_string(),
         },
     ]
 }
 
 fn tracking_number_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "carrierEq".to_string(),
+        graphql_name:   "carrierEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Carrier equals".to_string(),
+        description:    "Carrier equals".to_string(),
     }]
 }
 
 fn container_number_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "ownerCodeEq".to_string(),
+        graphql_name:   "ownerCodeEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Owner code equals".to_string(),
+        description:    "Owner code equals".to_string(),
     }]
 }
 
 // Network operators
 fn ip_address_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "inSubnet".to_string(),
+        graphql_name:   "inSubnet".to_string(),
         parameter_type: ParameterType::String,
-        description: "In subnet".to_string(),
+        description:    "In subnet".to_string(),
     }]
 }
 
 fn ipv4_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "IPv4 equals".to_string(),
+        description:    "IPv4 equals".to_string(),
     }]
 }
 
 fn ipv6_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "IPv6 equals".to_string(),
+        description:    "IPv6 equals".to_string(),
     }]
 }
 
 fn cidr_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "CIDR equals".to_string(),
+        description:    "CIDR equals".to_string(),
     }]
 }
 
 fn port_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::Number,
-        description: "Port number equals".to_string(),
+        description:    "Port number equals".to_string(),
     }]
 }
 
 fn airport_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Airport code equals".to_string(),
+        description:    "Airport code equals".to_string(),
     }]
 }
 
 fn port_code_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Port code equals".to_string(),
+        description:    "Port code equals".to_string(),
     }]
 }
 
 fn flight_number_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "airlineCodeEq".to_string(),
+        graphql_name:   "airlineCodeEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Airline code equals".to_string(),
+        description:    "Airline code equals".to_string(),
     }]
 }
 
 // Content operators
 fn markdown_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "validFormat".to_string(),
+        graphql_name:   "validFormat".to_string(),
         parameter_type: ParameterType::Boolean,
-        description: "Is valid Markdown format".to_string(),
+        description:    "Is valid Markdown format".to_string(),
     }]
 }
 
 fn html_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "validXml".to_string(),
+        graphql_name:   "validXml".to_string(),
         parameter_type: ParameterType::Boolean,
-        description: "Is valid HTML/XML".to_string(),
+        description:    "Is valid HTML/XML".to_string(),
     }]
 }
 
 fn mime_type_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "eq".to_string(),
+        graphql_name:   "eq".to_string(),
         parameter_type: ParameterType::String,
-        description: "MIME type equals".to_string(),
+        description:    "MIME type equals".to_string(),
     }]
 }
 
 fn color_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "formatEq".to_string(),
+        graphql_name:   "formatEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Color format equals".to_string(),
+        description:    "Color format equals".to_string(),
     }]
 }
 
 fn image_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "formatEq".to_string(),
+        graphql_name:   "formatEq".to_string(),
         parameter_type: ParameterType::String,
-        description: "Image format equals".to_string(),
+        description:    "Image format equals".to_string(),
     }]
 }
 
 fn file_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "sizeWithinRange".to_string(),
+        graphql_name:   "sizeWithinRange".to_string(),
         parameter_type: ParameterType::NumberRange,
-        description: "File size within range (bytes)".to_string(),
+        description:    "File size within range (bytes)".to_string(),
     }]
 }
 
 // Range operators
 fn date_range_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "overlaps".to_string(),
+        graphql_name:   "overlaps".to_string(),
         parameter_type: ParameterType::String,
-        description: "Date range overlaps".to_string(),
+        description:    "Date range overlaps".to_string(),
     }]
 }
 
 fn duration_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "withinRange".to_string(),
+        graphql_name:   "withinRange".to_string(),
         parameter_type: ParameterType::NumberRange,
-        description: "Duration within range (seconds)".to_string(),
+        description:    "Duration within range (seconds)".to_string(),
     }]
 }
 
 fn percentage_operators() -> Vec<OperatorInfo> {
     vec![OperatorInfo {
-        graphql_name: "withinRange".to_string(),
+        graphql_name:   "withinRange".to_string(),
         parameter_type: ParameterType::NumberRange,
-        description: "Percentage within range (0-100)".to_string(),
+        description:    "Percentage within range (0-100)".to_string(),
     }]
 }
 

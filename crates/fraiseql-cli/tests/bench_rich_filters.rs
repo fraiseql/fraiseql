@@ -5,6 +5,8 @@
 //! 2. Schema with multiple types
 //! 3. Schema with complex relationships
 
+#![allow(clippy::cast_precision_loss)] // Benchmarks intentionally cast u128 to f64 for timing
+
 use fraiseql_cli::schema::{SchemaConverter, intermediate::IntermediateSchema};
 
 /// Benchmark: Compile empty schema with auto-generated rich types

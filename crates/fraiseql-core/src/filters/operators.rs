@@ -42,7 +42,6 @@ pub enum ExtendedOperator {
     // CONTACT/COMMUNICATION TYPES (5 types)
     // Email, PhoneNumber, URL, DomainName, Hostname
     // ========================================================================
-
     /// Email: Match domain part (e.g., 'example.com')
     EmailDomainEq(String),
     /// Email: Domain in list
@@ -83,7 +82,6 @@ pub enum ExtendedOperator {
     // PostalCode, Latitude, Longitude, Coordinates, Timezone, LocaleCode,
     // LanguageCode, CountryCode
     // ========================================================================
-
     /// PostalCode: Country code matches
     PostalCodeCountryEq(String),
     /// PostalCode: Format valid for country
@@ -100,9 +98,18 @@ pub enum ExtendedOperator {
     LongitudeHemisphereEq(String),
 
     /// Coordinates: Distance within radius (km)
-    CoordinatesDistanceWithin { lat: f64, lng: f64, radius_km: f64 },
+    CoordinatesDistanceWithin {
+        lat:       f64,
+        lng:       f64,
+        radius_km: f64,
+    },
     /// Coordinates: Within bounding box
-    CoordinatesWithinBoundingBox { north: f64, south: f64, east: f64, west: f64 },
+    CoordinatesWithinBoundingBox {
+        north: f64,
+        south: f64,
+        east:  f64,
+        west:  f64,
+    },
     /// Coordinates: Within polygon (list of lat/lng pairs)
     CoordinatesWithinPolygon(Vec<(f64, f64)>),
 
@@ -137,7 +144,6 @@ pub enum ExtendedOperator {
     // IBAN, CUSIP, ISIN, SEDOL, LEI, MIC, CurrencyCode, Money,
     // ExchangeCode, ExchangeRate, StockSymbol
     // ========================================================================
-
     /// IBAN: Country code matches
     IbanCountryEq(String),
     /// IBAN: Country code in list
@@ -188,7 +194,6 @@ pub enum ExtendedOperator {
     // ========================================================================
     // Slug, SemanticVersion, HashSHA256, APIKey, LicensePlate,
     // VIN, TrackingNumber, ContainerNumber
-
     /// Slug: Depth equals (number of segments)
     SlugDepthEq(u32),
     /// Slug: Segment matches
@@ -241,7 +246,6 @@ pub enum ExtendedOperator {
     // NETWORKING TYPES (6 types)
     // ========================================================================
     // IPAddress, IPv4, IPv6, MACAddress, CIDR, Port
-
     /// IPAddress: Version equals (4 or 6)
     IpAddressVersionEq(u8),
     /// IPAddress: Is private (RFC 1918)
@@ -284,7 +288,6 @@ pub enum ExtendedOperator {
     // TRANSPORTATION TYPES (3 types)
     // ========================================================================
     // AirportCode, PortCode, FlightNumber
-
     /// AirportCode: Country matches
     AirportCodeCountryEq(String),
     /// AirportCode: Is major airport
@@ -302,7 +305,6 @@ pub enum ExtendedOperator {
     // CONTENT TYPES (6 types)
     // ========================================================================
     // Markdown, HTML, MimeType, Color, Image, File
-
     /// Markdown: Is valid CommonMark
     MarkdownIsValid(bool),
 
@@ -321,9 +323,17 @@ pub enum ExtendedOperator {
     /// Color: Hex value matches
     ColorHexEq(String),
     /// Color: RGB in range
-    ColorRgbInRange { r: (u8, u8), g: (u8, u8), b: (u8, u8) },
+    ColorRgbInRange {
+        r: (u8, u8),
+        g: (u8, u8),
+        b: (u8, u8),
+    },
     /// Color: HSL in range
-    ColorHslInRange { h: (u32, u32), s: (u8, u8), l: (u8, u8) },
+    ColorHslInRange {
+        h: (u32, u32),
+        s: (u8, u8),
+        l: (u8, u8),
+    },
 
     /// Image: Format matches (jpeg, png, etc.)
     ImageFormatEq(String),
@@ -345,7 +355,6 @@ pub enum ExtendedOperator {
     // DATABASE/POSTGRESQL-SPECIFIC TYPES (1 type)
     // ========================================================================
     // LTree
-
     /// LTree: Depth equals
     LtreeDepthEq(u32),
     /// LTree: Ancestor matches
@@ -357,7 +366,6 @@ pub enum ExtendedOperator {
     // RANGE TYPES (3 types)
     // ========================================================================
     // DateRange, Duration, Percentage
-
     /// DateRange: Duration >= min days
     DateRangeDurationGte(u32),
     /// DateRange: Starts after date
@@ -385,7 +393,7 @@ impl std::fmt::Display for ExtendedOperator {
             ExtendedOperator::EmailDomainEndswith(_) => write!(f, "email_domain_endswith"),
             ExtendedOperator::EmailLocalPartStartswith(_) => {
                 write!(f, "email_local_part_startswith")
-            }
+            },
             ExtendedOperator::PhoneCountryCodeEq(_) => write!(f, "phone_country_code_eq"),
             ExtendedOperator::PhoneCountryCodeIn(_) => write!(f, "phone_country_code_in"),
             ExtendedOperator::PhoneIsValid(_) => write!(f, "phone_is_valid"),
@@ -402,20 +410,20 @@ impl std::fmt::Display for ExtendedOperator {
             ExtendedOperator::PostalCodeCountryEq(_) => write!(f, "postal_code_country_eq"),
             ExtendedOperator::PostalCodeFormatValidForCountry(_) => {
                 write!(f, "postal_code_format_valid_for_country")
-            }
+            },
             ExtendedOperator::LatitudeWithinRange { .. } => write!(f, "latitude_within_range"),
             ExtendedOperator::LatitudeHemisphereEq(_) => write!(f, "latitude_hemisphere_eq"),
             ExtendedOperator::LongitudeWithinRange { .. } => write!(f, "longitude_within_range"),
             ExtendedOperator::LongitudeHemisphereEq(_) => write!(f, "longitude_hemisphere_eq"),
             ExtendedOperator::CoordinatesDistanceWithin { .. } => {
                 write!(f, "coordinates_distance_within")
-            }
+            },
             ExtendedOperator::CoordinatesWithinBoundingBox { .. } => {
                 write!(f, "coordinates_within_bounding_box")
-            }
+            },
             ExtendedOperator::CoordinatesWithinPolygon(_) => {
                 write!(f, "coordinates_within_polygon")
-            }
+            },
             ExtendedOperator::TimezoneOffsetEq(_) => write!(f, "timezone_offset_eq"),
             ExtendedOperator::TimezoneHasDst(_) => write!(f, "timezone_has_dst"),
             ExtendedOperator::TimezoneRegionEq(_) => write!(f, "timezone_region_eq"),
@@ -425,12 +433,12 @@ impl std::fmt::Display for ExtendedOperator {
             ExtendedOperator::LanguageCodeFamilyEq(_) => write!(f, "language_code_family_eq"),
             ExtendedOperator::CountryCodeContinentEq(_) => {
                 write!(f, "country_code_continent_eq")
-            }
+            },
             ExtendedOperator::CountryCodeRegionEq(_) => write!(f, "country_code_region_eq"),
             ExtendedOperator::CountryCodeInEu(_) => write!(f, "country_code_in_eu"),
             ExtendedOperator::CountryCodeInSchengen(_) => {
                 write!(f, "country_code_in_schengen")
-            }
+            },
 
             // Financial
             ExtendedOperator::IbanCountryEq(_) => write!(f, "iban_country_eq"),
@@ -445,20 +453,20 @@ impl std::fmt::Display for ExtendedOperator {
             ExtendedOperator::MicSegmentEq(_) => write!(f, "mic_segment_eq"),
             ExtendedOperator::CurrencyCodeRegionEq(_) => {
                 write!(f, "currency_code_region_eq")
-            }
+            },
             ExtendedOperator::CurrencyCodeDecimalPlacesEq(_) => {
                 write!(f, "currency_code_decimal_places_eq")
-            }
+            },
             ExtendedOperator::MoneyInCurrency(_) => write!(f, "money_in_currency"),
             ExtendedOperator::ExchangeCodeCountryEq(_) => {
                 write!(f, "exchange_code_country_eq")
-            }
+            },
             ExtendedOperator::ExchangeRateCurrencyPairEq(_) => {
                 write!(f, "exchange_rate_currency_pair_eq")
-            }
+            },
             ExtendedOperator::StockSymbolExchangeEq(_) => {
                 write!(f, "stock_symbol_exchange_eq")
-            }
+            },
             ExtendedOperator::StockSymbolSectorEq(_) => write!(f, "stock_symbol_sector_eq"),
 
             // Identifiers
@@ -466,25 +474,25 @@ impl std::fmt::Display for ExtendedOperator {
             ExtendedOperator::SlugSegmentEq(_) => write!(f, "slug_segment_eq"),
             ExtendedOperator::SemanticVersionMajorEq(_) => {
                 write!(f, "semantic_version_major_eq")
-            }
+            },
             ExtendedOperator::SemanticVersionMinorEq(_) => {
                 write!(f, "semantic_version_minor_eq")
-            }
+            },
             ExtendedOperator::SemanticVersionPatchEq(_) => {
                 write!(f, "semantic_version_patch_eq")
-            }
+            },
             ExtendedOperator::SemanticVersionHasPrerelease(_) => {
                 write!(f, "semantic_version_has_prerelease")
-            }
+            },
             ExtendedOperator::HashSha256LengthEq(_) => write!(f, "hash_sha256_length_eq"),
             ExtendedOperator::ApiKeyLengthEq(_) => write!(f, "api_key_length_eq"),
             ExtendedOperator::ApiKeyPrefixEq(_) => write!(f, "api_key_prefix_eq"),
             ExtendedOperator::LicensePlateCountryEq(_) => {
                 write!(f, "license_plate_country_eq")
-            }
+            },
             ExtendedOperator::LicensePlateFormatValidForCountry(_) => {
                 write!(f, "license_plate_format_valid_for_country")
-            }
+            },
             ExtendedOperator::VinWmiEq(_) => write!(f, "vin_wmi_eq"),
             ExtendedOperator::VinWmiIn(_) => write!(f, "vin_wmi_in"),
             ExtendedOperator::VinCountryEq(_) => write!(f, "vin_country_eq"),
@@ -492,16 +500,16 @@ impl std::fmt::Display for ExtendedOperator {
             ExtendedOperator::VinIsValid(_) => write!(f, "vin_is_valid"),
             ExtendedOperator::TrackingNumberCarrierEq(_) => {
                 write!(f, "tracking_number_carrier_eq")
-            }
+            },
             ExtendedOperator::TrackingNumberFormatValidForCarrier(_) => {
                 write!(f, "tracking_number_format_valid_for_carrier")
-            }
+            },
             ExtendedOperator::ContainerNumberOwnerEq(_) => {
                 write!(f, "container_number_owner_eq")
-            }
+            },
             ExtendedOperator::ContainerNumberIsValid(_) => {
                 write!(f, "container_number_is_valid")
-            }
+            },
 
             // Networking
             ExtendedOperator::IpAddressVersionEq(_) => write!(f, "ip_address_version_eq"),
@@ -524,15 +532,15 @@ impl std::fmt::Display for ExtendedOperator {
             // Transportation
             ExtendedOperator::AirportCodeCountryEq(_) => {
                 write!(f, "airport_code_country_eq")
-            }
+            },
             ExtendedOperator::AirportCodeIsMajor(_) => write!(f, "airport_code_is_major"),
             ExtendedOperator::PortCodeCountryEq(_) => write!(f, "port_code_country_eq"),
             ExtendedOperator::FlightNumberAirlineEq(_) => {
                 write!(f, "flight_number_airline_eq")
-            }
+            },
             ExtendedOperator::FlightNumberAircraftTypeEq(_) => {
                 write!(f, "flight_number_aircraft_type_eq")
-            }
+            },
 
             // Content
             ExtendedOperator::MarkdownIsValid(_) => write!(f, "markdown_is_valid"),
@@ -560,23 +568,23 @@ impl std::fmt::Display for ExtendedOperator {
             // Ranges
             ExtendedOperator::DateRangeDurationGte(_) => {
                 write!(f, "date_range_duration_gte")
-            }
+            },
             ExtendedOperator::DateRangeStartsAfter(_) => {
                 write!(f, "date_range_starts_after")
-            }
+            },
             ExtendedOperator::DateRangeEndsBefore(_) => {
                 write!(f, "date_range_ends_before")
-            }
+            },
             ExtendedOperator::DurationTotalSecondsEq(_) => {
                 write!(f, "duration_total_seconds_eq")
-            }
+            },
             ExtendedOperator::DurationTotalMinutesGte(_) => {
                 write!(f, "duration_total_minutes_gte")
-            }
+            },
             ExtendedOperator::PercentageInRange { .. } => write!(f, "percentage_in_range"),
             ExtendedOperator::PercentagePercentileEq(_) => {
                 write!(f, "percentage_percentile_eq")
-            }
+            },
         }
     }
 }

@@ -97,11 +97,7 @@ mod metrics_monitoring_tests {
         );
 
         // Verify accuracy (should be last value written)
-        assert_eq!(
-            gauge.load(Ordering::Relaxed),
-            (iterations - 1),
-            "Gauge should be accurate"
-        );
+        assert_eq!(gauge.load(Ordering::Relaxed), (iterations - 1), "Gauge should be accurate");
     }
 
     #[test]
@@ -548,5 +544,4 @@ mod metrics_monitoring_tests {
             (0, 1) // 0 hits, 1 miss
         }
     }
-
 }

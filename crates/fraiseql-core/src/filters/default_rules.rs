@@ -6,8 +6,9 @@
 //! Each rule is defined as a TOML-compatible structure that gets embedded in the
 //! compiled schema.
 
-use serde_json::{json, Value};
 use std::collections::HashMap;
+
+use serde_json::{Value, json};
 
 /// Get all default validation rules.
 ///
@@ -16,9 +17,20 @@ use std::collections::HashMap;
 pub fn get_default_rules() -> HashMap<String, Value> {
     let mut rules = HashMap::new();
 
-    // ========================================================================
-    // CONTACT/COMMUNICATION TYPES
-    // ========================================================================
+    rules.extend(add_contact_rules());
+    rules.extend(add_location_rules());
+    rules.extend(add_financial_rules());
+    rules.extend(add_identifier_rules());
+    rules.extend(add_transportation_rules());
+    rules.extend(add_network_rules());
+    rules.extend(add_content_rules());
+    rules.extend(add_measurement_rules());
+
+    rules
+}
+
+fn add_contact_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // Email operators
     rules.insert(
@@ -114,9 +126,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // LOCATION/ADDRESS TYPES
-    // ========================================================================
+    rules
+}
+
+fn add_location_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // PostalCode operators
     rules.insert(
@@ -198,9 +212,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // FINANCIAL TYPES
-    // ========================================================================
+    rules
+}
+
+fn add_financial_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // IBAN operators
     rules.insert(
@@ -318,9 +334,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // IDENTIFIERS & CONTENT
-    // ========================================================================
+    rules
+}
+
+fn add_identifier_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // Slug operators
     rules.insert(
@@ -360,9 +378,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // TRANSPORTATION & LOGISTICS
-    // ========================================================================
+    rules
+}
+
+fn add_transportation_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // LicensePlate operators
     rules.insert(
@@ -411,9 +431,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // NETWORK & GEOGRAPHY
-    // ========================================================================
+    rules
+}
+
+fn add_network_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // Port operators
     rules.insert(
@@ -452,9 +474,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // CONTENT TYPES
-    // ========================================================================
+    rules
+}
+
+fn add_content_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // MimeType operators
     rules.insert(
@@ -474,9 +498,11 @@ pub fn get_default_rules() -> HashMap<String, Value> {
         }),
     );
 
-    // ========================================================================
-    // RANGES & MEASUREMENTS
-    // ========================================================================
+    rules
+}
+
+fn add_measurement_rules() -> HashMap<String, Value> {
+    let mut rules = HashMap::new();
 
     // Duration operators
     rules.insert(

@@ -119,9 +119,7 @@ fn test_design_audit_handles_deeply_nested_json() {
 
     // Should either parse or fail gracefully
     if let Ok(schema) = result {
-        let req = DesignAuditRequest {
-            schema,
-        };
+        let req = DesignAuditRequest { schema };
         assert!(req.schema.is_object());
     } else {
         assert!(result.is_err(), "Deep nesting should be handled");

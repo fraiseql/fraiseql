@@ -322,7 +322,7 @@ impl CodeGenerator {
             name:        i.name.clone(),
             fields:      Self::map_input_fields(&i.fields, known_types),
             description: i.description.clone(),
-            metadata: None,
+            metadata:    None,
         }
     }
 

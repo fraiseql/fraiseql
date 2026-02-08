@@ -142,7 +142,7 @@ async fn test_postgres_index_creation() {
 #[tokio::test]
 async fn test_postgres_log_single_event() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -166,7 +166,7 @@ async fn test_postgres_log_single_event() {
 #[tokio::test]
 async fn test_postgres_log_event_with_all_fields() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -194,7 +194,7 @@ async fn test_postgres_log_event_with_all_fields() {
 #[tokio::test]
 async fn test_postgres_query_all_events() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -222,7 +222,7 @@ async fn test_postgres_query_all_events() {
 #[tokio::test]
 async fn test_postgres_query_by_event_type() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -248,7 +248,7 @@ async fn test_postgres_query_by_event_type() {
 #[tokio::test]
 async fn test_postgres_query_by_user_id() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -272,7 +272,7 @@ async fn test_postgres_query_by_user_id() {
 #[tokio::test]
 async fn test_postgres_query_by_resource_type() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -295,7 +295,7 @@ async fn test_postgres_query_by_resource_type() {
 #[tokio::test]
 async fn test_postgres_query_by_status() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -319,7 +319,7 @@ async fn test_postgres_query_by_status() {
 #[tokio::test]
 async fn test_postgres_query_with_limit() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -349,7 +349,7 @@ async fn test_postgres_query_with_limit() {
 #[tokio::test]
 async fn test_postgres_query_with_offset() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -391,7 +391,7 @@ async fn test_postgres_query_with_offset() {
 #[tokio::test]
 async fn test_postgres_query_ordering() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -425,7 +425,7 @@ async fn test_postgres_query_ordering() {
 #[tokio::test]
 async fn test_postgres_query_no_results() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -446,7 +446,7 @@ async fn test_postgres_query_no_results() {
 #[tokio::test]
 async fn test_postgres_jsonb_metadata() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -473,7 +473,7 @@ async fn test_postgres_jsonb_metadata() {
 #[tokio::test]
 async fn test_postgres_jsonb_state_snapshots() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -503,7 +503,7 @@ async fn test_postgres_jsonb_state_snapshots() {
 #[tokio::test]
 async fn test_postgres_null_state_snapshots() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -532,7 +532,7 @@ async fn test_postgres_null_state_snapshots() {
 #[tokio::test]
 async fn test_postgres_tenant_isolation() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -560,7 +560,7 @@ async fn test_postgres_tenant_isolation() {
 #[tokio::test]
 async fn test_postgres_null_tenant_id() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -638,7 +638,7 @@ async fn test_postgres_uuid_parsing_error() {
 #[tokio::test]
 async fn test_postgres_bulk_logging() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 
@@ -662,7 +662,7 @@ async fn test_postgres_bulk_logging() {
 #[tokio::test]
 async fn test_postgres_concurrent_writes() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = std::sync::Arc::new(
         PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend"),
@@ -732,7 +732,7 @@ async fn test_postgres_index_creation_idempotent() {
 #[tokio::test]
 async fn test_postgres_query_multiple_filters() {
     let pool = create_test_pool().await;
-    clean_audit_table(&pool).await.ok();
+    clean_audit_table(&pool).await.expect("Failed to clean audit table");
 
     let backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
 

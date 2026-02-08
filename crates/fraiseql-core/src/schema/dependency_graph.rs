@@ -92,7 +92,7 @@ impl CyclePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeImpact {
     /// Types that would be affected by this change.
-    pub affected_types: HashSet<String>,
+    pub affected_types:   HashSet<String>,
     /// Human-readable descriptions of breaking changes.
     pub breaking_changes: Vec<String>,
 }
@@ -123,11 +123,11 @@ impl ChangeImpact {
 #[derive(Debug, Clone)]
 pub struct SchemaDependencyGraph {
     /// Map of type name to types it depends on (outgoing edges).
-    outgoing: HashMap<String, HashSet<String>>,
+    outgoing:   HashMap<String, HashSet<String>>,
     /// Map of type name to types that depend on it (incoming edges).
-    incoming: HashMap<String, HashSet<String>>,
+    incoming:   HashMap<String, HashSet<String>>,
     /// All type names in the schema.
-    all_types: HashSet<String>,
+    all_types:  HashSet<String>,
     /// Root types that are always considered "used" (Query, Mutation, Subscription).
     root_types: HashSet<String>,
 }
@@ -209,14 +209,8 @@ impl SchemaDependencyGraph {
             // Track interface implementations
             for interface_name in &type_def.implements {
                 if all_types.contains(interface_name) {
-                    outgoing
-                        .get_mut(&type_def.name)
-                        .unwrap()
-                        .insert(interface_name.clone());
-                    incoming
-                        .get_mut(interface_name)
-                        .unwrap()
-                        .insert(type_def.name.clone());
+                    outgoing.get_mut(&type_def.name).unwrap().insert(interface_name.clone());
+                    incoming.get_mut(interface_name).unwrap().insert(type_def.name.clone());
                 }
             }
         }
@@ -226,14 +220,8 @@ impl SchemaDependencyGraph {
             for field in &interface_def.fields {
                 if let Some(ref_type) = Self::extract_referenced_type(&field.field_type) {
                     if all_types.contains(&ref_type) {
-                        outgoing
-                            .get_mut(&interface_def.name)
-                            .unwrap()
-                            .insert(ref_type.clone());
-                        incoming
-                            .get_mut(&ref_type)
-                            .unwrap()
-                            .insert(interface_def.name.clone());
+                        outgoing.get_mut(&interface_def.name).unwrap().insert(ref_type.clone());
+                        incoming.get_mut(&ref_type).unwrap().insert(interface_def.name.clone());
                     }
                 }
             }
@@ -243,14 +231,8 @@ impl SchemaDependencyGraph {
         for union_def in &schema.unions {
             for member_type in &union_def.member_types {
                 if all_types.contains(member_type) {
-                    outgoing
-                        .get_mut(&union_def.name)
-                        .unwrap()
-                        .insert(member_type.clone());
-                    incoming
-                        .get_mut(member_type)
-                        .unwrap()
-                        .insert(union_def.name.clone());
+                    outgoing.get_mut(&union_def.name).unwrap().insert(member_type.clone());
+                    incoming.get_mut(member_type).unwrap().insert(union_def.name.clone());
                 }
             }
         }
@@ -296,14 +278,8 @@ impl SchemaDependencyGraph {
             let parsed = FieldType::parse(&subscription.return_type, &all_types);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
-                    outgoing
-                        .get_mut("Subscription")
-                        .unwrap()
-                        .insert(ref_type.clone());
-                    incoming
-                        .get_mut(&ref_type)
-                        .unwrap()
-                        .insert("Subscription".to_string());
+                    outgoing.get_mut("Subscription").unwrap().insert(ref_type.clone());
+                    incoming.get_mut(&ref_type).unwrap().insert("Subscription".to_string());
                 }
             }
         }
@@ -477,11 +453,8 @@ impl SchemaDependencyGraph {
             }
 
             // Check if any type references this one
-            let has_references = self
-                .incoming
-                .get(type_name)
-                .map(|refs| !refs.is_empty())
-                .unwrap_or(false);
+            let has_references =
+                self.incoming.get(type_name).map(|refs| !refs.is_empty()).unwrap_or(false);
 
             if !has_references {
                 unused.push(type_name.clone());
@@ -677,10 +650,7 @@ mod tests {
                     "User",
                     vec![
                         ("id", FieldType::Id),
-                        (
-                            "posts",
-                            FieldType::List(Box::new(FieldType::Object("Post".to_string()))),
-                        ),
+                        ("posts", FieldType::List(Box::new(FieldType::Object("Post".to_string())))),
                     ],
                 ),
                 make_type("Post", vec![("title", FieldType::String)]),
@@ -733,10 +703,7 @@ mod tests {
     fn test_no_cycles() {
         let schema = CompiledSchema {
             types: vec![
-                make_type(
-                    "User",
-                    vec![("profile", FieldType::Object("Profile".to_string()))],
-                ),
+                make_type("User", vec![("profile", FieldType::Object("Profile".to_string()))]),
                 make_type("Profile", vec![("bio", FieldType::String)]),
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],
@@ -846,10 +813,7 @@ mod tests {
     fn test_no_unused_types() {
         let schema = CompiledSchema {
             types: vec![
-                make_type(
-                    "User",
-                    vec![("profile", FieldType::Object("Profile".to_string()))],
-                ),
+                make_type("User", vec![("profile", FieldType::Object("Profile".to_string()))]),
                 make_type("Profile", vec![("bio", FieldType::String)]),
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],
@@ -921,10 +885,7 @@ mod tests {
     fn test_impact_of_deletion_no_dependents() {
         let schema = CompiledSchema {
             types: vec![
-                make_type(
-                    "User",
-                    vec![("profile", FieldType::Object("Profile".to_string()))],
-                ),
+                make_type("User", vec![("profile", FieldType::Object("Profile".to_string()))]),
                 make_type("Profile", vec![("bio", FieldType::String)]),
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],
@@ -1076,13 +1037,13 @@ mod tests {
                     name:        "UserFilter".to_string(),
                     fields:      vec![InputFieldDefinition::new("status", "UserStatus")],
                     description: None,
-                    metadata: None,
+                    metadata:    None,
                 },
                 InputObjectDefinition {
                     name:        "UserStatus".to_string(),
                     fields:      vec![InputFieldDefinition::new("active", "Boolean")],
                     description: None,
-                    metadata: None,
+                    metadata:    None,
                 },
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],
@@ -1094,9 +1055,7 @@ mod tests {
         // UserFilter depends on UserStatus
         assert!(graph.has_type("UserFilter"));
         assert!(graph.has_type("UserStatus"));
-        assert!(graph
-            .dependencies_of("UserFilter")
-            .contains(&"UserStatus".to_string()));
+        assert!(graph.dependencies_of("UserFilter").contains(&"UserStatus".to_string()));
     }
 
     // =========================================================================
@@ -1129,9 +1088,7 @@ mod tests {
         let graph = SchemaDependencyGraph::build(&schema);
 
         assert!(graph.has_type("Subscription"));
-        assert!(graph
-            .dependencies_of("Subscription")
-            .contains(&"User".to_string()));
+        assert!(graph.dependencies_of("Subscription").contains(&"User".to_string()));
     }
 
     // =========================================================================
@@ -1140,11 +1097,7 @@ mod tests {
 
     #[test]
     fn test_cycle_path_formatting() {
-        let cycle = CyclePath::new(vec![
-            "A".to_string(),
-            "B".to_string(),
-            "C".to_string(),
-        ]);
+        let cycle = CyclePath::new(vec!["A".to_string(), "B".to_string(), "C".to_string()]);
         assert_eq!(cycle.path_string(), "A → B → C → A");
         assert_eq!(cycle.len(), 3);
         assert!(!cycle.is_self_reference());

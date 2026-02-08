@@ -403,7 +403,7 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
                     "SUBSTRING({}, CHARINDEX('@', {}) + 1, LEN({})) = @p{}",
                     field_sql, field_sql, field_sql, param_idx
                 ))
-            }
+            },
 
             crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
                 let mut placeholders = Vec::new();
@@ -420,18 +420,19 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
                     field_sql,
                     placeholders.join(", ")
                 ))
-            }
+            },
 
             crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));
                 let param_idx = self.param_counter.get() + 1;
                 self.param_counter.set(param_idx);
-                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' + @p_idx
+                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' +
+                // @p_idx
                 Ok(format!(
                     "SUBSTRING({}, CHARINDEX('@', {}) + 1, LEN({})) LIKE '%' + @p{}",
                     field_sql, field_sql, field_sql, param_idx
                 ))
-            }
+            },
 
             crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
                 params.push(serde_json::Value::String(prefix.clone()));
@@ -442,7 +443,7 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
                     "SUBSTRING({}, 1, CHARINDEX('@', {}) - 1) LIKE @p{} + '%'",
                     field_sql, field_sql, param_idx
                 ))
-            }
+            },
 
             // VIN operations
             crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
@@ -451,7 +452,7 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
                 self.param_counter.set(param_idx);
                 // SQL Server: SUBSTRING(field, 1, 3) = @p_idx
                 Ok(format!("SUBSTRING({}, 1, 3) = @p{}", field_sql, param_idx))
-            }
+            },
 
             // IBAN operations
             crate::filters::ExtendedOperator::IbanCountryEq(country) => {
@@ -460,12 +461,13 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
                 self.param_counter.set(param_idx);
                 // SQL Server: SUBSTRING(field, 1, 2) = @p_idx
                 Ok(format!("SUBSTRING({}, 1, 2) = @p{}", field_sql, param_idx))
-            }
+            },
 
             // Fallback: not implemented
-            _ => Err(FraiseQLError::validation(
-                format!("Extended operator not yet implemented: {}", operator),
-            )),
+            _ => Err(FraiseQLError::validation(format!(
+                "Extended operator not yet implemented: {}",
+                operator
+            ))),
         }
     }
 }

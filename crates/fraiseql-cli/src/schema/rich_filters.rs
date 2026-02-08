@@ -206,7 +206,7 @@ fn generate_where_input_type(
     // Rich operators
     let mut operator_names = Vec::new();
     for op_info in operators {
-        let graphql_type = operator_param_type_to_graphql_string(&op_info.parameter_type);
+        let graphql_type = operator_param_type_to_graphql_string(op_info.parameter_type);
         operator_names.push(op_info.graphql_name.clone());
         fields.push(InputFieldDefinition {
             name:          op_info.graphql_name.clone(),
@@ -230,7 +230,7 @@ fn generate_where_input_type(
 }
 
 /// Convert parameter type to GraphQL type string
-fn operator_param_type_to_graphql_string(param_type: &ParameterType) -> String {
+fn operator_param_type_to_graphql_string(param_type: ParameterType) -> String {
     match param_type {
         ParameterType::String => "String".to_string(),
         ParameterType::StringArray => "[String!]!".to_string(),

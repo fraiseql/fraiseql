@@ -550,5 +550,4 @@ fn test_rls_policy_evaluation_architecture() {
     // - scopes: ["read:order", "write:order"]
     // - tenant_id: "org-456" (for multi-tenancy)
     // - attributes: {"department": "sales"} (custom claims)
-
 }

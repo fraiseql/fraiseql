@@ -43,7 +43,6 @@ mod dependency_graph;
 mod field_type;
 mod introspection;
 
-pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
     EnumDefinition, EnumValueDefinition, FilterOperator, InputFieldDefinition,
@@ -52,6 +51,7 @@ pub use compiled::{
     SqlProjectionHint, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
     TypeDefinition, UnionDefinition,
 };
+pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldType, VectorConfig, VectorIndexType,
 };

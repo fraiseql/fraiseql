@@ -66,7 +66,7 @@ impl ValidationRule {
                     )));
                 }
                 Ok(())
-            }
+            },
 
             ValidationRule::Length(expected) => {
                 if value.len() != *expected {
@@ -78,7 +78,7 @@ impl ValidationRule {
                     )));
                 }
                 Ok(())
-            }
+            },
 
             ValidationRule::LengthRange { min, max } => {
                 let len = value.len();
@@ -89,7 +89,7 @@ impl ValidationRule {
                     )));
                 }
                 Ok(())
-            }
+            },
 
             ValidationRule::Checksum(checksum_type) => {
                 match checksum_type {
@@ -97,14 +97,11 @@ impl ValidationRule {
                     ChecksumType::Luhn => validate_luhn(value)?,
                 }
                 Ok(())
-            }
+            },
 
             ValidationRule::NumericRange { min, max } => {
                 let num: f64 = value.parse().map_err(|_| {
-                    FraiseQLError::validation(format!(
-                        "Value '{}' is not a valid number",
-                        value
-                    ))
+                    FraiseQLError::validation(format!("Value '{}' is not a valid number", value))
                 })?;
 
                 if num < *min || num > *max {
@@ -114,7 +111,7 @@ impl ValidationRule {
                     )));
                 }
                 Ok(())
-            }
+            },
 
             ValidationRule::Enum(options) => {
                 if !options.contains(&value.to_string()) {
@@ -125,14 +122,14 @@ impl ValidationRule {
                     )));
                 }
                 Ok(())
-            }
+            },
 
             ValidationRule::All(rules) => {
                 for rule in rules {
                     rule.validate(value)?;
                 }
                 Ok(())
-            }
+            },
         }
     }
 
@@ -142,7 +139,7 @@ impl ValidationRule {
             Value::String(s) => {
                 // Simple case: just a pattern
                 Ok(ValidationRule::Pattern(s.clone()))
-            }
+            },
 
             Value::Object(map) => {
                 let mut rules = Vec::new();
@@ -180,18 +177,16 @@ impl ValidationRule {
                             return Err(FraiseQLError::validation(format!(
                                 "Unknown checksum type: {}",
                                 checksum
-                            )))
-                        }
+                            )));
+                        },
                     };
                     rules.push(ValidationRule::Checksum(checksum_type));
                 }
 
                 // Enum rule
                 if let Some(Value::Array(options)) = map.get("enum") {
-                    let enum_values: Vec<String> = options
-                        .iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                        .collect();
+                    let enum_values: Vec<String> =
+                        options.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
 
                     if !enum_values.is_empty() {
                         rules.push(ValidationRule::Enum(enum_values));
@@ -221,7 +216,7 @@ impl ValidationRule {
                 } else {
                     Ok(ValidationRule::All(rules))
                 }
-            }
+            },
 
             _ => Err(FraiseQLError::validation(
                 "Validation rule must be string or object".to_string(),
@@ -234,9 +229,7 @@ impl ValidationRule {
 fn validate_mod97(value: &str) -> Result<()> {
     // Move country code (first 4 chars) to end
     if value.len() < 4 {
-        return Err(FraiseQLError::validation(
-            "IBAN must be at least 4 characters".to_string(),
-        ));
+        return Err(FraiseQLError::validation("IBAN must be at least 4 characters".to_string()));
     }
 
     let rearranged = format!("{}{}", &value[4..], &value[..4]);
@@ -257,30 +250,23 @@ fn validate_mod97(value: &str) -> Result<()> {
     let mut remainder: u64 = 0;
     for digit_char in numeric_string.chars() {
         if let Some(digit) = digit_char.to_digit(10) {
-            remainder = (remainder * 10 + digit as u64) % 97;
+            remainder = (remainder * 10 + u64::from(digit)) % 97;
         }
     }
 
     if remainder == 1 {
         Ok(())
     } else {
-        Err(FraiseQLError::validation(
-            "Invalid IBAN checksum".to_string(),
-        ))
+        Err(FraiseQLError::validation("Invalid IBAN checksum".to_string()))
     }
 }
 
 /// Luhn algorithm checksum validation (used for VINs, credit cards, etc.).
 fn validate_luhn(value: &str) -> Result<()> {
-    let digits: Vec<u32> = value
-        .chars()
-        .filter_map(|c| c.to_digit(10))
-        .collect();
+    let digits: Vec<u32> = value.chars().filter_map(|c| c.to_digit(10)).collect();
 
     if digits.is_empty() {
-        return Err(FraiseQLError::validation(
-            "Value must contain at least one digit".to_string(),
-        ));
+        return Err(FraiseQLError::validation("Value must contain at least one digit".to_string()));
     }
 
     let mut sum = 0u32;
@@ -301,9 +287,7 @@ fn validate_luhn(value: &str) -> Result<()> {
     if sum % 10 == 0 {
         Ok(())
     } else {
-        Err(FraiseQLError::validation(
-            "Invalid Luhn checksum".to_string(),
-        ))
+        Err(FraiseQLError::validation("Invalid Luhn checksum".to_string()))
     }
 }
 
