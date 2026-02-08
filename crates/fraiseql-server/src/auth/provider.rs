@@ -131,11 +131,36 @@ impl PkceChallenge {
 }
 
 /// Generate a PKCE verifier (43-128 characters of unreserved characters)
+///
+/// # SECURITY
+///
+/// This uses `rand::thread_rng()` which is cryptographically secure on all major platforms.
+/// It generates a 128-character random string using only unreserved characters as per RFC 7636.
+///
+/// The generated verifier meets these requirements:
+/// - Length: exactly 128 characters (within 43-128 range)
+/// - Characters: only unreserved ASCII characters: [A-Z a-z 0-9 - . _ ~]
+/// - Randomness: cryptographically secure pseudorandom generation
+/// - No padding: can be used directly in PKCE challenge
+///
+/// # Errors
+///
+/// Returns error if:
+/// - Random number generation fails (extremely rare)
+/// - Generated verifier is invalid (should never happen given the constraints)
+///
+/// # Implementation Notes
+///
+/// We use a fixed 128-character length (maximum allowed by RFC 7636) for:
+/// 1. Maximum security: more entropy means harder to guess
+/// 2. Consistency: predictable length for tests and monitoring
+/// 3. Compatibility: all OAuth providers support 128-char verifiers
 fn generate_pkce_verifier() -> Result<String> {
     use rand::Rng;
 
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-    const VERIFIER_LENGTH: usize = 128;
+    const VERIFIER_LENGTH: usize = 128; // Maximum allowed by RFC 7636
+    const MIN_VERIFIER_LENGTH: usize = 43; // Minimum allowed by RFC 7636
 
     let mut rng = rand::thread_rng();
     let verifier: String = (0..VERIFIER_LENGTH)
@@ -144,6 +169,42 @@ fn generate_pkce_verifier() -> Result<String> {
             CHARSET[idx] as char
         })
         .collect();
+
+    // Validate the generated verifier meets RFC 7636 requirements
+    if verifier.len() < MIN_VERIFIER_LENGTH {
+        return Err(AuthError::PkceError {
+            message: format!(
+                "Generated PKCE verifier too short: {} < {} chars",
+                verifier.len(),
+                MIN_VERIFIER_LENGTH
+            ),
+        });
+    }
+
+    if verifier.len() > 128 {
+        return Err(AuthError::PkceError {
+            message: format!(
+                "Generated PKCE verifier too long: {} > 128 chars",
+                verifier.len()
+            ),
+        });
+    }
+
+    // Verify all characters are from the allowed charset
+    let allowed_chars = std::collections::HashSet::<char>::from_iter(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~".chars(),
+    );
+
+    for (i, c) in verifier.chars().enumerate() {
+        if !allowed_chars.contains(&c) {
+            return Err(AuthError::PkceError {
+                message: format!(
+                    "Generated PKCE verifier contains invalid character '{}' at position {}",
+                    c, i
+                ),
+            });
+        }
+    }
 
     Ok(verifier)
 }
@@ -160,19 +221,95 @@ mod tests {
 
     #[test]
     fn test_pkce_challenge_generation() {
-        let challenge = PkceChallenge::generate().expect("Failed to generate challenge");
-        assert!(!challenge.verifier.is_empty());
-        assert!(!challenge.challenge.is_empty());
-        assert!(challenge.verifier.len() >= 43 && challenge.verifier.len() <= 128);
+        // Test proper error handling - generation should always succeed
+        let challenge_result = PkceChallenge::generate();
+        assert!(
+            challenge_result.is_ok(),
+            "PKCE challenge generation should succeed"
+        );
+
+        let challenge = challenge_result.unwrap();
+        assert!(!challenge.verifier.is_empty(), "Verifier should not be empty");
+        assert!(!challenge.challenge.is_empty(), "Challenge should not be empty");
+        assert!(
+            challenge.verifier.len() >= 43 && challenge.verifier.len() <= 128,
+            "Verifier length must be 43-128 characters per RFC 7636"
+        );
+    }
+
+    #[test]
+    fn test_pkce_verifier_contains_valid_characters() {
+        // Verify that generated verifier only contains unreserved characters
+        let challenge = PkceChallenge::generate().unwrap();
+
+        let allowed_chars = std::collections::HashSet::<char>::from_iter(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~".chars(),
+        );
+
+        for c in challenge.verifier.chars() {
+            assert!(
+                allowed_chars.contains(&c),
+                "PKCE verifier contains invalid character: {}",
+                c
+            );
+        }
     }
 
     #[test]
     fn test_pkce_validation() {
-        let challenge = PkceChallenge::generate().expect("Failed to generate challenge");
-        assert!(challenge.validate(&challenge.verifier));
+        // Test that validation works correctly
+        let challenge = PkceChallenge::generate().unwrap();
+        assert!(
+            challenge.validate(&challenge.verifier),
+            "Challenge should validate against its own verifier"
+        );
 
         let wrong_verifier = "wrong_verifier";
-        assert!(!challenge.validate(wrong_verifier));
+        assert!(
+            !challenge.validate(wrong_verifier),
+            "Challenge should reject invalid verifier"
+        );
+    }
+
+    #[test]
+    fn test_pkce_generation_is_unique() {
+        // Test that multiple PKCE generations produce different verifiers
+        let challenge1 = PkceChallenge::generate().unwrap();
+        let challenge2 = PkceChallenge::generate().unwrap();
+
+        assert_ne!(
+            challenge1.verifier, challenge2.verifier,
+            "Generated verifiers should be unique"
+        );
+        assert_ne!(
+            challenge1.challenge, challenge2.challenge,
+            "Generated challenges should be unique"
+        );
+    }
+
+    #[test]
+    fn test_pkce_challenge_is_base64_url_safe() {
+        // Verify that challenge is URL-safe base64 encoded
+        let challenge = PkceChallenge::generate().unwrap();
+
+        // URL-safe base64 should not contain + or / (only -, _, and =)
+        assert!(
+            !challenge.challenge.contains('+'),
+            "Challenge should not contain + (not URL-safe)"
+        );
+        assert!(
+            !challenge.challenge.contains('/'),
+            "Challenge should not contain / (not URL-safe)"
+        );
+
+        // But should only contain valid base64 characters
+        for c in challenge.challenge.chars() {
+            assert!(
+                c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '=',
+                "Challenge contains unexpected character: {}",
+                c
+            );
+        }
     }
 
     #[test]
