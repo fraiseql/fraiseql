@@ -2,7 +2,7 @@
 
 🟡 **Production** - Performance expectations, methodology, and optimization guidance.
 
-**📍 Navigation**: [← Main README](./../README.md) • [Performance Docs →](././index.md) • [Benchmarks →](./../benchmarks.md)
+**📍 Navigation**: [← Main README](./../README.md) • [Performance Docs →](././index.md) •
 
 ## Executive Summary
 
@@ -389,8 +389,8 @@ FraiseQL provides **excellent performance** for typical GraphQL applications wit
 
 ## Related Documentation
 
-- [Benchmarks](./../benchmarks.md) - Detailed performance benchmarks and methodology
-- [Rust Pipeline Architecture](./../rust/rust-first-pipeline.md) - Technical details of the performance optimizations
+-  - Detailed performance benchmarks and methodology
+-  - Technical details of the performance optimizations
 - [APQ Caching Guide](././apq-optimization-guide.md) - Automatic Persisted Queries optimization
 - [Caching Guide](././caching.md) - Application-level caching strategies
 

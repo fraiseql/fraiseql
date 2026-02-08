@@ -5,7 +5,7 @@ Common design patterns and architectural approaches for FraiseQL applications.
 ## Core Patterns
 
 ### Trinity Identifiers
-**[Trinity Identifiers Pattern](../database/trinity-identifiers/)** - Three-tier ID system for optimal performance and UX
+**** - Three-tier ID system for optimal performance and UX
 
 The trinity pattern uses three types of identifiers per entity:
 - **`pk_*`** - Internal integer IDs for fast database joins
@@ -205,17 +205,17 @@ class DeletePost:
 ## Real-World Examples
 
 ### Blog API Patterns
-- **Simple**: [blog_simple](../../examples/blog_simple/) - Basic CRUD
-- **Intermediate**: [blog_api](../../examples/blog_api/) - Nested relations
-- **Enterprise**: [blog_enterprise](../../examples/blog_enterprise/) - Full CQRS + bounded contexts
+- **Simple**:  - Basic CRUD
+- **Intermediate**:  - Nested relations
+- **Enterprise**:  - Full CQRS + bounded contexts
 
 ### E-commerce Patterns
-- [ecommerce](../../examples/ecommerce/) - Product catalog, cart, orders
-- [ecommerce_api](../../examples/ecommerce_api/) - Advanced filtering
+-  - Product catalog, cart, orders
+-  - Advanced filtering
 
 ### SaaS Patterns
-- [saas-starter](../../examples/saas-starter/) - Multi-tenancy template
-- [apq_multi_tenant](../../examples/apq_multi_tenant/) - APQ + multi-tenancy
+-  - Multi-tenancy template
+-  - APQ + multi-tenancy
 
 ---
 

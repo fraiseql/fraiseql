@@ -454,6 +454,6 @@ await db.find("users", where={"age": {"gt": 18}})
 ## See Also
 
 - **[Where Input Types - Full Guide](./../advanced/where-input-types.md)** - Complete documentation
-- **[Dict-Based Nested Filtering](./../examples/dict-based-nested-filtering.md)** - Dict syntax deep-dive
+- **** - Dict syntax deep-dive
 - **[Filter Operators Reference](./../advanced/filter-operators.md)** - All available operators
-- **[Advanced Filtering Examples](./../examples/advanced-filtering.md)** - Real-world use cases
+- **** - Real-world use cases

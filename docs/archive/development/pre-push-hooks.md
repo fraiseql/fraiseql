@@ -160,5 +160,5 @@ uv --version
 ## Related
 
 - [Pre-Commit Hooks](../../.pre-commit-config.yaml) - All hooks configuration
-- [Running Tests](../testing/developer-guide/) - How to run tests manually
+-  - How to run tests manually
 - [CI/CD](../../.github/workflows/) - GitHub Actions configuration

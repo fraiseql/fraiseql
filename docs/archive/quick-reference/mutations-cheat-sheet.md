@@ -239,4 +239,4 @@ SELECT status ~ '^(created|updated|deleted|failed|not_found|conflict|noop)(:.+)?
 - **Complete Guide:** [Mutation SQL Requirements](../guides/mutation-sql-requirements/)
 - **Error Handling Deep Dive:** [Error Handling Patterns](../guides/error-handling-patterns/)
 - **Troubleshooting:** [Troubleshooting Guide](../guides/troubleshooting-mutations/)
-- **Examples:** [Real-World Mutations](../../examples/mutation-patterns/)
+- **Examples:**

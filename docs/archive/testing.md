@@ -93,7 +93,6 @@ import pytest
 import psycopg
 from fraiseql.db import DatabaseQuery
 
-
 @pytest.fixture(scope="class")
 async def app_with_test_mutations(blog_simple_app, blog_simple_db_url):
     """Create test mutations and refresh schema."""
@@ -135,7 +134,6 @@ async def app_with_test_mutations(blog_simple_app, blog_simple_db_url):
     await blog_simple_app.refresh_schema()
 
     yield blog_simple_app
-
 
 class TestErrorHandling:
     """Test error handling with dynamic mutations."""

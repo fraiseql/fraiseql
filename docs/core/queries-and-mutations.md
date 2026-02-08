@@ -98,7 +98,6 @@ Query using custom repository methods:
 ```python
 import fraiseql
 
-
 @fraiseql.query
 async def get_user_stats(info, user_id: UUID) -> UserStats:
     db = info.context["db"]
@@ -554,7 +553,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. See [Status String Conventions](./../mutations/status-strings.md) for HTTP mode error handling |
+| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. See  for HTTP mode error handling |
 
 **Examples**:
 

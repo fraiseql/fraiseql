@@ -775,7 +775,7 @@ async def benchmark_search(
 - [pgvector GitHub](https://github.com/pgvector/pgvector)
 - [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings)
 - [Cohere Embeddings](https://docs.cohere.com/docs/embeddings)
-- [Sentence Transformers](./https://www.sbert.net.md)
+-
 - [Vector Search Best Practices](https://github.com/pgvector/pgvector#best-practices)
 
 This example provides a solid foundation for building semantic search applications with FraiseQL and pgvector.

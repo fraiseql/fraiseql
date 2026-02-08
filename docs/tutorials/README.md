@@ -20,7 +20,6 @@ Structured progression from basics to building production applications.
 
 ---
 
-### **[Interactive Examples](./interactive-examples.md)** 💻
 
 Side-by-side examples showing SQL → Python → GraphQL transformations.
 
@@ -73,10 +72,9 @@ Deploy FraiseQL applications to production.
 ## Quick Navigation
 
 **New to FraiseQL?**
-Start with [Getting Started](./../getting-started.md) before diving into tutorials.
+Start with  before diving into tutorials.
 
 **Want hands-on practice?**
-Try [Interactive Examples](./interactive-examples.md) for quick, focused learning.
 
 **Building a real app?**
 Follow the [Blog API Tutorial](./blog-api.md) for a complete walkthrough.
@@ -86,7 +84,6 @@ Check [Production Deployment](./production-deployment.md) for deployment best pr
 
 ## Related Documentation
 
-- **[Getting Started](./../getting-started.md)** - Quickstart and first hour guides
-- **[Core Concepts](./../core.md)** - Fundamental FraiseQL concepts
-- **[Guides](./../guides.md)** - Task-based guides for specific workflows
-- **[Examples](./../../examples.md)** - Working code examples
+- **** - Quickstart and first hour guides
+- **** - Fundamental FraiseQL concepts
+- **** - Task-based guides for specific workflows

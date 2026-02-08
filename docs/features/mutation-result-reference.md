@@ -301,7 +301,7 @@ For REST-like semantics, error responses include a `code` field with equivalent 
 
 ### Status to Code Mapping
 
-FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See [Status String Conventions](./../mutations/status-strings.md) for complete reference.
+FraiseQL's Rust layer automatically maps status prefixes to HTTP status codes. See  for complete reference.
 
 | Status Pattern | Code | Description | Use Case |
 |----------------|------|-------------|----------|

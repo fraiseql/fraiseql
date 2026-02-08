@@ -12,7 +12,7 @@ FraiseQL provides powerful, flexible filtering capabilities for both GraphQL que
 | Dynamic/runtime-built filters | Dict-based | [Dict-Based Syntax](#dict-based-filtering) |
 | Need operator reference | Both | [Filter Operators](./../advanced/filter-operators.md) |
 | Side-by-side comparison | Both | [Syntax Comparison](./../reference/where-clause-syntax-comparison.md) |
-| Real-world patterns | Both | [Advanced Examples](./../examples/advanced-filtering.md) |
+| Real-world patterns | Both |  |
 
 ---
 
@@ -267,4 +267,4 @@ Dict-based filters support 2-level nesting only:
 - **[Filter Operators Reference](./../advanced/filter-operators.md)** - Complete operator documentation
 - **[WhereType Deep Dive](./../advanced/where-input-types.md)** - Type-safe filtering patterns
 - **[Syntax Comparison](./../reference/where-clause-syntax-comparison.md)** - WhereType vs Dict side-by-side
-- **[Advanced Examples](./../examples/advanced-filtering.md)** - Real-world filtering patterns
+- **** - Real-world filtering patterns

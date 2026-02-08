@@ -120,7 +120,6 @@ async def create_post(title: str, author_id: UUID) -> Post:
 from uuid import UUID
 import asyncpg
 
-
 class EntitySync:
     """Handles synchronization from tb_* to tv_* tables."""
 
@@ -423,7 +422,6 @@ await sync.sync_all_posts(mode='full')  # ~500ms for 1000 posts
 from unittest.mock import AsyncMock
 import pytest
 
-
 @pytest.mark.asyncio
 async def test_create_post():
     """Test post creation without syncing."""
@@ -711,7 +709,7 @@ async def sync_post(self, post_ids: list[UUID]):
 
 ## See Also
 
-- [Complete CQRS Example](./../../examples/complete_cqrs_blog.md) - See explicit sync in action
+-  - See explicit sync in action
 - [CASCADE Best Practices](./../guides/cascade-best-practices.md) - Cache invalidation with sync
 - [Migrations Guide](././migrations.md) - Setting up tb_/tv_ tables
 - [Database Patterns](./../advanced/database-patterns.md) - Advanced sync patterns
@@ -734,7 +732,7 @@ FraiseQL's explicit sync pattern provides:
 1. Implement sync functions for your entities
 2. Call sync explicitly after mutations
 3. Monitor sync performance
-4. See the [Complete CQRS Example](./../../examples/complete_cqrs_blog.md) for reference
+4. See the  for reference
 
 ---
 

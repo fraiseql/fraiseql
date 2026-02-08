@@ -17,7 +17,7 @@ This directory contains architectural documentation for FraiseQL.
 **[type-operator-architecture.md](././type-operator-architecture.md)** - Documentation of FraiseQL's type system and operator strategies for WHERE clauses.
 
 ### Architectural Decisions
-**[decisions/](././decisions.md)** - Records of key architectural decisions and their rationale.
+**** - Records of key architectural decisions and their rationale.
 
 ## Architectural Topics
 
@@ -43,6 +43,6 @@ GraphQL Query → Parser → SQL + WHERE → JSONB → Rust → HTTP
 
 ## Related Documentation
 
-- [Advanced Patterns](./../advanced.md)
-- [Enterprise Features](./../enterprise.md)
-- [Examples](./../../examples.md)
+-
+-
+-

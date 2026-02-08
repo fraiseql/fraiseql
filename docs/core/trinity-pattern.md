@@ -481,9 +481,9 @@ SELECT
 
 ## Next Steps
 
-- [Database Naming Conventions](./../database/table-naming-conventions.md) - Complete naming reference
+-  - Complete naming reference
 - [Migration Guide](././migrations.md) - Migrate from simple tables
-- [View Strategies](./../database/view-strategies.md) - Advanced view patterns
+-  - Advanced view patterns
 - [Performance Tuning](./../performance/performance-guide.md) - Optimize your trinity pattern
 
 ---

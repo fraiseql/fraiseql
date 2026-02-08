@@ -33,7 +33,7 @@ FraiseQL provides a repository layer for database operations that:
 3. **PostgreSQL** executes view and returns JSONB results
 4. **Rust Pipeline** transforms JSONB to GraphQL response format
 
-**[📊 Detailed Query Flow](./../diagrams/request-flow.md)** - Complete request lifecycle
+**** - Complete request lifecycle
 
 ## FraiseQLRepository
 
@@ -442,7 +442,7 @@ class QueryOptions:
 
 Filter syntax supports multiple operators for flexible querying.
 
-> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](./../advanced/filter-operators.md)** and **[Advanced Filtering Examples](./../examples/advanced-filtering.md)**.
+> **💡 Advanced Filtering**: For comprehensive PostgreSQL operator support including arrays, full-text search, JSONB queries, and regex, see **[Filter Operators Reference](./../advanced/filter-operators.md)** and ****.
 
 ### Supported Operators
 

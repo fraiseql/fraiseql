@@ -21,7 +21,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Understand FraiseQL's security architecture
 
-**Read:** [Security & Compliance Hub](../security-compliance/README/)
+**Read:**
 
 **Key Security Features:**
 - ✅ **Supply Chain Security:** SLSA Level 3 provenance, automated SBOM
@@ -42,7 +42,7 @@ By the end of this journey, you'll have:
 
 **Goal:** Verify compliance with your organization's regulatory requirements
 
-**Read:** [Compliance Matrix](../security-compliance/compliance-matrix/)
+**Read:**
 
 **Supported Compliance Frameworks:**
 
@@ -113,7 +113,7 @@ All control implementations link to test files for verification:
 
 **Goal:** Choose the appropriate security profile for your requirements
 
-**Read:** [Security Profiles Guide](../security-compliance/security-profiles/)
+**Read:**
 
 **Decision Matrix:**
 
@@ -176,7 +176,7 @@ app = create_fraiseql_app(
 
 **Goal:** Verify SLSA provenance and SBOM integrity
 
-**Read:** [SLSA Provenance Verification Guide](../security-compliance/slsa-provenance/)
+**Read:**
 
 **Supply Chain Security Features:**
 - ✅ **SLSA Level 3** provenance with cryptographic signing
@@ -376,10 +376,10 @@ Use this checklist for final approval decision:
 ## Related Resources
 
 ### Documentation
-- [Security & Compliance Hub](../security-compliance/README/) - Overview
-- [Compliance Matrix](../security-compliance/compliance-matrix/) - Framework mappings
-- [Security Profiles](../security-compliance/security-profiles/) - Configuration guide
-- [SLSA Provenance](../security-compliance/slsa-provenance/) - Supply chain verification
+-  - Overview
+-  - Framework mappings
+-  - Configuration guide
+-  - Supply chain verification
 - [Production Security](../production/security/) - Operational security guide
 
 ### Test Evidence

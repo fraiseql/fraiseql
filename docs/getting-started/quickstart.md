@@ -256,7 +256,7 @@ mutation {
 - [First Hour Guide](./first-hour.md) - Progressive tutorial
 - [Troubleshooting](./../guides/troubleshooting.md) - Common issues and solutions
 - Examples (../../examples/) - More complete examples
-- [Style Guide](./../development/style-guide.md) - Best practices
+-  - Best practices
 
 ## Need Help?
 

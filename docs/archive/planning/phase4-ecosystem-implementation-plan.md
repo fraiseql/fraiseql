@@ -111,7 +111,6 @@ from langchain.embeddings.base import Embeddings
 import psycopg_pool
 from fraiseql.db import FraiseQLRepository
 
-
 class FraiseQLVectorStore(VectorStore):
     """FraiseQL vector store for LangChain.
 
@@ -567,7 +566,6 @@ from llama_index.schema import Document, TextNode
 import psycopg_pool
 from fraiseql.db import FraiseQLRepository
 
-
 class FraiseQLReader(BaseReader):
     """Load data from FraiseQL/PostgreSQL into LlamaIndex.
 
@@ -633,7 +631,6 @@ class FraiseQLReader(BaseReader):
             documents.append(doc)
 
         return documents
-
 
 class FraiseQLVectorStore(VectorStore):
     """FraiseQL vector store for LlamaIndex.
@@ -852,7 +849,6 @@ from typing import List, Dict, Any
 import numpy as np
 import psycopg_pool
 from fraiseql.db import FraiseQLRepository
-
 
 class VectorBenchmark:
     """Benchmark framework for vector operations."""
@@ -1138,7 +1134,6 @@ class VectorBenchmark:
 
         print("\n" + "=" * 60)
 
-
 async def main():
     """Run benchmarks."""
     import psycopg_pool
@@ -1166,7 +1161,6 @@ async def main():
         json.dump(results, f, indent=2)
 
     print("\n✅ Results saved to benchmark_results.json")
-
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -1205,7 +1199,6 @@ import psycopg_pool
 
 # Pinecone setup
 import pinecone
-
 
 class PineconeComparison:
     """Compare FraiseQL and Pinecone."""

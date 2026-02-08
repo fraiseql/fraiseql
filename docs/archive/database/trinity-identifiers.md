@@ -213,13 +213,13 @@ def get_product(
 
 ## Related Patterns
 
-- [CQRS](../../examples/enterprise_patterns/cqrs/)
+-
 - [Repository Pattern](../../examples/)
-- [Hybrid Tables](../../examples/hybrid_tables/)
+-
 
 ## Further Reading
 
 - [Database Design](../architecture/)
 - [Security Best Practices](../../SECURITY/)
-- [Blog Simple Example](../../examples/blog_simple/) - Complete trinity identifier implementation
+-  - Complete trinity identifier implementation
 - [Examples](../../examples/)

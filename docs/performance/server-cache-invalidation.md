@@ -617,7 +617,7 @@ FraiseQL's CASCADE invalidation provides:
 **Next Steps**:
 1. Setup auto-CASCADE: `await setup_auto_cascade_rules(cache, schema)`
 2. Monitor CASCADE performance: `await cache.get_cascade_stats()`
-3. See it working: Try the [Complete CQRS Example](./../../examples/complete_cqrs_blog.md)
+3. See it working: Try the
 
 ---
 

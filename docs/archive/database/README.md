@@ -350,8 +350,8 @@ $$ LANGUAGE plpgsql;
 
 **Documentation**:
 - **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete reference
-- **[Status Strings](../mutations/status-strings/)** - Status taxonomy
-- **[CASCADE Architecture](../mutations/cascade-architecture/)** - Side effects
+- **** - Status taxonomy
+- **** - Side effects
 
 ---
 
@@ -399,7 +399,7 @@ GraphQL:     errors = [{
 
 **Documentation**:
 - **[Error Handling Patterns](../guides/error-handling-patterns/)** - Deep dive
-- **[Status Strings Reference](../mutations/status-strings/)** - Complete taxonomy
+- **** - Complete taxonomy
 
 ---
 
@@ -864,8 +864,8 @@ CREATE POLICY select_policy ON tb_{entity}
 ### Mutation & Error Handling
 - [Mutation SQL Requirements](../guides/mutation-sql-requirements/) - Complete function guide
 - [Error Handling Patterns](../guides/error-handling-patterns/) - Error handling deep dive
-- [Status Strings Reference](../mutations/status-strings/) - Status taxonomy
-- [CASCADE Architecture](../mutations/cascade-architecture/) - Side effects & cache updates
+-  - Status taxonomy
+-  - Side effects & cache updates
 
 ### Performance & Caching
 - [Database-Level Caching](database-level-caching/) - Caching strategies

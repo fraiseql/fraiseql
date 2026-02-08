@@ -18,7 +18,7 @@ PostgreSQL JSONB (snake_case) → Rust Pipeline (0.5-5ms) → HTTP Response (cam
 
 **See Also:**
 - [Performance Benchmarks](../../benchmarks/) - Quantified performance improvements
-- [Blog API Example](../../examples/blog_api/) - Production Rust pipeline usage
+-  - Production Rust pipeline usage
 
 ---
 
@@ -283,7 +283,6 @@ except ImportError as e:
         "Install: pip install fraiseql-rs"
     ) from e
 
-
 class RustResponseBytes:
     """Marker for pre-serialized response bytes from Rust.
 
@@ -298,7 +297,6 @@ class RustResponseBytes:
 
     def __bytes__(self):
         return self.bytes
-
 
 async def execute_via_rust_pipeline(
     conn: AsyncConnection,

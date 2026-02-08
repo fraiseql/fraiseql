@@ -33,7 +33,7 @@ Complete overview of all FraiseQL capabilities.
 | **PostgreSQL Functions** | ✅ Stable | [Database API](../core/database-api.md#calling-functions) | [blog_api](#) |
 | **Connection Pooling** | ✅ Stable | [Database API](../core/database-api.md#connection-pool) | All examples |
 | **Transaction Support** | ✅ Stable | [Database API](../core/database-api.md#transactions) | [enterprise_patterns](#) |
-| **Trinity Identifiers** | ✅ Stable | [Trinity Pattern](./../database/trinity-identifiers.md) | [saas-starter](#) |
+| **Trinity Identifiers** | ✅ Stable |  | [saas-starter](#) |
 | **CQRS Pattern** | ✅ Stable | [Patterns Guide](#) | [blog_enterprise](#) |
 
 ---
@@ -148,7 +148,7 @@ Complete overview of all FraiseQL capabilities.
 | Feature | Status | Documentation | Example |
 |---------|--------|---------------|---------|
 | **Docker Support** | ✅ Stable | [Deployment Guide](#) | All examples |
-| **Kubernetes Support** | ✅ Stable | [Deployment Guide](#) | [deployment/k8s/](./../../deployment/k8s.md) |
+| **Kubernetes Support** | ✅ Stable | [Deployment Guide](#) |  |
 | **Environment Configuration** | ✅ Stable | [Configuration Guide](./../core/configuration.md) | All examples |
 
 ---

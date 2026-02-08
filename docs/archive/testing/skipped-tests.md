@@ -462,7 +462,7 @@ pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
 ## Related Documentation
 
 - [Testing Checklist](../reference/testing-checklist/) - Testing documentation
-- [Rust Field Projection](../rust/rust-field-projection/) - Field selection API
+-  - Field selection API
 - [KMS Architecture](../architecture/decisions/0003-kms-architecture/) - KMS provider architecture
 
 ---

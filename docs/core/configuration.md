@@ -374,7 +374,6 @@ config = FraiseQLConfig(
     apq_response_cache_ttl=900  # 15 minutes
 )
 
-
 ```
 
 ## Token Revocation Settings

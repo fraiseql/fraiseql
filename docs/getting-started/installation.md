@@ -38,8 +38,6 @@ What do you want to do?
     └── pip install fraiseql[all]
 ```
 
-
-
 ## Installation Options
 
 ### Option 1: Quick Start (Recommended for beginners)

@@ -119,7 +119,7 @@ FraiseQL automatically sets these based on your context:
 3. **Database**: RLS policies enforce row-level filtering
 4. **Caching**: Tenant-scoped cache invalidation
 
-**[🔒 Isolation Details](./../diagrams/multi-tenant-isolation.md)** - Complete tenant security architecture
+**** - Complete tenant security architecture
 
 ## Table of Contents
 

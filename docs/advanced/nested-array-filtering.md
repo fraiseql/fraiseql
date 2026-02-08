@@ -544,8 +544,6 @@ create_nested_array_field_resolver_with_where(
 create_graphql_where_input(cls: type, name: str | None = None) -> type
 ```
 
-
-
 ## Testing
 
 Comprehensive test suite covering all logical operator scenarios:

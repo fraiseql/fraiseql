@@ -71,7 +71,7 @@ Complete API documentation for FraiseQL decorators, classes, and functions.
 ## Utilities
 
 ### Trinity Identifiers
-- **[Trinity Pattern](../database/trinity-identifiers/)** - Three-tier ID system
+- **** - Three-tier ID system
   - `pk_*` - Internal integer IDs for fast joins
   - `id` - Public UUID for API stability
   - `identifier` - Human-readable slugs for SEO

@@ -263,7 +263,7 @@ import fraiseql
 # import fraiseql as fq; fq.type
 ```
 
-**Prevention**: Check the [Style Guide](./../development/style-guide.md) for correct imports
+**Prevention**: Check the  for correct imports
 
 ---
 

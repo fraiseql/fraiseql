@@ -71,7 +71,7 @@ class TypeName:
 3. **GraphQL Schema** generated with proper types and nullability
 4. **Client Queries** validated against generated schema
 
-**[🔗 Type System Details](./../diagrams/database-schema-conventions.md)** - Database naming conventions
+**** - Database naming conventions
 
 **Examples**:
 

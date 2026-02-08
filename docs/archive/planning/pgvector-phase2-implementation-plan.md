@@ -631,7 +631,6 @@ async def binary_vector_test_setup(db_pool) -> None:
 
         await conn.commit()
 
-
 @pytest.mark.asyncio
 async def test_hamming_distance_filter(db_pool, binary_vector_test_setup) -> None:
     """Test filtering by Hamming distance."""
@@ -648,7 +647,6 @@ async def test_hamming_distance_filter(db_pool, binary_vector_test_setup) -> Non
     assert len(results) > 0
     # Item A should match exactly (Hamming distance = 0)
     assert results[0]["name"] == "Item A"
-
 
 @pytest.mark.asyncio
 async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> None:

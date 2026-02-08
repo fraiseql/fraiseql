@@ -110,7 +110,6 @@ Prototypes   Apps       Apps      Apps
 - ❌ Don't mix concerns in main.py
 - ❌ Don't skip input validation
 
-**Example Projects**: [Simple Blog](./../../examples/blog_simple.md), [Basic API](./../../examples.md)
 
 ### Standard Template Best Practices
 - ✅ Separate types, queries, and mutations
@@ -121,7 +120,7 @@ Prototypes   Apps       Apps      Apps
 - ❌ Don't put business logic in resolvers
 - ❌ Don't skip database migrations
 
-**Example Projects**: [Blog with Auth](./../../examples/blog_api.md), [E-commerce](./../../examples/ecommerce.md)
+**Example Projects**: ,
 
 ### Enterprise Template Best Practices
 - ✅ Multi-tenant data isolation
@@ -132,7 +131,7 @@ Prototypes   Apps       Apps      Apps
 - ❌ Don't compromise on security
 - ❌ Don't skip performance monitoring
 
-**Example Projects**: [Enterprise Blog](./../../examples/blog_enterprise.md), [Multi-tenant App](./../../examples/apq_multi_tenant.md)
+**Example Projects**: ,
 
 ## Directory Structure
 

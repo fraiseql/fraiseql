@@ -732,7 +732,7 @@ async def admin_update_user(info, user_id: str, data: dict) -> User:
 
 ## Next Steps
 
-- [Security Example](./../../examples/security.md) - Complete security implementation
+-  - Complete security implementation
 - [Authentication](./../advanced/authentication.md) - Authentication patterns
 - [Monitoring](./monitoring.md) - Security monitoring
 - [Deployment](./deployment.md) - Secure deployment

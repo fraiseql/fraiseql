@@ -47,8 +47,6 @@ flowchart TB
 - ACID transactions for writes
 
 **See Also**:
-- [CQRS Implementation](./../../examples/complete_cqrs_blog.md) - Complete CQRS blog example
-- [Enterprise Patterns](./../../examples/blog_api.md) - Production CQRS with audit trails
 - Independent scaling of reads and writes
 
 ### JSONB View Pattern
@@ -412,7 +410,7 @@ CREATE TABLE tb_user (
 );
 ```
 
-See [Projection Tables Example](./../../examples/hybrid_tables.md)
+See
 
 ## GraphQL Concepts
 
@@ -987,7 +985,7 @@ Cache GraphQL queries by SHA-256 hash to reduce bandwidth and improve performanc
 - ✅ **Works with Rust pipeline** - PostgreSQL → JSONB → Rust → HTTP (no slowdown)
 
 **See Also**:
-- [APQ Multi-tenant Example](./../../examples/apq_multi_tenant.md) - APQ with tenant isolation
+-  - APQ with tenant isolation
 
 **Configuration:**
 
@@ -1078,8 +1076,7 @@ print(f"Cached queries: {stats.total_queries}")
 ```
 
 **See also:**
-- [APQ Cache Flow Diagram](./../diagrams/apq-cache-flow.md)
-- [Multi-tenant APQ Setup](./../../examples/apq_multi_tenant.md)
+-
 
 ### Rust JSON Pipeline
 
@@ -1222,5 +1219,4 @@ config = FraiseQLConfig(
 ## Related
 
 - [Core Documentation](./README.md)
-- [Examples](./../../examples.md)
-- [API Reference](./../reference.md)
+-

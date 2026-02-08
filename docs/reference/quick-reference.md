@@ -546,4 +546,3 @@ from datetime import datetime
 - [First Hour Guide](./../getting-started/first-hour.md) - Progressive tutorial
 - [Troubleshooting](./../guides/troubleshooting.md) - Common issues
 - [Understanding FraiseQL](./../guides/understanding-fraiseql.md) - Architecture overview
-- [Examples](./../../examples.md) - Working applications

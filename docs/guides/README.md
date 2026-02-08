@@ -48,6 +48,6 @@ Task-based guides for common FraiseQL workflows and patterns.
 **Need advanced features?** See [Nested Array Filtering](./nested-array-filtering.md) for complex query patterns.
 
 **Related Documentation:**
-- [Getting Started](./../getting-started.md) - Quickstart and first hour tutorials
-- [Core Concepts](./../core.md) - In-depth documentation on FraiseQL fundamentals
-- [Reference](./../reference.md) - API reference and quick lookup
+-  - Quickstart and first hour tutorials
+-  - In-depth documentation on FraiseQL fundamentals
+-  - API reference and quick lookup

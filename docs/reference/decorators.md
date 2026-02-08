@@ -234,7 +234,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses [status string taxonomy](./../mutations/status-strings.md) |
+| error_config | MutationErrorConfig \| None | None | Error configuration for this mutation. If not specified, uses `default_error_config` from `FraiseQLConfig` (if set). **DEPRECATED** - Only used in non-HTTP mode. HTTP mode uses  |
 
 **Global Default**: If you don't specify `error_config` on a mutation, FraiseQL will use `default_error_config` from your `FraiseQLConfig` (if set). This allows you to set a global error handling strategy and override it per-mutation when needed.
 
@@ -379,7 +379,6 @@ class CreateOrder:
 - **Security**: Tenant/user IDs come from verified JWT, not user input
 - **Simplicity**: No need to pass tenant_id in mutation input
 - **Consistency**: Context injection happens automatically on every mutation
-
 
 **See Also**: [Queries and Mutations](../core/queries-and-mutations.md#mutation-decorator)
 

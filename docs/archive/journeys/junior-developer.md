@@ -145,7 +145,7 @@ By the end, you'll understand:
 **Goal:** Create a working blog with posts and comments
 
 1. **Follow the blog example:**
-   - Read: [Blog Simple Example](../../examples/blog_simple/README/)
+   - Read:
    - Clone and run the example locally
 
 2. **Key files to understand:**
@@ -209,7 +209,7 @@ query {
 **Ready for more? Try these:**
 
 1. **[Backend Engineer Journey](backend-engineer/)** - Learn advanced patterns
-2. **[Add Authentication](../../examples/native-auth-app/)** - Secure your API
+2. **** - Secure your API
 3. **[Deploy to Production](../production/deployment/)** - Go live
 
 **Need help?**

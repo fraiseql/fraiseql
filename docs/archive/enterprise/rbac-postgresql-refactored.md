@@ -442,7 +442,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class PermissionCache:
     """2-layer permission cache (request-level + PostgreSQL).
 
@@ -808,7 +807,6 @@ from uuid import UUID
 from fraiseql.db import FraiseQLRepository, DatabaseQuery
 from fraiseql.enterprise.rbac.models import Role
 
-
 class RoleHierarchy:
     """Computes role hierarchy and inheritance."""
 
@@ -906,7 +904,6 @@ from fraiseql.enterprise.rbac.cache import PermissionCache
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 class PermissionResolver:
     """Resolves effective permissions for users with PostgreSQL caching."""

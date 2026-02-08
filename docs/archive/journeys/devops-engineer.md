@@ -153,7 +153,7 @@ spec:
 
 **Goal:** Configure PostgreSQL for production workloads
 
-**Read:** [Database Configuration](../database/table-naming-conventions/)
+**Read:**
 
 **PostgreSQL Production Configuration:**
 
@@ -578,7 +578,7 @@ kubectl rollout status deployment/fraiseql-api
 
 **Goal:** Prepare for production incidents
 
-**Read:** [Operations Runbook](../deployment/operations-runbook/)
+**Read:**
 
 **Common Incidents & Resolution:**
 

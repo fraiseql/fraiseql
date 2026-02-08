@@ -370,8 +370,6 @@ config = FraiseQLConfig(
 
 **Recommended:** Production with multiple app instances
 
-
-
 ---
 
 ## Monitoring & Metrics
@@ -952,7 +950,7 @@ Combine FraiseQL caching layers:
 
 - [FraiseQL Performance Guide](././index.md)
 - [Caching Guide](././caching.md)
-- [GraphQL APQ Specification](./https://www.apollographql.com/docs/react/api/link/persisted-queries.md)
+- [GraphQL APQ Specification]()
 
 ---
 

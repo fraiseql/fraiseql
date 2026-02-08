@@ -392,8 +392,8 @@ CREATE EXTENSION vector;
 
 ## Next Steps
 
-- Explore [LangChain documentation](./https://python.langchain.com.md) for advanced features
-- Check out [FraiseQL examples](./../examples.md) for more patterns
+- Explore [LangChain documentation]() for advanced features
+- Check out  for more patterns
 - Consider adding authentication and authorization to your API
 - Implement document versioning and updates
 

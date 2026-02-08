@@ -268,7 +268,7 @@ RECOMMENDATION: APPROVED for procurement
 - Include in procurement documentation for non-technical stakeholders
 
 **4. Compliance Mapping** (Reference Document)
-- Link to [Compliance Matrix](../security-compliance/compliance-matrix/)
+- Link to
 - Highlight relevant frameworks (ISO 27001, FedRAMP, etc.)
 - Include in vendor evaluation matrix
 
@@ -464,9 +464,9 @@ You now have:
 ## Related Resources
 
 ### Documentation
-- [SLSA Provenance Guide](../security-compliance/slsa-provenance/) - Detailed technical guide
-- [Compliance Matrix](../security-compliance/compliance-matrix/) - Regulatory framework mappings
-- [Security & Compliance Hub](../security-compliance/README/) - Overview
+-  - Detailed technical guide
+-  - Regulatory framework mappings
+-  - Overview
 
 ### External Resources
 - [SLSA Framework](https://slsa.dev/) - Supply chain security standard

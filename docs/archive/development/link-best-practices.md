@@ -11,7 +11,6 @@
 
 # ❌ Fragile: Relative paths
 [Installation Guide](../getting-started/installation/)
-[Examples](../../examples/blog_api/)
 
 # ✅ External links
 [PostgreSQL Docs](https://www.postgresql.org/docs/)
