@@ -236,8 +236,14 @@ fn test_validator_builder_pattern() {
     let deep = "{ a { b { c { d { e { f } } } } } }";
     assert!(validator.validate_query(deep).is_err()); // Depth check still works
 
-    let complex = "{ a [ b [ c [ d [ e ] ] ] ] }";
-    assert!(validator.validate_query(complex).is_ok()); // Complexity check disabled
+    // AST parser correctly rejects invalid syntax (square brackets) regardless
+    // of complexity validation setting
+    let invalid_syntax = "{ a [ b [ c [ d [ e ] ] ] ] }";
+    assert!(validator.validate_query(invalid_syntax).is_err());
+
+    // A valid complex query should pass when complexity validation is disabled
+    let complex = "{ a { b { c { d { e } } } } }";
+    assert!(validator.validate_query(complex).is_ok());
 }
 
 /// Test GraphQL error code to HTTP status mapping completeness
@@ -282,13 +288,20 @@ fn test_error_response_into_response() {
 fn test_string_literal_handling() {
     let validator = RequestValidator::new();
 
-    // Query with string containing quotes and braces should be accepted
-    // as valid by the structural validator (it checks depth/complexity, not syntax)
+    // String literals in selection sets are not valid GraphQL syntax -
+    // the AST parser correctly rejects them
     let query = r#"{ user { name: "John \"Doe\"" } }"#;
     let result = validator.validate_query(query);
     assert!(
-        result.is_ok(),
-        "Query with escaped quotes should pass structural validation: {result:?}"
+        result.is_err(),
+        "String literals in selection sets are invalid GraphQL syntax"
+    );
+
+    // Valid: query with string argument
+    let valid_query = r#"query { user(name: "John") { id name } }"#;
+    assert!(
+        validator.validate_query(valid_query).is_ok(),
+        "String arguments in field invocations should be valid"
     );
 }
 

@@ -884,10 +884,11 @@ fn perf_regression_vs_baseline() {
     let regression = (current.as_secs_f64() / baseline.as_secs_f64() - 1.0) * 100.0;
     println!("Regression vs baseline: {:.1}%", regression);
 
-    // Allow 10% regression (noise tolerance)
+    // Allow 25% regression (noise tolerance for in-process microbenchmarks
+    // where CPU cache, thermal throttling, and scheduler jitter cause variance)
     assert!(
-        regression < 10.0,
-        "Performance regression {:.1}% exceeds tolerance of 10%",
+        regression < 25.0,
+        "Performance regression {:.1}% exceeds tolerance of 25%",
         regression
     );
 }

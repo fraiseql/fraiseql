@@ -317,8 +317,9 @@ fn test_no_role_modification_through_any_vector() {
     // mutation_vector: structurally valid, but runtime rejection
     assert!(validator.validate_query(mutation_vector).is_ok());
 
-    // variable_vector: attempting to use variable as field (invalid syntax)
-    assert!(validator.validate_query(variable_vector).is_ok());
+    // variable_vector: attempting to use variable as field - AST parser
+    // correctly rejects this as invalid GraphQL syntax
+    assert!(validator.validate_query(variable_vector).is_err());
 
     // assignment_vector: invalid GraphQL syntax
     assert!(

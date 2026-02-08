@@ -1255,6 +1255,7 @@ impl UnionDefinition {
 ///     description: Some("Get all users".to_string()),
 ///     auto_params: AutoParams::default(),
 ///     deprecation: None,
+///     jsonb_column: "data".to_string(),
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

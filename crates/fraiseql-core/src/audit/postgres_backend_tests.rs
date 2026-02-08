@@ -5,6 +5,7 @@
 
 use deadpool_postgres::{Pool, Runtime};
 use serde_json::json;
+use serial_test::serial;
 
 use super::*;
 
@@ -80,6 +81,7 @@ async fn event_exists_in_db(pool: &Pool, event_id: &str) -> bool {
 
 /// Test PostgreSQL backend creation
 #[tokio::test]
+#[serial]
 async fn test_postgres_backend_creation() {
     let pool = create_test_pool().await;
     let result = PostgresAuditBackend::new(pool).await;
@@ -88,6 +90,7 @@ async fn test_postgres_backend_creation() {
 
 /// Test table creation with proper schema
 #[tokio::test]
+#[serial]
 async fn test_postgres_table_creation() {
     let pool = create_test_pool().await;
     let _backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
@@ -104,6 +107,7 @@ async fn test_postgres_table_creation() {
 
 /// Test index creation
 #[tokio::test]
+#[serial]
 async fn test_postgres_index_creation() {
     let pool = create_test_pool().await;
     let _backend = PostgresAuditBackend::new(pool.clone()).await.expect("Failed to create backend");
@@ -140,6 +144,7 @@ async fn test_postgres_index_creation() {
 
 /// Test logging single event
 #[tokio::test]
+#[serial]
 async fn test_postgres_log_single_event() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -164,6 +169,7 @@ async fn test_postgres_log_single_event() {
 
 /// Test logging event with all optional fields
 #[tokio::test]
+#[serial]
 async fn test_postgres_log_event_with_all_fields() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -192,6 +198,7 @@ async fn test_postgres_log_event_with_all_fields() {
 
 /// Test querying all events
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_all_events() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -220,6 +227,7 @@ async fn test_postgres_query_all_events() {
 
 /// Test querying by event_type
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_event_type() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -246,6 +254,7 @@ async fn test_postgres_query_by_event_type() {
 
 /// Test querying by user_id
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_user_id() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -270,6 +279,7 @@ async fn test_postgres_query_by_user_id() {
 
 /// Test querying by resource_type
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_resource_type() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -293,6 +303,7 @@ async fn test_postgres_query_by_resource_type() {
 
 /// Test querying by status
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_by_status() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -317,6 +328,7 @@ async fn test_postgres_query_by_status() {
 
 /// Test querying with pagination limit
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_with_limit() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -347,6 +359,7 @@ async fn test_postgres_query_with_limit() {
 
 /// Test querying with pagination offset
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_with_offset() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -389,6 +402,7 @@ async fn test_postgres_query_with_offset() {
 
 /// Test events are ordered by timestamp DESC
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_ordering() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -423,6 +437,7 @@ async fn test_postgres_query_ordering() {
 
 /// Test query with no matching results
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_no_results() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -444,6 +459,7 @@ async fn test_postgres_query_no_results() {
 
 /// Test storing and retrieving complex JSONB metadata
 #[tokio::test]
+#[serial]
 async fn test_postgres_jsonb_metadata() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -471,6 +487,7 @@ async fn test_postgres_jsonb_metadata() {
 
 /// Test storing before_state and after_state
 #[tokio::test]
+#[serial]
 async fn test_postgres_jsonb_state_snapshots() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -501,6 +518,7 @@ async fn test_postgres_jsonb_state_snapshots() {
 
 /// Test null before_state and after_state
 #[tokio::test]
+#[serial]
 async fn test_postgres_null_state_snapshots() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -530,6 +548,7 @@ async fn test_postgres_null_state_snapshots() {
 
 /// Test tenant isolation
 #[tokio::test]
+#[serial]
 async fn test_postgres_tenant_isolation() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -558,6 +577,7 @@ async fn test_postgres_tenant_isolation() {
 
 /// Test null tenant_id handling
 #[tokio::test]
+#[serial]
 async fn test_postgres_null_tenant_id() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -589,6 +609,7 @@ async fn test_postgres_null_tenant_id() {
 
 /// Test validation error: invalid status
 #[tokio::test]
+#[serial]
 async fn test_postgres_validation_error_invalid_status() {
     let pool = create_test_pool().await;
     let backend = PostgresAuditBackend::new(pool).await.expect("Failed to create backend");
@@ -604,6 +625,7 @@ async fn test_postgres_validation_error_invalid_status() {
 
 /// Test validation error: failure without error_message
 #[tokio::test]
+#[serial]
 async fn test_postgres_validation_error_failure_no_message() {
     let pool = create_test_pool().await;
     let backend = PostgresAuditBackend::new(pool).await.expect("Failed to create backend");
@@ -618,6 +640,7 @@ async fn test_postgres_validation_error_failure_no_message() {
 
 /// Test UUID parsing error
 #[tokio::test]
+#[serial]
 async fn test_postgres_uuid_parsing_error() {
     let pool = create_test_pool().await;
     let backend = PostgresAuditBackend::new(pool).await.expect("Failed to create backend");
@@ -636,6 +659,7 @@ async fn test_postgres_uuid_parsing_error() {
 
 /// Test bulk logging (500 events)
 #[tokio::test]
+#[serial]
 async fn test_postgres_bulk_logging() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -660,6 +684,7 @@ async fn test_postgres_bulk_logging() {
 
 /// Test concurrent writes
 #[tokio::test]
+#[serial]
 async fn test_postgres_concurrent_writes() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
@@ -701,6 +726,7 @@ async fn test_postgres_concurrent_writes() {
 
 /// Test table creation idempotency
 #[tokio::test]
+#[serial]
 async fn test_postgres_table_creation_idempotent() {
     let pool = create_test_pool().await;
 
@@ -714,6 +740,7 @@ async fn test_postgres_table_creation_idempotent() {
 
 /// Test index creation idempotency
 #[tokio::test]
+#[serial]
 async fn test_postgres_index_creation_idempotent() {
     let pool = create_test_pool().await;
 
@@ -730,6 +757,7 @@ async fn test_postgres_index_creation_idempotent() {
 
 /// Test query with multiple combined filters
 #[tokio::test]
+#[serial]
 async fn test_postgres_query_multiple_filters() {
     let pool = create_test_pool().await;
     clean_audit_table(&pool).await.expect("Failed to clean audit table");
