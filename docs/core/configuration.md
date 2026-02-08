@@ -2,7 +2,7 @@
 
 FraiseQLConfig class for comprehensive application configuration.
 
-**📖 Before configuring**: Make sure FraiseQL is [installed](../getting-started/installation/) and your environment is set up.
+**📖 Before configuring**: Make sure FraiseQL is [installed](./../getting-started/installation.md) and your environment is set up.
 
 ## Overview
 
@@ -563,5 +563,5 @@ app = create_fraiseql_app(types=[User, Post, Comment], config=config)
 
 ## See Also
 
-- [API Reference - Config](../reference/config/) - Complete config reference
-- [Deployment](../production/deployment/) - Production deployment guides
+- [API Reference - Config](./../reference/config.md) - Complete config reference
+- [Deployment](./../production/deployment.md) - Production deployment guides

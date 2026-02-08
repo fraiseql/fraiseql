@@ -4,12 +4,12 @@ Step-by-step learning paths and complete application examples.
 
 ## Learning Paths
 
-### **[Beginner Learning Path](beginner-path/)** 🎓
+### **[Beginner Learning Path](./beginner-path.md)** 🎓
 
 Structured progression from basics to building production applications.
 
 **Duration**: 4-6 hours
-**Prerequisites**: Completed [First Hour Guide](../getting-started/first-hour/)
+**Prerequisites**: Completed [First Hour Guide](./../getting-started/first-hour.md)
 
 **Topics covered**:
 - Database schema design
@@ -20,7 +20,7 @@ Structured progression from basics to building production applications.
 
 ---
 
-### **[Interactive Examples](interactive-examples/)** 💻
+### **[Interactive Examples](./interactive-examples.md)** 💻
 
 Side-by-side examples showing SQL → Python → GraphQL transformations.
 
@@ -38,7 +38,7 @@ Side-by-side examples showing SQL → Python → GraphQL transformations.
 
 ## Complete Application Tutorials
 
-### **[Blog API](blog-api/)** 📝
+### **[Blog API](./blog-api.md)** 📝
 
 Build a complete blogging platform with users, posts, and comments.
 
@@ -54,7 +54,7 @@ Build a complete blogging platform with users, posts, and comments.
 
 ---
 
-### **[Production Deployment](production-deployment/)** 🚀
+### **[Production Deployment](./production-deployment.md)** 🚀
 
 Deploy FraiseQL applications to production.
 
@@ -73,20 +73,20 @@ Deploy FraiseQL applications to production.
 ## Quick Navigation
 
 **New to FraiseQL?**
-Start with [Getting Started](../getting-started/) before diving into tutorials.
+Start with [Getting Started](./../getting-started.md) before diving into tutorials.
 
 **Want hands-on practice?**
-Try [Interactive Examples](interactive-examples/) for quick, focused learning.
+Try [Interactive Examples](./interactive-examples.md) for quick, focused learning.
 
 **Building a real app?**
-Follow the [Blog API Tutorial](blog-api/) for a complete walkthrough.
+Follow the [Blog API Tutorial](./blog-api.md) for a complete walkthrough.
 
 **Going to production?**
-Check [Production Deployment](production-deployment/) for deployment best practices.
+Check [Production Deployment](./production-deployment.md) for deployment best practices.
 
 ## Related Documentation
 
-- **[Getting Started](../getting-started/)** - Quickstart and first hour guides
-- **[Core Concepts](../core/)** - Fundamental FraiseQL concepts
-- **[Guides](../guides/)** - Task-based guides for specific workflows
-- **[Examples](../../examples/)** - Working code examples
+- **[Getting Started](./../getting-started.md)** - Quickstart and first hour guides
+- **[Core Concepts](./../core.md)** - Fundamental FraiseQL concepts
+- **[Guides](./../guides.md)** - Task-based guides for specific workflows
+- **[Examples](./../../examples.md)** - Working code examples

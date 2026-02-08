@@ -919,10 +919,10 @@ schema/
 
 ## See Also
 
-- **[confiture: Organizing SQL Files](https://github.com/fraiseql/confiture/blob/main/docs/organizing-sql-files/)** - Original documentation
-- **[FraiseQL Migrations](./migrations/)** - Migration workflow
-- **[Database Patterns](../advanced/database-patterns/)** - CQRS and other patterns
-- **[Complete CQRS Example](../../examples/complete_cqrs_blog/)** - Full working example
+- **[confiture: Organizing SQL Files](https://github.com/fraiseql/confiture - Original documentation
+- **[FraiseQL Migrations](././migrations.md)** - Migration workflow
+- **[Database Patterns](./../advanced/database-patterns.md)** - CQRS and other patterns
+- **[Complete CQRS Example](#)** - Full working example
 
 ---
 

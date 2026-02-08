@@ -1004,7 +1004,7 @@ async def execute_llm_query_with_logging(
 
 ## Next Steps
 
-- [Security](../production/security/) - Securing LLM endpoints
-- [Performance](../performance/index/) - Optimizing LLM-generated queries
-- [Authentication](../advanced/authentication/) - User context for LLM queries
-- [Monitoring](../production/monitoring/) - Tracking LLM query patterns
+- [Security](./../production/security.md) - Securing LLM endpoints
+- [Performance](./../performance/index.md) - Optimizing LLM-generated queries
+- [Authentication](./../advanced/authentication.md) - User context for LLM queries
+- [Monitoring](./../production/monitoring.md) - Tracking LLM query patterns

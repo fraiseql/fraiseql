@@ -111,7 +111,7 @@ JOIN tb_user u ON p.author_id = u.id;
 3. Gradually migrate logic to database functions
 4. Eventually remove Django ORM
 
-**See:** [Trinity Pattern Guide](../core/trinity-pattern/)
+**See:** [Trinity Pattern Guide](./../core/trinity-pattern.md)
 
 ---
 
@@ -276,7 +276,7 @@ query {
 - `isnull` (null checks)
 - `like`, `ilike` (SQL LIKE with explicit wildcards)
 
-See [Filter Operators Reference](../advanced/filter-operators/) for complete list
+See [Filter Operators Reference](./../advanced/filter-operators.md) for complete list
 
 ---
 
@@ -387,7 +387,7 @@ $$ LANGUAGE plpgsql;
 - Client cache automatically invalidated
 - No manual refetch needed
 
-**See:** [CASCADE Documentation](../features/graphql-cascade/)
+**See:** [CASCADE Documentation](./../features/graphql-cascade.md)
 
 ---
 
@@ -711,7 +711,7 @@ urlpatterns = [
 
 ## Support
 
-- **Documentation**: [FraiseQL Docs](../README/)
+- **Documentation**: [FraiseQL Docs](./../README.md)
 - **Discord**: [Join Community](https://discord.gg/fraiseql)
 - **GitHub**: [Report Issues](https://github.com/fraiseql/fraiseql/issues)
 
@@ -719,9 +719,9 @@ urlpatterns = [
 
 ## Next Steps
 
-1. Read [Trinity Pattern Guide](../core/trinity-pattern/)
-2. Review [CASCADE Documentation](../features/graphql-cascade/)
-3. Check [Production Deployment Checklist](../deployment/production-deployment/)
+1. Read [Trinity Pattern Guide](./../core/trinity-pattern.md)
+2. Review [CASCADE Documentation](./../features/graphql-cascade.md)
+3. Check Production Deployment Checklist (documentation coming soon)
 4. Join Discord for migration support
 
 **Estimated Total Time:** 1-2 weeks for 2 engineers

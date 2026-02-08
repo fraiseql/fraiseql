@@ -998,6 +998,6 @@ if error_rate > 0.1:
 
 ## Next Steps
 
-- [Deployment](deployment/) - Production deployment patterns
-- [Security](security/) - Security monitoring
-- [Performance](../performance/index/) - Performance optimization
+- [Deployment](./deployment.md) - Production deployment patterns
+- [Security](./security.md) - Security monitoring
+- [Performance](./../performance/index.md) - Performance optimization

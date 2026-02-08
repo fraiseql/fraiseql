@@ -4,7 +4,7 @@ Quick guide for adding FraiseQL result caching to existing applications.
 
 ## For New Projects
 
-If you're starting fresh, simply follow the [Result Caching Guide](caching/).
+If you're starting fresh, simply follow the [Result Caching Guide](./caching.md).
 
 ## For Existing Projects
 
@@ -313,7 +313,7 @@ After migration, expect:
 
 ## Next Steps
 
-- [Full Caching Guide](caching/) - Comprehensive caching documentation
-- [Multi-Tenancy](../advanced/multi-tenancy/) - Tenant isolation patterns
-- [Monitoring](../production/monitoring/) - Track cache performance
-- [Security](../production/security/) - Cache security best practices
+- [Full Caching Guide](./caching.md) - Comprehensive caching documentation
+- [Multi-Tenancy](./../advanced/multi-tenancy.md) - Tenant isolation patterns
+- [Monitoring](./../production/monitoring.md) - Track cache performance
+- [Security](./../production/security.md) - Cache security best practices

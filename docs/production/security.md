@@ -732,8 +732,8 @@ async def admin_update_user(info, user_id: str, data: dict) -> User:
 
 ## Next Steps
 
-- [Security Example](../../examples/security/) - Complete security implementation
-- [Authentication](../advanced/authentication/) - Authentication patterns
-- [Monitoring](monitoring/) - Security monitoring
-- [Deployment](deployment/) - Secure deployment
-- [Audit Logging](../advanced/event-sourcing/) - Complete audit trails
+- [Security Example](./../../examples/security.md) - Complete security implementation
+- [Authentication](./../advanced/authentication.md) - Authentication patterns
+- [Monitoring](./monitoring.md) - Security monitoring
+- [Deployment](./deployment.md) - Secure deployment
+- [Audit Logging](./../advanced/event-sourcing.md) - Complete audit trails

@@ -2,13 +2,13 @@
 
 **⚠️ This document has been consolidated into the new comprehensive guide.**
 
-**📖 Please see: [Mutation SQL Requirements](../guides/mutation-sql-requirements/)**
+**📖 Please see: [Mutation SQL Requirements](./../guides/mutation-sql-requirements.md)**
 
 ---
 
 **Legacy Content Below** (for reference during migration)
 
-**Navigation**: [← Queries & Mutations](../core/queries-and-mutations/) • [Mutation Result Reference →](mutation-result-reference/) • [GraphQL Cascade →](graphql-cascade/)
+**Navigation**: [← Queries & Mutations](./../core/queries-and-mutations.md) • [Mutation Result Reference →](./mutation-result-reference.md) • [GraphQL Cascade →](./graphql-cascade.md)
 
 ## Overview
 
@@ -17,9 +17,9 @@ This guide explains the return formats for PostgreSQL functions used with Fraise
 - **Legacy Format** (v1.4+): Simple `success`/`data`/`error` structure
 - **V2 Format** (v1.7+): Structured `mutation_response` type with comprehensive error handling
 
-See [Mutation Result Reference](mutation-result-reference/) for complete format specifications.
+See [Mutation Result Reference](./mutation-result-reference.md) for complete format specifications.
 
-**Error Detection**: FraiseQL's Rust layer automatically detects errors using a [comprehensive status taxonomy](../mutations/status-strings/). Status strings like `validation:`, `unauthorized:token_expired`, `conflict:duplicate`, etc. are automatically mapped to appropriate error types and HTTP status codes.
+**Error Detection**: FraiseQL's Rust layer automatically detects errors using a comprehensive status taxonomy. Status strings like `validation:`, `unauthorized:token_expired`, `conflict:duplicate`, etc. are automatically mapped to appropriate error types and HTTP status codes.
 
 **Note**: The legacy format continues to work but the v2 format is recommended for new implementations.
 
@@ -145,13 +145,13 @@ $$ LANGUAGE plpgsql;
 - Automatic cascade data construction
 - Better type safety and consistency
 
-See [Mutation Result Reference](mutation-result-reference/) for complete v2 format documentation.
+See [Mutation Result Reference](./mutation-result-reference.md) for complete v2 format documentation.
 
 ---
 
 ## Ultra-Direct Path Compatibility
 
-FraiseQL's Ultra-Direct Path (see [ADR-002](../architecture/decisions/002-ultra-direct-mutation-path/)) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.
+FraiseQL's Ultra-Direct Path (see [ADR-002](./../architecture/decisions/002-ultra-direct-mutation-path.md)) provides 10-80x performance improvement by skipping Python parsing and using Rust transformation directly.
 
 ### Requirements for Ultra-Direct Path
 
@@ -853,11 +853,11 @@ END LOOP;
 
 ## See Also
 
-- [Mutation Result Reference](mutation-result-reference/) - Complete format specifications (v1.7+)
-- [Queries and Mutations](../core/queries-and-mutations/) - FraiseQL mutation decorator
-- [GraphQL Cascade](graphql-cascade/) - Full cascade specification
-- [ADR-002: Ultra-Direct Mutation Path](../architecture/decisions/002-ultra-direct-mutation-path/) - Performance optimization
-- [PostgreSQL Extensions](../core/postgresql-extensions/) - Database setup
+- [Mutation Result Reference](./mutation-result-reference.md) - Complete format specifications (v1.7+)
+- [Queries and Mutations](./../core/queries-and-mutations.md) - FraiseQL mutation decorator
+- [GraphQL Cascade](./graphql-cascade.md) - Full cascade specification
+- [ADR-002: Ultra-Direct Mutation Path](./../architecture/decisions/002-ultra-direct-mutation-path.md) - Performance optimization
+- [PostgreSQL Extensions](./../core/postgresql-extensions.md) - Database setup
 
 ---
 

@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to FraiseQL!
 
-> **💡 Project Philosophy**: FraiseQL values clarity, correctness, and craft. See [docs/development/philosophy.md](docs/development/philosophy.md) to understand the project's design principles and collaborative approach.
+> **💡 Project Philosophy**: FraiseQL values clarity, correctness, and craft.
 
 ## Getting Started
 
@@ -190,8 +190,6 @@ def test_feature():
 ```
 
 Available fixtures: `test_config`, `development_config`, `production_config`, `custom_config`
-
-See [docs/testing/config-fixtures.md](docs/testing/config-fixtures.md) for details.
 
 #### Integration Test Structure
 

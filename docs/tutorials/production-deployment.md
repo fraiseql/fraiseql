@@ -16,7 +16,7 @@ Production deployment checklist:
 
 ## Prerequisites
 
-- Completed [Blog API Tutorial](./blog-api/)
+- Completed [Blog API Tutorial](././blog-api.md)
 - Docker and Docker Compose installed
 - Production database (PostgreSQL 14+)
 - Domain name (for HTTPS)
@@ -606,7 +606,7 @@ docker-compose exec api env | grep DATABASE_URL
 
 ## See Also
 
-- [Performance](../performance/index/) - Optimization techniques
-- [Monitoring](../production/monitoring/) - Observability setup
-- [Security](../production/security/) - Security hardening
-- [Database Patterns](../advanced/database-patterns/) - Production patterns
+- [Performance](./../performance/index.md) - Optimization techniques
+- [Monitoring](./../production/monitoring.md) - Observability setup
+- [Security](./../production/security.md) - Security hardening
+- [Database Patterns](./../advanced/database-patterns.md) - Production patterns

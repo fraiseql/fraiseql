@@ -2,7 +2,7 @@
 
 Decorators and patterns for defining GraphQL queries, mutations, and subscriptions.
 
-**📍 Navigation**: [← Types & Schema](types-and-schema/) • [Database API →](database-api/) • [Performance →](../performance/index/)
+**📍 Navigation**: [← Types & Schema](./types-and-schema.md) • [Database API →](./database-api.md) • [Performance →](./../performance/index.md)
 
 ## @fraiseql.query Decorator
 
@@ -554,7 +554,7 @@ class MutationName:
 | function | str \| None | None | PostgreSQL function name (defaults to snake_case of class name) |
 | schema | str \| None | "public" | PostgreSQL schema containing the function |
 | context_params | dict[str, str] \| None | None | Maps GraphQL context keys to PostgreSQL function parameters |
-| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. See [Status String Conventions](../mutations/status-strings/) for HTTP mode error handling |
+| error_config | MutationErrorConfig \| None | None | **DEPRECATED** - Only used in non-HTTP mode. See [Status String Conventions](./../mutations/status-strings.md) for HTTP mode error handling |
 
 **Examples**:
 
@@ -925,8 +925,8 @@ async def on_task_updates(
 
 ## See Also
 
-- **[Mutation SQL Requirements](../guides/mutation-sql-requirements/)** - Complete guide to writing PostgreSQL functions for mutations
-- **[Error Handling Patterns](../guides/error-handling-patterns/)** - Error handling philosophy and advanced patterns
-- [Types and Schema](./types-and-schema/) - Define types for use in queries and mutations
-- [Decorators Reference](../reference/decorators/) - Complete decorator API
-- [Database API](../reference/database/) - Database operations for queries and mutations
+- **[Mutation SQL Requirements](./../guides/mutation-sql-requirements.md)** - Complete guide to writing PostgreSQL functions for mutations
+- **[Error Handling Patterns](./../guides/error-handling-patterns.md)** - Error handling philosophy and advanced patterns
+- [Types and Schema](././types-and-schema.md) - Define types for use in queries and mutations
+- [Decorators Reference](./../reference/decorators.md) - Complete decorator API
+- [Database API](./../reference/database.md) - Database operations for queries and mutations

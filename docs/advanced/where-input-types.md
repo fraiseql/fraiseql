@@ -280,8 +280,8 @@ async def users(info, where: UserWhereInput | None = None) -> list[User]:
 ## Filter Operators by Field Type
 
 > **💡 Advanced Operators**: FraiseQL provides comprehensive PostgreSQL operator support including arrays, full-text search, JSONB, and regex. See:
-> - **[Filter Operators Reference](./filter-operators/)** - Complete operator documentation with examples
-> - **[Advanced Filtering Examples](../examples/advanced-filtering/)** - Real-world use cases
+> - **[Filter Operators Reference](././filter-operators.md)** - Complete operator documentation with examples
+> - **[Advanced Filtering Examples](./../examples/advanced-filtering.md)** - Real-world use cases
 
 ### String Fields
 
@@ -525,7 +525,7 @@ posts = await db.find("posts", where=where_dict)
 ```
 
 **See also:**
-- **[Dict-Based Nested Filtering Guide](../examples/dict-based-nested-filtering/)** - Comprehensive dict syntax documentation
+- **[Dict-Based Nested Filtering Guide](./../examples/dict-based-nested-filtering.md)** - Comprehensive dict syntax documentation
 - Examples include multiple nested fields, camelCase support, and performance tips
 
 ## Advanced Filtering Examples
@@ -816,6 +816,6 @@ query {
 
 ## Next Steps
 
-- **[Filter Operators Reference](./filter-operators/)** - Complete operator documentation
-- **[Advanced Filtering Examples](../examples/advanced-filtering/)** - Real-world use cases
-- **[Nested Array Filtering](./nested-array-filtering/)** - Complex array queries
+- **[Filter Operators Reference](././filter-operators.md)** - Complete operator documentation
+- **[Advanced Filtering Examples](./../examples/advanced-filtering.md)** - Real-world use cases
+- **[Nested Array Filtering](././nested-array-filtering.md)** - Complex array queries

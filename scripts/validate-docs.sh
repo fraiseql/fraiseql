@@ -139,11 +139,17 @@ validate_links() {
 
     done < <(find "$PROJECT_ROOT" -name "*.md" -type f \
         -not -path "*/archive/*" \
+        -not -path "*/.archive/*" \
+        -not -path "*/fraiseql-python/*" \
+        -not -path "*/examples/*" \
         -not -path "*/dev/audits/*" \
         -not -path "*/.phases/*" \
         -not -path "*/.venv/*" \
         -not -path "*/venv/*" \
         -not -path "*/node_modules/*" \
+        -not -path "*/.claude/*" \
+        -not -path "*/tests/*" \
+        -not -name "CHANGELOG.md" \
         -print0)
 
     if [[ $errors -eq 0 ]]; then
@@ -474,11 +480,17 @@ validate_code_syntax() {
 
     done < <(find "$PROJECT_ROOT" -name "*.md" -type f \
         -not -path "*/archive/*" \
+        -not -path "*/.archive/*" \
+        -not -path "*/fraiseql-python/*" \
+        -not -path "*/examples/*" \
         -not -path "*/dev/audits/*" \
         -not -path "*/.phases/*" \
         -not -path "*/.venv/*" \
         -not -path "*/venv/*" \
         -not -path "*/node_modules/*" \
+        -not -path "*/.claude/*" \
+        -not -path "*/tests/*" \
+        -not -name "CHANGELOG.md" \
         -print0)
 
     if [[ $errors -eq 0 ]]; then

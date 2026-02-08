@@ -170,9 +170,9 @@ LIMIT 10;
 
 ## Related Documentation
 
-- **[pgvector Feature Guide](../features/pgvector/)** - Complete setup and usage guide
-- **[RAG Tutorial](../ai-ml/rag-tutorial/)** - End-to-end vector search implementation
-- **[Vector Search Examples](../../examples/rag-system/)** - Working code examples
+- **[pgvector Feature Guide](./../features/pgvector.md)** - Complete setup and usage guide
+- **[RAG Tutorial](./../ai-ml/rag-tutorial.md)** - End-to-end vector search implementation
+- **[Vector Search Examples](./../../examples/rag-system.md)** - Working code examples
 
 ## See Also
 

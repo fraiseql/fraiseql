@@ -4,7 +4,7 @@ Task-based guides for common FraiseQL workflows and patterns.
 
 ## Getting Started Guides
 
-- **[Understanding FraiseQL](understanding-fraiseql/)** - 10-minute architecture overview
+- **[Understanding FraiseQL](./understanding-fraiseql.md)** - 10-minute architecture overview
   - Database-first GraphQL philosophy
   - CQRS pattern and JSONB views
   - Trinity identifiers explained
@@ -12,7 +12,7 @@ Task-based guides for common FraiseQL workflows and patterns.
 
 ## Query & Filtering Guides
 
-- **[Nested Array Filtering](nested-array-filtering/)** - Advanced filtering with logical operators
+- **[Nested Array Filtering](./nested-array-filtering.md)** - Advanced filtering with logical operators
   - AND/OR/NOT combinations
   - Array field filtering
   - Specialized type operators
@@ -20,20 +20,20 @@ Task-based guides for common FraiseQL workflows and patterns.
 
 ## Troubleshooting & Debugging
 
-- **[Troubleshooting Guide](troubleshooting/)** - Common issues and solutions
+- **[Troubleshooting Guide](./troubleshooting.md)** - Common issues and solutions
   - Error-message-focused solutions
   - PostgreSQL connection issues
   - Type mismatches and validation errors
   - Server startup problems
 
-- **[Troubleshooting Decision Tree](troubleshooting-decision-tree/)** - Diagnostic flowchart
+- **[Troubleshooting Decision Tree](./troubleshooting-decision-tree.md)** - Diagnostic flowchart
   - Category-based issue diagnosis
   - Installation, database, performance, deployment
   - Step-by-step debugging process
 
 ## Performance & Optimization
 
-- **[Performance Guide](performance-guide/)** - Optimization strategies
+- **[Performance Guide](./performance-guide.md)** - Optimization strategies
   - Query optimization techniques
   - Caching strategies
   - Rust pipeline optimization
@@ -41,13 +41,13 @@ Task-based guides for common FraiseQL workflows and patterns.
 
 ## Quick Navigation
 
-**New users?** Start with [Understanding FraiseQL](understanding-fraiseql/) to grasp the core concepts.
+**New users?** Start with [Understanding FraiseQL](./understanding-fraiseql.md) to grasp the core concepts.
 
-**Having issues?** Check [Troubleshooting Guide](troubleshooting/) for common problems and solutions.
+**Having issues?** Check [Troubleshooting Guide](./troubleshooting.md) for common problems and solutions.
 
-**Need advanced features?** See [Nested Array Filtering](nested-array-filtering/) for complex query patterns.
+**Need advanced features?** See [Nested Array Filtering](./nested-array-filtering.md) for complex query patterns.
 
 **Related Documentation:**
-- [Getting Started](../getting-started/) - Quickstart and first hour tutorials
-- [Core Concepts](../core/) - In-depth documentation on FraiseQL fundamentals
-- [Reference](../reference/) - API reference and quick lookup
+- [Getting Started](./../getting-started.md) - Quickstart and first hour tutorials
+- [Core Concepts](./../core.md) - In-depth documentation on FraiseQL fundamentals
+- [Reference](./../reference.md) - API reference and quick lookup

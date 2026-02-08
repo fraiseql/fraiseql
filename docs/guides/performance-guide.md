@@ -2,7 +2,7 @@
 
 🟡 **Production** - Performance expectations, methodology, and optimization guidance.
 
-**📍 Navigation**: [← Main README](README/) • [Performance Docs →](docs/performance/index/) • [Benchmarks →](../../benchmarks/)
+**📍 Navigation**: [← Main README](./README.md) • [Performance Docs →](./docs/performance/index.md) • [Benchmarks →](./../../benchmarks.md)
 
 ## Executive Summary
 
