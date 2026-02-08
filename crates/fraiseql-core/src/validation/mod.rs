@@ -5,6 +5,7 @@
 
 pub mod async_validators;
 pub mod checksum;
+pub mod composite;
 pub mod cross_field;
 pub mod error_responses;
 mod id_policy;
@@ -19,6 +20,9 @@ pub use async_validators::{
     MockPhoneNumberValidator,
 };
 pub use checksum::{LuhnValidator, Mod97Validator};
+pub use composite::{
+    validate_all, validate_any, validate_not, validate_optional, CompositeError, CompositeOperator,
+};
 pub use cross_field::{ComparisonOperator, validate_cross_field_comparison};
 pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
