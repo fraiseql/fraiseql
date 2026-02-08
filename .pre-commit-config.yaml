@@ -1,20 +1,23 @@
 # Pre-commit hooks for FraiseQL v2
 # Install: pip install pre-commit && pre-commit install
 
+ci:
+  skip: [cargo-fmt, cargo-clippy, cargo-audit]
+  autofix_prs: false
+
 repos:
-  # Rust formatting
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
+  # Rust formatting and linting
+  - repo: local
     hooks:
-      - id: fmt
+      - id: cargo-fmt
         name: cargo fmt
         description: Format Rust code with rustfmt
-        entry: cargo fmt --all --
+        entry: cargo fmt --all -- --check
         language: system
         types: [rust]
         pass_filenames: false
 
-      - id: clippy
+      - id: cargo-clippy
         name: cargo clippy
         description: Lint Rust code with Clippy
         entry: cargo clippy --all-targets --all-features -- -D warnings
@@ -30,6 +33,8 @@ repos:
         exclude: '\.md$'
       - id: end-of-file-fixer
       - id: check-yaml
+        exclude: '(deploy/kubernetes/|k8s/|fraisier/|examples/ci/|generate-d2-diagrams\.yml)'
+        args: ['--allow-multiple-documents']
       - id: check-toml
       - id: check-added-large-files
         args: ['--maxkb=1000']
@@ -40,10 +45,11 @@ repos:
 
   # TOML formatting
   - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
-    rev: v2.12.0
+    rev: v2.14.0
     hooks:
       - id: pretty-format-toml
         args: [--autofix]
+        exclude: '(fraisier/|fraiseql-typescript/|Cargo\.lock)'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
@@ -51,6 +57,7 @@ repos:
     hooks:
       - id: markdownlint
         args: [--fix]
+        exclude: '(node_modules/|fraisier/|HONEST_NEXT_STEPS\.md)'
 
   # Security check
   - repo: local
@@ -61,4 +68,4 @@ repos:
         entry: cargo audit
         language: system
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]

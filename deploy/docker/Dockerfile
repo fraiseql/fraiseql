@@ -26,7 +26,7 @@ WORKDIR /build
 # Copy dependency files first for better caching
 COPY pyproject.toml README.md Cargo.toml Cargo.lock ./
 COPY src ./src
-COPY fraiseql_rs ./fraiseql_rs
+COPY crates ./crates
 
 # Build fraiseql-confiture wheel first (no cp313-manylinux on PyPI yet)
 RUN --mount=type=cache,target=/root/.cache/pip \

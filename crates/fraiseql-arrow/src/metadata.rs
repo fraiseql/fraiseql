@@ -7,7 +7,7 @@
 //!
 //! Schemas are versioned for safe runtime updates without disrupting running queries.
 //! Each schema update increments the version counter (atomic, monotonically increasing).
-//! Old queries keep references to old schema versions via Arc<Schema> (Copy-on-Write).
+//! Old queries keep references to old schema versions via `Arc<Schema>` (Copy-on-Write).
 //! New queries automatically use new schema versions after reload.
 //!
 //! # Schema Preloading (Phase 5.1)

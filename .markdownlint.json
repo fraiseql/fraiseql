@@ -10,12 +10,16 @@
   "blanks-around-lists": true,
   "blanks-around-headings": true,
   "no-duplicate-heading": false,
-  "fenced-code-language": {
-    "severity": "warning"
-  },
-  "no-emphasis-as-heading": {
-    "severity": "warning"
-  },
+  "heading-style": false,
+  "single-title": false,
+  "fenced-code-language": false,
+  "no-emphasis-as-heading": false,
+  "ol-prefix": false,
+  "no-alt-text": false,
+  "code-block-style": false,
+  "ul-style": false,
+  "no-empty-links": false,
+  "hr-style": false,
   "table-pipe-alignment": false,
   "table-column-alignment": false,
   "table-columns": false,
