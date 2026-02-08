@@ -29,6 +29,7 @@ pub mod query_validator;
 pub mod rls_policy;
 pub mod security_context;
 pub mod tls_enforcer;
+pub mod validation_audit;
 
 // Re-export key types for convenience
 pub use audit::{AuditEntry, AuditLevel, AuditLogger, AuditStats};
@@ -49,3 +50,6 @@ pub use query_validator::{QueryMetrics, QueryValidator, QueryValidatorConfig};
 pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy};
 pub use security_context::SecurityContext;
 pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
+pub use validation_audit::{
+    RedactionPolicy, ValidationAuditEntry, ValidationAuditLogger, ValidationAuditLoggerConfig,
+};
