@@ -7,6 +7,7 @@ pub mod async_validators;
 pub mod checksum;
 pub mod composite;
 pub mod cross_field;
+pub mod date_validators;
 pub mod error_responses;
 mod id_policy;
 mod input_processor;
@@ -26,6 +27,10 @@ pub use composite::{
     validate_all, validate_any, validate_not, validate_optional, CompositeError, CompositeOperator,
 };
 pub use cross_field::{ComparisonOperator, validate_cross_field_comparison};
+pub use date_validators::{
+    validate_min_date, validate_max_date, validate_date_range, validate_min_age, validate_max_age,
+    validate_max_days_in_future, validate_max_days_in_past,
+};
 pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
 };
