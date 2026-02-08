@@ -16,6 +16,7 @@ pub mod inheritance;
 pub mod input_object;
 mod input_processor;
 pub mod mutual_exclusivity;
+pub mod rate_limiting;
 pub mod rich_scalars;
 pub mod rules;
 pub mod validators;
@@ -50,6 +51,7 @@ pub use input_processor::{InputProcessingConfig, ProcessingError, process_variab
 pub use mutual_exclusivity::{
     AnyOfValidator, ConditionalRequiredValidator, OneOfValidator, RequiredIfAbsentValidator,
 };
+pub use rate_limiting::{ValidationRateLimiter, ValidationRateLimitingConfig};
 pub use rich_scalars::{CountryCodeValidator, EmailValidator, PhoneNumberValidator, VinValidator};
 pub use rules::ValidationRule;
 pub use validators::{EnumValidator, LengthValidator, PatternValidator, RangeValidator, Validator};

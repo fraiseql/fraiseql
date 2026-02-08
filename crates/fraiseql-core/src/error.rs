@@ -145,6 +145,17 @@ pub enum FraiseQLError {
         message: String,
     },
 
+    /// Rate limiting error.
+    ///
+    /// Returned when a request is rate limited due to too many errors.
+    #[error("Rate limit exceeded: {message}")]
+    RateLimited {
+        /// Error message.
+        message:          String,
+        /// Number of seconds to wait before retrying.
+        retry_after_secs: u64,
+    },
+
     // ========================================================================
     // Resource Errors
     // ========================================================================
@@ -308,6 +319,7 @@ impl FraiseQLError {
                 | Self::Authentication { .. }
                 | Self::NotFound { .. }
                 | Self::Conflict { .. }
+                | Self::RateLimited { .. }
         )
     }
 
@@ -346,6 +358,7 @@ impl FraiseQLError {
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,
             Self::Conflict { .. } => 409,
+            Self::RateLimited { .. } => 429,
             Self::Timeout { .. } | Self::Cancelled { .. } => 408,
             Self::Database { .. }
             | Self::ConnectionPool { .. }
@@ -368,6 +381,7 @@ impl FraiseQLError {
             Self::Cancelled { .. } => "CANCELLED",
             Self::Authorization { .. } => "FORBIDDEN",
             Self::Authentication { .. } => "UNAUTHENTICATED",
+            Self::RateLimited { .. } => "RATE_LIMITED",
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",

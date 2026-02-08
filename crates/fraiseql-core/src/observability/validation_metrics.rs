@@ -7,6 +7,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+
 use serde::{Deserialize, Serialize};
 
 /// Validation metrics collected during request processing.
@@ -64,16 +65,16 @@ impl ValidationMetricsCollector {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            validation_checks_total: Arc::new(AtomicU64::new(0)),
-            validation_errors_total: Arc::new(AtomicU64::new(0)),
-            async_validation_total: Arc::new(AtomicU64::new(0)),
-            async_validation_errors: Arc::new(AtomicU64::new(0)),
+            validation_checks_total:      Arc::new(AtomicU64::new(0)),
+            validation_errors_total:      Arc::new(AtomicU64::new(0)),
+            async_validation_total:       Arc::new(AtomicU64::new(0)),
+            async_validation_errors:      Arc::new(AtomicU64::new(0)),
             async_validation_duration_us: Arc::new(AtomicU64::new(0)),
-            validation_duration_us: Arc::new(AtomicU64::new(0)),
-            field_validation_errors: Arc::new(parking_lot::RwLock::new(
+            validation_duration_us:       Arc::new(AtomicU64::new(0)),
+            field_validation_errors:      Arc::new(parking_lot::RwLock::new(
                 std::collections::HashMap::new(),
             )),
-            rule_type_errors: Arc::new(parking_lot::RwLock::new(
+            rule_type_errors:             Arc::new(parking_lot::RwLock::new(
                 std::collections::HashMap::new(),
             )),
         }
@@ -232,11 +233,15 @@ impl From<&ValidationMetricsCollector> for PrometheusValidationMetrics {
         let async_duration = collector.async_validation_duration_us.load(Ordering::Relaxed);
 
         Self {
-            validation_checks_total: validation_checks,
-            validation_errors_total: collector.validation_errors_total.load(Ordering::Relaxed),
-            async_validation_total: async_checks,
-            async_validation_errors: collector.async_validation_errors.load(Ordering::Relaxed),
-            validation_avg_duration_us: if validation_checks > 0 {
+            validation_checks_total:          validation_checks,
+            validation_errors_total:          collector
+                .validation_errors_total
+                .load(Ordering::Relaxed),
+            async_validation_total:           async_checks,
+            async_validation_errors:          collector
+                .async_validation_errors
+                .load(Ordering::Relaxed),
+            validation_avg_duration_us:       if validation_checks > 0 {
                 validation_duration as f64 / validation_checks as f64
             } else {
                 0.0
@@ -450,10 +455,10 @@ mod tests {
     #[test]
     fn test_validation_metric_entry_serialization() {
         let entry = ValidationMetricEntry {
-            field: "email".to_string(),
-            rule_type: "pattern".to_string(),
-            valid: false,
-            duration_us: 150,
+            field:          "email".to_string(),
+            rule_type:      "pattern".to_string(),
+            valid:          false,
+            duration_us:    150,
             validator_type: "regex".to_string(),
             failure_reason: Some("Invalid email format".to_string()),
         };
@@ -539,11 +544,11 @@ mod tests {
     #[test]
     fn test_prometheus_validation_metrics_serialization() {
         let metrics = PrometheusValidationMetrics {
-            validation_checks_total: 100,
-            validation_errors_total: 10,
-            async_validation_total: 50,
-            async_validation_errors: 5,
-            validation_avg_duration_us: 100.5,
+            validation_checks_total:          100,
+            validation_errors_total:          10,
+            async_validation_total:           50,
+            async_validation_errors:          5,
+            validation_avg_duration_us:       100.5,
             async_validation_avg_duration_us: 250.75,
         };
 
