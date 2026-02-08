@@ -39,6 +39,7 @@ crates/fraiseql-server/src/encryption/
 **Pattern:** Constructor/initialization tests with placeholder assertions
 
 **Example:**
+
 ```rust
 #[test]
 fn test_adapter_creation() {
@@ -48,6 +49,7 @@ fn test_adapter_creation() {
 ```
 
 **Fix Options:**
+
 1. Remove (if construction alone proves soundness)
 2. Add meaningful assertion: `assert!(!schema.fields.is_empty())`
 3. Add behavior assertion: `assert_eq!(adapter.encryption_key_id(), 123)`
@@ -109,6 +111,7 @@ crates/fraiseql-server/tests/
 **Message:** "this assertion is always `true`"
 
 **Why It's a Problem:**
+
 - Dead code - assertion never fails
 - Clutters test intent
 - Suggests incomplete/placeholder test
@@ -123,6 +126,7 @@ crates/fraiseql-server/tests/
 ### A. Constructor/Initialization Tests
 
 **Current Pattern:**
+
 ```rust
 #[test]
 fn test_adapter_creation() {
@@ -134,6 +138,7 @@ fn test_adapter_creation() {
 **Fix Options (Priority):**
 
 1. **Remove** (if just testing compilation)
+
    ```rust
    #[test]
    fn test_adapter_creation() {
@@ -143,6 +148,7 @@ fn test_adapter_creation() {
    ```
 
 2. **Add Meaningful Assertion** (preferred)
+
    ```rust
    #[test]
    fn test_adapter_creation() {
@@ -153,6 +159,7 @@ fn test_adapter_creation() {
    ```
 
 3. **Add Property Assertion**
+
    ```rust
    #[test]
    fn test_adapter_creation() {
@@ -166,6 +173,7 @@ fn test_adapter_creation() {
 ### B. Setup/Integration Tests
 
 **Current Pattern:**
+
 ```rust
 #[test]
 fn test_database_setup() {
@@ -176,6 +184,7 @@ fn test_database_setup() {
 ```
 
 **Fix:**
+
 ```rust
 #[test]
 fn test_database_setup() {
@@ -191,6 +200,7 @@ fn test_database_setup() {
 ### C. Feature Gate Tests
 
 **Current Pattern:**
+
 ```rust
 #[test]
 fn test_encryption_feature_available() {
@@ -200,6 +210,7 @@ fn test_encryption_feature_available() {
 ```
 
 **Fix:**
+
 ```rust
 #[test]
 fn test_encryption_feature_available() {
@@ -215,6 +226,7 @@ fn test_encryption_feature_available() {
 ### Batch 1: Encryption Module (Priority) - 117 violations
 
 **Files (in order):**
+
 1. `src/encryption/field_encryption_tests.rs` (17)
 2. `src/encryption/query_builder_integration_tests.rs` (16)
 3. `src/encryption/database_adapter_tests.rs` (16)
@@ -224,6 +236,7 @@ fn test_encryption_feature_available() {
 **Effort:** 5-7 hours
 
 **Approach:**
+
 - Read test function names
 - Understand what's being tested
 - Replace assert!(true) with specific assertion
@@ -234,6 +247,7 @@ fn test_encryption_feature_available() {
 ### Batch 2: Secrets, Auth, RBAC (27 violations)
 
 **Files:**
+
 1. `src/secrets/schema_tests.rs` (14)
 2. `src/auth/oauth_tests.rs` (13)
 
@@ -244,6 +258,7 @@ fn test_encryption_feature_available() {
 ### Batch 3: Integration/High-Level Tests (8 violations)
 
 **Files:**
+
 1. `tests/audit_logging_tests.rs` (8)
 
 **Effort:** 1-2 hours
@@ -273,14 +288,17 @@ cargo clippy --all-targets --all-features -- -D warnings
 ## Expected Timeline
 
 **Batch 1 (Encryption):** 5-7 hours
+
 - Can be parallelized (multiple developers)
 - Highest volume, so biggest impact
 
 **Batch 2 (Auth/Secrets):** 2-3 hours
+
 - Medium complexity
 - Smaller scope
 
 **Batch 3 (Integration):** 1-2 hours
+
 - Smaller scope
 - Good final confidence check
 

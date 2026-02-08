@@ -8,6 +8,7 @@
 ## What You Have (Actual)
 
 ✅ **Working in v2.0.0-alpha.3**:
+
 - Audit logging with 54+ tests
 - GraphQL subscriptions (multi-transport)
 - Apollo Federation with SAGA transactions
@@ -29,6 +30,7 @@
 **Where It Should Be**: `crates/fraiseql-core/src/security/rate_limiting.rs` (MISSING)
 
 **What v1 Had** (625 LOC):
+
 ```python
 # fraiseql_v1/fraiseql-python/src/fraiseql/security/rate_limiting.py
 - Fixed Window strategy
@@ -42,6 +44,7 @@
 ```
 
 **What v2 Has**:
+
 ```rust
 // crates/fraiseql-core/src/config/mod.rs
 requests_per_minute: 100  // ← Just a setting
@@ -50,6 +53,7 @@ requests_per_minute: 100  // ← Just a setting
 **Impact**: Auth endpoints can be brute-forced. You need rate limiting for production.
 
 **Fix Options** (pick one):
+
 1. **Implement in fraiseql-server** (~600 LOC)
    - Port v1 logic to Rust
    - Add middleware in server
@@ -73,6 +77,7 @@ requests_per_minute: 100  // ← Just a setting
 **Where It Should Be**: `crates/fraiseql-core/src/security/rbac/hierarchy.rs` (MISSING)
 
 **What v1 Had** (3,600+ LOC total):
+
 ```python
 # fraiseql_v1/fraiseql-python/src/fraiseql/enterprise/rbac/hierarchy.py
 class RoleHierarchy:
@@ -84,6 +89,7 @@ class RoleHierarchy:
 ```
 
 **What v2 Has**:
+
 ```rust
 // crates/fraiseql-core/src/security/
 @require_permission("admin")  // ← Flat only, no hierarchy
@@ -92,6 +98,7 @@ class RoleHierarchy:
 **Impact**: Complex organizations need role hierarchies. Can't say "admin inherits from user".
 
 **Current State in v2**:
+
 ```
 ✓ You CAN require specific permissions
 ✓ You CAN check field-level access
@@ -101,6 +108,7 @@ class RoleHierarchy:
 ```
 
 **Fix Options** (pick one):
+
 1. **Use flat roles** (if <20 roles)
    - Define all role combinations
    - Use @require_permission("admin", "user", "viewer")
@@ -127,6 +135,7 @@ class RoleHierarchy:
 **Where It Should Be**: `crates/fraiseql-core/src/security/field_encryption.rs` (MISSING)
 
 **What Both v1 & v2 Have**:
+
 ```rust
 // crates/fraiseql-core/src/security/kms/
 - Vault integration ✓
@@ -137,6 +146,7 @@ class RoleHierarchy:
 ```
 
 **What's Actually Missing**:
+
 ```
 ✗ Column-level encryption in queries
 ✗ Automatic encryption/decryption in resolver
@@ -146,7 +156,9 @@ class RoleHierarchy:
 **Impact**: If you need encrypted columns (HIPAA, PCI, etc.), you need a workaround.
 
 **Fix Options** (pick one):
+
 1. **Use PostgreSQL pgcrypto** (RECOMMENDED)
+
    ```sql
    CREATE EXTENSION pgcrypto;
 
@@ -157,6 +169,7 @@ class RoleHierarchy:
    -- Decrypt on query
    SELECT email, pgp_sym_decrypt(ssn, 'secret_key') FROM users;
    ```
+
    - Estimated: 2-4 hours setup
    - Works today, no code changes needed
 
@@ -176,6 +189,7 @@ class RoleHierarchy:
 ## Roadmap to v2.0.0 GA
 
 ### v2.0.0-alpha.3 (NOW - TODAY)
+
 - ✅ Cleanup complete
 - ✅ JSONB bug fixed (#269)
 - ✅ All tests passing
@@ -183,12 +197,14 @@ class RoleHierarchy:
 - ⚠️ Known gaps documented
 
 ### v2.0.0-beta (2-4 weeks)
+
 - [ ] Implement rate limiting (Issue #225 part 1)
 - [ ] Backport RBAC hierarchy (Issue #225 part 2)
 - [ ] Complete all JWT tests (Issue #225 part 3)
 - [ ] Schema dependency graph started (Issue #258)
 
 ### v2.0.0 GA (1-2 months)
+
 - [ ] All gaps closed or documented
 - [ ] Migration guide from v1
 - [ ] Performance benchmarks
@@ -201,6 +217,7 @@ class RoleHierarchy:
 ### For v2.0.0-alpha.3 Deployment
 
 **Priority 1: Choose rate limiting strategy**
+
 ```
 [ ] Decision: Load balancer? Middleware? Redis?
 [ ] Owner: DevOps/Backend architect
@@ -209,6 +226,7 @@ class RoleHierarchy:
 ```
 
 **Priority 2: Assess RBAC needs**
+
 ```
 [ ] Decision: Flat roles sufficient? Or need hierarchy?
 [ ] If flat: Define role set (List all combinations)
@@ -219,6 +237,7 @@ class RoleHierarchy:
 ```
 
 **Priority 3: Choose encryption approach**
+
 ```
 [ ] Decision: pgcrypto? TDE? FraiseQL implementation?
 [ ] If pgcrypto: Create test migration
@@ -254,7 +273,8 @@ ELSE IF (complex RBAC hierarchy required):
 
 ## Documentation Created for You
 
-### For Understanding What Works:
+### For Understanding What Works
+
 1. **V1_V2_IMPLEMENTATION_REALITY_CHECK.md**
    - Complete feature inventory
    - Code location for every feature
@@ -273,7 +293,8 @@ ELSE IF (complex RBAC hierarchy required):
    - Resource requirements
    - Risk assessments
 
-### For Deployment:
+### For Deployment
+
 4. **RELEASE_CLEANUP_ASSESSMENT.md**
    - All cleanup work completed
    - Development artifacts removed
@@ -283,7 +304,8 @@ ELSE IF (complex RBAC hierarchy required):
    - Status of all 8 open issues
    - What's fixed, what's verified, what's deferred
 
-### For Release Preparation:
+### For Release Preparation
+
 6. **RELEASE_SUMMARY_ALPHA3.md**
    - Complete release checklist
    - Testing guide
@@ -321,19 +343,22 @@ bac2a810 - docs: Add detailed scope analysis for issues #258 and #225
 
 ## Final Recommendation
 
-### v2.0.0-alpha.3 is:
+### v2.0.0-alpha.3 is
+
 - ✅ **Code complete** for most features
 - ✅ **Well tested** (1,642 tests passing)
 - ✅ **Well documented** (gaps clearly identified)
 - ⚠️ **Deployment ready** with workarounds for 3 gaps
 - ❌ **Feature complete** vs. v1 (75% parity)
 
-### Timeline:
+### Timeline
+
 - **NOW**: Deploy alpha.3 if you can use workarounds
 - **+2-4 weeks**: v2.0.0-beta with rate limiting + RBAC hierarchy
 - **+1-2 months**: v2.0.0 GA (feature complete)
 
-### Next Immediate Step:
+### Next Immediate Step
+
 Pick one action item from "What To Do Right Now" section above.
 
 ---
@@ -349,16 +374,19 @@ Pick one action item from "What To Do Right Now" section above.
 I claimed three "critical gaps" that don't actually exist:
 
 ### ✅ Rate Limiting IS IMPLEMENTED
+
 - File: `crates/fraiseql-server/src/auth/rate_limiting.rs` (459 LOC)
 - Tests: 24 comprehensive tests
 - Status: Production-ready
 
 ### ✅ RBAC Role Hierarchy IS IMPLEMENTED
+
 - File: `fraiseql-rust/src/roles.rs` (7,223 LOC)
 - Features: Full role hierarchy, inheritance, caching
 - Status: Production-ready
 
 ### ✅ Field-Level Encryption IS IMPLEMENTED
+
 - File: `crates/fraiseql-server/src/encryption/` (14 modules, 283k+ LOC)
 - Tests: 6,046+ lines of test code
 - Features: AES-256-GCM, Vault, audit, compliance, rotation
@@ -369,6 +397,7 @@ I claimed three "critical gaps" that don't actually exist:
 You don't need to implement any of these features. They're already done.
 
 Instead, focus on:
+
 - [ ] Testing rate limiting in your deployment environment
 - [ ] Configuring field encryption for your sensitive columns
 - [ ] Setting up RBAC role hierarchy for your organization

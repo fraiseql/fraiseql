@@ -176,6 +176,7 @@ WORKAROUND:
 ### ✅ READY FOR PRODUCTION
 
 **Scenario**: Standard SaaS GraphQL API
+
 ```
 ✓ Multi-tenant GraphQL over PostgreSQL
 ✓ Mutations via functions
@@ -185,6 +186,7 @@ WORKAROUND:
 ✓ Audit logging of all operations
 ✓ Field-level authorization
 ```
+
 **Gaps**: None that are critical for this use case
 
 ---
@@ -192,6 +194,7 @@ WORKAROUND:
 ### ⚠️ NEEDS WORKAROUNDS
 
 **Scenario**: High-Security SaaS (e.g., healthcare, finance)
+
 ```
 ✓ Field-level authorization (complete)
 ✓ Audit logging (complete)
@@ -200,7 +203,9 @@ WORKAROUND:
 ✗ Field-level encryption (at rest)
 ✗ Complex role hierarchies
 ```
+
 **Workarounds Required**:
+
 - Add rate limiting via WAF / load balancer
 - Use PostgreSQL pgcrypto for field encryption
 - Implement role hierarchy in app middleware
@@ -212,11 +217,13 @@ WORKAROUND:
 ### ❌ NOT READY
 
 **Scenario**: Enterprise with complex RBAC
+
 ```
 ✗ Role hierarchy (critical)
 ✗ Role inheritance (critical)
 ✓ Field-level auth (partial - no hierarchy)
 ```
+
 **Workaround**: Fall back to v1 for RBAC, v2 for everything else
 
 ---
@@ -224,16 +231,19 @@ WORKAROUND:
 ## What Should Be Done Before v2.0.0 GA
 
 ### Must-Have (v2.0.0-beta)
+
 - [ ] Implement rate limiting in fraiseql-server
 - [ ] Backport RBAC role hierarchy from v1
 - [ ] Document field encryption workaround
 
 ### Nice-to-Have (v2.0.0 GA)
+
 - [ ] Field-level encryption implementation
 - [ ] PostgreSQL extension integration for auto-invalidation
 - [ ] v1 auth middleware components
 
 ### Documentation Updates
+
 - [ ] Add "Known Limitations" section to README
 - [ ] Add "Migration from v1" guide with gap workarounds
 - [ ] Add "Feature Parity Matrix" to docs
@@ -287,6 +297,7 @@ KNOWN GAPS MITIGATED
 **Assessment Date**: February 7, 2026
 **v2 Status**: Ready for alpha.3, acceptable for production with documented workarounds
 **Recommendation**:
+
 - Deploy v2.0.0-alpha.3 for non-critical features
 - Wait for v2.0.0-beta before deploying rate-limiting-critical systems
 - Plan v1 fallback for complex RBAC scenarios
@@ -312,6 +323,7 @@ The three "critical gaps" I identified are actually fully implemented:
    - Not a gap - enterprise-grade implementation
 
 **CORRECTED ASSESSMENT**:
+
 - Feature Completeness: 95% (not 80%)
 - Production Readiness: ✅ READY NOW (not "with workarounds")
 - No deployment workarounds needed

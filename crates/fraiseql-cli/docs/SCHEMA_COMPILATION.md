@@ -28,10 +28,11 @@ Input: fraiseql.toml    ──→  │  --output schema.compiled   │
 The compiler reads the intermediate schema JSON and validates syntax:
 
 ```bash
-$ fraiseql-cli compile schema.json --output schema.compiled.json
+fraiseql-cli compile schema.json --output schema.compiled.json
 ```
 
 Validates:
+
 - ✓ All required fields present
 - ✓ Type names unique
 - ✓ Field types are known GraphQL types
@@ -43,6 +44,7 @@ Validates:
 Converts intermediate type definitions to compiled format:
 
 **Input (intermediate)**:
+
 ```json
 {
   "types": [
@@ -64,6 +66,7 @@ Converts intermediate type definitions to compiled format:
 ```
 
 **Output (compiled)**:
+
 ```json
 {
   "types": [
@@ -102,6 +105,7 @@ EmailAddress type → EmailAddressWhereInput (auto-generated)
 ```
 
 Automatically generated types:
+
 1. Contact: EmailAddress, PhoneNumber, URL (3)
 2. Financial: CurrencyCode, IBAN, ISIN, BIC (4)
 3. Geographic: CountryCode, Coordinates, PostalCode (3)
@@ -421,6 +425,7 @@ Types can be safely removed. Compiled schema is deterministically rebuilt each t
 ### 1. Version Control
 
 Commit both:
+
 - `schema.json` (intermediate - source of truth)
 - `schema.compiled.json` (compiled - for deployment)
 
@@ -518,6 +523,7 @@ Solution: Remove the circular dependency or refactor to use IDs instead.
 ### Compilation Timeout
 
 If compilation takes > 1 second, check:
+
 - Number of types (should be < 1000)
 - Size of schema.json (should be < 10MB)
 - Complexity of type definitions

@@ -97,6 +97,7 @@ This enum is the **only place** operators are defined. Everything else is genera
 ### Input
 
 1. **schema.json** (from Python authoring)
+
    ```json
    {
      "types": [
@@ -112,6 +113,7 @@ This enum is the **only place** operators are defined. Everything else is genera
    ```
 
 2. **fraiseql.toml** (developer configuration)
+
    ```toml
    [fraiseql.validation]
    email_domain_eq = { pattern = "^[a-z0-9]..." }
@@ -312,6 +314,7 @@ async fn execute_query(
 ```
 
 **Key points**:
+
 - ✅ Validation happens **before** SQL generation
 - ✅ Validation happens in **Rust layer**, not database
 - ✅ All 4 databases validate the **same way**
@@ -347,6 +350,7 @@ fn get_operators_for_type(rich_type: &str) -> Vec<&'static ExtendedOperator> {
 ```
 
 This is the **bridge** between:
+
 - Type name in schema.json (string: "EmailAddress")
 - Operator enums in Rust (value: ExtendedOperator::EmailDomainEq)
 
@@ -375,6 +379,7 @@ impl ExtendedOperatorHandler for PostgresWhereGenerator {
 ```
 
 At compile time, these templates are extracted and embedded in schema.compiled.json with placeholders:
+
 - `$field` - the database field reference
 - `$param` - parameter placeholder (?, $1, @p1, etc.)
 - `$params` - multiple parameter placeholders (?, ?, ?), etc.
@@ -389,6 +394,7 @@ At runtime, placeholders are substituted when building the actual SQL.
    - Cover all 44+ operators
 
 2. **TOML override** (`fraiseql.toml`)
+
    ```toml
    [fraiseql.validation]
    # Override a default rule
@@ -399,11 +405,13 @@ At runtime, placeholders are substituted when building the actual SQL.
    ```
 
 3. **Compiler merges** them
+
    ```
    default_rules[op] + toml_overrides[op] → compiled_rules[op]
    ```
 
 4. **Embedded in schema.compiled.json**
+
    ```json
    "validation": {
      "emailDomainEq": { "pattern": "..." }
@@ -411,6 +419,7 @@ At runtime, placeholders are substituted when building the actual SQL.
    ```
 
 5. **Applied at runtime**
+
    ```rust
    rule.validate(value)?;
    ```
@@ -430,12 +439,14 @@ At runtime, placeholders are substituted when building the actual SQL.
 ## Implementation Phases
 
 ### Phase 1: Current
+
 - ✅ ExtendedOperator enum defined
 - ✅ Validation framework built (ValidationRule, ChecksumType)
 - ✅ Default rules created (70+ for all operators)
 - ✅ SQL generation patterns established (6 operators, all 4 DBs)
 
 ### Phase 2: Next (Compiler)
+
 - [ ] Build fraiseql-cli compile command
 - [ ] Parse schema.json
 - [ ] Parse fraiseql.toml
@@ -446,12 +457,14 @@ At runtime, placeholders are substituted when building the actual SQL.
 - [ ] Output schema.compiled.json
 
 ### Phase 3: Runtime Integration
+
 - [ ] Load schema.compiled.json at server startup
 - [ ] Wire validation into query execution path
 - [ ] Use embedded SQL templates
 - [ ] Apply validation rules before SQL generation
 
 ### Phase 4: Complete SQL Generation
+
 - [ ] Implement remaining 38 operators across all 4 databases
 - [ ] Test all operators end-to-end
 - [ ] Document operator semantics
@@ -459,12 +472,14 @@ At runtime, placeholders are substituted when building the actual SQL.
 ## Files Involved
 
 **Current (exist)**:
+
 - `crates/fraiseql-core/src/filters/operators.rs` - ExtendedOperator enum (single source of truth)
 - `crates/fraiseql-core/src/filters/validators.rs` - ValidationRule framework
 - `crates/fraiseql-core/src/filters/default_rules.rs` - 70+ default validation rules
 - `crates/fraiseql-core/src/db/{postgres,mysql,sqlite,sqlserver}/where_generator.rs` - SQL templates
 
 **Future (to build)**:
+
 - `crates/fraiseql-cli/src/compile.rs` - Main compiler logic
 - `crates/fraiseql-cli/src/rich_filters.rs` - Rich filter compilation
 - `crates/fraiseql-cli/src/graphql_gen.rs` - GraphQL type generation
@@ -473,12 +488,14 @@ At runtime, placeholders are substituted when building the actual SQL.
 ## No Python Filter Classes
 
 In v1, we manually wrote GraphQL filter classes in Python. In v2:
+
 - ❌ No Python filter classes
 - ❌ No manual GraphQL type definitions
 - ✅ Compiler generates everything from Rust operators
 - ✅ Python is pure authoring (just type annotations)
 
 The compiler ensures:
+
 1. One authoritative definition (Rust ExtendedOperator)
 2. All artifacts generated consistently
 3. No duplication or drift

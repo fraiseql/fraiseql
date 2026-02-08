@@ -13,6 +13,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **V2**: Rust-native runtime with compile-time optimization, but some feature areas are incomplete
 
 **Completeness Score**:
+
 - **V1**: ~85% feature complete (mature, well-tested)
 - **V2**: ~80% feature complete (missing some v1 features, has new v2 features)
 
@@ -23,6 +24,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 1. AUDIT LOGGING ✅ BOTH COMPLETE
 
 #### V1 (Python)
+
 - **Location**: `fraiseql-python/src/fraiseql/audit/` (9 files, 1,900+ LOC)
 - **Files**: middleware.py, security_logger.py, analyzer.py, models.py, query_builder.py
 - **Enterprise**: `enterprise/audit/` with event_logger.py (632 lines), pluggable backends
@@ -30,6 +32,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Production-ready with comprehensive audit trail
 
 #### V2 (Rust)
+
 - **Location**: `crates/fraiseql-core/src/audit/` (8 files, 3,300+ LOC)
 - **Backends**: PostgreSQL (365 LOC, 27 tests), Syslog (252 LOC, 27 tests), File (147 LOC)
 - **Test Coverage**: 54+ tests, zero warnings
@@ -42,6 +45,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 2. SUBSCRIPTIONS ✅ BOTH COMPLETE
 
 #### V1 (Python)
+
 - **Location**: `fraiseql-python/src/fraiseql/subscriptions/` (9 files, 2,800+ LOC)
 - **Transports**: WebSocket (608 LOC), HTTP (502 LOC)
 - **Protocol**: Full GraphQL-WS implementation (514 LOC)
@@ -49,6 +53,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Production-ready with WebSocket and HTTP
 
 #### V2 (Rust)
+
 - **Location**: `crates/fraiseql-core/src/runtime/subscription.rs` (2,439 LOC)
 - **Transports**: PostgreSQL LISTEN/NOTIFY, graphql-ws, Webhook, Kafka
 - **Architecture**: Event-driven database-centric approach
@@ -61,6 +66,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 3. APOLLO FEDERATION ✅ BOTH COMPLETE
 
 #### V1 (Python)
+
 - **Location**: `fraiseql-python/src/fraiseql/federation/` (11 submodules, 3,800+ LOC)
 - **Files**:
   - decorators.py (367 LOC) - @entity, @extend_entity
@@ -74,6 +80,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Production-ready with all Federation 2.0 features
 
 #### V2 (Rust)
+
 - **Location**: `crates/fraiseql-core/src/federation/` (27 modules, 15,000+ LOC)
 - **Key Files**:
   - saga_executor.rs (1,121 LOC) - Distributed transactions
@@ -91,6 +98,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 4. MUTATIONS ✅ BOTH COMPLETE
 
 #### V1 (Python)
+
 - **Location**: `fraiseql-python/src/fraiseql/mutations/` (9 files, 4,400+ LOC)
 - **Files**:
   - mutation_decorator.py (1,327 LOC) - Full decorator
@@ -102,6 +110,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Production-ready
 
 #### V2 (Rust)
+
 - **Location**: Spread across compiler and runtime
   - `crates/fraiseql-core/src/compiler/codegen.rs` - Mutation codegen
   - `crates/fraiseql-core/src/runtime/executor.rs` - Runtime
@@ -117,6 +126,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 5. CACHING ✅ BOTH COMPLETE (Different Approaches)
 
 #### V1 (Python)
+
 - **Location**: `fraiseql-python/src/fraiseql/caching/` (5 files, 1,800+ LOC)
 - **Backend**: PostgreSQL UNLOGGED table (zero WAL overhead)
 - **Files**:
@@ -128,6 +138,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Production-ready with PostgreSQL optimization
 
 #### V2 (Rust)
+
 - **Location**: `crates/fraiseql-core/src/cache/` (9 files, 6,200+ LOC)
 - **Key Files**:
   - result.rs (753 LOC) - Result caching
@@ -145,6 +156,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 6. RATE LIMITING ⚠️ INCOMPLETE IN V2
 
 #### V1 (Python) ✅ COMPLETE
+
 - **Location**: `fraiseql-python/src/fraiseql/security/rate_limiting.py` (625 LOC)
 - **Strategies**: Fixed Window, Sliding Window, Token Bucket
 - **Features**:
@@ -158,6 +170,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Production-ready
 
 #### V2 (Rust) ⚠️ INCOMPLETE
+
 - **Configuration**: `crates/fraiseql-core/src/config/mod.rs` (settings defined)
 - **Location**: Rate limiting mentioned in security profiles
 - **Reality**: Configuration exists but **core rate limiting module not found**
@@ -173,6 +186,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 7. RBAC (Role-Based Access Control) ⚠️ PARTIAL IN V2
 
 #### V1 (Python) ✅ COMPLETE
+
 - **Location**: `fraiseql-python/src/fraiseql/enterprise/rbac/` (11 files, 3,600+ LOC)
 - **Key Files**:
   - middleware.py (421 LOC)
@@ -191,6 +205,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - **Status**: Enterprise-grade
 
 #### V2 (Rust) ⚠️ PARTIAL
+
 - **Field-Level RBAC**: ✅ COMPLETE
   - `crates/fraiseql-core/src/security/field_filter.rs` (720 LOC)
   - `crates/fraiseql-server/src/auth/operation_rbac.rs`
@@ -208,11 +223,13 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 8. FIELD-LEVEL AUTHORIZATION ✅ BOTH COMPLETE
 
 #### V1 (Python) ✅ COMPLETE
+
 - **Location**: `fraiseql-python/src/fraiseql/security/field_auth.py` (389 LOC)
 - **Enterprise**: `enterprise/security/constraints.py` (217 LOC) + audit.py (201 LOC)
 - **Status**: Production-ready with audit trail
 
 #### V2 (Rust) ✅ COMPLETE
+
 - **Location**: `crates/fraiseql-core/src/security/field_filter.rs` (720 LOC)
 - **Also**: `field_masking.rs` (655 LOC), `rls_policy.rs` (580 LOC)
 - **Status**: Production-ready with masking and RLS support
@@ -224,12 +241,14 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 9. SECURITY PROFILES ⚠️ IMPLEMENTED BUT LIMITED
 
 #### V1 (Python) ⚠️ BASIC
+
 - **Location**: `fraiseql-python/src/fraiseql/security/profiles/` (2 files)
   - definitions.py (206 LOC)
   - enforcer.py (286 LOC)
 - **Status**: Basic profile system, limited
 
 #### V2 (Rust) ✅ CLEAN
+
 - **Location**: `crates/fraiseql-core/src/security/profiles.rs` (236 LOC)
 - **Profiles**:
   - STANDARD: Rate limiting + audit logging
@@ -246,6 +265,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 10. ENCRYPTION AT REST ⚠️ INFRASTRUCTURE ONLY (BOTH)
 
 #### V1 (Python) ⚠️ INCOMPLETE
+
 - **Location**: `fraiseql-python/src/fraiseql/security/kms/` (4 files)
   - aws_kms.py (296 LOC) - AWS KMS
   - vault.py (266 LOC) - HashiCorp Vault
@@ -257,6 +277,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
   - **NO field-level encryption for actual data** ❌
 
 #### V2 (Rust) ⚠️ INCOMPLETE
+
 - **Location**: `crates/fraiseql-core/src/security/kms/` (4 files)
   - base.rs (333 LOC) - KMS trait
   - vault.rs (496 LOC) - Vault backend
@@ -274,9 +295,11 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### 11. AUTOMATIC PERSISTED QUERIES (APQ) ✅ V2 ONLY
 
 #### V1 (Python) ❌ NOT FOUND
+
 - No APQ implementation discovered
 
 #### V2 (Rust) ✅ COMPLETE
+
 - **Location**: `crates/fraiseql-core/src/apq/` (4 files, 805+ LOC)
 - **Files**:
   - hasher.rs (429 LOC) - SHA256 query hashing
@@ -312,33 +335,43 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ## Marketing Claims vs. Reality
 
 ### CLAIM: "Encryption at rest on sensitive columns"
+
 **Reality**:
+
 - v1 & v2: KMS infrastructure only
 - Actual column encryption: **NOT IMPLEMENTED**
 - Workaround: Use PostgreSQL pgcrypto extension directly
 - **Verdict**: ❌ Claim is misleading
 
 ### CLAIM: "Rate limiting and field-level authorization"
+
 **Reality**:
+
 - v1: Rate limiting fully implemented ✅
 - v2: Configuration present, implementation unclear ⚠️
 - v2: Field-level authorization fully implemented ✅
 - **Verdict**: ⚠️ Partial claim (v2 has auth but not rate limiting)
 
 ### CLAIM: "RBAC with scope management"
+
 **Reality**:
+
 - v1: Role hierarchy + scope management ✅
 - v2: Field and operation scope, no hierarchy ⚠️
 - **Verdict**: ⚠️ Partial claim (v2 missing role hierarchy)
 
 ### CLAIM: "Complete audit logging with multiple backends"
+
 **Reality**:
+
 - v1: File and memory ✅
 - v2: PostgreSQL, Syslog, File + 54 tests ✅✅
 - **Verdict**: ✅ Claim accurate (v2 actually better)
 
 ### CLAIM: "GraphQL Subscriptions with multi-tenant support"
+
 **Reality**:
+
 - v1: WebSocket + HTTP ✅
 - v2: Database-driven with multiple transports ✅
 - **Verdict**: ✅ Claim accurate (v2 different approach, not worse)
@@ -348,6 +381,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ## What You Should Know Before v2.0.0 GA
 
 ### Implemented & Production-Ready
+
 - ✅ Audit logging (better in v2)
 - ✅ GraphQL Subscriptions (different but good)
 - ✅ Apollo Federation (WAY better in v2 with SAGA)
@@ -357,6 +391,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - ✅ APQ (v2 only, production-ready)
 
 ### Incomplete/Missing
+
 - ❌ Rate limiting implementation (config only)
 - ❌ RBAC role hierarchy (needs development)
 - ❌ Field-level encryption (needs external tool)
@@ -364,6 +399,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### Next Steps to Close Gaps
 
 **High Priority** (Issue #225):
+
 1. Implement rate limiting module in fraiseql-server
 2. Add RBAC role hierarchy support
 3. Complete all JWT stub tests
@@ -381,6 +417,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 ### For Production Deployment of v2.0.0-alpha.3
 
 **Ready Now**:
+
 - GraphQL queries and mutations
 - Subscriptions
 - Federation
@@ -389,6 +426,7 @@ Both v1 (Python) and v2 (Rust) are heavily featured, mature implementations. How
 - Field-level authorization
 
 **Not Ready** (Need Workarounds):
+
 - Rate limiting → Implement at load balancer level or in fraiseql-server
 - RBAC hierarchy → Use flat roles for now or fall back to v1
 - Field encryption → Use PostgreSQL pgcrypto directly

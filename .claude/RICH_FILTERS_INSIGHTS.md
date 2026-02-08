@@ -10,11 +10,13 @@ This simple question unlocked the correct v2 architecture.
 ## The Mistake (v1 Pattern)
 
 We created:
+
 1. **Python filter classes** - 49 classes like `EmailAddressFilter`, `VinFilter`, etc.
 2. **Python-to-Rust mappings** - Dictionary tying Python to operators
 3. **Runtime integration** - schema generation in graphql_where_generator.py
 
 Problems:
+
 - ❌ Duplication: Operators defined in Rust, filters defined in Python
 - ❌ Drift risk: Two definitions can diverge
 - ❌ Not v2: Runtime schema generation (v1 pattern)
@@ -30,6 +32,7 @@ Everything else is GENERATED or CONFIGURED.
 ```
 
 When you questioned the Python layer, it became clear:
+
 - Python should only define types (`@fraise_type`)
 - Compiler should generate everything else
 - Runtime should only load static schema
@@ -61,6 +64,7 @@ pub enum ExtendedOperator {
 ```
 
 Everything flows from this enum:
+
 - GraphQL types generated from it
 - SQL templates extracted for it
 - Validation rules applied to it
@@ -81,6 +85,7 @@ Execute
 ```
 
 Why:
+
 - ✅ Fast failure (before database)
 - ✅ Clear errors (application-controlled)
 - ✅ Same for all 4 databases (in Rust)
@@ -98,6 +103,7 @@ vin_wmi_eq = { length = 3, pattern = "^[A-Z0-9]{3}$" }
 Compiler reads this and embeds in schema.compiled.json. Runtime applies.
 
 Why:
+
 - ✅ Extensible (per-application customization)
 - ✅ Not hardcoded (flexible)
 - ✅ Configuration as code (auditable)
@@ -105,6 +111,7 @@ Why:
 ### 4. Compiler Generates All Artifacts
 
 The compiler (not yet built) will:
+
 1. Read schema.json (types)
 2. Read fraiseql.toml (validation rules)
 3. Look up operators from Rust enum
@@ -128,11 +135,13 @@ This is the **bridge** between authoring and runtime.
 ## The Lesson
 
 When you asked "why do we need a Python layer?", it revealed:
+
 - We were thinking v1 (runtime generation)
 - We weren't thinking v2 (compile-time generation)
 - The architecture needed rethinking, not tweaking
 
 The correct approach:
+
 1. **Identify the single source of truth** (Rust enum)
 2. **Let everything flow from it** (compiler, templates, rules)
 3. **No intermediate layers** (compiler generates directly)
@@ -156,6 +165,7 @@ The correct approach:
 ## What to Build Next (Week 2)
 
 Build the **compiler** that ties it all together:
+
 - `fraiseql-cli compile schema.json fraiseql.toml`
 - Generates schema.compiled.json
 - This is the missing piece that completes the architecture

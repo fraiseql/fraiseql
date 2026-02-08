@@ -10,21 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 **Test Suite**:
+
 - Fixed PostgreSQL audit backend concurrent test failures
-  * Resolved duplicate event logging in concurrent scenarios
-  * Enhanced database cleanup and isolation between tests
-  * Fixed bulk logging test assertions
-  * All 27 PostgreSQL audit backend tests now passing
+  - Resolved duplicate event logging in concurrent scenarios
+  - Enhanced database cleanup and isolation between tests
+  - Fixed bulk logging test assertions
+  - All 27 PostgreSQL audit backend tests now passing
 
 **Code Quality**:
+
 - Removed all Clippy pedantic warnings
-  * Split oversized `get_default_rules()` function into 8 focused helpers
-  * Fixed lossless casts (u32 to u64 using `u64::from`)
-  * Optimized parameter passing for `Copy` types
-  * Removed unused imports
-  * Fixed formatting issues across codebase
+  - Split oversized `get_default_rules()` function into 8 focused helpers
+  - Fixed lossless casts (u32 to u64 using `u64::from`)
+  - Optimized parameter passing for `Copy` types
+  - Removed unused imports
+  - Fixed formatting issues across codebase
 
 **Documentation**:
+
 - Updated VERSION_STATUS.md with v2.0.0-alpha.3 status
 - Updated CHANGELOG.md with current changes
 - Verified all version markers in Cargo.toml files
@@ -48,25 +51,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Audit Backend Test Coverage (Complete):**
 
 - PostgreSQL audit backend comprehensive tests (27 tests, 804 lines):
-  * Backend creation and schema validation
-  * Event logging with optional fields
-  * Query operations with filters and pagination
-  * JSONB metadata and state snapshots
-  * Multi-tenancy and tenant isolation
-  * Bulk logging and concurrent operations
-  * Schema idempotency verification
-  * Complex multi-filter queries
-  * Error handling and validation scenarios
+  - Backend creation and schema validation
+  - Event logging with optional fields
+  - Query operations with filters and pagination
+  - JSONB metadata and state snapshots
+  - Multi-tenancy and tenant isolation
+  - Bulk logging and concurrent operations
+  - Schema idempotency verification
+  - Complex multi-filter queries
+  - Error handling and validation scenarios
 
 - Syslog audit backend comprehensive tests (27 tests, 574 lines):
-  * RFC 3164 format validation
-  * Facility and severity mapping
-  * Event logging and complex event handling
-  * Query behavior (always returns empty)
-  * Network operations and timeout handling
-  * Concurrent logging with 20+ concurrent tasks
-  * Builder pattern and trait compliance
-  * E2E integration flows for all statuses
+  - RFC 3164 format validation
+  - Facility and severity mapping
+  - Event logging and complex event handling
+  - Query behavior (always returns empty)
+  - Network operations and timeout handling
+  - Concurrent logging with 20+ concurrent tasks
+  - Builder pattern and trait compliance
+  - E2E integration flows for all statuses
 
 **Arrow Flight Enhancements:**
 

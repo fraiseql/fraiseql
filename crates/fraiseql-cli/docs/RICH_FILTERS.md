@@ -40,27 +40,32 @@ query FindUsers {
 ## Supported Rich Types (49 Total)
 
 ### Contact Information (3)
+
 - **EmailAddress**: Domain validation, exact match
 - **PhoneNumber**: Country code extraction, E.164 validation
 - **URL**: Protocol matching, domain validation
 
 ### Financial (4)
+
 - **CurrencyCode**: ISO 4217 codes
 - **IBAN**: International bank account validation
 - **ISIN**: International securities identification
 - **BIC**: Bank identifier code validation
 
 ### Geographic (3)
+
 - **CountryCode**: ISO 3166 country codes
 - **Coordinates**: Geospatial queries (distance, bounding box)
 - **PostalCode**: Postal code validation
 
 ### Temporal (3)
+
 - **DateRange**: Range overlap, duration queries
 - **Duration**: ISO 8601 duration parsing
 - **TimeRange**: Time-of-day range validation
 
 ### Personal Identifiers (8)
+
 - **SSID**: Social security identification
 - **VIN**: Vehicle identification number
 - **CUSIP**: Securities identifier
@@ -71,17 +76,20 @@ query FindUsers {
 - **EAN**: European article numbering
 
 ### Cryptographic (3)
+
 - **MD5Hash**: MD5 checksum validation
 - **SHA1Hash**: SHA1 checksum validation
 - **SHA256Hash**: SHA256 checksum validation
 
 ### Encoding (4)
+
 - **Base64**: Base64-encoded data
 - **Hex**: Hexadecimal data
 - **JWT**: JSON Web Token
 - **Base32**: Base32-encoded data
 
 ### Network (5)
+
 - **IPv4Address**: IPv4 address validation
 - **IPv6Address**: IPv6 address validation
 - **MACAddress**: Media access control address
@@ -89,6 +97,7 @@ query FindUsers {
 - **ASN**: Autonomous system number
 
 ### Miscellaneous (9)
+
 - **JSON**: JSON document validation
 - **Slug**: URL-friendly slug format
 - **Semantic Version**: Semantic versioning
@@ -113,6 +122,7 @@ query FindUsers {
 | `domainEndswith` | String | Domain suffix match | Company domain patterns |
 
 **PostgreSQL Implementation**:
+
 ```sql
 -- domainEq operator
 WHERE SUBSTRING(email FROM POSITION('@' IN email) + 1) = $1
@@ -134,6 +144,7 @@ WHERE ST_DWithin(
 | `withinPolygon` | [[lat, lng], ...] | PostgreSQL (planned) | Custom polygon regions |
 
 **SQLite Implementation** (Haversine approximation):
+
 ```sql
 -- distanceWithin using Haversine formula
 WHERE (
@@ -210,6 +221,7 @@ FraiseQL embeds reference data in `schema.compiled.json`:
 ```
 
 This approach ensures:
+
 - ✅ No database queries for reference data
 - ✅ Deterministic compilation
 - ✅ Consistent validation across all instances

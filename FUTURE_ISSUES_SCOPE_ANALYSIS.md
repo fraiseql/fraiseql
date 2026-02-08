@@ -19,6 +19,7 @@
 ## Issue #258: Schema Dependency Graph and Validation
 
 ### What It Does
+
 ```bash
 # Analyze a view's dependencies
 $ fraiseql deps --view v_order_summary
@@ -66,6 +67,7 @@ Week 4: Documentation + CI/CD Integration
 ```
 
 ### Success Criteria
+
 - ✅ All entity types supported (views, tables, functions)
 - ✅ CLI commands work as documented
 - ✅ 80%+ test coverage
@@ -73,12 +75,14 @@ Week 4: Documentation + CI/CD Integration
 - ✅ Documentation complete and examples work
 
 ### Resource Profile
+
 - **Team Size**: 1-2 engineers
 - **Skills Needed**: SQL parsing, graph algorithms, CLI design
 - **Code Review**: 1 reviewer (architecture focus)
 - **Domain Experts**: Optional (helpful but not required)
 
 ### Why This Is Lower Risk
+
 - Pure analysis feature (no enforcement)
 - Uses existing schema parser
 - Can be tested independently
@@ -92,6 +96,7 @@ Week 4: Documentation + CI/CD Integration
 ### What It Does
 
 **Current State** (v1.9.5):
+
 - JWT validation tests: 11 stubs (not implemented)
 - RBAC enforcement: Framework exists, not verified
 - Security profiles: 15 settings configured, 0 enforced
@@ -99,6 +104,7 @@ Week 4: Documentation + CI/CD Integration
 - Documentation: 57% accuracy on security claims
 
 **Goal** (v1.9.6):
+
 - JWT validation: Complete implementation + 100% test coverage
 - RBAC enforcement: Verified in all tests
 - Security profiles: All 3 fully enforced (STANDARD, REGULATED, etc.)
@@ -121,12 +127,14 @@ Week 4: Documentation + CI/CD Integration
 ### Implementation Path
 
 **Phase 1: Quick Wins (Parallel)**
+
 ```
 JWT Tests Completion        RBAC Tests              Documentation
 (straightforward tests)   (enforcement scenarios)  (review & fixes)
 ```
 
 **Phase 2: Core Enforcement (Sequence)**
+
 ```
 Field Filtering Tests
   ↓
@@ -138,6 +146,7 @@ Startup Validation
 ```
 
 **Phase 3: Verification**
+
 ```
 Full Regression Suite
   ↓
@@ -147,6 +156,7 @@ Staged Rollout (feature flags)
 ```
 
 ### Success Criteria
+
 - ✅ All 11 JWT tests completed (not stubs)
 - ✅ RBAC enforcement verified in tests
 - ✅ All security profiles enforced
@@ -158,6 +168,7 @@ Staged Rollout (feature flags)
 - ✅ All 5,991+ existing tests still pass
 
 ### Resource Profile
+
 - **Team Size**: 2-3 engineers (security-critical)
 - **Skills Needed**: Security architecture, testing patterns, enforcement design
 - **Code Review**: 2 reviewers (security + architecture)
@@ -165,6 +176,7 @@ Staged Rollout (feature flags)
 - **Security Audit**: Mandatory before release
 
 ### Why This Is Higher Risk
+
 - Security-critical (enforces user access control)
 - Multiple enforcement points across codebase
 - Behavioral changes (field filtering expansion)
@@ -172,6 +184,7 @@ Staged Rollout (feature flags)
 - Requires deep security expertise
 
 ### Mitigation Strategies
+
 1. **Continuous Testing**: Run security suite after every change
 2. **Feature Flags**: Gate new enforcement behind flags
 3. **Staged Rollout**: Gradual production deployment
@@ -195,10 +208,12 @@ Issue #258 (Schema Analysis)
 ### Recommended Release Scheduling
 
 **Option A: Parallel** (More resources, faster)
+
 - v1.9.6: Issue #225 (security fixes)
 - v2.1.0: Issue #258 (schema analysis)
 
 **Option B: Sequential** (Fewer resources, staggered)
+
 - v1.9.6: Issue #225 (security fixes - critical)
 - v1.9.7: Issue #258 Phase 1 (parser + graph)
 - v2.0.0: Issue #258 Phase 2 (CLI + validation)
@@ -208,6 +223,7 @@ Issue #258 (Schema Analysis)
 ### Effort Distribution
 
 If executing both:
+
 - **Issue #225**: 60% of resources (critical path, security)
 - **Issue #258**: 40% of resources (can proceed in parallel after initial phase)
 
@@ -218,16 +234,19 @@ If executing both:
 ### For Issue #258
 
 **Start With**:
+
 1. Create `crates/fraiseql-core/src/schema/dependency_graph.rs` module
 2. Write tests for graph operations
 3. Extend parser to track dependencies
 
 **Key Decisions**:
+
 - Which dependency types to track (all or subset?)
 - Performance impact on schema compilation
 - False positive tolerance for validation rules
 
 **Optional Features** (can defer):
+
 - Graphviz export
 - SARIF CI/CD integration
 - Custom validation rules API
@@ -235,17 +254,20 @@ If executing both:
 ### For Issue #225
 
 **Start With**:
+
 1. Inventory all security enforcement points
 2. Complete JWT tests (straightforward)
 3. Add enforcement verification helpers
 4. Update documentation with current state
 
 **Key Decisions**:
+
 - Security profile enforcement priority (STANDARD first?)
 - Feature flag names and rollout strategy
 - Startup validation failure behavior (fail hard vs. warn)
 
 **Mandatory**:
+
 - Security audit before release
 - All JWT tests completed (not optional)
 - Zero regressions in existing tests
@@ -255,9 +277,11 @@ If executing both:
 ## Technical Debt Addressed
 
 ### Issue #258
+
 - No immediate debt; it's a new feature
 
 ### Issue #225
+
 - Converts 11 JWT stub tests to real tests
 - Removes false claims from documentation
 - Provides enforcement verification patterns
@@ -268,11 +292,13 @@ If executing both:
 ## Dependencies and Blockers
 
 ### Issue #258
+
 - ✅ Schema parser: Ready
 - ✅ CLI framework: Ready
 - ⚠️ Domain knowledge: Helpful but can proceed
 
 ### Issue #225
+
 - ✅ Security framework: Ready
 - ✅ RBAC system: Ready
 - ⚠️ Profile enforcement: May need refactoring
@@ -283,12 +309,14 @@ If executing both:
 ## Questions to Answer Before Starting
 
 ### Issue #258
+
 1. What's the user's primary use case? (Onboarding? CI/CD validation? Troubleshooting?)
 2. Should validation be opinionated or customizable?
 3. Performance constraints on schema analysis?
 4. Priority on export formats (JSON? Dot? SARIF for CI/CD)?
 
 ### Issue #225
+
 1. Which security profile is most important? (STANDARD? REGULATED?)
 2. How strict should startup validation be? (Fail vs. warn?)
 3. Should field filtering be backward compatible or breaking change?
@@ -299,10 +327,12 @@ If executing both:
 ## Rollback Plan
 
 ### Issue #258
+
 - Easy rollback (feature is additive, no breaking changes)
 - Just disable CLI commands if issues found
 
 ### Issue #225
+
 - Harder rollback (enforces access control)
 - Use feature flags for gradual deployment
 - Maintain old enforcement path during transition
@@ -313,12 +343,14 @@ If executing both:
 ## Success Metrics
 
 ### Issue #258
+
 - Adoption: Developers using `fraiseql deps` command
 - Value: Fewer schema-related bugs reported
 - Performance: Analysis completes in <1 second for typical schemas
 - Test pass rate: 100% (all new tests passing)
 
 ### Issue #225
+
 - Security: Zero enforcement regressions
 - Coverage: 70%+ of tests verify enforcement
 - Accuracy: Documentation 90%+ accurate

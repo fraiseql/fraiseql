@@ -29,16 +29,19 @@
 **Root Cause**: `/crates/fraiseql-core/src/runtime/aggregation.rs:656-664` - The `generate_jsonb_where()` method used field names directly from GraphQL without conversion.
 
 **Solution**:
+
 - Import `to_snake_case` from `utils::casing` module
 - Convert field names before passing to `jsonb_extract_sql()`
 - Commit: `020c1824` - Added proper field name conversion
 
 **Testing**:
+
 - ✅ 1642 unit tests pass
 - ✅ 18 aggregation tests pass
 - ✅ Build clean with no new warnings
 
 **Code Changes**:
+
 ```rust
 // Before
 let field_path = &path[0];
@@ -57,11 +60,13 @@ let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
 **Status**: Already correctly implemented with comprehensive test coverage.
 
 **Evidence**:
+
 - File: `/crates/fraiseql-cli/src/schema/converter.rs:318`
 - Code: `jsonb_column: intermediate.jsonb_column.unwrap_or_else(|| "data".to_string()),`
 - Tests: `/crates/fraiseql-cli/tests/jsonb_column_preservation_test.rs` (5/5 passing)
 
 **Test Coverage**:
+
 1. `test_jsonb_column_preserved_in_query` ✅
 2. `test_jsonb_column_default_applied` ✅
 3. `test_multiple_queries_different_jsonb_columns` ✅
@@ -77,11 +82,13 @@ let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
 **Status**: Already correctly implemented.
 
 **Evidence**:
+
 - File: `/crates/fraiseql-core/src/schema/compiled.rs:674`
 - Implementation: Uses serde `#[serde(default = "default_jsonb_column")]` attribute
 - Applies to both `TypeDefinition` and `QueryDefinition` structures
 
 **Implementation Details**:
+
 ```rust
 fn default_jsonb_column() -> String {
     "data".to_string()
@@ -105,15 +112,18 @@ pub struct QueryDefinition {
 **Status**: Feature already implemented in `fraiseql-server`.
 
 **Evidence**:
+
 - File: `/crates/fraiseql-server/Cargo.toml:117-118`
 - Feature Definition: `wire-backend = ["fraiseql-core/wire-backend"]`
 
 **What It Does**:
+
 - Enables low-memory streaming JSON adapter (`FraiseWireAdapter`)
 - Reduces memory usage from 26MB (PostgresAdapter) to 1.3KB for 100K rows
 - Ideal for large result sets and memory-constrained environments
 
 **Usage**:
+
 ```bash
 cargo build --release --features wire-backend
 ```
@@ -139,6 +149,7 @@ cargo build --release --features wire-backend
 | WebSocket handler | ✅ Complete | `fraiseql-server/src/routes/subscriptions.rs` |
 
 **Future Enhancements** (Phase A4.4):
+
 - [ ] Webhook adapter for HTTP delivery
 - [ ] Kafka adapter for event streaming
 - [ ] gRPC adapter
@@ -154,6 +165,7 @@ cargo build --release --features wire-backend
 **Architecture Achievement**:
 
 **v2.0 Rust-First Design**:
+
 - ✅ Everything in Rust except Python decorators
 - ✅ Single source of truth for schema compilation
 - ✅ All security enforcement (ID Policy, RBAC, profiles)
@@ -163,6 +175,7 @@ cargo build --release --features wire-backend
 - ✅ Pluggable HTTP servers (Axum default, FastAPI/Starlette options)
 
 **Performance Gains**:
+
 - Latency: 2-3x improvement (10-24ms vs 20-37ms)
 - Throughput: 5-10x improvement (5,000+ req/s vs 200-500)
 - Memory: 80% reduction (100MB vs 500MB+)
@@ -177,6 +190,7 @@ cargo build --release --features wire-backend
 **Status**: Deferred to future release (v2.1 or later).
 
 **Rationale**:
+
 - Large feature requiring new CLI commands and analysis engine
 - Not blocking for v2.0.0 GA
 - Can be implemented post-release
@@ -196,18 +210,22 @@ cargo build --release --features wire-backend
 ## Summary
 
 ### Bugs Fixed: 1
+
 - ✅ #269 - JSONB field lookup with snake_case→camelCase
 
 ### Features Already Implemented: 4
+
 - ✅ #268 - CLI jsonb_column preservation
 - ✅ #267 - Default jsonb_column to 'data'
 - ✅ #266 - wire-backend feature
 - ✅ #247 - GraphQL Subscriptions
 
 ### Major Architecture Delivered: 1
+
 - ✅ #226 - Rust-First Architecture v2.0
 
 ### Deferred Features: 2
+
 - 🟡 #258 - Schema dependency graph (v2.1+)
 - 🟡 #225 - v1.9.6 security testing (separate release)
 

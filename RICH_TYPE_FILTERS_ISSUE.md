@@ -19,6 +19,7 @@ users(where: { email: { _domain_eq: "company.com" } })
 ```
 
 The proposed approach is:
+
 - **Type-safe**: Invalid domains rejected at parse time
 - **Optimized**: Can use functional indexes on extracted components
 - **Intuitive**: Matches how developers think about the data
@@ -61,6 +62,7 @@ input EmailFilter {
 ```
 
 **SQL Implementation:**
+
 ```sql
 -- Functional index for domain queries
 CREATE INDEX idx_user_email_domain ON tb_user (SPLIT_PART(email, '@', 2));
