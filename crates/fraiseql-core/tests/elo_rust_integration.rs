@@ -1,7 +1,7 @@
-//! Integration tests for ELO Rust validator integration (Phase 4, Cycle 5).
+//! Integration tests for ELO Rust validator integration.
 //!
-//! Tests ELO expression compilation to Rust validators, caching, execution,
-//! and performance targets for <1µs validator execution.
+//! Tests validator registry with ELO expressions, caching, concurrent access,
+//! and performance characteristics for validator execution.
 
 #[cfg(test)]
 mod tests {

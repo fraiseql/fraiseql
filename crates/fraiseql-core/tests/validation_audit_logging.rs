@@ -1,4 +1,4 @@
-//! Integration tests for validation audit logging (Phase 4, Cycle 4).
+//! Integration tests for validation audit logging.
 //!
 //! Tests validation-specific audit logging with tenant isolation, PII redaction,
 //! and compliance features.

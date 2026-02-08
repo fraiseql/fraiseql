@@ -1,4 +1,4 @@
-//! Integration tests for validation rate limiting (Phase 4, Cycle 3).
+//! Integration tests for validation rate limiting.
 //!
 //! Tests validation-specific rate limiting with per-dimension tracking
 //! (IP address, user ID, API key, tenant).

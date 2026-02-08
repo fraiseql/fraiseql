@@ -13,7 +13,7 @@ dashmap = "5.5"
 # Phase 9.3 Arrow Flight Dependencies
 fraiseql-arrow = {path = "../fraiseql-arrow", version = "0.1.0", optional = true}
 # Phase 9.2.B Dependencies
-fraiseql-observers-macros = {path = "../fraiseql-observers-macros", version = "2.0.0-alpha.2", optional = true}
+fraiseql-observers-macros = {path = "../fraiseql-observers-macros", version = "2.0.0-alpha.3", optional = true}
 # Phase 8 Dependencies
 futures = "0.3"
 http = "1.1"
