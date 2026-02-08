@@ -5,6 +5,7 @@
 
 pub mod async_validators;
 pub mod checksum;
+pub mod error_responses;
 mod id_policy;
 mod input_processor;
 pub mod rich_scalars;
