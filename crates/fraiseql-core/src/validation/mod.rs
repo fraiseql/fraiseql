@@ -10,6 +10,7 @@ pub mod composite;
 pub mod cross_field;
 pub mod date_validators;
 pub mod elo_expressions;
+pub mod elo_rust_integration;
 pub mod error_responses;
 mod id_policy;
 pub mod inheritance;
@@ -39,6 +40,9 @@ pub use date_validators::{
     validate_max_days_in_past, validate_min_age, validate_min_date,
 };
 pub use elo_expressions::{EloExpressionEvaluator, EloValidationResult};
+pub use elo_rust_integration::{
+    EloRustValidator, RustValidatorRegistry, RustValidatorRegistryConfig,
+};
 pub use id_policy::{
     IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
 };
