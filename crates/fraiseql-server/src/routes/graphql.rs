@@ -293,19 +293,16 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 }
 
 /// Extract client IP address from headers.
-fn extract_ip_from_headers(headers: &HeaderMap) -> String {
-    // Check X-Forwarded-For first (for proxied requests)
-    if let Some(forwarded_for) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        if let Some(ip) = forwarded_for.split(',').next() {
-            return ip.trim().to_string();
-        }
-    }
-
-    // Check X-Real-IP
-    if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
-        return real_ip.to_string();
-    }
-
+///
+/// # Security
+///
+/// Does NOT trust X-Forwarded-For or X-Real-IP headers, as these are trivially
+/// spoofable by attackers to bypass rate limiting. Returns "unknown" as a safe
+/// fallback — callers requiring real IPs should use `ConnectInfo<SocketAddr>`
+/// or `ProxyConfig::extract_client_ip()` with validated proxy chains.
+fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
+    // SECURITY: Spoofable headers removed. Use ConnectInfo<SocketAddr> or
+    // ProxyConfig::extract_client_ip() for validated IP extraction.
     "unknown".to_string()
 }
 
@@ -688,23 +685,23 @@ mod tests {
         assert!(!_note.is_empty());
     }
 
-    // Vulnerability #14: GraphQL rate limiting tests
+    // SECURITY: IP extraction no longer trusts spoofable headers
     #[test]
-    fn test_extract_ip_from_headers_x_forwarded_for() {
+    fn test_extract_ip_ignores_x_forwarded_for() {
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
 
         let ip = extract_ip_from_headers(&headers);
-        assert_eq!(ip, "192.0.2.1");
+        assert_eq!(ip, "unknown", "Must not trust X-Forwarded-For header");
     }
 
     #[test]
-    fn test_extract_ip_from_headers_x_real_ip() {
+    fn test_extract_ip_ignores_x_real_ip() {
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
 
         let ip = extract_ip_from_headers(&headers);
-        assert_eq!(ip, "10.0.0.2");
+        assert_eq!(ip, "unknown", "Must not trust X-Real-IP header");
     }
 
     #[test]
@@ -715,13 +712,13 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_ip_from_headers_x_forwarded_for_takes_precedence() {
+    fn test_extract_ip_ignores_all_spoofable_headers() {
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "192.0.2.1".parse().unwrap());
         headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
 
         let ip = extract_ip_from_headers(&headers);
-        assert_eq!(ip, "192.0.2.1");
+        assert_eq!(ip, "unknown", "Must not trust any spoofable header");
     }
 
     #[test]

@@ -69,11 +69,11 @@ pub fn validate_input(value: &Value, field_path: &str, rules: &[ValidationRule])
     match value {
         Value::String(s) => {
             for rule in rules {
-                if let Err(e) = validate_string_field(s, field_path, rule) {
-                    if let FraiseQLError::Validation { message, .. } = e {
-                        if let Some(field_err) = extract_field_error(&message) {
-                            errors.add_error(field_err);
-                        }
+                if let Err(FraiseQLError::Validation { message, .. }) =
+                    validate_string_field(s, field_path, rule)
+                {
+                    if let Some(field_err) = extract_field_error(&message) {
+                        errors.add_error(field_err);
                     }
                 }
             }

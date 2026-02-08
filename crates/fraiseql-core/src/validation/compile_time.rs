@@ -110,43 +110,37 @@ impl CompileTimeValidator {
 
         // Check if left field exists
         let left_key = (type_name.to_string(), left_field.to_string());
-        let left_type = match self.context.fields.get(&left_key) {
-            Some(t) => t,
-            None => {
-                errors.push(CompileTimeError {
-                    field:      left_field.to_string(),
-                    message:    format!("Field '{}' not found in type '{}'", left_field, type_name),
-                    suggestion: Some(self.suggest_field(type_name, left_field)),
-                });
-                return CompileTimeValidationResult {
-                    valid: false,
-                    errors,
-                    warnings,
-                    sql_constraint: None,
-                };
-            },
+        let Some(left_type) = self.context.fields.get(&left_key) else {
+            errors.push(CompileTimeError {
+                field:      left_field.to_string(),
+                message:    format!("Field '{}' not found in type '{}'", left_field, type_name),
+                suggestion: Some(self.suggest_field(type_name, left_field)),
+            });
+            return CompileTimeValidationResult {
+                valid: false,
+                errors,
+                warnings,
+                sql_constraint: None,
+            };
         };
 
         // Check if right field exists
         let right_key = (type_name.to_string(), right_field.to_string());
-        let right_type = match self.context.fields.get(&right_key) {
-            Some(t) => t,
-            None => {
-                errors.push(CompileTimeError {
-                    field:      right_field.to_string(),
-                    message:    format!(
-                        "Field '{}' not found in type '{}'",
-                        right_field, type_name
-                    ),
-                    suggestion: Some(self.suggest_field(type_name, right_field)),
-                });
-                return CompileTimeValidationResult {
-                    valid: false,
-                    errors,
-                    warnings,
-                    sql_constraint: None,
-                };
-            },
+        let Some(right_type) = self.context.fields.get(&right_key) else {
+            errors.push(CompileTimeError {
+                field:      right_field.to_string(),
+                message:    format!(
+                    "Field '{}' not found in type '{}'",
+                    right_field, type_name
+                ),
+                suggestion: Some(self.suggest_field(type_name, right_field)),
+            });
+            return CompileTimeValidationResult {
+                valid: false,
+                errors,
+                warnings,
+                sql_constraint: None,
+            };
         };
 
         // Check if types are comparable

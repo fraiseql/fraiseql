@@ -130,10 +130,8 @@ pub fn validate_input_object(
     }
 
     for rule in rules {
-        if let Err(e) = validate_rule(input, rule, path) {
-            if let FraiseQLError::Validation { message, .. } = e {
-                result.add_error(message);
-            }
+        if let Err(FraiseQLError::Validation { message, .. }) = validate_rule(input, rule, path) {
+            result.add_error(message);
         }
     }
 

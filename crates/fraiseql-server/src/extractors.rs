@@ -79,25 +79,34 @@ fn extract_request_id(headers: &axum::http::HeaderMap) -> String {
         .unwrap_or_else(|| format!("req-{}", uuid::Uuid::new_v4()))
 }
 
-/// Extract client IP address from headers.
-fn extract_ip_address(headers: &axum::http::HeaderMap) -> Option<String> {
-    // Check X-Forwarded-For first (for proxied requests)
-    if let Some(forwarded_for) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        // X-Forwarded-For can contain multiple IPs, use the first one
-        return forwarded_for.split(',').next().map(|ip| ip.trim().to_string());
-    }
-
-    // Check X-Real-IP
-    if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
-        return Some(real_ip.to_string());
-    }
-
+/// Extract client IP address.
+///
+/// # Security
+///
+/// Does NOT trust X-Forwarded-For or X-Real-IP headers from clients, as these
+/// are trivially spoofable. IP address should be set from `ConnectInfo<SocketAddr>`
+/// at the handler level, or via `ProxyConfig::extract_client_ip()` which validates
+/// the proxy chain before trusting forwarding headers.
+fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
+    // SECURITY: IP extraction from headers removed. User-supplied X-Forwarded-For
+    // and X-Real-IP headers are trivially spoofable and must not be trusted without
+    // proxy chain validation. Use ConnectInfo<SocketAddr> or ProxyConfig instead.
     None
 }
 
-/// Extract tenant ID from headers.
-fn extract_tenant_id(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers.get("x-tenant-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string())
+/// Extract tenant ID.
+///
+/// # Security
+///
+/// Does NOT trust the X-Tenant-ID header directly. An authenticated user could
+/// set an arbitrary tenant ID to access another organization's data. Tenant ID
+/// should be set from `TenantContext` (populated by the secured `tenant_middleware`
+/// which requires authentication) or from JWT claims.
+fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
+    // SECURITY: Tenant ID extraction from headers removed. The X-Tenant-ID header
+    // is user-controlled and could be used for tenant isolation bypass. Tenant context
+    // should come from the authenticated tenant_middleware or JWT claims.
+    None
 }
 
 #[cfg(test)]
@@ -124,21 +133,23 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_ip_address_from_x_forwarded_for() {
+    fn test_extract_ip_ignores_x_forwarded_for() {
+        // SECURITY: X-Forwarded-For must NOT be trusted without proxy validation
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-forwarded-for", "192.0.2.1, 10.0.0.1".parse().unwrap());
 
         let ip = extract_ip_address(&headers);
-        assert_eq!(ip, Some("192.0.2.1".to_string()));
+        assert_eq!(ip, None, "Must not trust X-Forwarded-For header");
     }
 
     #[test]
-    fn test_extract_ip_address_from_x_real_ip() {
+    fn test_extract_ip_ignores_x_real_ip() {
+        // SECURITY: X-Real-IP must NOT be trusted without proxy validation
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
 
         let ip = extract_ip_address(&headers);
-        assert_eq!(ip, Some("10.0.0.2".to_string()));
+        assert_eq!(ip, None, "Must not trust X-Real-IP header");
     }
 
     #[test]
@@ -149,12 +160,13 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_tenant_id_from_header() {
+    fn test_extract_tenant_id_ignores_header() {
+        // SECURITY: X-Tenant-ID must NOT be trusted from headers
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-tenant-id", "tenant-acme".parse().unwrap());
 
         let tenant_id = extract_tenant_id(&headers);
-        assert_eq!(tenant_id, Some("tenant-acme".to_string()));
+        assert_eq!(tenant_id, None, "Must not trust X-Tenant-ID header");
     }
 
     #[test]
@@ -200,8 +212,12 @@ mod tests {
         let sec_ctx = security_context.unwrap();
         assert_eq!(sec_ctx.user_id, "user123");
         assert_eq!(sec_ctx.scopes, vec!["read:user".to_string(), "write:post".to_string()]);
-        assert_eq!(sec_ctx.tenant_id, Some("tenant-acme".to_string()));
+        // SECURITY: Tenant ID is no longer extracted from headers (spoofable).
+        // Should come from TenantContext (authenticated tenant_middleware) or JWT claims.
+        assert_eq!(sec_ctx.tenant_id, None);
         assert_eq!(sec_ctx.request_id, "req-test-123");
-        assert_eq!(sec_ctx.ip_address, Some("192.0.2.100".to_string()));
+        // SECURITY: IP is no longer extracted from headers (spoofable).
+        // Should be set from ConnectInfo<SocketAddr> at handler level.
+        assert_eq!(sec_ctx.ip_address, None);
     }
 }

@@ -191,9 +191,10 @@ fn generate_pkce_verifier() -> Result<String> {
     }
 
     // Verify all characters are from the allowed charset
-    let allowed_chars = std::collections::HashSet::<char>::from_iter(
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~".chars(),
-    );
+    let allowed_chars: std::collections::HashSet<char> =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+            .chars()
+            .collect();
 
     for (i, c) in verifier.chars().enumerate() {
         if !allowed_chars.contains(&c) {
@@ -242,9 +243,10 @@ mod tests {
         // Verify that generated verifier only contains unreserved characters
         let challenge = PkceChallenge::generate().unwrap();
 
-        let allowed_chars = std::collections::HashSet::<char>::from_iter(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~".chars(),
-        );
+        let allowed_chars: std::collections::HashSet<char> =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+                .chars()
+                .collect();
 
         for c in challenge.verifier.chars() {
             assert!(

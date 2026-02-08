@@ -289,7 +289,7 @@ mod tests {
             .with_field_pattern("*.email");
 
         assert_eq!(config.provider, AsyncValidatorProvider::EmailDomainCheck);
-        assert_eq!(config.timeout, Duration::from_millis(5000));
+        assert_eq!(config.timeout, Duration::from_secs(5));
         assert_eq!(config.cache_ttl_secs, 3600);
         assert_eq!(config.field_pattern, "*.email");
     }
@@ -303,6 +303,6 @@ mod tests {
     #[tokio::test]
     async fn test_timeout_duration() {
         let validator = MockEmailDomainValidator::new(2000);
-        assert_eq!(validator.timeout(), Duration::from_millis(2000));
+        assert_eq!(validator.timeout(), Duration::from_secs(2));
     }
 }

@@ -460,7 +460,7 @@ mod tests {
     fn test_rule_metadata_non_overrideable() {
         let rule = RuleMetadata::new(ValidationRule::Required, "UserInput").non_overrideable();
         assert!(!rule.overrideable);
-        assert!(rule.inherited == false);
+        assert!(!rule.inherited);
     }
 
     #[test]

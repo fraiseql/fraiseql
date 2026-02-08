@@ -187,8 +187,6 @@ fn test_feature_gated_main_initialization_wire() {
 // Arrow Flight tests - only available when arrow feature is enabled
 #[cfg(feature = "arrow")]
 mod arrow_flight_tests {
-    use std::sync::Arc;
-
     #[cfg(not(feature = "wire-backend"))]
     #[test]
     fn test_flight_service_postgres_adapter_wrapping() {
@@ -202,6 +200,8 @@ mod arrow_flight_tests {
     #[cfg(feature = "wire-backend")]
     #[test]
     fn test_flight_service_wire_adapter_wrapping() {
+        use std::sync::Arc;
+
         use fraiseql_core::db::FraiseWireAdapter;
 
         let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {

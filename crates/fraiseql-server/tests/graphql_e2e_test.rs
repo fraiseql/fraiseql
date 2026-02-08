@@ -202,9 +202,9 @@ fn test_empty_query_rejection() {
 
 /// Test that the structural validator rejects queries it can detect as invalid.
 ///
-/// Note: The `RequestValidator` performs depth/complexity checks, not full
-/// GraphQL parsing. It does NOT validate balanced braces or root-level
-/// structure — those are parse-time concerns handled downstream.
+/// The `RequestValidator` uses AST-based validation via `graphql-parser`,
+/// which catches both structural issues (malformed syntax) and security
+/// concerns (excessive depth/complexity, fragment bypass).
 #[test]
 fn test_structural_validator_rejects_known_invalid() {
     let validator = RequestValidator::new().with_max_depth(3);
@@ -216,12 +216,11 @@ fn test_structural_validator_rejects_known_invalid() {
         "Query exceeding max_depth should be rejected"
     );
 
-    // Unclosed braces are NOT rejected by the structural validator
-    // (this is a parse-time concern, not a structural validation concern)
+    // Unclosed braces are now properly rejected by the AST parser
     let unclosed = "{ user { id";
     assert!(
-        validator.validate_query(unclosed).is_ok(),
-        "Structural validator does not check brace matching"
+        validator.validate_query(unclosed).is_err(),
+        "Malformed queries with unclosed braces must be rejected"
     );
 }
 

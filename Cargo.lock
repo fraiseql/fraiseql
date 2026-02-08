@@ -2690,6 +2690,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-observers",
  "futures",
+ "graphql-parser",
  "hex",
  "hmac",
  "http 1.4.0",

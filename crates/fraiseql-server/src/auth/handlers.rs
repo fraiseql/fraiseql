@@ -113,7 +113,7 @@ pub async fn auth_start(
 ) -> Result<Json<AuthStartResponse>> {
     // SECURITY: Check rate limiting for auth/start endpoint (per IP)
     let client_ip = addr.ip().to_string();
-    if let Err(_) = state.rate_limiters.auth_start.check(&client_ip) {
+    if state.rate_limiters.auth_start.check(&client_ip).is_err() {
         return Err(AuthError::RateLimited {
             retry_after_secs: state.rate_limiters.auth_start.clone_config().window_secs,
         });
@@ -159,7 +159,7 @@ pub async fn auth_callback(
 ) -> Result<impl IntoResponse> {
     // SECURITY: Check rate limiting for auth/callback endpoint (per IP)
     let client_ip = addr.ip().to_string();
-    if let Err(_) = state.rate_limiters.auth_callback.check(&client_ip) {
+    if state.rate_limiters.auth_callback.check(&client_ip).is_err() {
         return Err(AuthError::RateLimited {
             retry_after_secs: state.rate_limiters.auth_callback.clone_config().window_secs,
         });
@@ -280,7 +280,7 @@ pub async fn auth_refresh(
     let session = state.session_store.get_session(&token_hash).await?;
 
     // SECURITY: Check rate limiting for auth/refresh endpoint (per user)
-    if let Err(_) = state.rate_limiters.auth_refresh.check(&session.user_id) {
+    if state.rate_limiters.auth_refresh.check(&session.user_id).is_err() {
         return Err(AuthError::RateLimited {
             retry_after_secs: state.rate_limiters.auth_refresh.clone_config().window_secs,
         });
@@ -339,7 +339,7 @@ pub async fn auth_logout(
         let session = state.session_store.get_session(&token_hash).await?;
 
         // SECURITY: Check rate limiting for auth/logout endpoint (per user)
-        if let Err(_) = state.rate_limiters.auth_logout.check(&session.user_id) {
+        if state.rate_limiters.auth_logout.check(&session.user_id).is_err() {
             return Err(AuthError::RateLimited {
                 retry_after_secs: state.rate_limiters.auth_logout.clone_config().window_secs,
             });
@@ -357,7 +357,7 @@ pub async fn auth_logout(
         );
     } else {
         // No refresh token - use IP-based rate limiting as fallback
-        if let Err(_) = state.rate_limiters.auth_logout.check(&client_ip) {
+        if state.rate_limiters.auth_logout.check(&client_ip).is_err() {
             return Err(AuthError::RateLimited {
                 retry_after_secs: state.rate_limiters.auth_logout.clone_config().window_secs,
             });

@@ -420,26 +420,25 @@ mod tests {
         use crate::auth::audit_logger::bounds;
 
         // Subject length should accommodate typical user IDs
-        assert!(bounds::MAX_SUBJECT_LEN >= 128, "Subject length too small");
+        let max_subject = bounds::MAX_SUBJECT_LEN;
+        assert!(max_subject >= 128, "Subject length too small");
 
         // Operation should cover all operation types
-        assert!(bounds::MAX_OPERATION_LEN >= 20, "Operation length too small");
+        let max_operation = bounds::MAX_OPERATION_LEN;
+        assert!(max_operation >= 20, "Operation length too small");
 
         // Error messages should have room for context
-        assert!(bounds::MAX_ERROR_MESSAGE_LEN >= 512, "Error message length too small");
+        let max_error = bounds::MAX_ERROR_MESSAGE_LEN;
+        assert!(max_error >= 512, "Error message length too small");
 
         // Context should allow some additional data
-        assert!(bounds::MAX_CONTEXT_LEN >= 1024, "Context length too small");
+        let max_context = bounds::MAX_CONTEXT_LEN;
+        assert!(max_context >= 1024, "Context length too small");
 
         // In-memory buffer should be large but not excessive
-        assert!(
-            bounds::MAX_ENTRIES_IN_MEMORY >= 1000,
-            "Max entries in memory too small"
-        );
-        assert!(
-            bounds::MAX_ENTRIES_IN_MEMORY <= 100_000,
-            "Max entries in memory too large"
-        );
+        let max_entries = bounds::MAX_ENTRIES_IN_MEMORY;
+        assert!(max_entries >= 1000, "Max entries in memory too small");
+        assert!(max_entries <= 100_000, "Max entries in memory too large");
     }
 
     #[test]

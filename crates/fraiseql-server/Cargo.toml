@@ -30,6 +30,8 @@ fraiseql-error = {path = "../fraiseql-error", version = "2.0.0-alpha.3"}
 # FraiseQL observers (optional)
 fraiseql-observers = {path = "../fraiseql-observers", version = "2.0.0-alpha.3", optional = true}
 futures = "0.3"
+# GraphQL AST parsing for secure query validation
+graphql-parser = {workspace = true}
 hex = "0.4"
 # Webhook signature verification
 hmac = "0.12"

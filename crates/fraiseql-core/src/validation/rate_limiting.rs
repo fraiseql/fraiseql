@@ -154,9 +154,10 @@ impl Clone for DimensionRateLimiter {
 
 /// Validation-specific rate limiter with per-dimension tracking
 #[derive(Clone)]
-#[allow(clippy::module_name_repetitions)]
-// Reason: Fields represent different error types (validation vs depth vs complexity),
-// and the "_errors" suffix is semantically correct for each dimension.
+#[allow(clippy::module_name_repetitions, clippy::struct_field_names)]
+// Reason: module_name_repetitions - ValidationRateLimiter is the canonical name.
+// struct_field_names - Fields represent different error dimensions and the "_errors"
+// suffix is semantically correct for each.
 pub struct ValidationRateLimiter {
     validation_errors:       DimensionRateLimiter,
     depth_errors:            DimensionRateLimiter,

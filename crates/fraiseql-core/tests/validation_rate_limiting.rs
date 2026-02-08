@@ -53,9 +53,11 @@ mod tests {
     /// Test rate limiting with time window expiry.
     #[test]
     fn test_validation_rate_limiting_window_expiry() {
-        let mut config = ValidationRateLimitingConfig::default();
-        config.validation_errors_window_secs = 1;
-        config.validation_errors_max_requests = 3;
+        let config = ValidationRateLimitingConfig {
+            validation_errors_window_secs:  1,
+            validation_errors_max_requests: 3,
+            ..ValidationRateLimitingConfig::default()
+        };
 
         let limiter = ValidationRateLimiter::new(config);
         let key = "test-key";
@@ -220,9 +222,11 @@ mod tests {
     /// Test rate limiting with custom config.
     #[test]
     fn test_validation_rate_limiting_custom_config() {
-        let mut config = ValidationRateLimitingConfig::default();
-        config.validation_errors_max_requests = 5;
-        config.validation_errors_window_secs = 60;
+        let config = ValidationRateLimitingConfig {
+            validation_errors_max_requests: 5,
+            validation_errors_window_secs:  60,
+            ..ValidationRateLimitingConfig::default()
+        };
 
         let limiter = ValidationRateLimiter::new(config);
         let key = "custom-config";
@@ -286,8 +290,10 @@ mod tests {
     /// Test clearing rate limiter state.
     #[test]
     fn test_validation_rate_limiting_clear() {
-        let mut config = ValidationRateLimitingConfig::default();
-        config.validation_errors_max_requests = 3;
+        let config = ValidationRateLimitingConfig {
+            validation_errors_max_requests: 3,
+            ..ValidationRateLimitingConfig::default()
+        };
 
         let limiter = ValidationRateLimiter::new(config);
         let key = "test-key";
