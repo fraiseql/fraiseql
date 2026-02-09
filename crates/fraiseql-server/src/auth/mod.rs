@@ -12,6 +12,7 @@ pub mod monitoring;
 pub mod oauth;
 pub mod oidc_provider;
 pub mod operation_rbac;
+pub mod postgres_audit_logger;
 pub mod provider;
 pub mod providers;
 pub mod proxy;
@@ -81,6 +82,9 @@ pub use security_config::{
 pub use security_init::{
     init_default_security_config, init_security_config, log_security_config,
     validate_security_config,
+};
+pub use postgres_audit_logger::{
+    AuditLogQuery, AuditLogRow, PostgresAuditLogger, verify_row_hmac,
 };
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;

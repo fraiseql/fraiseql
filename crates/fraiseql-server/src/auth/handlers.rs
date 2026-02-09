@@ -29,6 +29,8 @@ pub struct AuthState {
     pub state_store:    Arc<dyn StateStore>,
     /// Rate limiters for auth endpoints (per-IP based)
     pub rate_limiters:  Arc<RateLimiters>,
+    /// Optional RSA private key for JWT signing (None falls back to HMAC)
+    pub signing_key:    Option<Vec<u8>>,
 }
 
 /// Request body for auth/start endpoint
@@ -294,9 +296,9 @@ pub async fn auth_refresh(
         "validate",
     );
 
-    // In a real implementation, would generate new JWT here
-    // For now, return a simple response
-    let access_token = format!("new_access_token_{}", uuid::Uuid::new_v4());
+    // Generate new JWT access token (1 hour expiry)
+    let expires_in: u64 = 3600;
+    let access_token = generate_access_token(&session.user_id, expires_in, state.signing_key.as_ref())?;
 
     // Audit log: JWT refresh success
     let audit_logger = get_audit_logger();
@@ -310,7 +312,7 @@ pub async fn auth_refresh(
     Ok(Json(AuthRefreshResponse {
         access_token,
         token_type: "Bearer".to_string(),
-        expires_in: 3600,
+        expires_in,
     }))
 }
 
@@ -364,6 +366,44 @@ pub async fn auth_logout(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Generate a JWT access token for the given user.
+///
+/// Uses RS256 if a signing key is provided, otherwise falls back to HMAC-SHA256
+/// with a deterministic secret derived from the user ID.
+fn generate_access_token(
+    user_id: &str,
+    expires_in: u64,
+    signing_key: Option<&Vec<u8>>,
+) -> Result<String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| AuthError::SystemTimeError {
+            message: "Failed to get current system time".to_string(),
+        })?
+        .as_secs();
+
+    let mut claims = crate::auth::jwt::Claims {
+        sub:   user_id.to_string(),
+        iat:   now,
+        exp:   now + expires_in,
+        iss:   "fraiseql".to_string(),
+        aud:   vec!["fraiseql-api".to_string()],
+        extra: std::collections::HashMap::new(),
+    };
+
+    claims
+        .extra
+        .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
+
+    match signing_key {
+        Some(private_key) => crate::auth::jwt::generate_rs256_token(&claims, private_key),
+        None => {
+            let secret = format!("fraiseql_session_{user_id}").into_bytes();
+            crate::auth::jwt::generate_hs256_token(&claims, &secret)
+        },
+    }
 }
 
 /// Generate a cryptographically random state for CSRF protection

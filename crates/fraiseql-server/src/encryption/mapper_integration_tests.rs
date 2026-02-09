@@ -68,7 +68,7 @@ mod mapper_integration_tests {
 
         // Various types serialized to string, encrypted, then deserialized back
         let integer_str = "42";
-        let float_str = "3.14159";
+        let float_str = "99.95";
         let bool_str = "true";
         let json_str = r#"{"key":"value","nested":{"a":1}}"#;
 
@@ -85,8 +85,8 @@ mod mapper_integration_tests {
         let json_pt = cipher.decrypt(&json_ct).unwrap();
 
         assert_eq!(int_pt.parse::<i64>().unwrap(), 42);
-        assert!((float_pt.parse::<f64>().unwrap() - 3.14159).abs() < f64::EPSILON);
-        assert_eq!(bool_pt.parse::<bool>().unwrap(), true);
+        assert!((float_pt.parse::<f64>().unwrap() - 99.95).abs() < f64::EPSILON);
+        assert!(bool_pt.parse::<bool>().unwrap());
         assert_eq!(json_pt, json_str);
     }
 
@@ -271,7 +271,7 @@ mod mapper_integration_tests {
         let cipher = test_cipher();
 
         // Encrypt a collection of user emails
-        let emails = vec![
+        let emails = [
             "alice@example.com",
             "bob@example.com",
             "charlie@example.com",

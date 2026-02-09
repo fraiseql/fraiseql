@@ -508,7 +508,7 @@ mod field_encryption_tests {
     #[tokio::test]
     async fn test_field_encrypt_before_insert() {
         let cipher = test_cipher();
-        let fields = vec![
+        let fields = [
             ("email", "alice@example.com"),
             ("phone", "+1-555-000-1234"),
             ("ssn", "999-88-7777"),
@@ -539,7 +539,7 @@ mod field_encryption_tests {
         let cipher = test_cipher();
 
         // Simulate multiple rows with encrypted data.
-        let rows = vec![
+        let rows = [
             "row1@example.com",
             "row2@example.com",
             "row3@example.com",

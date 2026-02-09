@@ -9,7 +9,6 @@ use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{
     CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Load configuration from file or use defaults.
 fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
@@ -41,14 +40,9 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    // Initialize observability (tracing subscriber, structured logging)
+    fraiseql_server::observability::init_observability()
+        .expect("Failed to initialize observability");
 
     tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
 

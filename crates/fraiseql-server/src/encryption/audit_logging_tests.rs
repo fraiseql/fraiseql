@@ -952,7 +952,7 @@ mod audit_logging_tests {
         for (i, (user, op, reason)) in users_and_ops.iter().enumerate() {
             let entry = AuditLogEntry::new(*user, "email", *op, format!("req-soc2-{i}"), "sess-soc2")
                 .with_context("compliance", "soc2")
-                .with_context("reason", reason.to_string());
+                .with_context("reason", (*reason).to_string());
             logger.log_entry(entry).unwrap();
         }
 

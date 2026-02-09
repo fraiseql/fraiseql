@@ -55,7 +55,7 @@ mod rotation_api_tests {
         assert_eq!(key2_status.status, RotationStatus::ExpiringSoon);
 
         // Can store as array of statuses
-        let all_statuses = vec![key1_status, key2_status];
+        let all_statuses = [key1_status, key2_status];
         assert_eq!(all_statuses.len(), 2);
     }
 
@@ -396,7 +396,7 @@ mod rotation_api_tests {
         };
 
         // Newest first (descending timestamp)
-        let mut records = vec![record1.clone(), record2.clone(), record3.clone()];
+        let mut records = [record1.clone(), record2.clone(), record3.clone()];
         records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         assert_eq!(records[0].new_version, 4);
         assert_eq!(records[1].new_version, 3);

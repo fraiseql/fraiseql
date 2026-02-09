@@ -86,7 +86,7 @@ pub struct StatsResponse {
 ///
 /// Phase 6.4: Query explanation with SQL generation and complexity metrics
 pub async fn explain_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
     Json(req): Json<ExplainRequest>,
 ) -> Result<Json<ApiResponse<ExplainResponse>>, ApiError> {
     // Validate query is not empty
@@ -100,8 +100,8 @@ pub async fn explain_handler<A: DatabaseAdapter>(
     // Generate warnings for high complexity
     let warnings = generate_warnings(&complexity);
 
-    // Generate mock SQL (in real implementation, would use QueryPlanner)
-    let sql = generate_mock_sql(&req.query);
+    // Generate SQL via QueryMatcher → QueryPlanner pipeline
+    let sql = generate_sql_from_planner(state.executor.schema(), &req.query);
 
     let response = ExplainResponse {
         query: req.query,
@@ -300,15 +300,23 @@ fn estimate_cost(complexity: &ComplexityInfo) -> usize {
     base_cost + depth_cost + field_cost
 }
 
-/// Generate mock SQL from a GraphQL query.
-/// In a real implementation, this would use fraiseql-core's QueryPlanner.
-fn generate_mock_sql(_query: &str) -> Option<String> {
-    // Placeholder: In production, would call:
-    // let planner = fraiseql_core::runtime::planner::QueryPlanner::new(true);
-    // let plan = planner.plan(&parsed)?;
-    // Some(plan.sql)
+/// Generate SQL from a GraphQL query using the QueryMatcher and QueryPlanner pipeline.
+///
+/// Returns `None` if the query cannot be matched against the schema (e.g. invalid syntax
+/// or unknown operation), allowing the explain endpoint to still return complexity metrics.
+fn generate_sql_from_planner(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    query: &str,
+) -> Option<String> {
+    use fraiseql_core::runtime::{QueryMatcher, QueryPlanner};
 
-    Some("SELECT * FROM generated_view".to_string())
+    let matcher = QueryMatcher::new(schema.clone());
+    let query_match = matcher.match_query(query, None).ok()?;
+
+    let planner = QueryPlanner::new(true);
+    let plan = planner.plan(&query_match).ok()?;
+
+    Some(plan.sql)
 }
 
 /// Validate GraphQL query syntax.

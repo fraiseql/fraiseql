@@ -138,11 +138,11 @@ mod transaction_integration_tests {
 
         // Update all 50 records with new values
         let mut updated_ciphertexts = Vec::new();
-        for i in 0..50 {
+        for (i, original_ct) in original_ciphertexts.iter().enumerate() {
             let new_plaintext = format!("new_email_{}@example.com", i);
             let new_ct = cipher.encrypt(&new_plaintext).unwrap();
             // New nonce means different ciphertext even if same content
-            assert_ne!(original_ciphertexts[i], new_ct);
+            assert_ne!(*original_ct, new_ct);
             updated_ciphertexts.push((new_plaintext, new_ct));
         }
 
@@ -173,10 +173,10 @@ mod transaction_integration_tests {
         }
 
         // UPDATE 5 existing records
-        for i in 0..5 {
+        for (i, record) in records.iter_mut().enumerate().take(5) {
             let new_pt = format!("updated_{}@example.com", i);
             let new_ct = cipher.encrypt(&new_pt).unwrap();
-            records[i] = (new_pt, new_ct);
+            *record = (new_pt, new_ct);
             let txn = manager.get_transaction_mut(&txn_id).unwrap();
             txn.add_operation(format!("UPDATE record {}", i));
         }

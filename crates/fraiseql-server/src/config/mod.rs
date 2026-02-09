@@ -263,10 +263,13 @@ pub struct OAuthProviderConfig {
     pub issuer_url:        Option<String>,
 }
 
+/// Configuration for the notification system.
+///
+/// Reserved for webhook and email notification delivery when database
+/// events are triggered (e.g., row insert, update, delete). Will support
+/// configurable notification channels, retry policies, and filtering rules.
 #[derive(Debug, Clone, Deserialize)]
-pub struct NotificationsConfig {
-    // Placeholder for notification system
-}
+pub struct NotificationsConfig {}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObserverConfig {
@@ -285,10 +288,13 @@ pub struct ActionConfig {
 
 // These types are now defined in their own modules and re-exported above
 
+/// Configuration for advanced structured logging.
+///
+/// Reserved for log routing, format customization, and per-module log
+/// level overrides beyond the basic `RUST_LOG` environment filter. Will
+/// support log sinks (file, syslog, external aggregators) and sampling.
 #[derive(Debug, Clone, Deserialize)]
-pub struct LoggingConfig {
-    // Placeholder for advanced logging configuration
-}
+pub struct LoggingConfig {}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
@@ -299,27 +305,43 @@ pub struct StorageConfig {
     pub path:    Option<String>,
 }
 
+/// Configuration for full-text search indexing.
+///
+/// Reserved for integration with search engines (e.g., PostgreSQL
+/// `tsvector`, Elasticsearch, Meilisearch) to provide full-text search
+/// capabilities on GraphQL types. Will support index definitions,
+/// analyzer selection, and automatic index synchronization.
 #[derive(Debug, Clone, Deserialize)]
-pub struct SearchConfig {
-    // Placeholder for search indexing support
-}
+pub struct SearchConfig {}
 
+/// Configuration for query result caching.
+///
+/// Reserved for TTL-based and invalidation-driven caching of GraphQL
+/// query results. Will support in-memory (LRU) and distributed (Redis)
+/// cache backends, per-type TTL overrides, and cache key strategies.
 #[derive(Debug, Clone, Deserialize)]
-pub struct CacheConfig {
-    // Placeholder for advanced caching strategies
-}
+pub struct CacheConfig {}
 
+/// Configuration for background job queue processing.
+///
+/// Reserved for asynchronous task execution (e.g., deferred mutations,
+/// batch operations, scheduled jobs). Will support queue backends
+/// (PostgreSQL `LISTEN/NOTIFY`, Redis streams) and concurrency limits.
 #[derive(Debug, Clone, Deserialize)]
-pub struct QueueConfig {
-    // Placeholder for job queue support
-}
+pub struct QueueConfig {}
 
+/// Configuration for real-time push updates.
+///
+/// Reserved for WebSocket and Server-Sent Events (SSE) support for
+/// GraphQL subscriptions. Will support connection limits, heartbeat
+/// intervals, and authentication requirements for persistent connections.
 #[derive(Debug, Clone, Deserialize)]
-pub struct RealtimeConfig {
-    // Placeholder for real-time updates support
-}
+pub struct RealtimeConfig {}
 
+/// Configuration for user-defined custom REST endpoints.
+///
+/// Reserved for registering additional HTTP routes alongside the GraphQL
+/// endpoint (e.g., health probes, webhooks, file uploads). Will support
+/// path patterns, method filters, and handler references.
 #[derive(Debug, Clone, Deserialize)]
-pub struct CustomEndpointsConfig {
-    // Placeholder for custom endpoint support
-}
+pub struct CustomEndpointsConfig {}

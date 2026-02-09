@@ -43,6 +43,7 @@ pub mod performance;
 pub mod query_builder;
 pub mod refresh_trigger;
 pub mod rotation_api;
+pub mod rotation_worker;
 pub mod schema;
 pub mod transaction;
 

@@ -15,9 +15,7 @@ use fraiseql_core::{
     security::OidcValidator,
 };
 use tokio::net::TcpListener;
-#[cfg(feature = "observers")]
-use tracing::error;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 #[cfg(feature = "observers")]
 use {
     crate::observers::{ObserverRuntime, ObserverRuntimeConfig},
@@ -46,6 +44,9 @@ pub struct Server<A: DatabaseAdapter> {
     subscription_manager: Arc<SubscriptionManager>,
     oidc_validator:       Option<Arc<OidcValidator>>,
     rate_limiter:         Option<Arc<RateLimiter>>,
+
+    /// Handle to the background key rotation worker (for graceful shutdown).
+    rotation_worker_handle: Option<crate::encryption::rotation_worker::RotationWorkerHandle>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -129,6 +130,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
+        // Initialize audit logger (PostgreSQL-backed if db_pool available)
+        Self::init_audit_logger(db_pool.as_ref());
+
+        // Spawn key rotation worker
+        let rotation_worker_handle = Self::spawn_rotation_worker();
+
         // Initialize observer runtime
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
@@ -152,6 +159,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_manager,
             oidc_validator,
             rate_limiter,
+            rotation_worker_handle,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -225,6 +233,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
+        // Initialize audit logger (PostgreSQL-backed if db_pool available)
+        Self::init_audit_logger(db_pool.as_ref());
+
+        // Spawn key rotation worker
+        let rotation_worker_handle = Self::spawn_rotation_worker();
+
         // Initialize observer runtime
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
@@ -235,12 +249,73 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_manager,
             oidc_validator,
             rate_limiter,
+            rotation_worker_handle,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
             db_pool,
             flight_service,
         })
+    }
+
+    /// Initialize the global audit logger.
+    ///
+    /// Uses `PostgresAuditLogger` when a database pool is available and
+    /// `AUDIT_HMAC_KEY` is set, otherwise falls back to the structured
+    /// (tracing-based) audit logger.
+    fn init_audit_logger(db_pool: Option<&sqlx::PgPool>) {
+        use crate::auth::{PostgresAuditLogger, StructuredAuditLogger, init_audit_logger};
+
+        if let Some(pool) = db_pool {
+            let hmac_key = std::env::var("AUDIT_HMAC_KEY").unwrap_or_default();
+            if hmac_key.is_empty() {
+                warn!(
+                    "AUDIT_HMAC_KEY not set — using structured audit logger (set AUDIT_HMAC_KEY for PostgreSQL audit logging)"
+                );
+                let logger = Arc::new(StructuredAuditLogger);
+                init_audit_logger(logger);
+            } else {
+                info!("Initializing PostgreSQL audit logger");
+                let logger = Arc::new(PostgresAuditLogger::with_defaults(
+                    pool.clone(),
+                    hmac_key.into_bytes(),
+                ));
+                init_audit_logger(logger);
+            }
+        } else {
+            info!("No database pool — using structured audit logger");
+            let logger = Arc::new(StructuredAuditLogger);
+            init_audit_logger(logger);
+        }
+    }
+
+    /// Spawn the background key rotation worker if configured.
+    ///
+    /// Reads `FRAISEQL_KEY_ROTATION_ENABLED` to decide whether to start.
+    /// Returns a handle for graceful shutdown, or `None` if disabled.
+    fn spawn_rotation_worker(
+    ) -> Option<crate::encryption::rotation_worker::RotationWorkerHandle> {
+        use crate::encryption::{
+            credential_rotation::{CredentialRotationManager, RotationConfig},
+            refresh_trigger::RefreshConfig,
+            rotation_worker::RotationWorker,
+        };
+
+        let enabled = std::env::var("FRAISEQL_KEY_ROTATION_ENABLED")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
+        if !enabled {
+            info!("Key rotation worker disabled (set FRAISEQL_KEY_ROTATION_ENABLED=true to enable)");
+            return None;
+        }
+
+        info!("Spawning key rotation worker");
+        let rotation_manager = Arc::new(CredentialRotationManager::new(RotationConfig::new()));
+        let refresh_config = RefreshConfig::new();
+        let handle = RotationWorker::spawn(rotation_manager, refresh_config);
+        info!("Key rotation worker started");
+        Some(handle)
     }
 
     /// Initialize observer runtime from configuration
@@ -700,6 +775,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_graceful_shutdown(async move {
                     Self::shutdown_signal().await;
 
+                    // Stop key rotation worker
+                    if let Some(handle) = self.rotation_worker_handle {
+                        info!("Shutting down key rotation worker");
+                        if let Err(e) = handle.shutdown_and_wait().await {
+                            error!("Error stopping rotation worker: {}", e);
+                        } else {
+                            info!("Key rotation worker stopped cleanly");
+                        }
+                    }
+
                     // Stop observer runtime
                     #[cfg(feature = "observers")]
                     if let Some(ref runtime) = self.observer_runtime {
@@ -725,6 +810,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             axum::serve(listener, app)
                 .with_graceful_shutdown(async move {
                     Self::shutdown_signal().await;
+
+                    // Stop key rotation worker
+                    if let Some(handle) = self.rotation_worker_handle {
+                        info!("Shutting down key rotation worker");
+                        if let Err(e) = handle.shutdown_and_wait().await {
+                            error!("Error stopping rotation worker: {}", e);
+                        } else {
+                            info!("Key rotation worker stopped cleanly");
+                        }
+                    }
 
                     // Stop observer runtime
                     #[cfg(feature = "observers")]

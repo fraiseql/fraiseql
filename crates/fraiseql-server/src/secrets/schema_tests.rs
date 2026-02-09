@@ -207,7 +207,7 @@ mod schema_tests {
         assert_eq!(result.unwrap().algorithm, "AES-256-GCM");
 
         // Not found
-        assert!(keys.get("nonexistent").is_none());
+        assert!(!keys.contains_key("nonexistent"));
     }
 
     /// Test encryption key version management
@@ -694,33 +694,25 @@ mod schema_tests {
     /// Test secret rotation audit provides complete history
     #[tokio::test]
     async fn test_secret_audit_provides_rotation_history() {
-        let mut history = Vec::new();
-
         // Build rotation history over time
-        history.push(
+        let history = vec![
             SecretRotationAudit::new("database/creds/fraiseql", "success")
                 .with_rotated_by("system")
                 .with_secret_ids("v0", "v1")
                 .add_metadata("reason", "initial_setup"),
-        );
-        history.push(
             SecretRotationAudit::new("database/creds/fraiseql", "success")
                 .with_rotated_by("admin")
                 .with_secret_ids("v1", "v2")
                 .add_metadata("reason", "scheduled"),
-        );
-        history.push(
             SecretRotationAudit::new("database/creds/fraiseql", "failed")
                 .with_rotated_by("system")
                 .with_error("Vault connection timeout")
                 .add_metadata("reason", "scheduled"),
-        );
-        history.push(
             SecretRotationAudit::new("database/creds/fraiseql", "success")
                 .with_rotated_by("system")
                 .with_secret_ids("v2", "v3")
                 .add_metadata("reason", "retry"),
-        );
+        ];
 
         assert_eq!(history.len(), 4);
 

@@ -888,7 +888,7 @@ mod compliance_tests {
             let csv = entry.to_csv();
             assert!(!csv.is_empty());
             // Each entry has a timestamp for ordering verification
-            assert!(entry.timestamp().to_string().len() > 0);
+            assert!(!entry.timestamp().to_string().is_empty());
         }
 
         // Bounded history preserves integrity

@@ -5,6 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 /// OAuth2 token response from provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,23 +181,33 @@ impl OIDCProviderConfig {
     }
 }
 
+/// OAuth error response from provider (RFC 6749 Section 5.2)
+#[derive(Debug, Clone, Deserialize)]
+struct OAuthErrorResponse {
+    /// Error code (e.g., "invalid_grant", "unauthorized_client")
+    error:             String,
+    /// Human-readable error description
+    error_description: Option<String>,
+}
+
 /// OAuth2 client for authorization code flow
 #[derive(Debug, Clone)]
 pub struct OAuth2Client {
     /// Client ID from provider
     pub client_id:              String,
     /// Client secret from provider
-    #[allow(dead_code)]
     client_secret:              String,
     /// Authorization endpoint
     pub authorization_endpoint: String,
     /// Token endpoint
-    #[allow(dead_code)]
     token_endpoint:             String,
     /// Scopes to request
     pub scopes:                 Vec<String>,
     /// Use PKCE for additional security
     pub use_pkce:               bool,
+    /// HTTP client (reused for connection pooling)
+    #[allow(clippy::missing_docs_in_private_items)]
+    http_client:                reqwest::Client,
 }
 
 impl OAuth2Client {
@@ -218,6 +229,7 @@ impl OAuth2Client {
                 "email".to_string(),
             ],
             use_pkce:               false,
+            http_client:            reqwest::Client::new(),
         }
     }
 
@@ -250,35 +262,134 @@ impl OAuth2Client {
         Ok(url)
     }
 
-    /// Exchange authorization code for tokens
+    /// Exchange authorization code for tokens via HTTP POST to the token endpoint
     pub async fn exchange_code(
         &self,
-        _code: &str,
-        _redirect_uri: &str,
+        code: &str,
+        redirect_uri: &str,
     ) -> Result<TokenResponse, String> {
-        // Return mock token for GREEN phase
-        Ok(TokenResponse {
-            access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
-            refresh_token: Some(format!("refresh_token_{}", uuid::Uuid::new_v4())),
-            token_type:    "Bearer".to_string(),
-            expires_in:    3600,
-            id_token:      Some("mock_id_token".to_string()),
-            scope:         Some(self.scopes.join(" ")),
-        })
+        let params = [
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("redirect_uri", redirect_uri),
+            ("client_id", &self.client_id),
+            ("client_secret", &self.client_secret),
+        ];
+
+        debug!(
+            token_endpoint = %self.token_endpoint,
+            client_id = %self.client_id,
+            "Exchanging authorization code for tokens"
+        );
+
+        let response = self
+            .http_client
+            .post(&self.token_endpoint)
+            .form(&params)
+            .send()
+            .await
+            .map_err(|e| format!("Token exchange HTTP request failed: {e}"))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            if let Ok(oauth_err) = serde_json::from_str::<OAuthErrorResponse>(&body) {
+                return Err(format!(
+                    "OAuth token exchange error: {} - {}",
+                    oauth_err.error,
+                    oauth_err.error_description.unwrap_or_default()
+                ));
+            }
+            return Err(format!("Token exchange failed with status {status}: {body}"));
+        }
+
+        response
+            .json::<TokenResponse>()
+            .await
+            .map_err(|e| format!("Failed to parse token response: {e}"))
     }
 
-    /// Refresh access token
+    /// Refresh access token via HTTP POST with refresh_token grant type
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, String> {
-        // Return mock token for GREEN phase
-        Ok(TokenResponse {
-            access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
-            refresh_token: Some(refresh_token.to_string()),
-            token_type:    "Bearer".to_string(),
-            expires_in:    3600,
-            id_token:      None,
-            scope:         Some(self.scopes.join(" ")),
-        })
+        let params = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("client_id", &self.client_id),
+            ("client_secret", &self.client_secret),
+        ];
+
+        debug!(
+            token_endpoint = %self.token_endpoint,
+            "Refreshing access token"
+        );
+
+        let response = self
+            .http_client
+            .post(&self.token_endpoint)
+            .form(&params)
+            .send()
+            .await
+            .map_err(|e| format!("Token refresh HTTP request failed: {e}"))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            if let Ok(oauth_err) = serde_json::from_str::<OAuthErrorResponse>(&body) {
+                return Err(format!(
+                    "OAuth token refresh error: {} - {}",
+                    oauth_err.error,
+                    oauth_err.error_description.unwrap_or_default()
+                ));
+            }
+            return Err(format!("Token refresh failed with status {status}: {body}"));
+        }
+
+        response
+            .json::<TokenResponse>()
+            .await
+            .map_err(|e| format!("Failed to parse refresh token response: {e}"))
     }
+}
+
+/// JWK (JSON Web Key) for OIDC token verification
+#[derive(Debug, Clone, Deserialize)]
+pub struct JWK {
+    /// Key type (e.g., "RSA")
+    pub kty: String,
+    /// Key ID
+    pub kid: Option<String>,
+    /// Algorithm (e.g., "RS256")
+    pub alg: Option<String>,
+    /// RSA modulus (Base64url-encoded)
+    pub n:   Option<String>,
+    /// RSA exponent (Base64url-encoded)
+    pub e:   Option<String>,
+}
+
+/// JWKS (JSON Web Key Set) response
+#[derive(Debug, Clone, Deserialize)]
+pub struct JWKSet {
+    /// Array of JWK keys
+    pub keys: Vec<JWK>,
+}
+
+impl JWKSet {
+    /// Find a key by its key ID (kid)
+    pub fn find_key(&self, kid: &str) -> Result<&JWK, String> {
+        self.keys
+            .iter()
+            .find(|k| k.kid.as_deref() == Some(kid))
+            .ok_or_else(|| format!("No key found with kid: {kid}"))
+    }
+}
+
+/// Cached JWKS data with expiry
+#[derive(Debug, Clone)]
+struct CachedJWKS {
+    /// The JWKS data
+    jwks:       JWKSet,
+    /// When the cache was fetched
+    fetched_at: DateTime<Utc>,
 }
 
 /// OIDC client for OpenID Connect flow
@@ -288,9 +399,13 @@ pub struct OIDCClient {
     pub config:    OIDCProviderConfig,
     /// Client ID
     pub client_id: String,
-    /// Client secret
+    /// Client secret (used in token exchange operations)
     #[allow(dead_code)]
     client_secret: String,
+    /// HTTP client for making requests
+    http_client:   reqwest::Client,
+    /// Cached JWKS keys (cached for 24 hours)
+    jwks_cache:    Arc<std::sync::Mutex<Option<CachedJWKS>>>,
 }
 
 impl OIDCClient {
@@ -304,52 +419,139 @@ impl OIDCClient {
             config,
             client_id: client_id.into(),
             client_secret: client_secret.into(),
+            http_client: reqwest::Client::new(),
+            jwks_cache: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
-    /// Verify ID token claims
-    pub fn verify_id_token(
+    /// Fetch JWKS from the provider's JWKS URI with caching (24h TTL)
+    pub async fn fetch_jwks(&self) -> Result<JWKSet, String> {
+        // Check cache first
+        if let Ok(cache) = self.jwks_cache.lock() {
+            if let Some(cached) = cache.as_ref() {
+                if Utc::now() - cached.fetched_at < Duration::hours(24) {
+                    return Ok(cached.jwks.clone());
+                }
+            }
+        }
+
+        debug!(jwks_uri = %self.config.jwks_uri, "Fetching JWKS from provider");
+
+        let jwks = self
+            .http_client
+            .get(&self.config.jwks_uri)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch JWKS: {e}"))?
+            .json::<JWKSet>()
+            .await
+            .map_err(|e| format!("Failed to parse JWKS response: {e}"))?;
+
+        // Update cache
+        if let Ok(mut cache) = self.jwks_cache.lock() {
+            *cache = Some(CachedJWKS {
+                jwks:       jwks.clone(),
+                fetched_at: Utc::now(),
+            });
+        }
+
+        Ok(jwks)
+    }
+
+    /// Verify ID token JWT signature and claims using JWKS
+    pub async fn verify_id_token(
         &self,
-        _id_token: &str,
+        id_token: &str,
         expected_nonce: Option<&str>,
     ) -> Result<IdTokenClaims, String> {
-        // Return mock claims for GREEN phase
-        let claims = IdTokenClaims {
-            iss:            self.config.issuer.clone(),
-            sub:            "user_123".to_string(),
-            aud:            self.client_id.clone(),
-            exp:            (Utc::now() + Duration::hours(1)).timestamp(),
-            iat:            Utc::now().timestamp(),
-            auth_time:      Some(Utc::now().timestamp()),
-            nonce:          expected_nonce.map(|s| s.to_string()),
-            email:          Some("user@example.com".to_string()),
-            email_verified: Some(true),
-            name:           Some("Test User".to_string()),
-            picture:        None,
-            locale:         Some("en-US".to_string()),
+        use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+
+        // Decode JWT header to get kid
+        let header = jsonwebtoken::decode_header(id_token)
+            .map_err(|e| format!("Failed to decode JWT header: {e}"))?;
+
+        let kid = header
+            .kid
+            .ok_or_else(|| "Missing key ID (kid) in JWT header".to_string())?;
+
+        // Fetch JWKS and find matching key
+        let jwks = self.fetch_jwks().await?;
+        let jwk = jwks.find_key(&kid)?;
+
+        // Build decoding key from RSA components
+        let n = jwk
+            .n
+            .as_ref()
+            .ok_or_else(|| "Missing RSA modulus (n) in JWK".to_string())?;
+        let e = jwk
+            .e
+            .as_ref()
+            .ok_or_else(|| "Missing RSA exponent (e) in JWK".to_string())?;
+
+        let key = DecodingKey::from_rsa_components(n, e)
+            .map_err(|e| format!("Failed to construct decoding key from RSA components: {e}"))?;
+
+        // Configure validation
+        let algorithm = match header.alg {
+            Algorithm::RS256 => Algorithm::RS256,
+            Algorithm::RS384 => Algorithm::RS384,
+            Algorithm::RS512 => Algorithm::RS512,
+            alg => return Err(format!("Unsupported JWT algorithm: {alg:?}")),
         };
 
-        // Verify nonce if provided
+        let mut validation = Validation::new(algorithm);
+        validation.set_issuer(&[&self.config.issuer]);
+        validation.set_audience(&[&self.client_id]);
+
+        // Decode and verify token
+        let token_data = decode::<IdTokenClaims>(id_token, &key, &validation)
+            .map_err(|e| format!("JWT verification failed: {e}"))?;
+
+        let claims = token_data.claims;
+
+        // Verify nonce if expected (replay protection)
         if let Some(expected) = expected_nonce {
             if claims.nonce.as_deref() != Some(expected) {
-                return Err("Nonce mismatch".to_string());
+                return Err("Nonce mismatch: possible replay attack".to_string());
             }
+        }
+
+        // Verify token is not expired
+        if claims.is_expired() {
+            return Err("ID token is expired".to_string());
         }
 
         Ok(claims)
     }
 
-    /// Get userinfo from provider
-    pub async fn get_userinfo(&self, _access_token: &str) -> Result<UserInfo, String> {
-        // Return mock userinfo for GREEN phase
-        Ok(UserInfo {
-            sub:            "user_123".to_string(),
-            email:          Some("user@example.com".to_string()),
-            email_verified: Some(true),
-            name:           Some("Test User".to_string()),
-            picture:        None,
-            locale:         Some("en-US".to_string()),
-        })
+    /// Get userinfo from provider's userinfo endpoint
+    pub async fn get_userinfo(&self, access_token: &str) -> Result<UserInfo, String> {
+        let userinfo_endpoint = self
+            .config
+            .userinfo_endpoint
+            .as_ref()
+            .ok_or_else(|| "No userinfo endpoint configured for this provider".to_string())?;
+
+        debug!(userinfo_endpoint = %userinfo_endpoint, "Fetching userinfo from provider");
+
+        let response = self
+            .http_client
+            .get(userinfo_endpoint)
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch userinfo: {e}"))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("Userinfo request failed with status {status}: {body}"));
+        }
+
+        response
+            .json::<UserInfo>()
+            .await
+            .map_err(|e| format!("Failed to parse userinfo response: {e}"))
     }
 }
 

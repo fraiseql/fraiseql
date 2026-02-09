@@ -6,12 +6,160 @@
 mod oauth_tests {
     use chrono::{Duration, Utc};
 
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{header, method, path},
+    };
+
     use crate::auth::oauth::{
         ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client, OAuth2ClientConfig,
         OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig, PKCEChallenge,
         ProviderFailoverManager, ProviderRegistry, ProviderType, StateParameter,
         TokenRefreshScheduler, UserInfo,
     };
+
+    /// Helper: set up a mock JWKS server and generate a signed JWT for testing.
+    /// Returns (jwt_string, mock_server) for use in tests.
+    async fn setup_jwt_test(nonce: Option<&str>) -> (String, MockServer) {
+        setup_jwt_test_with_claims(nonce, None, None, None).await
+    }
+
+    /// Helper: set up a mock JWKS server with customizable claims.
+    async fn setup_jwt_test_with_claims(
+        nonce: Option<&str>,
+        sub: Option<&str>,
+        email: Option<&str>,
+        name: Option<&str>,
+    ) -> (String, MockServer) {
+        use jsonwebtoken::{Algorithm, EncodingKey, Header};
+
+        let mock_server = MockServer::start().await;
+        let issuer = mock_server.uri();
+
+        let private_key_pem = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("test_fixtures/rsa_test_private.pem"),
+        )
+        .expect("Failed to read test RSA private key");
+
+        let der_bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("test_fixtures/rsa_test_public.der"),
+        )
+        .expect("Failed to read test RSA public DER");
+
+        let (n_bytes, e_bytes) = extract_rsa_components_from_spki(&der_bytes);
+
+        use base64::Engine;
+        let n_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&n_bytes);
+        let e_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&e_bytes);
+
+        let jwks = serde_json::json!({
+            "keys": [{
+                "kty": "RSA",
+                "kid": "test-key-1",
+                "alg": "RS256",
+                "use": "sig",
+                "n": n_b64,
+                "e": e_b64
+            }]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/.well-known/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&jwks))
+            .mount(&mock_server)
+            .await;
+
+        let now = chrono::Utc::now().timestamp();
+        let mut claims = serde_json::json!({
+            "iss": &issuer,
+            "sub": sub.unwrap_or("user_123"),
+            "aud": "test_client_id",
+            "exp": now + 3600,
+            "iat": now,
+            "auth_time": now,
+            "email": email.unwrap_or("user@example.com"),
+            "email_verified": true,
+            "name": name.unwrap_or("Test User"),
+            "locale": "en-US"
+        });
+
+        if let Some(nonce_val) = nonce {
+            claims["nonce"] = serde_json::json!(nonce_val);
+        }
+
+        let encoding_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
+            .expect("Failed to parse test RSA private key");
+
+        let mut jwt_header = Header::new(Algorithm::RS256);
+        jwt_header.kid = Some("test-key-1".to_string());
+
+        let token = jsonwebtoken::encode(&jwt_header, &claims, &encoding_key)
+            .expect("Failed to encode test JWT");
+
+        (token, mock_server)
+    }
+
+    /// Extract RSA modulus (n) and exponent (e) from DER-encoded `SubjectPublicKeyInfo`
+    fn extract_rsa_components_from_spki(der: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        fn read_length(data: &[u8], pos: &mut usize) -> usize {
+            let first = data[*pos] as usize;
+            *pos += 1;
+            if first < 0x80 {
+                return first;
+            }
+            let num_bytes = first & 0x7f;
+            let mut length = 0usize;
+            for _ in 0..num_bytes {
+                length = (length << 8) | data[*pos] as usize;
+                *pos += 1;
+            }
+            length
+        }
+
+        fn read_integer(data: &[u8], pos: &mut usize) -> Vec<u8> {
+            assert_eq!(data[*pos], 0x02, "Expected INTEGER tag");
+            *pos += 1;
+            let len = read_length(data, pos);
+            let mut bytes = data[*pos..*pos + len].to_vec();
+            *pos += len;
+            // Strip leading zero byte (sign byte for positive integers)
+            if !bytes.is_empty() && bytes[0] == 0 {
+                bytes.remove(0);
+            }
+            bytes
+        }
+
+        let mut pos = 0;
+
+        // Outer SEQUENCE
+        assert_eq!(der[pos], 0x30);
+        pos += 1;
+        let _ = read_length(der, &mut pos);
+
+        // Algorithm SEQUENCE (skip it)
+        assert_eq!(der[pos], 0x30);
+        pos += 1;
+        let alg_len = read_length(der, &mut pos);
+        pos += alg_len;
+
+        // BIT STRING
+        assert_eq!(der[pos], 0x03);
+        pos += 1;
+        let _ = read_length(der, &mut pos);
+        pos += 1; // Skip unused bits byte (0x00)
+
+        // Inner SEQUENCE containing n and e
+        assert_eq!(der[pos], 0x30);
+        pos += 1;
+        let _ = read_length(der, &mut pos);
+
+        let n = read_integer(der, &mut pos);
+        let e = read_integer(der, &mut pos);
+
+        (n, e)
+    }
 
     fn test_oidc_config() -> OIDCProviderConfig {
         OIDCProviderConfig::new(
@@ -22,6 +170,17 @@ mod oauth_tests {
         )
     }
 
+    fn test_oidc_config_with_userinfo(base_url: &str) -> OIDCProviderConfig {
+        let mut config = OIDCProviderConfig::new(
+            base_url.to_string(),
+            format!("{base_url}/authorize"),
+            format!("{base_url}/token"),
+            format!("{base_url}/.well-known/jwks.json"),
+        );
+        config.userinfo_endpoint = Some(format!("{base_url}/userinfo"));
+        config
+    }
+
     fn test_oauth2_client() -> OAuth2Client {
         OAuth2Client::new(
             "test_client_id",
@@ -29,6 +188,46 @@ mod oauth_tests {
             "https://provider.example.com/authorize",
             "https://provider.example.com/token",
         )
+    }
+
+    fn test_oauth2_client_with_mock(base_url: &str) -> OAuth2Client {
+        OAuth2Client::new(
+            "test_client_id",
+            "test_client_secret",
+            format!("{base_url}/authorize"),
+            format!("{base_url}/token"),
+        )
+    }
+
+    /// Mount a mock userinfo endpoint on the given server
+    async fn mount_userinfo_mock(mock_server: &MockServer) {
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .and(header("authorization", "Bearer mock_access_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sub": "user_123",
+                "email": "user@example.com",
+                "email_verified": true,
+                "name": "Test User",
+                "locale": "en-US"
+            })))
+            .mount(mock_server)
+            .await;
+    }
+
+    /// Mount a mock userinfo endpoint that accepts any bearer token
+    async fn mount_userinfo_mock_any_token(mock_server: &MockServer) {
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sub": "user_123",
+                "email": "user@example.com",
+                "email_verified": true,
+                "name": "Test User",
+                "locale": "en-US"
+            })))
+            .mount(mock_server)
+            .await;
     }
 
     // ============================================================================
@@ -65,7 +264,22 @@ mod oauth_tests {
     /// Test OAuth2 authorization code exchange
     #[tokio::test]
     async fn test_oauth2_exchange_code_for_token() {
-        let client = test_oauth2_client();
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "real_access_token_123",
+                "refresh_token": "real_refresh_token_456",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "id_token": "mock_id_token",
+                "scope": "openid profile email"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_oauth2_client_with_mock(&mock_server.uri());
 
         let token = client
             .exchange_code("test_auth_code", "http://localhost:3000/auth/callback")
@@ -73,26 +287,65 @@ mod oauth_tests {
             .unwrap();
 
         // Response should contain required fields
-        assert!(!token.access_token.is_empty());
+        assert_eq!(token.access_token, "real_access_token_123");
         assert_eq!(token.token_type, "Bearer");
-        assert!(token.expires_in > 0);
+        assert_eq!(token.expires_in, 3600);
         assert!(token.refresh_token.is_some());
+        assert_eq!(token.refresh_token.unwrap(), "real_refresh_token_456");
         assert!(token.scope.is_some());
     }
 
     /// Test OAuth2 token refresh
     #[tokio::test]
     async fn test_oauth2_refresh_token() {
-        let client = test_oauth2_client();
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "new_access_token_789",
+                "refresh_token": "new_refresh_token_012",
+                "token_type": "Bearer",
+                "expires_in": 3600
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_oauth2_client_with_mock(&mock_server.uri());
 
         let token = client.refresh_token("refresh_token_123").await.unwrap();
 
         // Response should contain new access token
-        assert!(!token.access_token.is_empty());
+        assert_eq!(token.access_token, "new_access_token_789");
         assert_eq!(token.token_type, "Bearer");
-        assert!(token.expires_in > 0);
-        // Refresh token returned
+        assert_eq!(token.expires_in, 3600);
         assert!(token.refresh_token.is_some());
+    }
+
+    /// Test OAuth2 token exchange error handling
+    #[tokio::test]
+    async fn test_oauth2_exchange_code_error_response() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "Authorization code expired"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = test_oauth2_client_with_mock(&mock_server.uri());
+
+        let result = client
+            .exchange_code("expired_code", "http://localhost:3000/auth/callback")
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("invalid_grant"));
+        assert!(err.contains("Authorization code expired"));
     }
 
     /// Test OAuth2 state parameter validation
@@ -223,6 +476,19 @@ mod oauth_tests {
         assert_eq!(config1.jwks_uri, config2.jwks_uri);
     }
 
+    /// Test OIDC JWKS fetching with real HTTP via wiremock
+    #[tokio::test]
+    async fn test_oidc_jwks_fetching_real_http() {
+        let (_, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
+        let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
+
+        let jwks = client.fetch_jwks().await.unwrap();
+        assert!(!jwks.keys.is_empty());
+        assert_eq!(jwks.keys[0].kid.as_deref(), Some("test-key-1"));
+        assert_eq!(jwks.keys[0].kty, "RSA");
+    }
+
     // ============================================================================
     // JWT ID TOKEN VALIDATION TESTS
     // ============================================================================
@@ -250,19 +516,35 @@ mod oauth_tests {
         assert!(claims.exp > claims.iat);
     }
 
-    /// Test ID token signature verification
+    /// Test ID token signature verification with real JWKS
     #[tokio::test]
     async fn test_id_token_signature_verification() {
-        let config = test_oidc_config();
+        let (token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
-        // Verify mock ID token (the mock always returns valid claims)
-        let claims = client.verify_id_token("mock_token", None).unwrap();
+        let claims = client.verify_id_token(&token, None).await.unwrap();
 
         // Claims should have correct issuer and audience
-        assert_eq!(claims.iss, "https://provider.example.com");
+        assert_eq!(claims.iss, mock_server.uri());
         assert_eq!(claims.aud, "test_client_id");
-        assert!(!claims.sub.is_empty());
+        assert_eq!(claims.sub, "user_123");
+    }
+
+    /// Test ID token with invalid signature is rejected
+    #[tokio::test]
+    async fn test_id_token_invalid_signature_rejected() {
+        let (mut token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
+        let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
+
+        // Tamper with the token by changing a character in the signature
+        let last_char = token.pop().unwrap();
+        let replacement = if last_char == 'A' { 'B' } else { 'A' };
+        token.push(replacement);
+
+        let result = client.verify_id_token(&token, None).await;
+        assert!(result.is_err());
     }
 
     /// Test ID token expiry validation
@@ -303,16 +585,17 @@ mod oauth_tests {
         assert!(!near_claims.is_expired()); // Not yet expired
     }
 
-    /// Test ID token issuer validation
+    /// Test ID token issuer validation with real JWKS
     #[tokio::test]
     async fn test_id_token_issuer_validation() {
-        let config = test_oidc_config();
-        let client = OIDCClient::new(config.clone(), "test_client_id", "test_client_secret");
+        let (token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
+        let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
-        let claims = client.verify_id_token("mock_token", None).unwrap();
+        let claims = client.verify_id_token(&token, None).await.unwrap();
 
-        // Issuer should match configured provider
-        assert_eq!(claims.iss, config.issuer);
+        // Issuer should match the mock server URI (configured provider)
+        assert_eq!(claims.iss, mock_server.uri());
 
         // Mismatched issuer should be detectable
         let wrong_issuer_claims = IdTokenClaims::new(
@@ -322,94 +605,134 @@ mod oauth_tests {
             (Utc::now() + Duration::hours(1)).timestamp(),
             Utc::now().timestamp(),
         );
-        assert_ne!(wrong_issuer_claims.iss, config.issuer);
+        assert_ne!(wrong_issuer_claims.iss, mock_server.uri());
     }
 
-    /// Test ID token audience (aud) claim validation
+    /// Test ID token with wrong issuer is rejected
     #[tokio::test]
-    async fn test_id_token_audience_validation() {
-        let config = test_oidc_config();
+    async fn test_id_token_wrong_issuer_rejected() {
+        let (token, mock_server) = setup_jwt_test(None).await;
+
+        // Configure the OIDC client with a DIFFERENT issuer than what the JWT contains
+        let mut config = test_oidc_config_with_userinfo(&mock_server.uri());
+        config.issuer = "https://different-issuer.com".to_string();
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
-        let claims = client.verify_id_token("mock_token", None).unwrap();
+        let result = client.verify_id_token(&token, None).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("JWT verification failed"));
+    }
+
+    /// Test ID token audience (aud) claim validation with real JWKS
+    #[tokio::test]
+    async fn test_id_token_audience_validation() {
+        let (token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
+        let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
+
+        let claims = client.verify_id_token(&token, None).await.unwrap();
 
         // Audience should match client_id
         assert_eq!(claims.aud, "test_client_id");
-
-        // Different client_id would result in mismatch
-        let wrong_aud_claims = IdTokenClaims::new(
-            "https://provider.example.com".to_string(),
-            "user_123".to_string(),
-            "other_client_id".to_string(),
-            (Utc::now() + Duration::hours(1)).timestamp(),
-            Utc::now().timestamp(),
-        );
-        assert_ne!(wrong_aud_claims.aud, "test_client_id");
     }
 
-    /// Test ID token subject (sub) claim validation
+    /// Test ID token with wrong audience is rejected
+    #[tokio::test]
+    async fn test_id_token_wrong_audience_rejected() {
+        let (token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
+
+        // Create client with a different client_id than what the JWT contains
+        let client = OIDCClient::new(config, "wrong_client_id", "test_client_secret");
+
+        let result = client.verify_id_token(&token, None).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("JWT verification failed"));
+    }
+
+    /// Test ID token subject (sub) claim extraction with real JWKS
     #[tokio::test]
     async fn test_id_token_subject_claim_extraction() {
-        let config = test_oidc_config();
+        let (token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
-        let claims = client.verify_id_token("mock_token", None).unwrap();
+        let claims = client.verify_id_token(&token, None).await.unwrap();
 
         // Subject should be a non-empty unique identifier
         assert!(!claims.sub.is_empty());
+        assert_eq!(claims.sub, "user_123");
 
-        // Subject can be used to identify the user
-        let user_id = claims.sub.clone();
-        assert_eq!(user_id, claims.sub);
+        // Email and name from claims
+        assert_eq!(claims.email.as_deref(), Some("user@example.com"));
+        assert_eq!(claims.name.as_deref(), Some("Test User"));
     }
 
     // ============================================================================
     // USERINFO ENDPOINT TESTS
     // ============================================================================
 
-    /// Test userinfo endpoint access
+    /// Test userinfo endpoint access with wiremock
     #[tokio::test]
     async fn test_userinfo_endpoint_retrieval() {
-        let config = test_oidc_config();
+        let mock_server = MockServer::start().await;
+        mount_userinfo_mock(&mock_server).await;
+
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
         let userinfo = client.get_userinfo("mock_access_token").await.unwrap();
 
         // Userinfo should contain expected fields
-        assert!(!userinfo.sub.is_empty());
-        assert!(userinfo.email.is_some());
-        assert!(userinfo.email_verified.is_some());
-        assert!(userinfo.name.is_some());
-        assert!(userinfo.locale.is_some());
+        assert_eq!(userinfo.sub, "user_123");
+        assert_eq!(userinfo.email.as_deref(), Some("user@example.com"));
+        assert_eq!(userinfo.email_verified, Some(true));
+        assert_eq!(userinfo.name.as_deref(), Some("Test User"));
+        assert_eq!(userinfo.locale.as_deref(), Some("en-US"));
     }
 
-    /// Test userinfo token validation
+    /// Test userinfo endpoint without configuration returns error
+    #[tokio::test]
+    async fn test_userinfo_no_endpoint_configured() {
+        let config = test_oidc_config(); // No userinfo_endpoint set
+        let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
+
+        let result = client.get_userinfo("mock_access_token").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No userinfo endpoint configured"));
+    }
+
+    /// Test userinfo token validation and sub consistency
     #[tokio::test]
     async fn test_userinfo_access_token_validation() {
-        let config = test_oidc_config();
+        let (token, mock_server) = setup_jwt_test(None).await;
+        mount_userinfo_mock_any_token(&mock_server).await;
+
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
         // Valid access token should return userinfo
-        let result = client.get_userinfo("valid_token").await;
-        assert!(result.is_ok());
+        let userinfo = client.get_userinfo("valid_token").await.unwrap();
 
         // Sub should match between ID token and userinfo
-        let claims = client.verify_id_token("mock_token", None).unwrap();
-        let userinfo = result.unwrap();
+        let claims = client.verify_id_token(&token, None).await.unwrap();
         assert_eq!(claims.sub, userinfo.sub);
     }
 
     /// Test userinfo email verification
     #[tokio::test]
     async fn test_userinfo_email_verified_flag() {
-        let config = test_oidc_config();
+        let mock_server = MockServer::start().await;
+        mount_userinfo_mock_any_token(&mock_server).await;
+
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
         let userinfo = client.get_userinfo("mock_token").await.unwrap();
 
         // Email verified flag should be present and boolean
         let verified = userinfo.email_verified.unwrap();
-        assert!(verified); // Mock returns true
+        assert!(verified);
 
         // An unverified user scenario
         let mut unverified_user = UserInfo::new("user_456".to_string());
@@ -425,7 +748,10 @@ mod oauth_tests {
     /// Test first-time user auto-provisioning
     #[tokio::test]
     async fn test_first_login_auto_provisioning() {
-        let config = test_oidc_config();
+        let mock_server = MockServer::start().await;
+        mount_userinfo_mock_any_token(&mock_server).await;
+
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
         // Get userinfo for new user
@@ -481,7 +807,10 @@ mod oauth_tests {
     /// Test user profile update on login
     #[tokio::test]
     async fn test_user_profile_update_from_provider() {
-        let config = test_oidc_config();
+        let mock_server = MockServer::start().await;
+        mount_userinfo_mock_any_token(&mock_server).await;
+
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
 
         // First login gets initial profile
@@ -568,22 +897,16 @@ mod oauth_tests {
     // PROVIDER-SPECIFIC TESTS
     // ============================================================================
 
-    /// Test Auth0 OIDC provider support
+    /// Test Auth0 OIDC provider support with real JWT verification
     #[tokio::test]
     async fn test_auth0_provider_integration() {
-        let auth0_config = OIDCProviderConfig::new(
-            "https://tenant.auth0.com".to_string(),
-            "https://tenant.auth0.com/authorize".to_string(),
-            "https://tenant.auth0.com/oauth/token".to_string(),
-            "https://tenant.auth0.com/.well-known/jwks.json".to_string(),
-        );
+        let (token, mock_server) = setup_jwt_test(None).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
 
-        assert_eq!(auth0_config.issuer, "https://tenant.auth0.com");
-        assert!(auth0_config.authorization_endpoint.contains("auth0.com"));
-
-        let client = OIDCClient::new(auth0_config, "auth0_client_id", "auth0_secret");
-        let claims = client.verify_id_token("mock_token", None).unwrap();
-        assert!(!claims.sub.is_empty());
+        let client = OIDCClient::new(config, "test_client_id", "test_client_secret");
+        let claims = client.verify_id_token(&token, None).await.unwrap();
+        assert_eq!(claims.sub, "user_123");
+        assert_eq!(claims.email.as_deref(), Some("user@example.com"));
     }
 
     /// Test Google OAuth2 provider support
@@ -798,7 +1121,7 @@ mod oauth_tests {
         assert_ne!(state.state, state2.state);
     }
 
-    /// Test nonce parameter replay protection
+    /// Test nonce parameter replay protection with real JWT verification
     #[tokio::test]
     async fn test_oauth2_nonce_replay_prevention() {
         let nonce = NonceParameter::new();
@@ -815,12 +1138,28 @@ mod oauth_tests {
         assert!(!nonce.verify("replayed_nonce"));
 
         // OIDC client verifies nonce in ID token
-        let config = test_oidc_config();
+        let (token, mock_server) = setup_jwt_test(Some(&original_nonce)).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_secret");
         let claims = client
-            .verify_id_token("mock_token", Some(&original_nonce))
+            .verify_id_token(&token, Some(&original_nonce))
+            .await
             .unwrap();
         assert_eq!(claims.nonce, Some(original_nonce));
+    }
+
+    /// Test nonce mismatch is rejected
+    #[tokio::test]
+    async fn test_oauth2_nonce_mismatch_rejected() {
+        let (token, mock_server) = setup_jwt_test(Some("correct_nonce")).await;
+        let config = test_oidc_config_with_userinfo(&mock_server.uri());
+        let client = OIDCClient::new(config, "test_client_id", "test_secret");
+
+        let result = client
+            .verify_id_token(&token, Some("wrong_nonce"))
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Nonce mismatch"));
     }
 
     /// Test XSS prevention in OAuth flow
@@ -1074,39 +1413,20 @@ mod oauth_tests {
     /// Test OAuth audit logging
     #[tokio::test]
     async fn test_oauth_audit_logging() {
-        let mut events: Vec<OAuthAuditEvent> = Vec::new();
-
-        // Log authorization attempt
-        events.push(
+        let events = vec![
             OAuthAuditEvent::new("authorization", "auth0", "success")
                 .with_user_id("user_123".to_string())
                 .with_metadata("ip_address".to_string(), "192.168.1.1".to_string()),
-        );
-
-        // Log token exchange
-        events.push(
             OAuthAuditEvent::new("token_exchange", "auth0", "success")
                 .with_user_id("user_123".to_string()),
-        );
-
-        // Log user provisioning
-        events.push(
             OAuthAuditEvent::new("user_provisioning", "auth0", "success")
                 .with_user_id("user_123".to_string())
                 .with_metadata("action".to_string(), "created".to_string()),
-        );
-
-        // Log token refresh
-        events.push(
             OAuthAuditEvent::new("token_refresh", "auth0", "success")
                 .with_user_id("user_123".to_string()),
-        );
-
-        // Log session logout
-        events.push(
             OAuthAuditEvent::new("logout", "auth0", "success")
                 .with_user_id("user_123".to_string()),
-        );
+        ];
 
         // All events logged with required fields
         assert_eq!(events.len(), 5);

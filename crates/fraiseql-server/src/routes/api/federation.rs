@@ -61,16 +61,16 @@ fn default_format() -> String {
 ///
 /// Returns information about all subgraphs in the federated schema,
 /// including their URLs, managed entities, and health status.
+///
+/// When federation is enabled, reports this server as a subgraph with
+/// its federated entity types. When disabled, returns an empty list.
 pub async fn subgraphs_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<SubgraphsResponse>>, ApiError> {
-    // In a real implementation, this would:
-    // 1. Extract federation metadata from the schema
-    // 2. Query each subgraph for health status
-    // 3. Return actual subgraph information
+    let schema = state.executor.schema();
+    let subgraphs = extract_subgraph_info(schema);
 
-    // Placeholder: Return empty list
-    let response = SubgraphsResponse { subgraphs: vec![] };
+    let response = SubgraphsResponse { subgraphs };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -90,7 +90,7 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
 /// - **dot**: Graphviz format for visualization
 /// - **mermaid**: Markdown-compatible graph syntax
 pub async fn graph_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
     Query(query): Query<GraphFormatQuery>,
 ) -> Result<Json<ApiResponse<GraphResponse>>, ApiError> {
     // Validate format parameter
@@ -99,8 +99,9 @@ pub async fn graph_handler<A: DatabaseAdapter>(
         _ => return Err(ApiError::validation_error("format must be 'json', 'dot', or 'mermaid'")),
     };
 
-    // Generate graph in the requested format
-    let content = generate_federation_graph(&format);
+    let schema = state.executor.schema();
+    let subgraphs = extract_subgraph_info(schema);
+    let content = generate_federation_graph(&format, &subgraphs);
 
     let response = GraphResponse {
         format: format.clone(),
@@ -113,63 +114,113 @@ pub async fn graph_handler<A: DatabaseAdapter>(
     }))
 }
 
-/// Generate federation graph in the specified format.
+/// Extract subgraph information from the compiled schema.
 ///
-/// In a real implementation, this would:
-/// 1. Extract subgraph information from schema
-/// 2. Build graph structure from federation metadata
-/// 3. Convert to requested format
-fn generate_federation_graph(format: &str) -> String {
+/// When federation is enabled in the schema, extracts entity types and their
+/// key fields to produce a self-describing subgraph entry. Each federated type
+/// with `@key` directives is reported as an entity managed by this subgraph.
+fn extract_subgraph_info(schema: &fraiseql_core::schema::CompiledSchema) -> Vec<SubgraphInfo> {
+    let metadata = match schema.federation_metadata() {
+        Some(meta) if meta.enabled => meta,
+        _ => return vec![],
+    };
+
+    // Collect entity types (types that have at least one @key directive)
+    let entities: Vec<String> = metadata
+        .types
+        .iter()
+        .filter(|t| !t.keys.is_empty())
+        .map(|t| t.name.clone())
+        .collect();
+
+    if entities.is_empty() {
+        return vec![];
+    }
+
+    // Report this server as a single subgraph with its federated entities
+    vec![SubgraphInfo {
+        name: "self".to_string(),
+        url: "http://localhost".to_string(),
+        entities,
+        healthy: true,
+    }]
+}
+
+/// Generate federation graph in the specified format.
+fn generate_federation_graph(format: &str, subgraphs: &[SubgraphInfo]) -> String {
     match format {
-        "json" => generate_json_graph(),
-        "dot" => generate_dot_graph(),
-        "mermaid" => generate_mermaid_graph(),
+        "json" => generate_json_graph(subgraphs),
+        "dot" => generate_dot_graph(subgraphs),
+        "mermaid" => generate_mermaid_graph(subgraphs),
         _ => "{}".to_string(),
     }
 }
 
 /// Generate JSON representation of federation graph.
-fn generate_json_graph() -> String {
-    r#"{
-  "subgraphs": [],
-  "edges": []
-}"#
+fn generate_json_graph(subgraphs: &[SubgraphInfo]) -> String {
+    let subgraph_nodes: Vec<serde_json::Value> = subgraphs
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "name": s.name,
+                "url": s.url,
+                "entities": s.entities,
+                "healthy": s.healthy,
+            })
+        })
+        .collect();
+
+    serde_json::json!({
+        "subgraphs": subgraph_nodes,
+        "edges": []
+    })
     .to_string()
 }
 
 /// Generate Graphviz (DOT) representation of federation graph.
-fn generate_dot_graph() -> String {
-    r#"digraph federation {
-  rankdir=LR;
-  node [shape=box, style=rounded];
+fn generate_dot_graph(subgraphs: &[SubgraphInfo]) -> String {
+    let mut dot = String::from("digraph federation {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n\n");
 
-  // Subgraphs would be added here
-  // Example:
-  // users [label="users\n[User, Query]"];
-  // posts [label="posts\n[Post]"];
-  // users -> posts [label="User", style=dashed];
-}"#
-    .to_string()
+    for sg in subgraphs {
+        let entities_label = sg.entities.join(", ");
+        dot.push_str(&format!("  {} [label=\"{}\\n[{}]\"];\n", sg.name, sg.name, entities_label));
+    }
+
+    dot.push('}');
+    dot
 }
 
 /// Generate Mermaid diagram representation of federation graph.
-fn generate_mermaid_graph() -> String {
-    r#"graph LR
-    %% Federation subgraphs
-    %% Example:
-    %% users["users<br/>[User, Query]"]
-    %% posts["posts<br/>[Post]"]
-    %% users -->|User| posts"#
-        .to_string()
+fn generate_mermaid_graph(subgraphs: &[SubgraphInfo]) -> String {
+    let mut mermaid = String::from("graph LR\n");
+
+    for sg in subgraphs {
+        let entities_label = sg.entities.join(", ");
+        mermaid.push_str(&format!(
+            "    {}[\"{}<br/>[{}]\"]\n",
+            sg.name, sg.name, entities_label
+        ));
+    }
+
+    mermaid
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn sample_subgraphs() -> Vec<SubgraphInfo> {
+        vec![SubgraphInfo {
+            name:     "users".to_string(),
+            url:      "http://users.local".to_string(),
+            entities: vec!["User".to_string(), "Profile".to_string()],
+            healthy:  true,
+        }]
+    }
+
     #[test]
-    fn test_generate_json_graph() {
-        let json = generate_json_graph();
+    fn test_generate_json_graph_empty() {
+        let json = generate_json_graph(&[]);
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert!(parsed["subgraphs"].is_array());
@@ -177,18 +228,32 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_json_graph_with_subgraphs() {
+        let json = generate_json_graph(&sample_subgraphs());
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let subgraphs = parsed["subgraphs"].as_array().unwrap();
+        assert_eq!(subgraphs.len(), 1);
+        assert_eq!(subgraphs[0]["name"], "users");
+        assert_eq!(subgraphs[0]["entities"][0], "User");
+    }
+
+    #[test]
     fn test_generate_dot_graph() {
-        let dot = generate_dot_graph();
+        let dot = generate_dot_graph(&sample_subgraphs());
 
         assert!(dot.contains("digraph"));
         assert!(dot.contains("rankdir"));
+        assert!(dot.contains("users"));
+        assert!(dot.contains("User, Profile"));
     }
 
     #[test]
     fn test_generate_mermaid_graph() {
-        let mermaid = generate_mermaid_graph();
+        let mermaid = generate_mermaid_graph(&sample_subgraphs());
 
         assert!(mermaid.contains("graph LR"));
+        assert!(mermaid.contains("users"));
     }
 
     #[test]
@@ -224,5 +289,40 @@ mod tests {
         };
 
         assert_eq!(response.format, "json");
+    }
+
+    #[test]
+    fn test_extract_subgraph_info_no_federation() {
+        let schema = fraiseql_core::schema::CompiledSchema::new();
+        let subgraphs = extract_subgraph_info(&schema);
+        assert!(subgraphs.is_empty());
+    }
+
+    #[test]
+    fn test_extract_subgraph_info_with_federation() {
+        use fraiseql_core::federation::{FederatedType, FederationMetadata, KeyDirective};
+
+        let mut schema = fraiseql_core::schema::CompiledSchema::new();
+        let metadata = FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types:   vec![FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
+                    resolvable: true,
+                }],
+                is_extends:       false,
+                external_fields:  vec![],
+                shareable_fields: vec![],
+                field_directives: std::collections::HashMap::new(),
+            }],
+        };
+        schema.federation = Some(serde_json::to_value(&metadata).unwrap());
+
+        let subgraphs = extract_subgraph_info(&schema);
+        assert_eq!(subgraphs.len(), 1);
+        assert_eq!(subgraphs[0].name, "self");
+        assert_eq!(subgraphs[0].entities, vec!["User".to_string()]);
     }
 }

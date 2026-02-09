@@ -602,7 +602,7 @@ mod rotation_tests {
         let cipher = FieldEncryption::new(&[0u8; 32]);
 
         // Encrypt multiple records (all with same key for this test)
-        let records = vec![
+        let records = [
             cipher.encrypt("record_1").unwrap(),
             cipher.encrypt("record_2").unwrap(),
             cipher.encrypt("record_3").unwrap(),

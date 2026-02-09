@@ -751,7 +751,7 @@ mod error_recovery_tests {
             metrics.record_failure();
         }
         let failed = metrics.failed_rotations();
-        assert!(failed >= 1 && failed <= 5);
+        assert!((1..=5).contains(&failed));
 
         // Simulate more failures: error level (5-20)
         for _ in 0..10 {

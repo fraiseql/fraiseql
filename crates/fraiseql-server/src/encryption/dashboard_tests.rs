@@ -152,7 +152,7 @@ mod dashboard_tests {
     #[tokio::test]
     async fn test_dashboard_sort_options() {
         // Sort by urgency (most urgent first)
-        let mut cards = vec![
+        let mut cards = [
             KeyStatusCard::new("low", 1, 20),      // urgency 10
             KeyStatusCard::new("high", 1, 90),      // urgency 85
             KeyStatusCard::new("medium", 1, 75),    // urgency 60
@@ -160,14 +160,14 @@ mod dashboard_tests {
         ];
 
         // Sort by urgency descending (most urgent first)
-        cards.sort_by(|a, b| b.urgency_score.cmp(&a.urgency_score));
+        cards.sort_by_key(|a| std::cmp::Reverse(a.urgency_score));
         assert_eq!(cards[0].key_id, "overdue");
         assert_eq!(cards[1].key_id, "high");
         assert_eq!(cards[2].key_id, "medium");
         assert_eq!(cards[3].key_id, "low");
 
         // Sort by ttl_percent ascending
-        cards.sort_by(|a, b| a.ttl_percent.cmp(&b.ttl_percent));
+        cards.sort_by_key(|a| a.ttl_percent);
         assert_eq!(cards[0].key_id, "low");
         assert_eq!(cards[3].key_id, "overdue");
 
@@ -195,7 +195,7 @@ mod dashboard_tests {
             let timestamp = now - chrono::Duration::days(29 - day);
             let mut point = RotationMetricsPoint::new(timestamp);
             point.rotations_total = (day as u64) % 3;
-            point.rotations_manual = if day % 5 == 0 { 1 } else { 0 };
+            point.rotations_manual = u64::from(day % 5 == 0);
             point.rotations_auto = point.rotations_total.saturating_sub(point.rotations_manual);
             point.rotation_duration_avg_ms = 50 + (day as u64) * 2;
             point.success_rate_percent = 100;
@@ -548,7 +548,7 @@ mod dashboard_tests {
     async fn test_dashboard_theme_config() {
         // Dashboard supports theme configuration
         // Represented as string settings
-        let themes = vec!["light", "dark", "high_contrast"];
+        let themes = ["light", "dark", "high_contrast"];
 
         // Each theme is a valid option
         assert_eq!(themes.len(), 3);
@@ -756,7 +756,7 @@ mod dashboard_tests {
         assert!(alert.action.as_ref().unwrap().contains("retry"));
 
         // Configurable recipients (represented as metadata)
-        let recipients = vec!["admin@company.com", "security@company.com"];
+        let recipients = ["admin@company.com", "security@company.com"];
         assert_eq!(recipients.len(), 2);
 
         // Alert has unique ID for deduplication

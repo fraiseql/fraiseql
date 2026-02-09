@@ -220,7 +220,7 @@ mod database_adapter_tests {
         // Simulate key caching: same cipher reused for multiple operations
         let cipher = test_cipher();
 
-        let values = vec![
+        let values = [
             "user1@example.com",
             "user2@example.com",
             "user3@example.com",
@@ -897,8 +897,8 @@ mod database_adapter_tests {
         let encrypted = cipher.encrypt("test-data").unwrap();
         let mut corrupted = encrypted;
         // Flip multiple bytes in the tag/ciphertext area
-        for i in NONCE_SIZE..corrupted.len() {
-            corrupted[i] ^= 0xFF;
+        for byte in &mut corrupted[NONCE_SIZE..] {
+            *byte ^= 0xFF;
         }
         let result = cipher.decrypt(&corrupted);
         assert!(result.is_err());
@@ -1059,7 +1059,7 @@ mod database_adapter_tests {
 
         // Build QueryBuilderIntegration from detected fields
         let qbi = QueryBuilderIntegration::new(
-            encrypted_names.iter().map(|s| s.to_string()).collect(),
+            encrypted_names.iter().map(|s| (*s).to_string()).collect(),
         );
         assert!(qbi.is_encrypted("email"));
         assert!(qbi.is_encrypted("phone"));

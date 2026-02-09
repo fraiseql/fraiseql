@@ -636,9 +636,8 @@ mod performance_tests {
         // Encrypt and decrypt in a scoped block
         let decrypted = {
             let encrypted = cipher.encrypt(plaintext).unwrap();
-            let result = cipher.decrypt(&encrypted).unwrap();
-            // encrypted goes out of scope here
-            result
+            // encrypted goes out of scope after this block
+            cipher.decrypt(&encrypted).unwrap()
         };
 
         assert_eq!(decrypted, plaintext);
