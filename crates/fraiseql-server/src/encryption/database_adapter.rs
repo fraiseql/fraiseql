@@ -323,6 +323,56 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
 mod tests {
     use super::*;
 
+    use crate::secrets_manager::{SecretsError, types::SecretsBackend};
+
+    /// In-memory secrets backend for testing
+    struct MockSecretsBackend {
+        secrets: HashMap<String, String>,
+    }
+
+    impl MockSecretsBackend {
+        fn new(secrets: HashMap<String, String>) -> Self {
+            Self { secrets }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl SecretsBackend for MockSecretsBackend {
+        async fn get_secret(&self, name: &str) -> Result<String, SecretsError> {
+            self.secrets
+                .get(name)
+                .cloned()
+                .ok_or_else(|| SecretsError::NotFound(format!("Secret '{}' not found", name)))
+        }
+
+        async fn get_secret_with_expiry(
+            &self,
+            name: &str,
+        ) -> Result<(String, chrono::DateTime<chrono::Utc>), SecretsError> {
+            let secret = self.get_secret(name).await?;
+            Ok((secret, chrono::Utc::now() + chrono::Duration::hours(24)))
+        }
+
+        async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
+            self.get_secret(name).await
+        }
+    }
+
+    /// Helper: build a SecretsManager with mock backend containing 32-byte keys
+    fn mock_secrets_manager(keys: Vec<(&str, &str)>) -> Arc<SecretsManager> {
+        let mut secrets = HashMap::new();
+        for (name, value) in keys {
+            secrets.insert(name.to_string(), value.to_string());
+        }
+        Arc::new(SecretsManager::new(Arc::new(MockSecretsBackend::new(
+            secrets,
+        ))))
+    }
+
+    /// A 32-byte string key for testing
+    const KEY_32B_A: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const KEY_32B_B: &str = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+
     #[test]
     fn test_encryption_context_creation() {
         let ctx = EncryptionContext::new("user123", "email", "insert", "2024-01-01T00:00:00Z");
@@ -342,41 +392,104 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "Requires SecretsManager setup"]
     async fn test_adapter_get_cipher_caching() {
-        // When cipher accessed multiple times for same field
-        // Should return cached instance on subsequent calls
+        let sm = mock_secrets_manager(vec![("db/email_key", KEY_32B_A)]);
+        let mut field_keys = HashMap::new();
+        field_keys.insert("email".to_string(), "db/email_key".to_string());
+        let adapter = DatabaseFieldAdapter::new(sm, field_keys);
+
+        // First access fetches from backend and caches
+        assert_eq!(adapter.cache_size().await, 0);
+        let _ = adapter.encrypt_value("email", "test@example.com").await.unwrap();
+        assert_eq!(adapter.cache_size().await, 1);
+
+        // Second access uses cached cipher (cache size stays at 1)
+        let _ = adapter.encrypt_value("email", "other@example.com").await.unwrap();
+        assert_eq!(adapter.cache_size().await, 1);
     }
 
     #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_multiple_keys() {
-        // When adapter configured with multiple fields and keys
-        // Each field should use its own encryption key
-        // Keys sourced from SecretsManager
+        let sm = mock_secrets_manager(vec![
+            ("db/email_key", KEY_32B_A),
+            ("db/phone_key", KEY_32B_B),
+        ]);
+        let mut field_keys = HashMap::new();
+        field_keys.insert("email".to_string(), "db/email_key".to_string());
+        field_keys.insert("phone".to_string(), "db/phone_key".to_string());
+        let adapter = DatabaseFieldAdapter::new(sm, field_keys);
+
+        // Encrypt with different keys
+        let email_ct = adapter.encrypt_value("email", "hello").await.unwrap();
+        let phone_ct = adapter.encrypt_value("phone", "hello").await.unwrap();
+
+        // Same plaintext encrypted with different keys produces different ciphertexts
+        assert_ne!(email_ct, phone_ct);
+
+        // Each field decrypts correctly with its own key
+        let email_pt = adapter.decrypt_value("email", &email_ct).await.unwrap();
+        let phone_pt = adapter.decrypt_value("phone", &phone_ct).await.unwrap();
+        assert_eq!(email_pt, "hello");
+        assert_eq!(phone_pt, "hello");
+
+        // Cross-decryption fails (email ciphertext with phone key)
+        assert!(adapter.decrypt_value("phone", &email_ct).await.is_err());
     }
 
     #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_cache_invalidation() {
-        // When cache invalidated (e.g., after key rotation)
-        // Next access should fetch fresh key from SecretsManager
-        // Old cached ciphers discarded
+        let sm = mock_secrets_manager(vec![("db/email_key", KEY_32B_A)]);
+        let mut field_keys = HashMap::new();
+        field_keys.insert("email".to_string(), "db/email_key".to_string());
+        let adapter = DatabaseFieldAdapter::new(sm, field_keys);
+
+        // Populate cache
+        let _ = adapter.encrypt_value("email", "test").await.unwrap();
+        assert_eq!(adapter.cache_size().await, 1);
+
+        // Invalidate all caches
+        adapter.invalidate_cache().await;
+        assert_eq!(adapter.cache_size().await, 0);
+
+        // Next access re-fetches from backend
+        let _ = adapter.encrypt_value("email", "test").await.unwrap();
+        assert_eq!(adapter.cache_size().await, 1);
+
+        // Invalidate single field
+        adapter.invalidate_field_cache("email").await;
+        assert_eq!(adapter.cache_size().await, 0);
     }
 
     #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_missing_key_error() {
-        // When field not registered in adapter
-        // encrypt_value should return NotFound error
-        // Should indicate which key missing
+        let sm = mock_secrets_manager(vec![("db/email_key", KEY_32B_A)]);
+        let mut field_keys = HashMap::new();
+        field_keys.insert("email".to_string(), "db/email_key".to_string());
+        let adapter = DatabaseFieldAdapter::new(sm, field_keys);
+
+        // Encrypt for unregistered field returns error
+        let result = adapter.encrypt_value("ssn", "123-45-6789").await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        let err_msg = format!("{}", err);
+        assert!(err_msg.contains("ssn"), "Error should mention the missing field");
     }
 
     #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
     async fn test_adapter_is_encrypted_check() {
-        // When checking if field is encrypted
-        // Should return true for registered fields
-        // Should return false for unregistered fields
+        let sm = mock_secrets_manager(vec![("db/email_key", KEY_32B_A)]);
+        let mut field_keys = HashMap::new();
+        field_keys.insert("email".to_string(), "db/email_key".to_string());
+        field_keys.insert("phone".to_string(), "db/phone_key".to_string());
+        let adapter = DatabaseFieldAdapter::new(sm, field_keys);
+
+        // Registered fields are encrypted
+        assert!(adapter.is_encrypted("email"));
+        assert!(adapter.is_encrypted("phone"));
+
+        // Unregistered fields are not encrypted
+        assert!(!adapter.is_encrypted("name"));
+        assert!(!adapter.is_encrypted("address"));
     }
 }

@@ -1,4 +1,3 @@
-// Phase 12.2: Vault Backend Integration
 //! Backend for HashiCorp Vault integration with dynamic secrets,
 //! lease management, and encryption support
 //!
@@ -15,29 +14,29 @@ use super::super::{SecretsBackend, SecretsError};
 
 /// Vault API response structure for secrets
 #[derive(Debug, Clone, serde::Deserialize)]
-#[allow(dead_code)]
-struct VaultResponse {
-    request_id:     String,
-    lease_id:       String,
-    lease_duration: i64,
-    renewable:      bool,
-    data:           HashMap<String, serde_json::Value>,
+pub(crate) struct VaultResponse {
+    // Reason: Required for JSON deserialization of Vault API responses
+    #[allow(dead_code)]
+    pub request_id:     String,
+    pub lease_id:       String,
+    pub lease_duration: i64,
+    pub renewable:      bool,
+    pub data:           HashMap<String, serde_json::Value>,
 }
 
 /// Lease information tracking
-#[derive(Debug, Clone)]
+// Reason: Infrastructure for background lease renewal task (not yet wired up)
 #[allow(dead_code)]
-struct LeaseInfo {
-    lease_id:   String,
-    expires_at: chrono::DateTime<Utc>,
-    renewable:  bool,
+#[derive(Debug, Clone)]
+pub(crate) struct LeaseInfo {
+    pub lease_id:    String,
+    pub secret_name: String,
+    pub expires_at:  chrono::DateTime<Utc>,
+    pub renewable:   bool,
 }
 
 /// Cached secret with metadata
-///
-/// Used for Phase 12.2+ advanced features: lease tracking and renewal
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct CachedSecret {
     value:      String,
     expires_at: chrono::DateTime<Utc>,
@@ -45,23 +44,36 @@ struct CachedSecret {
     renewable:  bool,
 }
 
+/// Vault health status
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct VaultHealthStatus {
+    /// Whether Vault is initialized
+    pub initialized: bool,
+    /// Whether Vault is sealed
+    pub sealed: bool,
+    /// Vault version
+    pub version: Option<String>,
+}
+
 // Constants for Vault API and caching
 const VAULT_API_VERSION: &str = "v1";
-const CACHE_TTL_PERCENTAGE: f64 = 0.8; // Cache for 80% of credential TTL
+const CACHE_TTL_PERCENTAGE: f64 = 0.8;
+// Reason: Used by SecretCache::should_renew, part of lease renewal infrastructure
 #[allow(dead_code)]
-const RENEWAL_THRESHOLD_PERCENT: f64 = 0.8; // Renew when 80% expired
-const DEFAULT_MAX_CACHE_ENTRIES: usize = 1000; // Maximum cached secrets
+const RENEWAL_THRESHOLD_PERCENT: f64 = 0.8;
+const DEFAULT_MAX_CACHE_ENTRIES: usize = 1000;
+const DEFAULT_MAX_RETRIES: u32 = 3;
+const DEFAULT_RETRY_BASE_MS: u64 = 100;
 
 /// Secret cache with TTL management and LRU eviction
-///
-/// Used for Phase 12.2+ advanced features: credential caching with automatic renewal
 #[derive(Debug)]
-#[allow(dead_code)]
 struct SecretCache {
     entries:     Arc<RwLock<HashMap<String, CachedSecret>>>,
     max_entries: usize,
 }
 
+// Reason: Lease renewal methods (get, get_stale, get_expiring_leases, update_expiry,
+// clear, should_renew) are infrastructure for a background lease renewal task
 #[allow(dead_code)]
 impl SecretCache {
     /// Create new secret cache with specified max entries
@@ -92,6 +104,51 @@ impl SecretCache {
             }
         }
         None
+    }
+
+    /// Get cached secret even if expired (for graceful degradation)
+    async fn get_stale(&self, key: &str) -> Option<(String, chrono::DateTime<Utc>)> {
+        let entries = self.entries.read().await;
+        entries
+            .get(key)
+            .map(|cached| (cached.value.clone(), cached.expires_at))
+    }
+
+    /// Get lease info for a cached secret
+    async fn get_lease_info(&self, key: &str) -> Option<(String, bool)> {
+        let entries = self.entries.read().await;
+        entries
+            .get(key)
+            .and_then(|cached| cached.lease_id.as_ref().map(|id| (id.clone(), cached.renewable)))
+    }
+
+    /// Get all entries with leases that are expiring soon
+    async fn get_expiring_leases(&self, threshold: f64) -> Vec<LeaseInfo> {
+        let entries = self.entries.read().await;
+        let now = Utc::now();
+        let mut result = Vec::new();
+
+        for (name, cached) in entries.iter() {
+            if let Some(lease_id) = &cached.lease_id {
+                let time_remaining = (cached.expires_at - now).num_seconds();
+                // Assume 1 hour total TTL as baseline for threshold calculation
+                let total_ttl = 3600i64;
+                if total_ttl > 0 {
+                    let percent_elapsed =
+                        1.0 - (time_remaining as f64 / total_ttl as f64).clamp(0.0, 1.0);
+                    if percent_elapsed >= threshold {
+                        result.push(LeaseInfo {
+                            lease_id:    lease_id.clone(),
+                            secret_name: name.clone(),
+                            expires_at:  cached.expires_at,
+                            renewable:   cached.renewable,
+                        });
+                    }
+                }
+            }
+        }
+
+        result
     }
 
     /// Store secret in cache with expiry
@@ -126,9 +183,27 @@ impl SecretCache {
         );
     }
 
+    /// Update expiry for an existing cached secret (after lease renewal)
+    async fn update_expiry(&self, key: &str, new_expiry: chrono::DateTime<Utc>) {
+        let mut entries = self.entries.write().await;
+        if let Some(cached) = entries.get_mut(key) {
+            cached.expires_at = new_expiry;
+        }
+    }
+
     /// Invalidate cached secret
     async fn invalidate(&self, key: &str) {
         self.entries.write().await.remove(key);
+    }
+
+    /// Clear all cached secrets
+    async fn clear(&self) {
+        self.entries.write().await.clear();
+    }
+
+    /// Get current number of cached entries
+    async fn len(&self) -> usize {
+        self.entries.read().await.len()
     }
 
     /// Check if secret should be renewed based on expiry
@@ -181,21 +256,23 @@ impl SecretCache {
 /// ```
 #[derive(Debug)]
 pub struct VaultBackend {
-    addr:       String,
-    token:      String,
-    namespace:  Option<String>,
-    tls_verify: bool,
-    cache:      Arc<RwLock<SecretCache>>,
+    addr:        String,
+    token:       String,
+    namespace:   Option<String>,
+    tls_verify:  bool,
+    cache:       Arc<RwLock<SecretCache>>,
+    max_retries: u32,
 }
 
 impl Clone for VaultBackend {
     fn clone(&self) -> Self {
         VaultBackend {
-            addr:       self.addr.clone(),
-            token:      self.token.clone(),
-            namespace:  self.namespace.clone(),
-            tls_verify: self.tls_verify,
-            cache:      Arc::clone(&self.cache),
+            addr:        self.addr.clone(),
+            token:       self.token.clone(),
+            namespace:   self.namespace.clone(),
+            tls_verify:  self.tls_verify,
+            cache:       Arc::clone(&self.cache),
+            max_retries: self.max_retries,
         }
     }
 }
@@ -251,7 +328,22 @@ impl SecretsBackend for VaultBackend {
     async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // Rotate by requesting new credentials (old lease is implicitly superseded)
+        // Revoke old lease if tracked
+        let cache = self.cache.read().await;
+        if let Some((lease_id, _)) = cache.get_lease_info(name).await {
+            drop(cache);
+            // Best-effort revocation - ignore errors since we're getting new credentials
+            let _ = self.revoke_lease(&lease_id).await;
+        } else {
+            drop(cache);
+        }
+
+        // Invalidate cache to force fresh fetch
+        let cache = self.cache.read().await;
+        cache.invalidate(name).await;
+        drop(cache);
+
+        // Fetch new credentials
         let (new_secret, _) = self.get_secret_with_expiry(name).await?;
         Ok(new_secret)
     }
@@ -260,13 +352,14 @@ impl SecretsBackend for VaultBackend {
 impl VaultBackend {
     /// Create new VaultBackend with server address and authentication token
     #[must_use]
-    pub fn new<S: Into<String>>(addr: S, token: S) -> Self {
+    pub fn new<S: Into<String>, T: Into<String>>(addr: S, token: T) -> Self {
         VaultBackend {
-            addr:       addr.into(),
-            token:      token.into(),
-            namespace:  None,
-            tls_verify: true,
-            cache:      Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            addr:        addr.into(),
+            token:       token.into(),
+            namespace:   None,
+            tls_verify:  true,
+            cache:       Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            max_retries: DEFAULT_MAX_RETRIES,
         }
     }
 
@@ -281,6 +374,20 @@ impl VaultBackend {
     #[must_use]
     pub fn with_tls_verify(mut self, verify: bool) -> Self {
         self.tls_verify = verify;
+        self
+    }
+
+    /// Set maximum number of retry attempts for transient errors
+    #[must_use]
+    pub fn with_max_retries(mut self, retries: u32) -> Self {
+        self.max_retries = retries;
+        self
+    }
+
+    /// Set custom cache size
+    #[must_use]
+    pub fn with_max_cache_entries(mut self, max_entries: usize) -> Self {
+        self.cache = Arc::new(RwLock::new(SecretCache::new(max_entries)));
         self
     }
 
@@ -306,6 +413,110 @@ impl VaultBackend {
     #[must_use]
     pub fn tls_verify(&self) -> bool {
         self.tls_verify
+    }
+
+    /// Check Vault health status
+    pub async fn health_check(&self) -> Result<VaultHealthStatus, SecretsError> {
+        let client = self.build_http_client()?;
+        let url = format!("{}/{}/sys/health", self.addr.trim_end_matches('/'), VAULT_API_VERSION);
+
+        let response = client.get(&url).send().await.map_err(|e| {
+            SecretsError::BackendError(format!("Vault health check failed: {}", e))
+        })?;
+
+        // Vault returns 200 for healthy, 429/472/473/501/503 for various states
+        // All are valid responses indicating Vault is reachable
+        response.json::<VaultHealthStatus>().await.map_err(|e| {
+            SecretsError::BackendError(format!("Failed to parse health response: {}", e))
+        })
+    }
+
+    /// Renew a Vault lease
+    pub async fn renew_lease(&self, lease_id: &str) -> Result<i64, SecretsError> {
+        let client = self.build_http_client()?;
+        let url = format!(
+            "{}/{}/sys/leases/renew",
+            self.addr.trim_end_matches('/'),
+            VAULT_API_VERSION
+        );
+
+        let body = serde_json::json!({ "lease_id": lease_id });
+
+        let response = client
+            .put(&url)
+            .header("X-Vault-Token", &self.token)
+            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| {
+                SecretsError::BackendError(format!("Vault lease renewal failed: {}", e))
+            })?;
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let body: serde_json::Value = response.json().await.map_err(|e| {
+                    SecretsError::BackendError(format!("Failed to parse renewal response: {}", e))
+                })?;
+                let new_duration = body["lease_duration"].as_i64().unwrap_or(3600);
+                Ok(new_duration)
+            },
+            status => Err(SecretsError::BackendError(format!(
+                "Lease renewal failed with status {}",
+                status
+            ))),
+        }
+    }
+
+    /// Revoke a Vault lease
+    pub async fn revoke_lease(&self, lease_id: &str) -> Result<(), SecretsError> {
+        let client = self.build_http_client()?;
+        let url = format!(
+            "{}/{}/sys/leases/revoke",
+            self.addr.trim_end_matches('/'),
+            VAULT_API_VERSION
+        );
+
+        let body = serde_json::json!({ "lease_id": lease_id });
+
+        let response = client
+            .put(&url)
+            .header("X-Vault-Token", &self.token)
+            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| {
+                SecretsError::BackendError(format!("Vault lease revocation failed: {}", e))
+            })?;
+
+        match response.status() {
+            reqwest::StatusCode::OK | reqwest::StatusCode::NO_CONTENT => Ok(()),
+            status => Err(SecretsError::BackendError(format!(
+                "Lease revocation failed with status {}",
+                status
+            ))),
+        }
+    }
+
+    /// Get current number of cached secrets
+    pub async fn cache_size(&self) -> usize {
+        let cache = self.cache.read().await;
+        cache.len().await
+    }
+
+    /// Invalidate a specific cached secret
+    pub async fn invalidate_cache(&self, name: &str) {
+        let cache = self.cache.read().await;
+        cache.invalidate(name).await;
+    }
+
+    /// Build HTTP client with TLS settings
+    fn build_http_client(&self) -> Result<reqwest::Client, SecretsError> {
+        reqwest::Client::builder()
+            .danger_accept_invalid_certs(!self.tls_verify)
+            .build()
+            .map_err(|e| SecretsError::BackendError(format!("Failed to create HTTP client: {}", e)))
     }
 
     /// Extract secret data from Vault API response
@@ -335,47 +546,82 @@ impl VaultBackend {
         }
     }
 
-    /// Fetch secret from Vault HTTP API
+    /// Fetch secret from Vault HTTP API with retry logic
     async fn fetch_secret(&self, name: &str) -> Result<VaultResponse, SecretsError> {
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(!self.tls_verify)
-            .build()
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {}", e))
-            })?;
-
+        let client = self.build_http_client()?;
         let url = self.build_vault_url(name);
+        let mut last_error = None;
 
-        // Build request headers with X-Vault-Token
-        let response = client
-            .get(&url)
-            .header("X-Vault-Token", self.token.clone())
-            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
-            .send()
-            .await
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Vault HTTP request failed for {}: {}", name, e))
-            })?;
+        for attempt in 0..=self.max_retries {
+            if attempt > 0 {
+                let delay_ms = DEFAULT_RETRY_BASE_MS * (1u64 << (attempt - 1).min(6));
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            }
 
-        match response.status() {
-            reqwest::StatusCode::OK => response.json::<VaultResponse>().await.map_err(|e| {
-                SecretsError::BackendError(format!(
-                    "Failed to parse Vault response for {}: {}",
-                    name, e
-                ))
-            }),
-            reqwest::StatusCode::NOT_FOUND => {
-                Err(SecretsError::NotFound(format!("Secret not found in Vault: {}", name)))
-            },
-            reqwest::StatusCode::FORBIDDEN => Err(SecretsError::BackendError(format!(
-                "Permission denied accessing Vault secret: {}",
-                name
-            ))),
-            status => Err(SecretsError::BackendError(format!(
-                "Vault request failed with status {} for {}",
-                status, name
-            ))),
+            let result = client
+                .get(&url)
+                .header("X-Vault-Token", &self.token)
+                .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+                .send()
+                .await;
+
+            match result {
+                Ok(response) => match response.status() {
+                    reqwest::StatusCode::OK => {
+                        return response.json::<VaultResponse>().await.map_err(|e| {
+                            SecretsError::BackendError(format!(
+                                "Failed to parse Vault response for {}: {}",
+                                name, e
+                            ))
+                        });
+                    },
+                    reqwest::StatusCode::NOT_FOUND => {
+                        return Err(SecretsError::NotFound(format!(
+                            "Secret not found in Vault: {}",
+                            name
+                        )));
+                    },
+                    reqwest::StatusCode::FORBIDDEN => {
+                        return Err(SecretsError::BackendError(format!(
+                            "Permission denied accessing Vault secret: {}",
+                            name
+                        )));
+                    },
+                    // Retriable server errors
+                    status if status.is_server_error() => {
+                        last_error = Some(SecretsError::BackendError(format!(
+                            "Vault request failed with status {} for {}",
+                            status, name
+                        )));
+                    },
+                    status => {
+                        return Err(SecretsError::BackendError(format!(
+                            "Vault request failed with status {} for {}",
+                            status, name
+                        )));
+                    },
+                },
+                Err(e) if e.is_timeout() || e.is_connect() => {
+                    last_error = Some(SecretsError::BackendError(format!(
+                        "Vault HTTP request failed for {}: {}",
+                        name, e
+                    )));
+                },
+                Err(e) => {
+                    return Err(SecretsError::BackendError(format!(
+                        "Vault HTTP request failed for {}: {}",
+                        name, e
+                    )));
+                },
+            }
         }
+
+        Err(last_error.unwrap_or_else(|| {
+            SecretsError::BackendError(format!(
+                "Vault request failed after {} retries for {}",
+                self.max_retries, name
+            ))
+        }))
     }
 
     /// Build Vault API URL for a secret path
@@ -438,13 +684,7 @@ impl VaultBackend {
     ) -> Result<String, SecretsError> {
         validate_vault_secret_name(key_name)?;
 
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(!self.tls_verify)
-            .build()
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {}", e))
-            })?;
-
+        let client = self.build_http_client()?;
         let url = format!(
             "{}/{}/transit/encrypt/{}",
             self.addr.trim_end_matches('/'),
@@ -483,13 +723,7 @@ impl VaultBackend {
     ) -> Result<String, SecretsError> {
         validate_vault_secret_name(key_name)?;
 
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(!self.tls_verify)
-            .build()
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {}", e))
-            })?;
-
+        let client = self.build_http_client()?;
         let url = format!(
             "{}/{}/transit/decrypt/{}",
             self.addr.trim_end_matches('/'),
@@ -519,6 +753,141 @@ impl VaultBackend {
             .ok()
             .and_then(|bytes| String::from_utf8(bytes).ok())
             .ok_or_else(|| SecretsError::EncryptionError("Failed to decode plaintext".to_string()))
+    }
+
+    /// Batch encrypt multiple values using Vault Transit engine
+    pub async fn batch_encrypt(
+        &self,
+        key_name: &str,
+        plaintexts: &[&str],
+    ) -> Result<Vec<String>, SecretsError> {
+        validate_vault_secret_name(key_name)?;
+
+        let client = self.build_http_client()?;
+        let url = format!(
+            "{}/{}/transit/encrypt/{}",
+            self.addr.trim_end_matches('/'),
+            VAULT_API_VERSION,
+            key_name
+        );
+
+        let batch_input: Vec<serde_json::Value> = plaintexts
+            .iter()
+            .map(|pt| serde_json::json!({ "plaintext": STANDARD_NO_PAD.encode(pt) }))
+            .collect();
+
+        let request_body = serde_json::json!({ "batch_input": batch_input });
+
+        let response = self
+            .build_vault_request(&client, url)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                SecretsError::BackendError(format!("Vault Transit batch encrypt failed: {}", e))
+            })?;
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let body: serde_json::Value = response.json().await.map_err(|e| {
+                    SecretsError::BackendError(format!("Failed to parse batch response: {}", e))
+                })?;
+
+                let results = body["data"]["batch_results"]
+                    .as_array()
+                    .ok_or_else(|| {
+                        SecretsError::EncryptionError(
+                            "Missing batch_results in response".to_string(),
+                        )
+                    })?;
+
+                results
+                    .iter()
+                    .map(|r| {
+                        r["ciphertext"].as_str().map(|s| s.to_string()).ok_or_else(|| {
+                            SecretsError::EncryptionError(
+                                "Missing ciphertext in batch result".to_string(),
+                            )
+                        })
+                    })
+                    .collect()
+            },
+            status => Err(SecretsError::EncryptionError(format!(
+                "Vault Transit batch encrypt failed with status {}",
+                status
+            ))),
+        }
+    }
+
+    /// Batch decrypt multiple values using Vault Transit engine
+    pub async fn batch_decrypt(
+        &self,
+        key_name: &str,
+        ciphertexts: &[&str],
+    ) -> Result<Vec<String>, SecretsError> {
+        validate_vault_secret_name(key_name)?;
+
+        let client = self.build_http_client()?;
+        let url = format!(
+            "{}/{}/transit/decrypt/{}",
+            self.addr.trim_end_matches('/'),
+            VAULT_API_VERSION,
+            key_name
+        );
+
+        let batch_input: Vec<serde_json::Value> =
+            ciphertexts.iter().map(|ct| serde_json::json!({ "ciphertext": ct })).collect();
+
+        let request_body = serde_json::json!({ "batch_input": batch_input });
+
+        let response = self
+            .build_vault_request(&client, url)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| {
+                SecretsError::BackendError(format!("Vault Transit batch decrypt failed: {}", e))
+            })?;
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let body: serde_json::Value = response.json().await.map_err(|e| {
+                    SecretsError::BackendError(format!("Failed to parse batch response: {}", e))
+                })?;
+
+                let results = body["data"]["batch_results"]
+                    .as_array()
+                    .ok_or_else(|| {
+                        SecretsError::EncryptionError(
+                            "Missing batch_results in response".to_string(),
+                        )
+                    })?;
+
+                results
+                    .iter()
+                    .map(|r| {
+                        let b64 = r["plaintext"].as_str().ok_or_else(|| {
+                            SecretsError::EncryptionError(
+                                "Missing plaintext in batch result".to_string(),
+                            )
+                        })?;
+                        STANDARD_NO_PAD
+                            .decode(b64)
+                            .ok()
+                            .and_then(|bytes| String::from_utf8(bytes).ok())
+                            .ok_or_else(|| {
+                                SecretsError::EncryptionError(
+                                    "Failed to decode batch plaintext".to_string(),
+                                )
+                            })
+                    })
+                    .collect()
+            },
+            status => Err(SecretsError::EncryptionError(format!(
+                "Vault Transit batch decrypt failed with status {}",
+                status
+            ))),
+        }
     }
 }
 
