@@ -83,14 +83,14 @@ impl JobQueue for RedisJobQueue {
         redis::cmd("SET")
             .arg(Self::job_key(job_id))
             .arg(&json)
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         // Add to pending queue
         redis::cmd("LPUSH")
             .arg(Self::pending_key())
             .arg(job_id.to_string())
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -136,7 +136,7 @@ impl JobQueue for RedisJobQueue {
                 .arg(Self::processing_key())
                 .arg(expiry_timestamp)
                 .arg(Self::processing_member(job_id))
-                .query_async::<_, ()>(&mut self.conn.clone())
+                .query_async::<()>(&mut self.conn.clone())
                 .await?;
 
             job.mark_running();
@@ -151,13 +151,13 @@ impl JobQueue for RedisJobQueue {
         redis::cmd("ZREM")
             .arg(Self::processing_key())
             .arg(Self::processing_member(job_id))
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         // Remove job data
         redis::cmd("DEL")
             .arg(Self::job_key(job_id))
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -170,7 +170,7 @@ impl JobQueue for RedisJobQueue {
         redis::cmd("ZREM")
             .arg(Self::processing_key())
             .arg(Self::processing_member(job_id))
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         // Mark as failed and decide next action
@@ -184,13 +184,13 @@ impl JobQueue for RedisJobQueue {
             redis::cmd("SET")
                 .arg(Self::job_key(job_id))
                 .arg(&json)
-                .query_async::<_, ()>(&mut self.conn.clone())
+                .query_async::<()>(&mut self.conn.clone())
                 .await?;
 
             redis::cmd("LPUSH")
                 .arg(Self::pending_key())
                 .arg(job_id.to_string())
-                .query_async::<_, ()>(&mut self.conn.clone())
+                .query_async::<()>(&mut self.conn.clone())
                 .await?;
         } else {
             // Move to DLQ
@@ -200,13 +200,13 @@ impl JobQueue for RedisJobQueue {
             redis::cmd("SET")
                 .arg(Self::job_key(job_id))
                 .arg(&json)
-                .query_async::<_, ()>(&mut self.conn.clone())
+                .query_async::<()>(&mut self.conn.clone())
                 .await?;
 
             redis::cmd("LPUSH")
                 .arg(Self::dlq_key())
                 .arg(Self::dlq_member(job_id))
-                .query_async::<_, ()>(&mut self.conn.clone())
+                .query_async::<()>(&mut self.conn.clone())
                 .await?;
         }
 

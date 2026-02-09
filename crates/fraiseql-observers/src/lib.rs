@@ -113,6 +113,7 @@ pub mod transport;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+// Re-export in-memory test implementations for use in integration tests
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
@@ -174,6 +175,10 @@ pub use search::{IndexedEvent, SearchBackend, SearchStats};
 pub use storage::EventStorage;
 #[cfg(feature = "postgres")]
 pub use storage::postgres::PostgresEventStorage;
+#[cfg(all(any(test, feature = "testing"), feature = "caching"))]
+pub use testing::mocks::InMemoryCache;
+#[cfg(all(any(test, feature = "testing"), feature = "dedup"))]
+pub use testing::mocks::InMemoryDedupStore;
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,

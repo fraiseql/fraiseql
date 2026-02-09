@@ -63,7 +63,7 @@ impl CacheBackend for RedisCacheBackend {
             .arg(&key)
             .arg(self.ttl_seconds as i64)
             .arg(&json)
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -80,7 +80,7 @@ impl CacheBackend for RedisCacheBackend {
     async fn invalidate(&self, cache_key: &str) -> Result<()> {
         let key = Self::cache_key(cache_key);
 
-        redis::cmd("DEL").arg(&key).query_async::<_, ()>(&mut self.conn.clone()).await?;
+        redis::cmd("DEL").arg(&key).query_async::<()>(&mut self.conn.clone()).await?;
 
         Ok(())
     }
@@ -103,7 +103,7 @@ impl CacheBackend for RedisCacheBackend {
             if !keys.is_empty() {
                 redis::cmd("DEL")
                     .arg(&keys)
-                    .query_async::<_, ()>(&mut self.conn.clone())
+                    .query_async::<()>(&mut self.conn.clone())
                     .await?;
             }
 
@@ -144,7 +144,7 @@ impl CacheBackendDyn for RedisCacheBackend {
             .arg(&key)
             .arg(self.ttl_seconds as i64)
             .arg(&json)
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())

@@ -247,48 +247,11 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::{event::EventKind, matcher::EventMatcher, testing::mocks::MockDeadLetterQueue};
-
-    // Simple in-memory dedup store for testing
-    #[derive(Clone)]
-    struct InMemoryDedupStore {
-        store:          Arc<dashmap::DashMap<String, bool>>,
-        window_seconds: u64,
-    }
-
-    impl InMemoryDedupStore {
-        fn new(window_seconds: u64) -> Self {
-            Self {
-                store: Arc::new(dashmap::DashMap::new()),
-                window_seconds,
-            }
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl DeduplicationStore for InMemoryDedupStore {
-        async fn is_duplicate(&self, event_key: &str) -> Result<bool> {
-            Ok(self.store.contains_key(event_key))
-        }
-
-        async fn mark_processed(&self, event_key: &str) -> Result<()> {
-            self.store.insert(event_key.to_string(), true);
-            Ok(())
-        }
-
-        fn window_seconds(&self) -> u64 {
-            self.window_seconds
-        }
-
-        fn set_window_seconds(&mut self, seconds: u64) {
-            self.window_seconds = seconds;
-        }
-
-        async fn remove(&self, event_key: &str) -> Result<()> {
-            self.store.remove(event_key);
-            Ok(())
-        }
-    }
+    use crate::{
+        event::EventKind,
+        matcher::EventMatcher,
+        testing::mocks::{InMemoryDedupStore, MockDeadLetterQueue},
+    };
 
     #[tokio::test]
     async fn test_dedup_prevents_duplicate_processing() {

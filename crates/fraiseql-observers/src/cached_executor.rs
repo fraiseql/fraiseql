@@ -234,7 +234,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::event::EventKind;
+    use crate::{event::EventKind, testing::mocks::InMemoryCache};
 
     // Simple mock executor for testing
     #[derive(Clone)]
@@ -271,56 +271,10 @@ mod tests {
         }
     }
 
-    // Simple in-memory cache for testing
-    #[derive(Clone)]
-    struct InMemoryCache {
-        store:       Arc<dashmap::DashMap<String, CachedActionResult>>,
-        ttl_seconds: Arc<std::sync::atomic::AtomicU64>,
-    }
-
-    impl InMemoryCache {
-        fn new() -> Self {
-            Self {
-                store:       Arc::new(dashmap::DashMap::new()),
-                ttl_seconds: Arc::new(std::sync::atomic::AtomicU64::new(60)),
-            }
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl CacheBackend for InMemoryCache {
-        async fn get(&self, cache_key: &str) -> Result<Option<CachedActionResult>> {
-            Ok(self.store.get(cache_key).map(|entry| entry.value().clone()))
-        }
-
-        async fn set(&self, cache_key: &str, result: &CachedActionResult) -> Result<()> {
-            self.store.insert(cache_key.to_string(), result.clone());
-            Ok(())
-        }
-
-        fn ttl_seconds(&self) -> u64 {
-            self.ttl_seconds.load(std::sync::atomic::Ordering::Relaxed)
-        }
-
-        fn set_ttl_seconds(&mut self, seconds: u64) {
-            self.ttl_seconds.store(seconds, std::sync::atomic::Ordering::Relaxed);
-        }
-
-        async fn invalidate(&self, cache_key: &str) -> Result<()> {
-            self.store.remove(cache_key);
-            Ok(())
-        }
-
-        async fn clear_all(&self) -> Result<()> {
-            self.store.clear();
-            Ok(())
-        }
-    }
-
     #[tokio::test]
     async fn test_cache_hit_does_not_execute_action() {
         let executor = TestExecutor::new();
-        let cache = InMemoryCache::new();
+        let cache = InMemoryCache::new(60);
 
         // Pre-populate cache
         let event = EntityEvent::new(
@@ -389,7 +343,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_miss_executes_and_caches() {
         let executor = TestExecutor::new();
-        let cache = InMemoryCache::new();
+        let cache = InMemoryCache::new(60);
         let cached_executor = CachedActionExecutor::new(executor.clone(), cache.clone());
 
         let event = EntityEvent::new(

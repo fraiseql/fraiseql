@@ -367,6 +367,135 @@ pub mod mocks {
         }
     }
 
+    /// In-memory deduplication store for testing (no Redis required).
+    ///
+    /// Uses `dashmap::DashMap` for thread-safe concurrent access.
+    /// Does not enforce TTL expiration - entries persist until manually removed.
+    #[cfg(feature = "dedup")]
+    #[derive(Clone)]
+    pub struct InMemoryDedupStore {
+        store:          std::sync::Arc<dashmap::DashMap<String, bool>>,
+        window_seconds: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    }
+
+    #[cfg(feature = "dedup")]
+    impl InMemoryDedupStore {
+        /// Create a new in-memory dedup store with window in seconds.
+        #[must_use]
+        pub fn new(window_seconds: u64) -> Self {
+            Self {
+                store:          std::sync::Arc::new(dashmap::DashMap::new()),
+                window_seconds: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(
+                    window_seconds,
+                )),
+            }
+        }
+
+        /// Get the number of tracked event keys.
+        #[must_use]
+        pub fn key_count(&self) -> usize {
+            self.store.len()
+        }
+
+        /// Clear all tracked keys.
+        pub fn clear(&self) {
+            self.store.clear();
+        }
+    }
+
+    #[cfg(feature = "dedup")]
+    #[async_trait]
+    impl crate::dedup::DeduplicationStore for InMemoryDedupStore {
+        async fn is_duplicate(&self, event_key: &str) -> crate::error::Result<bool> {
+            Ok(self.store.contains_key(event_key))
+        }
+
+        async fn mark_processed(&self, event_key: &str) -> crate::error::Result<()> {
+            self.store.insert(event_key.to_string(), true);
+            Ok(())
+        }
+
+        fn window_seconds(&self) -> u64 {
+            self.window_seconds.load(std::sync::atomic::Ordering::Relaxed)
+        }
+
+        fn set_window_seconds(&mut self, seconds: u64) {
+            self.window_seconds.store(seconds, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        async fn remove(&self, event_key: &str) -> crate::error::Result<()> {
+            self.store.remove(event_key);
+            Ok(())
+        }
+    }
+
+    /// In-memory cache backend for testing (no Redis required).
+    ///
+    /// Uses `dashmap::DashMap` for thread-safe concurrent access.
+    /// Stores TTL configuration but does not enforce expiration.
+    #[cfg(feature = "caching")]
+    #[derive(Clone)]
+    pub struct InMemoryCache {
+        store:       std::sync::Arc<dashmap::DashMap<String, crate::cache::CachedActionResult>>,
+        ttl_seconds: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    }
+
+    #[cfg(feature = "caching")]
+    impl InMemoryCache {
+        /// Create a new in-memory cache with TTL in seconds.
+        #[must_use]
+        pub fn new(ttl_seconds: u64) -> Self {
+            Self {
+                store:       std::sync::Arc::new(dashmap::DashMap::new()),
+                ttl_seconds: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(ttl_seconds)),
+            }
+        }
+
+        /// Get the number of cached entries.
+        #[must_use]
+        pub fn entry_count(&self) -> usize {
+            self.store.len()
+        }
+    }
+
+    #[cfg(feature = "caching")]
+    #[async_trait]
+    impl crate::cache::CacheBackend for InMemoryCache {
+        async fn get(
+            &self,
+            cache_key: &str,
+        ) -> crate::error::Result<Option<crate::cache::CachedActionResult>> {
+            Ok(self.store.get(cache_key).map(|entry| entry.value().clone()))
+        }
+
+        async fn set(
+            &self,
+            cache_key: &str,
+            result: &crate::cache::CachedActionResult,
+        ) -> crate::error::Result<()> {
+            self.store.insert(cache_key.to_string(), result.clone());
+            Ok(())
+        }
+
+        fn ttl_seconds(&self) -> u64 {
+            self.ttl_seconds.load(std::sync::atomic::Ordering::Relaxed)
+        }
+
+        fn set_ttl_seconds(&mut self, seconds: u64) {
+            self.ttl_seconds.store(seconds, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        async fn invalidate(&self, cache_key: &str) -> crate::error::Result<()> {
+            self.store.remove(cache_key);
+            Ok(())
+        }
+
+        async fn clear_all(&self) -> crate::error::Result<()> {
+            self.store.clear();
+            Ok(())
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use serde_json::json;

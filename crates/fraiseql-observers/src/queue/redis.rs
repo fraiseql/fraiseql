@@ -84,19 +84,20 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Store job data
-        conn.set_ex::<_, _, ()>(
-            Self::job_key(&job_id),
-            &job_json,
-            86400, // 24-hour expiration for job metadata
-        )
-        .await
-        .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to store job: {e}"),
-        })?;
+        let _: () = conn
+            .set_ex(
+                Self::job_key(&job_id),
+                &job_json,
+                86400, // 24-hour expiration for job metadata
+            )
+            .await
+            .map_err(|e| ObserverError::DatabaseError {
+                reason: format!("Failed to store job: {e}"),
+            })?;
 
         // Add to pending queue (score = current timestamp for FIFO)
         let now = chrono::Utc::now().timestamp() as f64;
-        conn.zadd::<_, _, _, ()>(&self.pending_key, &job_id, now).await.map_err(|e| {
+        let _: () = conn.zadd(&self.pending_key, &job_id, now).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to add to pending queue: {e}"),
             }
@@ -135,7 +136,8 @@ impl JobQueue for RedisJobQueue {
 
         // Mark as processing (add to processing set with worker info)
         let processing_info = format!("{}:{}", worker_id, chrono::Utc::now().timestamp());
-        conn.hset::<_, _, _, ()>(&self.processing_key, job_id, &processing_info)
+        let _: () = conn
+            .hset(&self.processing_key, job_id, &processing_info)
             .await
             .map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to mark as processing: {e}"),
@@ -148,7 +150,8 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         let processing_info = format!("{}:{}", "worker", chrono::Utc::now().timestamp());
-        conn.hset::<_, _, _, ()>(&self.processing_key, job_id, processing_info)
+        let _: () = conn
+            .hset(&self.processing_key, job_id, processing_info)
             .await
             .map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to mark as processing: {e}"),
@@ -163,32 +166,33 @@ impl JobQueue for RedisJobQueue {
         let result_json = Self::serialize_result(result)?;
 
         // Store completed job data
-        conn.set_ex::<_, _, ()>(
-            Self::completed_key(job_id),
-            result_json,
-            86400, // 24-hour retention
-        )
-        .await
-        .map_err(|e| ObserverError::DatabaseError {
-            reason: format!("Failed to store completed job: {e}"),
-        })?;
+        let _: () = conn
+            .set_ex(
+                Self::completed_key(job_id),
+                result_json,
+                86400, // 24-hour retention
+            )
+            .await
+            .map_err(|e| ObserverError::DatabaseError {
+                reason: format!("Failed to store completed job: {e}"),
+            })?;
 
         // Remove from processing
-        conn.hdel::<_, _, ()>(&self.processing_key, job_id).await.map_err(|e| {
+        let _: () = conn.hdel(&self.processing_key, job_id).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to remove from processing: {e}"),
             }
         })?;
 
         // Remove job data
-        conn.del::<_, ()>(Self::job_key(job_id)).await.map_err(|e| {
+        let _: () = conn.del(Self::job_key(job_id)).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to delete job data: {e}"),
             }
         })?;
 
         // Increment success counter
-        conn.incr::<_, _, ()>("queue:v1:stats:success", 1).await.map_err(|e| {
+        let _: () = conn.incr("queue:v1:stats:success", 1).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to update stats: {e}"),
             }
@@ -201,21 +205,22 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Remove from processing
-        conn.hdel::<_, _, ()>(&self.processing_key, job_id).await.map_err(|e| {
+        let _: () = conn.hdel(&self.processing_key, job_id).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to remove from processing: {e}"),
             }
         })?;
 
         // Add to retry queue with next_retry_at as score
-        conn.zadd::<_, _, _, ()>(&self.retry_key, job_id, next_retry_at as f64)
+        let _: () = conn
+            .zadd(&self.retry_key, job_id, next_retry_at as f64)
             .await
             .map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to add to retry queue: {e}"),
             })?;
 
         // Increment retry counter
-        conn.incr::<_, _, ()>("queue:v1:stats:retries", 1).await.map_err(|e| {
+        let _: () = conn.incr("queue:v1:stats:retries", 1).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to update stats: {e}"),
             }
@@ -228,7 +233,7 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         // Remove from processing
-        conn.hdel::<_, _, ()>(&self.processing_key, job_id).await.map_err(|e| {
+        let _: () = conn.hdel(&self.processing_key, job_id).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to remove from processing: {e}"),
             }
@@ -238,21 +243,23 @@ impl JobQueue for RedisJobQueue {
         let now = chrono::Utc::now().timestamp() as f64;
         let entry = format!("{}|{}", reason, chrono::Utc::now().timestamp());
 
-        conn.zadd::<_, _, _, ()>(&self.deadletter_key, &job_id, now)
+        let _: () = conn
+            .zadd(&self.deadletter_key, job_id, now)
             .await
             .map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to add to deadletter queue: {e}"),
             })?;
 
         // Store reason
-        conn.set_ex::<_, _, ()>(format!("job:v1:deadletter:reason:{job_id}"), entry, 86400)
+        let _: () = conn
+            .set_ex(format!("job:v1:deadletter:reason:{job_id}"), entry, 86400)
             .await
             .map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to store deadletter reason: {e}"),
             })?;
 
         // Increment failed counter
-        conn.incr::<_, _, ()>("queue:v1:stats:failed", 1).await.map_err(|e| {
+        let _: () = conn.incr("queue:v1:stats:failed", 1).await.map_err(|e| {
             ObserverError::DatabaseError {
                 reason: format!("Failed to update stats: {e}"),
             }

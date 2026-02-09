@@ -1,0 +1,123 @@
+# Unified test infrastructure for running all FraiseQL ignored tests locally.
+#
+# Usage:
+#   docker compose -f docker-compose.test-all.yml up -d
+#   docker compose -f docker-compose.test-all.yml ps       # check health
+#   docker compose -f docker-compose.test-all.yml down -v   # cleanup
+#
+# See docs/TESTING_INFRASTRUCTURE.md for test commands.
+
+services:
+  # PostgreSQL 16 - primary database for integration tests
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraiseql-test-postgres
+    environment:
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
+      POSTGRES_DB: test_fraiseql
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./tests/sql/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./tests/sql/postgres/init-analytics.sql:/docker-entrypoint-initdb.d/02-init-analytics.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL 17 with TLS enabled
+  postgres-tls:
+    image: postgres:17-alpine
+    container_name: fraiseql-test-postgres-tls
+    environment:
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql_test
+      POSTGRES_DB: fraiseql_tls_test
+    ports:
+      - "5444:5432"
+    volumes:
+      - ./docker/tls-postgres/certs:/certs:ro
+      - ./docker/tls-postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./docker/tls-postgres/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql -d fraiseql_tls_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis 7 - deduplication, caching, and queue
+  redis:
+    image: redis:7-alpine
+    container_name: fraiseql-test-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # NATS 2.10 with JetStream - event bus for distributed observers
+  nats:
+    image: nats:2.10-alpine
+    container_name: fraiseql-test-nats
+    command: "-js -m 8222"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # HashiCorp Vault (dev mode) - secrets management
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: fraiseql-test-vault
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # MySQL 8.3 - secondary database backend
+  mysql:
+    image: mysql:8.3
+    container_name: fraiseql-test-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: fraiseql_test_root
+      MYSQL_DATABASE: test_fraiseql
+      MYSQL_USER: fraiseql_test
+      MYSQL_PASSWORD: fraiseql_test_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./tests/sql/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fraiseql_test", "-pfraiseql_test_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  mysql_data:
+
+networks:
+  default:
+    name: fraiseql-test-network

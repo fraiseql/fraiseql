@@ -1,0 +1,344 @@
+name: Extended CI - Infrastructure Tests
+
+on:
+  push:
+    branches: [dev, "release/*"]
+  pull_request:
+    branches: [dev]
+  schedule:
+    - cron: '0 2 * * *'  # Nightly at 2 AM UTC
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Redis integration tests (9 tests)
+  redis-tests:
+    name: Redis Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-redis-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Redis queue tests (fraiseql-observers inline)
+        run: cargo test -p fraiseql-observers --features "dedup,caching,queue" -- --ignored --test-threads=1
+        env:
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run Redis integration tests (fraiseql-observers)
+        run: cargo test -p fraiseql-observers --features "dedup,caching,queue,testing" --test integration_test -- --ignored --test-threads=1
+        env:
+          REDIS_URL: redis://localhost:6379
+
+  # NATS integration tests (8 tests)
+  nats-tests:
+    name: NATS Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-nats-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Wait for NATS to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if wget --spider -q http://localhost:8222/healthz 2>/dev/null; then
+              echo "NATS is ready"
+              exit 0
+            fi
+            echo "Waiting for NATS... ($i/30)"
+            sleep 1
+          done
+          echo "NATS failed to start"
+          docker logs nats
+          exit 1
+
+      - name: Run NATS integration tests
+        run: cargo test -p fraiseql-observers --features "nats,testing" --test nats_integration -- --ignored --test-threads=1
+        env:
+          RUST_LOG: debug
+
+  # Vault integration tests (22+ tests)
+  vault-tests:
+    name: Vault Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      vault:
+        image: hashicorp/vault:1.15
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: root
+          VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+        ports:
+          - 8200:8200
+        options: >-
+          --cap-add IPC_LOCK
+          --health-cmd "vault status"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-vault-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Vault integration tests
+        run: cargo test -p fraiseql-server -- --ignored vault --test-threads=1
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: root
+
+  # TLS PostgreSQL tests (5 tests)
+  tls-postgres-tests:
+    name: TLS PostgreSQL Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-tls-pg-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Generate TLS certificates
+        run: |
+          cd docker/tls-postgres
+          chmod +x generate-certs.sh
+          ./generate-certs.sh
+
+      - name: Start TLS PostgreSQL
+        run: docker compose -f docker/tls-postgres/docker-compose.yml up -d
+
+      - name: Wait for TLS PostgreSQL to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f docker/tls-postgres/docker-compose.yml exec -T postgres-tls pg_isready -U fraiseql -d fraiseql_tls_test 2>/dev/null; then
+              echo "TLS PostgreSQL is ready"
+              exit 0
+            fi
+            echo "Waiting for TLS PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          echo "TLS PostgreSQL failed to start"
+          docker compose -f docker/tls-postgres/docker-compose.yml logs
+          exit 1
+
+      - name: Run TLS integration tests
+        run: cargo test -p fraiseql-wire --test tls_integration -- --ignored --test-threads=1
+        env:
+          TLS_TEST_DB_URL: "postgresql://fraiseql:fraiseql_test@localhost:5433/fraiseql_tls_test?sslmode=require"
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker/tls-postgres/docker-compose.yml down -v
+
+  # PostgreSQL + NATS bridge tests (7 tests)
+  bridge-tests:
+    name: Bridge Integration Tests (PostgreSQL + NATS)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bridge-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Wait for NATS to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if wget --spider -q http://localhost:8222/healthz 2>/dev/null; then
+              echo "NATS is ready"
+              exit 0
+            fi
+            echo "Waiting for NATS... ($i/30)"
+            sleep 1
+          done
+          echo "NATS failed to start"
+          docker logs nats
+          exit 1
+
+      - name: Run bridge integration tests
+        run: cargo test -p fraiseql-observers --features "nats,testing,postgres" --test bridge_integration -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+  # Federation Docker Compose tests (61 tests)
+  federation-tests:
+    name: Federation Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-federation-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build and start federation services
+        run: docker compose -f tests/integration/docker-compose.yml up -d --build
+        timeout-minutes: 10
+
+      - name: Wait for federation services to be healthy
+        run: |
+          echo "Waiting for federation services..."
+          for i in $(seq 1 60); do
+            if docker compose -f tests/integration/docker-compose.yml ps | grep -q "unhealthy\|starting"; then
+              echo "Services still starting... ($i/60)"
+              sleep 5
+            else
+              echo "All services are healthy"
+              docker compose -f tests/integration/docker-compose.yml ps
+              exit 0
+            fi
+          done
+          echo "Services failed to become healthy"
+          docker compose -f tests/integration/docker-compose.yml ps
+          docker compose -f tests/integration/docker-compose.yml logs
+          exit 1
+
+      - name: Run federation integration tests
+        run: cargo test -p fraiseql-core --test federation_docker_compose_integration -- --ignored --test-threads=1
+        env:
+          RUST_LOG: debug
+
+      - name: Collect Docker logs on failure
+        if: failure()
+        run: docker compose -f tests/integration/docker-compose.yml logs
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f tests/integration/docker-compose.yml down -v
+
+  # All extended checks passed
+  ci-extended-success:
+    name: Extended CI Success
+    needs: [redis-tests, nats-tests, vault-tests, tls-postgres-tests, bridge-tests, federation-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark extended CI as successful
+        run: echo "All extended CI checks passed!"
