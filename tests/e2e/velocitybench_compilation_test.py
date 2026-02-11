@@ -63,7 +63,7 @@ def compile_schema(schema_json: dict, language_name: str) -> Optional[dict]:
             [cli, "compile", str(schema_path), "-o", str(compiled_path)],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
 
         # Check if compilation succeeded
@@ -113,10 +113,10 @@ def test_canonical_schema_exported_from_all_languages():
         ("Ruby", get_ruby_schema_code, "Ruby DSL"),
     ]
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Phase 1: Schema Code Generation E2E Test")
     print("Testing: All 10 languages generate syntactically valid schema code")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     canonical_normalized = normalize_schema_for_comparison(canonical_schema)
 
@@ -126,14 +126,16 @@ def test_canonical_schema_exported_from_all_languages():
         try:
             code = schema_code_fn()
             # Just verify the code was generated and is non-empty
-            assert isinstance(code, str) and len(code) > 100, f"Invalid code generation for {lang_name}"
+            assert isinstance(code, str) and len(code) > 100, (
+                f"Invalid code generation for {lang_name}"
+            )
             print("✅")
         except Exception as e:
             print(f"❌ Error: {str(e)[:50]}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Phase 1 Complete: All languages can generate valid schema code")
-    print("="*70)
+    print("=" * 70)
 
 
 def test_cli_compilation_framework():
@@ -143,9 +145,9 @@ def test_cli_compilation_framework():
     This test is ready to work once fraiseql-cli stabilizes its schema format.
     Currently the CLI rejects our schema format, but the framework is in place.
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Phase 2: CLI Compilation E2E Test (Framework Ready)")
-    print("="*70)
+    print("=" * 70)
     print("\nNOTE: This test is ready for execution once fraiseql-cli stabilizes.")
     print("Current status: CLI schema format validation in development.\n")
 
@@ -193,9 +195,9 @@ def test_cli_compilation_framework():
             else:
                 print("❌ (DIFFERS)")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("CLI Compilation Results")
-    print("="*70)
+    print("=" * 70)
 
     if len(compiled_schemas) > 0:
         print(f"\n✅ {len(compiled_schemas)}/10 languages compiled successfully")
@@ -243,19 +245,19 @@ def test_compiled_schema_structure():
 
 
 if __name__ == "__main__":
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("VelocityBench Multi-Language E2E Compilation Tests")
     print("Real E2E: All 10 languages → Identical canonical schema.json")
-    print("="*70)
+    print("=" * 70)
 
     test_canonical_schema_structure()
     test_canonical_schema_exported_from_all_languages()
     test_cli_compilation_framework()
     test_compiled_schema_structure()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Multi-Language E2E Test Summary")
-    print("="*70)
+    print("=" * 70)
     print("\n✅ Phase 1: Schema Code Generation")
     print("   All 10 languages successfully generate valid schema code")
     print("\n⏳ Phase 2: CLI Compilation (Framework Ready)")
@@ -264,4 +266,4 @@ if __name__ == "__main__":
     print("  - Each language's schema will be compiled independently")
     print("  - All compiled schemas will be compared for semantic equivalence")
     print("  - This will prove the blogging app is truly multi-language compatible")
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)

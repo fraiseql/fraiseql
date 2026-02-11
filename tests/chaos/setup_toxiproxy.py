@@ -7,10 +7,9 @@ to enable network chaos testing scenarios.
 """
 
 import requests
-import json
 import time
 import sys
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 
 class FraiseQLToxiproxySetup:
@@ -131,7 +130,7 @@ class FraiseQLToxiproxySetup:
             print(f"❌ Chaos demonstration failed: {e}")
             return False
 
-    def get_proxy(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_proxy(self, name: str) -> Optional[dict[str, Any]]:
         """Get proxy configuration."""
         try:
             response = requests.get(f"{self.base_url}/proxies/{name}")
@@ -141,7 +140,7 @@ class FraiseQLToxiproxySetup:
         except:
             return None
 
-    def list_proxies(self) -> Dict[str, Any]:
+    def list_proxies(self) -> dict[str, Any]:
         """List all proxies."""
         try:
             response = requests.get(f"{self.base_url}/proxies")

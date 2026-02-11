@@ -79,7 +79,7 @@ def test_velocitybench_blogging_app():
                         {"name": "email", "type": "String", "nullable": True},
                         {"name": "bio", "type": "String", "nullable": True},
                         {"name": "createdAt", "type": "String", "nullable": False},
-                    ]
+                    ],
                 },
                 {
                     "name": "Post",
@@ -90,7 +90,7 @@ def test_velocitybench_blogging_app():
                         {"name": "published", "type": "Boolean", "nullable": False},
                         {"name": "authorId", "type": "ID", "nullable": False},
                         {"name": "createdAt", "type": "String", "nullable": False},
-                    ]
+                    ],
                 },
                 {
                     "name": "Comment",
@@ -100,67 +100,67 @@ def test_velocitybench_blogging_app():
                         {"name": "authorId", "type": "ID", "nullable": False},
                         {"name": "postId", "type": "ID", "nullable": False},
                         {"name": "createdAt", "type": "String", "nullable": False},
-                    ]
-                }
+                    ],
+                },
             ],
             "queries": [
                 {
                     "name": "users",
                     "arguments": [
                         {"name": "limit", "type": "Int", "default": 10},
-                        {"name": "offset", "type": "Int", "default": 0}
+                        {"name": "offset", "type": "Int", "default": 0},
                     ],
                     "return_type": "User",
                     "returns_list": True,
-                    "sql_source": "v_users"
+                    "sql_source": "v_users",
                 },
                 {
                     "name": "posts",
                     "arguments": [
                         {"name": "published", "type": "Boolean"},
                         {"name": "limit", "type": "Int", "default": 10},
-                        {"name": "offset", "type": "Int", "default": 0}
+                        {"name": "offset", "type": "Int", "default": 0},
                     ],
                     "return_type": "Post",
                     "returns_list": True,
-                    "sql_source": "v_posts"
+                    "sql_source": "v_posts",
                 },
                 {
                     "name": "comments",
                     "arguments": [
                         {"name": "postId", "type": "ID"},
-                        {"name": "limit", "type": "Int", "default": 10}
+                        {"name": "limit", "type": "Int", "default": 10},
                     ],
                     "return_type": "Comment",
                     "returns_list": True,
-                    "sql_source": "v_comments"
-                }
+                    "sql_source": "v_comments",
+                },
             ],
             "mutations": [
                 {
                     "name": "createUser",
                     "arguments": [
                         {"name": "username", "type": "String"},
-                        {"name": "email", "type": "String"}
+                        {"name": "email", "type": "String"},
                     ],
                     "return_type": "User",
                     "returns_list": False,
                     "nullable": False,
-                    "sql_source": "fn_create_user"
+                    "sql_source": "fn_create_user",
                 },
                 {
                     "name": "createPost",
                     "arguments": [
                         {"name": "title", "type": "String"},
                         {"name": "content", "type": "String"},
-                        {"name": "authorId", "type": "ID"}
+                        {"name": "authorId", "type": "ID"},
                     ],
                     "return_type": "Post",
                     "returns_list": False,
                     "nullable": False,
-                    "sql_source": "fn_create_post"
-                }
-            ]
+                    "sql_source": "fn_create_post",
+                },
+            ],
         }
 
         # Write schema to file
@@ -190,7 +190,7 @@ def test_velocitybench_blogging_app():
         result = subprocess.run(
             [str(cli_path), "compile", str(schema_path), "-o", str(compiled_path)],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if result.returncode == 0:

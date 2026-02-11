@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Optional, TypeVar, Union, get_args, get_origin
+from typing import Any, TypeVar, Union, get_args, get_origin
 
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composed
@@ -193,16 +193,16 @@ class FraiseQLRepository:
     No mode detection or branching - single execution path.
     """
 
-    def __init__(self, pool: AsyncConnectionPool, context: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, pool: AsyncConnectionPool, context: dict[str, Any] | None = None) -> None:
         """Initialize with an async connection pool and optional context."""
         self._pool = pool
         self.context = context or {}
         # Get query timeout from context or use default (30 seconds)
         self.query_timeout = self.context.get("query_timeout", 30)
         # Cache for type names to avoid repeated registry lookups
-        self._type_name_cache: dict[str, Optional[str]] = {}
+        self._type_name_cache: dict[str, str | None] = {}
 
-    def _get_cached_type_name(self, view_name: str) -> Optional[str]:
+    def _get_cached_type_name(self, view_name: str) -> str | None:
         """Get cached type name for a view, or lookup and cache it if not found.
 
         This avoids repeated registry lookups for the same view across multiple queries.
@@ -1636,7 +1636,7 @@ class FraiseQLRepository:
 
         return where_parts, all_params
 
-    def _extract_type(self, field_type: type) -> Optional[type]:
+    def _extract_type(self, field_type: type) -> type | None:
         """Extract the actual type from Optional, Union, etc."""
         origin = get_origin(field_type)
         if origin is Union:

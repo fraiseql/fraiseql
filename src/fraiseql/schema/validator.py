@@ -1,7 +1,7 @@
 """Schema validation for FraiseQL requirements."""
 
 import types
-from typing import Any, List, Type
+from typing import Any
 
 
 class SchemaValidator:
@@ -10,9 +10,9 @@ class SchemaValidator:
     @staticmethod
     def validate_mutation_types(
         mutation_name: str,
-        success_type: Type,
-        error_type: Type,
-    ) -> List[str]:
+        success_type: type,
+        error_type: type,
+    ) -> list[str]:
         """Validate mutation types conform to requirements.
 
         Returns:
@@ -31,8 +31,8 @@ class SchemaValidator:
     @staticmethod
     def _validate_success_type(
         mutation_name: str,
-        success_type: Type,
-    ) -> List[str]:
+        success_type: type,
+    ) -> list[str]:
         """Validate Success type requirements."""
         errors = []
 
@@ -78,7 +78,7 @@ class SchemaValidator:
         return errors
 
     @staticmethod
-    def _validate_error_type(error_type: Type) -> List[str]:
+    def _validate_error_type(error_type: type) -> list[str]:
         """Validate Error type requirements."""
         errors = []
 

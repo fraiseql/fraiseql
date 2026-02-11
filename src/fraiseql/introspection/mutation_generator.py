@@ -5,7 +5,7 @@ functions with automatic Union return type handling.
 """
 
 import logging
-from typing import TYPE_CHECKING, Callable, Type
+from typing import TYPE_CHECKING, Callable
 
 from .input_generator import InputGenerator
 from .metadata_parser import MutationAnnotation
@@ -100,7 +100,7 @@ class MutationGenerator:
         self,
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
-        type_registry: dict[str, Type],
+        type_registry: dict[str, type],
         introspector: "PostgresIntrospector",
     ) -> Callable | None:
         """Generate mutation from function (created by SpecQL).
@@ -167,10 +167,10 @@ class MutationGenerator:
         self,
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
-        input_cls: Type,
-        success_type: Type,
-        error_type: Type,
-    ) -> Type:
+        input_cls: type,
+        success_type: type,
+        error_type: type,
+    ) -> type:
         """Create a mutation class with proper type annotations."""
         # Create class name
         class_name = self._function_to_mutation_class_name(function_metadata.function_name)

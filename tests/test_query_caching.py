@@ -33,7 +33,7 @@ def test_schema():
                 "jsonb_column": "data",
                 "fk_mappings": {},
                 "has_jsonb_data": True,
-            }
+            },
         },
         "types": {},
     }

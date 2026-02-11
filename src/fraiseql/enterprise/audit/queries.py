@@ -1,7 +1,5 @@
 """Enterprise audit logging queries."""
 
-from typing import Optional
-
 from fraiseql.enterprise.audit.types import AuditEventConnection, AuditEventFilter
 from fraiseql.strawberry_compat import strawberry
 
@@ -13,9 +11,9 @@ class AuditQueries:
     @strawberry.field
     def audit_events(
         self,
-        filter: Optional[AuditEventFilter] = None,
-        first: Optional[int] = None,
-        after: Optional[str] = None,
+        filter: AuditEventFilter | None = None,
+        first: int | None = None,
+        after: str | None = None,
     ) -> AuditEventConnection:
         """Query audit events with optional filtering and pagination."""
         # This would be implemented with actual database queries
@@ -25,8 +23,8 @@ class AuditQueries:
     @strawberry.field
     def verify_audit_chain(
         self,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
     ) -> bool:
         """Verify the integrity of the audit event chain."""
         # This would call the verify_audit_chain PostgreSQL function

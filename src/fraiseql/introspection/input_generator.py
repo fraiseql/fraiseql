@@ -5,7 +5,7 @@ function parameters for mutation generation.
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING
 
 from .metadata_parser import MetadataParser, MutationAnnotation
 from .postgres_introspector import FunctionMetadata, ParameterInfo
@@ -97,7 +97,7 @@ class InputGenerator:
 
     async def _generate_from_composite_type(
         self, composite_type_name: str, schema_name: str, introspector: "PostgresIntrospector"
-    ) -> Type:
+    ) -> type:
         """Generate input class from PostgreSQL composite type (created by SpecQL).
 
         This method READS the composite type from the database and generates
@@ -219,8 +219,8 @@ class InputGenerator:
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
         introspector: "PostgresIntrospector",
-        context_params: Optional[dict[str, str]] = None,  # NEW: Explicit exclusion list
-    ) -> Type:
+        context_params: dict[str, str] | None = None,  # NEW: Explicit exclusion list
+    ) -> type:
         """Generate input class for mutation.
 
         Strategy:
@@ -283,8 +283,8 @@ class InputGenerator:
         self,
         function_metadata: FunctionMetadata,
         annotation: MutationAnnotation,
-        context_params: Optional[dict[str, str]] = None,
-    ) -> Type:
+        context_params: dict[str, str] | None = None,
+    ) -> type:
         """Generate input class from function parameters (legacy pattern).
 
         This is the original implementation for backward compatibility.

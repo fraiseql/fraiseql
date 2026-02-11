@@ -62,10 +62,7 @@ class EnvironmentInfo:
 
     def __str__(self) -> str:
         """String representation."""
-        return (
-            f"EnvironmentInfo(type={self.environment_type}, "
-            f"{self.hardware})"
-        )
+        return f"EnvironmentInfo(type={self.environment_type}, {self.hardware})"
 
 
 def detect_hardware_profile() -> HardwareProfile:

@@ -6,7 +6,7 @@ Tests validate that FraiseQL maintains stability and performance under resource 
 """
 
 import statistics
-from typing import Dict, Any, List, Tuple
+from typing import Any
 from chaos.base import ChaosTestCase
 
 
@@ -28,7 +28,7 @@ class Phase4SuccessCriteria:
     @classmethod
     def validate_resource_chaos_test(
         cls, test_case: ChaosTestCase, resource_type: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate resource chaos test results.
 
@@ -102,7 +102,7 @@ class Phase4SuccessCriteria:
     @classmethod
     def validate_concurrency_chaos_test(
         cls, test_case: ChaosTestCase, concurrency_type: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate concurrency chaos test results.
 
@@ -185,8 +185,8 @@ class Phase4SuccessCriteria:
 
     @classmethod
     def validate_phase4_overall_success(
-        cls, test_results: List[Tuple[bool, str, Dict[str, Any]]]
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+        cls, test_results: list[tuple[bool, str, dict[str, Any]]]
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate overall Phase 4 success based on all resource and concurrency chaos test results.
 
@@ -284,11 +284,11 @@ class Phase4SuccessCriteria:
     @classmethod
     def _generate_phase4_recommendations(
         cls,
-        test_results: List[Tuple[bool, str, Dict[str, Any]]],
+        test_results: list[tuple[bool, str, dict[str, Any]]],
         pass_rate: float,
         resource_failures: int,
         concurrency_failures: int,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate recommendations based on Phase 4 test results."""
         recommendations = []
 
@@ -365,7 +365,7 @@ class Phase4SuccessCriteria:
 
 def validate_resource_concurrency_chaos_test_success(
     test_case: ChaosTestCase, test_type: str, **kwargs
-) -> Tuple[bool, str, Dict[str, Any]]:
+) -> tuple[bool, str, dict[str, Any]]:
     """
     Validate a resource or concurrency chaos test based on its type and success criteria.
 
@@ -388,7 +388,7 @@ def validate_resource_concurrency_chaos_test_success(
         return False, "FAIL", {"issues": [f"Unknown resource/concurrency test type: {test_type}"]}
 
 
-def generate_phase4_report(test_results: List[Tuple[bool, str, Dict[str, Any]]]) -> Dict[str, Any]:
+def generate_phase4_report(test_results: list[tuple[bool, str, dict[str, Any]]]) -> dict[str, Any]:
     """Generate a comprehensive Phase 4 resource and concurrency chaos report."""
     overall_passed, status, summary = Phase4SuccessCriteria.validate_phase4_overall_success(
         test_results
@@ -470,7 +470,7 @@ def generate_phase4_report(test_results: List[Tuple[bool, str, Dict[str, Any]]])
     return report
 
 
-def print_phase4_report(report: Dict[str, Any]):
+def print_phase4_report(report: dict[str, Any]):
     """Print a formatted Phase 4 resource and concurrency chaos report."""
     print("\n" + "=" * 60)
     print("PHASE 4 RESOURCE & CONCURRENCY CHAOS REPORT")

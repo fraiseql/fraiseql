@@ -8,6 +8,7 @@ import pytest
 # Phase 10 bindings are now exported - tests can run
 try:
     from fraiseql._fraiseql_rs import PyAuthProvider, PyUserContext
+
     HAS_RUST_AUTH = True
 except ImportError:
     HAS_RUST_AUTH = False
@@ -59,7 +60,9 @@ class TestAuth0Provider:
     def test_auth0_provider_has_validation_method(self):
         """Test that Auth0 provider has token validation method."""
         provider = PyAuthProvider.auth0("example.auth0.com", ["https://example.com"])
-        assert hasattr(provider, "validate_token_blocking"), "Should have validate_token_blocking method"
+        assert hasattr(provider, "validate_token_blocking"), (
+            "Should have validate_token_blocking method"
+        )
         assert callable(provider.validate_token_blocking)
 
     def test_auth0_invalid_token(self):
@@ -105,7 +108,7 @@ class TestCustomJWTProvider:
         provider = PyAuthProvider.jwt(
             issuer="https://example.com",
             audience=["https://api.example.com"],
-            jwks_url="https://example.com/.well-known/jwks.json"
+            jwks_url="https://example.com/.well-known/jwks.json",
         )
         assert provider is not None
         assert provider.provider_type() == "jwt"
@@ -116,7 +119,7 @@ class TestCustomJWTProvider:
         provider = PyAuthProvider.jwt(
             issuer="https://example.com",
             audience=["https://api.example.com"],
-            jwks_url="https://example.com/.well-known/jwks.json"
+            jwks_url="https://example.com/.well-known/jwks.json",
         )
         assert provider is not None
 
@@ -125,7 +128,7 @@ class TestCustomJWTProvider:
             PyAuthProvider.jwt(
                 issuer="https://example.com",
                 audience=["https://api.example.com"],
-                jwks_url="http://example.com/.well-known/jwks.json"  # HTTP, not HTTPS
+                jwks_url="http://example.com/.well-known/jwks.json",  # HTTP, not HTTPS
             )
             assert False, "Should reject HTTP JWKS URL"
         except ValueError:
@@ -136,7 +139,7 @@ class TestCustomJWTProvider:
         provider = PyAuthProvider.jwt(
             issuer="https://example.com",
             audience=["https://api.example.com"],
-            jwks_url="https://example.com/.well-known/jwks.json"
+            jwks_url="https://example.com/.well-known/jwks.json",
         )
 
         # Test with invalid token
@@ -225,7 +228,7 @@ class TestSecurity:
         provider = PyAuthProvider.jwt(
             issuer="https://example.com",
             audience=["https://api.example.com"],
-            jwks_url="https://example.com/.well-known/jwks.json"
+            jwks_url="https://example.com/.well-known/jwks.json",
         )
         assert provider is not None
 
@@ -234,7 +237,7 @@ class TestSecurity:
             PyAuthProvider.jwt(
                 issuer="https://example.com",
                 audience=["https://api.example.com"],
-                jwks_url="http://insecure.com/.well-known/jwks.json"
+                jwks_url="http://insecure.com/.well-known/jwks.json",
             )
             assert False, "Should reject HTTP JWKS URLs"
         except (ValueError, RuntimeError):
@@ -264,8 +267,7 @@ class TestSecurity:
         """Test that audience is validated during provider creation."""
         # Multiple audiences should work
         provider = PyAuthProvider.auth0(
-            "example.auth0.com",
-            ["https://api1.example.com", "https://api2.example.com"]
+            "example.auth0.com", ["https://api1.example.com", "https://api2.example.com"]
         )
         assert provider.audience() == ["https://api1.example.com", "https://api2.example.com"]
 

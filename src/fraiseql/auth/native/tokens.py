@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 import jwt
 from psycopg import AsyncCursor
@@ -57,8 +57,8 @@ class TokenManager:
     def generate_tokens(
         self,
         user_id: str,
-        family_id: Optional[str] = None,
-        user_claims: Optional[dict[str, Any]] = None,
+        family_id: str | None = None,
+        user_claims: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate access and refresh tokens.
 
@@ -231,7 +231,7 @@ class TokenManager:
             (family_id,),
         )
 
-    def extract_user_id(self, token: str) -> Optional[str]:
+    def extract_user_id(self, token: str) -> str | None:
         """Extract user ID from token without full verification.
 
         This is useful for logging or non-security-critical operations.

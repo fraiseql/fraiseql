@@ -8,7 +8,7 @@ including metrics collection, test case management, and chaos injection utilitie
 import time
 import statistics
 import unittest
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 from dataclasses import dataclass, field
 
 
@@ -22,13 +22,13 @@ class ChaosMetrics:
     duration_ms: Optional[float] = None
 
     # Performance metrics
-    query_times_ms: List[float] = field(default_factory=list)
+    query_times_ms: list[float] = field(default_factory=list)
     error_count: int = 0
     retry_count: int = 0
 
     # System metrics
-    memory_usage_mb: List[float] = field(default_factory=list)
-    cpu_usage_percent: List[float] = field(default_factory=list)
+    memory_usage_mb: list[float] = field(default_factory=list)
+    cpu_usage_percent: list[float] = field(default_factory=list)
 
     # Chaos injection metrics
     chaos_injection_time: Optional[float] = None
@@ -68,7 +68,7 @@ class ChaosMetrics:
             self.chaos_recovery_time = recovery_time
             self.chaos_active_duration_ms = (recovery_time - self.chaos_injection_time) * 1000
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get a summary of the chaos test metrics."""
         return {
             "duration_ms": self.duration_ms,
@@ -114,7 +114,7 @@ class ChaosTestCase(unittest.TestCase):
         self.metrics.end_test()
         self._save_results()
 
-    def load_baseline(self, baseline_file: Optional[str] = None) -> Dict[str, Any]:
+    def load_baseline(self, baseline_file: Optional[str] = None) -> dict[str, Any]:
         """Load baseline metrics for comparison."""
         import json
 
@@ -126,7 +126,7 @@ class ChaosTestCase(unittest.TestCase):
         except FileNotFoundError:
             return {}
 
-    def compare_to_baseline(self, operation: str) -> Dict[str, Any]:
+    def compare_to_baseline(self, operation: str) -> dict[str, Any]:
         """Compare current metrics to baseline."""
         baseline = self.load_baseline()
         current = self.metrics.get_summary()

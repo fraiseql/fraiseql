@@ -6,8 +6,6 @@ from unittest.mock import AsyncMock, patch
 
 from src.fraiseql.core.graphql_pipeline import (
     RustGraphQLPipeline,
-    execute_graphql_query,
-    execute_graphql_mutation,
 )
 
 
@@ -66,10 +64,7 @@ class TestGraphQLPipelineBasic:
         query_def = {"operation": "query", "table": "users", "fields": ["id", "name"]}
 
         # Mock the Rust function - should return GraphQL format with data/errors
-        mock_result = json.dumps({
-            "data": [{"id": 1, "name": "Test User"}],
-            "errors": None
-        })
+        mock_result = json.dumps({"data": [{"id": 1, "name": "Test User"}], "errors": None})
 
         with patch.object(
             pipeline._rust, "execute_query_async", new_callable=AsyncMock
@@ -152,7 +147,6 @@ class TestGraphQLPipelineBasic:
         """Test that convenience functions exist."""
         # These are just smoke tests to ensure the functions exist
         # They would need proper async testing in a real test environment
-        import asyncio
 
         async def test_functions():
             # Test convenience functions exist (would need real Rust backend)

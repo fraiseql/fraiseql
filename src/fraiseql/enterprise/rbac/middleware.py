@@ -14,7 +14,7 @@ resolver-level checks. See directives.py for enforcement implementation.
 """
 
 import logging
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable
 from uuid import UUID
 
 from .cache import PermissionCache
@@ -42,7 +42,7 @@ class RbacMiddleware:
         )
     """
 
-    def __init__(self, permission_resolver: Optional[PermissionResolver] = None) -> None:
+    def __init__(self, permission_resolver: PermissionResolver | None = None) -> None:
         """Initialize RBAC middleware.
 
         Args:
@@ -115,7 +115,7 @@ class RbacMiddleware:
 
         return context
 
-    def _extract_user_id(self, context: dict[str, Any]) -> Optional[UUID]:
+    def _extract_user_id(self, context: dict[str, Any]) -> UUID | None:
         """Extract user ID from GraphQL context.
 
         Customize this method based on your authentication system.
@@ -149,7 +149,7 @@ class RbacMiddleware:
         user_id = context.get("user_id")
         return UUID(user_id) if user_id else None
 
-    def _extract_tenant_id(self, context: dict[str, Any]) -> Optional[UUID]:
+    def _extract_tenant_id(self, context: dict[str, Any]) -> UUID | None:
         """Extract tenant ID from GraphQL context.
 
         Args:
@@ -185,7 +185,7 @@ class RbacMiddleware:
         tenant_id = context.get("tenant_id")
         return UUID(tenant_id) if tenant_id else None
 
-    def _get_permission_resolver(self, context: dict[str, Any]) -> Optional[PermissionResolver]:
+    def _get_permission_resolver(self, context: dict[str, Any]) -> PermissionResolver | None:
         """Get or create PermissionResolver for the request.
 
         Args:
@@ -233,7 +233,7 @@ class RbacMiddleware:
 
 # Convenience function for easy middleware setup
 def create_rbac_middleware(
-    permission_resolver: Optional[PermissionResolver] = None,
+    permission_resolver: PermissionResolver | None = None,
 ) -> RbacMiddleware:
     """Create RBAC middleware instance.
 

@@ -643,17 +643,17 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
         """Filter operations for custom scalar types."""
 
         # Equality and comparison operators
-        eq: Optional[scalar_type] = None
-        ne: Optional[scalar_type] = None
+        eq: scalar_type | None = None
+        ne: scalar_type | None = None
 
         # List membership operators (with GraphQL name mapping)
-        in_: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="in")
-        not_in: Optional[list[scalar_type]] = fraise_field(default=None, graphql_name="notIn")
+        in_: list[scalar_type] | None = fraise_field(default=None, graphql_name="in")
+        not_in: list[scalar_type] | None = fraise_field(default=None, graphql_name="notIn")
 
         # String pattern matching operators (may be useful for custom scalars)
-        contains: Optional[scalar_type] = None
-        starts_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="startsWith")
-        ends_with: Optional[scalar_type] = fraise_field(default=None, graphql_name="endsWith")
+        contains: scalar_type | None = None
+        starts_with: scalar_type | None = fraise_field(default=None, graphql_name="startsWith")
+        ends_with: scalar_type | None = fraise_field(default=None, graphql_name="endsWith")
 
     # Set the class name dynamically
     CustomScalarFilter.__name__ = filter_name

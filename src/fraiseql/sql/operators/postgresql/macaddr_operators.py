@@ -1,6 +1,6 @@
 """MAC address operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable
 
@@ -18,7 +18,7 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"eq", "neq", "in", "nin", "notin", "isnull"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a MAC address operator."""
         # Only support operators for MAC address fields
         if field_type is not None:
@@ -37,9 +37,9 @@ class MacAddressOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for MAC address operators with proper casting.
 
         Always casts both field and value to ::macaddr for type-safe comparisons.

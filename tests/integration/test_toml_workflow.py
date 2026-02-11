@@ -13,9 +13,7 @@ security, observers, and analytics.
 """
 
 import json
-import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -35,6 +33,7 @@ def find_fraiseql_cli():
     """
     # Try PATH first
     import shutil
+
     fraiseql_path = shutil.which("fraiseql-cli")
     if fraiseql_path:
         return fraiseql_path
@@ -50,10 +49,7 @@ def find_fraiseql_cli():
         return str(release_path)
 
     # Not found
-    raise FileNotFoundError(
-        "fraiseql-cli not found. "
-        "Build with: cargo build -p fraiseql-cli"
-    )
+    raise FileNotFoundError("fraiseql-cli not found. Build with: cargo build -p fraiseql-cli")
 
 
 def create_test_directory():
@@ -111,7 +107,7 @@ def test_python_toml_workflow():
                     "id": {"type": "ID", "nullable": False},
                     "name": {"type": "String", "nullable": False},
                     "email": {"type": "String", "nullable": False},
-                }
+                },
             }
         }
     }
@@ -145,7 +141,15 @@ event = "INSERT"
     output_file = tmpdir / "schema.compiled.json"
     fraiseql_cli = find_fraiseql_cli()
     result = subprocess.run(
-        [fraiseql_cli, "compile", str(toml_file), "--types", str(types_file), "-o", str(output_file)],
+        [
+            fraiseql_cli,
+            "compile",
+            str(toml_file),
+            "--types",
+            str(types_file),
+            "-o",
+            str(output_file),
+        ],
         capture_output=True,
         text=True,
     )
@@ -211,7 +215,7 @@ def test_typescript_toml_workflow():
                     "id": {"type": "ID", "nullable": False},
                     "title": {"type": "String", "nullable": False},
                     "content": {"type": "String", "nullable": False},
-                }
+                },
             }
         }
     }
@@ -245,7 +249,15 @@ event = "INSERT"
     output_file = tmpdir / "schema.compiled.json"
     fraiseql_cli = find_fraiseql_cli()
     result = subprocess.run(
-        [fraiseql_cli, "compile", str(toml_file), "--types", str(types_file), "-o", str(output_file)],
+        [
+            fraiseql_cli,
+            "compile",
+            str(toml_file),
+            "--types",
+            str(types_file),
+            "-o",
+            str(output_file),
+        ],
         capture_output=True,
         text=True,
     )
@@ -301,7 +313,7 @@ def test_java_toml_workflow():
                     "id": {"type": "ID", "nullable": False},
                     "total": {"type": "Float", "nullable": False},
                     "status": {"type": "String", "nullable": False},
-                }
+                },
             }
         }
     }
@@ -336,7 +348,15 @@ condition = "total > 100"
     output_file = tmpdir / "schema.compiled.json"
     fraiseql_cli = find_fraiseql_cli()
     result = subprocess.run(
-        [fraiseql_cli, "compile", str(toml_file), "--types", str(types_file), "-o", str(output_file)],
+        [
+            fraiseql_cli,
+            "compile",
+            str(toml_file),
+            "--types",
+            str(types_file),
+            "-o",
+            str(output_file),
+        ],
         capture_output=True,
         text=True,
     )
@@ -370,7 +390,9 @@ condition = "total > 100"
 
     # Observers from TOML
     assert "orderCreated" in compiled["observers"], "Missing 'orderCreated' observer from TOML"
-    assert compiled["observers"]["orderCreated"]["condition"] == "total > 100", "Observer condition not set"
+    assert compiled["observers"]["orderCreated"]["condition"] == "total > 100", (
+        "Observer condition not set"
+    )
 
     print("✅ Java + TOML workflow test passed")
 
@@ -397,21 +419,21 @@ def test_all_three_languages_with_single_toml():
                 "fields": {
                     "id": {"type": "ID", "nullable": False},
                     "name": {"type": "String", "nullable": False},
-                }
+                },
             },
             "Post": {  # From TypeScript
                 "name": "Post",
                 "fields": {
                     "id": {"type": "ID", "nullable": False},
                     "title": {"type": "String", "nullable": False},
-                }
+                },
             },
             "Order": {  # From Java
                 "name": "Order",
                 "fields": {
                     "id": {"type": "ID", "nullable": False},
                     "total": {"type": "Float", "nullable": False},
-                }
+                },
             },
         }
     }
@@ -502,7 +524,15 @@ return_type = "NonExistentType"
     output_file = tmpdir / "schema.compiled.json"
     fraiseql_cli = find_fraiseql_cli()
     result = subprocess.run(
-        [fraiseql_cli, "compile", str(toml_file), "--types", str(types_file), "-o", str(output_file)],
+        [
+            fraiseql_cli,
+            "compile",
+            str(toml_file),
+            "--types",
+            str(types_file),
+            "-o",
+            str(output_file),
+        ],
         capture_output=True,
         text=True,
     )

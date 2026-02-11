@@ -68,6 +68,6 @@ def get_non_optional_type(typ: type[Any]) -> type[Any]:
     if len(non_none_args) > 1:
         # Use Union instead of | syntax to avoid issues with GraphQL schema building
         # The | syntax creates a UnionType that may not be properly handled downstream
-        return Union[tuple(non_none_args)]  # type: ignore[return-value]
+        return Union[tuple(non_none_args)]  # type: ignore[return-value]  # noqa: UP007 — runtime type construction
     msg = f"Could not extract a valid non-optional type from {typ}. Arguments were: {args}"
     raise TypeError(msg)

@@ -1,7 +1,7 @@
 """Products subgraph schema - extends Order, owns Product entity"""
 
-from fraiseql import type, key, extends, external, requires, query, mutation, ID
-from typing import Optional, List
+from fraiseql import type, key, extends, external, ID
+from typing import Optional
 
 
 @extends
@@ -9,14 +9,16 @@ from typing import Optional, List
 @type
 class Order:
     """Order extended from orders subgraph"""
+
     id: ID = external()
-    products: List["Product"]
+    products: list["Product"]
 
 
 @type
 @key(fields=["id"])
 class Product:
     """Product entity - owned by this subgraph"""
+
     id: ID
     identifier: str
     name: str
@@ -33,15 +35,15 @@ class Query:
         """Get product by ID"""
         pass
 
-    def products(self) -> List[Product]:
+    def products(self) -> list[Product]:
         """Get all products"""
         pass
 
-    def products_in_stock(self) -> List[Product]:
+    def products_in_stock(self) -> list[Product]:
         """Get products in stock"""
         pass
 
-    def products_by_price_range(self, min_price: float, max_price: float) -> List[Product]:
+    def products_by_price_range(self, min_price: float, max_price: float) -> list[Product]:
         """Get products in price range"""
         pass
 
@@ -56,7 +58,7 @@ class Mutation:
         name: str,
         price: float,
         stock: int,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> Product:
         """Create a new product"""
         pass

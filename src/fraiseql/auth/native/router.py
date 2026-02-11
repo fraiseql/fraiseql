@@ -3,7 +3,7 @@
 import hashlib
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, AsyncGenerator, Optional
+from typing import Annotated, AsyncGenerator
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -131,8 +131,8 @@ class SessionResponse(BaseModel):
     """Response model for session data."""
 
     id: UUID
-    user_agent: Optional[str]
-    ip_address: Optional[str]
+    user_agent: str | None
+    ip_address: str | None
     created_at: datetime
     last_used_at: datetime
     is_current: bool = False

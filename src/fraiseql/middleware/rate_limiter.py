@@ -8,7 +8,7 @@ import asyncio
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Awaitable, Callable, Optional, Protocol
+from typing import TYPE_CHECKING, Awaitable, Callable, Protocol
 
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -72,7 +72,7 @@ class RateLimitConfig:
     window_type: str = "sliding"
 
     # Custom key function to identify clients
-    key_func: Optional[Callable[[Request], str]] = None
+    key_func: Callable[[Request], str] | None = None
 
     # IP whitelist (never rate limited)
     whitelist: list[str] = field(default_factory=list)

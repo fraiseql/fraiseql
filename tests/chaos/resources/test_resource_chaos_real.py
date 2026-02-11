@@ -7,7 +7,6 @@ and graceful degradation under resource constraints.
 """
 
 import pytest
-import time
 import random
 import statistics
 import asyncio

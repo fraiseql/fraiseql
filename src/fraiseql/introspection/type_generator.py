@@ -5,7 +5,7 @@ dynamically from PostgreSQL view metadata and @fraiseql annotations.
 """
 
 import logging
-from typing import Any, Optional, Type
+from typing import Any
 from uuid import UUID
 
 from .metadata_parser import TypeAnnotation
@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 class TypeGenerator:
     """Generate FraiseQL @type classes dynamically."""
 
-    def __init__(self, type_mapper: Optional[TypeMapper] = None):
+    def __init__(self, type_mapper: TypeMapper | None = None):
         self.type_mapper = type_mapper or TypeMapper()
 
     async def generate_type_class(
         self, view_metadata: ViewMetadata, annotation: TypeAnnotation, db_pool: Any
-    ) -> Type:
+    ) -> type:
         """Generate a @type class from view metadata.
 
         Steps:
@@ -189,7 +189,7 @@ class TypeGenerator:
         parts = name.split("_")
         return "".join(part.capitalize() for part in parts)
 
-    def _apply_type_decorator(self, cls: Type, sql_source: str, annotation: TypeAnnotation) -> Type:
+    def _apply_type_decorator(self, cls: type, sql_source: str, annotation: TypeAnnotation) -> type:
         """Apply the @type decorator to the class."""
         # Import here to avoid circular imports
         from fraiseql import type as fraiseql_type
@@ -199,7 +199,7 @@ class TypeGenerator:
 
         return decorated_cls
 
-    def _register_type(self, cls: Type):
+    def _register_type(self, cls: type):
         """Register the type in FraiseQL's type registry."""
         # Import here to avoid circular imports
         from fraiseql.db import _type_registry

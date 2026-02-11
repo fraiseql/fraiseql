@@ -6,7 +6,7 @@ Tests validate that FraiseQL maintains acceptable performance and reliability un
 """
 
 import statistics
-from typing import Dict, Any, List, Tuple
+from typing import Any
 from chaos.base import ChaosTestCase
 
 
@@ -25,8 +25,8 @@ class Phase1SuccessCriteria:
 
     @classmethod
     def validate_connection_chaos_test(
-        cls, test_case: ChaosTestCase, baseline_metrics: Dict[str, Any]
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+        cls, test_case: ChaosTestCase, baseline_metrics: dict[str, Any]
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate database connection chaos test results.
 
@@ -72,7 +72,7 @@ class Phase1SuccessCriteria:
     @classmethod
     def validate_latency_chaos_test(
         cls, test_case: ChaosTestCase, latency_ms: int
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate network latency chaos test results.
 
@@ -110,9 +110,7 @@ class Phase1SuccessCriteria:
         # Check error rate is acceptable
         error_rate = results.get("error_count", 0) / max(total_ops, 1)
         if error_rate > 0.2:  # Max 20% errors under latency
-            issues.append(
-                f"Error rate too high under latency: {error_rate:.1%} (max 20%)"
-            )
+            issues.append(f"Error rate too high under latency: {error_rate:.1%} (max 20%)")
             passed = False
 
         status_msg = "PASS" if passed else "FAIL"
@@ -130,7 +128,7 @@ class Phase1SuccessCriteria:
     @classmethod
     def validate_packet_loss_chaos_test(
         cls, test_case: ChaosTestCase, loss_rate: float
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate packet loss chaos test results.
 
@@ -178,8 +176,8 @@ class Phase1SuccessCriteria:
 
     @classmethod
     def validate_phase1_overall_success(
-        cls, test_results: List[Tuple[bool, str, Dict[str, Any]]]
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+        cls, test_results: list[tuple[bool, str, dict[str, Any]]]
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate overall Phase 1 success based on all test results.
 
@@ -245,8 +243,8 @@ class Phase1SuccessCriteria:
 
     @classmethod
     def _generate_recommendations(
-        cls, test_results: List[Tuple[bool, str, Dict[str, Any]]], pass_rate: float
-    ) -> List[str]:
+        cls, test_results: list[tuple[bool, str, dict[str, Any]]], pass_rate: float
+    ) -> list[str]:
         """Generate recommendations based on test results."""
         recommendations = []
 
@@ -293,8 +291,8 @@ class Phase1SuccessCriteria:
 
 
 def validate_chaos_test_success(
-    test_case: ChaosTestCase, test_type: str, baseline_metrics: Dict[str, Any], **kwargs
-) -> Tuple[bool, str, Dict[str, Any]]:
+    test_case: ChaosTestCase, test_type: str, baseline_metrics: dict[str, Any], **kwargs
+) -> tuple[bool, str, dict[str, Any]]:
     """
     Validate a chaos test based on its type and success criteria.
 
@@ -327,8 +325,8 @@ class Phase1Statistics:
 
     @staticmethod
     def generate_phase_report(
-        test_results: List[Tuple[bool, str, Dict[str, Any]]],
-    ) -> Dict[str, Any]:
+        test_results: list[tuple[bool, str, dict[str, Any]]],
+    ) -> dict[str, Any]:
         """Generate a comprehensive Phase 1 report."""
         overall_passed, status, summary = Phase1SuccessCriteria.validate_phase1_overall_success(
             test_results
@@ -379,7 +377,7 @@ class Phase1Statistics:
         return report
 
     @staticmethod
-    def print_report(report: Dict[str, Any]):
+    def print_report(report: dict[str, Any]):
         """Print a formatted Phase 1 report."""
         print("\n" + "=" * 60)
         print("PHASE 1 CHAOS ENGINEERING REPORT")

@@ -1,14 +1,14 @@
 """Users subgraph schema - owns User entity"""
 
-from fraiseql import type, key, query, mutation, ID
-from typing import Optional, List
-from uuid import UUID
+from fraiseql import type, key, ID
+from typing import Optional
 
 
 @type
 @key(fields=["id"])
 class User:
     """User entity - owned by this subgraph"""
+
     id: ID
     email: str
     name: str
@@ -23,7 +23,7 @@ class Query:
         """Get user by ID"""
         pass
 
-    def users(self) -> List[User]:
+    def users(self) -> list[User]:
         """Get all users"""
         pass
 
@@ -41,10 +41,7 @@ class Mutation:
         pass
 
     def update_user(
-        self,
-        id: ID,
-        email: Optional[str] = None,
-        name: Optional[str] = None
+        self, id: ID, email: Optional[str] = None, name: Optional[str] = None
     ) -> Optional[User]:
         """Update user"""
         pass

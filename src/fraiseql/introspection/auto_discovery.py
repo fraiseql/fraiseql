@@ -5,7 +5,7 @@ the complete discovery pipeline from PostgreSQL metadata to GraphQL schema.
 """
 
 import logging
-from typing import Any, Callable, Dict, List, Type
+from typing import Any, Callable
 
 import psycopg_pool
 
@@ -37,14 +37,14 @@ class AutoDiscovery:
         self.mutation_generator = MutationGenerator(self.input_generator)
 
         # Registry for generated types
-        self.type_registry: Dict[str, Type] = {}
+        self.type_registry: dict[str, type] = {}
 
     async def discover_all(
         self,
         view_pattern: str = "v_%",
         function_pattern: str = "fn_%",
-        schemas: List[str] | None = None,
-    ) -> Dict[str, List[Any]]:
+        schemas: list[str] | None = None,
+    ) -> dict[str, list[Any]]:
         """Full discovery pipeline.
 
         Args:
@@ -103,7 +103,7 @@ class AutoDiscovery:
             "mutations": mutations,
         }
 
-    async def _generate_type_from_view(self, view_metadata: ViewMetadata) -> Type | None:
+    async def _generate_type_from_view(self, view_metadata: ViewMetadata) -> type | None:
         """Generate a type class from view metadata."""
         # Parse @fraiseql:type annotation
         annotation = self.metadata_parser.parse_type_annotation(view_metadata.comment)
@@ -126,7 +126,7 @@ class AutoDiscovery:
             logger.warning(f"Failed to generate type from view {view_metadata.view_name}: {e}")
             return None
 
-    def _generate_queries_for_type(self, type_class: Type) -> List[Callable]:
+    def _generate_queries_for_type(self, type_class: type) -> list[Callable]:
         """Generate standard queries for a type."""
         try:
             # Get view metadata for the type (assuming it's stored in the type)

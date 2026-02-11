@@ -1,7 +1,5 @@
 """Native authentication provider for FraiseQL."""
 
-from typing import Optional
-
 from psycopg_pool import AsyncConnectionPool
 
 from fraiseql.auth.base import AuthProvider, UserContext
@@ -168,7 +166,7 @@ class NativeAuthProvider(AuthProvider):
                 await self.token_manager.invalidate_token_family(family_id, cursor, self.schema)
                 await conn.commit()
 
-    async def get_user_by_id(self, user_id: str) -> Optional[UserContext]:
+    async def get_user_by_id(self, user_id: str) -> UserContext | None:
         """Get user context by user ID.
 
         This is a convenience method for getting user info without a token.
@@ -195,7 +193,7 @@ class NativeAuthProvider(AuthProvider):
         )
 
     async def create_tokens_for_user(
-        self, user_id: str, session_metadata: Optional[dict] = None
+        self, user_id: str, session_metadata: dict | None = None
     ) -> dict[str, any]:
         """Create new tokens for a user (for login/registration).
 

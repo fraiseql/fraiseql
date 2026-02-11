@@ -1,6 +1,6 @@
 """LTree hierarchical path operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -64,7 +64,7 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         "endswith",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is an ltree operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -105,9 +105,9 @@ class LTreeOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for ltree operators."""
         # Validate that pattern operators are not used with LTree fields
         pattern_operators = {"contains", "startswith", "endswith"}

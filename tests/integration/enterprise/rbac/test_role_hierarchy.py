@@ -64,8 +64,8 @@ async def test_role_inheritance_chain(db_repo) -> None:
     if junior_dev_roles:
         # Verify all inherited roles have an id field
         for role in junior_dev_roles:
-            assert hasattr(role, 'id'), f"Role should have 'id' attribute: {role}"
-            assert hasattr(role, 'name'), f"Role should have 'name' attribute: {role}"
+            assert hasattr(role, "id"), f"Role should have 'id' attribute: {role}"
+            assert hasattr(role, "name"), f"Role should have 'name' attribute: {role}"
 
 
 @pytest.mark.asyncio
@@ -79,12 +79,14 @@ async def test_hierarchy_validation(db_repo) -> None:
     hierarchy = RoleHierarchy(db_repo)
 
     # Verify the validate_hierarchy method exists (used for cycle detection)
-    assert hasattr(hierarchy, "validate_hierarchy"), \
+    assert hasattr(hierarchy, "validate_hierarchy"), (
         "RoleHierarchy should have validate_hierarchy method for cycle detection"
+    )
 
     # Verify the get_hierarchy_depth method exists (used to detect excessive nesting)
-    assert hasattr(hierarchy, "get_hierarchy_depth"), \
+    assert hasattr(hierarchy, "get_hierarchy_depth"), (
         "RoleHierarchy should have get_hierarchy_depth method"
+    )
 
     # When a cycle is detected, get_inherited_roles should raise ValueError
     # This is demonstrated by the depth >= 10 check in the implementation
@@ -96,8 +98,9 @@ async def test_hierarchy_validation(db_repo) -> None:
         assert isinstance(roles, list), "Should return list of roles"
     except ValueError as e:
         # Cycle detected is expected behavior
-        assert "Cycle detected" in str(e), \
+        assert "Cycle detected" in str(e), (
             "Cycle detection should raise ValueError with clear message"
+        )
 
 
 @pytest.mark.asyncio
@@ -111,13 +114,14 @@ async def test_transitive_permissions_inheritance(db_repo) -> None:
 
     # Test method signature
     import inspect
+
     sig = inspect.signature(hierarchy.get_inherited_roles)
-    assert "role_id" in sig.parameters, \
-        "get_inherited_roles should accept role_id parameter"
+    assert "role_id" in sig.parameters, "get_inherited_roles should accept role_id parameter"
 
     # Test that the method is properly async
-    assert inspect.iscoroutinefunction(hierarchy.get_inherited_roles), \
+    assert inspect.iscoroutinefunction(hierarchy.get_inherited_roles), (
         "get_inherited_roles should be async for database queries"
+    )
 
     # Call the method with a test role ID
     # The real test data would be set up via database migration
@@ -129,7 +133,7 @@ async def test_transitive_permissions_inheritance(db_repo) -> None:
 
     # Verify each role in the chain has expected attributes
     for role in roles:
-        assert hasattr(role, 'id'), f"Each role should have id: {role}"
-        assert hasattr(role, 'name'), f"Each role should have name: {role}"
+        assert hasattr(role, "id"), f"Each role should have id: {role}"
+        assert hasattr(role, "name"), f"Each role should have name: {role}"
         # In a real test with data, we'd verify the inheritance chain order:
         # roles should be ordered from most specific (self) to most general (admin)

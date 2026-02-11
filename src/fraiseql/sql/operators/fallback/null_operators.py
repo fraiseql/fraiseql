@@ -1,6 +1,6 @@
 """Null checking operator strategy."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable
 
@@ -16,7 +16,7 @@ class NullOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"isnull"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is the isnull operator."""
         return operator == "isnull"
 
@@ -25,9 +25,9 @@ class NullOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for null checks."""
         if operator == "isnull":
             if value:

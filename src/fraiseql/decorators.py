@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Optional, TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from graphql import GraphQLResolveInfo
 
@@ -666,8 +666,8 @@ def field(
 def turbo_query(
     cache_ttl: int = 300,
     auto_register: bool = True,
-    param_mapping: Optional[dict[str, str]] = None,
-    operation_name: Optional[str] = None,
+    param_mapping: dict[str, str] | None = None,
+    operation_name: str | None = None,
 ) -> Callable[[F], F]:
     """Decorator to mark a query for TurboRouter optimization.
 

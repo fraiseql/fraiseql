@@ -7,7 +7,7 @@ ALL string operations to Rust after query execution.
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from psycopg import AsyncConnection
 from psycopg.sql import SQL, Composed
@@ -131,7 +131,7 @@ class RustResponseBytes:
 
     __slots__ = ("_data", "_fixed", "_schema_type", "content_type")
 
-    def __init__(self, data: bytes, schema_type: Optional[str] = None) -> None:
+    def __init__(self, data: bytes, schema_type: str | None = None) -> None:
         self._data = data
         self.content_type = "application/json"
         self._fixed = False
@@ -143,7 +143,7 @@ class RustResponseBytes:
         return self._data
 
     @property
-    def schema_type(self) -> Optional[str]:
+    def schema_type(self) -> str | None:
         """Get the GraphQL schema type name for this response.
 
         This property is useful for debugging and understanding what type
@@ -247,12 +247,12 @@ class RustResponseBytes:
 async def execute_via_rust_pipeline(
     conn: AsyncConnection,
     query: Composed | SQL,
-    params: Optional[dict[str, Any]],
+    params: dict[str, Any] | None,
     field_name: str,
-    type_name: Optional[str],
+    type_name: str | None,
     is_list: bool = True,
-    field_paths: Optional[list[list[str]]] = None,
-    field_selections: Optional[list[dict[str, Any]]] = None,
+    field_paths: list[list[str]] | None = None,
+    field_selections: list[dict[str, Any]] | None = None,
     include_graphql_wrapper: bool = True,
 ) -> RustResponseBytes | list | dict:
     """Execute query and build HTTP response entirely in Rust.

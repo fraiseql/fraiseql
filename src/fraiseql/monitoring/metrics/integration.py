@@ -6,7 +6,7 @@ for metrics collection.
 
 import time
 from functools import wraps
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -15,7 +15,7 @@ from .collectors import FraiseQLMetrics
 from .config import CONTENT_TYPE_LATEST, MetricsConfig
 
 # Global metrics instance
-_metrics_instance: Optional[FraiseQLMetrics] = None
+_metrics_instance: FraiseQLMetrics | None = None
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

@@ -6,9 +6,8 @@ operations, making chaos engineering tests more valuable and representative.
 """
 
 import time
-import json
 import random
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from dataclasses import dataclass
 
 
@@ -18,12 +17,12 @@ class GraphQLOperation:
 
     name: str
     query: str
-    variables: Optional[Dict[str, Any]] = None
+    variables: Optional[dict[str, Any]] = None
     expected_complexity: int = 1
 
-    def get_payload(self) -> Dict[str, Any]:
+    def get_payload(self) -> dict[str, Any]:
         """Get the GraphQL request payload."""
-        payload: Dict[str, Any] = {"query": self.query}
+        payload: dict[str, Any] = {"query": self.query}
         if self.variables:
             payload["variables"] = self.variables
         return payload
@@ -215,7 +214,7 @@ class MockFraiseQLClient:
         self.latency_ms = 0
         self.packet_loss_rate = 0.0
 
-    def execute_query(self, operation: GraphQLOperation, timeout: float = 30.0) -> Dict[str, Any]:
+    def execute_query(self, operation: GraphQLOperation, timeout: float = 30.0) -> dict[str, Any]:
         """
         Execute a GraphQL operation against FraiseQL.
 
@@ -288,7 +287,7 @@ class MockFraiseQLClient:
 
         return base_time + (complexity_factor * variable_factor)
 
-    def _generate_mock_response(self, operation: GraphQLOperation) -> Dict[str, Any]:
+    def _generate_mock_response(self, operation: GraphQLOperation) -> dict[str, Any]:
         """Generate a mock GraphQL response."""
         # Simulate occasional errors
         if time.time() % 100 < 1:  # 1% error rate
@@ -367,7 +366,7 @@ class MockFraiseQLClient:
 
 def execute_with_timeout(
     client: MockFraiseQLClient, operation: GraphQLOperation, timeout: float = 30.0
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute operation with timeout handling."""
     import signal
 
@@ -391,7 +390,7 @@ def execute_with_retry(
     operation: GraphQLOperation,
     max_retries: int = 3,
     timeout: float = 30.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute operation with retry logic."""
     last_error: Optional[Exception] = None
 
@@ -417,7 +416,7 @@ class ChaosTestScenarios:
     """Predefined collections of test scenarios for chaos testing."""
 
     @staticmethod
-    def connection_chaos_scenarios() -> List[GraphQLOperation]:
+    def connection_chaos_scenarios() -> list[GraphQLOperation]:
         """Scenarios for testing connection chaos."""
         return [
             FraiseQLTestScenarios.simple_user_query(),
@@ -425,7 +424,7 @@ class ChaosTestScenarios:
         ]
 
     @staticmethod
-    def latency_chaos_scenarios() -> List[GraphQLOperation]:
+    def latency_chaos_scenarios() -> list[GraphQLOperation]:
         """Scenarios for testing latency chaos."""
         return [
             FraiseQLTestScenarios.simple_user_query(),
@@ -434,7 +433,7 @@ class ChaosTestScenarios:
         ]
 
     @staticmethod
-    def load_chaos_scenarios() -> List[GraphQLOperation]:
+    def load_chaos_scenarios() -> list[GraphQLOperation]:
         """Scenarios for testing under load chaos."""
         return [
             FraiseQLTestScenarios.batch_users_query(50),
@@ -442,7 +441,7 @@ class ChaosTestScenarios:
         ]
 
     @staticmethod
-    def mutation_chaos_scenarios() -> List[GraphQLOperation]:
+    def mutation_chaos_scenarios() -> list[GraphQLOperation]:
         """Scenarios for testing mutation chaos."""
         return [
             FraiseQLTestScenarios.mutation_create_post(),

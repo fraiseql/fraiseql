@@ -1,6 +1,6 @@
 """JSONB-specific operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -17,7 +17,7 @@ class JsonbOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"overlaps", "strictly_contains"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a JSONB-specific operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -31,9 +31,9 @@ class JsonbOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for JSONB operators."""
         if operator == "overlaps":
             # && operator: check if JSONB objects/arrays overlap

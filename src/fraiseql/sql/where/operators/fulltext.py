@@ -1,7 +1,5 @@
 """PostgreSQL full-text search operators for FraiseQL WHERE filtering."""
 
-from typing import Optional
-
 from psycopg.sql import SQL, Composed, Literal
 from pydantic import BaseModel
 
@@ -272,41 +270,41 @@ class FullTextFilter(BaseModel):
     """
 
     # Basic search operators
-    matches: Optional[str] = None
+    matches: str | None = None
     """Full-text search using @@ operator with to_tsquery()."""
 
-    plain_query: Optional[str] = None
+    plain_query: str | None = None
     """Plain text query using @@ operator with plainto_tsquery()."""
 
     # Advanced query types
-    phrase_query: Optional[str] = None
+    phrase_query: str | None = None
     """Phrase search using @@ operator with phraseto_tsquery()."""
 
-    websearch_query: Optional[str] = None
+    websearch_query: str | None = None
     """Web search query using @@ operator with websearch_to_tsquery()."""
 
     # Relevance ranking operators (format: "query:threshold")
-    rank_gt: Optional[str] = None
+    rank_gt: str | None = None
     """Filter by relevance rank greater than threshold using ts_rank()."""
 
-    rank_gte: Optional[str] = None
+    rank_gte: str | None = None
     """Filter by relevance rank greater than or equal to threshold using ts_rank()."""
 
-    rank_lt: Optional[str] = None
+    rank_lt: str | None = None
     """Filter by relevance rank less than threshold using ts_rank()."""
 
-    rank_lte: Optional[str] = None
+    rank_lte: str | None = None
     """Filter by relevance rank less than or equal to threshold using ts_rank()."""
 
     # Cover density ranking operators (format: "query:threshold")
-    rank_cd_gt: Optional[str] = None
+    rank_cd_gt: str | None = None
     """Filter by cover density rank greater than threshold using ts_rank_cd()."""
 
-    rank_cd_gte: Optional[str] = None
+    rank_cd_gte: str | None = None
     """Filter by cover density rank greater than or equal to threshold using ts_rank_cd()."""
 
-    rank_cd_lt: Optional[str] = None
+    rank_cd_lt: str | None = None
     """Filter by cover density rank less than threshold using ts_rank_cd()."""
 
-    rank_cd_lte: Optional[str] = None
+    rank_cd_lte: str | None = None
     """Filter by cover density rank less than or equal to threshold using ts_rank_cd()."""

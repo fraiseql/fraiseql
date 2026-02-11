@@ -5,7 +5,6 @@ This module maintains backward compatibility while using the new backend system 
 
 import hashlib
 import logging
-from typing import Optional
 
 from fraiseql.monitoring import get_global_metrics
 
@@ -49,7 +48,7 @@ def store_persisted_query(hash_value: str, query: str) -> None:
     metrics.record_query_cache_store(hash_value)
 
 
-def get_persisted_query(hash_value: str) -> Optional[str]:
+def get_persisted_query(hash_value: str) -> str | None:
     """Retrieve a persisted query by its hash.
 
     Args:

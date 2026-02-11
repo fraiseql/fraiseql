@@ -12,7 +12,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import pytest
 import psycopg
@@ -69,7 +69,7 @@ class RealFraiseQLClient:
 
     async def execute_query(
         self, operation: GraphQLOperation, timeout: float = 30.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute a GraphQL operation against the database.
 
         This method:
@@ -132,7 +132,7 @@ class RealFraiseQLClient:
 
     async def _execute_test_query(
         self, conn: psycopg.AsyncConnection, operation: GraphQLOperation
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute a test query based on the operation type.
 
         This maps GraphQL operation names to actual SQL queries for testing
@@ -170,7 +170,7 @@ class RealFraiseQLClient:
 
     async def execute_mutation(
         self, operation: GraphQLOperation, timeout: float = 30.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute a mutation operation (similar to query but for writes)."""
         # For chaos testing, mutations also just verify the connection works
         return await self.execute_query(operation, timeout)
@@ -266,7 +266,7 @@ async def chaos_test_schema(
 
 
 @pytest.fixture
-def baseline_metrics() -> Dict[str, Any]:
+def baseline_metrics() -> dict[str, Any]:
     """Load baseline metrics for performance comparison.
 
     Baseline metrics are used to:
@@ -302,6 +302,4 @@ def baseline_metrics() -> Dict[str, Any]:
 
 def pytest_configure(config):
     """Register chaos-specific pytest markers."""
-    config.addinivalue_line(
-        "markers", "chaos_real_db: chaos tests using real PostgreSQL database"
-    )
+    config.addinivalue_line("markers", "chaos_real_db: chaos tests using real PostgreSQL database")

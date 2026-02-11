@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import pytest
 from graphql import GraphQLList, GraphQLNonNull, GraphQLObjectType
 
 # Import needed for assertions

@@ -1,7 +1,7 @@
 """Coordinate operator strategies for geographic POINT data."""
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import SQL, Composable, Composed, Literal
 
@@ -29,7 +29,7 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"eq", "neq", "in", "notin", "distance_within"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a coordinate operator."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -50,9 +50,9 @@ class CoordinateOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for coordinate operators with proper PostgreSQL POINT type casting."""
         # Basic operations: cast to point
         if operator in ("eq", "neq", "in", "notin"):

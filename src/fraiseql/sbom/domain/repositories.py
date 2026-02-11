@@ -8,7 +8,6 @@ separation between domain logic and data access concerns.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from fraiseql.sbom.domain.models import ComponentIdentifier, License
 
@@ -30,7 +29,7 @@ class PackageMetadataRepository(ABC):
         ...
 
     @abstractmethod
-    def get_package_license(self, name: str, version: str) -> Optional[License]:
+    def get_package_license(self, name: str, version: str) -> License | None:
         """Get license information for a package.
 
         Args:
@@ -43,7 +42,7 @@ class PackageMetadataRepository(ABC):
         ...
 
     @abstractmethod
-    def get_package_description(self, name: str, version: str) -> Optional[str]:
+    def get_package_description(self, name: str, version: str) -> str | None:
         """Get description for a package.
 
         Args:
@@ -56,7 +55,7 @@ class PackageMetadataRepository(ABC):
         ...
 
     @abstractmethod
-    def get_package_homepage(self, name: str, version: str) -> Optional[str]:
+    def get_package_homepage(self, name: str, version: str) -> str | None:
         """Get homepage URL for a package.
 
         Args:
@@ -69,7 +68,7 @@ class PackageMetadataRepository(ABC):
         ...
 
     @abstractmethod
-    def get_package_hash(self, name: str, version: str) -> Optional[str]:
+    def get_package_hash(self, name: str, version: str) -> str | None:
         """Get SHA256 hash for a package.
 
         Args:

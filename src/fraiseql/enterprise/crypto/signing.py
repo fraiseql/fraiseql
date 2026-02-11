@@ -18,7 +18,6 @@ import hashlib
 import hmac
 import os
 from datetime import datetime
-from typing import Optional
 
 
 def sign_event(event_hash: str, secret_key: str) -> str:
@@ -67,7 +66,7 @@ class SigningKeyManager:
     """
 
     def __init__(self) -> None:
-        self.current_key: Optional[str] = None
+        self.current_key: str | None = None
         self.previous_keys: list[tuple[str, datetime]] = []
         self._load_keys()
 
@@ -108,7 +107,7 @@ class SigningKeyManager:
 
 
 # Singleton instance
-_key_manager: Optional[SigningKeyManager] = None
+_key_manager: SigningKeyManager | None = None
 
 
 def get_key_manager() -> SigningKeyManager:

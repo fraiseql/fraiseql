@@ -10,7 +10,6 @@ but delegates domain logic to domain models and services.
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from fraiseql.sbom.domain.models import (
     SBOM,
@@ -58,9 +57,9 @@ class SBOMGenerator:
         self,
         component_name: str,
         component_version: str,
-        component_description: Optional[str] = None,
-        supplier: Optional[Supplier] = None,
-        authors: Optional[list[str]] = None,
+        component_description: str | None = None,
+        supplier: Supplier | None = None,
+        authors: list[str] | None = None,
     ) -> SBOM:
         """Generate SBOM for the specified software component.
 
@@ -196,9 +195,9 @@ class SBOMGenerator:
         component_name: str,
         component_version: str,
         format: str = "json",
-        component_description: Optional[str] = None,
-        supplier: Optional[Supplier] = None,
-        authors: Optional[list[str]] = None,
+        component_description: str | None = None,
+        supplier: Supplier | None = None,
+        authors: list[str] | None = None,
     ) -> Path:
         """Generate SBOM and save to file.
 

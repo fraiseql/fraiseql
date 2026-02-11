@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, List, cast, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, cast, get_args, get_origin, get_type_hints
 
 from graphql import (
     GraphQLArgument,
@@ -57,7 +57,7 @@ class QueryTypeBuilder:
             (should_add_where, element_type)
         """
         origin = get_origin(return_type)
-        if origin in (list, List):
+        if origin in (list, list):
             args = get_args(return_type)
             if args and self._is_fraise_type(args[0]):
                 return True, args[0]

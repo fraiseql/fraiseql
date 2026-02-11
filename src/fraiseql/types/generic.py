@@ -155,9 +155,9 @@ def _substitute_typevar(type_annotation: Any, concrete_type: type) -> Any:
             if len(new_args) == 2 and type(None) in new_args:
                 # Extract the non-None type for cleaner Optional[T] representation
                 non_none_arg = new_args[0] if new_args[1] is type(None) else new_args[1]
-                return Union[non_none_arg, type(None)]
+                return Union[non_none_arg, type(None)]  # noqa: UP007 — runtime type construction
             # General Union case
-            return Union[new_args]
+            return Union[new_args]  # noqa: UP007 — runtime type construction
 
         # Reconstruct the generic type with substituted arguments
         # e.g., list[T] + Post -> list[Post]

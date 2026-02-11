@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Self
+from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     from fraiseql.fields import FraiseQLField
@@ -123,7 +123,7 @@ class UnsetType:
     Implements singleton pattern to ensure only one instance exists.
     """
 
-    __instance: Optional[UnsetType] = None
+    __instance: UnsetType | None = None
 
     def __new__(cls) -> Self:
         """Ensure only one instance of UnsetType exists."""

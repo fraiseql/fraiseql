@@ -48,7 +48,7 @@ def test_velocitybench_schema_compiles():
         result = subprocess.run(
             [str(cli_path), "compile", str(schema_path), "-o", str(compiled_path)],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         # Compilation may fail if CLI has specific format requirements,
@@ -87,7 +87,9 @@ def test_velocitybench_schema_structure():
     # Comment should reference User, Post, and itself
     assert any(f["name"] == "author" and f["type"] == "User" for f in comment_type["fields"])
     assert any(f["name"] == "post" and f["type"] == "Post" for f in comment_type["fields"])
-    assert any(f["name"] == "parentComment" and f["type"] == "Comment" for f in comment_type["fields"])
+    assert any(
+        f["name"] == "parentComment" and f["type"] == "Comment" for f in comment_type["fields"]
+    )
 
     print("✅ VelocityBench schema structure is correct")
 
@@ -99,7 +101,9 @@ def test_velocitybench_queries():
     query_names = [q["name"] for q in schema["queries"]]
     expected = ["ping", "user", "users", "post", "posts", "comment", "comments"]
 
-    assert set(expected) == set(query_names), f"Query mismatch. Expected {expected}, got {query_names}"
+    assert set(expected) == set(query_names), (
+        f"Query mismatch. Expected {expected}, got {query_names}"
+    )
 
     # Verify query types
     ping_query = next(q for q in schema["queries"] if q["name"] == "ping")
@@ -119,7 +123,9 @@ def test_velocitybench_mutations():
     mutation_names = [m["name"] for m in schema["mutations"]]
     expected = ["updateUser", "createPost", "createComment"]
 
-    assert set(expected) == set(mutation_names), f"Mutation mismatch. Expected {expected}, got {mutation_names}"
+    assert set(expected) == set(mutation_names), (
+        f"Mutation mismatch. Expected {expected}, got {mutation_names}"
+    )
 
     # Verify mutation types
     update_user = next(m for m in schema["mutations"] if m["name"] == "updateUser")
@@ -164,7 +170,9 @@ def test_typescript_schema_can_be_defined():
     assert "@Mutation" in code
     assert "ping()" in code
     assert "users(" in code  # Changed from "users()" to "users(" to match actual generated code
-    assert "createPost(" in code  # Changed from "createPost()" to "createPost(" to match actual generated code
+    assert (
+        "createPost(" in code
+    )  # Changed from "createPost()" to "createPost(" to match actual generated code
 
     print("✅ TypeScript schema definition is valid")
 
@@ -350,9 +358,9 @@ if __name__ == "__main__":
     test_javascript_schema_can_be_defined()
     test_ruby_schema_can_be_defined()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("✅ ALL TIER 1A MULTI-LANGUAGE E2E TESTS PASSED!")
-    print("="*60)
+    print("=" * 60)
     print("\nCanonical Schema Validation:")
     print("✅ VelocityBench blogging app structure (User, Post, Comment)")
     print("✅ All 7 queries (ping, user, users, post, posts, comment, comments)")
@@ -369,7 +377,7 @@ if __name__ == "__main__":
     print("✅ Rust (derive macros)")
     print("✅ JavaScript (decorators)")
     print("✅ Ruby (DSL)")
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Complete ecosystem coverage: 10 languages across all major")
     print("backend ecosystems (JVM, .NET, Web, Native, Dynamic)")
-    print("="*60)
+    print("=" * 60)

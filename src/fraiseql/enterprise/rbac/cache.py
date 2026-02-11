@@ -10,7 +10,6 @@ extension is available.
 
 import logging
 from datetime import timedelta
-from typing import Optional
 from uuid import UUID
 
 from psycopg_pool import AsyncConnectionPool
@@ -44,7 +43,7 @@ class PermissionCache:
         # RBAC domains for version checking
         self._rbac_domains = ["role", "permission", "role_permission", "user_role"]
 
-    def _make_key(self, user_id: UUID, tenant_id: Optional[UUID]) -> str:
+    def _make_key(self, user_id: UUID, tenant_id: UUID | None) -> str:
         """Generate cache key for user permissions.
 
         Format: rbac:permissions:{user_id}:{tenant_id}
@@ -52,7 +51,7 @@ class PermissionCache:
         tenant_str = str(tenant_id) if tenant_id else "global"
         return f"rbac:permissions:{user_id}:{tenant_str}"
 
-    async def get(self, user_id: UUID, tenant_id: Optional[UUID]) -> Optional[list[Permission]]:
+    async def get(self, user_id: UUID, tenant_id: UUID | None) -> list[Permission] | None:
         """Get cached permissions with version checking.
 
         Flow:
@@ -113,7 +112,7 @@ class PermissionCache:
         return permissions
 
     async def set(
-        self, user_id: UUID, tenant_id: Optional[UUID], permissions: list[Permission]
+        self, user_id: UUID, tenant_id: UUID | None, permissions: list[Permission]
     ) -> None:
         """Cache permissions with domain version metadata.
 
@@ -160,7 +159,7 @@ class PermissionCache:
         """Clear request-level cache (called at end of request)."""
         self._request_cache.clear()
 
-    async def invalidate_user(self, user_id: UUID, tenant_id: Optional[UUID] = None) -> None:
+    async def invalidate_user(self, user_id: UUID, tenant_id: UUID | None = None) -> None:
         """Manually invalidate cache for user.
 
         Note: With domain versioning, manual invalidation is rarely needed

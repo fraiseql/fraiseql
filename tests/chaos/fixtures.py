@@ -5,9 +5,8 @@ This module provides fixtures for chaos engineering tests, particularly
 for network chaos injection using Toxiproxy.
 """
 
-import time
 import requests
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 
 class ToxiproxyManager:
@@ -18,8 +17,8 @@ class ToxiproxyManager:
 
     def __init__(self, host: str = "localhost", port: int = 8474, mock_mode: bool = None):
         self.base_url = f"http://{host}:{port}"
-        self.proxies: Dict[str, Dict[str, Any]] = {}
-        self.toxics: Dict[str, Dict[str, Any]] = {}
+        self.proxies: dict[str, dict[str, Any]] = {}
+        self.toxics: dict[str, dict[str, Any]] = {}
 
         # Auto-detect mock mode if not specified
         if mock_mode is None:
@@ -35,7 +34,7 @@ class ToxiproxyManager:
         except:
             return False
 
-    def create_proxy(self, name: str, listen_addr: str, upstream_addr: str) -> Dict[str, Any]:
+    def create_proxy(self, name: str, listen_addr: str, upstream_addr: str) -> dict[str, Any]:
         """
         Create a new Toxiproxy proxy.
 
@@ -54,7 +53,7 @@ class ToxiproxyManager:
                 "listen": listen_addr,
                 "upstream": upstream_addr,
                 "enabled": True,
-                "toxics": []
+                "toxics": [],
             }
             self.proxies[name] = proxy
             return proxy
@@ -71,7 +70,7 @@ class ToxiproxyManager:
                 "listen": listen_addr,
                 "upstream": upstream_addr,
                 "enabled": True,
-                "toxics": []
+                "toxics": [],
             }
             self.mock_mode = True
 
@@ -95,7 +94,7 @@ class ToxiproxyManager:
             self.proxies.pop(name, None)
             self.toxics.pop(name, None)
 
-    def list_proxies(self) -> Dict[str, Any]:
+    def list_proxies(self) -> dict[str, Any]:
         """List all Toxiproxy proxies."""
         if self.mock_mode:
             return self.proxies
@@ -107,7 +106,7 @@ class ToxiproxyManager:
         except:
             return self.proxies
 
-    def get_proxy(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_proxy(self, name: str) -> Optional[dict[str, Any]]:
         """Get a specific proxy configuration."""
         if self.mock_mode:
             return self.proxies.get(name)
@@ -158,7 +157,7 @@ class ToxiproxyManager:
 
     def add_latency_toxic(
         self, proxy_name: str, latency_ms: int, jitter_ms: int = 0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Add latency toxic to a proxy.
 
@@ -187,7 +186,9 @@ class ToxiproxyManager:
             return toxic
 
         try:
-            response = requests.post(f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2)
+            response = requests.post(
+                f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2
+            )
             response.raise_for_status()
             return response.json()
         except:
@@ -199,7 +200,7 @@ class ToxiproxyManager:
                 self.proxies[proxy_name]["toxics"] = self.toxics[proxy_name]
             return toxic
 
-    def add_packet_loss_toxic(self, proxy_name: str, loss_percent: float) -> Dict[str, Any]:
+    def add_packet_loss_toxic(self, proxy_name: str, loss_percent: float) -> dict[str, Any]:
         """
         Add packet loss toxic to a proxy.
 
@@ -229,7 +230,9 @@ class ToxiproxyManager:
             return toxic
 
         try:
-            response = requests.post(f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2)
+            response = requests.post(
+                f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2
+            )
             response.raise_for_status()
             return response.json()
         except:
@@ -241,7 +244,7 @@ class ToxiproxyManager:
                 self.proxies[proxy_name]["toxics"] = self.toxics[proxy_name]
             return toxic
 
-    def add_bandwidth_limit_toxic(self, proxy_name: str, rate_kbps: int) -> Dict[str, Any]:
+    def add_bandwidth_limit_toxic(self, proxy_name: str, rate_kbps: int) -> dict[str, Any]:
         """
         Add bandwidth limit toxic to a proxy.
 
@@ -269,7 +272,9 @@ class ToxiproxyManager:
             return toxic
 
         try:
-            response = requests.post(f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2)
+            response = requests.post(
+                f"{self.base_url}/proxies/{proxy_name}/toxics", json=toxic, timeout=2
+            )
             response.raise_for_status()
             return response.json()
         except:

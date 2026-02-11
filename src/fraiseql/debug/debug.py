@@ -8,12 +8,11 @@ import functools
 import inspect
 import time
 import types
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Any, Callable, TypeVar, cast
 
 import structlog
 from graphql import GraphQLResolveInfo
 
-from fraiseql.db import DatabaseQuery
 from fraiseql.partial_instantiation import get_available_fields, is_partial_instance
 
 logger = structlog.get_logger()
@@ -26,7 +25,7 @@ def profile_resolver(
     log_args: bool = True,
     log_result: bool = False,
     log_sql: bool = True,
-    threshold_ms: Optional[float] = None,
+    threshold_ms: float | None = None,
 ) -> Callable[[T], T]:
     """Decorator to profile GraphQL resolver performance.
 
@@ -272,8 +271,8 @@ class QueryDebugger:
 
     def __init__(self):
         self.queries: list[dict[str, Any]] = []
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
+        self.start_time: float | None = None
+        self.end_time: float | None = None
 
     async def __aenter__(self) -> "QueryDebugger":
         self.start_time = time.perf_counter()

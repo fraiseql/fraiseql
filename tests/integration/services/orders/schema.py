@@ -1,7 +1,7 @@
 """Orders subgraph schema - extends User, owns Order entity"""
 
-from fraiseql import type, key, extends, external, requires, query, mutation, ID
-from typing import Optional, List
+from fraiseql import type, key, extends, external, ID
+from typing import Optional
 
 
 @extends
@@ -9,14 +9,16 @@ from typing import Optional, List
 @type
 class User:
     """User extended from users subgraph"""
+
     id: ID = external()
-    orders: List["Order"]
+    orders: list["Order"]
 
 
 @type
 @key(fields=["id"])
 class Order:
     """Order entity - owned by this subgraph"""
+
     id: ID
     user_id: ID
     status: str
@@ -32,15 +34,15 @@ class Query:
         """Get order by ID"""
         pass
 
-    def orders(self) -> List[Order]:
+    def orders(self) -> list[Order]:
         """Get all orders"""
         pass
 
-    def orders_by_user(self, user_id: ID) -> List[Order]:
+    def orders_by_user(self, user_id: ID) -> list[Order]:
         """Get orders for a user"""
         pass
 
-    def orders_by_status(self, status: str) -> List[Order]:
+    def orders_by_status(self, status: str) -> list[Order]:
         """Get orders by status"""
         pass
 

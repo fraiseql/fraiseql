@@ -12,8 +12,6 @@ import statistics
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from chaos.base import ChaosTestCase
-from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
 from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
 
 

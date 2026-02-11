@@ -6,7 +6,7 @@ of parameter conversion, error handling, and result transformation.
 """
 
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 # Lazy import of Rust functions to handle cases where extension is not available
 _rust_functions = None
@@ -46,7 +46,7 @@ class RustGraphQLPipeline:
         """Initialize the Rust pipeline."""
         self._rust = _get_rust_functions()
 
-    async def execute_query(self, query_def: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_query(self, query_def: dict[str, Any]) -> dict[str, Any]:
         """Execute a GraphQL query via Rust backend.
 
         Args:
@@ -89,7 +89,7 @@ class RustGraphQLPipeline:
                 ],
             }
 
-    async def execute_mutation(self, mutation_def: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_mutation(self, mutation_def: dict[str, Any]) -> dict[str, Any]:
         """Execute a GraphQL mutation via Rust backend.
 
         Args:
@@ -137,8 +137,8 @@ class RustGraphQLPipeline:
             }
 
     async def execute_bulk_operation(
-        self, operations: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, operations: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Execute multiple operations in a single transaction.
 
         Args:
@@ -173,16 +173,16 @@ pipeline = RustGraphQLPipeline()
 
 
 # Convenience functions for direct use
-async def execute_graphql_query(query_def: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_graphql_query(query_def: dict[str, Any]) -> dict[str, Any]:
     """Convenience function for executing queries."""
     return await pipeline.execute_query(query_def)
 
 
-async def execute_graphql_mutation(mutation_def: Dict[str, Any]) -> Dict[str, Any]:
+async def execute_graphql_mutation(mutation_def: dict[str, Any]) -> dict[str, Any]:
     """Convenience function for executing mutations."""
     return await pipeline.execute_mutation(mutation_def)
 
 
-async def execute_bulk_graphql_operations(operations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def execute_bulk_graphql_operations(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convenience function for executing bulk operations."""
     return await pipeline.execute_bulk_operation(operations)

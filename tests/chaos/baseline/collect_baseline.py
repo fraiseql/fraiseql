@@ -11,7 +11,7 @@ Run this script to generate baseline_metrics.json with confidence intervals.
 import time
 import statistics
 import json
-from typing import Dict, List, Any
+from typing import Any
 from pathlib import Path
 
 
@@ -22,7 +22,7 @@ class BaselineCollector:
         self.samples = samples
         self.baseline_file = Path("tests/chaos/baseline_metrics.json")
 
-    def collect_baselines(self) -> Dict[str, Any]:
+    def collect_baselines(self) -> dict[str, Any]:
         """Collect baseline metrics for all operations."""
         print("🔬 Collecting Baseline Metrics for Chaos Engineering")
         print(f"📊 Running {self.samples} samples per operation")
@@ -63,7 +63,7 @@ class BaselineCollector:
 
         return baselines
 
-    def _collect_operation_baseline(self, operation_name: str, measure_func) -> Dict[str, Any]:
+    def _collect_operation_baseline(self, operation_name: str, measure_func) -> dict[str, Any]:
         """Collect baseline metrics for a single operation."""
         print(f"\n🔍 Measuring: {operation_name}")
 
@@ -105,7 +105,7 @@ class BaselineCollector:
 
         return result
 
-    def _percentile(self, data: List[float], percentile: float) -> float:
+    def _percentile(self, data: list[float], percentile: float) -> float:
         """Calculate percentile from data."""
         if not data:
             return 0.0
@@ -156,14 +156,14 @@ class BaselineCollector:
         time.sleep(0.001)  # Simulate 1ms cache operation
         return (time.time() - start) * 1000
 
-    def _save_baselines(self, baselines: Dict[str, Any]):
+    def _save_baselines(self, baselines: dict[str, Any]):
         """Save baselines to JSON file."""
         self.baseline_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.baseline_file, "w") as f:
             json.dump(baselines, f, indent=2)
 
-    def validate_baselines(self, baselines: Dict[str, Any]) -> bool:
+    def validate_baselines(self, baselines: dict[str, Any]) -> bool:
         """Validate that baselines meet quality standards."""
         issues = []
 

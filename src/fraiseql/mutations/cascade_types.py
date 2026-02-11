@@ -75,7 +75,7 @@ def _add_cascade_field_to_type(success_cls: type) -> type:
 
     # Create new class with cascade field
     annotations = getattr(success_cls, "__annotations__", {}).copy()
-    annotations["cascade"] = Optional[Cascade]
+    annotations["cascade"] = Optional[Cascade]  # noqa: UP045 — runtime type construction
 
     # Create new type - keep same name to avoid duplicate registration
     new_cls = type(

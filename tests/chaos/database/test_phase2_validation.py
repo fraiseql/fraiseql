@@ -6,7 +6,7 @@ Tests validate that FraiseQL maintains data consistency and handles database fai
 """
 
 import statistics
-from typing import Dict, Any, List, Tuple
+from typing import Any
 from chaos.base import ChaosTestCase
 
 
@@ -28,7 +28,7 @@ class Phase2SuccessCriteria:
     @classmethod
     def validate_query_execution_chaos_test(
         cls, test_case: ChaosTestCase, query_type: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate query execution chaos test results.
 
@@ -88,7 +88,7 @@ class Phase2SuccessCriteria:
     @classmethod
     def validate_data_consistency_chaos_test(
         cls, test_case: ChaosTestCase, consistency_type: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate data consistency chaos test results.
 
@@ -160,8 +160,8 @@ class Phase2SuccessCriteria:
 
     @classmethod
     def validate_phase2_overall_success(
-        cls, test_results: List[Tuple[bool, str, Dict[str, Any]]]
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+        cls, test_results: list[tuple[bool, str, dict[str, Any]]]
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate overall Phase 2 success based on all database chaos test results.
 
@@ -241,10 +241,10 @@ class Phase2SuccessCriteria:
     @classmethod
     def _generate_phase2_recommendations(
         cls,
-        test_results: List[Tuple[bool, str, Dict[str, Any]]],
+        test_results: list[tuple[bool, str, dict[str, Any]]],
         pass_rate: float,
         consistency_failures: int,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate recommendations based on Phase 2 test results."""
         recommendations = []
 
@@ -294,7 +294,7 @@ class Phase2SuccessCriteria:
 
 def validate_database_chaos_test_success(
     test_case: ChaosTestCase, test_type: str, **kwargs
-) -> Tuple[bool, str, Dict[str, Any]]:
+) -> tuple[bool, str, dict[str, Any]]:
     """
     Validate a database chaos test based on its type and success criteria.
 
@@ -321,7 +321,7 @@ def validate_database_chaos_test_success(
         return False, "FAIL", {"issues": [f"Unknown database test type: {test_type}"]}
 
 
-def generate_phase2_report(test_results: List[Tuple[bool, str, Dict[str, Any]]]) -> Dict[str, Any]:
+def generate_phase2_report(test_results: list[tuple[bool, str, dict[str, Any]]]) -> dict[str, Any]:
     """Generate a comprehensive Phase 2 database chaos report."""
     overall_passed, status, summary = Phase2SuccessCriteria.validate_phase2_overall_success(
         test_results
@@ -396,7 +396,7 @@ def generate_phase2_report(test_results: List[Tuple[bool, str, Dict[str, Any]]])
     return report
 
 
-def print_phase2_report(report: Dict[str, Any]):
+def print_phase2_report(report: dict[str, Any]):
     """Print a formatted Phase 2 database chaos report."""
     print("\n" + "=" * 60)
     print("PHASE 2 DATABASE CHAOS ENGINEERING REPORT")

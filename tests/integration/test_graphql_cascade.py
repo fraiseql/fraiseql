@@ -4,7 +4,7 @@ Tests end-to-end cascade behavior from PostgreSQL functions through
 GraphQL responses to client cache updates.
 """
 
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -599,7 +599,7 @@ def test_cascade_data_validation():
     assert not validate_cascade_structure(invalid_cascade)
 
 
-def validate_cascade_structure(cascade: Dict[str, Any]) -> bool:
+def validate_cascade_structure(cascade: dict[str, Any]) -> bool:
     """Validate cascade data structure."""
     required_keys = {"updated", "deleted", "invalidations", "metadata"}
 

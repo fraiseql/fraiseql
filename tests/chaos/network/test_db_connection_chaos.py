@@ -10,7 +10,6 @@ import time
 import statistics
 from chaos.base import ChaosTestCase
 from chaos.fixtures import ToxiproxyManager
-from chaos.plugin import chaos_inject, FailureType
 from chaos.fraiseql_scenarios import MockFraiseQLClient, FraiseQLTestScenarios
 
 

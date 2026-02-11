@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class APQMetricsSnapshot:
 
     # Performance metrics
     total_requests: int
-    avg_query_parse_time_ms: Optional[float] = None
+    avg_query_parse_time_ms: float | None = None
 
     # Derived metrics
     @property
@@ -241,7 +241,7 @@ class APQMetrics:
     # === Query Patterns ===
 
     def _update_query_pattern(
-        self, query_hash: str, cache_hit: bool = False, parse_time_ms: Optional[float] = None
+        self, query_hash: str, cache_hit: bool = False, parse_time_ms: float | None = None
     ) -> None:
         """Update query pattern statistics (called within lock)."""
         if query_hash not in self._query_patterns:
@@ -446,7 +446,7 @@ class APQMetrics:
 
 
 # Global metrics instance for convenience
-_global_metrics: Optional[APQMetrics] = None
+_global_metrics: APQMetrics | None = None
 
 
 def get_global_metrics() -> APQMetrics:

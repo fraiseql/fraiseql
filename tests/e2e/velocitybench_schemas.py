@@ -47,7 +47,7 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "isActive", "type": "Boolean", "nullable": False},
                     {"name": "createdAt", "type": "String", "nullable": False},
                     {"name": "updatedAt", "type": "String", "nullable": False},
-                ]
+                ],
             },
             {
                 "name": "Post",
@@ -62,7 +62,7 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "createdAt", "type": "String", "nullable": False},
                     {"name": "updatedAt", "type": "String", "nullable": False},
                     {"name": "author", "type": "User", "nullable": False},
-                ]
+                ],
             },
             {
                 "name": "Comment",
@@ -76,8 +76,8 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "author", "type": "User", "nullable": False},
                     {"name": "post", "type": "Post", "nullable": False},
                     {"name": "parentComment", "type": "Comment", "nullable": True},
-                ]
-            }
+                ],
+            },
         ],
         "queries": [
             {
@@ -86,71 +86,65 @@ def get_velocitybench_schema() -> dict[str, Any]:
                 "arguments": [],
                 "return_type": "String",
                 "returns_list": False,
-                "sql_source": "fn_ping"
+                "sql_source": "fn_ping",
             },
             {
                 "name": "user",
                 "description": "Get user by UUID id",
-                "arguments": [
-                    {"name": "id", "type": "ID", "nullable": False}
-                ],
+                "arguments": [{"name": "id", "type": "ID", "nullable": False}],
                 "return_type": "User",
                 "returns_list": False,
-                "sql_source": "v_user"
+                "sql_source": "v_user",
             },
             {
                 "name": "users",
                 "description": "Get users list with pagination",
                 "arguments": [
                     {"name": "limit", "type": "Int", "nullable": True, "default": 10},
-                    {"name": "offset", "type": "Int", "nullable": True, "default": 0}
+                    {"name": "offset", "type": "Int", "nullable": True, "default": 0},
                 ],
                 "return_type": "User",
                 "returns_list": True,
-                "sql_source": "v_users"
+                "sql_source": "v_users",
             },
             {
                 "name": "post",
                 "description": "Get post by UUID id",
-                "arguments": [
-                    {"name": "id", "type": "ID", "nullable": False}
-                ],
+                "arguments": [{"name": "id", "type": "ID", "nullable": False}],
                 "return_type": "Post",
                 "returns_list": False,
-                "sql_source": "v_post"
+                "sql_source": "v_post",
             },
             {
                 "name": "posts",
                 "description": "Get posts list with pagination",
                 "arguments": [
                     {"name": "limit", "type": "Int", "nullable": True, "default": 10},
-                    {"name": "offset", "type": "Int", "nullable": True, "default": 0}
+                    {"name": "offset", "type": "Int", "nullable": True, "default": 0},
                 ],
                 "return_type": "Post",
                 "returns_list": True,
-                "sql_source": "v_posts"
+                "sql_source": "v_posts",
             },
             {
                 "name": "comment",
                 "description": "Get comment by UUID id",
-                "arguments": [
-                    {"name": "id", "type": "ID", "nullable": False}
-                ],
+                "arguments": [{"name": "id", "type": "ID", "nullable": False}],
                 "return_type": "Comment",
                 "returns_list": False,
-                "sql_source": "v_comment"
+                "sql_source": "v_comment",
             },
             {
                 "name": "comments",
                 "description": "Get comments list with pagination",
                 "arguments": [
                     {"name": "limit", "type": "Int", "nullable": True, "default": 10},
-                    {"name": "offset", "type": "Int", "nullable": True, "default": 0}
+                    {"name": "offset", "type": "Int", "nullable": True, "default": 0},
                 ],
                 "return_type": "Comment",
                 "returns_list": True,
-                "sql_source": "v_comments"
-            }
+                "sql_source": "v_comments",
+            },
         ],
         "mutations": [
             {
@@ -160,12 +154,12 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "id", "type": "ID", "nullable": False},
                     {"name": "firstName", "type": "String", "nullable": True},
                     {"name": "lastName", "type": "String", "nullable": True},
-                    {"name": "bio", "type": "String", "nullable": True}
+                    {"name": "bio", "type": "String", "nullable": True},
                 ],
                 "return_type": "User",
                 "returns_list": False,
                 "nullable": False,
-                "sql_source": "fn_update_user"
+                "sql_source": "fn_update_user",
             },
             {
                 "name": "createPost",
@@ -174,12 +168,12 @@ def get_velocitybench_schema() -> dict[str, Any]:
                     {"name": "title", "type": "String", "nullable": False},
                     {"name": "content", "type": "String", "nullable": True},
                     {"name": "excerpt", "type": "String", "nullable": True},
-                    {"name": "status", "type": "String", "nullable": True, "default": "published"}
+                    {"name": "status", "type": "String", "nullable": True, "default": "published"},
                 ],
                 "return_type": "Post",
                 "returns_list": False,
                 "nullable": False,
-                "sql_source": "fn_create_post"
+                "sql_source": "fn_create_post",
             },
             {
                 "name": "createComment",
@@ -187,14 +181,14 @@ def get_velocitybench_schema() -> dict[str, Any]:
                 "arguments": [
                     {"name": "postId", "type": "ID", "nullable": False},
                     {"name": "content", "type": "String", "nullable": False},
-                    {"name": "parentCommentId", "type": "ID", "nullable": True}
+                    {"name": "parentCommentId", "type": "ID", "nullable": True},
                 ],
                 "return_type": "Comment",
                 "returns_list": False,
                 "nullable": False,
-                "sql_source": "fn_create_comment"
-            }
-        ]
+                "sql_source": "fn_create_comment",
+            },
+        ],
     }
 
 
@@ -312,7 +306,7 @@ schema.export_schema("velocitybench_schema.json")
 
 def get_typescript_schema_code() -> str:
     """Get TypeScript code to define the VelocityBench schema."""
-    return '''
+    return """
 import { Type, Query, Mutation } from "fraiseql";
 
 @Type()
@@ -403,12 +397,12 @@ createPost(title: string, content?: string, excerpt?: string, status?: string): 
 createComment(postId: string, content: string, parentCommentId?: string): Comment {
   return new Comment();
 }
-'''
+"""
 
 
 def get_java_schema_code() -> str:
     """Get Java code to define the VelocityBench schema."""
-    return '''\
+    return """\
 import com.fraiseql.annotations.FraiseQLType;
 import com.fraiseql.annotations.Query;
 import com.fraiseql.annotations.Mutation;
@@ -556,12 +550,12 @@ public class VelocityBenchSchema {
         return null;
     }
 }
-'''
+"""
 
 
 def get_go_schema_code() -> str:
     """Get Go code to define the VelocityBench schema."""
-    return '''\
+    return """\
 package velocitybench
 
 type User struct {
@@ -639,12 +633,12 @@ func (s *Schema) CreatePost(title, content, excerpt, status string) (*Post, erro
 func (s *Schema) CreateComment(postId, content, parentCommentId string) (*Comment, error) {
     return nil, nil
 }
-'''
+"""
 
 
 def get_php_schema_code() -> str:
     """Get PHP code to define the VelocityBench schema."""
-    return '''\
+    return """\
 <?php
 
 namespace VelocityBench;
@@ -795,12 +789,12 @@ class VelocityBenchSchema {
         return new Comment();
     }
 }
-'''
+"""
 
 
 def get_kotlin_schema_code() -> str:
     """Get Kotlin code to define the VelocityBench schema."""
-    return '''\
+    return """\
 import com.fraiseql.annotations.FraiseQLType
 import com.fraiseql.annotations.Query
 import com.fraiseql.annotations.Mutation
@@ -947,12 +941,12 @@ class VelocityBenchSchema {
         return Comment(id = "", content = content, createdAt = "", updatedAt = "", author = User(id = "", username = "", email = "", createdAt = "", updatedAt = ""), post = Post(id = "", title = "", createdAt = "", updatedAt = "", author = User(id = "", username = "", email = "", createdAt = "", updatedAt = "")))
     }
 }
-'''
+"""
 
 
 def get_csharp_schema_code() -> str:
     """Get C# code to define the VelocityBench schema."""
-    return '''\
+    return """\
 using FraiseQL.Annotations;
 using System;
 using System.Collections.Generic;
@@ -1109,12 +1103,12 @@ public class VelocityBenchSchema
         return new Comment("", content, true, "", "", null!, null!, null);
     }
 }
-'''
+"""
 
 
 def get_rust_schema_code() -> str:
     """Get Rust code to define the VelocityBench schema."""
-    return '''\
+    return """\
 use fraiseql::prelude::*;
 
 #[derive(FraiseQLType, Debug, Clone)]
@@ -1333,12 +1327,12 @@ impl VelocityBenchSchema {
         }
     }
 }
-'''
+"""
 
 
 def get_javascript_schema_code() -> str:
     """Get JavaScript code to define the VelocityBench schema."""
-    return '''\
+    return """\
 import { Type, Query, Mutation, Field } from "fraiseql";
 
 @Type()
@@ -1484,12 +1478,12 @@ class VelocityBenchSchema {
 }
 
 export { VelocityBenchSchema, User, Post, Comment };
-'''
+"""
 
 
 def get_ruby_schema_code() -> str:
     """Get Ruby code to define the VelocityBench schema."""
-    return '''\
+    return """\
 require "fraiseql"
 
 class User
@@ -1583,7 +1577,7 @@ module VelocityBenchSchema
     Comment.new
   end
 end
-'''
+"""
 
 
 if __name__ == "__main__":

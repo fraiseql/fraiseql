@@ -5,7 +5,7 @@ automatically caches query results and invalidates cache on mutations.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.db import FraiseQLRepository
@@ -43,7 +43,7 @@ class CachedRepository(FraiseQLRepository):
         self,
         view_name: str,
         skip_cache: bool = False,
-        cache_ttl: Optional[int] = None,
+        cache_ttl: int | None = None,
         **kwargs: Any,
     ) -> RustResponseBytes:
         """Find records with caching support.
@@ -84,7 +84,7 @@ class CachedRepository(FraiseQLRepository):
         self,
         view_name: str,
         skip_cache: bool = False,
-        cache_ttl: Optional[int] = None,
+        cache_ttl: int | None = None,
         **kwargs: Any,
     ) -> RustResponseBytes:
         """Find single record with caching support.

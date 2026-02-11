@@ -12,7 +12,6 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +147,7 @@ def check_filesystem_permissions() -> None:
     - /app is readable (application directory)
     - /etc/passwd is not writable (prevents CVE-2025-14104 exploitation)
     """
-    checks: List[tuple[str, bool, str]] = [
+    checks: list[tuple[str, bool, str]] = [
         ("/tmp", True, "Temporary directory must be writable"),
         ("/app", False, "Application directory must be readable"),
     ]

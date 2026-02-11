@@ -329,10 +329,7 @@ ignore = [
   "C901",  # Function is too complex
   "PLR0912",  # Too many branches
   "PLR0911",  # Too many return statements
-  "UP007",  # Use X | Y for type unions (not compatible with older Python)
-  "UP045",  # Use X | None instead of Optional[X] (we support Python 3.11+)
-  "UP046",  # Generic class should use type parameters (Python 3.12+ syntax)
-  "UP047",  # Generic function should use type parameters (Python 3.12+ syntax)
+  # UP007, UP045, UP046, UP047 now ENABLED - project targets Python 3.13
   "N802",  # Function name should be lowercase
   "N806",  # Variable in function should be lowercase
   "SLF001",  # Private member accessed
@@ -418,6 +415,12 @@ select = ["ALL"]
 ]
 "src/fraiseql/core/query_builder.py" = [
   "ANN205"  # Staticmethod return type annotation optional
+]
+"src/fraiseql/sql/graphql_order_by_generator.py" = [
+  "UP045"  # Runtime type construction with Optional[] for dynamic dataclass fields
+]
+"src/fraiseql/sql/graphql_where_generator.py" = [
+  "UP045"  # Runtime type construction with Optional[] for dynamic dataclass fields
 ]
 "src/fraiseql/core/rust_pipeline.py" = [
   "TID252"  # Relative imports necessary to avoid circular imports with bundled Rust extension

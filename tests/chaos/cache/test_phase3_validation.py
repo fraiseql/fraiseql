@@ -6,7 +6,7 @@ Tests validate that FraiseQL maintains performance and security under adverse ca
 """
 
 import statistics
-from typing import Dict, Any, List, Tuple
+from typing import Any
 from chaos.base import ChaosTestCase
 
 
@@ -28,7 +28,7 @@ class Phase3SuccessCriteria:
     @classmethod
     def validate_cache_chaos_test(
         cls, test_case: ChaosTestCase, cache_type: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate cache chaos test results.
 
@@ -101,7 +101,7 @@ class Phase3SuccessCriteria:
     @classmethod
     def validate_auth_chaos_test(
         cls, test_case: ChaosTestCase, auth_type: str
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate authentication chaos test results.
 
@@ -186,8 +186,8 @@ class Phase3SuccessCriteria:
 
     @classmethod
     def validate_phase3_overall_success(
-        cls, test_results: List[Tuple[bool, str, Dict[str, Any]]]
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+        cls, test_results: list[tuple[bool, str, dict[str, Any]]]
+    ) -> tuple[bool, str, dict[str, Any]]:
         """
         Validate overall Phase 3 success based on all cache and auth chaos test results.
 
@@ -275,11 +275,11 @@ class Phase3SuccessCriteria:
     @classmethod
     def _generate_phase3_recommendations(
         cls,
-        test_results: List[Tuple[bool, str, Dict[str, Any]]],
+        test_results: list[tuple[bool, str, dict[str, Any]]],
         pass_rate: float,
         auth_failures: int,
         cache_failures: int,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate recommendations based on Phase 3 test results."""
         recommendations = []
 
@@ -343,7 +343,7 @@ class Phase3SuccessCriteria:
 
 def validate_cache_auth_chaos_test_success(
     test_case: ChaosTestCase, test_type: str, **kwargs
-) -> Tuple[bool, str, Dict[str, Any]]:
+) -> tuple[bool, str, dict[str, Any]]:
     """
     Validate a cache or auth chaos test based on its type and success criteria.
 
@@ -366,7 +366,7 @@ def validate_cache_auth_chaos_test_success(
         return False, "FAIL", {"issues": [f"Unknown cache/auth test type: {test_type}"]}
 
 
-def generate_phase3_report(test_results: List[Tuple[bool, str, Dict[str, Any]]]) -> Dict[str, Any]:
+def generate_phase3_report(test_results: list[tuple[bool, str, dict[str, Any]]]) -> dict[str, Any]:
     """Generate a comprehensive Phase 3 cache and auth chaos report."""
     overall_passed, status, summary = Phase3SuccessCriteria.validate_phase3_overall_success(
         test_results
@@ -433,7 +433,7 @@ def generate_phase3_report(test_results: List[Tuple[bool, str, Dict[str, Any]]])
     return report
 
 
-def print_phase3_report(report: Dict[str, Any]):
+def print_phase3_report(report: dict[str, Any]):
     """Print a formatted Phase 3 cache and auth chaos report."""
     print("\n" + "=" * 60)
     print("PHASE 3 CACHE & AUTHENTICATION CHAOS REPORT")

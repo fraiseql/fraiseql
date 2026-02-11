@@ -5,7 +5,7 @@ Generates union types for all mutations.
 
 import types
 from dataclasses import dataclass
-from typing import Annotated, Any, Type
+from typing import Annotated, Any
 
 from fraiseql.mutations.decorators import FraiseUnion
 
@@ -18,8 +18,8 @@ class MutationSchema:
     """
 
     mutation_name: str
-    success_type: Type
-    error_type: Type
+    success_type: type
+    error_type: type
     union_type: Any  # FraiseQL union type
 
     def to_graphql_sdl(self) -> str:
@@ -270,8 +270,8 @@ extend type Mutation {{
 
 def generate_mutation_schema(
     mutation_name: str,
-    success_type: Type,
-    error_type: Type,
+    success_type: type,
+    error_type: type,
 ) -> MutationSchema:
     """Generate schema for a mutation.
 

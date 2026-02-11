@@ -5,7 +5,7 @@ queries (find_one, find_all, connection) for auto-discovered types.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from .metadata_parser import TypeAnnotation
@@ -55,7 +55,7 @@ class QueryGenerator:
         """Generate find_one(id) query."""
 
         # Create query function dynamically
-        async def find_one_impl(info: Any, id: UUID) -> Optional[Any]:
+        async def find_one_impl(info: Any, id: UUID) -> Any | None:
             """Get a single item by ID."""
             db = info.context["db"]
             sql_source = f"{schema_name}.{view_name}"
@@ -79,10 +79,10 @@ class QueryGenerator:
 
         async def find_all_impl(
             info: Any,
-            where: Optional[dict] = None,
-            order_by: Optional[dict] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
+            where: dict | None = None,
+            order_by: dict | None = None,
+            limit: int | None = None,
+            offset: int | None = None,
         ) -> list[Any]:
             """Get all items with optional filtering."""
             db = info.context["db"]
@@ -112,9 +112,9 @@ class QueryGenerator:
         # In a full implementation, this would use Relay connection spec
         async def connection_impl(
             info: Any,
-            first: Optional[int] = None,
-            after: Optional[str] = None,
-            where: Optional[dict] = None,
+            first: int | None = None,
+            after: str | None = None,
+            where: dict | None = None,
         ) -> dict:
             """Relay-style connection with pagination."""
             db = info.context["db"]

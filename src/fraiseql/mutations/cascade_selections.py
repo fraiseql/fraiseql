@@ -10,12 +10,12 @@ This is a minimal implementation focused on the most common use cases:
 """
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from graphql import FieldNode, GraphQLResolveInfo, InlineFragmentNode
 
 
-def extract_cascade_selections(info: GraphQLResolveInfo) -> Optional[str]:
+def extract_cascade_selections(info: GraphQLResolveInfo) -> str | None:
     """Extract cascade field selections from GraphQL query.
 
     Parses the GraphQL selection set to determine which CASCADE fields
@@ -52,7 +52,7 @@ def extract_cascade_selections(info: GraphQLResolveInfo) -> Optional[str]:
     return None
 
 
-def _find_cascade_in_fragment(fragment: InlineFragmentNode) -> Optional[FieldNode]:
+def _find_cascade_in_fragment(fragment: InlineFragmentNode) -> FieldNode | None:
     """Find cascade field within an inline fragment."""
     if not fragment.selection_set:
         return None

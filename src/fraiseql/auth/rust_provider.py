@@ -5,7 +5,6 @@ Phase 10 implementation with 5-10x performance improvement over Python.
 """
 
 import logging
-from typing import List
 
 from fraiseql.auth.base import AuthProvider, UserContext
 
@@ -28,7 +27,7 @@ class RustAuth0Provider(AuthProvider):
         audience: Expected audience value(s)
     """
 
-    def __init__(self, domain: str, audience: str | List[str]):
+    def __init__(self, domain: str, audience: str | list[str]):
         """Initialize Auth0 provider."""
         self.domain = domain
         self.audience = [audience] if isinstance(audience, str) else audience
@@ -93,7 +92,7 @@ class RustCustomJWTProvider(AuthProvider):
     def __init__(
         self,
         issuer: str,
-        audience: str | List[str],
+        audience: str | list[str],
         jwks_url: str,
         roles_claim: str = "roles",
         permissions_claim: str = "permissions",

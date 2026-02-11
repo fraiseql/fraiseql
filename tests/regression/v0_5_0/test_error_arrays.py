@@ -14,7 +14,7 @@ Key Features Tested:
 """
 
 import uuid
-from typing import Optional, Union
+from typing import Optional
 
 import pytest
 
@@ -112,7 +112,7 @@ def validate_author_input(input_data: dict) -> list[dict]:
     return errors
 
 
-def create_author_mutation_logic(input_data: dict) -> Union[CreateAuthorSuccess, CreateAuthorError]:
+def create_author_mutation_logic(input_data: dict) -> CreateAuthorSuccess | CreateAuthorError:
     """Pure logic for create author mutation with error arrays."""
     # Validate input and collect errors
     validation_errors = validate_author_input(input_data)

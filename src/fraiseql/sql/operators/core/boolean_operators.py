@@ -1,6 +1,6 @@
 """Boolean operator strategies."""
 
-from typing import Any, Optional
+from typing import Any
 
 from psycopg.sql import Composable
 
@@ -17,7 +17,7 @@ class BooleanOperatorStrategy(BaseOperatorStrategy):
 
     SUPPORTED_OPERATORS = {"eq", "neq", "isnull"}
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is a boolean operator on a boolean field."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -32,9 +32,9 @@ class BooleanOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for boolean operators."""
         # Comparison operators
         if operator in ("eq", "neq"):

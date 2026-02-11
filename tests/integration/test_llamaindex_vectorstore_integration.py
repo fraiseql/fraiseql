@@ -9,7 +9,6 @@ Tests complete LlamaIndex VectorStore functionality including:
 """
 
 import uuid
-from typing import List
 from unittest.mock import Mock
 
 import pytest
@@ -39,15 +38,15 @@ class MockEmbeddings:
     def __init__(self, dimension: int = 384):
         self.dimension = dimension
 
-    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         """Mock async embed documents."""
         return [[0.1] * self.dimension for _ in texts]
 
-    async def aembed_query(self, text: str) -> List[float]:
+    async def aembed_query(self, text: str) -> list[float]:
         """Mock async embed query."""
         return [0.1] * self.dimension
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """Mock sync embed query."""
         return [0.1] * self.dimension
 

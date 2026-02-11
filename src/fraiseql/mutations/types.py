@@ -1,7 +1,7 @@
 """Types for PostgreSQL function-based mutations."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 from uuid import UUID
 
 from fraiseql.types import type as fraiseql_type
@@ -105,7 +105,7 @@ class CascadeEntity:
 
     id: str
     operation: str
-    entity: Dict[str, Any]
+    entity: dict[str, Any]
 
 
 @fraiseql_type
@@ -142,9 +142,9 @@ class CascadeMetadata:
 class Cascade:
     """Complete cascade response with side effects."""
 
-    updated: List[CascadeEntity]  # List of updated entities
-    deleted: List[CascadeEntity]  # List of deleted entities
-    invalidations: List[CascadeInvalidation]
+    updated: list[CascadeEntity]  # List of updated entities
+    deleted: list[CascadeEntity]  # List of deleted entities
+    invalidations: list[CascadeInvalidation]
     metadata: CascadeMetadata
 
 

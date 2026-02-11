@@ -48,7 +48,7 @@ def test_python_e2e_basic_schema():
         result = subprocess.run(
             ["fraiseql-cli", "compile", str(schema_path), "-o", str(compiled_path)],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if result.returncode == 0:
@@ -60,15 +60,13 @@ def test_python_e2e_basic_schema():
             print(f"⚠️  CLI compilation warning: {result.stderr}")
             # CLI integration is being fixed, warnings are acceptable
 
+
 def test_python_e2e_analytics_schema():
     """Test fact table analytics schema."""
     from fraiseql import fact_table, aggregate_query
     from fraiseql import schema
 
-    @fact_table(
-        table_name="tf_sales",
-        measures=["amount", "quantity"]
-    )
+    @fact_table(table_name="tf_sales", measures=["amount", "quantity"])
     class SalesFactTable:
         # Measures (numeric columns)
         amount: float
@@ -89,6 +87,7 @@ def test_python_e2e_analytics_schema():
         assert "types" in schema_data or "queries" in schema_data
         # Verify schema was exported successfully
         assert len(schema_data) > 0
+
 
 if __name__ == "__main__":
     test_python_e2e_basic_schema()

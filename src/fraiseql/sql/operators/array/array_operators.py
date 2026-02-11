@@ -1,7 +1,7 @@
 """Array operator strategies for JSONB array fields."""
 
 import json
-from typing import Any, Optional, get_origin
+from typing import Any, get_origin
 
 from psycopg.sql import SQL, Composable, Literal
 
@@ -37,7 +37,7 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
         "all_eq",
     }
 
-    def supports_operator(self, operator: str, field_type: Optional[type]) -> bool:
+    def supports_operator(self, operator: str, field_type: type | None) -> bool:
         """Check if this is an array operator on an array field."""
         if operator not in self.SUPPORTED_OPERATORS:
             return False
@@ -54,9 +54,9 @@ class ArrayOperatorStrategy(BaseOperatorStrategy):
         operator: str,
         value: Any,
         path_sql: Composable,
-        field_type: Optional[type] = None,
-        jsonb_column: Optional[str] = None,
-    ) -> Optional[Composable]:
+        field_type: type | None = None,
+        jsonb_column: str | None = None,
+    ) -> Composable | None:
         """Build SQL for array operators."""
         # Array operations work directly on JSONB arrays
         # path_sql is already the JSONB path (e.g., data->'tags')

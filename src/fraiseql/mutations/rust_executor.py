@@ -5,7 +5,7 @@ PostgreSQL -> Rust -> HTTP bytes (zero Python parsing)
 
 import json
 import logging
-from typing import Any, Type
+from typing import Any
 
 from fraiseql.core.rust_pipeline import RustResponseBytes
 from fraiseql.utils.casing import dict_keys_to_snake_case
@@ -38,7 +38,7 @@ async def execute_mutation_rust(
     context_args: list[Any] | None = None,
     cascade_selections: str | None = None,
     config: Any | None = None,
-    success_type_class: Type | None = None,
+    success_type_class: type | None = None,
     success_type_fields: list[str] | None = None,
     error_type_fields: list[str] | None = None,
     entity_selections: str | None = None,

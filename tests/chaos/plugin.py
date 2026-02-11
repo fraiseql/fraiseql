@@ -8,7 +8,7 @@ including failure injection, retry logic, and chaos scenario management.
 import time
 import functools
 import pytest
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Optional, Callable
 from enum import Enum
 
 # Import for type annotations
@@ -33,7 +33,7 @@ class ChaosInjector:
     """Chaos injection manager."""
 
     def __init__(self):
-        self.active_failures: Dict[str, Dict[str, Any]] = {}
+        self.active_failures: dict[str, dict[str, Any]] = {}
 
     def inject_failure(self, failure_type: FailureType, duration_ms: int, **kwargs) -> str:
         """
@@ -80,7 +80,7 @@ class ChaosInjector:
         if failure_id in self.active_failures:
             self.active_failures[failure_id]["active"] = False
 
-    def get_active_failures(self) -> Dict[str, Dict[str, Any]]:
+    def get_active_failures(self) -> dict[str, dict[str, Any]]:
         """Get all currently active failures."""
         return {k: v for k, v in self.active_failures.items() if v["active"]}
 

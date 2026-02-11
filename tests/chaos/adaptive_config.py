@@ -6,7 +6,7 @@ to hardware capabilities and runtime environment.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 
 from .environment import (
     EnvironmentInfo,
@@ -219,7 +219,7 @@ def get_config_for_profile(profile: str) -> ChaosConfig:
     from .environment import HardwareProfile
 
     # Profile definitions
-    profiles: Dict[str, Dict[str, Any]] = {
+    profiles: dict[str, dict[str, Any]] = {
         "low": {"cpu_count": 2, "memory_gb": 4.0, "cpu_freq_mhz": 1800.0},
         "medium": {"cpu_count": 4, "memory_gb": 8.0, "cpu_freq_mhz": 2400.0},
         "high": {"cpu_count": 16, "memory_gb": 32.0, "cpu_freq_mhz": 3600.0},
@@ -279,7 +279,9 @@ if __name__ == "__main__":
     print("-" * 80)
     for profile_name in ["low", "high"]:
         p_config = get_config_for_profile(profile_name)
-        print(f"{profile_name.upper():6} profile: "
-              f"{p_config.concurrent_requests:3} concurrent, "
-              f"{p_config.timeout_seconds:.1f}s timeout")
+        print(
+            f"{profile_name.upper():6} profile: "
+            f"{p_config.concurrent_requests:3} concurrent, "
+            f"{p_config.timeout_seconds:.1f}s timeout"
+        )
     print("=" * 80)

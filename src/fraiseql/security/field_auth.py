@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import warnings
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from graphql import GraphQLError, GraphQLResolveInfo
 
@@ -31,7 +31,7 @@ class PermissionCheck(Protocol):
         info: GraphQLResolveInfo,
         *args: Any,
         **kwargs: Any,
-    ) -> Union[bool, Awaitable[bool]]:
+    ) -> bool | Awaitable[bool]:
         """Check if the field access is authorized."""
         ...
 

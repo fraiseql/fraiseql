@@ -4,7 +4,7 @@ This module provides specific exceptions with clear error messages, query contex
 and helpful hints for common mistakes.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from graphql import GraphQLResolveInfo
 
@@ -16,10 +16,10 @@ class FraiseQLException(Exception):
         self,
         message: str,
         *,
-        query_context: Optional[dict[str, Any]] = None,
-        hint: Optional[str] = None,
-        code: Optional[str] = None,
-        cause: Optional[Exception] = None,
+        query_context: dict[str, Any] | None = None,
+        hint: str | None = None,
+        code: str | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize FraiseQL exception with enhanced information.
 
@@ -60,11 +60,11 @@ class PartialInstantiationError(FraiseQLException):
     def __init__(
         self,
         type_name: str,
-        field_name: Optional[str] = None,
-        reason: Optional[str] = None,
-        available_fields: Optional[set[str]] = None,
-        requested_fields: Optional[set[str]] = None,
-        cause: Optional[Exception] = None,
+        field_name: str | None = None,
+        reason: str | None = None,
+        available_fields: set[str] | None = None,
+        requested_fields: set[str] | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize partial instantiation error.
 
@@ -126,11 +126,11 @@ class WhereClauseError(FraiseQLException):
     def __init__(
         self,
         message: str,
-        where_input: Optional[dict[str, Any]] = None,
-        field_name: Optional[str] = None,
-        operator: Optional[str] = None,
-        supported_operators: Optional[list[str]] = None,
-        cause: Optional[Exception] = None,
+        where_input: dict[str, Any] | None = None,
+        field_name: str | None = None,
+        operator: str | None = None,
+        supported_operators: list[str] | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize WHERE clause error.
 
@@ -182,11 +182,11 @@ class QueryValidationError(FraiseQLException):
     def __init__(
         self,
         message: str,
-        type_name: Optional[str] = None,
-        invalid_fields: Optional[list[str]] = None,
-        valid_fields: Optional[list[str]] = None,
-        query_info: Optional[GraphQLResolveInfo] = None,
-        cause: Optional[Exception] = None,
+        type_name: str | None = None,
+        invalid_fields: list[str] | None = None,
+        valid_fields: list[str] | None = None,
+        query_info: GraphQLResolveInfo | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize query validation error.
 
@@ -240,10 +240,10 @@ class DatabaseQueryError(FraiseQLException):
     def __init__(
         self,
         message: str,
-        sql: Optional[str] = None,
-        params: Optional[dict[str, Any]] = None,
-        view_name: Optional[str] = None,
-        cause: Optional[Exception] = None,
+        sql: str | None = None,
+        params: dict[str, Any] | None = None,
+        view_name: str | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize database query error.
 
@@ -301,8 +301,8 @@ class TypeRegistrationError(FraiseQLException):
         self,
         type_name: str,
         reason: str,
-        existing_types: Optional[list[str]] = None,
-        cause: Optional[Exception] = None,
+        existing_types: list[str] | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize type registration error.
 
@@ -348,9 +348,9 @@ class ResolverError(FraiseQLException):
         self,
         resolver_name: str,
         reason: str,
-        query_info: Optional[GraphQLResolveInfo] = None,
-        args: Optional[dict[str, Any]] = None,
-        cause: Optional[Exception] = None,
+        query_info: GraphQLResolveInfo | None = None,
+        args: dict[str, Any] | None = None,
+        cause: Exception | None = None,
     ) -> None:
         """Initialize resolver error.
 

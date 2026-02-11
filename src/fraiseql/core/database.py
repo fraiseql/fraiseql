@@ -3,8 +3,6 @@
 Phase 1: Basic synchronous wrapper. Async support in Phase 1.5.
 """
 
-from typing import Optional
-
 from fraiseql._fraiseql_rs import DatabasePool as RustDatabasePool
 
 
@@ -14,7 +12,7 @@ class DatabasePool:
     Provides a Python interface to the high-performance Rust connection pool.
     """
 
-    def __init__(self, database_url: str, config: Optional[dict] = None) -> None:
+    def __init__(self, database_url: str, config: dict | None = None) -> None:
         """Create a new database connection pool.
 
         Args:
