@@ -4,12 +4,12 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod transaction_integration_tests {
-    use crate::encryption::credential_rotation::{CredentialRotationManager, RotationConfig};
-    use crate::encryption::schema::{SchemaFieldInfo, StructSchema};
-    use crate::encryption::transaction::{
-        IsolationLevel, TransactionContext, TransactionManager, TransactionState,
+    use crate::encryption::{
+        FieldEncryption,
+        credential_rotation::{CredentialRotationManager, RotationConfig},
+        schema::{SchemaFieldInfo, StructSchema},
+        transaction::{IsolationLevel, TransactionContext, TransactionManager, TransactionState},
     };
-    use crate::encryption::FieldEncryption;
 
     /// Helper: create a test cipher from a zeroed key
     fn test_cipher() -> FieldEncryption {
@@ -113,7 +113,11 @@ mod transaction_integration_tests {
         let nonces: Vec<&[u8]> = ciphertexts.iter().map(|(_, ct)| &ct[..12]).collect();
         for i in 0..nonces.len() {
             for j in (i + 1)..nonces.len() {
-                assert_ne!(nonces[i], nonces[j], "Nonces should be unique for record {} and {}", i, j);
+                assert_ne!(
+                    nonces[i], nonces[j],
+                    "Nonces should be unique for record {} and {}",
+                    i, j
+                );
             }
         }
 
@@ -200,10 +204,7 @@ mod transaction_integration_tests {
         assert_eq!(txn.operation_count(), 18); // 10 inserts + 5 updates + 3 deletes
 
         manager.commit(&txn_id).unwrap();
-        assert_eq!(
-            manager.get_transaction(&txn_id).unwrap().state,
-            TransactionState::Committed
-        );
+        assert_eq!(manager.get_transaction(&txn_id).unwrap().state, TransactionState::Committed);
     }
 
     /// Test batch DELETE with encrypted fields
@@ -495,9 +496,8 @@ mod transaction_integration_tests {
         let original_ct = cipher.encrypt("original_value").unwrap();
 
         // Multiple concurrent readers all get the same plaintext
-        let reader_results: Vec<String> = (0..5)
-            .map(|_| cipher.decrypt(&original_ct).unwrap())
-            .collect();
+        let reader_results: Vec<String> =
+            (0..5).map(|_| cipher.decrypt(&original_ct).unwrap()).collect();
 
         for result in &reader_results {
             assert_eq!(result, "original_value");
@@ -582,8 +582,8 @@ mod transaction_integration_tests {
         let version = rotation_manager.initialize_key().unwrap();
 
         // Transaction holds reference to a specific key version
-        let ctx = TransactionContext::new("user1", "sess1", "req1")
-            .with_key_version(version as u32);
+        let ctx =
+            TransactionContext::new("user1", "sess1", "req1").with_key_version(version as u32);
         assert_eq!(ctx.key_version, version as u32);
 
         // Even if key lease conceptually expires, the cipher already exists
@@ -910,17 +910,11 @@ mod transaction_integration_tests {
         }
 
         // Transaction 2 in error state
-        assert_eq!(
-            manager.get_transaction(&txn_id2).unwrap().state,
-            TransactionState::Error
-        );
+        assert_eq!(manager.get_transaction(&txn_id2).unwrap().state, TransactionState::Error);
 
         // Transaction 1 can proceed and commit
         manager.commit(&txn_id1).unwrap();
-        assert_eq!(
-            manager.get_transaction(&txn_id1).unwrap().state,
-            TransactionState::Committed
-        );
+        assert_eq!(manager.get_transaction(&txn_id1).unwrap().state, TransactionState::Committed);
 
         // Encryption state remains consistent for retried transaction
         let cipher = test_cipher();
@@ -1004,9 +998,8 @@ mod transaction_integration_tests {
         manager.begin(ctx).unwrap();
 
         // Simulate bulk migration: encrypt 50 previously-unencrypted records
-        let plaintext_records: Vec<String> = (0..50)
-            .map(|i| format!("plaintext_email_{}@test.com", i))
-            .collect();
+        let plaintext_records: Vec<String> =
+            (0..50).map(|i| format!("plaintext_email_{}@test.com", i)).collect();
 
         let mut encrypted_records = Vec::new();
         for (i, pt) in plaintext_records.iter().enumerate() {

@@ -327,9 +327,10 @@ mod vault_integration_tests {
 
         Mock::given(method("GET"))
             .and(path("/v1/secret/data/my-secret"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                kv2_response(serde_json::json!({"api_key": "sk-test-123456"})),
-            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(kv2_response(serde_json::json!({"api_key": "sk-test-123456"}))),
+            )
             .mount(&mock_server)
             .await;
 
@@ -403,9 +404,7 @@ mod vault_integration_tests {
         let mut handles = Vec::new();
         for _ in 0..10 {
             let v = vault.clone();
-            handles.push(tokio::spawn(async move {
-                v.get_secret("secret/data/concurrent").await
-            }));
+            handles.push(tokio::spawn(async move { v.get_secret("secret/data/concurrent").await }));
         }
 
         let results: Vec<_> = futures::future::join_all(handles).await;
@@ -429,8 +428,7 @@ mod vault_integration_tests {
             .mount(&mock_server)
             .await;
 
-        let vault =
-            VaultBackend::new(mock_server.uri(), "test-token").with_namespace("team-alpha");
+        let vault = VaultBackend::new(mock_server.uri(), "test-token").with_namespace("team-alpha");
         let result = vault.get_secret("secret/data/test").await;
         assert!(result.is_ok());
         assert!(result.unwrap().contains("alpha-secret"));
@@ -459,7 +457,8 @@ mod vault_integration_tests {
     async fn test_vault_credential_caching() {
         let mock_server = MockServer::start().await;
 
-        // Use a response with a non-zero lease_duration so the cache entry doesn't expire immediately
+        // Use a response with a non-zero lease_duration so the cache entry doesn't expire
+        // immediately
         Mock::given(method("GET"))
             .and(path("/v1/secret/data/cached"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -590,9 +589,10 @@ mod vault_integration_tests {
         // Token has permission for database creds
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/allowed-role"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user", "pass", "lease-1", 3600,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user", "pass", "lease-1", 3600)),
+            )
             .mount(&mock_server)
             .await;
 
@@ -630,10 +630,7 @@ mod vault_integration_tests {
         assert_eq!(response.lease_id, "database/creds/fraiseql-role/abc123");
         assert_eq!(response.lease_duration, 3600);
         assert!(response.renewable);
-        assert_eq!(
-            response.data["username"].as_str().unwrap(),
-            "v-token-db-fraiseql-xxx"
-        );
+        assert_eq!(response.data["username"].as_str().unwrap(), "v-token-db-fraiseql-xxx");
         assert_eq!(response.data["password"].as_str().unwrap(), "A1b2C3d4E5f6");
     }
 

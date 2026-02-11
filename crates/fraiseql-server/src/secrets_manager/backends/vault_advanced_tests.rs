@@ -193,25 +193,19 @@ mod vault_advanced_tests {
 
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/role1"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user1",
-                "pass1",
-                "lease-1",
-                3600,
-                true,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user1", "pass1", "lease-1", 3600, true)),
+            )
             .mount(&mock_server)
             .await;
 
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/role2"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user2",
-                "pass2",
-                "lease-2",
-                7200,
-                true,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user2", "pass2", "lease-2", 7200, true)),
+            )
             .mount(&mock_server)
             .await;
 
@@ -264,17 +258,19 @@ mod vault_advanced_tests {
 
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/role1"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user1", "pass1", "lease-1", 3600, true,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user1", "pass1", "lease-1", 3600, true)),
+            )
             .mount(&mock_server)
             .await;
 
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/role2"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user2", "pass2", "lease-2", 3600, true,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user2", "pass2", "lease-2", 3600, true)),
+            )
             .mount(&mock_server)
             .await;
 
@@ -373,11 +369,7 @@ mod vault_advanced_tests {
 
         // Cache should be bounded
         let cache_size = vault.cache_size().await;
-        assert!(
-            cache_size <= 10,
-            "Cache should not exceed max entries: got {}",
-            cache_size
-        );
+        assert!(cache_size <= 10, "Cache should not exceed max entries: got {}", cache_size);
     }
 
     // ============================================================================
@@ -421,10 +413,7 @@ mod vault_advanced_tests {
             .await;
 
         let vault = VaultBackend::new(mock_server.uri(), "test-token");
-        let plaintext = vault
-            .decrypt_field("my-key", "vault:v1:abcdef1234567890")
-            .await
-            .unwrap();
+        let plaintext = vault.decrypt_field("my-key", "vault:v1:abcdef1234567890").await.unwrap();
         assert_eq!(plaintext, "sensitive data");
     }
 
@@ -482,14 +471,8 @@ mod vault_advanced_tests {
 
         let vault = VaultBackend::new(mock_server.uri(), "test-token");
 
-        let v1_result = vault
-            .decrypt_field("rotated-key", "vault:v1:old-cipher")
-            .await
-            .unwrap();
-        let v2_result = vault
-            .decrypt_field("rotated-key", "vault:v2:new-cipher")
-            .await
-            .unwrap();
+        let v1_result = vault.decrypt_field("rotated-key", "vault:v1:old-cipher").await.unwrap();
+        let v2_result = vault.decrypt_field("rotated-key", "vault:v2:new-cipher").await.unwrap();
 
         assert_eq!(v1_result, v2_result);
     }
@@ -537,10 +520,7 @@ mod vault_advanced_tests {
             .await;
 
         let vault = VaultBackend::new(mock_server.uri(), "test-token");
-        let results = vault
-            .batch_encrypt("batch-key", &["hello", "world", "test"])
-            .await
-            .unwrap();
+        let results = vault.batch_encrypt("batch-key", &["hello", "world", "test"]).await.unwrap();
 
         assert_eq!(results.len(), 3);
         assert!(results[0].starts_with("vault:v1:"));
@@ -590,9 +570,7 @@ mod vault_advanced_tests {
         let mut handles = Vec::new();
         for _ in 0..100 {
             let v = vault.clone();
-            handles.push(tokio::spawn(async move {
-                v.get_secret("secret/data/concurrent").await
-            }));
+            handles.push(tokio::spawn(async move { v.get_secret("secret/data/concurrent").await }));
         }
 
         let results: Vec<_> = futures::future::join_all(handles).await;
@@ -608,13 +586,10 @@ mod vault_advanced_tests {
 
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/role"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user",
-                "pass",
-                "lease-1",
-                3600,
-                true,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user", "pass", "lease-1", 3600, true)),
+            )
             .mount(&mock_server)
             .await;
 
@@ -639,10 +614,8 @@ mod vault_advanced_tests {
         let v1 = vault.clone();
         let v2 = vault.clone();
 
-        let (renew_result, get_result) = tokio::join!(
-            v1.renew_lease("lease-1"),
-            v2.get_secret("database/creds/role"),
-        );
+        let (renew_result, get_result) =
+            tokio::join!(v1.renew_lease("lease-1"), v2.get_secret("database/creds/role"),);
 
         assert!(renew_result.is_ok());
         assert!(get_result.is_ok());
@@ -800,13 +773,10 @@ mod vault_advanced_tests {
 
         Mock::given(method("GET"))
             .and(path("/v1/database/creds/role"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(dynamic_creds_response(
-                "user",
-                "pass",
-                "lease-1",
-                3600,
-                true,
-            )))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(dynamic_creds_response("user", "pass", "lease-1", 3600, true)),
+            )
             .mount(&mock_server)
             .await;
 

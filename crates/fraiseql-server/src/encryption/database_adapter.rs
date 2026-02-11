@@ -322,7 +322,6 @@ impl EncryptedFieldAdapter for DatabaseFieldAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::secrets_manager::{SecretsError, types::SecretsBackend};
 
     /// In-memory secrets backend for testing
@@ -364,9 +363,7 @@ mod tests {
         for (name, value) in keys {
             secrets.insert(name.to_string(), value.to_string());
         }
-        Arc::new(SecretsManager::new(Arc::new(MockSecretsBackend::new(
-            secrets,
-        ))))
+        Arc::new(SecretsManager::new(Arc::new(MockSecretsBackend::new(secrets))))
     }
 
     /// A 32-byte string key for testing
@@ -410,10 +407,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_adapter_multiple_keys() {
-        let sm = mock_secrets_manager(vec![
-            ("db/email_key", KEY_32B_A),
-            ("db/phone_key", KEY_32B_B),
-        ]);
+        let sm =
+            mock_secrets_manager(vec![("db/email_key", KEY_32B_A), ("db/phone_key", KEY_32B_B)]);
         let mut field_keys = HashMap::new();
         field_keys.insert("email".to_string(), "db/email_key".to_string());
         field_keys.insert("phone".to_string(), "db/phone_key".to_string());

@@ -298,7 +298,8 @@ pub async fn auth_refresh(
 
     // Generate new JWT access token (1 hour expiry)
     let expires_in: u64 = 3600;
-    let access_token = generate_access_token(&session.user_id, expires_in, state.signing_key.as_ref())?;
+    let access_token =
+        generate_access_token(&session.user_id, expires_in, state.signing_key.as_ref())?;
 
     // Audit log: JWT refresh success
     let audit_logger = get_audit_logger();

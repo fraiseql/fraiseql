@@ -136,11 +136,11 @@ impl JobQueue for RedisJobQueue {
 
         // Mark as processing (add to processing set with worker info)
         let processing_info = format!("{}:{}", worker_id, chrono::Utc::now().timestamp());
-        let _: () = conn
-            .hset(&self.processing_key, job_id, &processing_info)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to mark as processing: {e}"),
+        let _: () =
+            conn.hset(&self.processing_key, job_id, &processing_info).await.map_err(|e| {
+                ObserverError::DatabaseError {
+                    reason: format!("Failed to mark as processing: {e}"),
+                }
             })?;
 
         Ok(Some(job))
@@ -150,11 +150,11 @@ impl JobQueue for RedisJobQueue {
         let mut conn = self.conn.clone();
 
         let processing_info = format!("{}:{}", "worker", chrono::Utc::now().timestamp());
-        let _: () = conn
-            .hset(&self.processing_key, job_id, processing_info)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to mark as processing: {e}"),
+        let _: () =
+            conn.hset(&self.processing_key, job_id, processing_info).await.map_err(|e| {
+                ObserverError::DatabaseError {
+                    reason: format!("Failed to mark as processing: {e}"),
+                }
             })?;
 
         Ok(())
@@ -185,11 +185,12 @@ impl JobQueue for RedisJobQueue {
         })?;
 
         // Remove job data
-        let _: () = conn.del(Self::job_key(job_id)).await.map_err(|e| {
-            ObserverError::DatabaseError {
-                reason: format!("Failed to delete job data: {e}"),
-            }
-        })?;
+        let _: () =
+            conn.del(Self::job_key(job_id))
+                .await
+                .map_err(|e| ObserverError::DatabaseError {
+                    reason: format!("Failed to delete job data: {e}"),
+                })?;
 
         // Increment success counter
         let _: () = conn.incr("queue:v1:stats:success", 1).await.map_err(|e| {
@@ -212,11 +213,11 @@ impl JobQueue for RedisJobQueue {
         })?;
 
         // Add to retry queue with next_retry_at as score
-        let _: () = conn
-            .zadd(&self.retry_key, job_id, next_retry_at as f64)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to add to retry queue: {e}"),
+        let _: () =
+            conn.zadd(&self.retry_key, job_id, next_retry_at as f64).await.map_err(|e| {
+                ObserverError::DatabaseError {
+                    reason: format!("Failed to add to retry queue: {e}"),
+                }
             })?;
 
         // Increment retry counter
@@ -243,20 +244,19 @@ impl JobQueue for RedisJobQueue {
         let now = chrono::Utc::now().timestamp() as f64;
         let entry = format!("{}|{}", reason, chrono::Utc::now().timestamp());
 
-        let _: () = conn
-            .zadd(&self.deadletter_key, job_id, now)
-            .await
-            .map_err(|e| ObserverError::DatabaseError {
+        let _: () = conn.zadd(&self.deadletter_key, job_id, now).await.map_err(|e| {
+            ObserverError::DatabaseError {
                 reason: format!("Failed to add to deadletter queue: {e}"),
-            })?;
+            }
+        })?;
 
         // Store reason
         let _: () = conn
             .set_ex(format!("job:v1:deadletter:reason:{job_id}"), entry, 86400)
             .await
             .map_err(|e| ObserverError::DatabaseError {
-                reason: format!("Failed to store deadletter reason: {e}"),
-            })?;
+            reason: format!("Failed to store deadletter reason: {e}"),
+        })?;
 
         // Increment failed counter
         let _: () = conn.incr("queue:v1:stats:failed", 1).await.map_err(|e| {

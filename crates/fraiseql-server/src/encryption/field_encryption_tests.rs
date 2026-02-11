@@ -6,9 +6,10 @@
 mod field_encryption_tests {
     use std::collections::HashSet;
 
-    use crate::encryption::database_adapter::EncryptionContext;
-    use crate::encryption::query_builder::QueryBuilderIntegration;
-    use crate::encryption::FieldEncryption;
+    use crate::encryption::{
+        FieldEncryption, database_adapter::EncryptionContext,
+        query_builder::QueryBuilderIntegration,
+    };
 
     const NONCE_SIZE: usize = 12;
     const TAG_SIZE: usize = 16;
@@ -80,9 +81,7 @@ mod field_encryption_tests {
 
         // The full encrypted blob should not contain the plaintext as a substring.
         assert!(
-            !encrypted
-                .windows(plaintext.len())
-                .any(|w| w == plaintext.as_bytes()),
+            !encrypted.windows(plaintext.len()).any(|w| w == plaintext.as_bytes()),
             "encrypted data must not contain plaintext bytes"
         );
     }
@@ -149,9 +148,7 @@ mod field_encryption_tests {
 
         // Ciphertext must not leak the SSN format (dashes, digit pattern).
         assert!(
-            !encrypted
-                .windows(ssn.len())
-                .any(|w| w == ssn.as_bytes()),
+            !encrypted.windows(ssn.len()).any(|w| w == ssn.as_bytes()),
             "ciphertext must not contain SSN plaintext"
         );
 
@@ -164,12 +161,12 @@ mod field_encryption_tests {
     fn test_field_encrypt_credit_card() {
         let cipher = test_cipher();
         let card_numbers = [
-            "4532015112830366",        // 16 digits, no separators
-            "4532 0151 1283 0366",      // with spaces
-            "4532-0151-1283-0366",      // with dashes
-            "3530111333300000",         // 16-digit JCB
-            "4222222222222",            // 13-digit Visa
-            "6011111111111111117",      // 19-digit Discover
+            "4532015112830366",    // 16 digits, no separators
+            "4532 0151 1283 0366", // with spaces
+            "4532-0151-1283-0366", // with dashes
+            "3530111333300000",    // 16-digit JCB
+            "4222222222222",       // 13-digit Visa
+            "6011111111111111117", // 19-digit Discover
         ];
 
         for card in &card_numbers {
@@ -242,12 +239,12 @@ mod field_encryption_tests {
     fn test_field_encrypt_unicode() {
         let cipher = test_cipher();
         let test_strings = [
-            "\u{4f60}\u{597d}\u{4e16}\u{754c}",                           // Chinese
-            "\u{041f}\u{0440}\u{0438}\u{0432}\u{0435}\u{0442}",           // Russian (Cyrillic)
-            "\u{1f512}\u{1f510}\u{1f511}",                                 // Lock emoji
-            "\u{0639}\u{0631}\u{0628}\u{064a}",                           // Arabic
-            "caf\u{00e9} na\u{00ef}ve r\u{00e9}sum\u{00e9}",             // Latin diacritics
-            "\u{1f600}\u{1f60d}\u{1f525}\u{1f4a5}",                       // More emoji
+            "\u{4f60}\u{597d}\u{4e16}\u{754c}",                 // Chinese
+            "\u{041f}\u{0440}\u{0438}\u{0432}\u{0435}\u{0442}", // Russian (Cyrillic)
+            "\u{1f512}\u{1f510}\u{1f511}",                      // Lock emoji
+            "\u{0639}\u{0631}\u{0628}\u{064a}",                 // Arabic
+            "caf\u{00e9} na\u{00ef}ve r\u{00e9}sum\u{00e9}",    // Latin diacritics
+            "\u{1f600}\u{1f60d}\u{1f525}\u{1f4a5}",             // More emoji
         ];
 
         for text in &test_strings {
@@ -287,21 +284,14 @@ mod field_encryption_tests {
         let correct_context = "user:100:password";
         let wrong_context = "user:999:password";
 
-        let encrypted = cipher
-            .encrypt_with_context(plaintext, correct_context)
-            .unwrap();
+        let encrypted = cipher.encrypt_with_context(plaintext, correct_context).unwrap();
 
         // Decryption with wrong context must fail.
         let result = cipher.decrypt_with_context(&encrypted, wrong_context);
-        assert!(
-            result.is_err(),
-            "decryption with wrong context must fail"
-        );
+        assert!(result.is_err(), "decryption with wrong context must fail");
 
         // Ensure correct context still works.
-        let decrypted = cipher
-            .decrypt_with_context(&encrypted, correct_context)
-            .unwrap();
+        let decrypted = cipher.decrypt_with_context(&encrypted, correct_context).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 
@@ -325,14 +315,8 @@ mod field_encryption_tests {
         let enc2 = cipher.encrypt_with_context(plaintext, &aad2).unwrap();
 
         // Each can only be decrypted with its own context.
-        assert_eq!(
-            cipher.decrypt_with_context(&enc1, &aad1).unwrap(),
-            plaintext
-        );
-        assert_eq!(
-            cipher.decrypt_with_context(&enc2, &aad2).unwrap(),
-            plaintext
-        );
+        assert_eq!(cipher.decrypt_with_context(&enc1, &aad1).unwrap(), plaintext);
+        assert_eq!(cipher.decrypt_with_context(&enc2, &aad2).unwrap(), plaintext);
 
         // Cross-context decryption must fail.
         assert!(cipher.decrypt_with_context(&enc1, &aad2).is_err());
@@ -340,10 +324,7 @@ mod field_encryption_tests {
 
         // Ciphertext size should not increase from adding context (AAD is not stored).
         assert_eq!(enc1.len(), enc2.len());
-        assert_eq!(
-            enc1.len(),
-            NONCE_SIZE + plaintext.len() + TAG_SIZE
-        );
+        assert_eq!(enc1.len(), NONCE_SIZE + plaintext.len() + TAG_SIZE);
     }
 
     // ============================================================================
@@ -442,10 +423,7 @@ mod field_encryption_tests {
 
         // Decrypting with a different key must fail.
         let result = cipher2.decrypt(&encrypted);
-        assert!(
-            result.is_err(),
-            "decryption with wrong key must fail"
-        );
+        assert!(result.is_err(), "decryption with wrong key must fail");
 
         // Original key should still work.
         assert_eq!(cipher1.decrypt(&encrypted).unwrap(), plaintext);
@@ -459,7 +437,10 @@ mod field_encryption_tests {
         // Craft a valid ciphertext that decrypts to invalid UTF-8 bytes.
         // We use raw AES-GCM to encrypt non-UTF-8 bytes, then try to decrypt
         // through FieldEncryption which expects UTF-8 output.
-        use aes_gcm::{Aes256Gcm, Nonce, aead::{Aead, KeyInit}};
+        use aes_gcm::{
+            Aes256Gcm, Nonce,
+            aead::{Aead, KeyInit},
+        };
 
         let key = [0u8; 32];
         let raw_cipher = Aes256Gcm::new_from_slice(&key).unwrap();
@@ -524,9 +505,7 @@ mod field_encryption_tests {
         // Verify none of the encrypted values contain the original plaintext.
         for ((name, original), (_, encrypted)) in fields.iter().zip(encrypted_row.iter()) {
             assert!(
-                !encrypted
-                    .windows(original.len())
-                    .any(|w| w == original.as_bytes()),
+                !encrypted.windows(original.len()).any(|w| w == original.as_bytes()),
                 "field '{}' ciphertext must not contain plaintext",
                 name
             );
@@ -539,16 +518,10 @@ mod field_encryption_tests {
         let cipher = test_cipher();
 
         // Simulate multiple rows with encrypted data.
-        let rows = [
-            "row1@example.com",
-            "row2@example.com",
-            "row3@example.com",
-        ];
+        let rows = ["row1@example.com", "row2@example.com", "row3@example.com"];
 
-        let encrypted_rows: Vec<Vec<u8>> = rows
-            .iter()
-            .map(|r| cipher.encrypt(r).unwrap())
-            .collect();
+        let encrypted_rows: Vec<Vec<u8>> =
+            rows.iter().map(|r| cipher.encrypt(r).unwrap()).collect();
 
         // Decrypt each row independently.
         for (i, encrypted) in encrypted_rows.iter().enumerate() {
@@ -615,10 +588,7 @@ mod field_encryption_tests {
     /// Test encrypted field in WHERE clauses (not supported)
     #[tokio::test]
     async fn test_field_cannot_query_encrypted() {
-        let qbi = QueryBuilderIntegration::new(vec![
-            "email".to_string(),
-            "phone".to_string(),
-        ]);
+        let qbi = QueryBuilderIntegration::new(vec!["email".to_string(), "phone".to_string()]);
 
         // WHERE on encrypted field should be rejected.
         let result = qbi.validate_where_clause(&["email"]);
@@ -668,9 +638,8 @@ mod field_encryption_tests {
         let plaintext = "throughput-test@example.com";
 
         // Pre-encrypt 1000 values.
-        let encrypted: Vec<Vec<u8>> = (0..1000)
-            .map(|_| cipher.encrypt(plaintext).unwrap())
-            .collect();
+        let encrypted: Vec<Vec<u8>> =
+            (0..1000).map(|_| cipher.encrypt(plaintext).unwrap()).collect();
 
         let start = std::time::Instant::now();
         for enc in &encrypted {
@@ -694,10 +663,7 @@ mod field_encryption_tests {
         let large = "A".repeat(1_000_000);
 
         let encrypted = cipher.encrypt(&large).unwrap();
-        assert_eq!(
-            encrypted.len(),
-            NONCE_SIZE + large.len() + TAG_SIZE
-        );
+        assert_eq!(encrypted.len(), NONCE_SIZE + large.len() + TAG_SIZE);
 
         let decrypted = cipher.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted.len(), large.len());
@@ -717,11 +683,7 @@ mod field_encryption_tests {
             let result = std::panic::catch_unwind(|| {
                 FieldEncryption::new(&key);
             });
-            assert!(
-                result.is_err(),
-                "key of size {} must be rejected",
-                size
-            );
+            assert!(result.is_err(), "key of size {} must be rejected", size);
         }
 
         // Exactly 32 bytes must succeed.
@@ -794,25 +756,18 @@ mod field_encryption_tests {
 
         // Encrypt the same plaintext many times.
         let plaintext = "ind-cpa-test";
-        let encryptions: Vec<Vec<u8>> = (0..50)
-            .map(|_| cipher.encrypt(plaintext).unwrap())
-            .collect();
+        let encryptions: Vec<Vec<u8>> =
+            (0..50).map(|_| cipher.encrypt(plaintext).unwrap()).collect();
 
         // No two ciphertexts should be identical.
         for i in 0..encryptions.len() {
             for j in (i + 1)..encryptions.len() {
-                assert_ne!(
-                    encryptions[i], encryptions[j],
-                    "IND-CPA: ciphertexts must be distinct"
-                );
+                assert_ne!(encryptions[i], encryptions[j], "IND-CPA: ciphertexts must be distinct");
             }
         }
 
         // The ciphertext portions (after nonce) should also all differ.
-        let ct_portions: Vec<&[u8]> = encryptions
-            .iter()
-            .map(|e| &e[NONCE_SIZE..])
-            .collect();
+        let ct_portions: Vec<&[u8]> = encryptions.iter().map(|e| &e[NONCE_SIZE..]).collect();
         for i in 0..ct_portions.len() {
             for j in (i + 1)..ct_portions.len() {
                 assert_ne!(
@@ -855,20 +810,14 @@ mod field_encryption_tests {
         let nonce1 = &enc1[..NONCE_SIZE];
         let nonce2 = &enc2[..NONCE_SIZE];
 
-        assert_ne!(
-            nonce1, nonce2,
-            "different encryptions must use different nonces"
-        );
+        assert_ne!(nonce1, nonce2, "different encryptions must use different nonces");
 
         // Encrypt many times and check all nonces are unique.
         let mut nonces = HashSet::new();
         for _ in 0..200 {
             let enc = cipher.encrypt("nonce-uniqueness").unwrap();
             let nonce: [u8; NONCE_SIZE] = enc[..NONCE_SIZE].try_into().unwrap();
-            assert!(
-                nonces.insert(nonce),
-                "duplicate nonce detected among 200 encryptions"
-            );
+            assert!(nonces.insert(nonce), "duplicate nonce detected among 200 encryptions");
         }
     }
 
@@ -943,7 +892,10 @@ mod field_encryption_tests {
         assert_eq!(TAG_SIZE, 16, "tag must be 128 bits (16 bytes) for GCM");
 
         // Encrypt with our FieldEncryption, then decrypt with raw aes-gcm to prove compatibility.
-        use aes_gcm::{Aes256Gcm, Nonce, aead::{Aead, KeyInit}};
+        use aes_gcm::{
+            Aes256Gcm, Nonce,
+            aead::{Aead, KeyInit},
+        };
 
         let key = [0u8; 32];
         let cipher = FieldEncryption::new(&key);
@@ -999,10 +951,7 @@ mod field_encryption_tests {
         let large = "B".repeat(10_000_000);
 
         let encrypted = cipher.encrypt(&large).unwrap();
-        assert_eq!(
-            encrypted.len(),
-            NONCE_SIZE + large.len() + TAG_SIZE
-        );
+        assert_eq!(encrypted.len(), NONCE_SIZE + large.len() + TAG_SIZE);
 
         let decrypted = cipher.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted.len(), large.len());
@@ -1019,7 +968,8 @@ mod field_encryption_tests {
             let encrypted = cipher.encrypt(&plaintext).unwrap();
             let decrypted = cipher.decrypt(&encrypted).unwrap();
             assert_eq!(
-                decrypted, plaintext,
+                decrypted,
+                plaintext,
                 "single character '{}' must round-trip",
                 ch.escape_debug()
             );

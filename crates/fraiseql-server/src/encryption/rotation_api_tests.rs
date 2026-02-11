@@ -6,13 +6,15 @@
 mod rotation_api_tests {
     use chrono::{Duration, Utc};
 
-    use crate::encryption::credential_rotation::{CredentialRotationManager, RotationConfig};
-    use crate::encryption::rotation_api::{
-        ApiErrorResponse, CompliancePresetsResponse, ConfigPreset, ManualRotationRequest,
-        ManualRotationResponse, RotationConfigResponse, RotationConfigUpdateRequest,
-        RotationHistoryQuery, RotationHistoryRecord, RotationHistoryResponse,
-        RotationScheduleResponse, RotationScheduleUpdateRequest, RotationStatus,
-        RotationStatusResponse, ScheduleType, TestScheduleResponse,
+    use crate::encryption::{
+        credential_rotation::{CredentialRotationManager, RotationConfig},
+        rotation_api::{
+            ApiErrorResponse, CompliancePresetsResponse, ConfigPreset, ManualRotationRequest,
+            ManualRotationResponse, RotationConfigResponse, RotationConfigUpdateRequest,
+            RotationHistoryQuery, RotationHistoryRecord, RotationHistoryResponse,
+            RotationScheduleResponse, RotationScheduleUpdateRequest, RotationStatus,
+            RotationStatusResponse, ScheduleType, TestScheduleResponse,
+        },
     };
 
     // ============================================================================
@@ -42,10 +44,9 @@ mod rotation_api_tests {
     #[tokio::test]
     async fn test_rotation_status_multiple_keys() {
         // Create status responses for multiple keys
-        let key1_status = RotationStatusResponse::new(3, 365)
-            .with_status(RotationStatus::Healthy);
-        let key2_status = RotationStatusResponse::new(1, 90)
-            .with_status(RotationStatus::ExpiringSoon);
+        let key1_status = RotationStatusResponse::new(3, 365).with_status(RotationStatus::Healthy);
+        let key2_status =
+            RotationStatusResponse::new(1, 90).with_status(RotationStatus::ExpiringSoon);
 
         // Each key has its own status
         assert_eq!(key1_status.current_version, 3);
@@ -63,26 +64,24 @@ mod rotation_api_tests {
     #[tokio::test]
     async fn test_rotation_status_urgency_levels() {
         // Healthy: <70% TTL consumed
-        let healthy = RotationStatusResponse::new(1, 365)
-            .with_status(RotationStatus::Healthy);
+        let healthy = RotationStatusResponse::new(1, 365).with_status(RotationStatus::Healthy);
         assert_eq!(healthy.status, RotationStatus::Healthy);
         assert_eq!(format!("{}", healthy.status), "healthy");
 
         // Expiring soon: 70-85% TTL consumed
-        let expiring = RotationStatusResponse::new(1, 365)
-            .with_status(RotationStatus::ExpiringSoon);
+        let expiring =
+            RotationStatusResponse::new(1, 365).with_status(RotationStatus::ExpiringSoon);
         assert_eq!(expiring.status, RotationStatus::ExpiringSoon);
         assert_eq!(format!("{}", expiring.status), "expiring_soon");
 
         // Needs rotation: 85%+ TTL consumed
-        let needs_rotation = RotationStatusResponse::new(1, 365)
-            .with_status(RotationStatus::NeedsRotation);
+        let needs_rotation =
+            RotationStatusResponse::new(1, 365).with_status(RotationStatus::NeedsRotation);
         assert_eq!(needs_rotation.status, RotationStatus::NeedsRotation);
         assert_eq!(format!("{}", needs_rotation.status), "needs_rotation");
 
         // Overdue: >100% TTL consumed
-        let overdue = RotationStatusResponse::new(1, 365)
-            .with_status(RotationStatus::Overdue);
+        let overdue = RotationStatusResponse::new(1, 365).with_status(RotationStatus::Overdue);
         assert_eq!(overdue.status, RotationStatus::Overdue);
         assert_eq!(format!("{}", overdue.status), "overdue");
     }
@@ -183,10 +182,7 @@ mod rotation_api_tests {
         };
 
         assert!(request.reason.is_some());
-        assert_eq!(
-            request.reason.unwrap(),
-            "Scheduled quarterly rotation"
-        );
+        assert_eq!(request.reason.unwrap(), "Scheduled quarterly rotation");
 
         // Reason stored in history record
         let now = Utc::now();
@@ -271,9 +267,7 @@ mod rotation_api_tests {
             user_id:      None,
         };
 
-        let response = RotationHistoryResponse::new(0, 10)
-            .with_record(record)
-            .with_total_count(1);
+        let response = RotationHistoryResponse::new(0, 10).with_record(record).with_total_count(1);
 
         assert_eq!(response.total_count, 1);
         assert_eq!(response.offset, 0);
@@ -397,13 +391,13 @@ mod rotation_api_tests {
 
         // Newest first (descending timestamp)
         let mut records = [record1.clone(), record2.clone(), record3.clone()];
-        records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        records.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
         assert_eq!(records[0].new_version, 4);
         assert_eq!(records[1].new_version, 3);
         assert_eq!(records[2].new_version, 2);
 
         // Oldest first (ascending)
-        records.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        records.sort_by_key(|a| a.timestamp);
         assert_eq!(records[0].new_version, 2);
         assert_eq!(records[2].new_version, 4);
     }
@@ -696,9 +690,7 @@ mod rotation_api_tests {
     async fn test_rotation_schedule_test_endpoint() {
         // Valid schedule: returns next 10 times
         let now = Utc::now();
-        let next_times: Vec<_> = (1..=10)
-            .map(|i| now + Duration::days(30 * i))
-            .collect();
+        let next_times: Vec<_> = (1..=10).map(|i| now + Duration::days(30 * i)).collect();
         let response = TestScheduleResponse::valid(next_times.clone());
 
         assert!(response.valid);
@@ -736,11 +728,9 @@ mod rotation_api_tests {
     /// Test rotation timeout handling
     #[tokio::test]
     async fn test_rotation_timeout_handling() {
-        let error = ApiErrorResponse::new(
-            "gateway_timeout",
-            "Rotation in progress, check status endpoint",
-        )
-        .with_code("ROTATION_TIMEOUT");
+        let error =
+            ApiErrorResponse::new("gateway_timeout", "Rotation in progress, check status endpoint")
+                .with_code("ROTATION_TIMEOUT");
 
         assert_eq!(error.error, "gateway_timeout");
         assert!(error.message.contains("check status"));
@@ -773,8 +763,8 @@ mod rotation_api_tests {
     #[tokio::test]
     async fn test_rotation_bearer_token_validation() {
         // Expired token: 401
-        let expired = ApiErrorResponse::new("unauthorized", "Token expired")
-            .with_code("TOKEN_EXPIRED");
+        let expired =
+            ApiErrorResponse::new("unauthorized", "Token expired").with_code("TOKEN_EXPIRED");
         assert_eq!(expired.error, "unauthorized");
 
         // Invalid signature: 403
@@ -833,11 +823,7 @@ mod rotation_api_tests {
         };
 
         assert_eq!(failed_record.old_version, failed_record.new_version);
-        assert!(failed_record
-            .reason
-            .as_ref()
-            .unwrap()
-            .contains("failed"));
+        assert!(failed_record.reason.as_ref().unwrap().contains("failed"));
     }
 
     // ============================================================================
@@ -862,10 +848,7 @@ mod rotation_api_tests {
         assert_eq!(metrics.success_rate_percent(), 100);
 
         // Build status response from metrics
-        let mut status = RotationStatusResponse::new(
-            manager.get_current_version().unwrap(),
-            365,
-        );
+        let mut status = RotationStatusResponse::new(manager.get_current_version().unwrap(), 365);
         status.versions_total = manager.get_version_history().unwrap().len();
         status.versions_active = manager.active_versions_count().unwrap();
         status.last_rotation_duration_ms = metrics.last_rotation_duration_ms();

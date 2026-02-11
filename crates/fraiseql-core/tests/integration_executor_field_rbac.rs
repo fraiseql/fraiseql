@@ -290,6 +290,7 @@ fn test_executor_runtime_config_with_field_filter() {
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),
+        enable_introspection: true,
     };
 
     // WHEN: Config is created

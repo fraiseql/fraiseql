@@ -5,7 +5,6 @@
 #[allow(clippy::module_inception)]
 mod oauth_tests {
     use chrono::{Duration, Utc};
-
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{header, method, path},
@@ -243,9 +242,7 @@ mod oauth_tests {
             "email".to_string(),
         ]);
 
-        let url = client
-            .authorization_url("http://localhost:3000/auth/callback")
-            .unwrap();
+        let url = client.authorization_url("http://localhost:3000/auth/callback").unwrap();
 
         // URL should start with authorization endpoint
         assert!(url.starts_with("https://provider.example.com/authorize?"));
@@ -370,18 +367,14 @@ mod oauth_tests {
         let client = test_oauth2_client();
 
         // Generate URL with specific redirect URI
-        let url = client
-            .authorization_url("http://localhost:3000/auth/callback")
-            .unwrap();
+        let url = client.authorization_url("http://localhost:3000/auth/callback").unwrap();
 
         // URL should contain the exact redirect URI (encoded)
         assert!(url.contains("redirect_uri="));
         assert!(url.contains("localhost"));
 
         // Different redirect URIs generate different URLs
-        let url2 = client
-            .authorization_url("http://localhost:4000/auth/callback")
-            .unwrap();
+        let url2 = client.authorization_url("http://localhost:4000/auth/callback").unwrap();
         assert_ne!(url, url2);
     }
 
@@ -1141,10 +1134,7 @@ mod oauth_tests {
         let (token, mock_server) = setup_jwt_test(Some(&original_nonce)).await;
         let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_secret");
-        let claims = client
-            .verify_id_token(&token, Some(&original_nonce))
-            .await
-            .unwrap();
+        let claims = client.verify_id_token(&token, Some(&original_nonce)).await.unwrap();
         assert_eq!(claims.nonce, Some(original_nonce));
     }
 
@@ -1155,9 +1145,7 @@ mod oauth_tests {
         let config = test_oidc_config_with_userinfo(&mock_server.uri());
         let client = OIDCClient::new(config, "test_client_id", "test_secret");
 
-        let result = client
-            .verify_id_token(&token, Some("wrong_nonce"))
-            .await;
+        let result = client.verify_id_token(&token, Some("wrong_nonce")).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Nonce mismatch"));
     }
@@ -1177,9 +1165,7 @@ mod oauth_tests {
 
         // URL encoding in authorization URL prevents injection
         let client = test_oauth2_client();
-        let url = client
-            .authorization_url("http://localhost/callback?evil=<script>")
-            .unwrap();
+        let url = client.authorization_url("http://localhost/callback?evil=<script>").unwrap();
         // URL should be encoded, not contain raw script tags
         assert!(!url.contains("<script>"));
     }
@@ -1285,21 +1271,15 @@ mod oauth_tests {
         assert_eq!(failover.get_available_provider().unwrap(), "auth0");
 
         // Mark primary unavailable
-        failover
-            .mark_unavailable("auth0".to_string(), 300)
-            .unwrap();
+        failover.mark_unavailable("auth0".to_string(), 300).unwrap();
         assert_eq!(failover.get_available_provider().unwrap(), "google");
 
         // Mark first fallback unavailable too
-        failover
-            .mark_unavailable("google".to_string(), 300)
-            .unwrap();
+        failover.mark_unavailable("google".to_string(), 300).unwrap();
         assert_eq!(failover.get_available_provider().unwrap(), "microsoft");
 
         // All unavailable
-        failover
-            .mark_unavailable("microsoft".to_string(), 300)
-            .unwrap();
+        failover.mark_unavailable("microsoft".to_string(), 300).unwrap();
         assert!(failover.get_available_provider().is_err());
 
         // Restore primary
@@ -1341,12 +1321,8 @@ mod oauth_tests {
         assert_eq!(google.scopes.len(), 3);
 
         // Microsoft with offline access
-        let mut microsoft = ExternalAuthProvider::new(
-            ProviderType::OIDC,
-            "microsoft",
-            "ms_id",
-            "vault/ms/secret",
-        );
+        let mut microsoft =
+            ExternalAuthProvider::new(ProviderType::OIDC, "microsoft", "ms_id", "vault/ms/secret");
         microsoft.set_scopes(vec![
             "openid".to_string(),
             "profile".to_string(),
@@ -1364,15 +1340,11 @@ mod oauth_tests {
     #[tokio::test]
     async fn test_oauth_provider_timeout() {
         // Simulate timeout by marking provider unavailable
-        let failover = ProviderFailoverManager::new(
-            "auth0".to_string(),
-            vec!["google".to_string()],
-        );
+        let failover =
+            ProviderFailoverManager::new("auth0".to_string(), vec!["google".to_string()]);
 
         // Provider times out
-        failover
-            .mark_unavailable("auth0".to_string(), 60)
-            .unwrap();
+        failover.mark_unavailable("auth0".to_string(), 60).unwrap();
 
         // System uses fallback
         let available = failover.get_available_provider().unwrap();
@@ -1388,15 +1360,11 @@ mod oauth_tests {
     /// Test OAuth provider unavailability
     #[tokio::test]
     async fn test_oauth_provider_unavailable() {
-        let failover = ProviderFailoverManager::new(
-            "auth0".to_string(),
-            vec!["google".to_string()],
-        );
+        let failover =
+            ProviderFailoverManager::new("auth0".to_string(), vec!["google".to_string()]);
 
         // Provider returns 5xx
-        failover
-            .mark_unavailable("auth0".to_string(), 300)
-            .unwrap();
+        failover.mark_unavailable("auth0".to_string(), 300).unwrap();
 
         // Audit event logged
         let event = OAuthAuditEvent::new("authorization", "auth0", "failed")
@@ -1424,8 +1392,7 @@ mod oauth_tests {
                 .with_metadata("action".to_string(), "created".to_string()),
             OAuthAuditEvent::new("token_refresh", "auth0", "success")
                 .with_user_id("user_123".to_string()),
-            OAuthAuditEvent::new("logout", "auth0", "success")
-                .with_user_id("user_123".to_string()),
+            OAuthAuditEvent::new("logout", "auth0", "success").with_user_id("user_123".to_string()),
         ];
 
         // All events logged with required fields

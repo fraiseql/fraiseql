@@ -10,7 +10,7 @@ use axum::{
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
-    runtime::{Executor, SubscriptionManager},
+    runtime::{Executor, RuntimeConfig as CoreRuntimeConfig, SubscriptionManager},
     schema::CompiledSchema,
     security::OidcValidator,
 };
@@ -89,7 +89,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         adapter: Arc<A>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        // Configure runtime with introspection setting from server config
+        let runtime_config = CoreRuntimeConfig {
+            enable_introspection: config.introspection_enabled,
+            ..CoreRuntimeConfig::default()
+        };
+        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Initialize OIDC validator if auth is configured
@@ -192,7 +197,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        // Configure runtime with introspection setting from server config
+        let runtime_config = CoreRuntimeConfig {
+            enable_introspection: config.introspection_enabled,
+            ..CoreRuntimeConfig::default()
+        };
+        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Initialize OIDC validator if auth is configured
@@ -293,8 +303,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Reads `FRAISEQL_KEY_ROTATION_ENABLED` to decide whether to start.
     /// Returns a handle for graceful shutdown, or `None` if disabled.
-    fn spawn_rotation_worker(
-    ) -> Option<crate::encryption::rotation_worker::RotationWorkerHandle> {
+    fn spawn_rotation_worker() -> Option<crate::encryption::rotation_worker::RotationWorkerHandle> {
         use crate::encryption::{
             credential_rotation::{CredentialRotationManager, RotationConfig},
             refresh_trigger::RefreshConfig,
@@ -306,7 +315,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .unwrap_or(false);
 
         if !enabled {
-            info!("Key rotation worker disabled (set FRAISEQL_KEY_ROTATION_ENABLED=true to enable)");
+            info!(
+                "Key rotation worker disabled (set FRAISEQL_KEY_ROTATION_ENABLED=true to enable)"
+            );
             return None;
         }
 

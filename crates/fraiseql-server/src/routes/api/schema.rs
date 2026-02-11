@@ -149,7 +149,11 @@ fn generate_sdl_from_schema(schema: &fraiseql_core::schema::CompiledSchema) -> S
         if let Some(ref desc) = union_def.description {
             sdl.push_str(&format!("\"\"\"{desc}\"\"\"\n"));
         }
-        sdl.push_str(&format!("union {} = {}\n\n", union_def.name, union_def.member_types.join(" | ")));
+        sdl.push_str(&format!(
+            "union {} = {}\n\n",
+            union_def.name,
+            union_def.member_types.join(" | ")
+        ));
     }
 
     // Query type
@@ -160,7 +164,8 @@ fn generate_sdl_from_schema(schema: &fraiseql_core::schema::CompiledSchema) -> S
                 sdl.push_str(&format!("  \"\"\"{desc}\"\"\"\n"));
             }
             let args = format_arguments(&query.arguments);
-            let return_type = format_return_type(&query.return_type, query.returns_list, query.nullable);
+            let return_type =
+                format_return_type(&query.return_type, query.returns_list, query.nullable);
             sdl.push_str(&format!("  {}{}: {}\n", query.name, args, return_type));
         }
         sdl.push_str("}\n\n");
@@ -233,11 +238,12 @@ fn format_return_type(type_name: &str, returns_list: bool, nullable: bool) -> St
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use fraiseql_core::schema::{
         ArgumentDefinition, CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition,
         FieldType, QueryDefinition, TypeDefinition,
     };
+
+    use super::*;
 
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
@@ -268,10 +274,9 @@ mod tests {
         );
         schema.queries.push(QueryDefinition::new("users", "User").returning_list());
         let mut user_query = QueryDefinition::new("user", "User");
-        user_query.arguments.push(ArgumentDefinition::new(
-            "id",
-            FieldType::Scalar("ID".to_string()),
-        ));
+        user_query
+            .arguments
+            .push(ArgumentDefinition::new("id", FieldType::Scalar("ID".to_string())));
         schema.queries.push(user_query);
         schema
     }

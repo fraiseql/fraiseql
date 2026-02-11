@@ -6,10 +6,12 @@
 mod mapper_integration_tests {
     use std::collections::HashMap;
 
-    use crate::encryption::database_adapter::EncryptionContext;
-    use crate::encryption::mapper::FieldMapping;
-    use crate::encryption::schema::{EncryptionMark, SchemaFieldInfo, StructSchema};
-    use crate::encryption::FieldEncryption;
+    use crate::encryption::{
+        FieldEncryption,
+        database_adapter::EncryptionContext,
+        mapper::FieldMapping,
+        schema::{EncryptionMark, SchemaFieldInfo, StructSchema},
+    };
 
     /// Helper: create a test cipher from a zeroed key
     fn test_cipher() -> FieldEncryption {
@@ -176,12 +178,7 @@ mod mapper_integration_tests {
 
         // Schema detects field is encrypted
         let mut schema = StructSchema::new("User");
-        schema.add_field(SchemaFieldInfo::new(
-            "email",
-            "String",
-            true,
-            "encryption/email",
-        ));
+        schema.add_field(SchemaFieldInfo::new("email", "String", true, "encryption/email"));
         assert!(schema.is_field_encrypted("email"));
 
         // Mapper automatically decrypts based on schema
@@ -277,14 +274,11 @@ mod mapper_integration_tests {
             "charlie@example.com",
             "diana@example.com",
         ];
-        let encrypted: Vec<Vec<u8>> =
-            emails.iter().map(|e| cipher.encrypt(e).unwrap()).collect();
+        let encrypted: Vec<Vec<u8>> = emails.iter().map(|e| cipher.encrypt(e).unwrap()).collect();
 
         // Decrypt entire collection
-        let decrypted: Vec<String> = encrypted
-            .iter()
-            .map(|ct| cipher.decrypt(ct).unwrap())
-            .collect();
+        let decrypted: Vec<String> =
+            encrypted.iter().map(|ct| cipher.decrypt(ct).unwrap()).collect();
 
         assert_eq!(decrypted.len(), emails.len());
         for (i, email) in emails.iter().enumerate() {
@@ -598,7 +592,9 @@ mod mapper_integration_tests {
         let cipher = test_cipher();
 
         // Complete garbage data (not a valid nonce + ciphertext)
-        let garbage = vec![0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99];
+        let garbage = vec![
+            0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+        ];
         let result = cipher.decrypt(&garbage);
         assert!(result.is_err());
 
@@ -650,11 +646,7 @@ mod mapper_integration_tests {
         let duration = start.elapsed();
 
         // Should complete well within 2 seconds
-        assert!(
-            duration.as_secs() < 2,
-            "Batch encryption took too long: {:?}",
-            duration
-        );
+        assert!(duration.as_secs() < 2, "Batch encryption took too long: {:?}", duration);
         assert_eq!(ciphertexts.len(), 1000);
     }
 
@@ -679,11 +671,7 @@ mod mapper_integration_tests {
         let duration = start.elapsed();
 
         // Should complete well within 2 seconds
-        assert!(
-            duration.as_secs() < 2,
-            "Batch decryption took too long: {:?}",
-            duration
-        );
+        assert!(duration.as_secs() < 2, "Batch decryption took too long: {:?}", duration);
     }
 
     /// Test mapper cache hit performance
@@ -702,11 +690,7 @@ mod mapper_integration_tests {
         let duration = start.elapsed();
 
         // Repeated use of same cipher should be fast
-        assert!(
-            duration.as_secs() < 5,
-            "Cached cipher operations took too long: {:?}",
-            duration
-        );
+        assert!(duration.as_secs() < 5, "Cached cipher operations took too long: {:?}", duration);
     }
 
     // ============================================================================
@@ -769,8 +753,7 @@ mod mapper_integration_tests {
         let encrypted: Option<Vec<u8>> = some_value.map(|v| cipher.encrypt(v).unwrap());
         assert!(encrypted.is_some());
 
-        let decrypted: Option<String> =
-            encrypted.as_ref().map(|ct| cipher.decrypt(ct).unwrap());
+        let decrypted: Option<String> = encrypted.as_ref().map(|ct| cipher.decrypt(ct).unwrap());
         assert_eq!(decrypted, Some("present_value".to_string()));
 
         // None remains None
@@ -903,7 +886,9 @@ mod mapper_integration_tests {
         let err_str = result.unwrap_err().to_string();
         // Error provides useful context about the failure
         assert!(
-            err_str.contains("Decryption") || err_str.contains("context") || err_str.contains("failed"),
+            err_str.contains("Decryption")
+                || err_str.contains("context")
+                || err_str.contains("failed"),
             "Error should indicate decryption/context failure: {}",
             err_str
         );

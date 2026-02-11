@@ -50,9 +50,9 @@ pub struct VaultHealthStatus {
     /// Whether Vault is initialized
     pub initialized: bool,
     /// Whether Vault is sealed
-    pub sealed: bool,
+    pub sealed:      bool,
     /// Vault version
-    pub version: Option<String>,
+    pub version:     Option<String>,
 }
 
 // Constants for Vault API and caching
@@ -109,9 +109,7 @@ impl SecretCache {
     /// Get cached secret even if expired (for graceful degradation)
     async fn get_stale(&self, key: &str) -> Option<(String, chrono::DateTime<Utc>)> {
         let entries = self.entries.read().await;
-        entries
-            .get(key)
-            .map(|cached| (cached.value.clone(), cached.expires_at))
+        entries.get(key).map(|cached| (cached.value.clone(), cached.expires_at))
     }
 
     /// Get lease info for a cached secret
@@ -420,9 +418,10 @@ impl VaultBackend {
         let client = self.build_http_client()?;
         let url = format!("{}/{}/sys/health", self.addr.trim_end_matches('/'), VAULT_API_VERSION);
 
-        let response = client.get(&url).send().await.map_err(|e| {
-            SecretsError::BackendError(format!("Vault health check failed: {}", e))
-        })?;
+        let response =
+            client.get(&url).send().await.map_err(|e| {
+                SecretsError::BackendError(format!("Vault health check failed: {}", e))
+            })?;
 
         // Vault returns 200 for healthy, 429/472/473/501/503 for various states
         // All are valid responses indicating Vault is reachable
@@ -434,11 +433,8 @@ impl VaultBackend {
     /// Renew a Vault lease
     pub async fn renew_lease(&self, lease_id: &str) -> Result<i64, SecretsError> {
         let client = self.build_http_client()?;
-        let url = format!(
-            "{}/{}/sys/leases/renew",
-            self.addr.trim_end_matches('/'),
-            VAULT_API_VERSION
-        );
+        let url =
+            format!("{}/{}/sys/leases/renew", self.addr.trim_end_matches('/'), VAULT_API_VERSION);
 
         let body = serde_json::json!({ "lease_id": lease_id });
 
@@ -471,11 +467,8 @@ impl VaultBackend {
     /// Revoke a Vault lease
     pub async fn revoke_lease(&self, lease_id: &str) -> Result<(), SecretsError> {
         let client = self.build_http_client()?;
-        let url = format!(
-            "{}/{}/sys/leases/revoke",
-            self.addr.trim_end_matches('/'),
-            VAULT_API_VERSION
-        );
+        let url =
+            format!("{}/{}/sys/leases/revoke", self.addr.trim_end_matches('/'), VAULT_API_VERSION);
 
         let body = serde_json::json!({ "lease_id": lease_id });
 
@@ -793,13 +786,9 @@ impl VaultBackend {
                     SecretsError::BackendError(format!("Failed to parse batch response: {}", e))
                 })?;
 
-                let results = body["data"]["batch_results"]
-                    .as_array()
-                    .ok_or_else(|| {
-                        SecretsError::EncryptionError(
-                            "Missing batch_results in response".to_string(),
-                        )
-                    })?;
+                let results = body["data"]["batch_results"].as_array().ok_or_else(|| {
+                    SecretsError::EncryptionError("Missing batch_results in response".to_string())
+                })?;
 
                 results
                     .iter()
@@ -855,13 +844,9 @@ impl VaultBackend {
                     SecretsError::BackendError(format!("Failed to parse batch response: {}", e))
                 })?;
 
-                let results = body["data"]["batch_results"]
-                    .as_array()
-                    .ok_or_else(|| {
-                        SecretsError::EncryptionError(
-                            "Missing batch_results in response".to_string(),
-                        )
-                    })?;
+                let results = body["data"]["batch_results"].as_array().ok_or_else(|| {
+                    SecretsError::EncryptionError("Missing batch_results in response".to_string())
+                })?;
 
                 results
                     .iter()

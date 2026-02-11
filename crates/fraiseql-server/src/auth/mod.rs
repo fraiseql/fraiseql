@@ -71,6 +71,7 @@ pub use oauth::{
 };
 pub use oidc_provider::OidcProvider;
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
+pub use postgres_audit_logger::{AuditLogQuery, AuditLogRow, PostgresAuditLogger, verify_row_hmac};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
@@ -82,9 +83,6 @@ pub use security_config::{
 pub use security_init::{
     init_default_security_config, init_security_config, log_security_config,
     validate_security_config,
-};
-pub use postgres_audit_logger::{
-    AuditLogQuery, AuditLogRow, PostgresAuditLogger, verify_row_hmac,
 };
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;

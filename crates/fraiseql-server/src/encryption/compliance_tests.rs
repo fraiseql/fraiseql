@@ -64,10 +64,11 @@ mod compliance_tests {
         let mut logger = AuditLogger::new(1000);
 
         // Log PHI access capturing: who, what, when, where, why
-        let entry = AuditLogEntry::new("doctor_123", "ssn", OperationType::Select, "req-001", "sess-abc")
-            .with_context("ip_address", "10.0.1.50")
-            .with_context("reason", "treatment_lookup")
-            .with_context("department", "cardiology");
+        let entry =
+            AuditLogEntry::new("doctor_123", "ssn", OperationType::Select, "req-001", "sess-abc")
+                .with_context("ip_address", "10.0.1.50")
+                .with_context("reason", "treatment_lookup")
+                .with_context("department", "cardiology");
 
         logger.log_entry(entry).unwrap();
 
@@ -101,10 +102,15 @@ mod compliance_tests {
         logger.log_entry(authorized_entry).unwrap();
 
         // Denied access
-        let denied_entry =
-            AuditLogEntry::new("receptionist_042", "ssn", OperationType::Select, "req-002", "sess-002")
-                .with_failure("Access denied: insufficient role for PHI field 'ssn'")
-                .with_security_context(Some("10.0.2.10"), Some("receptionist"));
+        let denied_entry = AuditLogEntry::new(
+            "receptionist_042",
+            "ssn",
+            OperationType::Select,
+            "req-002",
+            "sess-002",
+        )
+        .with_failure("Access denied: insufficient role for PHI field 'ssn'")
+        .with_security_context(Some("10.0.2.10"), Some("receptionist"));
         logger.log_entry(denied_entry).unwrap();
 
         // Audit trail captures both granted and denied access
@@ -122,10 +128,14 @@ mod compliance_tests {
     fn test_hipaa_minimum_necessary_principle() {
         // Users access only PHI needed for their job function
         let mut schema = StructSchema::new("PatientRecord");
-        schema.add_field(SchemaFieldInfo::new("ssn", "String", true, "encryption/phi")
-            .with_mark(EncryptionMark::Sensitive));
-        schema.add_field(SchemaFieldInfo::new("diagnosis", "String", true, "encryption/phi")
-            .with_mark(EncryptionMark::Sensitive));
+        schema.add_field(
+            SchemaFieldInfo::new("ssn", "String", true, "encryption/phi")
+                .with_mark(EncryptionMark::Sensitive),
+        );
+        schema.add_field(
+            SchemaFieldInfo::new("diagnosis", "String", true, "encryption/phi")
+                .with_mark(EncryptionMark::Sensitive),
+        );
         schema.add_field(SchemaFieldInfo::new("name", "String", false, ""));
         schema.add_field(SchemaFieldInfo::new("appointment_date", "String", false, ""));
 
@@ -141,9 +151,10 @@ mod compliance_tests {
 
         // Query logging shows what was requested
         let mut logger = AuditLogger::new(100);
-        let entry = AuditLogEntry::new("nurse_005", "ssn", OperationType::Select, "req-003", "sess-003")
-            .with_context("fields_requested", "ssn,diagnosis")
-            .with_context("fields_granted", "diagnosis");
+        let entry =
+            AuditLogEntry::new("nurse_005", "ssn", OperationType::Select, "req-003", "sess-003")
+                .with_context("fields_requested", "ssn,diagnosis")
+                .with_context("fields_granted", "diagnosis");
         logger.log_entry(entry).unwrap();
         assert_eq!(logger.entry_count(), 1);
     }
@@ -158,16 +169,21 @@ mod compliance_tests {
         assert_eq!(config.audit_retention_days, 2190);
 
         // Can customize retention
-        let custom_config = ComplianceConfig::new(ComplianceFramework::HIPAA)
-            .with_retention_days(3650); // 10 years
+        let custom_config =
+            ComplianceConfig::new(ComplianceFramework::HIPAA).with_retention_days(3650); // 10 years
         assert_eq!(custom_config.audit_retention_days, 3650);
 
         // Audit trail of purge operations
         let mut logger = AuditLogger::new(100);
-        let purge_entry =
-            AuditLogEntry::new("system", "patient_records", OperationType::Delete, "purge-001", "sys-001")
-                .with_context("reason", "retention_policy_expired")
-                .with_context("records_purged", "42");
+        let purge_entry = AuditLogEntry::new(
+            "system",
+            "patient_records",
+            OperationType::Delete,
+            "purge-001",
+            "sys-001",
+        )
+        .with_context("reason", "retention_policy_expired")
+        .with_context("records_purged", "42");
         logger.log_entry(purge_entry).unwrap();
         let deletes = logger.entries_for_operation(OperationType::Delete);
         assert_eq!(deletes.len(), 1);
@@ -400,10 +416,15 @@ mod compliance_tests {
 
         // Audit trail shows deletion request and execution
         let mut logger = AuditLogger::new(100);
-        let delete_entry =
-            AuditLogEntry::new("user_gdpr_req", "email", OperationType::Delete, "gdpr-del-001", "sess-gdpr")
-                .with_context("gdpr_request_type", "right_to_erasure")
-                .with_context("deletion_verified", "true");
+        let delete_entry = AuditLogEntry::new(
+            "user_gdpr_req",
+            "email",
+            OperationType::Delete,
+            "gdpr-del-001",
+            "sess-gdpr",
+        )
+        .with_context("gdpr_request_type", "right_to_erasure")
+        .with_context("deletion_verified", "true");
         logger.log_entry(delete_entry).unwrap();
         let deletes = logger.entries_for_operation(OperationType::Delete);
         assert_eq!(deletes.len(), 1);
@@ -419,7 +440,7 @@ mod compliance_tests {
         // User can export their personal data
         let cipher = FieldEncryption::new(&[0u8; 32]);
 
-        let personal_data = vec![
+        let personal_data = [
             ("name", "Hans Mueller"),
             ("email", "hans@example.de"),
             ("phone", "+49-30-1234567"),
@@ -448,10 +469,15 @@ mod compliance_tests {
 
         // Audit trail shows export
         let mut logger = AuditLogger::new(100);
-        let export_entry =
-            AuditLogEntry::new("hans_id", "all_personal_data", OperationType::Select, "export-001", "sess-exp")
-                .with_context("gdpr_request_type", "data_portability")
-                .with_context("export_format", "json");
+        let export_entry = AuditLogEntry::new(
+            "hans_id",
+            "all_personal_data",
+            OperationType::Select,
+            "export-001",
+            "sess-exp",
+        )
+        .with_context("gdpr_request_type", "data_portability")
+        .with_context("export_format", "json");
         logger.log_entry(export_entry).unwrap();
         assert_eq!(logger.entry_count(), 1);
     }
@@ -496,20 +522,30 @@ mod compliance_tests {
         let mut logger = AuditLogger::new(100);
 
         // Record consent
-        let consent_entry =
-            AuditLogEntry::new("user_eu_001", "consent", OperationType::Insert, "consent-001", "sess-consent")
-                .with_context("consent_type", "marketing_emails")
-                .with_context("consent_version", "v2.1")
-                .with_context("consent_given", "true");
+        let consent_entry = AuditLogEntry::new(
+            "user_eu_001",
+            "consent",
+            OperationType::Insert,
+            "consent-001",
+            "sess-consent",
+        )
+        .with_context("consent_type", "marketing_emails")
+        .with_context("consent_version", "v2.1")
+        .with_context("consent_given", "true");
         logger.log_entry(consent_entry).unwrap();
 
         // Consent can be withdrawn
-        let withdrawal_entry =
-            AuditLogEntry::new("user_eu_001", "consent", OperationType::Update, "consent-002", "sess-consent")
-                .with_context("consent_type", "marketing_emails")
-                .with_context("consent_version", "v2.1")
-                .with_context("consent_given", "false")
-                .with_context("withdrawal_reason", "user_requested");
+        let withdrawal_entry = AuditLogEntry::new(
+            "user_eu_001",
+            "consent",
+            OperationType::Update,
+            "consent-002",
+            "sess-consent",
+        )
+        .with_context("consent_type", "marketing_emails")
+        .with_context("consent_version", "v2.1")
+        .with_context("consent_given", "false")
+        .with_context("withdrawal_reason", "user_requested");
         logger.log_entry(withdrawal_entry).unwrap();
 
         // Audit trail of consent lifecycle
@@ -533,14 +569,19 @@ mod compliance_tests {
         let mut logger = AuditLogger::new(100);
 
         // Log breach detection event
-        let breach_entry =
-            AuditLogEntry::new("system_monitor", "personal_data", OperationType::Select, "breach-001", "sys-001")
-                .with_failure("Unauthorized access detected")
-                .with_context("breach_type", "unauthorized_access")
-                .with_context("affected_records", "150")
-                .with_context("data_categories", "email,phone,address")
-                .with_context("detection_method", "anomaly_detection")
-                .with_context("severity", "high");
+        let breach_entry = AuditLogEntry::new(
+            "system_monitor",
+            "personal_data",
+            OperationType::Select,
+            "breach-001",
+            "sys-001",
+        )
+        .with_failure("Unauthorized access detected")
+        .with_context("breach_type", "unauthorized_access")
+        .with_context("affected_records", "150")
+        .with_context("data_categories", "email,phone,address")
+        .with_context("detection_method", "anomaly_detection")
+        .with_context("severity", "high");
         logger.log_entry(breach_entry).unwrap();
 
         // Can query breach incidents
@@ -567,16 +608,26 @@ mod compliance_tests {
         let mut logger = AuditLogger::new(100);
 
         // Admin access granted
-        let admin_entry =
-            AuditLogEntry::new("admin_001", "api_keys", OperationType::Select, "req-soc2-001", "sess-soc2")
-                .with_security_context(Some("10.0.0.1"), Some("admin"));
+        let admin_entry = AuditLogEntry::new(
+            "admin_001",
+            "api_keys",
+            OperationType::Select,
+            "req-soc2-001",
+            "sess-soc2",
+        )
+        .with_security_context(Some("10.0.0.1"), Some("admin"));
         logger.log_entry(admin_entry).unwrap();
 
         // Regular user access denied
-        let user_entry =
-            AuditLogEntry::new("user_002", "api_keys", OperationType::Select, "req-soc2-002", "sess-soc2")
-                .with_failure("Role 'viewer' insufficient for encrypted field")
-                .with_security_context(Some("10.0.0.5"), Some("viewer"));
+        let user_entry = AuditLogEntry::new(
+            "user_002",
+            "api_keys",
+            OperationType::Select,
+            "req-soc2-002",
+            "sess-soc2",
+        )
+        .with_failure("Role 'viewer' insufficient for encrypted field")
+        .with_security_context(Some("10.0.0.5"), Some("viewer"));
         logger.log_entry(user_entry).unwrap();
 
         // Segregation of duties: verify different roles logged
@@ -642,9 +693,12 @@ mod compliance_tests {
 
         // Version 1 schema
         let schema_v1 = StructSchema::new("User")
-            .with_fields(vec![
-                SchemaFieldInfo::new("email", "String", true, "encryption/email"),
-            ])
+            .with_fields(vec![SchemaFieldInfo::new(
+                "email",
+                "String",
+                true,
+                "encryption/email",
+            )])
             .with_version(1);
         registry.register(schema_v1).unwrap();
 
@@ -680,19 +734,29 @@ mod compliance_tests {
         let mut logger = AuditLogger::new(100);
 
         // Log encryption failure incident
-        let incident_entry =
-            AuditLogEntry::new("system", "ssn", OperationType::Insert, "incident-001", "sys-incident")
-                .with_failure("Encryption key expired: key version 3")
-                .with_context("incident_type", "encryption_failure")
-                .with_context("severity", "critical")
-                .with_context("key_version", "3");
+        let incident_entry = AuditLogEntry::new(
+            "system",
+            "ssn",
+            OperationType::Insert,
+            "incident-001",
+            "sys-incident",
+        )
+        .with_failure("Encryption key expired: key version 3")
+        .with_context("incident_type", "encryption_failure")
+        .with_context("severity", "critical")
+        .with_context("key_version", "3");
         logger.log_entry(incident_entry).unwrap();
 
         // Log response action
-        let response_entry =
-            AuditLogEntry::new("ops_team", "ssn", OperationType::Update, "incident-001-response", "sys-incident")
-                .with_context("action", "emergency_key_rotation")
-                .with_context("resolution", "new_key_v4_deployed");
+        let response_entry = AuditLogEntry::new(
+            "ops_team",
+            "ssn",
+            OperationType::Update,
+            "incident-001-response",
+            "sys-incident",
+        )
+        .with_context("action", "emergency_key_rotation")
+        .with_context("resolution", "new_key_v4_deployed");
         logger.log_entry(response_entry).unwrap();
 
         // Timeline of events reconstructible from audit log
@@ -793,10 +857,9 @@ mod compliance_tests {
         validator.record_result(result);
 
         // Invalid schema: missing encryption on PHI
-        let invalid_schema = StructSchema::new("Patient")
-            .with_fields(vec![
-                SchemaFieldInfo::new("ssn", "String", false, ""), // Not encrypted!
-            ]);
+        let invalid_schema = StructSchema::new("Patient").with_fields(vec![
+            SchemaFieldInfo::new("ssn", "String", false, ""), // Not encrypted!
+        ]);
         assert!(!invalid_schema.is_field_encrypted("ssn"));
 
         let failure_result = ComplianceCheckResult::new(
@@ -878,7 +941,8 @@ mod compliance_tests {
         assert_eq!(logger.entry_count(), 5);
 
         // Add another entry
-        let entry = AuditLogEntry::new("user_5", "email", OperationType::Select, "req-5", "sess-integrity");
+        let entry =
+            AuditLogEntry::new("user_5", "email", OperationType::Select, "req-5", "sess-integrity");
         logger.log_entry(entry).unwrap();
         assert_eq!(logger.entry_count(), 6);
 
@@ -968,11 +1032,16 @@ mod compliance_tests {
 
         // Audit trail shows compliance failures
         let mut logger = AuditLogger::new(100);
-        let failure_entry =
-            AuditLogEntry::new("compliance_checker", "ssn", OperationType::Select, "compliance-check-001", "sys-check")
-                .with_failure("Compliance violation: unencrypted PHI")
-                .with_context("framework", "HIPAA")
-                .with_context("severity", "critical");
+        let failure_entry = AuditLogEntry::new(
+            "compliance_checker",
+            "ssn",
+            OperationType::Select,
+            "compliance-check-001",
+            "sys-check",
+        )
+        .with_failure("Compliance violation: unencrypted PHI")
+        .with_context("framework", "HIPAA")
+        .with_context("severity", "critical");
         logger.log_entry(failure_entry).unwrap();
         let failed = logger.failed_entries();
         assert_eq!(failed.len(), 1);
@@ -1005,7 +1074,11 @@ mod compliance_tests {
             (ComplianceFramework::PCIDSS, "card_encryption", ComplianceStatus::Compliant),
             (ComplianceFramework::PCIDSS, "key_rotation", ComplianceStatus::NonCompliant),
             (ComplianceFramework::GDPR, "personal_data", ComplianceStatus::Compliant),
-            (ComplianceFramework::SOC2, "access_controls", ComplianceStatus::PartiallyCompliant),
+            (
+                ComplianceFramework::SOC2,
+                "access_controls",
+                ComplianceStatus::PartiallyCompliant,
+            ),
         ];
 
         for (framework, requirement, status) in &frameworks_results {

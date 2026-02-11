@@ -4,14 +4,16 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod error_recovery_tests {
-    use crate::encryption::error_recovery::{
-        CircuitBreaker, ErrorCategory, RecoveryError, RecoveryStrategy, RetryConfig,
+    use crate::encryption::{
+        FieldEncryption,
+        credential_rotation::{
+            CredentialRotationManager, KeyVersionMetadata, KeyVersionStatus, RotationConfig,
+            RotationMetrics,
+        },
+        error_recovery::{
+            CircuitBreaker, ErrorCategory, RecoveryError, RecoveryStrategy, RetryConfig,
+        },
     };
-    use crate::encryption::credential_rotation::{
-        CredentialRotationManager, KeyVersionMetadata, KeyVersionStatus, RotationConfig,
-        RotationMetrics,
-    };
-    use crate::encryption::FieldEncryption;
 
     // ============================================================================
     // VAULT TEMPORARY OUTAGE TESTS
@@ -455,8 +457,10 @@ mod error_recovery_tests {
         assert!(error.should_use_cache()); // UseCache strategy appropriate for reads
 
         // INSERT/UPDATE blocked with clear message
-        let write_error =
-            RecoveryError::new(ErrorCategory::EncryptionFailed, "Cannot encrypt: Vault unavailable");
+        let write_error = RecoveryError::new(
+            ErrorCategory::EncryptionFailed,
+            "Cannot encrypt: Vault unavailable",
+        );
         assert!(!write_error.retryable); // EncryptionFailed is not retryable
         assert_eq!(write_error.strategy, RecoveryStrategy::FailFast);
     }
@@ -477,15 +481,24 @@ mod error_recovery_tests {
         // Suggests possible causes and recommends recovery actions
         assert!(!error.suggestion.is_empty());
         assert!(error.suggestion.contains("Vault"));
-        assert!(error.suggestion.contains("retry") || error.suggestion.contains("Retry")
-            || error.suggestion.contains("Check") || error.suggestion.contains("30s"));
+        assert!(
+            error.suggestion.contains("retry")
+                || error.suggestion.contains("Retry")
+                || error.suggestion.contains("Check")
+                || error.suggestion.contains("30s")
+        );
 
         // Different error types have appropriate suggestions
         let key_error = RecoveryError::new(ErrorCategory::KeyNotFound, "Key not found");
-        assert!(key_error.suggestion.contains("configuration") || key_error.suggestion.contains("key"));
+        assert!(
+            key_error.suggestion.contains("configuration") || key_error.suggestion.contains("key")
+        );
 
         let network_error = RecoveryError::new(ErrorCategory::NetworkError, "Timeout");
-        assert!(network_error.suggestion.contains("network") || network_error.suggestion.contains("connectivity"));
+        assert!(
+            network_error.suggestion.contains("network")
+                || network_error.suggestion.contains("connectivity")
+        );
     }
 
     /// Test error logging with correlation ID
@@ -570,11 +583,7 @@ mod error_recovery_tests {
         let cipher = FieldEncryption::new(&[0u8; 32]);
 
         // Cache not cleared on Vault failure - cipher still works
-        let test_data = vec![
-            "user@example.com",
-            "555-0123",
-            "123-45-6789",
-        ];
+        let test_data = vec!["user@example.com", "555-0123", "123-45-6789"];
 
         for plaintext in &test_data {
             let encrypted = cipher.encrypt(plaintext).unwrap();

@@ -6,13 +6,13 @@
 mod dashboard_tests {
     use chrono::Utc;
 
-    use crate::encryption::credential_rotation::{
-        CredentialRotationManager, RotationConfig, RotationMetrics,
-    };
-    use crate::encryption::dashboard::{
-        Alert, AlertFilter, AlertSeverity, AlertsWidget, ComplianceChecker, ComplianceDashboard,
-        ComplianceStatus, DashboardOverview, DashboardSnapshot, ExportFormat, KeyStatusCard,
-        MetricsTimeSeries, RotationMetricsPoint, TrendAnalysis,
+    use crate::encryption::{
+        credential_rotation::{CredentialRotationManager, RotationConfig, RotationMetrics},
+        dashboard::{
+            Alert, AlertFilter, AlertSeverity, AlertsWidget, ComplianceChecker,
+            ComplianceDashboard, ComplianceStatus, DashboardOverview, DashboardSnapshot,
+            ExportFormat, KeyStatusCard, MetricsTimeSeries, RotationMetricsPoint, TrendAnalysis,
+        },
     };
 
     // ============================================================================
@@ -25,9 +25,9 @@ mod dashboard_tests {
         // Dashboard overview with key statistics
         let mut overview = DashboardOverview::new();
         overview.total_keys = 10;
-        overview.healthy_keys = 6;  // <70% TTL consumed
-        overview.warning_keys = 3;  // 70-85% TTL consumed
-        overview.urgent_keys = 1;   // 85%+ TTL consumed
+        overview.healthy_keys = 6; // <70% TTL consumed
+        overview.warning_keys = 3; // 70-85% TTL consumed
+        overview.urgent_keys = 1; // 85%+ TTL consumed
         overview.avg_ttl_percent = 55;
 
         assert_eq!(overview.total_keys, 10);
@@ -136,10 +136,8 @@ mod dashboard_tests {
 
         // Filter by key_id
         let key_alerts = vec![
-            Alert::new("rotation_failed", AlertSeverity::Error, "Failed")
-                .with_key_id("primary"),
-            Alert::new("rotation_failed", AlertSeverity::Error, "Failed")
-                .with_key_id("secondary"),
+            Alert::new("rotation_failed", AlertSeverity::Error, "Failed").with_key_id("primary"),
+            Alert::new("rotation_failed", AlertSeverity::Error, "Failed").with_key_id("secondary"),
         ];
         let mut key_filter = AlertFilter::new();
         key_filter.key_id = Some("primary".to_string());
@@ -154,9 +152,9 @@ mod dashboard_tests {
         // Sort by urgency (most urgent first)
         let mut cards = [
             KeyStatusCard::new("low", 1, 20),      // urgency 10
-            KeyStatusCard::new("high", 1, 90),      // urgency 85
-            KeyStatusCard::new("medium", 1, 75),    // urgency 60
-            KeyStatusCard::new("overdue", 1, 105),  // urgency 100
+            KeyStatusCard::new("high", 1, 90),     // urgency 85
+            KeyStatusCard::new("medium", 1, 75),   // urgency 60
+            KeyStatusCard::new("overdue", 1, 105), // urgency 100
         ];
 
         // Sort by urgency descending (most urgent first)
@@ -290,7 +288,10 @@ mod dashboard_tests {
         manager.mark_version_compromised(1, "Test compromise").unwrap();
         let v1_meta = manager.get_version_history().unwrap();
         let compromised = v1_meta.iter().find(|m| m.version == 1).unwrap();
-        assert_eq!(compromised.status, crate::encryption::credential_rotation::KeyVersionStatus::Compromised);
+        assert_eq!(
+            compromised.status,
+            crate::encryption::credential_rotation::KeyVersionStatus::Compromised
+        );
     }
 
     /// Test TTL consumption gauge
@@ -630,9 +631,9 @@ mod dashboard_tests {
 
         // Per-widget override
         let widget_refresh: std::collections::HashMap<&str, Option<u32>> = [
-            ("overview", Some(15)),       // Fast refresh for overview
-            ("metrics_chart", Some(60)),  // Slower refresh for charts
-            ("alerts", Some(15)),         // Fast refresh for alerts
+            ("overview", Some(15)),      // Fast refresh for overview
+            ("metrics_chart", Some(60)), // Slower refresh for charts
+            ("alerts", Some(15)),        // Fast refresh for alerts
         ]
         .into();
         assert_eq!(widget_refresh.get("overview"), Some(&Some(15)));
@@ -644,12 +645,12 @@ mod dashboard_tests {
     async fn test_dashboard_export() {
         // Export dashboard snapshot
         let overview = DashboardOverview {
-            total_keys: 5,
-            healthy_keys: 3,
-            warning_keys: 1,
-            urgent_keys: 1,
+            total_keys:      5,
+            healthy_keys:    3,
+            warning_keys:    1,
+            urgent_keys:     1,
             avg_ttl_percent: 55,
-            system_health: "warning".to_string(),
+            system_health:   "warning".to_string(),
         };
 
         let key_cards = vec![
@@ -712,12 +713,16 @@ mod dashboard_tests {
             Alert::new("ttl_expiring", AlertSeverity::Warning, "TTL expiring soon")
                 .with_key_id("tertiary"),
         );
-        widget.add_alert(
-            Alert::new("compliance_violation", AlertSeverity::Error, "Compliance check failed"),
-        );
-        widget.add_alert(
-            Alert::new("anomaly_detected", AlertSeverity::Info, "Unusual rotation duration"),
-        );
+        widget.add_alert(Alert::new(
+            "compliance_violation",
+            AlertSeverity::Error,
+            "Compliance check failed",
+        ));
+        widget.add_alert(Alert::new(
+            "anomaly_detected",
+            AlertSeverity::Info,
+            "Unusual rotation duration",
+        ));
 
         assert_eq!(widget.active_alerts.len(), 5);
         assert_eq!(widget.unacknowledged_count, 5);
@@ -817,8 +822,9 @@ mod dashboard_tests {
 
         // Event: alerts triggered on status change
         let mut alerts_widget = AlertsWidget::new();
-        let alert = Alert::new("rotation_completed", AlertSeverity::Info, "Key rotated successfully")
-            .with_key_id("primary");
+        let alert =
+            Alert::new("rotation_completed", AlertSeverity::Info, "Key rotated successfully")
+                .with_key_id("primary");
         alerts_widget.add_alert(alert);
         assert_eq!(alerts_widget.active_alerts.len(), 1);
     }
@@ -862,9 +868,8 @@ mod dashboard_tests {
 
         // Construct dashboard components
         let overview = DashboardOverview::new();
-        let key_cards: Vec<KeyStatusCard> = (0..20)
-            .map(|i| KeyStatusCard::new(format!("key_{}", i), 1, i * 5))
-            .collect();
+        let key_cards: Vec<KeyStatusCard> =
+            (0..20).map(|i| KeyStatusCard::new(format!("key_{}", i), 1, i * 5)).collect();
         let compliance = ComplianceDashboard::new();
         let mut alerts_widget = AlertsWidget::new();
         for i in 0..5 {
@@ -890,12 +895,12 @@ mod dashboard_tests {
             .collect();
 
         let overview = DashboardOverview {
-            total_keys: key_cards.len(),
-            healthy_keys: key_cards.iter().filter(|c| c.status == "healthy").count(),
-            warning_keys: key_cards.iter().filter(|c| c.status == "warning").count(),
-            urgent_keys: key_cards.iter().filter(|c| c.status == "urgent").count(),
+            total_keys:      key_cards.len(),
+            healthy_keys:    key_cards.iter().filter(|c| c.status == "healthy").count(),
+            warning_keys:    key_cards.iter().filter(|c| c.status == "warning").count(),
+            urgent_keys:     key_cards.iter().filter(|c| c.status == "urgent").count(),
             avg_ttl_percent: 50,
-            system_health: "warning".to_string(),
+            system_health:   "warning".to_string(),
         };
 
         let compliance = ComplianceDashboard::new();
@@ -922,9 +927,9 @@ mod dashboard_tests {
     async fn test_dashboard_responsive_design() {
         // Dashboard adapts layout for screen size (modeled as column count)
         let screen_sizes = vec![
-            ("desktop", 1920, 1080, 4),  // 4 columns
-            ("tablet", 1024, 768, 2),    // 2 columns
-            ("mobile", 375, 667, 1),     // 1 column
+            ("desktop", 1920, 1080, 4), // 4 columns
+            ("tablet", 1024, 768, 2),   // 2 columns
+            ("mobile", 375, 667, 1),    // 1 column
         ];
 
         for (name, width, height, expected_columns) in &screen_sizes {

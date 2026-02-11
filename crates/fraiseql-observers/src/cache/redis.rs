@@ -101,10 +101,7 @@ impl CacheBackend for RedisCacheBackend {
                 .await?;
 
             if !keys.is_empty() {
-                redis::cmd("DEL")
-                    .arg(&keys)
-                    .query_async::<()>(&mut self.conn.clone())
-                    .await?;
+                redis::cmd("DEL").arg(&keys).query_async::<()>(&mut self.conn.clone()).await?;
             }
 
             scan_cursor = cursor;

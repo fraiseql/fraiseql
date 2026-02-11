@@ -6,11 +6,15 @@
 mod database_adapter_tests {
     use std::time::Instant;
 
-    use crate::encryption::database_adapter::EncryptionContext;
-    use crate::encryption::query_builder::{QueryBuilderIntegration, QueryType};
-    use crate::encryption::schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema};
-    use crate::encryption::{FieldEncryption, KEY_SIZE, NONCE_SIZE};
-    use crate::secrets_manager::SecretsError;
+    use crate::{
+        encryption::{
+            FieldEncryption, KEY_SIZE, NONCE_SIZE,
+            database_adapter::EncryptionContext,
+            query_builder::{QueryBuilderIntegration, QueryType},
+            schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema},
+        },
+        secrets_manager::SecretsError,
+    };
 
     /// Helper: create a test cipher with a zeroed key
     fn test_cipher() -> FieldEncryption {
@@ -227,10 +231,7 @@ mod database_adapter_tests {
         ];
 
         // Encrypt all values with the same cached cipher
-        let encrypted: Vec<Vec<u8>> = values
-            .iter()
-            .map(|v| cipher.encrypt(v).unwrap())
-            .collect();
+        let encrypted: Vec<Vec<u8>> = values.iter().map(|v| cipher.encrypt(v).unwrap()).collect();
 
         // All decrypt correctly with same cipher (simulating cached key)
         for (i, enc) in encrypted.iter().enumerate() {
@@ -268,7 +269,11 @@ mod database_adapter_tests {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
 
         // Simulate a record with fields to write
-        let fields = vec![("name", "John Doe"), ("email", "john@example.com"), ("age", "30")];
+        let fields = vec![
+            ("name", "John Doe"),
+            ("email", "john@example.com"),
+            ("age", "30"),
+        ];
 
         let mut encrypted_record: Vec<(&str, Vec<u8>)> = Vec::new();
         for (field_name, value) in &fields {
@@ -354,9 +359,8 @@ mod database_adapter_tests {
         }
 
         // Only designated fields are encrypted
-        let encrypted_in_list = qbi.get_encrypted_fields_in_list(
-            &fields.iter().map(|(f, _)| *f).collect::<Vec<_>>(),
-        );
+        let encrypted_in_list =
+            qbi.get_encrypted_fields_in_list(&fields.iter().map(|(f, _)| *f).collect::<Vec<_>>());
         assert_eq!(encrypted_in_list.len(), 2);
         assert!(encrypted_in_list.contains(&"email".to_string()));
         assert!(encrypted_in_list.contains(&"ssn".to_string()));
@@ -538,7 +542,8 @@ mod database_adapter_tests {
         assert_eq!(decrypted, plaintext);
 
         // Different user context fails (proves access tracking)
-        let different_user = EncryptionContext::new("user456", "email", "insert", "2024-01-01T00:00:00Z");
+        let different_user =
+            EncryptionContext::new("user456", "email", "insert", "2024-01-01T00:00:00Z");
         let different_aad = different_user.to_aad_string();
         let result = cipher.decrypt_with_context(&encrypted, &different_aad);
         assert!(result.is_err());
@@ -805,11 +810,7 @@ mod database_adapter_tests {
 
         // Cached should generally be faster or comparable
         // (We test that both complete rather than strict ordering since CI can be noisy)
-        assert!(
-            cached_duration.as_secs() < 10,
-            "Cached operations took {:?}",
-            cached_duration
-        );
+        assert!(cached_duration.as_secs() < 10, "Cached operations took {:?}", cached_duration);
         assert!(
             uncached_duration.as_secs() < 10,
             "Uncached operations took {:?}",
@@ -879,10 +880,11 @@ mod database_adapter_tests {
         let cipher = test_cipher();
 
         // Case 1: Completely random data
-        let garbage = vec![0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33,
-                           0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB,
-                           0xCC, 0xDD, 0xEE, 0xFF, 0x01, 0x02, 0x03, 0x04,
-                           0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C];
+        let garbage = vec![
+            0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+            0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+            0x09, 0x0A, 0x0B, 0x0C,
+        ];
         let result = cipher.decrypt(&garbage);
         assert!(result.is_err());
 
@@ -919,7 +921,8 @@ mod database_adapter_tests {
 
         // An invalid key size would cause a panic (tested via should_panic elsewhere)
         // but a SecretsError::NotFound can be simulated
-        let err = SecretsError::NotFound("Encryption key for field 'ssn' not configured".to_string());
+        let err =
+            SecretsError::NotFound("Encryption key for field 'ssn' not configured".to_string());
         let err_msg = format!("{}", err);
         assert!(err_msg.contains("not configured") || err_msg.contains("not found"));
     }
@@ -1037,8 +1040,7 @@ mod database_adapter_tests {
     #[test]
     fn test_schema_detect_encrypted_fields() {
         let schema = StructSchema::new("User").with_fields(vec![
-            SchemaFieldInfo::new("id", "i64", false, "")
-                .with_mark(EncryptionMark::Encrypted),
+            SchemaFieldInfo::new("id", "i64", false, "").with_mark(EncryptionMark::Encrypted),
             SchemaFieldInfo::new("name", "String", false, ""),
             SchemaFieldInfo::new("email", "String", true, "encryption/email")
                 .with_mark(EncryptionMark::Encrypted)
@@ -1070,24 +1072,20 @@ mod database_adapter_tests {
     #[test]
     fn test_schema_evolution_add_encrypted_field() {
         // Version 1: only email encrypted
-        let schema_v1 = StructSchema::new("User")
-            .with_version(1)
-            .with_fields(vec![
-                SchemaFieldInfo::new("name", "String", false, ""),
-                SchemaFieldInfo::new("email", "String", true, "encryption/email"),
-            ]);
+        let schema_v1 = StructSchema::new("User").with_version(1).with_fields(vec![
+            SchemaFieldInfo::new("name", "String", false, ""),
+            SchemaFieldInfo::new("email", "String", true, "encryption/email"),
+        ]);
 
         assert_eq!(schema_v1.encrypted_field_count(), 1);
         assert_eq!(schema_v1.version, 1);
 
         // Version 2: added phone as encrypted field
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![
-                SchemaFieldInfo::new("name", "String", false, ""),
-                SchemaFieldInfo::new("email", "String", true, "encryption/email"),
-                SchemaFieldInfo::new("phone", "String", true, "encryption/phone"),
-            ]);
+        let schema_v2 = StructSchema::new("User").with_version(2).with_fields(vec![
+            SchemaFieldInfo::new("name", "String", false, ""),
+            SchemaFieldInfo::new("email", "String", true, "encryption/email"),
+            SchemaFieldInfo::new("phone", "String", true, "encryption/phone"),
+        ]);
 
         assert_eq!(schema_v2.encrypted_field_count(), 2);
         assert_eq!(schema_v2.version, 2);
@@ -1109,19 +1107,24 @@ mod database_adapter_tests {
     #[test]
     fn test_schema_encryption_key_change() {
         // Schema with key reference
-        let schema = StructSchema::new("User").with_fields(vec![
-            SchemaFieldInfo::new("email", "String", true, "encryption/email_v1"),
-        ]);
+        let schema = StructSchema::new("User").with_fields(vec![SchemaFieldInfo::new(
+            "email",
+            "String",
+            true,
+            "encryption/email_v1",
+        )]);
 
         let field = schema.get_encrypted_field("email").unwrap();
         assert_eq!(field.key_reference, "encryption/email_v1");
 
         // After key change: schema updated with new key reference
-        let updated_schema = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![
-                SchemaFieldInfo::new("email", "String", true, "encryption/email_v2"),
-            ]);
+        let updated_schema =
+            StructSchema::new("User").with_version(2).with_fields(vec![SchemaFieldInfo::new(
+                "email",
+                "String",
+                true,
+                "encryption/email_v2",
+            )]);
 
         let updated_field = updated_schema.get_encrypted_field("email").unwrap();
         assert_eq!(updated_field.key_reference, "encryption/email_v2");

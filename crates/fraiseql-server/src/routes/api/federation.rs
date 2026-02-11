@@ -179,7 +179,8 @@ fn generate_json_graph(subgraphs: &[SubgraphInfo]) -> String {
 
 /// Generate Graphviz (DOT) representation of federation graph.
 fn generate_dot_graph(subgraphs: &[SubgraphInfo]) -> String {
-    let mut dot = String::from("digraph federation {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n\n");
+    let mut dot =
+        String::from("digraph federation {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n\n");
 
     for sg in subgraphs {
         let entities_label = sg.entities.join(", ");
@@ -196,10 +197,7 @@ fn generate_mermaid_graph(subgraphs: &[SubgraphInfo]) -> String {
 
     for sg in subgraphs {
         let entities_label = sg.entities.join(", ");
-        mermaid.push_str(&format!(
-            "    {}[\"{}<br/>[{}]\"]\n",
-            sg.name, sg.name, entities_label
-        ));
+        mermaid.push_str(&format!("    {}[\"{}<br/>[{}]\"]\n", sg.name, sg.name, entities_label));
     }
 
     mermaid

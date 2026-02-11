@@ -54,10 +54,8 @@ mod schema_tests {
         records.push(SecretRotationAudit::new("api/keys/stripe", "success"));
 
         // Query by secret name
-        let fraiseql_records: Vec<_> = records
-            .iter()
-            .filter(|r| r.secret_name == "database/creds/fraiseql")
-            .collect();
+        let fraiseql_records: Vec<_> =
+            records.iter().filter(|r| r.secret_name == "database/creds/fraiseql").collect();
         assert_eq!(fraiseql_records.len(), 5);
 
         // Sorted by timestamp (descending) — all are essentially the same time
@@ -68,17 +66,15 @@ mod schema_tests {
         }
 
         // Other secret has its own history
-        let stripe_records: Vec<_> = records
-            .iter()
-            .filter(|r| r.secret_name == "api/keys/stripe")
-            .collect();
+        let stripe_records: Vec<_> =
+            records.iter().filter(|r| r.secret_name == "api/keys/stripe").collect();
         assert_eq!(stripe_records.len(), 1);
     }
 
     /// Test secret rotation audit filtering by status
     #[tokio::test]
     async fn test_secret_rotation_audit_filter_by_status() {
-        let records = vec![
+        let records = [
             SecretRotationAudit::new("secret/a", "success"),
             SecretRotationAudit::new("secret/b", "failed").with_error("Connection timeout"),
             SecretRotationAudit::new("secret/c", "success"),
@@ -98,7 +94,7 @@ mod schema_tests {
     #[tokio::test]
     async fn test_secret_rotation_audit_date_range() {
         let now = Utc::now();
-        let records = vec![
+        let records = [
             SecretRotationAudit::new("secret/a", "success"),
             SecretRotationAudit::new("secret/b", "success"),
             SecretRotationAudit::new("secret/c", "success"),
@@ -116,10 +112,8 @@ mod schema_tests {
 
         // Filter with a past range — nothing matches
         let old_range_end = now - Duration::hours(2);
-        let in_old_range: Vec<_> = records
-            .iter()
-            .filter(|r| r.rotation_timestamp <= old_range_end)
-            .collect();
+        let in_old_range: Vec<_> =
+            records.iter().filter(|r| r.rotation_timestamp <= old_range_end).collect();
         assert_eq!(in_old_range.len(), 0);
     }
 
@@ -177,9 +171,10 @@ mod schema_tests {
     #[tokio::test]
     async fn test_encryption_key_creation() {
         let key_material = vec![0x42u8; 32]; // 256-bit key
-        let key = EncryptionKey::new("fraiseql/database-encryption", key_material.clone(), "AES-256-GCM")
-            .add_metadata("compliance_frameworks", "HIPAA,PCI-DSS,GDPR")
-            .add_metadata("rotation_schedule", "0 2 1 * *");
+        let key =
+            EncryptionKey::new("fraiseql/database-encryption", key_material.clone(), "AES-256-GCM")
+                .add_metadata("compliance_frameworks", "HIPAA,PCI-DSS,GDPR")
+                .add_metadata("rotation_schedule", "0 2 1 * *");
 
         assert_eq!(key.name, "fraiseql/database-encryption");
         assert_eq!(key.key_material_encrypted, key_material);
@@ -266,18 +261,9 @@ mod schema_tests {
             key.metadata.get("compliance_frameworks"),
             Some(&"HIPAA,PCI-DSS,GDPR".to_string())
         );
-        assert_eq!(
-            key.metadata.get("rotation_schedule"),
-            Some(&"0 2 1 * *".to_string())
-        );
-        assert_eq!(
-            key.metadata.get("retention_policy"),
-            Some(&"1 year".to_string())
-        );
-        assert_eq!(
-            key.metadata.get("protected_fields"),
-            Some(&"email,phone,ssn".to_string())
-        );
+        assert_eq!(key.metadata.get("rotation_schedule"), Some(&"0 2 1 * *".to_string()));
+        assert_eq!(key.metadata.get("retention_policy"), Some(&"1 year".to_string()));
+        assert_eq!(key.metadata.get("protected_fields"), Some(&"email,phone,ssn".to_string()));
     }
 
     /// Test encryption key material retrieval
@@ -347,7 +333,7 @@ mod schema_tests {
     /// Test external auth provider per tenant
     #[tokio::test]
     async fn test_external_auth_provider_by_tenant() {
-        let providers = vec![
+        let providers = [
             ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1"),
             ExternalAuthProviderRecord::new("tenant-001", "oauth2", "google", "cid-2", "vault/2"),
             ExternalAuthProviderRecord::new("tenant-002", "oidc", "okta", "cid-3", "vault/3"),
@@ -393,16 +379,18 @@ mod schema_tests {
     /// Test external auth provider enable/disable
     #[tokio::test]
     async fn test_external_auth_provider_enable_disable() {
-        let provider = ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1");
+        let provider =
+            ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1");
         assert!(provider.is_enabled());
 
         let disabled = provider.disable();
         assert!(!disabled.is_enabled());
 
         // Disabled providers hidden from login UI
-        let providers = vec![
+        let providers = [
             ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1"),
-            ExternalAuthProviderRecord::new("tenant-001", "oauth2", "google", "cid-2", "vault/2").disable(),
+            ExternalAuthProviderRecord::new("tenant-001", "oauth2", "google", "cid-2", "vault/2")
+                .disable(),
         ];
 
         let enabled_for_login: Vec<_> = providers.iter().filter(|p| p.is_enabled()).collect();
@@ -417,11 +405,12 @@ mod schema_tests {
     /// Test external auth provider configuration
     #[tokio::test]
     async fn test_external_auth_provider_configuration() {
-        let provider = ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1")
-            .add_configuration("authorization_endpoint", "https://example.auth0.com/authorize")
-            .add_configuration("token_endpoint", "https://example.auth0.com/oauth/token")
-            .add_configuration("userinfo_endpoint", "https://example.auth0.com/userinfo")
-            .add_configuration("scopes", "openid,profile,email");
+        let provider =
+            ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1")
+                .add_configuration("authorization_endpoint", "https://example.auth0.com/authorize")
+                .add_configuration("token_endpoint", "https://example.auth0.com/oauth/token")
+                .add_configuration("userinfo_endpoint", "https://example.auth0.com/userinfo")
+                .add_configuration("scopes", "openid,profile,email");
 
         assert_eq!(
             provider.configuration.get("authorization_endpoint"),
@@ -431,10 +420,7 @@ mod schema_tests {
             provider.configuration.get("token_endpoint"),
             Some(&"https://example.auth0.com/oauth/token".to_string())
         );
-        assert_eq!(
-            provider.configuration.get("scopes"),
-            Some(&"openid,profile,email".to_string())
-        );
+        assert_eq!(provider.configuration.get("scopes"), Some(&"openid,profile,email".to_string()));
     }
 
     /// Test external auth provider removal
@@ -484,10 +470,28 @@ mod schema_tests {
     /// Test OAuth session by user
     #[tokio::test]
     async fn test_oauth_session_by_user() {
-        let sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "auth0|u1", "token-a", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-001", "oauth2", "google|u1", "token-b", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-002", "oidc", "auth0|u2", "token-c", Utc::now() + Duration::hours(1)),
+        let sessions = [
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "auth0|u1",
+                "token-a",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oauth2",
+                "google|u1",
+                "token-b",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-002",
+                "oidc",
+                "auth0|u2",
+                "token-c",
+                Utc::now() + Duration::hours(1),
+            ),
         ];
 
         let user1_sessions: Vec<_> = sessions.iter().filter(|s| s.user_id == "user-001").collect();
@@ -500,9 +504,21 @@ mod schema_tests {
     /// Test OAuth session by provider user ID
     #[tokio::test]
     async fn test_oauth_session_by_provider_user_id() {
-        let sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "auth0|user123", "token-a", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-002", "oauth2", "google|456", "token-b", Utc::now() + Duration::hours(1)),
+        let sessions = [
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "auth0|user123",
+                "token-a",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-002",
+                "oauth2",
+                "google|456",
+                "token-b",
+                Utc::now() + Duration::hours(1),
+            ),
         ];
 
         // Find by provider user ID + type
@@ -517,17 +533,36 @@ mod schema_tests {
     /// Test OAuth session token expiry tracking
     #[tokio::test]
     async fn test_oauth_session_token_expiry() {
-        let sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "id-1", "token-a", Utc::now() - Duration::hours(1)), // expired
-            OAuthSessionRecord::new("user-002", "oidc", "id-2", "token-b", Utc::now() + Duration::hours(1)), // valid
-            OAuthSessionRecord::new("user-003", "oidc", "id-3", "token-c", Utc::now() + Duration::seconds(30)), // expiring soon
+        let sessions = [
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "id-1",
+                "token-a",
+                Utc::now() - Duration::hours(1),
+            ), // expired
+            OAuthSessionRecord::new(
+                "user-002",
+                "oidc",
+                "id-2",
+                "token-b",
+                Utc::now() + Duration::hours(1),
+            ), // valid
+            OAuthSessionRecord::new(
+                "user-003",
+                "oidc",
+                "id-3",
+                "token-c",
+                Utc::now() + Duration::seconds(30),
+            ), // expiring soon
         ];
 
         let expired: Vec<_> = sessions.iter().filter(|s| s.is_token_expired()).collect();
         assert_eq!(expired.len(), 1);
         assert_eq!(expired[0].user_id, "user-001");
 
-        let expiring_soon: Vec<_> = sessions.iter().filter(|s| s.is_token_expiring_soon(300)).collect();
+        let expiring_soon: Vec<_> =
+            sessions.iter().filter(|s| s.is_token_expiring_soon(300)).collect();
         assert_eq!(expiring_soon.len(), 2); // expired + expiring within 5 min
     }
 
@@ -556,10 +591,28 @@ mod schema_tests {
     #[tokio::test]
     async fn test_oauth_session_multiple_providers_per_user() {
         let user_id = "user-001";
-        let sessions = vec![
-            OAuthSessionRecord::new(user_id, "oidc", "auth0|u1", "token-auth0", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new(user_id, "oauth2", "google|u1", "token-google", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new(user_id, "oauth2", "github|u1", "token-github", Utc::now() + Duration::hours(1)),
+        let sessions = [
+            OAuthSessionRecord::new(
+                user_id,
+                "oidc",
+                "auth0|u1",
+                "token-auth0",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                user_id,
+                "oauth2",
+                "google|u1",
+                "token-google",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                user_id,
+                "oauth2",
+                "github|u1",
+                "token-github",
+                Utc::now() + Duration::hours(1),
+            ),
         ];
 
         let user_sessions: Vec<_> = sessions.iter().filter(|s| s.user_id == user_id).collect();
@@ -575,22 +628,37 @@ mod schema_tests {
     /// Test OAuth session provider type consistency
     #[tokio::test]
     async fn test_oauth_session_provider_type_consistency() {
-        let providers = vec![
+        let providers = [
             ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1"),
             ExternalAuthProviderRecord::new("tenant-001", "oauth2", "google", "cid-2", "vault/2"),
         ];
 
         let sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "auth0|u1", "token-a", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-001", "oauth2", "google|u1", "token-b", Utc::now() + Duration::hours(1)),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "auth0|u1",
+                "token-a",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oauth2",
+                "google|u1",
+                "token-b",
+                Utc::now() + Duration::hours(1),
+            ),
         ];
 
         // Verify each session's provider_type matches a registered provider
         for session in &sessions {
-            let matching_provider = providers
-                .iter()
-                .any(|p| p.provider_type == session.provider_type);
-            assert!(matching_provider, "Session provider_type '{}' has no matching provider", session.provider_type);
+            let matching_provider =
+                providers.iter().any(|p| p.provider_type == session.provider_type);
+            assert!(
+                matching_provider,
+                "Session provider_type '{}' has no matching provider",
+                session.provider_type
+            );
         }
     }
 
@@ -598,9 +666,27 @@ mod schema_tests {
     #[tokio::test]
     async fn test_oauth_session_cleanup_on_provider_deletion() {
         let mut sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "auth0|u1", "token-a", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-002", "oidc", "auth0|u2", "token-b", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-001", "oauth2", "google|u1", "token-c", Utc::now() + Duration::hours(1)),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "auth0|u1",
+                "token-a",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-002",
+                "oidc",
+                "auth0|u2",
+                "token-b",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oauth2",
+                "google|u1",
+                "token-c",
+                Utc::now() + Duration::hours(1),
+            ),
         ];
 
         // Cascade delete: remove all oidc sessions when auth0 provider deleted
@@ -616,32 +702,64 @@ mod schema_tests {
     /// Test foreign key constraints
     #[tokio::test]
     async fn test_schema_foreign_key_constraints() {
-        let tenant_ids = vec!["tenant-001", "tenant-002"];
+        let tenant_ids = ["tenant-001", "tenant-002"];
 
         // Provider must reference existing tenant
-        let provider = ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1");
+        let provider =
+            ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1");
         assert!(tenant_ids.contains(&provider.tenant_id.as_str()));
 
         // Invalid tenant reference
-        let bad_provider = ExternalAuthProviderRecord::new("nonexistent-tenant", "oidc", "auth0", "cid-1", "vault/1");
+        let bad_provider = ExternalAuthProviderRecord::new(
+            "nonexistent-tenant",
+            "oidc",
+            "auth0",
+            "cid-1",
+            "vault/1",
+        );
         assert!(!tenant_ids.contains(&bad_provider.tenant_id.as_str()));
 
         // Session must reference valid user
-        let user_ids = vec!["user-001", "user-002"];
-        let session = OAuthSessionRecord::new("user-001", "oidc", "auth0|u1", "token", Utc::now() + Duration::hours(1));
+        let user_ids = ["user-001", "user-002"];
+        let session = OAuthSessionRecord::new(
+            "user-001",
+            "oidc",
+            "auth0|u1",
+            "token",
+            Utc::now() + Duration::hours(1),
+        );
         assert!(user_ids.contains(&session.user_id.as_str()));
     }
 
     /// Test cascade on provider deletion
     #[tokio::test]
     async fn test_schema_cascade_on_provider_deletion() {
-        let provider = ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1");
+        let provider =
+            ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-1", "vault/1");
         let _provider_id = provider.id.clone();
 
         let mut sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "auth0|u1", "token-a", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-002", "oidc", "auth0|u2", "token-b", Utc::now() + Duration::hours(1)),
-            OAuthSessionRecord::new("user-001", "oauth2", "google|u1", "token-c", Utc::now() + Duration::hours(1)),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "auth0|u1",
+                "token-a",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-002",
+                "oidc",
+                "auth0|u2",
+                "token-b",
+                Utc::now() + Duration::hours(1),
+            ),
+            OAuthSessionRecord::new(
+                "user-001",
+                "oauth2",
+                "google|u1",
+                "token-c",
+                Utc::now() + Duration::hours(1),
+            ),
         ];
 
         // Simulated cascade: remove sessions matching provider type
@@ -695,7 +813,7 @@ mod schema_tests {
     #[tokio::test]
     async fn test_secret_audit_provides_rotation_history() {
         // Build rotation history over time
-        let history = vec![
+        let history = [
             SecretRotationAudit::new("database/creds/fraiseql", "success")
                 .with_rotated_by("system")
                 .with_secret_ids("v0", "v1")
@@ -779,10 +897,8 @@ mod schema_tests {
 
         // Retention: keep records from the last year
         let one_year_ago = Utc::now() - Duration::days(365);
-        let retained: Vec<_> = records
-            .iter()
-            .filter(|r| r.rotation_timestamp >= one_year_ago)
-            .collect();
+        let retained: Vec<_> =
+            records.iter().filter(|r| r.rotation_timestamp >= one_year_ago).collect();
 
         // All recent records retained
         assert_eq!(retained.len(), 20);
@@ -794,7 +910,7 @@ mod schema_tests {
         let active_key = EncryptionKey::new("active-key", vec![1, 2, 3], "AES-256-GCM");
         let retired_key = EncryptionKey::new("retired-key", vec![4, 5, 6], "AES-256-GCM").retire();
 
-        let keys = vec![active_key, retired_key];
+        let keys = [active_key, retired_key];
 
         // Active keys must never be deleted
         let active: Vec<_> = keys.iter().filter(|k| k.is_active()).collect();
@@ -809,18 +925,33 @@ mod schema_tests {
     /// Test OAuth session cleanup
     #[tokio::test]
     async fn test_oauth_session_cleanup() {
-        let sessions = vec![
-            OAuthSessionRecord::new("user-001", "oidc", "id-1", "t-a", Utc::now() - Duration::days(60)), // old expired
-            OAuthSessionRecord::new("user-002", "oidc", "id-2", "t-b", Utc::now() - Duration::days(10)), // recently expired
-            OAuthSessionRecord::new("user-003", "oidc", "id-3", "t-c", Utc::now() + Duration::hours(1)),  // active
+        let sessions = [
+            OAuthSessionRecord::new(
+                "user-001",
+                "oidc",
+                "id-1",
+                "t-a",
+                Utc::now() - Duration::days(60),
+            ), // old expired
+            OAuthSessionRecord::new(
+                "user-002",
+                "oidc",
+                "id-2",
+                "t-b",
+                Utc::now() - Duration::days(10),
+            ), // recently expired
+            OAuthSessionRecord::new(
+                "user-003",
+                "oidc",
+                "id-3",
+                "t-c",
+                Utc::now() + Duration::hours(1),
+            ), // active
         ];
 
         // Cleanup: remove sessions expired more than 30 days ago
         let cutoff = Utc::now() - Duration::days(30);
-        let remaining: Vec<_> = sessions
-            .iter()
-            .filter(|s| s.token_expiry >= cutoff)
-            .collect();
+        let remaining: Vec<_> = sessions.iter().filter(|s| s.token_expiry >= cutoff).collect();
 
         assert_eq!(remaining.len(), 2); // recently expired + active remain
     }
@@ -831,27 +962,19 @@ mod schema_tests {
         // Simulate large dataset
         let mut audit_records = Vec::new();
         for i in 0..1000 {
-            audit_records.push(
-                SecretRotationAudit::new(format!("secret/{}", i % 10), "success"),
-            );
+            audit_records.push(SecretRotationAudit::new(format!("secret/{}", i % 10), "success"));
         }
         assert_eq!(audit_records.len(), 1000);
 
         // Query performance: filter by name
-        let secret_0: Vec<_> = audit_records
-            .iter()
-            .filter(|r| r.secret_name == "secret/0")
-            .collect();
+        let secret_0: Vec<_> =
+            audit_records.iter().filter(|r| r.secret_name == "secret/0").collect();
         assert_eq!(secret_0.len(), 100);
 
         // Encryption keys: typically small
         let mut keys = Vec::new();
         for i in 0..50 {
-            keys.push(EncryptionKey::new(
-                format!("key-{i}"),
-                vec![0u8; 32],
-                "AES-256-GCM",
-            ));
+            keys.push(EncryptionKey::new(format!("key-{i}"), vec![0u8; 32], "AES-256-GCM"));
         }
         assert_eq!(keys.len(), 50);
 

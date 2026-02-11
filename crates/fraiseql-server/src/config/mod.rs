@@ -101,6 +101,11 @@ pub struct ServerConfig {
 
     #[serde(default)]
     pub limits: Option<ServerLimitsConfig>,
+
+    /// Enable GraphQL introspection queries (__schema, __type).
+    /// Defaults to true for development, should be disabled in production.
+    #[serde(default = "default_introspection_enabled")]
+    pub introspection_enabled: bool,
 }
 
 fn default_port() -> u16 {
@@ -142,6 +147,10 @@ fn default_max_concurrent() -> usize {
 }
 fn default_max_queue_depth() -> usize {
     5000
+}
+
+fn default_introspection_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize)]

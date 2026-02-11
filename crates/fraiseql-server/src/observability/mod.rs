@@ -21,8 +21,8 @@ pub use tracing::{SpanBuilder, create_span, init_tracer};
 /// Sets up the `tracing_subscriber` with:
 /// - `RUST_LOG` environment variable filter (defaults to
 ///   `fraiseql_server=info,tower_http=info,axum=info`)
-/// - JSON or human-readable format based on `FRAISEQL_LOG_FORMAT`
-///   (`json` for JSON, anything else for human-readable)
+/// - JSON or human-readable format based on `FRAISEQL_LOG_FORMAT` (`json` for JSON, anything else
+///   for human-readable)
 ///
 /// This function must be called exactly once, before any tracing macros.
 ///

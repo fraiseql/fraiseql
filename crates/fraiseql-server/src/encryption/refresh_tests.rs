@@ -6,13 +6,15 @@
 mod refresh_tests {
     use chrono::{Duration, Utc};
 
-    use crate::encryption::credential_rotation::{
-        CredentialRotationManager, KeyVersionMetadata, KeyVersionStatus, RotationConfig,
+    use crate::encryption::{
+        FieldEncryption,
+        credential_rotation::{
+            CredentialRotationManager, KeyVersionMetadata, KeyVersionStatus, RotationConfig,
+        },
+        refresh_trigger::{
+            RefreshConfig, RefreshHealthStatus, RefreshJobStatus, RefreshManager, RefreshTrigger,
+        },
     };
-    use crate::encryption::refresh_trigger::{
-        RefreshConfig, RefreshHealthStatus, RefreshJobStatus, RefreshManager, RefreshTrigger,
-    };
-    use crate::encryption::FieldEncryption;
 
     // ============================================================================
     // REFRESH TRIGGER TESTS
@@ -253,17 +255,15 @@ mod refresh_tests {
         manager.initialize_key().unwrap();
 
         // Batch encrypt before switch
-        let before: Vec<Vec<u8>> = (0..3)
-            .map(|i| cipher.encrypt(&format!("before_{i}")).unwrap())
-            .collect();
+        let before: Vec<Vec<u8>> =
+            (0..3).map(|i| cipher.encrypt(&format!("before_{i}")).unwrap()).collect();
 
         // Switch version
         manager.rotate_key().unwrap();
 
         // Batch encrypt after switch
-        let after: Vec<Vec<u8>> = (0..3)
-            .map(|i| cipher.encrypt(&format!("after_{i}")).unwrap())
-            .collect();
+        let after: Vec<Vec<u8>> =
+            (0..3).map(|i| cipher.encrypt(&format!("after_{i}")).unwrap()).collect();
 
         // All records decrypt correctly
         for (i, enc) in before.iter().enumerate() {
@@ -280,9 +280,8 @@ mod refresh_tests {
         let cipher = FieldEncryption::new(&[0u8; 32]);
 
         // Encrypt records before any switch
-        let records: Vec<Vec<u8>> = (0..5)
-            .map(|i| cipher.encrypt(&format!("record_{i}")).unwrap())
-            .collect();
+        let records: Vec<Vec<u8>> =
+            (0..5).map(|i| cipher.encrypt(&format!("record_{i}")).unwrap()).collect();
 
         let config = RotationConfig::new();
         let manager = CredentialRotationManager::new(config);
@@ -639,9 +638,7 @@ mod refresh_tests {
         assert!(duration.is_some());
 
         // Simulate timeout failure
-        manager
-            .complete_job_failure("Operation timed out after 30s")
-            .unwrap();
+        manager.complete_job_failure("Operation timed out after 30s").unwrap();
 
         assert_eq!(job.status().unwrap(), RefreshJobStatus::Failed);
     }
@@ -680,9 +677,8 @@ mod refresh_tests {
         let cipher = FieldEncryption::new(&[0u8; 32]);
 
         // Pre-encrypted records
-        let records: Vec<Vec<u8>> = (0..5)
-            .map(|i| cipher.encrypt(&format!("read_{i}")).unwrap())
-            .collect();
+        let records: Vec<Vec<u8>> =
+            (0..5).map(|i| cipher.encrypt(&format!("read_{i}")).unwrap()).collect();
 
         // Start refresh process
         let manager = RefreshManager::new(RefreshConfig::default());
@@ -731,9 +727,8 @@ mod refresh_tests {
         // Simulate a transaction: encrypt multiple records atomically
         let version_at_start = rot_manager.get_current_version().unwrap();
 
-        let tx_records: Vec<Vec<u8>> = (0..3)
-            .map(|i| cipher.encrypt(&format!("tx_record_{i}")).unwrap())
-            .collect();
+        let tx_records: Vec<Vec<u8>> =
+            (0..3).map(|i| cipher.encrypt(&format!("tx_record_{i}")).unwrap()).collect();
 
         // Refresh happens during transaction
         rot_manager.rotate_key().unwrap();

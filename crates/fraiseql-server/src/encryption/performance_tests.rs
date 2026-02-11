@@ -264,9 +264,8 @@ mod performance_tests {
 
         // Encrypt the same value multiple times
         let plaintext = "shared_sensitive_data";
-        let encrypted_set: Vec<Vec<u8>> = (0..50)
-            .map(|_| cipher.encrypt(plaintext).unwrap())
-            .collect();
+        let encrypted_set: Vec<Vec<u8>> =
+            (0..50).map(|_| cipher.encrypt(plaintext).unwrap()).collect();
 
         // Decrypt all in parallel
         let cipher_clone = cipher.clone();
@@ -323,19 +322,17 @@ mod performance_tests {
         // Use spawn_blocking for CPU-bound crypto
         let cipher_enc = cipher.clone();
         let plaintext_owned = plaintext.to_string();
-        let encrypted = tokio::task::spawn_blocking(move || {
-            cipher_enc.encrypt(&plaintext_owned).unwrap()
-        })
-        .await
-        .unwrap();
+        let encrypted =
+            tokio::task::spawn_blocking(move || cipher_enc.encrypt(&plaintext_owned).unwrap())
+                .await
+                .unwrap();
 
         // Decrypt also via spawn_blocking
         let cipher_dec = cipher.clone();
-        let decrypted = tokio::task::spawn_blocking(move || {
-            cipher_dec.decrypt(&encrypted).unwrap()
-        })
-        .await
-        .unwrap();
+        let decrypted =
+            tokio::task::spawn_blocking(move || cipher_dec.decrypt(&encrypted).unwrap())
+                .await
+                .unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
@@ -403,11 +400,7 @@ mod performance_tests {
 
         // Hit rate should be > 95%
         let hit_rate = cache.hit_rate();
-        assert!(
-            hit_rate > 0.95,
-            "Hit rate should be >95%, got {}",
-            hit_rate
-        );
+        assert!(hit_rate > 0.95, "Hit rate should be >95%, got {}", hit_rate);
 
         let (hits, misses) = cache.stats();
         assert_eq!(hits, 300);
@@ -708,11 +701,7 @@ mod performance_tests {
         let duration = start.elapsed();
 
         // 500 total operations across 5 "connections"
-        assert!(
-            duration.as_secs() < 5,
-            "Connection pool encryption took {:?}",
-            duration
-        );
+        assert!(duration.as_secs() < 5, "Connection pool encryption took {:?}", duration);
     }
 
     /// Test memory pressure handling
@@ -804,18 +793,11 @@ mod performance_tests {
 
         let new_avg = monitor.average_latency_us();
         // Average should have increased significantly
-        assert!(
-            new_avg > baseline_avg,
-            "Average latency should increase with regression"
-        );
+        assert!(new_avg > baseline_avg, "Average latency should increase with regression");
 
         // Regression detected: new avg much higher than baseline
         let regression_ratio = new_avg as f64 / baseline_avg as f64;
-        assert!(
-            regression_ratio > 2.0,
-            "Significant regression: ratio = {}",
-            regression_ratio
-        );
+        assert!(regression_ratio > 2.0, "Significant regression: ratio = {}", regression_ratio);
     }
 
     /// Test performance dashboard

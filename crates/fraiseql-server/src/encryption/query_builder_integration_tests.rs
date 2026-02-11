@@ -6,10 +6,12 @@
 mod query_builder_integration_tests {
     use std::collections::HashMap;
 
-    use crate::encryption::database_adapter::EncryptionContext;
-    use crate::encryption::query_builder::{QueryBuilderIntegration, QueryType};
-    use crate::encryption::schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema};
-    use crate::encryption::FieldEncryption;
+    use crate::encryption::{
+        FieldEncryption,
+        database_adapter::EncryptionContext,
+        query_builder::{QueryBuilderIntegration, QueryType},
+        schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema},
+    };
 
     /// Helper: create a FieldEncryption with a test key
     fn test_cipher() -> FieldEncryption {
@@ -108,7 +110,7 @@ mod query_builder_integration_tests {
         // Distinguishable from NULL
         let null_value: Option<Vec<u8>> = None;
         assert!(null_value.is_none());
-        assert!(encrypted.len() > 0); // Empty string encrypted is non-empty bytes
+        assert!(!encrypted.is_empty()); // Empty string encrypted is non-empty bytes
     }
 
     /// Test INSERT with mixed encrypted and unencrypted fields
@@ -167,7 +169,8 @@ mod query_builder_integration_tests {
         // All encrypted independently with unique nonces
         for i in 0..99 {
             assert_ne!(
-                encrypted_emails[i], encrypted_emails[i + 1],
+                encrypted_emails[i],
+                encrypted_emails[i + 1],
                 "Each record should have unique ciphertext"
             );
         }
@@ -195,7 +198,8 @@ mod query_builder_integration_tests {
         assert_eq!(decrypted, plaintext);
 
         // Decrypt with different context fails
-        let wrong_ctx = EncryptionContext::new("user-456", "email", "insert", "2026-01-15T10:00:00Z");
+        let wrong_ctx =
+            EncryptionContext::new("user-456", "email", "insert", "2026-01-15T10:00:00Z");
         assert!(cipher.decrypt_with_context(&encrypted, &wrong_ctx.to_aad_string()).is_err());
     }
 
@@ -312,11 +316,15 @@ mod query_builder_integration_tests {
     #[tokio::test]
     async fn test_select_with_context() {
         let cipher = test_cipher();
-        let insert_ctx = EncryptionContext::new("user-123", "email", "insert", "2026-01-15T10:00:00Z");
-        let select_ctx = EncryptionContext::new("user-123", "email", "insert", "2026-01-15T10:00:00Z");
+        let insert_ctx =
+            EncryptionContext::new("user-123", "email", "insert", "2026-01-15T10:00:00Z");
+        let select_ctx =
+            EncryptionContext::new("user-123", "email", "insert", "2026-01-15T10:00:00Z");
 
         // Data encrypted with context on INSERT
-        let stored = cipher.encrypt_with_context("user@example.com", &insert_ctx.to_aad_string()).unwrap();
+        let stored = cipher
+            .encrypt_with_context("user@example.com", &insert_ctx.to_aad_string())
+            .unwrap();
 
         // SELECT must use the same context to decrypt
         let decrypted = cipher.decrypt_with_context(&stored, &select_ctx.to_aad_string()).unwrap();
@@ -409,10 +417,7 @@ mod query_builder_integration_tests {
         for i in 0..99 {
             assert_ne!(updated_values[i], updated_values[i + 1]);
         }
-        assert_eq!(
-            cipher.decrypt(&updated_values[50]).unwrap(),
-            "updated50@example.com"
-        );
+        assert_eq!(cipher.decrypt(&updated_values[50]).unwrap(), "updated50@example.com");
     }
 
     /// Test UPDATE with encryption context
@@ -424,9 +429,7 @@ mod query_builder_integration_tests {
         let encrypted = cipher
             .encrypt_with_context("updated@example.com", &ctx.to_aad_string())
             .unwrap();
-        let decrypted = cipher
-            .decrypt_with_context(&encrypted, &ctx.to_aad_string())
-            .unwrap();
+        let decrypted = cipher.decrypt_with_context(&encrypted, &ctx.to_aad_string()).unwrap();
         assert_eq!(decrypted, "updated@example.com");
     }
 
@@ -450,7 +453,8 @@ mod query_builder_integration_tests {
     /// Test DELETE with context
     #[tokio::test]
     async fn test_delete_with_context() {
-        let ctx = EncryptionContext::new("admin-001", "user_record", "delete", "2026-01-17T10:00:00Z");
+        let ctx =
+            EncryptionContext::new("admin-001", "user_record", "delete", "2026-01-17T10:00:00Z");
         let aad = ctx.to_aad_string();
 
         // Context is recorded for audit, but no encryption/decryption needed
@@ -482,11 +486,7 @@ mod query_builder_integration_tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("email"), "Error should mention field name");
-        assert!(
-            err.contains("WHERE"),
-            "Error should mention WHERE clause: {}",
-            err
-        );
+        assert!(err.contains("WHERE"), "Error should mention WHERE clause: {}", err);
     }
 
     /// Test WHERE clause rejects encrypted field range queries
@@ -749,10 +749,10 @@ mod query_builder_integration_tests {
         let cipher2 = test_cipher();
 
         // Two concurrent transactions encrypting different records
-        let (enc1, enc2) = tokio::join!(
-            async { cipher1.encrypt("txn1@example.com").unwrap() },
-            async { cipher2.encrypt("txn2@example.com").unwrap() }
-        );
+        let (enc1, enc2) =
+            tokio::join!(async { cipher1.encrypt("txn1@example.com").unwrap() }, async {
+                cipher2.encrypt("txn2@example.com").unwrap()
+            });
 
         // No contention - each produces valid ciphertext
         assert_eq!(cipher1.decrypt(&enc1).unwrap(), "txn1@example.com");
@@ -777,9 +777,7 @@ mod query_builder_integration_tests {
         assert!(ctx.to_aad_string().contains("op:insert"));
         assert!(ctx.to_aad_string().contains("user:user-123"));
 
-        let decrypted = cipher
-            .decrypt_with_context(&encrypted, &ctx.to_aad_string())
-            .unwrap();
+        let decrypted = cipher.decrypt_with_context(&encrypted, &ctx.to_aad_string()).unwrap();
         assert_eq!(decrypted, "txn-ctx@example.com");
     }
 
@@ -932,8 +930,10 @@ mod query_builder_integration_tests {
     #[tokio::test]
     async fn test_error_context_mismatch_on_select() {
         let cipher = test_cipher();
-        let ctx_insert = EncryptionContext::new("user-123", "email", "insert", "2026-01-15T10:00:00Z");
-        let ctx_wrong = EncryptionContext::new("user-456", "email", "insert", "2026-01-15T10:00:00Z");
+        let ctx_insert =
+            EncryptionContext::new("user-123", "email", "insert", "2026-01-15T10:00:00Z");
+        let ctx_wrong =
+            EncryptionContext::new("user-456", "email", "insert", "2026-01-15T10:00:00Z");
 
         let encrypted = cipher
             .encrypt_with_context("secret@example.com", &ctx_insert.to_aad_string())
@@ -1024,11 +1024,8 @@ mod query_builder_integration_tests {
 
         // Build QueryBuilderIntegration from schema
         let user_schema = registry.get("User").unwrap();
-        let encrypted_names: Vec<String> = user_schema
-            .encrypted_field_names()
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let encrypted_names: Vec<String> =
+            user_schema.encrypted_field_names().iter().map(|s| (*s).to_string()).collect();
 
         let qbi = QueryBuilderIntegration::new(encrypted_names);
         assert!(qbi.is_encrypted("email"));
@@ -1041,29 +1038,21 @@ mod query_builder_integration_tests {
     #[test]
     fn test_schema_evolution_encrypted_fields() {
         // Schema v1: no encryption
-        let schema_v1 = StructSchema::new("User")
-            .with_version(1)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("email", "String", false, ""),
-            ]);
+        let schema_v1 = StructSchema::new("User").with_version(1).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("email", "String", false, ""),
+        ]);
         assert_eq!(schema_v1.encrypted_field_count(), 0);
 
         // Schema v2: email now encrypted
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("email", "String", true, "encryption/email"),
-            ]);
+        let schema_v2 = StructSchema::new("User").with_version(2).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("email", "String", true, "encryption/email"),
+        ]);
 
         // QBI for v2 handles encryption
         let qbi = QueryBuilderIntegration::new(
-            schema_v2
-                .encrypted_field_names()
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
+            schema_v2.encrypted_field_names().iter().map(|s| (*s).to_string()).collect(),
         );
         assert!(qbi.is_encrypted("email"));
     }

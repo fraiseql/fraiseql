@@ -124,11 +124,18 @@ impl RbacDbBackend {
         tenant_id: Option<&str>,
     ) -> Result<RoleDto, RbacDbError> {
         let tenant_uuid = tenant_id
-            .map(|tid| Uuid::parse_str(tid).map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string())))
+            .map(|tid| {
+                Uuid::parse_str(tid)
+                    .map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))
+            })
             .transpose()?
             .unwrap_or_else(Uuid::nil);
 
-        let mut tx = self.pool.begin().await.map_err(|e| RbacDbError::TransactionError(e.to_string()))?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| RbacDbError::TransactionError(e.to_string()))?;
 
         // Insert role
         let row = sqlx::query(
@@ -150,13 +157,12 @@ impl RbacDbBackend {
         let mut resolved_perms = Vec::new();
         for perm_str in &permissions {
             if let Some((resource, action)) = perm_str.split_once(':') {
-                let perm_row = sqlx::query(
-                    "SELECT id FROM permissions WHERE resource = $1 AND action = $2",
-                )
-                .bind(resource)
-                .bind(action)
-                .fetch_optional(&mut *tx)
-                .await?;
+                let perm_row =
+                    sqlx::query("SELECT id FROM permissions WHERE resource = $1 AND action = $2")
+                        .bind(resource)
+                        .bind(action)
+                        .fetch_optional(&mut *tx)
+                        .await?;
 
                 if let Some(perm_row) = perm_row {
                     let perm_id: Uuid = perm_row.get("id");
@@ -187,8 +193,8 @@ impl RbacDbBackend {
 
     /// Get role by ID with its assigned permissions
     pub async fn get_role(&self, role_id: &str) -> Result<RoleDto, RbacDbError> {
-        let role_uuid =
-            Uuid::parse_str(role_id).map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
+        let role_uuid = Uuid::parse_str(role_id)
+            .map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
 
         let row = sqlx::query(
             "SELECT id, tenant_id, name, description, created_at, updated_at FROM roles WHERE id = $1",
@@ -243,8 +249,8 @@ impl RbacDbBackend {
         offset: u32,
     ) -> Result<Vec<RoleDto>, RbacDbError> {
         let rows = if let Some(tid) = tenant_id {
-            let tenant_uuid =
-                Uuid::parse_str(tid).map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))?;
+            let tenant_uuid = Uuid::parse_str(tid)
+                .map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))?;
             sqlx::query(
                 "SELECT id, tenant_id, name, description, created_at, updated_at \
                  FROM roles WHERE tenant_id = $1 ORDER BY name LIMIT $2 OFFSET $3",
@@ -309,8 +315,8 @@ impl RbacDbBackend {
 
     /// Delete role (CASCADE removes role_permissions; user_roles also CASCADE)
     pub async fn delete_role(&self, role_id: &str) -> Result<(), RbacDbError> {
-        let role_uuid =
-            Uuid::parse_str(role_id).map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
+        let role_uuid = Uuid::parse_str(role_id)
+            .map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
 
         // Check for active user assignments
         let count_row = sqlx::query("SELECT COUNT(*) as cnt FROM user_roles WHERE role_id = $1")
@@ -382,8 +388,8 @@ impl RbacDbBackend {
         role_id: &str,
         tenant_id: Option<&str>,
     ) -> Result<UserRoleDto, RbacDbError> {
-        let role_uuid =
-            Uuid::parse_str(role_id).map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
+        let role_uuid = Uuid::parse_str(role_id)
+            .map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
 
         // Verify role exists
         let role_exists = sqlx::query("SELECT tenant_id FROM roles WHERE id = $1")
@@ -396,7 +402,8 @@ impl RbacDbBackend {
 
         // Use provided tenant_id or fall back to role's tenant_id
         let tenant_uuid = if let Some(tid) = tenant_id {
-            Uuid::parse_str(tid).map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))?
+            Uuid::parse_str(tid)
+                .map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))?
         } else {
             role_tenant_id
         };
@@ -427,8 +434,8 @@ impl RbacDbBackend {
         user_id: &str,
         role_id: &str,
     ) -> Result<(), RbacDbError> {
-        let role_uuid =
-            Uuid::parse_str(role_id).map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
+        let role_uuid = Uuid::parse_str(role_id)
+            .map_err(|_| RbacDbError::QueryError("Invalid role ID".to_string()))?;
 
         let result = sqlx::query("DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2")
             .bind(user_id)
@@ -451,8 +458,8 @@ impl RbacDbBackend {
         action: &str,
         tenant_id: &str,
     ) -> Result<bool, RbacDbError> {
-        let tenant_uuid =
-            Uuid::parse_str(tenant_id).map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))?;
+        let tenant_uuid = Uuid::parse_str(tenant_id)
+            .map_err(|_| RbacDbError::QueryError("Invalid tenant ID".to_string()))?;
 
         let row = sqlx::query(
             "SELECT COUNT(*) as cnt FROM user_roles ur \

@@ -7,11 +7,13 @@
 mod rotation_tests {
     use chrono::{Duration, Utc};
 
-    use crate::encryption::credential_rotation::{
-        CredentialRotationManager, KeyVersion, KeyVersionMetadata, KeyVersionStatus,
-        RotationConfig, RotationSchedule, VersionedKeyStorage,
+    use crate::encryption::{
+        FieldEncryption,
+        credential_rotation::{
+            CredentialRotationManager, KeyVersion, KeyVersionMetadata, KeyVersionStatus,
+            RotationConfig, RotationSchedule, VersionedKeyStorage,
+        },
     };
-    use crate::encryption::FieldEncryption;
 
     // ============================================================================
     // KEY VERSIONING TESTS
@@ -339,17 +341,13 @@ mod rotation_tests {
         assert_eq!(manual_config.schedule, RotationSchedule::Manual);
 
         // Interval schedule (every 30 days)
-        let interval_config =
-            RotationConfig::new().with_schedule(RotationSchedule::Interval(30));
+        let interval_config = RotationConfig::new().with_schedule(RotationSchedule::Interval(30));
         assert_eq!(interval_config.schedule, RotationSchedule::Interval(30));
 
         // Cron schedule
-        let cron_config = RotationConfig::new()
-            .with_schedule(RotationSchedule::Cron("0 2 1 * *".to_string()));
-        assert_eq!(
-            cron_config.schedule,
-            RotationSchedule::Cron("0 2 1 * *".to_string())
-        );
+        let cron_config =
+            RotationConfig::new().with_schedule(RotationSchedule::Cron("0 2 1 * *".to_string()));
+        assert_eq!(cron_config.schedule, RotationSchedule::Cron("0 2 1 * *".to_string()));
 
         // On-demand works immediately
         let manager = CredentialRotationManager::new(manual_config);
@@ -391,8 +389,7 @@ mod rotation_tests {
     /// Test rotation schedule execution
     #[tokio::test]
     async fn test_rotation_schedule_execution() {
-        let config = RotationConfig::new()
-            .with_schedule(RotationSchedule::Interval(30));
+        let config = RotationConfig::new().with_schedule(RotationSchedule::Interval(30));
         let manager = CredentialRotationManager::new(config);
         manager.initialize_key().unwrap();
 
@@ -609,10 +606,7 @@ mod rotation_tests {
         ];
 
         // Batch decrypt all records
-        let decrypted: Vec<String> = records
-            .iter()
-            .map(|r| cipher.decrypt(r).unwrap())
-            .collect();
+        let decrypted: Vec<String> = records.iter().map(|r| cipher.decrypt(r).unwrap()).collect();
 
         assert_eq!(decrypted.len(), 3);
         assert_eq!(decrypted[0], "record_1");
@@ -813,9 +807,7 @@ mod rotation_tests {
 
         // Mark version as compromised: triggers attention
         let version = manager.get_current_version().unwrap();
-        manager
-            .mark_version_compromised(version, "Suspected breach")
-            .unwrap();
+        manager.mark_version_compromised(version, "Suspected breach").unwrap();
         assert!(manager.has_versions_needing_attention().unwrap());
 
         // Compromised versions counted
@@ -862,9 +854,7 @@ mod rotation_tests {
         let old_version = manager.get_current_version().unwrap();
 
         // Emergency rotation
-        let new_version = manager
-            .emergency_rotate("Suspected key compromise")
-            .unwrap();
+        let new_version = manager.emergency_rotate("Suspected key compromise").unwrap();
         assert!(new_version > old_version);
         assert_eq!(manager.get_current_version().unwrap(), new_version);
 
@@ -887,9 +877,7 @@ mod rotation_tests {
         manager.initialize_key().unwrap();
 
         let version = manager.get_current_version().unwrap();
-        manager
-            .mark_version_compromised(version, "Key leaked")
-            .unwrap();
+        manager.mark_version_compromised(version, "Key leaked").unwrap();
 
         // Cannot be used for decryption
         assert!(!manager.can_decrypt_with_version(version).unwrap());
@@ -920,11 +908,13 @@ mod rotation_tests {
         let history = manager.get_version_history().unwrap();
         let old_entry = history.iter().find(|m| m.version == old_version).unwrap();
         assert_eq!(old_entry.status, KeyVersionStatus::Compromised);
-        assert!(old_entry
-            .compromise_reason
-            .as_ref()
-            .unwrap()
-            .contains("Critical security incident"));
+        assert!(
+            old_entry
+                .compromise_reason
+                .as_ref()
+                .unwrap()
+                .contains("Critical security incident")
+        );
 
         // New version is current
         assert_eq!(manager.get_current_version().unwrap(), new_version);
@@ -989,9 +979,8 @@ mod rotation_tests {
         let cipher = FieldEncryption::new(&[0u8; 32]);
 
         // Create sample encrypted records
-        let samples: Vec<Vec<u8>> = (0..5)
-            .map(|i| cipher.encrypt(&format!("record_{i}")).unwrap())
-            .collect();
+        let samples: Vec<Vec<u8>> =
+            (0..5).map(|i| cipher.encrypt(&format!("record_{i}")).unwrap()).collect();
 
         // Verify all samples decrypt correctly before rotation
         for (i, sample) in samples.iter().enumerate() {

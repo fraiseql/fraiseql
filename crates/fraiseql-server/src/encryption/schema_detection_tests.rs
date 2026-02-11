@@ -4,8 +4,10 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod schema_detection_tests {
-    use crate::encryption::schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema};
-    use crate::encryption::FieldEncryption;
+    use crate::encryption::{
+        FieldEncryption,
+        schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema},
+    };
 
     // ============================================================================
     // BASIC SCHEMA DETECTION TESTS
@@ -209,10 +211,7 @@ mod schema_detection_tests {
             schema.get_encrypted_field("medical_info").unwrap().mark,
             Some(EncryptionMark::Sensitive)
         );
-        assert_eq!(
-            schema.get_encrypted_field("ssn").unwrap().mark,
-            Some(EncryptionMark::Encrypt)
-        );
+        assert_eq!(schema.get_encrypted_field("ssn").unwrap().mark, Some(EncryptionMark::Encrypt));
     }
 
     /// Test invalid encryption mark rejected
@@ -292,18 +291,9 @@ mod schema_detection_tests {
         );
 
         // Each field has a different key reference
-        assert_eq!(
-            schema.get_encrypted_field("email").unwrap().key_reference,
-            "encryption/email"
-        );
-        assert_eq!(
-            schema.get_encrypted_field("phone").unwrap().key_reference,
-            "encryption/phone"
-        );
-        assert_eq!(
-            schema.get_encrypted_field("ssn").unwrap().key_reference,
-            "encryption/ssn"
-        );
+        assert_eq!(schema.get_encrypted_field("email").unwrap().key_reference, "encryption/email");
+        assert_eq!(schema.get_encrypted_field("phone").unwrap().key_reference, "encryption/phone");
+        assert_eq!(schema.get_encrypted_field("ssn").unwrap().key_reference, "encryption/ssn");
 
         // fields_for_key groups correctly
         assert_eq!(schema.fields_for_key("encryption/email").len(), 1);
@@ -316,12 +306,7 @@ mod schema_detection_tests {
     fn test_schema_key_reference_validation_startup() {
         let mut registry = SchemaRegistry::new();
         let mut schema = StructSchema::new("User");
-        schema.add_field(SchemaFieldInfo::new(
-            "email",
-            "String",
-            true,
-            "encryption/email",
-        ));
+        schema.add_field(SchemaFieldInfo::new("email", "String", true, "encryption/email"));
         registry.register(schema).unwrap();
 
         // validate_all checks all registered schemas
@@ -386,28 +371,24 @@ mod schema_detection_tests {
     #[test]
     fn test_schema_evolution_add_encrypted_field() {
         // Version 1: no encryption
-        let schema_v1 = StructSchema::new("User")
-            .with_version(1)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("name", "String", false, ""),
-                SchemaFieldInfo::new("email", "String", false, ""),
-            ]);
+        let schema_v1 = StructSchema::new("User").with_version(1).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("name", "String", false, ""),
+            SchemaFieldInfo::new("email", "String", false, ""),
+        ]);
 
         assert_eq!(schema_v1.encrypted_field_count(), 0);
         assert_eq!(schema_v1.version, 1);
 
         // Version 2: email now encrypted, phone added and encrypted
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("name", "String", false, ""),
-                SchemaFieldInfo::new("email", "String", true, "encryption/email")
-                    .with_mark(EncryptionMark::Encrypted),
-                SchemaFieldInfo::new("phone", "String", true, "encryption/phone")
-                    .with_mark(EncryptionMark::Encrypted),
-            ]);
+        let schema_v2 = StructSchema::new("User").with_version(2).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("name", "String", false, ""),
+            SchemaFieldInfo::new("email", "String", true, "encryption/email")
+                .with_mark(EncryptionMark::Encrypted),
+            SchemaFieldInfo::new("phone", "String", true, "encryption/phone")
+                .with_mark(EncryptionMark::Encrypted),
+        ]);
 
         assert_eq!(schema_v2.encrypted_field_count(), 2);
         assert_eq!(schema_v2.version, 2);
@@ -419,23 +400,19 @@ mod schema_detection_tests {
     #[test]
     fn test_schema_evolution_remove_encryption_mark() {
         // Version 1: email encrypted
-        let schema_v1 = StructSchema::new("User")
-            .with_version(1)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("email", "String", true, "encryption/email")
-                    .with_mark(EncryptionMark::Encrypted),
-            ]);
+        let schema_v1 = StructSchema::new("User").with_version(1).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("email", "String", true, "encryption/email")
+                .with_mark(EncryptionMark::Encrypted),
+        ]);
 
         assert!(schema_v1.is_field_encrypted("email"));
 
         // Version 2: email no longer encrypted
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("email", "String", false, ""),
-            ]);
+        let schema_v2 = StructSchema::new("User").with_version(2).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("email", "String", false, ""),
+        ]);
 
         assert!(!schema_v2.is_field_encrypted("email"));
         assert_eq!(schema_v2.encrypted_field_count(), 0);
@@ -450,18 +427,16 @@ mod schema_detection_tests {
     /// Test changing key for field
     #[test]
     fn test_schema_evolution_key_rotation() {
-        let schema_v1 = StructSchema::new("User")
-            .with_version(1)
-            .with_fields(vec![SchemaFieldInfo::new(
+        let schema_v1 =
+            StructSchema::new("User").with_version(1).with_fields(vec![SchemaFieldInfo::new(
                 "email",
                 "String",
                 true,
                 "encryption/old_key",
             )]);
 
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![SchemaFieldInfo::new(
+        let schema_v2 =
+            StructSchema::new("User").with_version(2).with_fields(vec![SchemaFieldInfo::new(
                 "email",
                 "String",
                 true,
@@ -492,22 +467,18 @@ mod schema_detection_tests {
     /// Test schema versioning
     #[test]
     fn test_schema_versioning_with_encryption() {
-        let schema_v1 = StructSchema::new("User")
-            .with_version(1)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("name", "String", false, ""),
-                SchemaFieldInfo::new("email", "String", false, ""),
-            ]);
+        let schema_v1 = StructSchema::new("User").with_version(1).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("name", "String", false, ""),
+            SchemaFieldInfo::new("email", "String", false, ""),
+        ]);
 
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![
-                SchemaFieldInfo::new("id", "i64", false, ""),
-                SchemaFieldInfo::new("name", "String", false, ""),
-                SchemaFieldInfo::new("email", "String", true, "encryption/email"),
-                SchemaFieldInfo::new("phone", "String", true, "encryption/phone"),
-            ]);
+        let schema_v2 = StructSchema::new("User").with_version(2).with_fields(vec![
+            SchemaFieldInfo::new("id", "i64", false, ""),
+            SchemaFieldInfo::new("name", "String", false, ""),
+            SchemaFieldInfo::new("email", "String", true, "encryption/email"),
+            SchemaFieldInfo::new("phone", "String", true, "encryption/phone"),
+        ]);
 
         assert_eq!(schema_v1.version, 1);
         assert_eq!(schema_v1.encrypted_field_count(), 0);
@@ -613,7 +584,8 @@ mod schema_detection_tests {
         // JSON serialized to string can be encrypted/decrypted
         let key = [0u8; 32];
         let cipher = FieldEncryption::new(&key);
-        let json_str = r#"{"preferences":{"theme":"dark","locale":"en-US"},"tags":["admin","active"]}"#;
+        let json_str =
+            r#"{"preferences":{"theme":"dark","locale":"en-US"},"tags":["admin","active"]}"#;
         let encrypted = cipher.encrypt(json_str).unwrap();
         let decrypted = cipher.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, json_str);
@@ -729,13 +701,19 @@ mod schema_detection_tests {
     fn test_schema_registration_registry() {
         let mut registry = SchemaRegistry::new();
 
-        let user_schema = StructSchema::new("User").with_fields(vec![
-            SchemaFieldInfo::new("email", "String", true, "encryption/email"),
-        ]);
+        let user_schema = StructSchema::new("User").with_fields(vec![SchemaFieldInfo::new(
+            "email",
+            "String",
+            true,
+            "encryption/email",
+        )]);
 
-        let product_schema = StructSchema::new("Product").with_fields(vec![
-            SchemaFieldInfo::new("sku", "String", true, "encryption/sku"),
-        ]);
+        let product_schema = StructSchema::new("Product").with_fields(vec![SchemaFieldInfo::new(
+            "sku",
+            "String",
+            true,
+            "encryption/sku",
+        )]);
 
         registry.register(user_schema).unwrap();
         registry.register(product_schema).unwrap();
@@ -881,9 +859,8 @@ mod schema_detection_tests {
             .with_version(1)
             .with_fields(vec![SchemaFieldInfo::new("email", "String", false, "")]);
 
-        let schema_v2 = StructSchema::new("User")
-            .with_version(2)
-            .with_fields(vec![SchemaFieldInfo::new(
+        let schema_v2 =
+            StructSchema::new("User").with_version(2).with_fields(vec![SchemaFieldInfo::new(
                 "email",
                 "String",
                 true,

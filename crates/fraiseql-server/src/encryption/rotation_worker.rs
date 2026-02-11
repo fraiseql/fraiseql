@@ -9,8 +9,10 @@ use std::sync::Arc;
 use tokio::sync::watch;
 use tracing::{error, info, warn};
 
-use super::credential_rotation::CredentialRotationManager;
-use super::refresh_trigger::{RefreshConfig, RefreshManager};
+use super::{
+    credential_rotation::CredentialRotationManager,
+    refresh_trigger::{RefreshConfig, RefreshManager},
+};
 
 /// Background worker that monitors key TTL and triggers rotation.
 ///
@@ -117,10 +119,7 @@ impl RotationWorker {
     async fn run(mut self) {
         let check_interval = self.check_interval();
 
-        info!(
-            interval_secs = check_interval.as_secs(),
-            "Key rotation worker started"
-        );
+        info!(interval_secs = check_interval.as_secs(), "Key rotation worker started");
 
         let mut interval = tokio::time::interval(check_interval);
         // Don't burst on startup — wait one full interval before first check
@@ -306,10 +305,7 @@ mod tests {
         // Manually call check — should not rotate (key is fresh)
         worker.check_and_rotate();
 
-        assert_eq!(
-            rotation_manager.get_current_version().unwrap(),
-            initial_version
-        );
+        assert_eq!(rotation_manager.get_current_version().unwrap(), initial_version);
     }
 
     #[test]
@@ -333,10 +329,7 @@ mod tests {
         worker.check_and_rotate();
 
         let new_version = rotation_manager.get_current_version().unwrap();
-        assert_ne!(
-            initial_version, new_version,
-            "Key should have been rotated"
-        );
+        assert_ne!(initial_version, new_version, "Key should have been rotated");
 
         // Metrics should reflect the rotation
         assert_eq!(refresh_manager.trigger().total_refreshes(), 1);

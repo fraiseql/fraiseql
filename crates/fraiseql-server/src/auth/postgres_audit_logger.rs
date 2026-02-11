@@ -174,10 +174,7 @@ impl AuditLogQuery {
     ///
     /// # Errors
     /// Returns error if database query fails.
-    pub async fn recent(
-        &self,
-        limit: i64,
-    ) -> std::result::Result<Vec<AuditLogRow>, sqlx::Error> {
+    pub async fn recent(&self, limit: i64) -> std::result::Result<Vec<AuditLogRow>, sqlx::Error> {
         let rows = sqlx::query_as::<_, AuditLogRow>(
             r"
             SELECT id, timestamp, event_type, user_id, action,
@@ -252,10 +249,7 @@ impl AuditLogQuery {
     ///
     /// # Errors
     /// Returns error if database query fails.
-    pub async fn count_by_status(
-        &self,
-        status: &str,
-    ) -> std::result::Result<i64, sqlx::Error> {
+    pub async fn count_by_status(&self, status: &str) -> std::result::Result<i64, sqlx::Error> {
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log WHERE status = $1")
             .bind(status)
             .fetch_one(&self.pool)
@@ -275,10 +269,7 @@ pub fn verify_row_hmac(row: &AuditLogRow, hmac_key: &[u8]) -> bool {
 
     type HmacSha256 = Hmac<Sha256>;
 
-    let stored_sig = row
-        .metadata
-        .get("hmac_signature")
-        .and_then(|v| v.as_str());
+    let stored_sig = row.metadata.get("hmac_signature").and_then(|v| v.as_str());
 
     let Some(stored_sig) = stored_sig else {
         return false;
@@ -446,10 +437,7 @@ mod tests {
 
         let sig = compute_hmac(b"test-secret-key", &entry);
         assert_eq!(sig.len(), 64, "SHA256 HMAC hex should be 64 characters");
-        assert!(
-            sig.chars().all(|c| c.is_ascii_hexdigit()),
-            "HMAC should be valid hex"
-        );
+        assert!(sig.chars().all(|c| c.is_ascii_hexdigit()), "HMAC should be valid hex");
     }
 
     #[test]
@@ -465,10 +453,7 @@ mod tests {
         );
 
         let row = make_row_from_entry(&entry, hmac_key);
-        assert!(
-            verify_row_hmac(&row, hmac_key),
-            "HMAC should verify correctly"
-        );
+        assert!(verify_row_hmac(&row, hmac_key), "HMAC should verify correctly");
     }
 
     #[test]
@@ -487,10 +472,7 @@ mod tests {
         // Tamper: change status from "failure" to "success"
         row.status = "success".to_string();
 
-        assert!(
-            !verify_row_hmac(&row, hmac_key),
-            "HMAC should reject tampered data"
-        );
+        assert!(!verify_row_hmac(&row, hmac_key), "HMAC should reject tampered data");
     }
 
     #[test]
@@ -505,10 +487,7 @@ mod tests {
         );
 
         let row = make_row_from_entry(&entry, b"correct-key");
-        assert!(
-            !verify_row_hmac(&row, b"wrong-key"),
-            "HMAC should reject wrong key"
-        );
+        assert!(!verify_row_hmac(&row, b"wrong-key"), "HMAC should reject wrong key");
     }
 
     #[test]
@@ -525,10 +504,7 @@ mod tests {
             metadata:      serde_json::json!({}), // No HMAC signature
         };
 
-        assert!(
-            !verify_row_hmac(&row, b"any-key"),
-            "Should fail when signature is missing"
-        );
+        assert!(!verify_row_hmac(&row, b"any-key"), "Should fail when signature is missing");
     }
 
     #[tokio::test]
@@ -603,10 +579,7 @@ mod tests {
         let mut row = make_row_from_entry(&entry, key);
         row.user_id = Some("admin".to_string()); // Tamper user ID
 
-        assert!(
-            !verify_row_hmac(&row, key),
-            "HMAC should detect user_id tampering"
-        );
+        assert!(!verify_row_hmac(&row, key), "HMAC should detect user_id tampering");
     }
 
     #[test]
@@ -624,10 +597,7 @@ mod tests {
         let mut row = make_row_from_entry(&entry, key);
         row.event_type = "auth_success".to_string(); // Tamper event type
 
-        assert!(
-            !verify_row_hmac(&row, key),
-            "HMAC should detect event_type tampering"
-        );
+        assert!(!verify_row_hmac(&row, key), "HMAC should detect event_type tampering");
     }
 
     #[test]
@@ -645,10 +615,7 @@ mod tests {
         let mut row = make_row_from_entry(&entry, key);
         row.error_message = None; // Remove incriminating error
 
-        assert!(
-            !verify_row_hmac(&row, key),
-            "HMAC should detect error_message tampering"
-        );
+        assert!(!verify_row_hmac(&row, key), "HMAC should detect error_message tampering");
     }
 
     #[tokio::test]

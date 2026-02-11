@@ -470,23 +470,15 @@ impl OIDCClient {
         let header = jsonwebtoken::decode_header(id_token)
             .map_err(|e| format!("Failed to decode JWT header: {e}"))?;
 
-        let kid = header
-            .kid
-            .ok_or_else(|| "Missing key ID (kid) in JWT header".to_string())?;
+        let kid = header.kid.ok_or_else(|| "Missing key ID (kid) in JWT header".to_string())?;
 
         // Fetch JWKS and find matching key
         let jwks = self.fetch_jwks().await?;
         let jwk = jwks.find_key(&kid)?;
 
         // Build decoding key from RSA components
-        let n = jwk
-            .n
-            .as_ref()
-            .ok_or_else(|| "Missing RSA modulus (n) in JWK".to_string())?;
-        let e = jwk
-            .e
-            .as_ref()
-            .ok_or_else(|| "Missing RSA exponent (e) in JWK".to_string())?;
+        let n = jwk.n.as_ref().ok_or_else(|| "Missing RSA modulus (n) in JWK".to_string())?;
+        let e = jwk.e.as_ref().ok_or_else(|| "Missing RSA exponent (e) in JWK".to_string())?;
 
         let key = DecodingKey::from_rsa_components(n, e)
             .map_err(|e| format!("Failed to construct decoding key from RSA components: {e}"))?;

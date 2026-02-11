@@ -112,6 +112,10 @@ pub struct RuntimeConfig {
 
     /// JSONB field optimization strategy options
     pub jsonb_optimization: JsonbOptimizationOptions,
+
+    /// Enable GraphQL introspection queries (__schema, __type).
+    /// Should be disabled in production for security.
+    pub enable_introspection: bool,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -125,6 +129,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("rls_policy", &self.rls_policy.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
+            .field("enable_introspection", &self.enable_introspection)
             .finish()
     }
 }
@@ -140,6 +145,7 @@ impl Default for RuntimeConfig {
             rls_policy:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            enable_introspection: true, // Enabled by default for development
         }
     }
 }

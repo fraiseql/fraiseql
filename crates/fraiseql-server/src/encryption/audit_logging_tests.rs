@@ -5,16 +5,15 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod audit_logging_tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
+    use std::{collections::HashMap, sync::Arc};
 
     use tokio::sync::RwLock;
 
-    use crate::encryption::audit_logging::{AuditLogEntry, AuditLogger, EventStatus, OperationType};
-    use crate::encryption::schema::{
-        EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema,
+    use crate::encryption::{
+        FieldEncryption,
+        audit_logging::{AuditLogEntry, AuditLogger, EventStatus, OperationType},
+        schema::{EncryptionMark, SchemaFieldInfo, SchemaRegistry, StructSchema},
     };
-    use crate::encryption::FieldEncryption;
 
     // ============================================================================
     // AUDIT LOGGING TESTS
@@ -26,14 +25,16 @@ mod audit_logging_tests {
         let mut logger = AuditLogger::new(100);
 
         // Simulate INSERT encryption
-        let entry = AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-001", "sess-abc")
-            .with_context("table", "users")
-            .with_context("key_version", "3");
+        let entry =
+            AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-001", "sess-abc")
+                .with_context("table", "users")
+                .with_context("key_version", "3");
         logger.log_entry(entry).unwrap();
 
         // Simulate UPDATE encryption
-        let entry = AuditLogEntry::new("user-42", "phone", OperationType::Update, "req-002", "sess-abc")
-            .with_context("table", "users");
+        let entry =
+            AuditLogEntry::new("user-42", "phone", OperationType::Update, "req-002", "sess-abc")
+                .with_context("table", "users");
         logger.log_entry(entry).unwrap();
 
         assert_eq!(logger.entry_count(), 2);
@@ -52,9 +53,10 @@ mod audit_logging_tests {
     async fn test_audit_log_decryption_operation() {
         let mut logger = AuditLogger::new(100);
 
-        let entry = AuditLogEntry::new("user-99", "email", OperationType::Select, "req-010", "sess-xyz")
-            .with_context("table", "users")
-            .with_context("rows_accessed", "5");
+        let entry =
+            AuditLogEntry::new("user-99", "email", OperationType::Select, "req-010", "sess-xyz")
+                .with_context("table", "users")
+                .with_context("rows_accessed", "5");
         logger.log_entry(entry).unwrap();
 
         let select_entries = logger.entries_for_operation(OperationType::Select);
@@ -69,8 +71,9 @@ mod audit_logging_tests {
     async fn test_audit_log_encryption_failure() {
         let mut logger = AuditLogger::new(100);
 
-        let entry = AuditLogEntry::new("user-13", "ssn", OperationType::Insert, "req-err-1", "sess-fail")
-            .with_failure("Encryption key not found for field 'ssn'");
+        let entry =
+            AuditLogEntry::new("user-13", "ssn", OperationType::Insert, "req-err-1", "sess-fail")
+                .with_failure("Encryption key not found for field 'ssn'");
         logger.log_entry(entry).unwrap();
 
         let failed = logger.failed_entries();
@@ -78,10 +81,7 @@ mod audit_logging_tests {
         assert_eq!(failed[0].user_id(), "user-13");
         assert_eq!(failed[0].field_name(), "ssn");
         assert_eq!(failed[0].status(), EventStatus::Failure);
-        assert_eq!(
-            failed[0].error_message(),
-            Some("Encryption key not found for field 'ssn'")
-        );
+        assert_eq!(failed[0].error_message(), Some("Encryption key not found for field 'ssn'"));
     }
 
     /// Test decryption failure logged
@@ -89,22 +89,22 @@ mod audit_logging_tests {
     async fn test_audit_log_decryption_failure() {
         let mut logger = AuditLogger::new(100);
 
-        let entry = AuditLogEntry::new("user-77", "credit_card", OperationType::Select, "req-dec-fail", "sess-d")
-            .with_failure("Decryption failed: wrong key version")
-            .with_context("key_version_attempted", "2")
-            .with_context("expected_key_version", "3");
+        let entry = AuditLogEntry::new(
+            "user-77",
+            "credit_card",
+            OperationType::Select,
+            "req-dec-fail",
+            "sess-d",
+        )
+        .with_failure("Decryption failed: wrong key version")
+        .with_context("key_version_attempted", "2")
+        .with_context("expected_key_version", "3");
         logger.log_entry(entry).unwrap();
 
         let failed = logger.failed_entries();
         assert_eq!(failed.len(), 1);
-        assert_eq!(
-            failed[0].error_message(),
-            Some("Decryption failed: wrong key version")
-        );
-        assert_eq!(
-            failed[0].context().get("key_version_attempted"),
-            Some(&"2".to_string())
-        );
+        assert_eq!(failed[0].error_message(), Some("Decryption failed: wrong key version"));
+        assert_eq!(failed[0].context().get("key_version_attempted"), Some(&"2".to_string()));
     }
 
     /// Test audit trail correlates related operations
@@ -113,18 +113,21 @@ mod audit_logging_tests {
         let mut logger = AuditLogger::new(100);
 
         // User inserts a record (encrypts email)
-        let insert_entry = AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-100", "sess-corr")
-            .with_context("record_id", "rec-555");
+        let insert_entry =
+            AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-100", "sess-corr")
+                .with_context("record_id", "rec-555");
         logger.log_entry(insert_entry).unwrap();
 
         // Later the same user reads it (decrypts email)
-        let select_entry = AuditLogEntry::new("user-42", "email", OperationType::Select, "req-200", "sess-corr")
-            .with_context("record_id", "rec-555");
+        let select_entry =
+            AuditLogEntry::new("user-42", "email", OperationType::Select, "req-200", "sess-corr")
+                .with_context("record_id", "rec-555");
         logger.log_entry(select_entry).unwrap();
 
         // Another user reads it too
-        let other_entry = AuditLogEntry::new("user-99", "email", OperationType::Select, "req-201", "sess-other")
-            .with_context("record_id", "rec-555");
+        let other_entry =
+            AuditLogEntry::new("user-99", "email", OperationType::Select, "req-201", "sess-other")
+                .with_context("record_id", "rec-555");
         logger.log_entry(other_entry).unwrap();
 
         // Correlate by user
@@ -147,9 +150,10 @@ mod audit_logging_tests {
     async fn test_audit_log_user_context() {
         let mut logger = AuditLogger::new(100);
 
-        let entry = AuditLogEntry::new("admin-01", "ssn", OperationType::Select, "req-ctx", "sess-admin")
-            .with_security_context(Some("10.0.0.5"), Some("superadmin"))
-            .with_context("department", "compliance");
+        let entry =
+            AuditLogEntry::new("admin-01", "ssn", OperationType::Select, "req-ctx", "sess-admin")
+                .with_security_context(Some("10.0.0.5"), Some("superadmin"))
+                .with_context("department", "compliance");
         logger.log_entry(entry).unwrap();
 
         let entries = logger.entries_for_user("admin-01");
@@ -168,10 +172,11 @@ mod audit_logging_tests {
     async fn test_audit_log_encryption_context() {
         let mut logger = AuditLogger::new(100);
 
-        let entry = AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-ectx", "sess-ec")
-            .with_context("encryption_context", "user:42:field:email:op:insert")
-            .with_context("context_verified", "true")
-            .with_context("algorithm", "aes256-gcm");
+        let entry =
+            AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-ectx", "sess-ec")
+                .with_context("encryption_context", "user:42:field:email:op:insert")
+                .with_context("context_verified", "true")
+                .with_context("algorithm", "aes256-gcm");
         logger.log_entry(entry).unwrap();
 
         let entries = logger.recent_entries(1);
@@ -195,7 +200,11 @@ mod audit_logging_tests {
             let entry = AuditLogEntry::new(
                 format!("user-{}", i % 5),
                 "email",
-                if i % 2 == 0 { OperationType::Insert } else { OperationType::Select },
+                if i % 2 == 0 {
+                    OperationType::Insert
+                } else {
+                    OperationType::Select
+                },
                 format!("req-{i}"),
                 "sess-persist",
             );
@@ -242,7 +251,13 @@ mod audit_logging_tests {
         assert_eq!(logger.entry_count(), 10);
 
         // Append-only: new entry evicts oldest (bounded history)
-        let new_entry = AuditLogEntry::new("user-new", "email", OperationType::Insert, "req-new", "sess-tamper");
+        let new_entry = AuditLogEntry::new(
+            "user-new",
+            "email",
+            OperationType::Insert,
+            "req-new",
+            "sess-tamper",
+        );
         logger.log_entry(new_entry).unwrap();
         assert_eq!(logger.entry_count(), 10); // Still bounded
 
@@ -327,8 +342,10 @@ mod audit_logging_tests {
     fn test_schema_encryption_key_reference() {
         let mut schema = StructSchema::new("User");
 
-        let email = SchemaFieldInfo::new("email", "String", true, "vault:database/encryption/user_email");
-        let phone = SchemaFieldInfo::new("phone", "String", true, "vault:database/encryption/user_phone");
+        let email =
+            SchemaFieldInfo::new("email", "String", true, "vault:database/encryption/user_email");
+        let phone =
+            SchemaFieldInfo::new("phone", "String", true, "vault:database/encryption/user_phone");
         schema.add_field(email);
         schema.add_field(phone);
 
@@ -480,9 +497,10 @@ mod audit_logging_tests {
 
         // Log the batch as a single transaction in audit
         let mut logger = AuditLogger::new(1000);
-        let entry = AuditLogEntry::new("admin", "email", OperationType::Insert, "req-batch", "sess-batch")
-            .with_context("tx_id", "batch-001")
-            .with_context("records_encrypted", "100");
+        let entry =
+            AuditLogEntry::new("admin", "email", OperationType::Insert, "req-batch", "sess-batch")
+                .with_context("tx_id", "batch-001")
+                .with_context("records_encrypted", "100");
         logger.log_entry(entry).unwrap();
 
         let entries = logger.recent_entries(1);
@@ -506,10 +524,11 @@ mod audit_logging_tests {
 
         // Audit trail records the rollback
         let mut logger = AuditLogger::new(100);
-        let entry = AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-rb", "sess-rb")
-            .with_failure("Transaction rolled back")
-            .with_context("tx_id", "tx-rollback-001")
-            .with_context("reason", "constraint_violation");
+        let entry =
+            AuditLogEntry::new("user-42", "email", OperationType::Insert, "req-rb", "sess-rb")
+                .with_failure("Transaction rolled back")
+                .with_context("tx_id", "tx-rollback-001")
+                .with_context("reason", "constraint_violation");
         logger.log_entry(entry).unwrap();
 
         let failed = logger.failed_entries();
@@ -625,20 +644,15 @@ mod audit_logging_tests {
         let plaintexts: Vec<String> = (0..200).map(|i| format!("user{i}@example.com")).collect();
 
         let start = std::time::Instant::now();
-        let encrypted: Vec<Vec<u8>> = plaintexts
-            .iter()
-            .map(|p| cipher.encrypt(p).unwrap())
-            .collect();
+        let encrypted: Vec<Vec<u8>> =
+            plaintexts.iter().map(|p| cipher.encrypt(p).unwrap()).collect();
         let encrypt_time = start.elapsed();
 
         assert_eq!(encrypted.len(), 200);
 
         // Batch decrypt
         let start = std::time::Instant::now();
-        let decrypted: Vec<String> = encrypted
-            .iter()
-            .map(|e| cipher.decrypt(e).unwrap())
-            .collect();
+        let decrypted: Vec<String> = encrypted.iter().map(|e| cipher.decrypt(e).unwrap()).collect();
         let decrypt_time = start.elapsed();
 
         assert_eq!(decrypted.len(), 200);
@@ -752,9 +766,15 @@ mod audit_logging_tests {
 
         // Log the outage recovery in audit
         let mut logger = AuditLogger::new(100);
-        let entry = AuditLogEntry::new("system", "email", OperationType::Select, "req-outage", "sess-recovery")
-            .with_context("vault_status", "unavailable")
-            .with_context("fallback", "cached_key");
+        let entry = AuditLogEntry::new(
+            "system",
+            "email",
+            OperationType::Select,
+            "req-outage",
+            "sess-recovery",
+        )
+        .with_context("vault_status", "unavailable")
+        .with_context("fallback", "cached_key");
         logger.log_entry(entry).unwrap();
 
         let entries = logger.recent_entries(1);
@@ -811,10 +831,16 @@ mod audit_logging_tests {
 
         // Audit trail records partition handling
         let mut logger = AuditLogger::new(100);
-        let entry = AuditLogEntry::new("system", "email", OperationType::Select, "req-partition", "sess-np")
-            .with_context("network_status", "partition")
-            .with_context("operations_completed", "20")
-            .with_context("source", "cached_key");
+        let entry = AuditLogEntry::new(
+            "system",
+            "email",
+            OperationType::Select,
+            "req-partition",
+            "sess-np",
+        )
+        .with_context("network_status", "partition")
+        .with_context("operations_completed", "20")
+        .with_context("source", "cached_key");
         logger.log_entry(entry).unwrap();
 
         assert_eq!(logger.entry_count(), 1);
@@ -887,10 +913,16 @@ mod audit_logging_tests {
 
         // Audit trail for card access
         let mut logger = AuditLogger::new(100);
-        let entry = AuditLogEntry::new("payment-svc", "card_number", OperationType::Select, "req-pci", "sess-pci")
-            .with_context("compliance", "pci-dss")
-            .with_context("algorithm", "aes-256-gcm")
-            .with_context("key_size", "256");
+        let entry = AuditLogEntry::new(
+            "payment-svc",
+            "card_number",
+            OperationType::Select,
+            "req-pci",
+            "sess-pci",
+        )
+        .with_context("compliance", "pci-dss")
+        .with_context("algorithm", "aes-256-gcm")
+        .with_context("key_size", "256");
         logger.log_entry(entry).unwrap();
 
         let entries = logger.entries_for_field("card_number");
@@ -919,9 +951,15 @@ mod audit_logging_tests {
         // Audit trail: log all data access (GDPR right to know)
         let mut logger = AuditLogger::new(100);
         for field in personal_data.keys() {
-            let entry = AuditLogEntry::new("data-subject-req", *field, OperationType::Select, "req-gdpr", "sess-gdpr")
-                .with_context("compliance", "gdpr")
-                .with_context("purpose", "data_subject_access_request");
+            let entry = AuditLogEntry::new(
+                "data-subject-req",
+                *field,
+                OperationType::Select,
+                "req-gdpr",
+                "sess-gdpr",
+            )
+            .with_context("compliance", "gdpr")
+            .with_context("purpose", "data_subject_access_request");
             logger.log_entry(entry).unwrap();
         }
 
@@ -950,9 +988,10 @@ mod audit_logging_tests {
         ];
 
         for (i, (user, op, reason)) in users_and_ops.iter().enumerate() {
-            let entry = AuditLogEntry::new(*user, "email", *op, format!("req-soc2-{i}"), "sess-soc2")
-                .with_context("compliance", "soc2")
-                .with_context("reason", (*reason).to_string());
+            let entry =
+                AuditLogEntry::new(*user, "email", *op, format!("req-soc2-{i}"), "sess-soc2")
+                    .with_context("compliance", "soc2")
+                    .with_context("reason", (*reason).to_string());
             logger.log_entry(entry).unwrap();
         }
 
