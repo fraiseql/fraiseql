@@ -38,7 +38,7 @@ impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
         security_context: &SecurityContext,
     ) -> Result<String, String> {
         self.executor
-            .execute_with_security(query, variables, security_context)
+            .execute_with_scopes(query, variables, &security_context.scopes)
             .await
             .map_err(|e| e.to_string())
     }

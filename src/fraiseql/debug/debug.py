@@ -6,7 +6,6 @@ GraphQL queries and resolvers.
 
 import functools
 import inspect
-import json
 import time
 import types
 from typing import Any, Callable, Optional, TypeVar, cast
@@ -15,72 +14,11 @@ import structlog
 from graphql import GraphQLResolveInfo
 
 from fraiseql.db import DatabaseQuery
-from fraiseql.fastapi.dependencies import get_db_pool
 from fraiseql.partial_instantiation import get_available_fields, is_partial_instance
 
 logger = structlog.get_logger()
 
 T = TypeVar("T")
-
-
-async def explain_query(
-    query: DatabaseQuery,
-    analyze: bool = False,
-    verbose: bool = False,
-    format: str = "text",
-) -> str:
-    """Get PostgreSQL EXPLAIN output for a query.
-
-    This function runs EXPLAIN (optionally with ANALYZE) on the generated SQL
-    to help understand query performance.
-
-    Args:
-        query: The DatabaseQuery object to explain
-        analyze: Whether to run EXPLAIN ANALYZE (actually executes the query)
-        verbose: Whether to include verbose output
-        format: Output format (text, json, xml, yaml)
-
-    Returns:
-        The EXPLAIN output as a string
-
-    Example:
-        >>> query = DatabaseQuery(
-        ...     sql="SELECT * FROM users WHERE data->>'active' = $1",
-        ...     params={"p1": "true"}
-        ... )
-        >>> print(await explain_query(query, analyze=True))
-        Seq Scan on users  (cost=0.00..10.25 rows=5 width=32)
-          (actual time=0.015..0.016 rows=5 loops=1)
-          Filter: ((data ->> 'active'::text) = 'true'::text)
-        Planning Time: 0.075 ms
-        Execution Time: 0.031 ms
-    """
-    pool = get_db_pool()
-
-    # Build EXPLAIN command
-    explain_parts = ["EXPLAIN"]
-
-    if analyze:
-        explain_parts.append("ANALYZE")
-
-    if verbose:
-        explain_parts.append("VERBOSE")
-
-    explain_parts.append(f"(FORMAT {format.upper()})")
-
-    # Prepare the query with parameter substitution
-    explain_sql = f"{' '.join(explain_parts)} {query.sql}"
-
-    async with pool.connection() as conn, conn.cursor() as cur:
-        # Execute EXPLAIN with the query parameters
-        await cur.execute(explain_sql, query.params)
-        rows = await cur.fetchall()
-
-        # Format output based on format type
-        if format == "json":
-            return json.dumps(rows[0][0], indent=2)
-        # For text format, join all rows
-        return "\n".join(row[0] for row in rows)
 
 
 def profile_resolver(

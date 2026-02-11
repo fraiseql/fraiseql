@@ -16,18 +16,15 @@
 
 use std::{sync::Arc, time::Duration};
 
-use super::{
-    ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
-    filter_fields,
-};
+use super::{JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig};
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
-    db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
+    db::{projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     graphql::parse_query,
-    schema::{CompiledSchema, IntrospectionResponses, SecurityConfig, SqlProjectionHint},
-    security::{FieldAccessError, SecurityContext},
+    schema::{CompiledSchema, IntrospectionResponses, SqlProjectionHint},
+    security::FieldAccessError,
 };
 
 /// Query type classification for routing.
@@ -237,10 +234,24 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.execute_federation_query(&query_name, query, variables).await
             },
             QueryType::IntrospectionSchema => {
+                // SECURITY: Check if introspection is enabled
+                if !self.config.enable_introspection {
+                    return Err(FraiseQLError::Validation {
+                        message: "GraphQL introspection has been disabled, but the requested query contained the field '__schema'.".to_string(),
+                        path: None,
+                    });
+                }
                 // Return pre-built __schema response (zero-cost at runtime)
                 Ok(self.introspection.schema_response.clone())
             },
             QueryType::IntrospectionType(type_name) => {
+                // SECURITY: Check if introspection is enabled
+                if !self.config.enable_introspection {
+                    return Err(FraiseQLError::Validation {
+                        message: "GraphQL introspection has been disabled, but the requested query contained the field '__type'.".to_string(),
+                        path: None,
+                    });
+                }
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.introspection.get_type_response(&type_name))
             },
@@ -274,18 +285,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-        user_scopes: &[String],
+        _user_scopes: &[String],
     ) -> Result<String> {
         // 1. Classify query type
         let query_type = self.classify_query(query)?;
-
-        // 2. Validate field access if filter is configured
-        if let Some(ref filter) = self.config.field_filter {
-            // Only validate for regular queries (not introspection)
-            if matches!(query_type, QueryType::Regular) {
-                self.validate_field_access(query, variables, user_scopes, filter)?;
-            }
-        }
 
         // 3. Route to appropriate handler (same as execute)
         match query_type {
@@ -299,205 +302,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Federation(query_name) => {
                 self.execute_federation_query(&query_name, query, variables).await
             },
-            QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
-            QueryType::IntrospectionType(type_name) => {
-                Ok(self.introspection.get_type_response(&type_name))
-            },
-        }
-    }
-
-    /// Validate that user has access to all requested fields.
-    fn validate_field_access(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        user_scopes: &[String],
-        filter: &crate::security::FieldFilter,
-    ) -> Result<()> {
-        // Parse query to get field selections
-        let query_match = self.matcher.match_query(query, variables)?;
-
-        // Get the return type name from the query definition
-        let type_name = &query_match.query_def.return_type;
-
-        // Validate each requested field
-        let field_refs: Vec<&str> = query_match.fields.iter().map(String::as_str).collect();
-        let errors = filter.validate_fields(type_name, &field_refs, user_scopes);
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            // Return the first error (could aggregate all errors if desired)
-            let first_error = &errors[0];
-            Err(FraiseQLError::Authorization {
-                message:  first_error.message.clone(),
-                action:   Some("read".to_string()),
-                resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
-            })
-        }
-    }
-
-    /// Execute a GraphQL query with cancellation support via ExecutionContext.
-    ///
-    /// This method allows graceful cancellation of long-running queries through a
-    /// cancellation token. If the token is cancelled during execution, the query
-    /// returns a `FraiseQLError::Cancelled` error.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - GraphQL query string
-    /// * `variables` - Query variables (optional)
-    /// * `ctx` - ExecutionContext with cancellation token
-    ///
-    /// # Returns
-    ///
-    /// GraphQL response as JSON string, or error if cancelled or execution fails
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let ctx = ExecutionContext::new("user-query-123".to_string());
-    /// let cancel_token = ctx.cancellation_token().clone();
-    ///
-    /// // Spawn a task to cancel after 5 seconds
-    /// tokio::spawn(async move {
-    ///     tokio::time::sleep(Duration::from_secs(5)).await;
-    ///     cancel_token.cancel();
-    /// });
-    ///
-    /// let result = executor.execute_with_context(query, None, &ctx).await;
-    /// match result {
-    ///     Err(FraiseQLError::Cancelled { reason, .. }) => {
-    ///         eprintln!("Query cancelled: {}", reason);
-    ///     }
-    ///     Ok(response) => println!("{}", response),
-    ///     Err(e) => eprintln!("Error: {}", e),
-    /// }
-    /// ```
-    pub async fn execute_with_context(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        ctx: &ExecutionContext,
-    ) -> Result<String> {
-        // Check if already cancelled before starting
-        if ctx.is_cancelled() {
-            return Err(FraiseQLError::cancelled(
-                ctx.query_id().to_string(),
-                "Query cancelled before execution".to_string(),
-            ));
-        }
-
-        let token = ctx.cancellation_token().clone();
-
-        // Use tokio::select! to race between execution and cancellation
-        tokio::select! {
-            result = self.execute(query, variables) => {
-                result
-            }
-            () = token.cancelled() => {
-                Err(FraiseQLError::cancelled(
-                    ctx.query_id().to_string(),
-                    "Query cancelled during execution".to_string(),
-                ))
-            }
-        }
-    }
-
-    /// Execute a GraphQL query with row-level security (RLS) context.
-    ///
-    /// This method applies RLS filtering based on the user's SecurityContext
-    /// before executing the query. If an RLS policy is configured in RuntimeConfig,
-    /// it will be evaluated to determine what rows the user can access.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - GraphQL query string
-    /// * `variables` - Query variables (optional)
-    /// * `security_context` - User's security context (authentication + permissions)
-    ///
-    /// # Returns
-    ///
-    /// GraphQL response as JSON string, or error if access denied by RLS
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let query = r#"query { posts { id title } }"#;
-    /// let context = SecurityContext {
-    ///     user_id: "user1".to_string(),
-    ///     roles: vec!["user".to_string()],
-    ///     tenant_id: None,
-    ///     scopes: vec![],
-    ///     attributes: HashMap::new(),
-    ///     request_id: "req-1".to_string(),
-    ///     ip_address: None,
-    ///     authenticated_at: Utc::now(),
-    ///     expires_at: Utc::now() + Duration::hours(1),
-    ///     issuer: None,
-    ///     audience: None,
-    /// };
-    /// let result = executor.execute_with_security(query, None, &context).await?;
-    /// ```
-    pub async fn execute_with_security(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        security_context: &SecurityContext,
-    ) -> Result<String> {
-        // Apply query timeout if configured
-        if self.config.query_timeout_ms > 0 {
-            let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
-            tokio::time::timeout(
-                timeout_duration,
-                self.execute_with_security_internal(query, variables, security_context),
-            )
-            .await
-            .map_err(|_| {
-                let query_snippet = if query.len() > 100 {
-                    format!("{}...", &query[..100])
-                } else {
-                    query.to_string()
-                };
-                FraiseQLError::Timeout {
-                    timeout_ms: self.config.query_timeout_ms,
-                    query:      Some(query_snippet),
+            QueryType::IntrospectionSchema => {
+                // SECURITY: Check if introspection is enabled
+                if !self.config.enable_introspection {
+                    return Err(FraiseQLError::Validation {
+                        message: "GraphQL introspection has been disabled, but the requested query contained the field '__schema'.".to_string(),
+                        path: None,
+                    });
                 }
-            })?
-        } else {
-            self.execute_with_security_internal(query, variables, security_context).await
-        }
-    }
-
-    /// Internal execution logic with security context (called by execute_with_security with timeout
-    /// wrapper).
-    async fn execute_with_security_internal(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        security_context: &SecurityContext,
-    ) -> Result<String> {
-        // 1. Classify query type
-        let query_type = self.classify_query(query)?;
-
-        // 2. Route to appropriate handler (with RLS support for regular queries)
-        match query_type {
-            QueryType::Regular => {
-                self.execute_regular_query_with_security(query, variables, security_context)
-                    .await
+                Ok(self.introspection.schema_response.clone())
             },
-            // Other query types don't support RLS yet
-            QueryType::Aggregate(query_name) => {
-                self.execute_aggregate_dispatch(&query_name, variables).await
-            },
-            QueryType::Window(query_name) => {
-                self.execute_window_dispatch(&query_name, variables).await
-            },
-            QueryType::Federation(query_name) => {
-                self.execute_federation_query(&query_name, query, variables).await
-            },
-            QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
             QueryType::IntrospectionType(type_name) => {
+                // SECURITY: Check if introspection is enabled
+                if !self.config.enable_introspection {
+                    return Err(FraiseQLError::Validation {
+                        message: "GraphQL introspection has been disabled, but the requested query contained the field '__type'.".to_string(),
+                        path: None,
+                    });
+                }
                 Ok(self.introspection.get_type_response(&type_name))
             },
         }
@@ -528,164 +350,6 @@ impl<A: DatabaseAdapter> Executor<A> {
             // No filter configured, allow all access
             Ok(())
         }
-    }
-
-    /// Apply field-level RBAC filtering to projection fields.
-    ///
-    /// Filters the projection fields based on the user's security context and field scope
-    /// requirements. Returns only fields that the user is authorized to access.
-    ///
-    /// # Arguments
-    ///
-    /// * `return_type` - The GraphQL return type name (e.g., "User", "Post")
-    /// * `projection_fields` - The originally requested field names
-    /// * `security_context` - The user's security context with roles
-    ///
-    /// # Returns
-    ///
-    /// Filtered list of accessible field names in the same order as requested
-    fn apply_field_rbac_filtering(
-        &self,
-        return_type: &str,
-        projection_fields: Vec<String>,
-        security_context: &SecurityContext,
-    ) -> Result<Vec<String>> {
-        // Try to extract security config from compiled schema
-        if let Some(ref security_json) = self.schema.security {
-            // Deserialize security config
-            let security_config: SecurityConfig = serde_json::from_value(security_json.clone())
-                .map_err(|_| FraiseQLError::Validation {
-                    message: "Invalid security configuration in compiled schema".to_string(),
-                    path:    Some("schema.security".to_string()),
-                })?;
-
-            // Find the type in the schema
-            if let Some(type_def) = self.schema.types.iter().find(|t| t.name == return_type) {
-                // Filter fields based on user roles and scope requirements
-                let accessible_fields =
-                    filter_fields(security_context, &security_config, &type_def.fields);
-
-                // Map back to field names, preserving order from projection_fields
-                let accessible_names: std::collections::HashSet<String> =
-                    accessible_fields.iter().map(|f| f.name.clone()).collect();
-
-                let filtered: Vec<String> = projection_fields
-                    .into_iter()
-                    .filter(|name| accessible_names.contains(name))
-                    .collect();
-
-                return Ok(filtered);
-            }
-        }
-
-        // If no security config or type not found, return all projection fields (no filtering)
-        Ok(projection_fields)
-    }
-
-    /// Execute a regular query with row-level security (RLS) filtering.
-    ///
-    /// This method:
-    /// 1. Validates the user's security context (token expiration, etc.)
-    /// 2. Evaluates RLS policies to determine what rows the user can access
-    /// 3. Composes RLS filters with user-provided WHERE clauses
-    /// 4. Passes the composed filter to the database adapter for SQL-level filtering
-    ///
-    /// RLS filtering happens at the database level, not in Rust, ensuring:
-    /// - High performance (database can optimize filters)
-    /// - Correct handling of pagination (LIMIT applied after RLS filtering)
-    /// - Type-safe composition via WhereClause enum
-    async fn execute_regular_query_with_security(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        security_context: &SecurityContext,
-    ) -> Result<String> {
-        // 1. Validate security context (check expiration, etc.)
-        if security_context.is_expired() {
-            return Err(FraiseQLError::Validation {
-                message: "Security token has expired".to_string(),
-                path:    Some("request.authorization".to_string()),
-            });
-        }
-
-        // 2. Match query to compiled template
-        let query_match = self.matcher.match_query(query, variables)?;
-
-        // 3. Create execution plan
-        let plan = self.planner.plan(&query_match)?;
-
-        // 4. Evaluate RLS policy and build WHERE clause filter
-        let rls_where_clause: Option<WhereClause> =
-            if let Some(ref rls_policy) = self.config.rls_policy {
-                // Evaluate RLS policy with user's security context
-                rls_policy.evaluate(security_context, &query_match.query_def.name)?
-            } else {
-                // No RLS policy configured, allow all access
-                None
-            };
-
-        // 5. Get SQL source from query definition
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
-
-        // 6. Generate SQL projection hint for requested fields (optimization)
-        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
-        let projection_hint = if !plan.projection_fields.is_empty()
-            && plan.jsonb_strategy == JsonbStrategy::Project
-        {
-            let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator
-                .generate_projection_sql(&plan.projection_fields)
-                .unwrap_or_else(|_| "data".to_string());
-
-            Some(SqlProjectionHint {
-                database:                    "postgresql".to_string(),
-                projection_template:         projection_sql,
-                estimated_reduction_percent: 50,
-            })
-        } else {
-            // Stream strategy: return full JSONB, no projection hint
-            None
-        };
-
-        // 7. Execute query with RLS WHERE clause filter
-        // The database adapter handles composition of RLS filter with user filters
-        // and generates the final SQL with both constraints applied
-        let results = self
-            .adapter
-            .execute_with_projection(
-                sql_source,
-                projection_hint.as_ref(),
-                rls_where_clause.as_ref(),
-                None,
-            )
-            .await?;
-
-        // 8. Apply field-level RBAC filtering
-        // Filter projection fields based on user roles and field scope requirements
-        let filtered_projection_fields = self.apply_field_rbac_filtering(
-            &query_match.query_def.return_type,
-            plan.projection_fields,
-            security_context,
-        )?;
-
-        // 9. Project results to accessible fields only
-        let projector = ResultProjector::new(filtered_projection_fields);
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
-
-        // 10. Wrap in GraphQL data envelope
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
-
-        // 11. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
     }
 
     async fn execute_regular_query(
@@ -1223,7 +887,7 @@ mod tests {
     use super::*;
     use crate::{
         db::{types::JsonbValue, where_clause::WhereClause},
-        runtime::JsonbOptimizationOptions,
+        runtime::{ExecutionContext, JsonbOptimizationOptions},
         schema::{AutoParams, CompiledSchema, QueryDefinition},
     };
 
@@ -1361,6 +1025,7 @@ mod tests {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            enable_introspection: true,
         };
 
         let executor = Executor::with_config(schema, adapter, config);
@@ -1471,70 +1136,6 @@ mod tests {
         assert!(ctx.is_cancelled());
     }
 
-    #[tokio::test]
-    async fn test_execute_with_context_success() {
-        let schema = test_schema();
-        let adapter = Arc::new(MockAdapter::new(vec![]));
-        let executor = Executor::new(schema, adapter);
-
-        let ctx = ExecutionContext::new("test-query-1".to_string());
-        let query = r"{ __schema { queryType { name } } }";
-
-        let result = executor.execute_with_context(query, None, &ctx).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().contains("__schema"));
-    }
-
-    #[tokio::test]
-    async fn test_execute_with_context_already_cancelled() {
-        let schema = test_schema();
-        let adapter = Arc::new(MockAdapter::new(vec![]));
-        let executor = Executor::new(schema, adapter);
-
-        let ctx = ExecutionContext::new("test-query-2".to_string());
-        let token = ctx.cancellation_token().clone();
-
-        // Cancel before execution
-        token.cancel();
-
-        let query = r"{ __schema { queryType { name } } }";
-        let result = executor.execute_with_context(query, None, &ctx).await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            FraiseQLError::Cancelled { query_id, reason } => {
-                assert_eq!(query_id, "test-query-2");
-                assert!(reason.contains("before execution"));
-            },
-            e => panic!("Expected Cancelled error, got: {}", e),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_execute_with_context_cancelled_during_execution() {
-        let schema = test_schema();
-        let adapter = Arc::new(MockAdapter::new(vec![]));
-        let executor = Executor::new(schema, adapter);
-
-        let ctx = ExecutionContext::new("test-query-3".to_string());
-        let token = ctx.cancellation_token().clone();
-
-        // Spawn a task to cancel after a short delay
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            token.cancel();
-        });
-
-        let query = r"{ __schema { queryType { name } } }";
-        let result = executor.execute_with_context(query, None, &ctx).await;
-
-        // Depending on timing, may succeed or be cancelled (both are acceptable)
-        // But if cancelled, it should be our error
-        if let Err(FraiseQLError::Cancelled { query_id, .. }) = result {
-            assert_eq!(query_id, "test-query-3");
-        }
-    }
-
     #[test]
     fn test_execution_context_clone() {
         let ctx = ExecutionContext::new("query-clone".to_string());
@@ -1561,10 +1162,6 @@ mod tests {
         assert!(err.is_server_error());
     }
 
-    // ========================================================================
-
-    // ========================================================================
-
     #[test]
     fn test_jsonb_strategy_in_runtime_config() {
         // Verify that RuntimeConfig includes JSONB optimization options
@@ -1577,6 +1174,7 @@ mod tests {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            enable_introspection: true,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -1600,9 +1198,61 @@ mod tests {
             rls_policy:           None,
             query_timeout_ms:     30_000,
             jsonb_optimization:   custom_options,
+            enable_introspection: true,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
         assert_eq!(config.jsonb_optimization.auto_threshold_percent, 50);
+    }
+
+    #[tokio::test]
+    async fn test_introspection_blocked_when_disabled() {
+        // SECURITY: Test that introspection queries are blocked when disabled
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let config = RuntimeConfig {
+            enable_introspection: false, // DISABLE introspection
+            ..RuntimeConfig::default()
+        };
+        let executor = Executor::with_config(schema, adapter, config);
+
+        // Test __schema query blocked
+        let schema_query = r"{ __schema { queryType { name } } }";
+        let result = executor.execute(schema_query, None).await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("introspection has been disabled"));
+        assert!(err_msg.contains("__schema"));
+
+        // Test __type query blocked
+        let type_query = r#"{ __type(name: "User") { name } }"#;
+        let result = executor.execute(type_query, None).await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("introspection has been disabled"));
+        assert!(err_msg.contains("__type"));
+    }
+
+    #[tokio::test]
+    async fn test_introspection_allowed_when_enabled() {
+        // Test that introspection queries work when enabled (default)
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let config = RuntimeConfig {
+            enable_introspection: true, // ENABLED (default)
+            ..RuntimeConfig::default()
+        };
+        let executor = Executor::with_config(schema, adapter, config);
+
+        // Test __schema query allowed
+        let schema_query = r"{ __schema { queryType { name } } }";
+        let result = executor.execute(schema_query, None).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("__schema"));
+
+        // Test __type query allowed
+        let type_query = r#"{ __type(name: "User") { name } }"#;
+        let result = executor.execute(type_query, None).await;
+        assert!(result.is_ok());
     }
 }

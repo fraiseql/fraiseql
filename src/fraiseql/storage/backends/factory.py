@@ -4,19 +4,21 @@ import importlib
 import logging
 from typing import Any
 
-from fraiseql.fastapi.config import FraiseQLConfig
-
 from .base import APQStorageBackend
 from .memory import MemoryAPQBackend
 
 logger = logging.getLogger(__name__)
 
 
-def create_apq_backend(config: FraiseQLConfig) -> APQStorageBackend:
+def create_apq_backend(
+    backend_type: str,
+    backend_config: dict[str, Any] | None = None,
+) -> APQStorageBackend:
     """Create an APQ storage backend based on configuration.
 
     Args:
-        config: FraiseQL configuration containing backend settings
+        backend_type: Type of backend ('memory', 'postgresql', 'custom')
+        backend_config: Optional configuration dict for the backend
 
     Returns:
         APQ storage backend instance
@@ -25,10 +27,9 @@ def create_apq_backend(config: FraiseQLConfig) -> APQStorageBackend:
         ValueError: If backend type is unknown or configuration is invalid
         ImportError: If custom backend class cannot be imported
     """
-    backend_type = config.apq_storage_backend
-    backend_config = config.apq_backend_config
+    backend_config = backend_config or {}
 
-    logger.debug(f"Creating APQ backend: type={backend_type}")
+    logger.debug("Creating APQ backend: type=%s", backend_type)
 
     if backend_type == "memory":
         return MemoryAPQBackend()
@@ -62,7 +63,7 @@ def _create_custom_backend(backend_config: dict[str, Any]) -> APQStorageBackend:
         raise ValueError("backend_class is required for custom backend")
 
     backend_class_path = backend_config["backend_class"]
-    logger.debug(f"Importing custom backend class: {backend_class_path}")
+    logger.debug("Importing custom backend class: %s", backend_class_path)
 
     # Split module and class name
     try:
@@ -87,7 +88,7 @@ def _create_custom_backend(backend_config: dict[str, Any]) -> APQStorageBackend:
     # Create and return the backend instance
     try:
         backend = backend_class(backend_config)
-        logger.debug(f"Created custom backend: {backend_class}")
+        logger.debug("Created custom backend: %s", backend_class)
         return backend
     except Exception as e:
         raise ValueError(f"Failed to instantiate custom backend '{backend_class_path}': {e}") from e

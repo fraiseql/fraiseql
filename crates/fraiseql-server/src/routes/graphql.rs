@@ -311,7 +311,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     state: AppState<A>,
     request: GraphQLRequest,
     _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
-    security_context: Option<SecurityContext>,
+    _security_context: Option<SecurityContext>,
     headers: &HeaderMap,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     let start_time = Instant::now();
@@ -395,29 +395,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
     }
 
-    // Execute query with or without security context
-    let result = if let Some(sec_ctx) = security_context {
-        state
-            .executor
-            .execute_with_security(&request.query, request.variables.as_ref(), &sec_ctx)
-            .await
-            .map_err(|e| {
-                let elapsed = start_time.elapsed();
-                error!(
-                    error = %e,
-                    elapsed_ms = elapsed.as_millis(),
-                    operation_name = ?request.operation_name,
-                    "Query execution failed"
-                );
-                metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-                metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
-                // Record duration even for failed queries
-                metrics
-                    .queries_duration_us
-                    .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-                ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
-            })?
-    } else {
+    // Execute query (introspection blocking is handled in the executor)
+    let result = {
         state
             .executor
             .execute(&request.query, request.variables.as_ref())
@@ -591,11 +570,12 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config = crate::config::ServerConfig {
-            port:    8080,
-            host:    "0.0.0.0".to_string(),
-            workers: Some(4),
-            tls:     None,
-            limits:  None,
+            port:                  8080,
+            host:                  "0.0.0.0".to_string(),
+            workers:               Some(4),
+            tls:                   None,
+            limits:                None,
+            introspection_enabled: true,
         };
 
         let sanitized = SanitizedConfig::from_config(&config);
@@ -615,14 +595,15 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config = crate::config::ServerConfig {
-            port:    8080,
-            host:    "localhost".to_string(),
-            workers: None,
-            tls:     Some(crate::config::TlsConfig {
+            port:                  8080,
+            host:                  "localhost".to_string(),
+            workers:               None,
+            tls:                   Some(crate::config::TlsConfig {
                 cert_file: PathBuf::from("/path/to/cert.pem"),
                 key_file:  PathBuf::from("/path/to/key.pem"),
             }),
-            limits:  None,
+            limits:                None,
+            introspection_enabled: true,
         };
 
         let sanitized = SanitizedConfig::from_config(&config);
@@ -640,22 +621,24 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config1 = crate::config::ServerConfig {
-            port:    8000,
-            host:    "127.0.0.1".to_string(),
-            workers: None,
-            tls:     None,
-            limits:  None,
+            port:                  8000,
+            host:                  "127.0.0.1".to_string(),
+            workers:               None,
+            tls:                   None,
+            limits:                None,
+            introspection_enabled: true,
         };
 
         let config2 = crate::config::ServerConfig {
-            port:    8000,
-            host:    "127.0.0.1".to_string(),
-            workers: None,
-            tls:     Some(crate::config::TlsConfig {
+            port:                  8000,
+            host:                  "127.0.0.1".to_string(),
+            workers:               None,
+            tls:                   Some(crate::config::TlsConfig {
                 cert_file: std::path::PathBuf::from("secret.cert"),
                 key_file:  std::path::PathBuf::from("secret.key"),
             }),
-            limits:  None,
+            limits:                None,
+            introspection_enabled: true,
         };
 
         let san1 = SanitizedConfig::from_config(&config1);

@@ -4,7 +4,7 @@ Exports public API for FraiseQL framework.
 """
 
 # Core imports
-from .cqrs import CQRSExecutor, CQRSRepository
+from .cqrs import CQRSRepository
 from .decorators import connection, field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
@@ -45,16 +45,6 @@ _input_decorator = fraise_input  # For fraiseql.input access via __getattr__
 enum = fraise_enum
 interface = fraise_interface
 
-# FastAPI integration (optional)
-try:
-    from .fastapi import FraiseQLConfig, create_fraiseql_app
-
-    _fastapi_available = True
-except ImportError:
-    _fastapi_available = False
-    create_fraiseql_app = None
-    FraiseQLConfig = None
-
 # Auth integration (optional)
 try:
     from .auth import (
@@ -77,7 +67,7 @@ except ImportError:
     Auth0Config = None
     Auth0Provider = None
 
-__version__ = "1.9.17"
+__version__ = "2.0.0a3"
 
 
 # Lazy Rust extension loading for performance optimization
@@ -134,14 +124,12 @@ __all__ = [
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
-    "CQRSExecutor",
     "CQRSRepository",
     "Connection",
     "Date",
     "Edge",
     "EmailAddress",
     "Error",
-    "FraiseQLConfig",
     "LTree",
     "MutationErrorConfig",
     "MutationResultBase",
@@ -151,7 +139,6 @@ __all__ = [
     "build_fraiseql_schema",
     "connection",
     "create_connection",
-    "create_fraiseql_app",
     "dataloader_field",
     "enum",
     "error",

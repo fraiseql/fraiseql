@@ -33,7 +33,6 @@ class Auth0Provider(AuthProvider):
     Example:
         ```python
         from fraiseql.auth import Auth0Provider
-        from fraiseql.fastapi import create_fraiseql_app
 
         # Configure Auth0 provider
         auth_provider = Auth0Provider(
@@ -42,11 +41,8 @@ class Auth0Provider(AuthProvider):
             cache_jwks=True
         )
 
-        # Create app with authentication
-        app = create_fraiseql_app(
-            types=[User, Post],
-            auth_provider=auth_provider
-        )
+        # Use with FraiseQL Rust server (configured via fraiseql.toml)
+        # See documentation for server configuration
         ```
 
     Note:
@@ -88,8 +84,7 @@ class Auth0Provider(AuthProvider):
         # HTTP client for Auth0 API calls
         self._http_client: httpx.AsyncClient | None = None
 
-    @property
-    async def http_client(self) -> httpx.AsyncClient:
+    async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
         if self._http_client is None:
             self._http_client = httpx.AsyncClient()
@@ -246,7 +241,7 @@ class Auth0Provider(AuthProvider):
             AuthenticationError: If the request fails or returns an error
         """
         try:
-            client = await self.http_client
+            client = await self._get_http_client()
 
             response = await client.get(
                 f"https://{self.domain}/api/v2/users/{user_id}",
@@ -273,7 +268,7 @@ class Auth0Provider(AuthProvider):
         Returns:
             List of user roles
         """
-        client = await self.http_client
+        client = await self._get_http_client()
 
         response = await client.get(
             f"https://{self.domain}/api/v2/users/{user_id}/roles",
@@ -297,7 +292,7 @@ class Auth0Provider(AuthProvider):
         Returns:
             List of user permissions
         """
-        client = await self.http_client
+        client = await self._get_http_client()
 
         response = await client.get(
             f"https://{self.domain}/api/v2/users/{user_id}/permissions",

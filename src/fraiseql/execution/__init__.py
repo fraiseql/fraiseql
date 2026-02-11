@@ -1,10 +1,7 @@
-"""Query execution system for FraiseQL."""
+"""Query execution system for FraiseQL.
 
-from fraiseql.execution.mode_selector import ExecutionMode, ModeSelector
-from fraiseql.execution.unified_executor import UnifiedExecutor
+Note: ExecutionMode, ModeSelector, and UnifiedExecutor have been removed.
+Query execution is now handled by the Rust runtime (fraiseql-server).
+"""
 
-__all__ = [
-    "ExecutionMode",
-    "ModeSelector",
-    "UnifiedExecutor",
-]
+__all__: list[str] = []
