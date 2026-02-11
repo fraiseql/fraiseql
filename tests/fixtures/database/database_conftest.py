@@ -475,22 +475,6 @@ def _clear_all_fraiseql_state() -> None:
     except Exception:
         pass
 
-    # Reset FastAPI dependencies
-    try:
-        from fraiseql.fastapi.dependencies import (
-            set_auth_provider,
-            set_db_pool,
-            set_fraiseql_config,
-        )
-
-        set_db_pool(None)
-        set_auth_provider(None)
-        set_fraiseql_config(None)
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
     # Clear mutation registries
     try:
         from fraiseql.mutations.decorators import clear_mutation_registries
@@ -522,62 +506,6 @@ def create_test_table() -> None:
 @pytest.fixture
 def create_test_view() -> None:
     """DEPRECATED: Views now created within test_schema automatically."""
-
-
-@pytest.fixture
-def create_fraiseql_app_with_db(
-    postgres_url: str,
-    clear_registry: None,
-    class_db_pool: psycopg_pool.AsyncConnectionPool,
-    test_schema: str,
-) -> Any:
-    """Factory fixture to create FraiseQL apps with real database connection.
-
-    This fixture provides a factory function that creates properly configured
-    FraiseQL apps using the real PostgreSQL container and pre-initialized pool.
-
-    Usage:
-        def test_something(create_fraiseql_app_with_db):
-            app = create_fraiseql_app_with_db(
-                types=[MyType],
-                queries=[my_query],
-                production=False
-            )
-            client = TestClient(app)
-            # Use the app...
-    """
-    from fraiseql.fastapi.app import create_fraiseql_app
-    from fraiseql.fastapi.dependencies import set_db_pool
-
-    class SchemaAwarePool:
-        def __init__(self, pool, schema):
-            self._pool = pool
-            self._schema = schema
-
-        @asynccontextmanager
-        async def connection(self):
-            async with self._pool.connection() as conn:
-                await conn.execute(f"SET search_path TO {self._schema}, public")
-                yield conn
-
-        def __getattr__(self, name):
-            return getattr(self._pool, name)
-
-    def _create_app(**kwargs: Any):
-        """Create a FraiseQL app with proper database URL and pool."""
-        # Use the real database URL from the container
-        kwargs.setdefault("database_url", postgres_url)
-
-        # Create the app
-        app = create_fraiseql_app(**kwargs)
-
-        # Manually set the database pool to bypass lifespan issues in tests
-        wrapped_pool = SchemaAwarePool(class_db_pool, test_schema)
-        set_db_pool(wrapped_pool)
-
-        return app
-
-    return _create_app
 
 
 # ============================================================================
