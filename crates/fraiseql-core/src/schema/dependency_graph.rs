@@ -43,7 +43,7 @@ pub struct CyclePath {
 impl CyclePath {
     /// Create a new cycle path from a list of nodes.
     #[must_use]
-    pub fn new(nodes: Vec<String>) -> Self {
+    pub const fn new(nodes: Vec<String>) -> Self {
         Self { nodes }
     }
 
@@ -100,7 +100,7 @@ pub struct ChangeImpact {
 impl ChangeImpact {
     /// Create a new change impact result.
     #[must_use]
-    pub fn new(affected_types: HashSet<String>, breaking_changes: Vec<String>) -> Self {
+    pub const fn new(affected_types: HashSet<String>, breaking_changes: Vec<String>) -> Self {
         Self {
             affected_types,
             breaking_changes,

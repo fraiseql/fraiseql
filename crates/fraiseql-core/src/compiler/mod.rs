@@ -206,7 +206,7 @@ impl Compiler {
 
     /// Create new compiler with custom configuration.
     #[must_use]
-    pub fn with_config(config: CompilerConfig) -> Self {
+    pub const fn with_config(config: CompilerConfig) -> Self {
         Self {
             parser: SchemaParser::new(),
             validator: SchemaValidator::new(),

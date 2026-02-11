@@ -80,7 +80,7 @@ impl FieldMapping {
     }
 
     /// Check if field is encrypted
-    pub fn is_encrypted(&self) -> bool {
+    pub const fn is_encrypted(&self) -> bool {
         self.is_encrypted
     }
 
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_field_mapping_to_string() {
-        let mapping = FieldMapping::new("email", true, "user@example.com".as_bytes().to_vec());
+        let mapping = FieldMapping::new("email", true, b"user@example.com".to_vec());
         let result = mapping.to_string();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "user@example.com");
@@ -326,7 +326,7 @@ mod tests {
     fn test_encrypted_fields_list() {
         let encrypted_fields = vec!["email".to_string(), "phone".to_string()];
         let mut field_encryption_map = HashMap::new();
-        for field in encrypted_fields.clone() {
+        for field in encrypted_fields {
             field_encryption_map.insert(field, true);
         }
 

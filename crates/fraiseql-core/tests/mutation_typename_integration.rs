@@ -21,7 +21,7 @@ fn test_compiled_schema_has_mutation_return_types() {
 
     // The schema should compile and be usable
     // If mutations and queries are defined, they should have type information
-    let _mutations: Vec<MutationDefinition> = schema.mutations.clone();
+    let _mutations: Vec<MutationDefinition> = schema.mutations;
 
     // This test verifies the structure exists (mutations have typing)
 }

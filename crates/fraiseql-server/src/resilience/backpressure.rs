@@ -95,8 +95,8 @@ pub struct AdmissionPermit<'a> {
 
 // Safety: This is safe because we never actually dereference the controller pointer
 // It's only used to tie the lifetime to the controller
-impl<'a> AdmissionPermit<'a> {
-    fn _new(_permit: tokio::sync::OwnedSemaphorePermit, controller: usize) -> Self {
+impl AdmissionPermit<'_> {
+    const fn _new(_permit: tokio::sync::OwnedSemaphorePermit, controller: usize) -> Self {
         Self {
             _permit,
             _controller: controller,

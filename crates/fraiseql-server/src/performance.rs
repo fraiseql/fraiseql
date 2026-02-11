@@ -38,7 +38,7 @@ pub struct QueryPerformance {
 impl QueryPerformance {
     /// Create new query performance tracker.
     #[must_use]
-    pub fn new(
+    pub const fn new(
         duration_us: u64,
         db_queries: u32,
         complexity: u32,
@@ -58,21 +58,21 @@ impl QueryPerformance {
 
     /// Set parse duration.
     #[must_use]
-    pub fn with_parse_duration(mut self, duration_us: u64) -> Self {
+    pub const fn with_parse_duration(mut self, duration_us: u64) -> Self {
         self.parse_duration_us = duration_us;
         self
     }
 
     /// Set validation duration.
     #[must_use]
-    pub fn with_validation_duration(mut self, duration_us: u64) -> Self {
+    pub const fn with_validation_duration(mut self, duration_us: u64) -> Self {
         self.validation_duration_us = duration_us;
         self
     }
 
     /// Calculate total non-database time in microseconds.
     #[must_use]
-    pub fn non_db_duration_us(&self) -> u64 {
+    pub const fn non_db_duration_us(&self) -> u64 {
         self.duration_us.saturating_sub(self.db_duration_us)
     }
 

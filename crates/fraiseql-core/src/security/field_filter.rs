@@ -240,7 +240,7 @@ pub struct FieldFilter {
 impl FieldFilter {
     /// Create a new field filter with the given configuration
     #[must_use]
-    pub fn new(config: FieldFilterConfig) -> Self {
+    pub const fn new(config: FieldFilterConfig) -> Self {
         Self { config }
     }
 
@@ -331,7 +331,7 @@ impl FieldFilter {
 
     /// Get the configuration (for inspection/debugging)
     #[must_use]
-    pub fn config(&self) -> &FieldFilterConfig {
+    pub const fn config(&self) -> &FieldFilterConfig {
         &self.config
     }
 }

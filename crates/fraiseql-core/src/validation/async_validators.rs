@@ -56,7 +56,7 @@ pub struct AsyncValidatorConfig {
 
 impl AsyncValidatorConfig {
     /// Create a new async validator configuration.
-    pub fn new(provider: AsyncValidatorProvider, timeout_ms: u64) -> Self {
+    pub const fn new(provider: AsyncValidatorProvider, timeout_ms: u64) -> Self {
         Self {
             provider,
             timeout: Duration::from_millis(timeout_ms),
@@ -66,7 +66,7 @@ impl AsyncValidatorConfig {
     }
 
     /// Set cache TTL for this validator.
-    pub fn with_cache_ttl(mut self, secs: u64) -> Self {
+    pub const fn with_cache_ttl(mut self, secs: u64) -> Self {
         self.cache_ttl_secs = secs;
         self
     }

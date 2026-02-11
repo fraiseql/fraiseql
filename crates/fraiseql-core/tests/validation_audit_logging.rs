@@ -75,7 +75,7 @@ mod tests {
         let logger = ValidationAuditLogger::new(config);
         let entry = create_test_entry("password", false, "length");
 
-        logger.log_entry(entry.clone());
+        logger.log_entry(entry);
 
         // Logger should be initialized without panic
         assert!(logger.is_enabled());

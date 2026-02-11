@@ -54,7 +54,7 @@ pub struct SubscriptionState {
 
 impl SubscriptionState {
     /// Create new subscription state.
-    pub fn new(manager: Arc<SubscriptionManager>) -> Self {
+    pub const fn new(manager: Arc<SubscriptionManager>) -> Self {
         Self { manager }
     }
 }

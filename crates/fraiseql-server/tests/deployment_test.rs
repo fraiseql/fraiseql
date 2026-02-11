@@ -10,9 +10,7 @@ fn workspace_root() -> std::path::PathBuf {
         {
             return path;
         }
-        if !path.pop() {
-            panic!("Could not find workspace root");
-        }
+        assert!(path.pop(), "Could not find workspace root")
     }
 }
 

@@ -48,7 +48,7 @@ impl ExportFormat {
 
     /// Get file extension for this format.
     #[must_use]
-    pub fn extension(&self) -> &'static str {
+    pub const fn extension(&self) -> &'static str {
         match self {
             Self::Parquet => "parquet",
             Self::Csv => "csv",
@@ -58,7 +58,7 @@ impl ExportFormat {
 
     /// Get MIME type for this format.
     #[must_use]
-    pub fn mime_type(&self) -> &'static str {
+    pub const fn mime_type(&self) -> &'static str {
         match self {
             Self::Parquet => "application/octet-stream",
             Self::Csv => "text/csv",

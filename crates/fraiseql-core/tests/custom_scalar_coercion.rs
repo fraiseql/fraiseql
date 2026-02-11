@@ -68,7 +68,7 @@ fn test_custom_scalar_json_in_where() {
     let clause = WhereClause::Field {
         path:     vec!["metadata".to_string()],
         operator: WhereOperator::Contains,
-        value:    json_value.clone(),
+        value:    json_value,
     };
 
     match clause {

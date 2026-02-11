@@ -52,7 +52,7 @@ pub struct GraphQLValidationResponse {
 
 impl GraphQLValidationResponse {
     /// Create a new empty error response.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             errors:      Vec::new(),
             error_count: 0,

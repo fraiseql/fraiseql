@@ -68,7 +68,7 @@ fn test_cache_hit_latency_under_10ms() {
         },
     ];
 
-    cache.put(query, Arc::new(result.clone()));
+    cache.put(query, Arc::new(result));
 
     // Measure cache hit latency
     let start = Instant::now();
@@ -156,7 +156,7 @@ fn test_cache_miss_then_hit() {
         map
     }];
 
-    cache.put(query, Arc::new(result.clone()));
+    cache.put(query, Arc::new(result));
 
     // Second access hits
     let hit = cache.get(query);
@@ -269,7 +269,7 @@ fn test_cache_different_ttls() {
     // Both entries share same TTL but are stored at different times
     cache.put(q1, Arc::new(result.clone()));
     std::thread::sleep(Duration::from_millis(100));
-    cache.put(q2, Arc::new(result.clone()));
+    cache.put(q2, Arc::new(result));
 
     // Both should be valid immediately
     assert!(cache.get(q1).is_some());

@@ -60,7 +60,7 @@ pub struct InputObjectValidationResult {
 
 impl InputObjectValidationResult {
     /// Create a new empty result.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             errors:      Vec::new(),
             error_count: 0,

@@ -30,7 +30,7 @@ pub mod mocks {
 
     impl MockSignatureVerifier {
         #[must_use]
-        pub fn succeeding() -> Self {
+        pub const fn succeeding() -> Self {
             Self {
                 should_succeed: true,
                 calls:          Mutex::new(Vec::new()),
@@ -38,7 +38,7 @@ pub mod mocks {
         }
 
         #[must_use]
-        pub fn failing() -> Self {
+        pub const fn failing() -> Self {
             Self {
                 should_succeed: false,
                 calls:          Mutex::new(Vec::new()),
@@ -225,7 +225,7 @@ pub mod mocks {
 
     impl MockClock {
         #[must_use]
-        pub fn new(timestamp: u64) -> Self {
+        pub const fn new(timestamp: u64) -> Self {
             Self {
                 current_time: AtomicU64::new(timestamp),
             }

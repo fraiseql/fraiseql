@@ -41,7 +41,7 @@ pub struct QueryMatcher {
 impl QueryMatcher {
     /// Create new query matcher.
     #[must_use]
-    pub fn new(schema: CompiledSchema) -> Self {
+    pub const fn new(schema: CompiledSchema) -> Self {
         Self { schema }
     }
 
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_matcher_new() {
         let schema = test_schema();
-        let matcher = QueryMatcher::new(schema.clone());
+        let matcher = QueryMatcher::new(schema);
         assert_eq!(matcher.schema().queries.len(), 1);
     }
 

@@ -11,7 +11,7 @@ pub struct ValidationResult {
 }
 
 impl ValidationResult {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             errors:   Vec::new(),
             warnings: Vec::new(),

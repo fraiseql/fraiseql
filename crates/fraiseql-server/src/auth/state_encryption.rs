@@ -20,7 +20,7 @@ pub struct EncryptedState {
 
 impl EncryptedState {
     /// Create new encrypted state
-    pub fn new(ciphertext: Vec<u8>, nonce: [u8; 12]) -> Self {
+    pub const fn new(ciphertext: Vec<u8>, nonce: [u8; 12]) -> Self {
         Self { ciphertext, nonce }
     }
 

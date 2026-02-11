@@ -56,7 +56,7 @@ pub struct ObserverRuntimeConfig {
 impl ObserverRuntimeConfig {
     /// Create config with defaults
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self {
             pool,
             poll_interval_ms: 100,
@@ -563,7 +563,7 @@ struct InMemoryDlq {
 }
 
 impl InMemoryDlq {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
         }

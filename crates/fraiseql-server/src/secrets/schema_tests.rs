@@ -365,7 +365,7 @@ mod schema_tests {
 
         // Duplicate (tenant_id, provider_name) would violate constraint
         let p2 = ExternalAuthProviderRecord::new("tenant-001", "oidc", "auth0", "cid-2", "vault/2");
-        let key2 = (p2.tenant_id.clone(), p2.provider_name.clone());
+        let key2 = (p2.tenant_id.clone(), p2.provider_name);
         assert!(providers.contains_key(&key2)); // Would be constraint violation
 
         // Same provider, different tenant — OK

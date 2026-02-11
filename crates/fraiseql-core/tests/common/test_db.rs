@@ -37,7 +37,7 @@ impl TestDatabase {
         table_name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let sql = format!(
-            r#"
+            r"
             DROP TABLE IF EXISTS {table_name} CASCADE;
             CREATE TABLE {table_name} (
                 id BIGSERIAL PRIMARY KEY,
@@ -50,7 +50,7 @@ impl TestDatabase {
             CREATE INDEX idx_{table_name}_customer ON {table_name}(customer_id);
             CREATE INDEX idx_{table_name}_occurred_at ON {table_name}(occurred_at);
             CREATE INDEX idx_{table_name}_data ON {table_name} USING GIN(data);
-            "#,
+            ",
             table_name = table_name
         );
 
@@ -66,10 +66,10 @@ impl TestDatabase {
     ) -> Result<(), Box<dyn std::error::Error>> {
         for row in rows {
             let sql = format!(
-                r#"
+                r"
                 INSERT INTO {table_name} (revenue, quantity, data, customer_id, occurred_at)
                 VALUES ($1, $2, $3, $4, $5)
-                "#,
+                ",
                 table_name = table_name
             );
 

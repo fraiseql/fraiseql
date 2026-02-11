@@ -63,6 +63,9 @@ wire-backend = ["fraiseql-server/wire-backend"]
 name = "fraiseql_arrow"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [package]
 authors = ["FraiseQL Contributors"]
 description = "Apache Arrow Flight integration for FraiseQL"

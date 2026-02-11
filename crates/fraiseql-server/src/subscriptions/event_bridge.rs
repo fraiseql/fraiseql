@@ -37,7 +37,7 @@ pub struct EventBridgeConfig {
 impl EventBridgeConfig {
     /// Create config with defaults
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             channel_capacity: 100,
         }
@@ -45,7 +45,7 @@ impl EventBridgeConfig {
 
     /// Set channel capacity
     #[must_use]
-    pub fn with_channel_capacity(mut self, capacity: usize) -> Self {
+    pub const fn with_channel_capacity(mut self, capacity: usize) -> Self {
         self.channel_capacity = capacity;
         self
     }

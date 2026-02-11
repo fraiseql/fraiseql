@@ -147,7 +147,7 @@ mod tests {
             generated_code: None,
         };
 
-        registry.register(validator.clone());
+        registry.register(validator);
         let retrieved = registry.get("test");
         assert!(retrieved.is_some());
     }

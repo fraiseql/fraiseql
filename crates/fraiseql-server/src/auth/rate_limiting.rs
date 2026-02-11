@@ -32,7 +32,7 @@ pub struct RateLimitConfig {
 impl RateLimitConfig {
     /// IP-based rate limiting for public endpoints
     /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
-    pub fn per_ip_standard() -> Self {
+    pub const fn per_ip_standard() -> Self {
         Self {
             enabled:      true,
             max_requests: 100,
@@ -42,7 +42,7 @@ impl RateLimitConfig {
 
     /// Stricter IP-based rate limiting for sensitive endpoints
     /// 50 requests per 60 seconds
-    pub fn per_ip_strict() -> Self {
+    pub const fn per_ip_strict() -> Self {
         Self {
             enabled:      true,
             max_requests: 50,
@@ -52,7 +52,7 @@ impl RateLimitConfig {
 
     /// User-based rate limiting for authenticated endpoints
     /// 10 requests per 60 seconds
-    pub fn per_user_standard() -> Self {
+    pub const fn per_user_standard() -> Self {
         Self {
             enabled:      true,
             max_requests: 10,
@@ -62,7 +62,7 @@ impl RateLimitConfig {
 
     /// Failed login attempt limiting
     /// 5 failed attempts per 3600 seconds (1 hour)
-    pub fn failed_login_attempts() -> Self {
+    pub const fn failed_login_attempts() -> Self {
         Self {
             enabled:      true,
             max_requests: 5,

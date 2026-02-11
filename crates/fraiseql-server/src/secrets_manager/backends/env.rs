@@ -54,7 +54,7 @@ impl SecretsBackend for EnvBackend {
 
 impl EnvBackend {
     /// Create new EnvBackend
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         EnvBackend
     }
 }

@@ -31,7 +31,7 @@ struct MockAdapter {
 }
 
 impl MockAdapter {
-    fn new(mock_results: Vec<JsonbValue>) -> Self {
+    const fn new(mock_results: Vec<JsonbValue>) -> Self {
         Self { mock_results }
     }
 }

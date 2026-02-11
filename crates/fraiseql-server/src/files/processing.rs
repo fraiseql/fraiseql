@@ -21,7 +21,7 @@ pub struct ImageProcessorImpl {
 }
 
 impl ImageProcessorImpl {
-    pub fn new(config: ProcessingConfig) -> Self {
+    pub const fn new(config: ProcessingConfig) -> Self {
         Self { config }
     }
 

@@ -102,7 +102,7 @@ mod tests {
         );
         assert_eq!(
             child_context.parent_span_id,
-            Some(parent_context.span_id.clone()),
+            Some(parent_context.span_id),
             "Child should reference parent span"
         );
         println!("✅ Trace context propagation test passed");

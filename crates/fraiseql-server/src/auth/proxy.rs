@@ -23,7 +23,7 @@ pub struct ProxyConfig {
 
 impl ProxyConfig {
     /// Create a new proxy configuration
-    pub fn new(trusted_proxies: Vec<IpAddr>, require_trusted_proxy: bool) -> Self {
+    pub const fn new(trusted_proxies: Vec<IpAddr>, require_trusted_proxy: bool) -> Self {
         Self {
             trusted_proxies,
             require_trusted_proxy,
@@ -39,7 +39,7 @@ impl ProxyConfig {
     }
 
     /// Create a proxy config with no trusted proxies
-    pub fn none() -> Self {
+    pub const fn none() -> Self {
         Self {
             trusted_proxies:       vec![],
             require_trusted_proxy: false,

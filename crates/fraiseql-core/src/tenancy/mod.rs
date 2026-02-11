@@ -101,7 +101,7 @@ impl TenantContext {
 
     /// Get all metadata.
     #[must_use]
-    pub fn metadata(&self) -> &HashMap<String, String> {
+    pub const fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
     }
 

@@ -15,7 +15,7 @@ pub struct FieldSelection {
 impl FieldSelection {
     /// Create a new field selection.
     #[must_use]
-    pub fn new(fields: Vec<String>) -> Self {
+    pub const fn new(fields: Vec<String>) -> Self {
         Self { fields }
     }
 

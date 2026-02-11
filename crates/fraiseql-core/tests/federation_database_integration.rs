@@ -1337,7 +1337,7 @@ fn test_database_transaction_rollback() {
 fn test_select_requested_fields_only() {
     use fraiseql_core::federation::selection_parser::parse_field_selection;
 
-    let query = r#"
+    let query = r"
         query {
             _entities(representations: [...]) {
                 __typename
@@ -1346,7 +1346,7 @@ fn test_select_requested_fields_only() {
                 email
             }
         }
-    "#;
+    ";
 
     let selection = parse_field_selection(query).unwrap();
     assert!(selection.contains("__typename"));

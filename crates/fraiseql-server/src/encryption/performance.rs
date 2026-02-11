@@ -40,7 +40,7 @@ impl OperationMetrics {
     }
 
     /// Mark as failed
-    pub fn with_failure(mut self) -> Self {
+    pub const fn with_failure(mut self) -> Self {
         self.success = false;
         self
     }

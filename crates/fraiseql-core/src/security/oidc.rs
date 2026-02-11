@@ -141,7 +141,7 @@ pub struct OidcConfig {
     pub scope_claim: String,
 }
 
-fn default_jwks_cache_ttl() -> u64 {
+const fn default_jwks_cache_ttl() -> u64 {
     // SECURITY: Reduced from 3600s (1 hour) to 300s (5 minutes)
     // Prevents token cache poisoning by limiting revoked token window
     300
@@ -151,11 +151,11 @@ fn default_algorithms() -> Vec<String> {
     vec!["RS256".to_string()]
 }
 
-fn default_clock_skew() -> u64 {
+const fn default_clock_skew() -> u64 {
     60
 }
 
-fn default_required() -> bool {
+const fn default_required() -> bool {
     true
 }
 
@@ -816,7 +816,7 @@ impl OidcValidator {
 
     /// Check if authentication is required.
     #[must_use]
-    pub fn is_required(&self) -> bool {
+    pub const fn is_required(&self) -> bool {
         self.config.required
     }
 

@@ -85,7 +85,7 @@ mod harness {
     }
 
     impl ChaosConfig {
-        pub fn random_failures(rate: f64) -> Self {
+        pub const fn random_failures(rate: f64) -> Self {
             Self {
                 step_failure_rate: rate,
                 compensation_failure_rate: 0.0,
@@ -97,7 +97,7 @@ mod harness {
             }
         }
 
-        pub fn network_chaos(delay_ms: (u64, u64), drop_rate: f64) -> Self {
+        pub const fn network_chaos(delay_ms: (u64, u64), drop_rate: f64) -> Self {
             Self {
                 step_failure_rate: 0.0,
                 compensation_failure_rate: 0.0,
@@ -109,7 +109,7 @@ mod harness {
             }
         }
 
-        pub fn timing_chaos() -> Self {
+        pub const fn timing_chaos() -> Self {
             Self {
                 step_failure_rate: 0.0,
                 compensation_failure_rate: 0.0,
@@ -121,7 +121,7 @@ mod harness {
             }
         }
 
-        pub fn byzantine_chaos() -> Self {
+        pub const fn byzantine_chaos() -> Self {
             Self {
                 step_failure_rate: 0.0,
                 compensation_failure_rate: 0.0,
@@ -133,7 +133,7 @@ mod harness {
             }
         }
 
-        pub fn with_seed(mut self, seed: u64) -> Self {
+        pub const fn with_seed(mut self, seed: u64) -> Self {
             self.seed = Some(seed);
             self
         }
@@ -531,7 +531,7 @@ mod harness {
             Duration::from_millis(ms)
         }
 
-        pub fn thundering_herd_delay(saga_index: usize) -> Duration {
+        pub const fn thundering_herd_delay(saga_index: usize) -> Duration {
             // All sagas start within 10ms window
             Duration::from_millis((saga_index % 10) as u64)
         }
@@ -548,7 +548,7 @@ mod harness {
     }
 
     impl SagaOrchestrator {
-        pub fn new(
+        pub const fn new(
             store: InMemorySagaStore,
             executor: ChaoticStepExecutor,
             compensator: ChaoticStepCompensator,
@@ -774,7 +774,7 @@ mod harness {
             self
         }
 
-        pub fn with_chaos(mut self, config: ChaosConfig) -> Self {
+        pub const fn with_chaos(mut self, config: ChaosConfig) -> Self {
             self.chaos_config = config;
             self
         }

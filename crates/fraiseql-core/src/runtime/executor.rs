@@ -875,7 +875,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Get database adapter reference.
     #[must_use]
-    pub fn adapter(&self) -> &Arc<A> {
+    pub const fn adapter(&self) -> &Arc<A> {
         &self.adapter
     }
 }

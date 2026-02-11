@@ -84,7 +84,7 @@ pub enum AuditEventType {
 }
 
 impl AuditEventType {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             AuditEventType::JwtValidation => "jwt_validation",
             AuditEventType::JwtRefresh => "jwt_refresh",
@@ -116,7 +116,7 @@ pub enum SecretType {
 }
 
 impl SecretType {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             SecretType::JwtToken => "jwt_token",
             SecretType::SessionToken => "session_token",
@@ -240,7 +240,7 @@ pub trait AuditLogger: Send + Sync {
 pub struct StructuredAuditLogger;
 
 impl StructuredAuditLogger {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 }

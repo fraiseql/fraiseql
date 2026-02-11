@@ -36,7 +36,7 @@ pub struct SqlServerWhereGenerator {
 impl SqlServerWhereGenerator {
     /// Create new SQL Server WHERE generator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             param_counter: std::cell::Cell::new(0),
         }
@@ -320,7 +320,7 @@ impl SqlServerWhereGenerator {
             (true, true) => format!("'%' + {param} + '%'"),
             (true, false) => format!("'%' + {param}"),
             (false, true) => format!("{param} + '%'"),
-            (false, false) => param.clone(),
+            (false, false) => param,
         };
 
         if case_insensitive {

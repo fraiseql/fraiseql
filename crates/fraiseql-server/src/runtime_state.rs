@@ -107,7 +107,7 @@ impl AppState {
 
     /// Get primary database connection (for writes)
     #[cfg(feature = "database")]
-    pub fn write_connection(&self) -> &PgPool {
+    pub const fn write_connection(&self) -> &PgPool {
         &self.db
     }
 }

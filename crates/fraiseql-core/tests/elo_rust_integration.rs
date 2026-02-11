@@ -23,7 +23,7 @@ mod tests {
             generated_code: Some("fn validate(age: i32) -> bool { age >= 18 }".to_string()),
         };
 
-        registry.register(validator.clone());
+        registry.register(validator);
 
         let retrieved = registry.get("test_validator");
         assert!(retrieved.is_some());

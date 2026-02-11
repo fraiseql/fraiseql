@@ -30,10 +30,10 @@ const LTREE_OPERATORS: &[WhereOperator] = &[
 fn test_ltree_empty_path_handling() {
     // Test handling of empty or minimal paths
     let empty_paths = vec![
-        vec![],                                                 // Completely empty path
-        vec!["".to_string()],                                   // Single empty component
-        vec!["".to_string(), "".to_string()],                   // Multiple empty components
-        vec!["a".to_string(), "".to_string(), "b".to_string()], // Empty in middle
+        vec![],                                                // Completely empty path
+        vec![String::new()],                                   // Single empty component
+        vec![String::new(), String::new()],                    // Multiple empty components
+        vec!["a".to_string(), String::new(), "b".to_string()], // Empty in middle
     ];
 
     for path in empty_paths {
@@ -155,7 +155,7 @@ fn test_ltree_combined_complex_paths() {
             "api_v2".to_string(),
             "response".to_string(),
             "data".to_string(),
-            "".to_string(),
+            String::new(),
             "items".to_string(),
             "0".to_string(),
         ],
@@ -254,7 +254,7 @@ fn test_ltree_very_long_component_names() {
             very_long_component.clone(),
             "short".to_string(),
         ],
-        vec![very_long_component.clone(); 5], // Multiple very long components
+        vec![very_long_component; 5], // Multiple very long components
     ];
 
     for path in long_paths {
@@ -319,7 +319,7 @@ fn test_ltree_mixed_edge_cases() {
             "app-v2.0".to_string(),
             "config".to_string(),
             "db_settings".to_string(),
-            "".to_string(),
+            String::new(),
             "host".to_string(),
         ],
         // Very deep all numbers

@@ -108,7 +108,7 @@ pub struct ServerConfig {
     pub introspection_enabled: bool,
 }
 
-fn default_port() -> u16 {
+const fn default_port() -> u16 {
     4000
 }
 fn default_host() -> String {
@@ -142,14 +142,14 @@ fn default_max_request_size() -> String {
 fn default_request_timeout() -> String {
     "30s".to_string()
 }
-fn default_max_concurrent() -> usize {
+const fn default_max_concurrent() -> usize {
     1000
 }
-fn default_max_queue_depth() -> usize {
+const fn default_max_queue_depth() -> usize {
     5000
 }
 
-fn default_introspection_enabled() -> bool {
+const fn default_introspection_enabled() -> bool {
     true
 }
 
@@ -173,7 +173,7 @@ pub struct DatabaseConfig {
     pub health_check_interval: Option<String>,
 }
 
-fn default_pool_size() -> u32 {
+const fn default_pool_size() -> u32 {
     10
 }
 
@@ -185,7 +185,7 @@ pub struct ReplicaConfig {
     pub weight: u32,
 }
 
-fn default_weight() -> u32 {
+const fn default_weight() -> u32 {
     1
 }
 

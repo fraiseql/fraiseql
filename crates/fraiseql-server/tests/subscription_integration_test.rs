@@ -251,7 +251,7 @@ async fn test_event_routing_to_manager() {
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
-    let bridge = EventBridge::new(manager.clone(), config);
+    let bridge = EventBridge::new(manager, config);
     let sender = bridge.get_sender();
 
     // Send an entity event through the bridge

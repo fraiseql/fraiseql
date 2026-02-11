@@ -120,13 +120,13 @@ impl TransactionContext {
     }
 
     /// Set isolation level
-    pub fn with_isolation(mut self, level: IsolationLevel) -> Self {
+    pub const fn with_isolation(mut self, level: IsolationLevel) -> Self {
         self.isolation_level = level;
         self
     }
 
     /// Set key version
-    pub fn with_key_version(mut self, version: u32) -> Self {
+    pub const fn with_key_version(mut self, version: u32) -> Self {
         self.key_version = version;
         self
     }

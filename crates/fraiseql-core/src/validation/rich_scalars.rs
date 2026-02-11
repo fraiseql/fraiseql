@@ -40,7 +40,7 @@ impl EmailValidator {
         !value.is_empty() && value.len() <= 254 && EMAIL_REGEX.is_match(value)
     }
 
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid email format"
     }
 }
@@ -61,7 +61,7 @@ impl PhoneNumberValidator {
         !value.is_empty() && value.len() <= 20 && PHONE_REGEX.is_match(value)
     }
 
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid phone number format"
     }
 }
@@ -83,7 +83,7 @@ impl VinValidator {
         VIN_REGEX.is_match(&value_upper)
     }
 
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid VIN format (must be 17 alphanumeric characters, excluding I, O, Q)"
     }
 }
@@ -356,7 +356,7 @@ impl CountryCodeValidator {
         COUNTRY_CODE_REGEX.is_match(&value_upper) && self.valid_codes.contains(value_upper.as_str())
     }
 
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid country code (must be ISO 3166-1 alpha-2)"
     }
 }

@@ -129,7 +129,7 @@ impl RecoveryError {
     }
 
     /// Increment retry count
-    pub fn with_retry_count(mut self, count: u32) -> Self {
+    pub const fn with_retry_count(mut self, count: u32) -> Self {
         self.retry_count = count;
         self
     }
@@ -145,12 +145,12 @@ impl RecoveryError {
     }
 
     /// Check if this error suggests a transient issue (can retry)
-    pub fn is_transient(&self) -> bool {
+    pub const fn is_transient(&self) -> bool {
         self.retryable
     }
 
     /// Check if cache fallback is appropriate for this error
-    pub fn should_use_cache(&self) -> bool {
+    pub const fn should_use_cache(&self) -> bool {
         matches!(self.strategy, RecoveryStrategy::UseCache | RecoveryStrategy::ReadOnly)
     }
 
@@ -175,7 +175,7 @@ pub struct RetryConfig {
 
 impl RetryConfig {
     /// Create new retry config
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             max_retries:        3,
             initial_backoff_ms: 100,
@@ -185,7 +185,7 @@ impl RetryConfig {
     }
 
     /// Set maximum retries
-    pub fn with_max_retries(mut self, max: u32) -> Self {
+    pub const fn with_max_retries(mut self, max: u32) -> Self {
         self.max_retries = max;
         self
     }
@@ -197,7 +197,7 @@ impl RetryConfig {
     }
 
     /// Check if we should attempt retry based on attempt count
-    pub fn should_retry(&self, attempt: u32) -> bool {
+    pub const fn should_retry(&self, attempt: u32) -> bool {
         attempt < self.max_retries
     }
 
@@ -253,7 +253,7 @@ mod atomic {
     }
 
     impl CircuitState {
-        pub fn from_usize(val: usize) -> Self {
+        pub const fn from_usize(val: usize) -> Self {
             match val {
                 0 => CircuitState::Closed,
                 1 => CircuitState::Open,
@@ -262,7 +262,7 @@ mod atomic {
             }
         }
 
-        pub fn to_usize(self) -> usize {
+        pub const fn to_usize(self) -> usize {
             self as usize
         }
     }
@@ -270,7 +270,7 @@ mod atomic {
     pub struct AtomicUsize(StdAtomicUsize);
 
     impl AtomicUsize {
-        pub fn new(val: CircuitState) -> Self {
+        pub const fn new(val: CircuitState) -> Self {
             AtomicUsize(StdAtomicUsize::new(val.to_usize()))
         }
 

@@ -34,7 +34,7 @@ struct TestSagaScenario {
 
 impl TestSagaScenario {
     /// Create a new test scenario
-    fn new(step_count: usize) -> Self {
+    const fn new(step_count: usize) -> Self {
         Self {
             step_count,
             compensation_strategy: CompensationStrategy::Automatic,
@@ -43,7 +43,7 @@ impl TestSagaScenario {
 
     /// Set compensation strategy (used in later cycles)
     #[allow(dead_code)]
-    fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
+    const fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
         self.compensation_strategy = strategy;
         self
     }

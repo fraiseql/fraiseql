@@ -25,7 +25,7 @@ impl BenchDb {
 
         // Create test tables if they don't exist
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS ta_users (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -33,13 +33,13 @@ impl BenchDb {
                 created_at TIMESTAMPTZ NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(&pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS ta_orders (
                 id TEXT PRIMARY KEY,
                 total NUMERIC(12, 2) NOT NULL,
@@ -47,14 +47,14 @@ impl BenchDb {
                 customer_name TEXT NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(&pool)
         .await?;
 
         // Ensure test data exists
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_users (id, name, email, created_at)
             VALUES
                 ('bench-user-1', 'Alice Johnson', 'alice@example.com', NOW()),
@@ -63,13 +63,13 @@ impl BenchDb {
                 ('bench-user-4', 'Diana Prince', 'diana@example.com', NOW()),
                 ('bench-user-5', 'Eve Wilson', 'eve@example.com', NOW())
             ON CONFLICT (id) DO NOTHING
-            "#,
+            ",
         )
         .execute(&pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_orders (id, total, created_at, customer_name)
             VALUES
                 ('bench-order-1', 99.99, NOW(), 'Alice Johnson'),
@@ -78,7 +78,7 @@ impl BenchDb {
                 ('bench-order-4', 299.99, NOW(), 'Diana Prince'),
                 ('bench-order-5', 399.99, NOW(), 'Eve Wilson')
             ON CONFLICT (id) DO NOTHING
-            "#,
+            ",
         )
         .execute(&pool)
         .await?;

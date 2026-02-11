@@ -25,7 +25,7 @@ pub enum WebhookIsolation {
 impl WebhookIsolation {
     /// Convert to SQL isolation level string
     #[must_use]
-    pub fn as_sql(self) -> &'static str {
+    pub const fn as_sql(self) -> &'static str {
         match self {
             Self::ReadCommitted => "READ COMMITTED",
             Self::RepeatableRead => "REPEATABLE READ",

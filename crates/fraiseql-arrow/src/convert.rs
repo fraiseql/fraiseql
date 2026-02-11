@@ -87,7 +87,7 @@ pub struct RowToArrowConverter {
 impl RowToArrowConverter {
     /// Create a new row-to-Arrow converter with the given schema and configuration.
     #[must_use]
-    pub fn new(schema: Arc<Schema>, config: ConvertConfig) -> Self {
+    pub const fn new(schema: Arc<Schema>, config: ConvertConfig) -> Self {
         Self { schema, config }
     }
 

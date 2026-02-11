@@ -26,7 +26,7 @@ pub enum LogLevel {
 
 impl LogLevel {
     /// Get string representation
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Debug => "DEBUG",
             Self::Info => "INFO",

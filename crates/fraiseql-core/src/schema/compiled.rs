@@ -53,7 +53,7 @@ pub struct RoleDefinition {
 impl RoleDefinition {
     /// Create a new role definition.
     #[must_use]
-    pub fn new(name: String, scopes: Vec<String>) -> Self {
+    pub const fn new(name: String, scopes: Vec<String>) -> Self {
         Self {
             name,
             description: None,
@@ -736,7 +736,7 @@ impl TypeDefinition {
 
     /// Check if type has SQL projection hint.
     #[must_use]
-    pub fn has_sql_projection(&self) -> bool {
+    pub const fn has_sql_projection(&self) -> bool {
         self.sql_projection_hint.is_some()
     }
 
@@ -885,7 +885,7 @@ impl EnumValueDefinition {
 
     /// Check if this value is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 }
@@ -1054,7 +1054,7 @@ impl InputFieldDefinition {
 
     /// Check if this field is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1321,7 +1321,7 @@ impl QueryDefinition {
 
     /// Set this query to return a list.
     #[must_use]
-    pub fn returning_list(mut self) -> Self {
+    pub const fn returning_list(mut self) -> Self {
         self.returns_list = true;
         self
     }
@@ -1352,7 +1352,7 @@ impl QueryDefinition {
 
     /// Check if this query is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1441,7 +1441,7 @@ impl MutationDefinition {
 
     /// Check if this mutation is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1663,7 +1663,7 @@ impl SubscriptionDefinition {
 
     /// Check if this subscription is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1749,7 +1749,7 @@ impl ArgumentDefinition {
 
     /// Check if this argument is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1786,7 +1786,7 @@ pub struct AutoParams {
 impl AutoParams {
     /// Create with all auto-params enabled (common for list queries).
     #[must_use]
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self {
             has_where:    true,
             has_order_by: true,
@@ -1885,7 +1885,7 @@ impl DirectiveDefinition {
 
     /// Mark this directive as repeatable.
     #[must_use]
-    pub fn repeatable(mut self) -> Self {
+    pub const fn repeatable(mut self) -> Self {
         self.is_repeatable = true;
         self
     }
@@ -1961,7 +1961,7 @@ pub enum DirectiveLocationKind {
 impl DirectiveLocationKind {
     /// Check if this is an executable directive location.
     #[must_use]
-    pub fn is_executable(&self) -> bool {
+    pub const fn is_executable(&self) -> bool {
         matches!(
             self,
             Self::Query
@@ -1977,7 +1977,7 @@ impl DirectiveLocationKind {
 
     /// Check if this is a type system directive location.
     #[must_use]
-    pub fn is_type_system(&self) -> bool {
+    pub const fn is_type_system(&self) -> bool {
         !self.is_executable()
     }
 }
@@ -2087,7 +2087,7 @@ impl ObserverDefinition {
 
     /// Check if this observer has a condition.
     #[must_use]
-    pub fn has_condition(&self) -> bool {
+    pub const fn has_condition(&self) -> bool {
         self.condition.is_some()
     }
 

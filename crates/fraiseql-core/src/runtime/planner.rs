@@ -47,7 +47,7 @@ impl QueryPlanner {
 
     /// Create query planner with custom JSONB optimization options.
     #[must_use]
-    pub fn with_jsonb_options(
+    pub const fn with_jsonb_options(
         cache_enabled: bool,
         jsonb_options: JsonbOptimizationOptions,
     ) -> Self {

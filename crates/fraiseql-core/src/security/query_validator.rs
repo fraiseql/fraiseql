@@ -69,7 +69,7 @@ impl QueryValidatorConfig {
     /// - Max complexity: 5000
     /// - Max size: 1 MB
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self {
             max_depth:      20,
             max_complexity: 5000,
@@ -83,7 +83,7 @@ impl QueryValidatorConfig {
     /// - Max complexity: 1000
     /// - Max size: 256 KB
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self {
             max_depth:      10,
             max_complexity: 1000,
@@ -97,7 +97,7 @@ impl QueryValidatorConfig {
     /// - Max complexity: 500
     /// - Max size: 64 KB (regulated environments)
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             max_depth:      5,
             max_complexity: 500,
@@ -146,25 +146,25 @@ pub struct QueryValidator {
 impl QueryValidator {
     /// Create a new query validator from configuration
     #[must_use]
-    pub fn from_config(config: QueryValidatorConfig) -> Self {
+    pub const fn from_config(config: QueryValidatorConfig) -> Self {
         Self { config }
     }
 
     /// Create validator with permissive settings
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self::from_config(QueryValidatorConfig::permissive())
     }
 
     /// Create validator with standard settings
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self::from_config(QueryValidatorConfig::standard())
     }
 
     /// Create validator with strict settings
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self::from_config(QueryValidatorConfig::strict())
     }
 
@@ -277,7 +277,7 @@ impl QueryValidator {
     ///
     /// Simple heuristic: depth * field_count
     /// In production, would use schema-aware field weights
-    fn calculate_complexity(&self, depth: usize, field_count: usize) -> usize {
+    const fn calculate_complexity(&self, depth: usize, field_count: usize) -> usize {
         // Each field at each depth level contributes to complexity
         // This is a simplified calculation
         depth.saturating_mul(field_count)

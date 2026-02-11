@@ -38,11 +38,11 @@ pub struct WebhookConfig {
     pub events: HashMap<String, WebhookEventConfig>,
 }
 
-fn default_timestamp_tolerance() -> u64 {
+const fn default_timestamp_tolerance() -> u64 {
     300
 }
 
-fn default_idempotent() -> bool {
+const fn default_idempotent() -> bool {
     true
 }
 

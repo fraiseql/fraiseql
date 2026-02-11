@@ -73,13 +73,13 @@ impl SchemaFieldInfo {
     }
 
     /// Mark as nullable
-    pub fn with_nullable(mut self, nullable: bool) -> Self {
+    pub const fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Set encryption mark
-    pub fn with_mark(mut self, mark: EncryptionMark) -> Self {
+    pub const fn with_mark(mut self, mark: EncryptionMark) -> Self {
         self.mark = Some(mark);
         self
     }
@@ -126,7 +126,7 @@ impl StructSchema {
     }
 
     /// Set schema version for evolution tracking
-    pub fn with_version(mut self, version: u32) -> Self {
+    pub const fn with_version(mut self, version: u32) -> Self {
         self.version = version;
         self
     }

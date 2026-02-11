@@ -95,7 +95,7 @@ pub struct AuthMetrics {
 }
 
 impl AuthMetrics {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             total_auth_attempts:        0,
             successful_authentications: 0,

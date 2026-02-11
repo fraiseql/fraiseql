@@ -112,7 +112,7 @@ impl SubscriptionManager {
     /// For now, this is a simple implementation that accepts all events
     /// if no filter is specified. In future phases, this could support
     /// more sophisticated filter expressions.
-    fn matches_filter(_event: &crate::HistoricalEvent, filter: &Option<String>) -> bool {
+    const fn matches_filter(_event: &crate::HistoricalEvent, filter: &Option<String>) -> bool {
         // If no filter specified, accept all events
         if filter.is_none() {
             return true;

@@ -96,19 +96,19 @@ impl ComplianceConfig {
     }
 
     /// Disable this framework
-    pub fn disabled(mut self) -> Self {
+    pub const fn disabled(mut self) -> Self {
         self.enabled = false;
         self
     }
 
     /// Set audit retention
-    pub fn with_retention_days(mut self, days: i32) -> Self {
+    pub const fn with_retention_days(mut self, days: i32) -> Self {
         self.audit_retention_days = days;
         self
     }
 
     /// Set key rotation
-    pub fn with_key_rotation_days(mut self, days: i32) -> Self {
+    pub const fn with_key_rotation_days(mut self, days: i32) -> Self {
         self.key_rotation_days = days;
         self
     }
@@ -521,7 +521,7 @@ mod tests {
     fn test_compliance_validator_get_framework_config() {
         let mut validator = ComplianceValidator::new();
         let config = ComplianceConfig::new(ComplianceFramework::HIPAA);
-        validator.register_framework(config.clone());
+        validator.register_framework(config);
         let retrieved = validator.get_framework_config(ComplianceFramework::HIPAA);
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().framework, ComplianceFramework::HIPAA);

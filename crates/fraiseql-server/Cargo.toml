@@ -119,6 +119,9 @@ tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-ot
 # Wire backend for streaming JSON queries with low memory overhead
 wire-backend = ["fraiseql-core/wire-backend"]
 
+[lints]
+workspace = true
+
 [package]
 authors = ["FraiseQL Contributors"]
 categories = ["database", "web-programming::http-server"]

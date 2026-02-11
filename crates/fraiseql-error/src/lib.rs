@@ -2,9 +2,6 @@
 //!
 //! All runtime crates depend on this crate for error handling.
 
-// Error variants and fields are self-documenting via their #[error(...)] messages
-#![allow(missing_docs)]
-
 mod auth;
 mod config;
 mod file;

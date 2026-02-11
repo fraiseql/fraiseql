@@ -146,7 +146,7 @@ fn design_analysis_complex(c: &mut Criterion) {
 fn design_analysis_suite(c: &mut Criterion) {
     let mut group = c.benchmark_group("design_analysis_suite");
 
-    for schema_type in ["minimal", "typical", "complex"].iter() {
+    for schema_type in &["minimal", "typical", "complex"] {
         group.bench_with_input(
             BenchmarkId::from_parameter(schema_type),
             schema_type,

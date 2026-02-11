@@ -315,7 +315,7 @@ impl SagaStore {
         Ok((initial_count - sagas.len()) as u64)
     }
 
-    pub fn cleanup_stale_sagas(&self, _hours_threshold: u64) -> Result<u64, String> {
+    pub const fn cleanup_stale_sagas(&self, _hours_threshold: u64) -> Result<u64, String> {
         // For in-memory store, this is a no-op during tests
         Ok(0)
     }

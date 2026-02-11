@@ -60,7 +60,7 @@ impl TestDb {
         tracing::info!("Creating test tables");
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE ta_users (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -68,18 +68,18 @@ impl TestDb {
                 created_at TIMESTAMPTZ NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_users (id, name, email, created_at)
             VALUES
                 ('user-1', 'Alice Johnson', 'alice@example.com', NOW()),
                 ('user-2', 'Bob Smith', 'bob@example.com', NOW() - INTERVAL '1 day')
-            "#,
+            ",
         )
         .execute(pool)
         .await?;

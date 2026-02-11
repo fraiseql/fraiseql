@@ -66,7 +66,7 @@ async fn test_schema_versioning_metadata() {
     // Register initial schema
     let schema_v0 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-    registry.register("test_view", schema_v0.clone());
+    registry.register("test_view", schema_v0);
 
     // Get version info
     let (version, created_at) = registry.get_version_info("test_view").unwrap();
@@ -78,7 +78,7 @@ async fn test_schema_versioning_metadata() {
         Field::new("name", DataType::Utf8, false),
     ]));
 
-    registry.register("test_view", schema_v1.clone());
+    registry.register("test_view", schema_v1);
 
     let (new_version, new_created_at) = registry.get_version_info("test_view").unwrap();
     assert_eq!(new_version, 1);
@@ -197,7 +197,7 @@ async fn test_concurrent_schema_updates() {
     assert_eq!(versions.len(), 5); // 5 views registered
 
     // Verify version numbers are reasonable
-    for (_, version, _) in versions.iter() {
+    for (_, version, _) in &versions {
         assert!(*version >= 9); // At least 10 updates per view
     }
 }

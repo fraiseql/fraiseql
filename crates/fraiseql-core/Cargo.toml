@@ -102,6 +102,9 @@ test-postgres = []
 test-sqlserver = ["sqlserver"]
 wire-backend = ["fraiseql-wire"]
 
+[lints]
+workspace = true
+
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"
 name = "fraiseql-core"

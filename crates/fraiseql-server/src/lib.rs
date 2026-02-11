@@ -21,56 +21,6 @@
 //! - Query caching
 //! - Authentication middleware (optional)
 
-#![forbid(unsafe_code)]
-// Allowing missing_docs to focus on actionable warnings
-#![allow(missing_docs)]
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-// Allow common pedantic lints that are too noisy for this codebase
-#![allow(clippy::struct_excessive_bools)] // ServerConfig uses bools for flags
-#![allow(clippy::cast_possible_truncation)] // Intentional u128->u64 casts for metrics
-#![allow(clippy::cast_precision_loss)] // Intentional f64 conversions for averages
-#![allow(clippy::doc_markdown)] // Would require extensive backtick additions
-#![allow(clippy::module_name_repetitions)] // Common in Rust APIs
-#![allow(clippy::must_use_candidate)] // Too noisy for builder methods
-#![allow(clippy::missing_errors_doc)] // Would require extensive doc additions
-#![allow(clippy::missing_panics_doc)] // Would require extensive doc additions
-#![allow(clippy::needless_pass_by_value)] // Sometimes clearer API
-#![allow(clippy::unused_async)] // Placeholder for future async work
-#![allow(clippy::similar_names)] // Variable naming style
-#![allow(clippy::unused_self)] // Often needed for trait consistency
-#![allow(clippy::match_same_arms)] // Sometimes clearer to be explicit
-#![allow(clippy::double_must_use)] // CorsLayer already has must_use
-#![allow(clippy::unnecessary_wraps)] // Sometimes needed for API consistency
-#![allow(clippy::return_self_not_must_use)] // Builder pattern doesn't always need #[must_use]
-#![allow(clippy::too_many_lines)] // Some functions are necessarily long
-#![allow(clippy::cast_sign_loss)] // Intentional signed->unsigned conversions
-#![allow(clippy::missing_fields_in_debug)] // Some fields are intentionally excluded from Debug
-#![allow(clippy::default_trait_access)] // Style preference
-#![allow(clippy::wildcard_imports)] // Used in tests
-#![allow(clippy::items_after_statements)] // Sometimes clearer to define items near usage
-#![allow(clippy::no_effect_underscore_binding)] // Used for future placeholders
-#![allow(clippy::cast_possible_wrap)] // Intentional for timestamp conversions
-#![allow(clippy::struct_field_names)] // Field naming style
-#![allow(clippy::single_char_pattern)] // String patterns are clearer
-#![allow(clippy::elidable_lifetime_names)] // Explicit lifetimes are clearer
-#![allow(clippy::manual_let_else)] // Style preference
-#![allow(clippy::redundant_closure)] // Sometimes clearer to have explicit closure
-#![allow(clippy::unchecked_time_subtraction)] // Checked arithmetic overkill for durations
-#![allow(clippy::uninlined_format_args)] // Style preference
-#![allow(clippy::unnested_or_patterns)] // Style preference
-#![allow(clippy::used_underscore_binding)] // Intentional placeholder bindings
-#![allow(clippy::cast_lossless)] // Explicit casts are clearer
-#![allow(clippy::format_push_string)] // Sometimes clearer than write!
-#![allow(clippy::if_same_then_else)] // Sometimes intentional for clarity
-#![allow(clippy::ignored_unit_patterns)] // Style preference
-#![allow(clippy::map_unwrap_or)] // Style preference
-#![allow(clippy::redundant_closure_for_method_calls)] // Style preference
-#![allow(clippy::single_match_else)] // Sometimes clearer than if-let
-#![allow(clippy::unnecessary_debug_formatting)] // Debug is useful for logging
-#![allow(clippy::useless_format)] // Sometimes needed for type inference
-#![allow(clippy::float_cmp)] // Test assertions with exact float comparison are intentional
-
 // Original fraiseql-server modules
 pub mod api;
 pub mod error;

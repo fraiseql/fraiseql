@@ -114,7 +114,7 @@ impl BackupConfig {
     }
 
     /// Get timeout as Duration.
-    pub fn timeout(&self) -> Duration {
+    pub const fn timeout(&self) -> Duration {
         Duration::from_secs(self.timeout_secs)
     }
 }

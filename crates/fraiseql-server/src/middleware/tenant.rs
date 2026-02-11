@@ -53,7 +53,7 @@ pub struct TenantContext {
 
 impl TenantContext {
     /// Check if tenant is explicitly set
-    pub fn is_tenant_scoped(&self) -> bool {
+    pub const fn is_tenant_scoped(&self) -> bool {
         self.org_id.is_some()
     }
 

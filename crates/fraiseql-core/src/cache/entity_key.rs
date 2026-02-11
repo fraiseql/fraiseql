@@ -195,7 +195,7 @@ mod tests {
         let key2 = EntityKey::new("User", "550e8400-e29b-41d4-a716-446655440000").unwrap();
 
         let mut map = HashMap::new();
-        map.insert(key1.clone(), "value1");
+        map.insert(key1, "value1");
 
         // Same key should retrieve same value
         assert_eq!(map.get(&key2), Some(&"value1"));

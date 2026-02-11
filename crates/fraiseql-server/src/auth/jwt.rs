@@ -157,7 +157,7 @@ impl JwtValidator {
             audit_logger.log_failure(
                 AuditEventType::JwtValidation,
                 SecretType::JwtToken,
-                Some(claims.sub.clone()),
+                Some(claims.sub),
                 "validate",
                 "Token expired",
             );

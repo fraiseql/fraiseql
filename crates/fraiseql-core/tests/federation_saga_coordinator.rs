@@ -453,7 +453,7 @@ pub enum CompensationType {
 pub struct SagaCoordinator;
 
 impl SagaCoordinator {
-    pub fn new() -> Result<Self, String> {
+    pub const fn new() -> Result<Self, String> {
         Ok(SagaCoordinator)
     }
 }
@@ -750,15 +750,15 @@ fn build_compensation_for_step(step: &SagaStep) -> CompensationAction {
 
     let action_type = match step.mutation_type {
         MutationType::Create => CompensationType::Delete {
-            id:            id.clone(),
+            id,
             original_data: step.variables.clone(),
         },
         MutationType::Update => CompensationType::Update {
-            id:             id.clone(),
-            restore_values: step.result.as_ref().cloned().unwrap_or_default(),
+            id,
+            restore_values: step.result.clone().unwrap_or_default(),
         },
         MutationType::Delete => CompensationType::Create {
-            id:            id.clone(),
+            id,
             original_data: step.variables.clone(),
         },
     };

@@ -43,7 +43,7 @@ impl CollationMapper {
     /// * `config` - Global collation configuration
     /// * `database_type` - Target database type
     #[must_use]
-    pub fn new(config: CollationConfig, database_type: DatabaseType) -> Self {
+    pub const fn new(config: CollationConfig, database_type: DatabaseType) -> Self {
         Self {
             config,
             database_type,

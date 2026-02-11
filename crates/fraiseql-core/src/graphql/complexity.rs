@@ -38,7 +38,7 @@ impl ComplexityAnalyzer {
 
     /// Create with custom config
     #[must_use]
-    pub fn with_config(config: ComplexityConfig) -> Self {
+    pub const fn with_config(config: ComplexityConfig) -> Self {
         Self { config }
     }
 

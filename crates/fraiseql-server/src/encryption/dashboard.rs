@@ -119,7 +119,7 @@ pub struct RotationMetricsPoint {
 
 impl RotationMetricsPoint {
     /// Create new metrics point
-    pub fn new(timestamp: DateTime<Utc>) -> Self {
+    pub const fn new(timestamp: DateTime<Utc>) -> Self {
         Self {
             timestamp,
             rotations_total: 0,
@@ -199,7 +199,7 @@ pub struct ComplianceDashboard {
 
 impl ComplianceDashboard {
     /// Create new compliance dashboard
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             hipaa:   ComplianceStatus::Compliant,
             pci_dss: ComplianceStatus::Compliant,
@@ -332,7 +332,7 @@ pub struct AlertsWidget {
 
 impl AlertsWidget {
     /// Create new alerts widget
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             active_alerts:        Vec::new(),
             historical_alerts:    Vec::new(),
@@ -491,7 +491,7 @@ pub struct AlertFilter {
 
 impl AlertFilter {
     /// Create new alert filter
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             severity:     None,
             alert_type:   None,

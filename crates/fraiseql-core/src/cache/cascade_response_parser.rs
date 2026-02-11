@@ -79,7 +79,7 @@ pub struct CascadeEntities {
 
 impl CascadeEntities {
     /// Create new cascade entities with separate updated and deleted lists.
-    pub fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
+    pub const fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
         Self { updated, deleted }
     }
 
@@ -108,7 +108,7 @@ pub struct CascadeResponseParser;
 impl CascadeResponseParser {
     /// Create new cascade response parser.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 

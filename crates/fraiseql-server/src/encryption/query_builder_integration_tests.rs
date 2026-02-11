@@ -127,8 +127,8 @@ mod query_builder_integration_tests {
         row.insert("email".to_string(), email_enc);
 
         // Unencrypted fields stored as-is
-        let name_bytes = "John Doe".as_bytes().to_vec();
-        row.insert("name".to_string(), name_bytes.clone());
+        let name_bytes = b"John Doe".to_vec();
+        row.insert("name".to_string(), name_bytes);
 
         // Only designated fields are encrypted
         assert!(qbi.is_encrypted("email"));

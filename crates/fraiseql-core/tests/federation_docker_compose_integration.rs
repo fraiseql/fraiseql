@@ -283,7 +283,7 @@ async fn test_gateway_simple_query() {
 #[ignore]
 async fn test_gateway_two_subgraph_federation() {
     // Query users with their orders (2-hop federation: gateway -> users -> orders)
-    let query = r#"
+    let query = r"
         query {
             users {
                 id
@@ -295,7 +295,7 @@ async fn test_gateway_two_subgraph_federation() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -328,7 +328,7 @@ async fn test_gateway_two_subgraph_federation() {
 #[ignore]
 async fn test_gateway_three_subgraph_federation() {
     // Query users with their orders and order products (3-hop federation)
-    let query = r#"
+    let query = r"
         query {
             users {
                 id
@@ -344,7 +344,7 @@ async fn test_gateway_three_subgraph_federation() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -384,7 +384,7 @@ async fn test_two_subgraph_direct_subgraph_queries() {
     // Test 1: Query users directly from users subgraph
     println!("\n--- Test 1: Query users directly ---");
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier email } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users { id identifier email } }")
             .await
             .expect("Users query should succeed");
 
@@ -405,7 +405,7 @@ async fn test_two_subgraph_direct_subgraph_queries() {
     // Test 2: Query orders directly from orders subgraph
     println!("\n--- Test 2: Query orders directly ---");
     let orders_response =
-        graphql_query(ORDERS_SUBGRAPH_URL, r#"query { orders { id status total } }"#)
+        graphql_query(ORDERS_SUBGRAPH_URL, r"query { orders { id status total } }")
             .await
             .expect("Orders query should succeed");
 
@@ -433,7 +433,7 @@ async fn test_two_subgraph_http_federation_from_orders() {
 
     // Orders subgraph extends User type from users subgraph
     // This tests if orders can resolve User information via HTTP
-    let query = r#"
+    let query = r"
         query {
             orders(limit: 5) {
                 id
@@ -446,7 +446,7 @@ async fn test_two_subgraph_http_federation_from_orders() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(ORDERS_SUBGRAPH_URL, query)
         .await
@@ -486,7 +486,7 @@ async fn test_two_subgraph_federation_through_gateway() {
     println!("\n--- Test: Federated query through Apollo Router gateway ---");
 
     // Query users with their orders through the gateway
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -499,7 +499,7 @@ async fn test_two_subgraph_federation_through_gateway() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query)
         .await
@@ -544,7 +544,7 @@ async fn test_two_subgraph_entity_resolution_consistency() {
 
     // Get a user ID from users subgraph
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id identifier } }")
             .await
             .expect("Initial users query should succeed");
 
@@ -600,7 +600,7 @@ async fn test_two_subgraph_data_consistency() {
 
     // Get users directly from users subgraph
     let direct_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 3) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 3) { id identifier } }")
             .await
             .expect("Direct users query should succeed");
 
@@ -611,7 +611,7 @@ async fn test_two_subgraph_data_consistency() {
 
     // Get same users through gateway (federated)
     let gateway_response =
-        graphql_query(APOLLO_GATEWAY_URL, r#"query { users(limit: 3) { id identifier } }"#)
+        graphql_query(APOLLO_GATEWAY_URL, r"query { users(limit: 3) { id identifier } }")
             .await
             .expect("Gateway users query should succeed");
 
@@ -653,7 +653,7 @@ async fn test_two_subgraph_federation_performance() {
 
     println!("\n--- Test: Federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 10) {
                 id
@@ -664,7 +664,7 @@ async fn test_two_subgraph_federation_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up query
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -775,7 +775,7 @@ async fn test_federation_query_performance() {
 
     let _response = graphql_query(
         APOLLO_GATEWAY_URL,
-        r#"query {
+        r"query {
             users(limit: 5) {
                 id
                 orders {
@@ -785,7 +785,7 @@ async fn test_federation_query_performance() {
                     }
                 }
             }
-        }"#,
+        }",
     )
     .await
     .expect("Query should succeed");
@@ -886,7 +886,7 @@ async fn test_extended_mutation_update_user_from_extended_subgraph() {
     println!("\n--- Test: Update user mutation from extended subgraph (HTTP propagation) ---");
 
     // Get an existing user
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Get users query should succeed");
 
@@ -947,7 +947,7 @@ async fn test_extended_mutation_create_order_with_user_reference() {
     println!("\n--- Test: Create order with user reference (entity linking) ---");
 
     // Get a user ID
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Get users query should succeed");
 
@@ -1056,7 +1056,7 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
 
     // Get a user
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id name } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id name } }")
             .await
             .expect("Get users query should succeed");
 
@@ -1129,7 +1129,7 @@ async fn test_extended_mutation_through_gateway() {
     println!("\n--- Test: Mutation through gateway (federated mutation) ---");
 
     // Get a user
-    let users_response = graphql_query(APOLLO_GATEWAY_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(APOLLO_GATEWAY_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Get users query should succeed");
 
@@ -1229,7 +1229,7 @@ async fn test_composite_key_setup_validation() {
     println!("\n--- Test: Composite key environment setup validation ---");
 
     // Verify database schema supports composite keys
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users { id identifier } }")
         .await
         .expect("Query should succeed");
 
@@ -1252,7 +1252,7 @@ async fn test_composite_key_single_field_federation() {
 
     // Get a user (single field key: id UUID)
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id identifier } }")
             .await
             .expect("Query should succeed");
 
@@ -1294,7 +1294,7 @@ async fn test_composite_key_multi_field_resolution() {
     // For this test, we verify the infrastructure handles multiple key fields
 
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier email } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id identifier email } }")
             .await
             .expect("Query should succeed");
 
@@ -1336,7 +1336,7 @@ async fn test_tenant_isolation_with_composite_keys() {
     println!("\n--- Test: Tenant isolation with composite keys ---");
 
     // Get users from database
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users { id identifier } }")
         .await
         .expect("Query should succeed");
 
@@ -1372,7 +1372,7 @@ async fn test_composite_key_entity_batch_resolution() {
 
     // Get multiple users (simulating composite key batch)
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 5) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 5) { id identifier } }")
             .await
             .expect("Query should succeed");
 
@@ -1472,7 +1472,7 @@ async fn test_composite_key_federation_across_boundaries() {
     println!("\n--- Test: Composite key federation across subgraph boundaries ---");
 
     // Create an order that references a user via composite key
-    let users_response = graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id } }"#)
+    let users_response = graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id } }")
         .await
         .expect("Query should succeed");
 
@@ -1538,7 +1538,7 @@ async fn test_composite_key_gateway_resolution() {
     println!("\n--- Test: Composite key resolution through gateway ---");
 
     // Query through gateway with composite key resolution
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -1553,7 +1553,7 @@ async fn test_composite_key_gateway_resolution() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -1600,7 +1600,7 @@ async fn test_composite_key_performance() {
     // Measure performance of composite key resolution at scale
     let start = std::time::Instant::now();
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 20) {
                 id
@@ -1615,7 +1615,7 @@ async fn test_composite_key_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -1693,7 +1693,7 @@ async fn test_three_subgraph_direct_queries() {
 
     println!("\n--- Test: Direct queries to products subgraph ---");
 
-    let query = r#"
+    let query = r"
         query {
             products {
                 id
@@ -1701,7 +1701,7 @@ async fn test_three_subgraph_direct_queries() {
                 price
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(PRODUCTS_SUBGRAPH_URL, query).await.expect("Query should succeed");
 
@@ -1727,7 +1727,7 @@ async fn test_three_subgraph_order_with_products() {
 
     println!("\n--- Test: Orders with products field (2-hop) ---");
 
-    let query = r#"
+    let query = r"
         query {
             orders {
                 id
@@ -1739,7 +1739,7 @@ async fn test_three_subgraph_order_with_products() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -1764,7 +1764,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
 
     println!("\n--- Test: 3-hop federation query (users → orders → products) ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 2) {
                 id
@@ -1780,7 +1780,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
                 }
             }
         }
-    "#;
+    ";
 
     let start = std::time::Instant::now();
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
@@ -1842,7 +1842,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
 
     if let Some(uid) = user_id {
         // Step 2: Get orders for that user
-        let orders_query = r#"query { users(limit: 1) { orders { id status } } }"#.to_string();
+        let orders_query = r"query { users(limit: 1) { orders { id status } } }".to_string();
 
         let orders_response = graphql_query(APOLLO_GATEWAY_URL, &orders_query)
             .await
@@ -1858,7 +1858,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
         assert!(has_orders, "User should have orders");
 
         // Step 3: Get products for those orders
-        let full_query = r#"
+        let full_query = r"
             query {
                 users(limit: 1) {
                     id
@@ -1871,7 +1871,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
                     }
                 }
             }
-        "#;
+        ";
 
         let products_response = graphql_query(APOLLO_GATEWAY_URL, full_query)
             .await
@@ -1899,7 +1899,7 @@ async fn test_three_subgraph_cross_boundary_federation() {
 
     println!("\n--- Test: Cross-boundary federation (multi-level extends) ---");
 
-    let query = r#"
+    let query = r"
         query {
             products(limit: 5) {
                 id
@@ -1907,7 +1907,7 @@ async fn test_three_subgraph_cross_boundary_federation() {
                 price
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -1935,14 +1935,14 @@ async fn test_three_subgraph_mutation_propagation() {
 
     // Note: Mutation support depends on implementation
     // This test validates the structure can handle mutation requests
-    let query = r#"
+    let query = r"
         query {
             users(limit: 1) {
                 id
                 identifier
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -1962,7 +1962,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
 
     println!("\n--- Test: Batch entity resolution at scale ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 5) {
                 id
@@ -1978,7 +1978,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
                 }
             }
         }
-    "#;
+    ";
 
     let start = std::time::Instant::now();
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
@@ -2011,7 +2011,7 @@ async fn test_three_subgraph_gateway_composition() {
     println!("\n--- Test: Apollo Router gateway composition ---");
 
     // Query the introspection to verify schema composition
-    let introspection_query = r#"
+    let introspection_query = r"
         query {
             __schema {
                 types {
@@ -2019,7 +2019,7 @@ async fn test_three_subgraph_gateway_composition() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, introspection_query)
         .await
@@ -2066,7 +2066,7 @@ async fn test_three_subgraph_performance() {
 
     println!("\n--- Test: 3-hop federation performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 10) {
                 id
@@ -2082,7 +2082,7 @@ async fn test_three_subgraph_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -2130,7 +2130,7 @@ async fn test_apollo_router_discovers_subgraphs() {
     println!("\n--- Test: Apollo Router discovers all 3 subgraphs ---");
 
     // Query introspection to verify all subgraph types are present
-    let introspection_query = r#"
+    let introspection_query = r"
         query {
             __schema {
                 types {
@@ -2139,7 +2139,7 @@ async fn test_apollo_router_discovers_subgraphs() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, introspection_query)
         .await
@@ -2185,7 +2185,7 @@ async fn test_apollo_router_schema_composition() {
     println!("\n--- Test: Apollo Router schema composition ---");
 
     // Query the composed schema structure
-    let basic_schema_query = r#"
+    let basic_schema_query = r"
         query {
             __schema {
                 queryType {
@@ -2196,7 +2196,7 @@ async fn test_apollo_router_schema_composition() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, basic_schema_query)
         .await
@@ -2244,7 +2244,7 @@ async fn test_apollo_router_sdl_completeness() {
     println!("\n--- Test: Apollo Router SDL completeness ---");
 
     // Use introspection to build SDL representation
-    let sdl_query = r#"
+    let sdl_query = r"
         query {
             __schema {
                 types {
@@ -2260,7 +2260,7 @@ async fn test_apollo_router_sdl_completeness() {
                 mutationType { name }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, sdl_query)
         .await
@@ -2301,7 +2301,7 @@ async fn test_apollo_router_federation_directives() {
     println!("\n--- Test: Apollo Router federation directives ---");
 
     // Query introspection to check for federation directives
-    let directive_query = r#"
+    let directive_query = r"
         query {
             __schema {
                 directives {
@@ -2310,7 +2310,7 @@ async fn test_apollo_router_federation_directives() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, directive_query)
         .await
@@ -2352,14 +2352,14 @@ async fn test_apollo_router_query_routing() {
     println!("\n--- Test: Apollo Router query routing ---");
 
     // Test routing to users subgraph
-    let users_query = r#"
+    let users_query = r"
         query {
             users(limit: 1) {
                 id
                 identifier
             }
         }
-    "#;
+    ";
 
     let users_response = graphql_query(APOLLO_GATEWAY_URL, users_query)
         .await
@@ -2372,14 +2372,14 @@ async fn test_apollo_router_query_routing() {
     );
 
     // Test routing to orders subgraph
-    let orders_query = r#"
+    let orders_query = r"
         query {
             orders(limit: 1) {
                 id
                 status
             }
         }
-    "#;
+    ";
 
     let orders_response = graphql_query(APOLLO_GATEWAY_URL, orders_query)
         .await
@@ -2392,7 +2392,7 @@ async fn test_apollo_router_query_routing() {
     );
 
     // Test routing to products subgraph
-    let products_query = r#"
+    let products_query = r"
         query {
             products(limit: 1) {
                 id
@@ -2400,7 +2400,7 @@ async fn test_apollo_router_query_routing() {
                 price
             }
         }
-    "#;
+    ";
 
     let products_response = graphql_query(APOLLO_GATEWAY_URL, products_query)
         .await
@@ -2426,14 +2426,14 @@ async fn test_apollo_router_error_handling() {
     println!("\n--- Test: Apollo Router error handling ---");
 
     // Test invalid query structure
-    let invalid_query = r#"
+    let invalid_query = r"
         query {
             users {
                 id
                 nonexistentField
             }
         }
-    "#;
+    ";
 
     let invalid_response = graphql_query(APOLLO_GATEWAY_URL, invalid_query)
         .await
@@ -2450,13 +2450,13 @@ async fn test_apollo_router_error_handling() {
     );
 
     // Test query to non-existent root field
-    let nonexistent_query = r#"
+    let nonexistent_query = r"
         query {
             nonexistentRootField {
                 id
             }
         }
-    "#;
+    ";
 
     let nonexistent_response = graphql_query(APOLLO_GATEWAY_URL, nonexistent_query)
         .await
@@ -2504,7 +2504,7 @@ async fn test_federation_query_performance_baseline() {
     println!("\n--- Test: Federation query performance baseline ---");
 
     // Simple 3-hop query for baseline measurement
-    let query = r#"
+    let query = r"
         query {
             users(limit: 5) {
                 id
@@ -2520,7 +2520,7 @@ async fn test_federation_query_performance_baseline() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up query (JIT, connection pooling setup)
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -2569,7 +2569,7 @@ async fn test_federation_repeated_query_performance() {
 
     println!("\n--- Test: Repeated federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -2580,7 +2580,7 @@ async fn test_federation_repeated_query_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -2626,7 +2626,7 @@ async fn test_federation_batch_vs_sequential_performance() {
     println!("\n--- Test: Batch vs sequential entity resolution performance ---");
 
     // Batch query (resolves multiple users at once)
-    let batch_query = r#"
+    let batch_query = r"
         query {
             users(limit: 10) {
                 id
@@ -2637,10 +2637,10 @@ async fn test_federation_batch_vs_sequential_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Sequential simulation (multiple individual queries)
-    let individual_query = r#"
+    let individual_query = r"
         query {
             users(limit: 1) {
                 id
@@ -2651,7 +2651,7 @@ async fn test_federation_batch_vs_sequential_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, batch_query).await;
@@ -2702,7 +2702,7 @@ async fn test_federation_large_result_set_performance() {
     println!("\n--- Test: Large result set federation performance ---");
 
     // Query for larger result set
-    let large_query = r#"
+    let large_query = r"
         query {
             users(limit: 20) {
                 id
@@ -2718,7 +2718,7 @@ async fn test_federation_large_result_set_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, large_query).await;
@@ -2771,17 +2771,17 @@ async fn test_federation_query_complexity_scaling() {
     println!("\n--- Test: Federation query complexity scaling ---");
 
     // Simple 2-hop query
-    let simple_query = r#"
+    let simple_query = r"
         query {
             users(limit: 5) {
                 id
                 orders { id }
             }
         }
-    "#;
+    ";
 
     // Complex 3-hop query with more fields
-    let complex_query = r#"
+    let complex_query = r"
         query {
             users(limit: 5) {
                 id
@@ -2797,7 +2797,7 @@ async fn test_federation_query_complexity_scaling() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, simple_query).await;
@@ -2837,7 +2837,7 @@ async fn test_federation_concurrent_query_performance() {
 
     println!("\n--- Test: Concurrent federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -2848,7 +2848,7 @@ async fn test_federation_concurrent_query_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -2884,7 +2884,7 @@ async fn test_federation_mutation_impact_on_performance() {
     println!("\n--- Test: Mutation impact on federation query performance ---");
 
     // Query before mutation
-    let query = r#"
+    let query = r"
         query {
             users(limit: 1) {
                 id
@@ -2895,7 +2895,7 @@ async fn test_federation_mutation_impact_on_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     let start = std::time::Instant::now();
     let response_before =
@@ -2931,17 +2931,17 @@ async fn test_federation_different_query_patterns_performance() {
     println!("\n--- Test: Different query patterns performance comparison ---");
 
     // Pattern 1: Filtered query
-    let filtered_query = r#"
+    let filtered_query = r"
         query {
             users(limit: 1) {
                 id
                 identifier
             }
         }
-    "#;
+    ";
 
     // Pattern 2: With nested expansion
-    let expanded_query = r#"
+    let expanded_query = r"
         query {
             users(limit: 1) {
                 id
@@ -2952,10 +2952,10 @@ async fn test_federation_different_query_patterns_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Pattern 3: With deep nesting
-    let deep_query = r#"
+    let deep_query = r"
         query {
             users(limit: 1) {
                 id
@@ -2970,7 +2970,7 @@ async fn test_federation_different_query_patterns_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, filtered_query).await;

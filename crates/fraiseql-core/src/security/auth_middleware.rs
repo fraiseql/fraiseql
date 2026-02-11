@@ -207,7 +207,7 @@ pub struct AuthConfig {
     pub clock_skew_secs: u64,
 }
 
-fn default_clock_skew() -> u64 {
+const fn default_clock_skew() -> u64 {
     60
 }
 
@@ -218,7 +218,7 @@ impl AuthConfig {
     /// - Token expiry: 3600 seconds (1 hour)
     /// - No signature verification (for testing only)
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self {
             required:          false,
             token_expiry_secs: 3600,
@@ -235,7 +235,7 @@ impl AuthConfig {
     /// - Token expiry: 3600 seconds (1 hour)
     /// - No signature verification (configure `signing_key` for production)
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self {
             required:          true,
             token_expiry_secs: 3600,
@@ -252,7 +252,7 @@ impl AuthConfig {
     /// - Token expiry: 1800 seconds (30 minutes)
     /// - No signature verification (configure `signing_key` for production)
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             required:          true,
             token_expiry_secs: 1800,
@@ -375,7 +375,7 @@ pub struct AuthRequest {
 impl AuthRequest {
     /// Create a new auth request from an authorization header
     #[must_use]
-    pub fn new(authorization_header: Option<String>) -> Self {
+    pub const fn new(authorization_header: Option<String>) -> Self {
         Self {
             authorization_header,
         }
@@ -476,7 +476,7 @@ pub struct AuthMiddleware {
 impl AuthMiddleware {
     /// Create a new authentication middleware from configuration
     #[must_use]
-    pub fn from_config(config: AuthConfig) -> Self {
+    pub const fn from_config(config: AuthConfig) -> Self {
         Self { config }
     }
 

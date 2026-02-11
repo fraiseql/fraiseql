@@ -109,7 +109,7 @@ impl SyslogAuditBackend {
     }
 
     /// Set the syslog facility to use
-    pub fn with_facility(mut self, facility: SyslogFacility) -> Self {
+    pub const fn with_facility(mut self, facility: SyslogFacility) -> Self {
         self.facility = facility;
         self
     }
@@ -121,7 +121,7 @@ impl SyslogAuditBackend {
     }
 
     /// Set the socket timeout
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+    pub const fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }

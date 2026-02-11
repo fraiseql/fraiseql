@@ -782,7 +782,7 @@ mod oauth_tests {
         );
 
         let session_auth0 = OAuthSession::new(
-            existing_user_id.clone(),
+            existing_user_id,
             ProviderType::OIDC,
             "auth0".to_string(),
             "auth0|sub_456".to_string(),

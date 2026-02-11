@@ -180,7 +180,7 @@ async fn query_arrow_plane(
         .map_err(|e| format!("Failed to convert rows: {}", e))?;
 
     // Create converter and build RecordBatch
-    let converter = RowToArrowConverter::new(schema.clone(), ConvertConfig::default());
+    let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
     let batch = converter
         .convert_batch(arrow_rows)
         .map_err(|e| format!("Failed to create batch: {}", e))?;
@@ -205,7 +205,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
 
     // Create base table (tb_users)
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS tb_users (
             id TEXT PRIMARY KEY,
             email TEXT NOT NULL,
@@ -217,22 +217,22 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
             tags TEXT[],
             metadata JSONB
         )
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
 
     // Create JSON plane view (v_users) - denormalized for JSON output
     sqlx::query(
-        r#"
+        r"
         DROP VIEW IF EXISTS v_users CASCADE
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
 
     sqlx::query(
-        r#"
+        r"
         CREATE VIEW v_users AS
         SELECT
             id,
@@ -245,7 +245,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
             tags,
             metadata
         FROM tb_users
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
@@ -254,7 +254,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
     sqlx::query("DROP TABLE IF EXISTS ta_users").execute(&pool).await?;
 
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE ta_users (
             id TEXT,
             email TEXT,
@@ -266,7 +266,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
             tags TEXT[],
             metadata JSONB
         )
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
@@ -274,18 +274,18 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
     // Insert test data (1000 rows)
     for i in 0..1000 {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO tb_users (id, email, name, age, is_active, created_at, balance, tags, metadata)
             VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8)
             ON CONFLICT (id) DO NOTHING
-            "#,
+            ",
         )
         .bind(format!("user-{:04}", i))
         .bind(format!("user{}@example.com", i))
         .bind(format!("User {}", i))
         .bind(20i32 + (i % 60i32))
         .bind(i % 3 != 0)
-        .bind(1000.0 + (i as f64 * 10.0))
+        .bind((i as f64).mul_add(10.0, 1000.0))
         .bind(vec!["tag1".to_string(), "tag2".to_string()])
         .bind(serde_json::json!({"index": i, "created": "2026-01-31"}))
         .execute(&pool)
@@ -294,10 +294,10 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
 
     // Sync ta_users from tb_users
     sqlx::query(
-        r#"
+        r"
         INSERT INTO ta_users (id, email, name, age, is_active, created_at, balance, tags, metadata)
         SELECT id, email, name, age, is_active, created_at, balance, tags, metadata FROM tb_users
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;

@@ -429,7 +429,7 @@ mod harness {
     }
 
     impl<'a> MockRecoveryManager<'a> {
-        pub fn new(store: &'a InMemorySagaStore) -> Self {
+        pub const fn new(store: &'a InMemorySagaStore) -> Self {
             Self { store }
         }
 
@@ -469,7 +469,7 @@ mod harness {
     }
 
     impl SagaOrchestrator {
-        pub fn new(
+        pub const fn new(
             store: InMemorySagaStore,
             executor: MockStepExecutor,
             compensator: MockStepCompensator,
@@ -679,7 +679,7 @@ mod harness {
     }
 
     impl OrchestratorBuilder {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self { steps: Vec::new() }
         }
 

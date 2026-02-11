@@ -6,6 +6,9 @@ syn = {version = "2.0", features = ["full"]}
 [lib]
 proc-macro = true
 
+[lints]
+workspace = true
+
 [package]
 description = "Procedural macros for automatic span creation and structured logging in fraiseql-observers"
 name = "fraiseql-observers-macros"

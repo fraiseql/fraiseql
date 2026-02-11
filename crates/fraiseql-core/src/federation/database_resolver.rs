@@ -32,7 +32,7 @@ pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
     /// Create a new database entity resolver.
     #[must_use]
-    pub fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
+    pub const fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
         Self { adapter, metadata }
     }
 

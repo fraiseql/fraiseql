@@ -32,7 +32,7 @@ pub struct CodeGenerator {
 impl CodeGenerator {
     /// Create new code generator.
     #[must_use]
-    pub fn new(optimize: bool) -> Self {
+    pub const fn new(optimize: bool) -> Self {
         Self { optimize }
     }
 

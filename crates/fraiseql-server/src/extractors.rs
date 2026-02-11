@@ -87,7 +87,7 @@ fn extract_request_id(headers: &axum::http::HeaderMap) -> String {
 /// are trivially spoofable. IP address should be set from `ConnectInfo<SocketAddr>`
 /// at the handler level, or via `ProxyConfig::extract_client_ip()` which validates
 /// the proxy chain before trusting forwarding headers.
-fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
+const fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
     // SECURITY: IP extraction from headers removed. User-supplied X-Forwarded-For
     // and X-Real-IP headers are trivially spoofable and must not be trusted without
     // proxy chain validation. Use ConnectInfo<SocketAddr> or ProxyConfig instead.
@@ -102,7 +102,7 @@ fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Option<String> {
 /// set an arbitrary tenant ID to access another organization's data. Tenant ID
 /// should be set from `TenantContext` (populated by the secured `tenant_middleware`
 /// which requires authentication) or from JWT claims.
-fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
+const fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
     // SECURITY: Tenant ID extraction from headers removed. The X-Tenant-ID header
     // is user-controlled and could be used for tenant isolation bypass. Tenant context
     // should come from the authenticated tenant_middleware or JWT claims.

@@ -17,7 +17,7 @@ pub struct ElasticsearchBackupProvider {
 
 impl ElasticsearchBackupProvider {
     /// Create new Elasticsearch backup provider.
-    pub fn new(endpoint_url: String, repository: String) -> Self {
+    pub const fn new(endpoint_url: String, repository: String) -> Self {
         Self {
             endpoint_url,
             repository,

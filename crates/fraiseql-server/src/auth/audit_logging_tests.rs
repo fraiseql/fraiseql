@@ -407,7 +407,7 @@ mod audit_logging {
             subject:       Some("user123".to_string()),
             operation:     "validate".to_string(),
             success:       false,
-            error_message: Some(long_error.clone()),
+            error_message: Some(long_error),
             timestamp:     1_234_567_900,
         };
 

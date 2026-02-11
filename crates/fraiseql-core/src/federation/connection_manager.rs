@@ -35,13 +35,13 @@ impl RemoteDatabaseConfig {
     }
 
     /// Set the connection pool size
-    pub fn with_pool_size(mut self, size: u32) -> Self {
+    pub const fn with_pool_size(mut self, size: u32) -> Self {
         self.pool_size = Some(size);
         self
     }
 
     /// Set the connection timeout
-    pub fn with_timeout(mut self, seconds: u32) -> Self {
+    pub const fn with_timeout(mut self, seconds: u32) -> Self {
         self.timeout_seconds = Some(seconds);
         self
     }

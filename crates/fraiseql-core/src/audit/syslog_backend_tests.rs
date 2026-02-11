@@ -140,7 +140,7 @@ fn verify_rfc3164_format(message: &str) -> bool {
 async fn test_syslog_backend_creation() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514);
     // Verify it creates successfully and is cloneable
-    let _backend2 = backend.clone();
+    let _backend2 = backend;
 }
 
 /// Test backend with facility builder
@@ -149,7 +149,7 @@ async fn test_syslog_backend_with_facility() {
     let backend = SyslogAuditBackend::new("127.0.0.1", 514).with_facility(SyslogFacility::Local3);
 
     // Verify it's cloneable (builder pattern works)
-    let _backend2 = backend.clone();
+    let _backend2 = backend;
 }
 
 /// Test backend with app_name builder
@@ -159,7 +159,7 @@ async fn test_syslog_backend_with_app_name() {
         .with_app_name("my-audit-app")
         .with_timeout(std::time::Duration::from_secs(10));
 
-    let _backend2 = backend.clone();
+    let _backend2 = backend;
 }
 
 // ============================================================================
@@ -417,7 +417,7 @@ async fn test_syslog_timeout_configuration() {
         SyslogAuditBackend::new("127.0.0.1", 514).with_timeout(std::time::Duration::from_secs(1));
 
     // Verify backend is properly configured
-    let _backend2 = backend.clone();
+    let _backend2 = backend;
 }
 
 // ============================================================================

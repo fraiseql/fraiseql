@@ -17,7 +17,7 @@ pub struct ClickhouseBackupProvider {
 
 impl ClickhouseBackupProvider {
     /// Create new ClickHouse backup provider.
-    pub fn new(endpoint_url: String, backup_dir: String) -> Self {
+    pub const fn new(endpoint_url: String, backup_dir: String) -> Self {
         Self {
             endpoint_url,
             backup_dir,

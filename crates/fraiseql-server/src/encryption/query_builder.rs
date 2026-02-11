@@ -168,7 +168,7 @@ impl QueryBuilderIntegration {
     ///
     /// IS NULL checks NULL at database level (before encryption),
     /// so it works correctly with encrypted fields.
-    pub fn validate_is_null_on_encrypted(&self, _field: &str) -> Result<(), SecretsError> {
+    pub const fn validate_is_null_on_encrypted(&self, _field: &str) -> Result<(), SecretsError> {
         // IS NULL is always allowed on encrypted fields
         // NULL is stored at database level, not encrypted
         Ok(())

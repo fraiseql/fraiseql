@@ -27,11 +27,11 @@ fn bench_query_validation(c: &mut Criterion) {
     ];
 
     c.bench_function("query_validation_simple", |b| {
-        b.iter(|| validator.validate_query(black_box(queries[0])))
+        b.iter(|| validator.validate_query(black_box(queries[0])));
     });
 
     c.bench_function("query_validation_complex", |b| {
-        b.iter(|| validator.validate_query(black_box(queries[3])))
+        b.iter(|| validator.validate_query(black_box(queries[3])));
     });
 }
 
@@ -42,7 +42,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
     c.bench_function("metrics_increment_total", |b| {
         b.iter(|| {
             collector.queries_total.fetch_add(black_box(1), Ordering::Relaxed);
-        })
+        });
     });
 
     c.bench_function("metrics_increment_multiple", |b| {
@@ -51,7 +51,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
             collector.queries_success.fetch_add(1, Ordering::Relaxed);
             collector.queries_duration_us.fetch_add(black_box(5000), Ordering::Relaxed);
             collector.cache_hits.fetch_add(1, Ordering::Relaxed);
-        })
+        });
     });
 
     c.bench_function("metrics_load_stats", |b| {
@@ -60,7 +60,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
             collector.queries_success.load(Ordering::Relaxed);
             collector.queries_error.load(Ordering::Relaxed);
             collector.queries_duration_us.load(Ordering::Relaxed);
-        })
+        });
     });
 }
 
@@ -78,21 +78,21 @@ fn bench_structured_logging(c: &mut Criterion) {
                 LogLevel::Info,
                 black_box("Query executed successfully".to_string()),
             )
-        })
+        });
     });
 
     c.bench_function("log_entry_with_context", |b| {
         b.iter(|| {
             StructuredLogEntry::new(LogLevel::Info, "Query executed".to_string())
                 .with_request_context(black_box(context.clone()))
-        })
+        });
     });
 
     c.bench_function("log_entry_with_metrics", |b| {
         b.iter(|| {
             StructuredLogEntry::new(LogLevel::Info, "Query executed".to_string())
                 .with_metrics(black_box(metrics.clone()))
-        })
+        });
     });
 
     c.bench_function("log_entry_json_serialization", |b| {
@@ -100,7 +100,7 @@ fn bench_structured_logging(c: &mut Criterion) {
             .with_request_context(context.clone())
             .with_metrics(metrics.clone());
 
-        b.iter(|| entry.to_json_string())
+        b.iter(|| entry.to_json_string());
     });
 }
 
@@ -118,7 +118,7 @@ fn bench_performance_monitoring(c: &mut Criterion) {
                 black_box(15000),
             );
             monitor.record_query(black_box(perf));
-        })
+        });
     });
 
     c.bench_function("performance_monitor_stats", |b| {
@@ -139,7 +139,7 @@ fn bench_performance_monitoring(c: &mut Criterion) {
             let _ = monitor.avg_duration_ms();
             let _ = monitor.slow_query_percentage();
             let _ = monitor.cache_hit_rate();
-        })
+        });
     });
 }
 
@@ -149,12 +149,12 @@ fn bench_distributed_tracing(c: &mut Criterion) {
 
     c.bench_function("trace_context_child_span", |b| {
         let ctx = TraceContext::new();
-        b.iter(|| ctx.child_span())
+        b.iter(|| ctx.child_span());
     });
 
     c.bench_function("trace_context_w3c_header", |b| {
         let ctx = TraceContext::new();
-        b.iter(|| ctx.to_w3c_traceparent())
+        b.iter(|| ctx.to_w3c_traceparent());
     });
 
     c.bench_function("trace_context_baggage", |b| {
@@ -162,7 +162,7 @@ fn bench_distributed_tracing(c: &mut Criterion) {
             TraceContext::new()
                 .with_baggage("user_id".to_string(), black_box("user123".to_string()))
                 .with_baggage("tenant".to_string(), black_box("acme".to_string()))
-        })
+        });
     });
 }
 
@@ -176,7 +176,7 @@ fn bench_request_context(c: &mut Criterion) {
                 .with_operation(black_box("GetUser".to_string()))
                 .with_user_id(black_box("user123".to_string()))
                 .with_client_ip(black_box("192.168.1.1".to_string()))
-        })
+        });
     });
 }
 
@@ -184,7 +184,7 @@ fn bench_request_context(c: &mut Criterion) {
 fn bench_concurrent_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("concurrent_metrics");
 
-    for num_threads in [2, 4, 8, 16].iter() {
+    for num_threads in &[2, 4, 8, 16] {
         group.bench_with_input(
             BenchmarkId::from_parameter(num_threads),
             num_threads,
@@ -207,7 +207,7 @@ fn bench_concurrent_metrics(c: &mut Criterion) {
                     for handle in handles {
                         let _ = handle.await;
                     }
-                })
+                });
             },
         );
     }
@@ -236,7 +236,7 @@ fn bench_complex_log_entry(c: &mut Criterion) {
                 .with_request_context(black_box(context.clone()))
                 .with_metrics(black_box(metrics.clone()))
                 .to_json_string()
-        })
+        });
     });
 }
 

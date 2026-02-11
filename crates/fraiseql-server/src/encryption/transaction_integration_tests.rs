@@ -62,7 +62,7 @@ mod transaction_integration_tests {
         assert_ne!(plaintext.as_bytes(), &ciphertext[12..]);
 
         // Simulate commit: the ciphertext is the "committed" value
-        let committed_data = ciphertext.clone();
+        let committed_data = ciphertext;
 
         // Subsequent SELECT returns decrypted data
         let decrypted = cipher.decrypt(&committed_data).unwrap();
@@ -736,7 +736,7 @@ mod transaction_integration_tests {
 
         // Encrypt valid data, then corrupt it
         let ct = cipher.encrypt("valid_data").unwrap();
-        let mut corrupted = ct.clone();
+        let mut corrupted = ct;
         if corrupted.len() > 12 {
             corrupted[12] ^= 0xFF; // Flip a byte in the ciphertext portion
         }

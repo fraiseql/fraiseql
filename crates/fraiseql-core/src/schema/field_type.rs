@@ -52,7 +52,7 @@ impl VectorConfig {
 
     /// Create a vector config for OpenAI embeddings (1536 dimensions, cosine).
     #[must_use]
-    pub fn openai() -> Self {
+    pub const fn openai() -> Self {
         Self {
             dimensions:      1536,
             index_type:      VectorIndexType::Hnsw,
@@ -62,7 +62,7 @@ impl VectorConfig {
 
     /// Create a vector config for OpenAI small embeddings (512 dimensions, cosine).
     #[must_use]
-    pub fn openai_small() -> Self {
+    pub const fn openai_small() -> Self {
         Self {
             dimensions:      512,
             index_type:      VectorIndexType::Hnsw,
@@ -72,14 +72,14 @@ impl VectorConfig {
 
     /// Set the index type.
     #[must_use]
-    pub fn with_index(mut self, index_type: VectorIndexType) -> Self {
+    pub const fn with_index(mut self, index_type: VectorIndexType) -> Self {
         self.index_type = index_type;
         self
     }
 
     /// Set the distance metric.
     #[must_use]
-    pub fn with_distance(mut self, distance_metric: DistanceMetric) -> Self {
+    pub const fn with_distance(mut self, distance_metric: DistanceMetric) -> Self {
         self.distance_metric = distance_metric;
         self
     }
@@ -400,7 +400,7 @@ impl FieldDefinition {
 
     /// Add vector configuration to field.
     #[must_use]
-    pub fn with_vector_config(mut self, config: VectorConfig) -> Self {
+    pub const fn with_vector_config(mut self, config: VectorConfig) -> Self {
         self.vector_config = Some(config);
         self
     }
@@ -447,13 +447,13 @@ impl FieldDefinition {
 
     /// Check if this field has an alias.
     #[must_use]
-    pub fn has_alias(&self) -> bool {
+    pub const fn has_alias(&self) -> bool {
         self.alias.is_some()
     }
 
     /// Check if this is a vector field.
     #[must_use]
-    pub fn is_vector(&self) -> bool {
+    pub const fn is_vector(&self) -> bool {
         matches!(self.field_type, FieldType::Vector)
     }
 
@@ -476,7 +476,7 @@ impl FieldDefinition {
 
     /// Check if this field is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 

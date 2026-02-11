@@ -559,7 +559,7 @@ impl FactTableDetector {
     }
 
     /// Check if SQL type is numeric (suitable for aggregation)
-    fn is_numeric_type(sql_type: &SqlType) -> bool {
+    const fn is_numeric_type(sql_type: &SqlType) -> bool {
         matches!(sql_type, SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float)
     }
 
@@ -1613,7 +1613,7 @@ mod tests {
             measures:    vec!["count".to_string()],
             dimensions:  vec!["user_id".to_string(), "event_type".to_string()],
             primary_key: "id".to_string(),
-            metadata:    Some(metadata.clone()),
+            metadata:    Some(metadata),
         };
 
         assert!(decl.metadata.is_some());
@@ -1636,7 +1636,7 @@ mod tests {
             measures:    vec!["quantity_on_hand".to_string()],
             dimensions:  vec!["warehouse_id".to_string()],
             primary_key: "id".to_string(),
-            metadata:    Some(metadata.clone()),
+            metadata:    Some(metadata),
         };
 
         assert_eq!(decl.name, "tf_inventory");

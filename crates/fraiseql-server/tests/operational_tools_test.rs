@@ -238,7 +238,7 @@ mod tests {
         // Invalid config (missing database URL)
         let invalid_config = ServerConfig {
             port:         8080,
-            database_url: "".to_string(),
+            database_url: String::new(),
             host:         "0.0.0.0".to_string(),
             valid:        false,
         };

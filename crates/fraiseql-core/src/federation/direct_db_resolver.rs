@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn test_metadata_stored() {
         let metadata = create_test_metadata();
-        let resolver = DirectDatabaseResolver::new(metadata.clone());
+        let resolver = DirectDatabaseResolver::new(metadata);
 
         // Verify metadata is accessible for entity resolution
         assert!(resolver.metadata.enabled);

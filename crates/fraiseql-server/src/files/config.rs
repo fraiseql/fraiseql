@@ -62,13 +62,13 @@ fn default_allowed_types() -> Vec<String> {
 fn default_max_size() -> String {
     "10MB".to_string()
 }
-fn default_validate_magic() -> bool {
+const fn default_validate_magic() -> bool {
     true
 }
 fn default_storage() -> String {
     "default".to_string()
 }
-fn default_public() -> bool {
+const fn default_public() -> bool {
     true
 }
 

@@ -142,7 +142,7 @@ pub struct SqlTemplate {
 
 impl SqlTemplate {
     /// Create a new query template.
-    fn query(name: String, template: String, parameters: Vec<String>) -> Self {
+    const fn query(name: String, template: String, parameters: Vec<String>) -> Self {
         Self {
             name,
             kind: TemplateKind::Query,
@@ -156,21 +156,21 @@ impl SqlTemplate {
 
     /// Enable WHERE clause support.
     #[must_use]
-    pub fn with_where(mut self) -> Self {
+    pub const fn with_where(mut self) -> Self {
         self.supports_where = true;
         self
     }
 
     /// Enable ORDER BY support.
     #[must_use]
-    pub fn with_order_by(mut self) -> Self {
+    pub const fn with_order_by(mut self) -> Self {
         self.supports_order_by = true;
         self
     }
 
     /// Enable pagination support.
     #[must_use]
-    pub fn with_pagination(mut self) -> Self {
+    pub const fn with_pagination(mut self) -> Self {
         self.supports_pagination = true;
         self
     }
@@ -184,7 +184,7 @@ pub struct SqlTemplateGenerator {
 impl SqlTemplateGenerator {
     /// Create new SQL template generator.
     #[must_use]
-    pub fn new(target: DatabaseTarget) -> Self {
+    pub const fn new(target: DatabaseTarget) -> Self {
         Self { target }
     }
 

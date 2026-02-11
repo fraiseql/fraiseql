@@ -370,14 +370,14 @@ impl VaultBackend {
 
     /// Set TLS certificate verification
     #[must_use]
-    pub fn with_tls_verify(mut self, verify: bool) -> Self {
+    pub const fn with_tls_verify(mut self, verify: bool) -> Self {
         self.tls_verify = verify;
         self
     }
 
     /// Set maximum number of retry attempts for transient errors
     #[must_use]
-    pub fn with_max_retries(mut self, retries: u32) -> Self {
+    pub const fn with_max_retries(mut self, retries: u32) -> Self {
         self.max_retries = retries;
         self
     }
@@ -409,7 +409,7 @@ impl VaultBackend {
 
     /// Check if TLS verification is enabled
     #[must_use]
-    pub fn tls_verify(&self) -> bool {
+    pub const fn tls_verify(&self) -> bool {
         self.tls_verify
     }
 

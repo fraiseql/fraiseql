@@ -125,7 +125,7 @@ impl RateLimiter {
     }
 
     /// Get rate limiter configuration.
-    pub fn config(&self) -> &RateLimitConfig {
+    pub const fn config(&self) -> &RateLimitConfig {
         &self.config
     }
 

@@ -31,7 +31,7 @@ impl Default for TracingConfig {
     }
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 fn default_level() -> String {

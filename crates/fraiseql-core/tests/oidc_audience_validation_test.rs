@@ -128,7 +128,7 @@ fn test_oidc_config_multiple_audiences() {
 fn test_oidc_config_issuer_validation_still_required() {
     // Audience being required doesn't override issuer requirement
     let config = OidcConfig {
-        issuer: "".to_string(), // Missing issuer
+        issuer: String::new(), // Missing issuer
         audience: Some("https://api.example.com".to_string()),
         ..Default::default()
     };

@@ -257,9 +257,9 @@ mod sqlite_tests {
         // Create view returning JSON
         adapter
             .execute_raw_query(
-                r#"CREATE VIEW v_user AS
+                r"CREATE VIEW v_user AS
                    SELECT id, json_object('id', id, 'name', name, 'email', email) AS data
-                   FROM users"#,
+                   FROM users",
             )
             .await
             .expect("Create view should succeed");
@@ -390,7 +390,7 @@ mod sqlite_tests {
         // Create view with nested JSON
         adapter
             .execute_raw_query(
-                r#"CREATE VIEW v_post AS
+                r"CREATE VIEW v_post AS
                    SELECT p.id,
                           json_object(
                               'id', p.id,
@@ -398,7 +398,7 @@ mod sqlite_tests {
                               'author', json_object('id', a.id, 'name', a.name)
                           ) AS data
                    FROM posts p
-                   JOIN authors a ON p.author_id = a.id"#,
+                   JOIN authors a ON p.author_id = a.id",
             )
             .await
             .expect("Create view should succeed");

@@ -159,7 +159,7 @@ fn bench_wire_full_pipeline_10k(c: &mut Criterion) {
     if !rt.block_on(verify_benchmark_data(&conn_str)) {
         eprintln!("Skipping benchmarks: Test data not found in v_benchmark_data");
         return;
-    };
+    }
 
     let mut group = c.benchmark_group("full_pipeline_10k");
     group.throughput(Throughput::Elements(10_000));

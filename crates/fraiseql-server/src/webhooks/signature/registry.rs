@@ -119,7 +119,7 @@ mod tests {
         let mut registry = ProviderRegistry::new();
         let mock = Arc::new(MockSignatureVerifier::succeeding());
 
-        registry.register("custom", mock.clone());
+        registry.register("custom", mock);
 
         assert!(registry.has_provider("custom"));
         let verifier = registry.get("custom");

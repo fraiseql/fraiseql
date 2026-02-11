@@ -17,7 +17,7 @@ pub struct RedisBackupProvider {
 
 impl RedisBackupProvider {
     /// Create new Redis backup provider.
-    pub fn new(connection_url: String, backup_dir: String) -> Self {
+    pub const fn new(connection_url: String, backup_dir: String) -> Self {
         Self {
             connection_url,
             backup_dir,

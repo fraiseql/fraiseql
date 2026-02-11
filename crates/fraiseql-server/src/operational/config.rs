@@ -30,7 +30,7 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Create valid result
-    pub fn valid() -> Self {
+    pub const fn valid() -> Self {
         Self {
             valid:  true,
             errors: Vec::new(),
@@ -38,7 +38,7 @@ impl ValidationResult {
     }
 
     /// Create invalid result with errors
-    pub fn invalid(errors: Vec<String>) -> Self {
+    pub const fn invalid(errors: Vec<String>) -> Self {
         Self {
             valid: false,
             errors,

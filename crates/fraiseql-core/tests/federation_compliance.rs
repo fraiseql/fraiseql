@@ -45,7 +45,7 @@ fn test_non_federation_queries_not_recognized() {
 #[test]
 fn test_sdl_includes_federation_schema_imports() {
     // Federation SDL must include required imports/directives
-    let sdl = r#"
+    let sdl = r"
         scalar _Any
         union _Entity = User | Order
 
@@ -57,7 +57,7 @@ fn test_sdl_includes_federation_schema_imports() {
             _entities(representations: [_Any!]!): [_Entity]!
             _service: _Service!
         }
-    "#;
+    ";
 
     // Must include _Any scalar
     assert!(sdl.contains("scalar _Any"), "SDL must include _Any scalar");
@@ -127,11 +127,11 @@ fn test_sdl_any_scalar_definition() {
 #[test]
 fn test_sdl_service_type_definition() {
     // _Service type must have sdl field
-    let service_type = r#"
+    let service_type = r"
         type _Service {
             sdl: String!
         }
-    "#;
+    ";
 
     assert!(service_type.contains("type _Service"));
     assert!(service_type.contains("sdl: String!"));

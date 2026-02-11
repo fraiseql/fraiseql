@@ -592,7 +592,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Remaining API routes (query intelligence, federation)
-        let api_router = api::routes(state.clone());
+        let api_router = api::routes(state);
         app = app.nest("/api/v1", api_router);
 
         // Add HTTP metrics middleware (tracks requests and response status codes)

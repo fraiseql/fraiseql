@@ -34,11 +34,11 @@ fn default_strategy() -> JsonbStrategy {
     JsonbStrategy::default()
 }
 
-fn default_auto_threshold_percent() -> u32 {
+const fn default_auto_threshold_percent() -> u32 {
     80
 }
 
-fn default_allow_query_hint() -> bool {
+const fn default_allow_query_hint() -> bool {
     true
 }
 
@@ -54,7 +54,7 @@ impl Default for JsonbOptimizationConfig {
 
 impl JsonbOptimizationConfig {
     /// Convert to core options for use in runtime
-    pub fn to_core_options(&self) -> CoreJsonbOptions {
+    pub const fn to_core_options(&self) -> CoreJsonbOptions {
         CoreJsonbOptions {
             default_strategy:       self.default_strategy,
             auto_threshold_percent: self.auto_threshold_percent,

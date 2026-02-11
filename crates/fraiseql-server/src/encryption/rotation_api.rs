@@ -58,7 +58,7 @@ pub struct RotationStatusResponse {
 
 impl RotationStatusResponse {
     /// Create new rotation status response
-    pub fn new(current_version: u16, ttl_days: u32) -> Self {
+    pub const fn new(current_version: u16, ttl_days: u32) -> Self {
         Self {
             current_version,
             ttl_days,
@@ -75,19 +75,19 @@ impl RotationStatusResponse {
     }
 
     /// Set last rotation timestamp
-    pub fn with_last_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
+    pub const fn with_last_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
         self.last_rotation = Some(timestamp);
         self
     }
 
     /// Set next rotation timestamp
-    pub fn with_next_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
+    pub const fn with_next_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
         self.next_rotation = Some(timestamp);
         self
     }
 
     /// Set status level
-    pub fn with_status(mut self, status: RotationStatus) -> Self {
+    pub const fn with_status(mut self, status: RotationStatus) -> Self {
         self.status = status;
         self
     }
@@ -177,7 +177,7 @@ pub struct RotationHistoryResponse {
 
 impl RotationHistoryResponse {
     /// Create new history response
-    pub fn new(offset: usize, limit: usize) -> Self {
+    pub const fn new(offset: usize, limit: usize) -> Self {
         Self {
             total_count: 0,
             offset,
@@ -193,7 +193,7 @@ impl RotationHistoryResponse {
     }
 
     /// Set total count
-    pub fn with_total_count(mut self, count: usize) -> Self {
+    pub const fn with_total_count(mut self, count: usize) -> Self {
         self.total_count = count;
         self
     }
@@ -363,7 +363,7 @@ pub struct TestScheduleResponse {
 
 impl TestScheduleResponse {
     /// Create valid schedule test
-    pub fn valid(next_times: Vec<DateTime<Utc>>) -> Self {
+    pub const fn valid(next_times: Vec<DateTime<Utc>>) -> Self {
         Self {
             valid: true,
             error: None,
@@ -745,7 +745,7 @@ mod tests {
     #[test]
     fn test_test_schedule_response_valid() {
         let times = vec![Utc::now(), Utc::now()];
-        let response = TestScheduleResponse::valid(times.clone());
+        let response = TestScheduleResponse::valid(times);
         assert!(response.valid);
         assert_eq!(response.next_times.len(), 2);
     }

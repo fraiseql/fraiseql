@@ -165,7 +165,7 @@ pub struct RotationConfig {
 
 impl RotationConfig {
     /// Create default rotation config (annual rotation, 80% refresh)
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             ttl_days:                  365,
             refresh_threshold_percent: 80,
@@ -175,7 +175,7 @@ impl RotationConfig {
     }
 
     /// Set TTL in days
-    pub fn with_ttl_days(mut self, days: u32) -> Self {
+    pub const fn with_ttl_days(mut self, days: u32) -> Self {
         self.ttl_days = days;
         self
     }

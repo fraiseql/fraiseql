@@ -171,7 +171,7 @@ mod harness {
 
     impl DirectiveValidator {
         /// Create a new directive validator for the composed schema
-        pub fn new(schema: ComposedSchema) -> Self {
+        pub const fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
@@ -247,7 +247,7 @@ mod harness {
 
     impl QueryPlanner {
         /// Create a new query planner for the composed schema
-        pub fn new(schema: ComposedSchema) -> Self {
+        pub const fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
@@ -295,7 +295,7 @@ mod harness {
 
     impl TypeRegistry {
         /// Create a new type registry for the composed schema
-        pub fn new(schema: ComposedSchema) -> Self {
+        pub const fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 

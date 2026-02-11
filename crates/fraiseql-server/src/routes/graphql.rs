@@ -165,12 +165,12 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get query cache if configured.
-    pub fn cache(&self) -> Option<&Arc<fraiseql_arrow::cache::QueryCache>> {
+    pub const fn cache(&self) -> Option<&Arc<fraiseql_arrow::cache::QueryCache>> {
         self.cache.as_ref()
     }
 
     /// Get server configuration if configured.
-    pub fn server_config(&self) -> Option<&Arc<crate::config::ServerConfig>> {
+    pub const fn server_config(&self) -> Option<&Arc<crate::config::ServerConfig>> {
         self.config.as_ref()
     }
 

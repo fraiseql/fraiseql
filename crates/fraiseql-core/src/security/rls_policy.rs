@@ -153,7 +153,7 @@ impl DefaultRLSPolicy {
     }
 
     /// Disable tenant isolation (single-tenant mode).
-    pub fn with_single_tenant(mut self) -> Self {
+    pub const fn with_single_tenant(mut self) -> Self {
         self.enable_tenant_isolation = false;
         self
     }

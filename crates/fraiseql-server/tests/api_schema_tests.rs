@@ -32,7 +32,7 @@ fn test_json_schema_response_structure() {
 fn test_graphql_schema_with_multiple_types() {
     use fraiseql_server::routes::api::schema::GraphQLSchemaResponse;
 
-    let schema = r#"
+    let schema = r"
 type Query {
     users: [User!]!
     user(id: ID!): User
@@ -47,7 +47,7 @@ type User {
 type Mutation {
     createUser(name: String!): User
 }
-"#;
+";
 
     let response = GraphQLSchemaResponse {
         schema: schema.to_string(),
@@ -146,7 +146,7 @@ type Query {
 fn test_graphql_schema_with_interfaces() {
     use fraiseql_server::routes::api::schema::GraphQLSchemaResponse;
 
-    let schema = r#"
+    let schema = r"
 interface Node {
     id: ID!
 }
@@ -160,7 +160,7 @@ type Post implements Node {
     id: ID!
     title: String!
 }
-"#;
+";
 
     let response = GraphQLSchemaResponse {
         schema: schema.to_string(),
@@ -174,13 +174,13 @@ type Post implements Node {
 fn test_graphql_schema_with_unions() {
     use fraiseql_server::routes::api::schema::GraphQLSchemaResponse;
 
-    let schema = r#"
+    let schema = r"
 union SearchResult = User | Post | Comment
 
 type Query {
     search(query: String!): [SearchResult!]!
 }
-"#;
+";
 
     let response = GraphQLSchemaResponse {
         schema: schema.to_string(),
@@ -194,7 +194,7 @@ type Query {
 fn test_graphql_schema_with_input_types() {
     use fraiseql_server::routes::api::schema::GraphQLSchemaResponse;
 
-    let schema = r#"
+    let schema = r"
 input CreateUserInput {
     name: String!
     email: String!
@@ -203,7 +203,7 @@ input CreateUserInput {
 type Mutation {
     createUser(input: CreateUserInput!): User
 }
-"#;
+";
 
     let response = GraphQLSchemaResponse {
         schema: schema.to_string(),

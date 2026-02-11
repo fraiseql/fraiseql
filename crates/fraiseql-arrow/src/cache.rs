@@ -144,7 +144,7 @@ impl QueryCache {
         let mut removed = 0;
         let mut to_remove = Vec::new();
 
-        for entry in self.entries.iter() {
+        for entry in &self.entries {
             let query = entry.key();
             for view_name in view_names {
                 if query.contains(view_name) {
@@ -179,7 +179,7 @@ impl QueryCache {
         let mut removed = 0;
         let mut to_remove = Vec::new();
 
-        for entry in self.entries.iter() {
+        for entry in &self.entries {
             let query = entry.key();
             // Simple wildcard matching: * matches any sequence of characters
             if self.matches_pattern(query, pattern) {
@@ -263,7 +263,7 @@ mod tests {
             ("name".to_string(), serde_json::json!("Alice")),
         ])];
 
-        cache.put(query, Arc::new(result.clone()));
+        cache.put(query, Arc::new(result));
 
         let cached = cache.get(query);
         assert!(cached.is_some());

@@ -470,7 +470,7 @@ impl SagaCoordinator {
     }
 
     /// Get compensation strategy
-    pub fn strategy(&self) -> CompensationStrategy {
+    pub const fn strategy(&self) -> CompensationStrategy {
         self.strategy
     }
 }

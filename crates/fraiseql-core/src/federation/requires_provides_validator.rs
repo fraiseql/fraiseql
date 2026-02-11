@@ -180,7 +180,7 @@ impl RequiresProvidesValidator {
     /// let validator = RequiresProvidesValidator::new(metadata);
     /// validator.validate_all()?;
     /// ```
-    pub fn new(metadata: FederationMetadata) -> Self {
+    pub const fn new(metadata: FederationMetadata) -> Self {
         Self { metadata }
     }
 

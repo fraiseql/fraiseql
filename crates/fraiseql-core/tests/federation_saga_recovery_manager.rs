@@ -488,7 +488,7 @@ impl SagaRecoveryManager {
 }
 
 // Helper function for deterministic but pseudo-random jitter
-fn saga_random_jitter(seed: u32) -> u64 {
+const fn saga_random_jitter(seed: u32) -> u64 {
     // Simple LCG for deterministic pseudo-randomness
     let multiplier: u64 = 1_103_515_245;
     let increment: u64 = 12_345;

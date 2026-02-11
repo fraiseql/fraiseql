@@ -29,7 +29,7 @@ impl Default for MetricsConfig {
     }
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 fn default_path() -> String {
@@ -61,10 +61,10 @@ pub struct SloConfig {
 fn default_latency_percentiles() -> Vec<f64> {
     vec![0.5, 0.9, 0.95, 0.99]
 }
-fn default_availability_target() -> f64 {
+const fn default_availability_target() -> f64 {
     0.999
 }
-fn default_error_rate_target() -> f64 {
+const fn default_error_rate_target() -> f64 {
     0.01
 }
 
@@ -83,15 +83,15 @@ pub struct LatencyTargets {
     pub file_upload_p99_ms: u64,
 }
 
-fn default_graphql_latency() -> u64 {
+const fn default_graphql_latency() -> u64 {
     100
 }
-fn default_webhook_latency() -> u64 {
+const fn default_webhook_latency() -> u64 {
     500
 }
-fn default_auth_latency() -> u64 {
+const fn default_auth_latency() -> u64 {
     10
 }
-fn default_file_upload_latency() -> u64 {
+const fn default_file_upload_latency() -> u64 {
     2000
 }

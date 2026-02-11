@@ -125,14 +125,14 @@ impl VectorSearchQuery {
 
     /// Set the distance metric.
     #[must_use]
-    pub fn with_distance_metric(mut self, metric: DistanceMetric) -> Self {
+    pub const fn with_distance_metric(mut self, metric: DistanceMetric) -> Self {
         self.distance_metric = metric;
         self
     }
 
     /// Set the result limit.
     #[must_use]
-    pub fn with_limit(mut self, limit: u32) -> Self {
+    pub const fn with_limit(mut self, limit: u32) -> Self {
         self.limit = limit;
         self
     }
@@ -146,14 +146,14 @@ impl VectorSearchQuery {
 
     /// Include distance score in results.
     #[must_use]
-    pub fn with_distance_score(mut self) -> Self {
+    pub const fn with_distance_score(mut self) -> Self {
         self.include_distance = true;
         self
     }
 
     /// Set pagination offset.
     #[must_use]
-    pub fn with_offset(mut self, offset: u32) -> Self {
+    pub const fn with_offset(mut self, offset: u32) -> Self {
         self.offset = Some(offset);
         self
     }
@@ -267,7 +267,7 @@ impl VectorQueryBuilder {
 
     /// Create a builder with question mark placeholders.
     #[must_use]
-    pub fn with_question_marks() -> Self {
+    pub const fn with_question_marks() -> Self {
         Self {
             placeholder_style: PlaceholderStyle::QuestionMark,
         }

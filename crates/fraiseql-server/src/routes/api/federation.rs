@@ -103,10 +103,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
     let subgraphs = extract_subgraph_info(schema);
     let content = generate_federation_graph(&format, &subgraphs);
 
-    let response = GraphResponse {
-        format: format.clone(),
-        content,
-    };
+    let response = GraphResponse { format, content };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),

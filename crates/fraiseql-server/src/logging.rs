@@ -29,7 +29,7 @@ impl RequestId {
 
     /// Create from existing UUID.
     #[must_use]
-    pub fn from_uuid(uuid: Uuid) -> Self {
+    pub const fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
 }
@@ -222,7 +222,7 @@ impl StructuredLogEntry {
 
     /// Add performance metrics.
     #[must_use]
-    pub fn with_metrics(mut self, metrics: LogMetrics) -> Self {
+    pub const fn with_metrics(mut self, metrics: LogMetrics) -> Self {
         self.metrics = Some(metrics);
         self
     }
@@ -287,7 +287,7 @@ pub struct LogMetrics {
 impl LogMetrics {
     /// Create new metrics container.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             duration_ms:     None,
             complexity:      None,
@@ -299,35 +299,35 @@ impl LogMetrics {
 
     /// Set duration in milliseconds.
     #[must_use]
-    pub fn with_duration_ms(mut self, duration: f64) -> Self {
+    pub const fn with_duration_ms(mut self, duration: f64) -> Self {
         self.duration_ms = Some(duration);
         self
     }
 
     /// Set query complexity.
     #[must_use]
-    pub fn with_complexity(mut self, complexity: u32) -> Self {
+    pub const fn with_complexity(mut self, complexity: u32) -> Self {
         self.complexity = Some(complexity);
         self
     }
 
     /// Set items processed count.
     #[must_use]
-    pub fn with_items_processed(mut self, count: u64) -> Self {
+    pub const fn with_items_processed(mut self, count: u64) -> Self {
         self.items_processed = Some(count);
         self
     }
 
     /// Set cache hit status.
     #[must_use]
-    pub fn with_cache_hit(mut self, hit: bool) -> Self {
+    pub const fn with_cache_hit(mut self, hit: bool) -> Self {
         self.cache_hit = Some(hit);
         self
     }
 
     /// Set database query count.
     #[must_use]
-    pub fn with_db_queries(mut self, count: u32) -> Self {
+    pub const fn with_db_queries(mut self, count: u32) -> Self {
         self.db_queries = Some(count);
         self
     }
@@ -360,7 +360,7 @@ pub struct ErrorDetails {
 impl ErrorDetails {
     /// Create new error details.
     #[must_use]
-    pub fn new(error_type: String, message: String) -> Self {
+    pub const fn new(error_type: String, message: String) -> Self {
         Self {
             error_type,
             message,
@@ -400,7 +400,7 @@ pub struct SourceLocation {
 impl SourceLocation {
     /// Create new source location.
     #[must_use]
-    pub fn new(file: String, line: u32, module: String) -> Self {
+    pub const fn new(file: String, line: u32, module: String) -> Self {
         Self { file, line, module }
     }
 }
@@ -498,7 +498,7 @@ mod tests {
         let context = RequestContext::new().with_operation("Query".to_string());
 
         let entry = StructuredLogEntry::new(LogLevel::Info, "operation executed".to_string())
-            .with_request_context(context.clone());
+            .with_request_context(context);
 
         assert!(entry.request_context.is_some());
         assert_eq!(entry.request_context.unwrap().operation, Some("Query".to_string()));

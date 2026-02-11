@@ -94,19 +94,19 @@ impl TlsSetup {
 
     /// Get the TLS enforcer.
     #[must_use]
-    pub fn enforcer(&self) -> &TlsEnforcer {
+    pub const fn enforcer(&self) -> &TlsEnforcer {
         &self.enforcer
     }
 
     /// Get the server TLS configuration.
     #[must_use]
-    pub fn config(&self) -> &Option<TlsServerConfig> {
+    pub const fn config(&self) -> &Option<TlsServerConfig> {
         &self.config
     }
 
     /// Get the database TLS configuration.
     #[must_use]
-    pub fn db_config(&self) -> &Option<DatabaseTlsConfig> {
+    pub const fn db_config(&self) -> &Option<DatabaseTlsConfig> {
         &self.db_config
     }
 

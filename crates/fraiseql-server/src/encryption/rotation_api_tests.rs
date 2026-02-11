@@ -390,7 +390,7 @@ mod rotation_api_tests {
         };
 
         // Newest first (descending timestamp)
-        let mut records = [record1.clone(), record2.clone(), record3.clone()];
+        let mut records = [record1, record2, record3];
         records.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
         assert_eq!(records[0].new_version, 4);
         assert_eq!(records[1].new_version, 3);
@@ -691,7 +691,7 @@ mod rotation_api_tests {
         // Valid schedule: returns next 10 times
         let now = Utc::now();
         let next_times: Vec<_> = (1..=10).map(|i| now + Duration::days(30 * i)).collect();
-        let response = TestScheduleResponse::valid(next_times.clone());
+        let response = TestScheduleResponse::valid(next_times);
 
         assert!(response.valid);
         assert!(response.error.is_none());

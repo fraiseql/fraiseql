@@ -33,7 +33,7 @@ impl DatabaseFixture {
     }
 
     /// Disable cleanup after test
-    pub fn no_cleanup(mut self) -> Self {
+    pub const fn no_cleanup(mut self) -> Self {
         self.cleanup_after = false;
         self
     }
@@ -166,7 +166,7 @@ impl PostFixture {
     }
 
     /// Mark post as published
-    pub fn published(mut self) -> Self {
+    pub const fn published(mut self) -> Self {
         self.published = true;
         self
     }

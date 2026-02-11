@@ -17,7 +17,7 @@ pub struct ObserverRepository {
 
 impl ObserverRepository {
     /// Create a new observer repository.
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 

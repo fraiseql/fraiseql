@@ -93,7 +93,7 @@ impl SanitizationConfig {
     ///
     /// Used in development environments.
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self {
             hide_database_urls: false,
             hide_sql:           false,
@@ -108,7 +108,7 @@ impl SanitizationConfig {
     ///
     /// Used in staging environments.
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self {
             hide_database_urls: true,
             hide_sql:           true,
@@ -123,7 +123,7 @@ impl SanitizationConfig {
     ///
     /// Used in production environments.
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             hide_database_urls: true,
             hide_sql:           true,
@@ -158,7 +158,7 @@ impl ErrorFormatter {
 
     /// Create formatter with custom sanitization configuration
     #[must_use]
-    pub fn with_config(detail_level: DetailLevel, config: SanitizationConfig) -> Self {
+    pub const fn with_config(detail_level: DetailLevel, config: SanitizationConfig) -> Self {
         Self {
             detail_level,
             config,
@@ -184,7 +184,7 @@ impl ErrorFormatter {
     }
 
     /// Get the sanitization configuration for a detail level
-    fn config_for_level(level: DetailLevel) -> SanitizationConfig {
+    const fn config_for_level(level: DetailLevel) -> SanitizationConfig {
         match level {
             DetailLevel::Development => SanitizationConfig::permissive(),
             DetailLevel::Staging => SanitizationConfig::standard(),

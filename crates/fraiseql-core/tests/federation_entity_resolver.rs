@@ -388,9 +388,7 @@ fn test_strategy_caching() {
     assert_eq!(strategy_cache.len(), 1, "Cache should have one entry");
 
     // Third access: should still be cached
-    if !strategy_cache.contains_key("User") {
-        panic!("User strategy should be cached");
-    }
+    assert!(strategy_cache.contains_key("User"), "User strategy should be cached")
 }
 
 // ============================================================================
@@ -454,7 +452,7 @@ fn test_batch_order_preservation() {
     for id in &reps {
         results.push(json!({
             "__typename": "User",
-            "id": id.to_string()
+            "id": (*id).to_string()
         }));
     }
 

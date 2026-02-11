@@ -162,7 +162,7 @@ impl MockValidator {
         }
     }
 
-    pub fn strict(allowed_types: Vec<String>, max_size: usize) -> Self {
+    pub const fn strict(allowed_types: Vec<String>, max_size: usize) -> Self {
         Self {
             allowed_types,
             max_size,
@@ -229,7 +229,7 @@ impl MockImageProcessor {
         }
     }
 
-    pub fn failing() -> Self {
+    pub const fn failing() -> Self {
         Self {
             should_fail: true,
             variants:    Vec::new(),

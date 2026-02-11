@@ -26,7 +26,7 @@ pub struct TokenResponse {
 
 impl TokenResponse {
     /// Create new token response
-    pub fn new(access_token: String, token_type: String, expires_in: u64) -> Self {
+    pub const fn new(access_token: String, token_type: String, expires_in: u64) -> Self {
         Self {
             access_token,
             refresh_token: None,
@@ -79,7 +79,7 @@ pub struct IdTokenClaims {
 
 impl IdTokenClaims {
     /// Create new ID token claims
-    pub fn new(iss: String, sub: String, aud: String, exp: i64, iat: i64) -> Self {
+    pub const fn new(iss: String, sub: String, aud: String, exp: i64, iat: i64) -> Self {
         Self {
             iss,
             sub,
@@ -126,7 +126,7 @@ pub struct UserInfo {
 
 impl UserInfo {
     /// Create new userinfo
-    pub fn new(sub: String) -> Self {
+    pub const fn new(sub: String) -> Self {
         Self {
             sub,
             email: None,
@@ -240,7 +240,7 @@ impl OAuth2Client {
     }
 
     /// Enable PKCE protection
-    pub fn with_pkce(mut self, enabled: bool) -> Self {
+    pub const fn with_pkce(mut self, enabled: bool) -> Self {
         self.use_pkce = enabled;
         self
     }

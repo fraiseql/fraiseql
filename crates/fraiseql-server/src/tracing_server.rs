@@ -132,7 +132,7 @@ impl TraceContext {
 
     /// Check if trace should be sampled.
     #[must_use]
-    pub fn is_sampled(&self) -> bool {
+    pub const fn is_sampled(&self) -> bool {
         self.sampled == 1
     }
 }

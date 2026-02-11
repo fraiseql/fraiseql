@@ -264,7 +264,7 @@ impl ExecutionContext {
     /// - Check if cancellation was requested
     /// - Propagate cancellation through the call stack
     #[must_use]
-    pub fn cancellation_token(&self) -> &tokio_util::sync::CancellationToken {
+    pub const fn cancellation_token(&self) -> &tokio_util::sync::CancellationToken {
         &self.token
     }
 

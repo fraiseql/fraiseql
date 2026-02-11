@@ -240,7 +240,7 @@ async fn test_concurrent_typename_addition() {
             let projector = ResultProjector::new(vec!["id".to_string()]);
             for _ in 0..4 {
                 let results = db.query_users(Some(10)).await;
-                for result in results.iter() {
+                for result in &results {
                     let _with_typename = projector.add_typename_only(result, "User").ok();
                 }
             }

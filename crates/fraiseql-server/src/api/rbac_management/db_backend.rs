@@ -62,7 +62,7 @@ pub struct RbacDbBackend {
 
 impl RbacDbBackend {
     /// Create a new RBAC database backend with a connection pool
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 

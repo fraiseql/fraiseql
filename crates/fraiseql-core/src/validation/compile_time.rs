@@ -79,7 +79,7 @@ pub struct CompileTimeValidator {
 
 impl CompileTimeValidator {
     /// Create a new compile-time validator
-    pub fn new(context: SchemaContext) -> Self {
+    pub const fn new(context: SchemaContext) -> Self {
         Self { context }
     }
 

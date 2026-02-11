@@ -78,7 +78,7 @@ impl TestDb {
 
         // Create ta_users table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE ta_users (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -86,14 +86,14 @@ impl TestDb {
                 created_at TIMESTAMPTZ NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         // Create ta_orders table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE ta_orders (
                 id TEXT PRIMARY KEY,
                 total NUMERIC(12, 2) NOT NULL,
@@ -101,14 +101,14 @@ impl TestDb {
                 customer_name TEXT NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         // Insert test data into ta_users
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_users (id, name, email, created_at)
             VALUES
                 ('user-1', 'Alice Johnson', 'alice@example.com', NOW()),
@@ -116,14 +116,14 @@ impl TestDb {
                 ('user-3', 'Charlie Brown', 'charlie@example.com', NOW() - INTERVAL '2 days'),
                 ('user-4', 'Diana Prince', 'diana@example.com', NOW() - INTERVAL '3 days'),
                 ('user-5', 'Eve Wilson', 'eve@example.com', NOW() - INTERVAL '4 days')
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         // Insert test data into ta_orders
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_orders (id, total, created_at, customer_name)
             VALUES
                 ('order-1', 99.99, NOW(), 'Alice Johnson'),
@@ -131,7 +131,7 @@ impl TestDb {
                 ('order-3', 199.99, NOW() - INTERVAL '2 days', 'Charlie Brown'),
                 ('order-4', 299.99, NOW() - INTERVAL '3 days', 'Diana Prince'),
                 ('order-5', 399.99, NOW() - INTERVAL '4 days', 'Eve Wilson')
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
@@ -505,7 +505,7 @@ mod tests {
         assert!(cache.get(query).is_none());
 
         // Store result
-        cache.put(query, Arc::new(result.clone()));
+        cache.put(query, Arc::new(result));
 
         // Cache hit
         let cached = cache.get(query).unwrap();
@@ -556,7 +556,7 @@ mod tests {
         // Create adapter with cache (60-second TTL)
         let flight_adapter = create_flight_adapter(&conn_string).await?;
 
-        let service = FraiseQLFlightService::new_with_cache(flight_adapter.clone(), 60);
+        let service = FraiseQLFlightService::new_with_cache(flight_adapter, 60);
 
         // Verify service is created
         assert!(

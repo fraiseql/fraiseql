@@ -57,7 +57,7 @@ pub struct FederationMutationExecutor<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// Create a new mutation executor.
     #[must_use]
-    pub fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
+    pub const fn new(adapter: Arc<A>, metadata: FederationMetadata) -> Self {
         Self { adapter, metadata }
     }
 

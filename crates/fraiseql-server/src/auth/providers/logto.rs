@@ -199,7 +199,7 @@ impl OAuthProvider for LogtoOAuth {
         let mapped_roles = Self::map_logto_roles_to_fraiseql(roles.clone());
 
         user_info.raw_claims["logto_roles"] = json!(roles);
-        user_info.raw_claims["logto_organizations"] = json!(organizations.clone());
+        user_info.raw_claims["logto_organizations"] = json!(organizations);
         user_info.raw_claims["logto_organization_roles"] = json!(org_roles);
         user_info.raw_claims["fraiseql_roles"] = json!(mapped_roles);
         user_info.raw_claims["logto_endpoint"] = json!(&self.endpoint);

@@ -71,28 +71,28 @@ impl RequestValidator {
 
     /// Set maximum query depth.
     #[must_use]
-    pub fn with_max_depth(mut self, max_depth: usize) -> Self {
+    pub const fn with_max_depth(mut self, max_depth: usize) -> Self {
         self.max_depth = max_depth;
         self
     }
 
     /// Set maximum query complexity.
     #[must_use]
-    pub fn with_max_complexity(mut self, max_complexity: usize) -> Self {
+    pub const fn with_max_complexity(mut self, max_complexity: usize) -> Self {
         self.max_complexity = max_complexity;
         self
     }
 
     /// Enable/disable depth validation.
     #[must_use]
-    pub fn with_depth_validation(mut self, enabled: bool) -> Self {
+    pub const fn with_depth_validation(mut self, enabled: bool) -> Self {
         self.validate_depth = enabled;
         self
     }
 
     /// Enable/disable complexity validation.
     #[must_use]
-    pub fn with_complexity_validation(mut self, enabled: bool) -> Self {
+    pub const fn with_complexity_validation(mut self, enabled: bool) -> Self {
         self.validate_complexity = enabled;
         self
     }

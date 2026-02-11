@@ -19,7 +19,7 @@ impl PostgresSessionStore {
     ///
     /// # Errors
     /// Returns error if database connection fails
-    pub fn new(db: PgPool) -> Self {
+    pub const fn new(db: PgPool) -> Self {
         Self {
             db,
             signing_key: None,
@@ -31,7 +31,7 @@ impl PostgresSessionStore {
     /// # Arguments
     /// * `db` - PostgreSQL connection pool
     /// * `private_key_pem` - RSA private key in PEM format
-    pub fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
+    pub const fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
         Self {
             db,
             signing_key: Some(private_key_pem),

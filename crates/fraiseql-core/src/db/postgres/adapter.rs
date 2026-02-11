@@ -140,7 +140,7 @@ impl PostgresAdapter {
     ///
     /// This allows sharing the pool with other components like `PostgresIntrospector`.
     #[must_use]
-    pub fn pool(&self) -> &Pool {
+    pub const fn pool(&self) -> &Pool {
         &self.pool
     }
 

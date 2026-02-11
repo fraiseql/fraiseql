@@ -11,19 +11,19 @@ pub struct TlsListenerConfig {
 
 impl TlsListenerConfig {
     /// Create a new plain listener config (no TLS).
-    pub fn plain() -> Self {
+    pub const fn plain() -> Self {
         Self { acceptor: None }
     }
 
     /// Create a new TLS listener config.
-    pub fn tls(acceptor: TlsAcceptor) -> Self {
+    pub const fn tls(acceptor: TlsAcceptor) -> Self {
         Self {
             acceptor: Some(acceptor),
         }
     }
 
     /// Check if TLS is enabled.
-    pub fn is_tls_enabled(&self) -> bool {
+    pub const fn is_tls_enabled(&self) -> bool {
         self.acceptor.is_some()
     }
 }

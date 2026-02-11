@@ -547,9 +547,7 @@ mod tests {
         let result = test_result();
 
         // Put
-        cache
-            .put("key1".to_string(), result.clone(), vec!["v_user".to_string()])
-            .unwrap();
+        cache.put("key1".to_string(), result, vec!["v_user".to_string()]).unwrap();
 
         // Get
         let cached = cache.get("key1").unwrap();

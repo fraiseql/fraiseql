@@ -37,7 +37,7 @@ impl StripeVerifier {
     }
 
     #[must_use]
-    pub fn with_tolerance(mut self, seconds: u64) -> Self {
+    pub const fn with_tolerance(mut self, seconds: u64) -> Self {
         self.tolerance = seconds;
         self
     }

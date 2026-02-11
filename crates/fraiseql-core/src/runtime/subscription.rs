@@ -146,7 +146,7 @@ impl SubscriptionId {
 
     /// Create from a UUID.
     #[must_use]
-    pub fn from_uuid(uuid: Uuid) -> Self {
+    pub const fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
 }
@@ -246,7 +246,7 @@ impl SubscriptionEvent {
 
     /// Set the sequence number.
     #[must_use]
-    pub fn with_sequence(mut self, seq: u64) -> Self {
+    pub const fn with_sequence(mut self, seq: u64) -> Self {
         self.sequence_number = seq;
         self
     }
@@ -846,7 +846,7 @@ pub mod protocol {
 
         /// Get string representation.
         #[must_use]
-        pub fn as_str(&self) -> &'static str {
+        pub const fn as_str(&self) -> &'static str {
             match self {
                 Self::ConnectionInit => "connection_init",
                 Self::Ping => "ping",
@@ -877,7 +877,7 @@ pub mod protocol {
     impl ServerMessageType {
         /// Get string representation.
         #[must_use]
-        pub fn as_str(&self) -> &'static str {
+        pub const fn as_str(&self) -> &'static str {
             match self {
                 Self::ConnectionAck => "connection_ack",
                 Self::Ping => "ping",
@@ -914,7 +914,7 @@ pub mod protocol {
 
         /// Extract connection parameters from connection_init payload.
         #[must_use]
-        pub fn connection_params(&self) -> Option<&serde_json::Value> {
+        pub const fn connection_params(&self) -> Option<&serde_json::Value> {
             self.payload.as_ref()
         }
 
@@ -1111,13 +1111,13 @@ pub mod protocol {
     impl CloseCode {
         /// Get the close code value.
         #[must_use]
-        pub fn code(self) -> u16 {
+        pub const fn code(self) -> u16 {
             self as u16
         }
 
         /// Get the close reason message.
         #[must_use]
-        pub fn reason(self) -> &'static str {
+        pub const fn reason(self) -> &'static str {
             match self {
                 Self::Normal => "Normal closure",
                 Self::ProtocolError => "Protocol error",
@@ -1314,21 +1314,21 @@ impl WebhookConfig {
 
     /// Set the request timeout.
     #[must_use]
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
     }
 
     /// Set maximum retry attempts.
     #[must_use]
-    pub fn with_max_retries(mut self, max_retries: u32) -> Self {
+    pub const fn with_max_retries(mut self, max_retries: u32) -> Self {
         self.max_retries = max_retries;
         self
     }
 
     /// Set initial retry delay.
     #[must_use]
-    pub fn with_retry_delay(mut self, delay_ms: u64) -> Self {
+    pub const fn with_retry_delay(mut self, delay_ms: u64) -> Self {
         self.retry_delay_ms = delay_ms;
         self
     }
@@ -1611,7 +1611,7 @@ impl KafkaConfig {
 
     /// Set message timeout.
     #[must_use]
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
     }
@@ -1767,7 +1767,7 @@ impl KafkaAdapter {
 
     /// Get reference to the underlying producer for direct Kafka operations.
     #[must_use = "the producer reference should be used for Kafka operations"]
-    pub fn producer(&self) -> &rdkafka::producer::FutureProducer {
+    pub const fn producer(&self) -> &rdkafka::producer::FutureProducer {
         &self.producer
     }
 }
@@ -2083,13 +2083,13 @@ pub struct DeliveryResult {
 impl DeliveryResult {
     /// Check if all deliveries succeeded.
     #[must_use]
-    pub fn all_succeeded(&self) -> bool {
+    pub const fn all_succeeded(&self) -> bool {
         self.failed == 0
     }
 
     /// Check if at least one delivery succeeded.
     #[must_use]
-    pub fn any_succeeded(&self) -> bool {
+    pub const fn any_succeeded(&self) -> bool {
         self.successful > 0
     }
 }

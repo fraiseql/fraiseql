@@ -423,7 +423,7 @@ impl FraiseQLFlightService {
 
     /// Get a reference to the subscription manager for real-time event subscriptions.
     #[must_use]
-    pub fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
+    pub const fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
         &self.subscription_manager
     }
 
@@ -432,7 +432,7 @@ impl FraiseQLFlightService {
     /// Returns true if handshake was successful and security context is set.
     /// Subsequent Flight RPC calls require valid authentication.
     #[must_use]
-    pub fn is_authenticated(&self) -> bool {
+    pub const fn is_authenticated(&self) -> bool {
         self.security_context.is_some()
     }
 
@@ -441,7 +441,7 @@ impl FraiseQLFlightService {
     /// Returns the current security context if authentication succeeded.
     /// Contains session token, user ID, and expiration information.
     #[must_use]
-    pub fn security_context(&self) -> Option<&SecurityContext> {
+    pub const fn security_context(&self) -> Option<&SecurityContext> {
         self.security_context.as_ref()
     }
 
@@ -536,7 +536,7 @@ impl FraiseQLFlightService {
                 // first_batch.schema() returns SchemaRef = &Arc<Schema>
                 // schema_to_flight_data expects &Arc<Schema>
                 let schema_ref = first_batch.schema();
-                messages.push(Ok(schema_to_flight_data(&schema_ref.clone())?));
+                messages.push(Ok(schema_to_flight_data(&schema_ref)?));
             }
 
             for batch in batches {
@@ -611,7 +611,7 @@ impl FraiseQLFlightService {
     /// Helper: Convert JSON result to Arrow RecordBatches.
     ///
     /// Infers Arrow schema from JSON structure and converts data rows.
-    fn convert_json_to_arrow_batches(
+    const fn convert_json_to_arrow_batches(
         &self,
         _json: &serde_json::Value,
     ) -> Result<Vec<RecordBatch>, String> {
@@ -1005,7 +1005,7 @@ impl FraiseQLFlightService {
             batch_size: 10_000,
             max_rows:   None,
         };
-        let converter = RowToArrowConverter::new(schema.clone(), config);
+        let converter = RowToArrowConverter::new(schema, config);
 
         let batches: Vec<RecordBatch> = arrow_rows
             .chunks(config.batch_size)
@@ -1653,7 +1653,7 @@ impl FlightService for FraiseQLFlightService {
 
         // Clone database adapter for spawned task
         let db_adapter = Arc::clone(db_adapter);
-        let user_id = authenticated_user.user_id.clone();
+        let user_id = authenticated_user.user_id;
 
         // Spawn handler task to process incoming data
         tokio::spawn(async move {
@@ -1926,7 +1926,7 @@ impl FlightService for FraiseQLFlightService {
         let db_adapter = self.db_adapter.clone();
         let executor = self.executor.clone();
         let subscription_manager = self.subscription_manager.clone();
-        let user_id = authenticated_user.user_id.clone();
+        let user_id = authenticated_user.user_id;
 
         // Spawn handler task for bidirectional streaming
         tokio::spawn(async move {

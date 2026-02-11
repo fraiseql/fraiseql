@@ -416,7 +416,7 @@ pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl I
 ///
 /// `Some(customer_org_id)` if tenant context exists, `None` otherwise.
 #[must_use]
-fn extract_customer_org_from_headers() -> Option<i64> {
+const fn extract_customer_org_from_headers() -> Option<i64> {
     // In a full implementation, this would extract from:
     // 1. X-Tenant-Id header (if available)
     // 2. JWT claims in auth context
@@ -452,7 +452,7 @@ fn extract_customer_org_from_headers() -> Option<i64> {
 ///
 /// `Some(user_id_str)` if user is authenticated, `None` otherwise.
 #[must_use]
-fn extract_user_id_from_headers() -> Option<&'static str> {
+const fn extract_user_id_from_headers() -> Option<&'static str> {
     // In a full implementation, this would extract from:
     // 1. JWT claims (sub field - user_id)
     // 2. Session context

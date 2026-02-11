@@ -335,32 +335,32 @@ pub struct ServerConfig {
 }
 
 #[cfg(feature = "observers")]
-fn default_observers_enabled() -> bool {
+const fn default_observers_enabled() -> bool {
     true
 }
 
 #[cfg(feature = "observers")]
-fn default_poll_interval_ms() -> u64 {
+const fn default_poll_interval_ms() -> u64 {
     100
 }
 
 #[cfg(feature = "observers")]
-fn default_batch_size() -> usize {
+const fn default_batch_size() -> usize {
     100
 }
 
 #[cfg(feature = "observers")]
-fn default_channel_capacity() -> usize {
+const fn default_channel_capacity() -> usize {
     1000
 }
 
 #[cfg(feature = "observers")]
-fn default_auto_reload() -> bool {
+const fn default_auto_reload() -> bool {
     true
 }
 
 #[cfg(feature = "observers")]
-fn default_reload_interval_secs() -> u64 {
+const fn default_reload_interval_secs() -> u64 {
     60
 }
 
@@ -587,7 +587,7 @@ impl ServerConfig {
 
     /// Check if authentication is enabled.
     #[must_use]
-    pub fn auth_enabled(&self) -> bool {
+    pub const fn auth_enabled(&self) -> bool {
         self.auth.is_some()
     }
 }
@@ -604,7 +604,7 @@ fn default_bind_addr() -> SocketAddr {
     "127.0.0.1:8000".parse().unwrap()
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
@@ -636,15 +636,15 @@ fn default_subscription_path() -> String {
     "/ws".to_string()
 }
 
-fn default_pool_min_size() -> usize {
+const fn default_pool_min_size() -> usize {
     5
 }
 
-fn default_pool_max_size() -> usize {
+const fn default_pool_max_size() -> usize {
     20
 }
 
-fn default_pool_timeout() -> u64 {
+const fn default_pool_timeout() -> u64 {
     30
 }
 
@@ -656,39 +656,39 @@ fn default_postgres_ssl_mode() -> String {
     "prefer".to_string()
 }
 
-fn default_redis_ssl() -> bool {
+const fn default_redis_ssl() -> bool {
     false
 }
 
-fn default_clickhouse_https() -> bool {
+const fn default_clickhouse_https() -> bool {
     false
 }
 
-fn default_elasticsearch_https() -> bool {
+const fn default_elasticsearch_https() -> bool {
     false
 }
 
-fn default_verify_certs() -> bool {
+const fn default_verify_certs() -> bool {
     true
 }
 
-fn default_rate_limiting_enabled() -> bool {
+const fn default_rate_limiting_enabled() -> bool {
     true
 }
 
-fn default_rate_limit_rps_per_ip() -> u32 {
+const fn default_rate_limit_rps_per_ip() -> u32 {
     100
 }
 
-fn default_rate_limit_rps_per_user() -> u32 {
+const fn default_rate_limit_rps_per_user() -> u32 {
     1000
 }
 
-fn default_rate_limit_burst_size() -> u32 {
+const fn default_rate_limit_burst_size() -> u32 {
     500
 }
 
-fn default_rate_limit_cleanup_interval() -> u64 {
+const fn default_rate_limit_cleanup_interval() -> u64 {
     300
 }
 

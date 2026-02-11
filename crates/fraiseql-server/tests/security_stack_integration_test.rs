@@ -114,8 +114,8 @@ fn test_security_stack_evaluation_order() {
     // Layer 2: RLS Filter (mock)
     fn rls_filter(role: &str, _user_id: &str) -> Vec<String> {
         match role {
-            "admin" => ["user-1", "user-2", "user-3"].iter().map(|s| s.to_string()).collect(),
-            "user" => ["user-1"].iter().map(|s| s.to_string()).collect(), // Only own record
+            "admin" => ["user-1", "user-2", "user-3"].iter().map(|s| (*s).to_string()).collect(),
+            "user" => ["user-1"].iter().map(|s| (*s).to_string()).collect(), // Only own record
             _ => vec![],
         }
     }
@@ -270,8 +270,8 @@ fn test_tenant_isolation_via_rls() {
     fn get_tenant_rows(tenant_id: &str, _user_id: &str) -> Vec<String> {
         // User should only see rows for their tenant
         match tenant_id {
-            "tenant-a" => ["user-1-a", "user-2-a"].iter().map(|s| s.to_string()).collect(),
-            "tenant-b" => ["user-1-b", "user-2-b"].iter().map(|s| s.to_string()).collect(),
+            "tenant-a" => ["user-1-a", "user-2-a"].iter().map(|s| (*s).to_string()).collect(),
+            "tenant-b" => ["user-1-b", "user-2-b"].iter().map(|s| (*s).to_string()).collect(),
             _ => vec![],
         }
     }
@@ -308,7 +308,7 @@ fn test_combined_rbac_rls_filtering() {
                 (tenant_id == "a" && (r.starts_with("user-1") || r.starts_with("user-2")))
                     || (tenant_id == "b" && r.starts_with("user-3"))
             })
-            .map(|s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect();
 
         // Further filter if user is not admin

@@ -834,7 +834,7 @@ mod database_adapter_tests {
 
         let encrypted = cipher.encrypt("valid").unwrap();
         // Tamper with ciphertext to produce decryption failure (not panic)
-        let mut tampered = encrypted.clone();
+        let mut tampered = encrypted;
         if tampered.len() > NONCE_SIZE + 1 {
             tampered[NONCE_SIZE + 1] ^= 0xFF;
         }

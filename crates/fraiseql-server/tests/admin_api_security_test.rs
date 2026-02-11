@@ -137,7 +137,7 @@ fn test_admin_config_independence_from_metrics() {
 fn test_admin_config_with_empty_token_string_fails() {
     let config = ServerConfig {
         admin_api_enabled: true,
-        admin_token: Some("".to_string()),
+        admin_token: Some(String::new()),
         ..ServerConfig::default()
     };
 

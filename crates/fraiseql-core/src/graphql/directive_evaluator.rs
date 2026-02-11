@@ -171,7 +171,7 @@ impl EvaluationContext {
 
     /// Set operation type.
     #[must_use]
-    pub fn with_operation_type(mut self, op_type: OperationType) -> Self {
+    pub const fn with_operation_type(mut self, op_type: OperationType) -> Self {
         self.operation_type = Some(op_type);
         self
     }
@@ -567,7 +567,7 @@ impl CustomDirectiveEvaluator {
 
     /// Enable strict mode where unknown directives cause errors.
     #[must_use]
-    pub fn strict(mut self) -> Self {
+    pub const fn strict(mut self) -> Self {
         self.strict_mode = true;
         self
     }

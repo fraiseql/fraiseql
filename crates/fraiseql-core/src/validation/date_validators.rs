@@ -66,12 +66,12 @@ fn parse_date(date_str: &str) -> Result<(u32, u32, u32)> {
 }
 
 /// Check if a year is a leap year.
-fn is_leap_year(year: u32) -> bool {
+const fn is_leap_year(year: u32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 /// Get the number of days in a month.
-fn get_days_in_month(month: u32, year: u32) -> u32 {
+const fn get_days_in_month(month: u32, year: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
@@ -88,7 +88,7 @@ fn get_days_in_month(month: u32, year: u32) -> u32 {
 
 /// Get today's date as (year, month, day).
 /// For testing purposes, this can be overridden.
-fn get_today() -> (u32, u32, u32) {
+const fn get_today() -> (u32, u32, u32) {
     // In a real implementation, this would use chrono or std::time
     // For now, we'll use a fixed date for testing consistency
     (2026, 2, 8)

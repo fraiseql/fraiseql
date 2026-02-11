@@ -159,11 +159,7 @@ mod tests {
 
         assert_eq!(child.trace_id, parent.trace_id, "Child should inherit trace ID");
         assert_ne!(child.span_id, parent.span_id, "Child should have different span ID");
-        assert_eq!(
-            child.parent_span_id,
-            Some(parent.span_id.clone()),
-            "Child should reference parent"
-        );
+        assert_eq!(child.parent_span_id, Some(parent.span_id), "Child should reference parent");
 
         println!("✅ Child span context test passed");
     }

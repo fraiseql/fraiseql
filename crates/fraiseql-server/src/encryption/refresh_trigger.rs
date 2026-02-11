@@ -55,7 +55,7 @@ pub struct RefreshConfig {
 
 impl RefreshConfig {
     /// Create default refresh config (daily check, 80% threshold)
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             enabled:                   true,
             check_interval_hours:      24,
@@ -66,7 +66,7 @@ impl RefreshConfig {
     }
 
     /// Enable or disable automatic refresh
-    pub fn with_enabled(mut self, enabled: bool) -> Self {
+    pub const fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
@@ -84,7 +84,7 @@ impl RefreshConfig {
     }
 
     /// Set quiet hours (e.g., 2 for 2am-4am)
-    pub fn with_quiet_hours(mut self, start_hour: u32, end_hour: u32) -> Self {
+    pub const fn with_quiet_hours(mut self, start_hour: u32, end_hour: u32) -> Self {
         if start_hour < 24 && end_hour < 24 {
             self.quiet_hours_start = Some(start_hour);
             self.quiet_hours_end = Some(end_hour);

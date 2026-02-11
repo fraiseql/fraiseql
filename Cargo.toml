@@ -108,38 +108,115 @@ tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 uuid = {version = "1.0", features = ["v4", "serde"]}
 
 [workspace.lints.clippy]
-# Deny all warnings in CI (priority -1 lets individual lints override)
+# --- Lint groups (priority -1 so individual overrides take effect) ---
 all = {level = "deny", priority = -1}
-cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
-cargo_common_metadata = "allow"  # Internal crates don't need all metadata
-if_not_else = "allow"  # Style preference
-missing_errors_doc = "allow"  # Can be too verbose
-missing_panics_doc = "allow"  # Can be too verbose
+cargo = {level = "warn", priority = -1}
+nursery = {level = "warn", priority = -1}
+pedantic = {level = "warn", priority = -1}
+
+# --- Cargo group overrides ---
+cargo_common_metadata = "allow"
+multiple_crate_versions = "allow"
+
+# --- Casting (intentional truncation/conversion in metrics, timestamps, etc.) ---
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+
+# --- Documentation ---
+doc_markdown = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+# --- Style preferences ---
+bool_to_int_with_if = "allow"
+collapsible_if = "allow"
+default_trait_access = "allow"
+enum_glob_use = "allow"
+explicit_iter_loop = "allow"
+format_push_string = "allow"
+if_not_else = "allow"
+ignored_unit_patterns = "allow"
+implicit_saturating_sub = "allow"
+items_after_statements = "allow"
+manual_let_else = "allow"
+manual_map = "allow"
+manual_saturating_arithmetic = "allow"
+map_unwrap_or = "allow"
+match_same_arms = "allow"
+match_wildcard_for_single_variants = "allow"
 module_name_repetitions = "allow"
-multiple_crate_versions = "allow"  # Transitive dependencies cause this
-must_use_candidate = "allow"  # We'll use this selectively
-nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
-option_if_let_else = "allow"  # Style preference
-or_fun_call = "allow"  # Often clearer to keep explicit
-pedantic = {level = "warn", priority = -1}  # Changed to warn - too many false positives
-redundant_closure_for_method_calls = "allow"  # Style preference
-return_self_not_must_use = "allow"  # Builder pattern compatibility
-significant_drop_tightening = "allow"  # Too aggressive, false positives
+option_if_let_else = "allow"
+or_fun_call = "allow"
+ptr_arg = "allow"
+redundant_closure = "allow"
+redundant_closure_for_method_calls = "allow"
+semicolon_if_nothing_returned = "allow"
 similar_names = "allow"
-struct_excessive_bools = "allow"  # Schema structs often have many bool flags
-# Allow some pedantic lints that are too strict for practical use
+single_match_else = "allow"
+suspicious_doc_comments = "allow"
+uninlined_format_args = "allow"
+unreadable_literal = "allow"
+unnested_or_patterns = "allow"
+unwrap_or_default = "allow"
+use_self = "allow"
+
+# --- Struct/type design ---
+derive_partial_eq_without_eq = "allow"
+missing_fields_in_debug = "allow"
+must_use_candidate = "allow"
+new_without_default = "allow"
+return_self_not_must_use = "allow"
+struct_excessive_bools = "allow"
+struct_field_names = "allow"
+
+# --- Function design ---
+needless_pass_by_value = "allow"
+should_implement_trait = "allow"
+too_many_arguments = "allow"
 too_many_lines = "allow"
-# Additional allows for common pedantic/nursery lints that don't add value
-uninlined_format_args = "allow"  # Style preference, too noisy
-unnecessary_wraps = "allow"  # API consistency over strictness
-unused_async = "allow"  # Sometimes needed for trait conformance
-unused_enumerate_index = "allow"  # Sometimes index needed later
-unused_self = "allow"  # Sometimes needed for API compatibility
-use_self = "allow"  # Style preference
+trivially_copy_pass_by_ref = "allow"
+unnecessary_wraps = "allow"
+unused_async = "allow"
+unused_self = "allow"
+
+# --- Nursery overrides (too aggressive / false positives) ---
+branches_sharing_code = "allow"
+collection_is_never_read = "allow"
+doc_link_with_quotes = "allow"
+future_not_send = "allow"
+ignore_without_reason = "allow"
+implicit_hasher = "allow"
+iter_on_single_items = "allow"
+iter_with_drain = "allow"
+missing_const_for_fn = "allow"
+needless_collect = "allow"
+needless_pass_by_ref_mut = "allow"
+no_effect_underscore_binding = "allow"
+ref_option = "allow"
+significant_drop_in_scrutinee = "allow"
+significant_drop_tightening = "allow"
+unnecessary_debug_formatting = "allow"
+useless_let_if_seq = "allow"
+
+# --- Test/debug patterns ---
+float_cmp = "allow"
+should_panic_without_expect = "allow"
+used_underscore_binding = "allow"
+wildcard_imports = "allow"
+
+# --- Misc ---
+double_must_use = "allow"
+if_same_then_else = "allow"
+single_char_pattern = "allow"
+unused_enumerate_index = "allow"
+useless_format = "allow"
 
 [workspace.lints.rust]
 dead_code = "warn"
-missing_docs = "warn"
+missing_docs = "allow"  # Crates opt-in via #![warn(missing_docs)] in lib.rs
 unsafe_code = "forbid"
 unused_imports = "warn"
 unused_variables = "warn"
