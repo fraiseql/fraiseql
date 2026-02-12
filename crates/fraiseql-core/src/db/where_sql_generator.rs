@@ -6,7 +6,7 @@
 use serde_json::Value;
 
 use crate::{
-    db::{WhereClause, WhereOperator},
+    db::{WhereClause, WhereOperator, DatabaseType},
     error::{FraiseQLError, Result},
 };
 
@@ -15,6 +15,11 @@ pub struct WhereSqlGenerator;
 
 impl WhereSqlGenerator {
     /// Convert WHERE clause AST to SQL string.
+    ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated. Use `to_sql_for_db()` instead to specify
+    /// the target database type. This method defaults to PostgreSQL.
     ///
     /// # Example
     ///
@@ -31,29 +36,67 @@ impl WhereSqlGenerator {
     /// let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
     /// assert_eq!(sql, "data->>'status' = 'active'");
     /// ```
+    #[deprecated(since = "2.0.0", note = "use `to_sql_for_db()` instead")]
     pub fn to_sql(clause: &WhereClause) -> Result<String> {
+        // Default to PostgreSQL for backwards compatibility
+        Self::to_sql_for_db(clause, DatabaseType::PostgreSQL)
+    }
+
+    /// Convert WHERE clause AST to SQL string for a specific database.
+    ///
+    /// This method routes to database-specific SQL templates and functions.
+    /// For now, it delegates to the database-agnostic to_sql method.
+    /// Future phases will use db_type to select database-specific templates.
+    ///
+    /// # Arguments
+    ///
+    /// * `clause` - The WHERE clause to convert
+    /// * `db_type` - The target database type
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use fraiseql_core::db::{WhereClause, WhereOperator, DatabaseType, where_sql_generator::WhereSqlGenerator};
+    /// use serde_json::json;
+    ///
+    /// let clause = WhereClause::Field {
+    ///     path: vec!["email".to_string()],
+    ///     operator: WhereOperator::Eq,
+    ///     value: json!("test@example.com"),
+    /// };
+    ///
+    /// let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)?;
+    /// ```
+    pub fn to_sql_for_db(clause: &WhereClause, db_type: DatabaseType) -> Result<String> {
+        Self::to_sql_internal(clause, db_type)
+    }
+
+    /// Internal implementation that threads db_type through recursion.
+    fn to_sql_internal(clause: &WhereClause, db_type: DatabaseType) -> Result<String> {
         match clause {
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => Self::generate_field_predicate(path, operator, value),
+            } => Self::generate_field_predicate(path, operator, value, db_type),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
                     return Ok("TRUE".to_string());
                 }
-                let parts: Result<Vec<_>> = clauses.iter().map(Self::to_sql).collect();
+                let parts: Result<Vec<_>> =
+                    clauses.iter().map(|c| Self::to_sql_internal(c, db_type)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok("FALSE".to_string());
                 }
-                let parts: Result<Vec<_>> = clauses.iter().map(Self::to_sql).collect();
+                let parts: Result<Vec<_>> =
+                    clauses.iter().map(|c| Self::to_sql_internal(c, db_type)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
             WhereClause::Not(clause) => {
-                let inner = Self::to_sql(clause)?;
+                let inner = Self::to_sql_internal(clause, db_type)?;
                 Ok(format!("NOT ({})", inner))
             },
         }
@@ -63,6 +106,7 @@ impl WhereSqlGenerator {
         path: &[String],
         operator: &WhereOperator,
         value: &Value,
+        db_type: DatabaseType,
     ) -> Result<String> {
         let json_path = Self::build_json_path(path);
         let sql = match operator {
@@ -77,7 +121,7 @@ impl WhereSqlGenerator {
             },
             // All other operators
             _ => {
-                let sql_op = Self::operator_to_sql(operator)?;
+                let sql_op = Self::operator_to_sql(operator, db_type)?;
                 let sql_value = Self::value_to_sql(value, operator)?;
                 format!("{json_path} {sql_op} {sql_value}")
             },
@@ -110,7 +154,9 @@ impl WhereSqlGenerator {
         }
     }
 
-    fn operator_to_sql(operator: &WhereOperator) -> Result<&'static str> {
+    fn operator_to_sql(operator: &WhereOperator, _db_type: DatabaseType) -> Result<&'static str> {
+        // Phase 0: db_type parameter added for future database-specific implementations
+        // Currently all basic operators generate the same SQL across all databases
         Ok(match operator {
             // Comparison
             WhereOperator::Eq => "=",
@@ -283,6 +329,7 @@ impl WhereSqlGenerator {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use serde_json::json;
 
@@ -568,5 +615,28 @@ mod tests {
         // Both simple and nested path components should be escaped
         assert!(sql.contains("''")); // Escaped quotes present
         assert!(sql.contains("data#>'{")); // Nested path syntax
+    }
+
+    #[test]
+    fn test_where_generator_accepts_database_type() {
+        // Phase 0: Add database awareness to WhereSqlGenerator
+        // This test ensures WhereSqlGenerator can accept DatabaseType parameter
+        let clause = WhereClause::Field {
+            path:     vec!["email".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("test@example.com"),
+        };
+
+        // Should accept DatabaseType parameter
+        let _sql_pg = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL);
+        let _sql_mysql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::MySQL);
+        let _sql_sqlite = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::SQLite);
+        let _sql_sqlserver = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::SQLServer);
+
+        // All should succeed (for now, same SQL for basic operators)
+        assert!(_sql_pg.is_ok());
+        assert!(_sql_mysql.is_ok());
+        assert!(_sql_sqlite.is_ok());
+        assert!(_sql_sqlserver.is_ok());
     }
 }
