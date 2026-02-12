@@ -290,21 +290,183 @@ impl CustomTypeRegistry {
     /// // Invalid
     /// assert!(registry.validate("LibraryCode", &json!("INVALID")).is_err());
     /// ```
-    pub fn validate(&self, type_name: &str, _value: &serde_json::Value) -> Result<()> {
-        let _def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {
+    pub fn validate(&self, type_name: &str, value: &serde_json::Value) -> Result<()> {
+        let def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Unknown custom scalar type '{}'", type_name),
             path: Some(format!("custom_scalars.{}", type_name)),
         })?;
 
-        // Phase 4 TODO: Execute validation rules
-        // for rule in &_def.validation_rules {
-        //     rule.validate(_value)?;
-        // }
+        // Execute validation rules
+        self.validate_rules(type_name, &def.validation_rules, value)?;
 
         // Phase 4 TODO: Execute ELO expression if present
-        // if let Some(expr) = &_def.elo_expression {
-        //     self.evaluate_elo(expr, _value)?;
+        // if let Some(expr) = &def.elo_expression {
+        //     self.evaluate_elo(expr, value)?;
         // }
+
+        Ok(())
+    }
+
+    /// Validate value against a list of validation rules.
+    fn validate_rules(
+        &self,
+        type_name: &str,
+        rules: &[ValidationRule],
+        value: &serde_json::Value,
+    ) -> Result<()> {
+        for rule in rules {
+            self.validate_rule(type_name, rule, value)?;
+        }
+        Ok(())
+    }
+
+    /// Validate value against a single validation rule.
+    fn validate_rule(
+        &self,
+        type_name: &str,
+        rule: &ValidationRule,
+        value: &serde_json::Value,
+    ) -> Result<()> {
+        match rule {
+            ValidationRule::Pattern { pattern, message } => {
+                self.validate_pattern(type_name, pattern, message.as_ref(), value)
+            }
+            ValidationRule::Length { min, max } => {
+                self.validate_length(type_name, *min, *max, value)
+            }
+            ValidationRule::Range { min, max } => {
+                self.validate_range(type_name, *min, *max, value)
+            }
+            // Other rule types not yet supported
+            _ => Ok(()),
+        }
+    }
+
+    /// Validate string value against regex pattern.
+    fn validate_pattern(
+        &self,
+        type_name: &str,
+        pattern: &str,
+        message: Option<&String>,
+        value: &serde_json::Value,
+    ) -> Result<()> {
+        let str_val = value.as_str().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "Custom scalar '{}' pattern validation: value must be a string",
+                type_name
+            ),
+            path: Some(format!("custom_scalars.{}", type_name)),
+        })?;
+
+        let re = regex::Regex::new(pattern).map_err(|e| FraiseQLError::Validation {
+            message: format!(
+                "Custom scalar '{}' has invalid regex pattern: {}",
+                type_name, e
+            ),
+            path: Some(format!("custom_scalars.{}.validation_rules", type_name)),
+        })?;
+
+        if !re.is_match(str_val) {
+            return Err(FraiseQLError::Validation {
+                message: message
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        format!(
+                            "Custom scalar '{}' value '{}' does not match pattern '{}'",
+                            type_name, str_val, pattern
+                        )
+                    }),
+                path: Some(format!("custom_scalars.{}", type_name)),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Validate string length against min/max constraints.
+    fn validate_length(
+        &self,
+        type_name: &str,
+        min: Option<usize>,
+        max: Option<usize>,
+        value: &serde_json::Value,
+    ) -> Result<()> {
+        let str_val = value.as_str().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "Custom scalar '{}' length validation: value must be a string",
+                type_name
+            ),
+            path: Some(format!("custom_scalars.{}", type_name)),
+        })?;
+
+        let len = str_val.len();
+
+        if let Some(min_len) = min {
+            if len < min_len {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Custom scalar '{}' value must be at least {} characters, got {}",
+                        type_name, min_len, len
+                    ),
+                    path: Some(format!("custom_scalars.{}", type_name)),
+                });
+            }
+        }
+
+        if let Some(max_len) = max {
+            if len > max_len {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Custom scalar '{}' value must be at most {} characters, got {}",
+                        type_name, max_len, len
+                    ),
+                    path: Some(format!("custom_scalars.{}", type_name)),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate numeric value against min/max range constraints.
+    fn validate_range(
+        &self,
+        type_name: &str,
+        min: Option<i64>,
+        max: Option<i64>,
+        value: &serde_json::Value,
+    ) -> Result<()> {
+        let num_val = value.as_i64().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "Custom scalar '{}' range validation: value must be an integer",
+                type_name
+            ),
+            path: Some(format!("custom_scalars.{}", type_name)),
+        })?;
+
+        if let Some(min_val) = min {
+            if num_val < min_val {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Custom scalar '{}' value must be at least {}, got {}",
+                        type_name, min_val, num_val
+                    ),
+                    path: Some(format!("custom_scalars.{}", type_name)),
+                });
+            }
+        }
+
+        if let Some(max_val) = max {
+            if num_val > max_val {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Custom scalar '{}' value must be at most {}, got {}",
+                        type_name, max_val, num_val
+                    ),
+                    path: Some(format!("custom_scalars.{}", type_name)),
+                });
+            }
+        }
 
         Ok(())
     }
@@ -535,5 +697,105 @@ mod tests {
         let value = serde_json::json!("PAT-987654");
         let result = registry.validate("PatientID", &value);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_with_pattern_rule_valid() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("LibraryCode".to_string());
+        def.validation_rules = vec![ValidationRule::Pattern {
+            pattern: r"^LIB-[0-9]{4}$".to_string(),
+            message: Some("Library code must be LIB-#### format".to_string()),
+        }];
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("LIB-1234");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_with_pattern_rule_invalid() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("LibraryCode".to_string());
+        def.validation_rules = vec![ValidationRule::Pattern {
+            pattern: r"^LIB-[0-9]{4}$".to_string(),
+            message: Some("Library code must be LIB-#### format".to_string()),
+        }];
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("INVALID");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_with_length_rule_valid() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("StudentID".to_string());
+        def.validation_rules = vec![ValidationRule::Length {
+            min: Some(5),
+            max: Some(15),
+        }];
+
+        registry
+            .register("StudentID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("STU-2024");  // 8 chars, within 5-15
+        let result = registry.validate("StudentID", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_with_length_rule_too_short() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("StudentID".to_string());
+        def.validation_rules = vec![ValidationRule::Length {
+            min: Some(5),
+            max: Some(15),
+        }];
+
+        registry
+            .register("StudentID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("STU");  // 3 chars, below min of 5
+        let result = registry.validate("StudentID", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_with_multiple_rules() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("PatientID".to_string());
+        def.validation_rules = vec![
+            ValidationRule::Pattern {
+                pattern: r"^PAT-[0-9]{6}$".to_string(),
+                message: Some("Patient ID must be PAT-###### format".to_string()),
+            },
+            ValidationRule::Length {
+                min: Some(10),
+                max: Some(10),
+            },
+        ];
+
+        registry
+            .register("PatientID".to_string(), def)
+            .unwrap();
+
+        // Valid: matches pattern and length
+        let value_valid = serde_json::json!("PAT-123456");
+        assert!(registry.validate("PatientID", &value_valid).is_ok());
+
+        // Invalid: wrong pattern but right length
+        let value_invalid_pattern = serde_json::json!("PAT-12345X");
+        assert!(registry.validate("PatientID", &value_invalid_pattern).is_err());
     }
 }
