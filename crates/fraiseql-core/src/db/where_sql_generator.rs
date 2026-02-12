@@ -211,7 +211,6 @@ impl WhereSqlGenerator {
     /// This function maintains the mapping of operators to database-specific SQL templates.
     /// Phase 0 includes templates for email operators as a proof-of-concept.
     /// Additional operators will be added in subsequent phases.
-    #[allow(dead_code)]
     fn get_template_for_operator(db_type: DatabaseType, operator_name: &str) -> Option<String> {
         match (db_type, operator_name) {
             // ========================================================================
@@ -754,5 +753,35 @@ mod tests {
         assert!(sql.contains("SUBSTRING_INDEX"), "MySQL should use SUBSTRING_INDEX");
         assert!(sql.contains("?"), "MySQL should use ? for parameters");
         assert!(!sql.contains("$1"), "MySQL should not use $1 style parameters");
+    }
+
+    #[test]
+    fn test_template_operators_routing() {
+        // Phase 0, Cycle 3: Test that template-based operators can be identified
+        // This test ensures we can identify which operators use templates vs basic SQL
+
+        // Test that we can retrieve templates for known operators
+        let email_template_pg = WhereSqlGenerator::get_template_for_operator(DatabaseType::PostgreSQL, "domainEq");
+        assert!(email_template_pg.is_some(), "domainEq template should exist for PostgreSQL");
+
+        let email_template_mysql = WhereSqlGenerator::get_template_for_operator(DatabaseType::MySQL, "domainIn");
+        assert!(email_template_mysql.is_some(), "domainIn template should exist for MySQL");
+
+        // Test that unknown operators return None
+        let unknown_template = WhereSqlGenerator::get_template_for_operator(DatabaseType::PostgreSQL, "unknownOp");
+        assert!(unknown_template.is_none(), "Unknown operators should return None");
+
+        // Test cross-database template differences
+        let pg_template = WhereSqlGenerator::get_template_for_operator(DatabaseType::PostgreSQL, "domainEq");
+        let mysql_template = WhereSqlGenerator::get_template_for_operator(DatabaseType::MySQL, "domainEq");
+
+        assert_ne!(
+            pg_template, mysql_template,
+            "PostgreSQL and MySQL should have different templates for the same operator"
+        );
+
+        // Verify database-specific SQL functions
+        assert!(pg_template.unwrap().contains("SPLIT_PART"));
+        assert!(mysql_template.unwrap().contains("SUBSTRING_INDEX"));
     }
 }
