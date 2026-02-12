@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::{
     error::{FraiseQLError, Result, ValidationFieldError},
+    schema::CompiledSchema,
     validation::ValidationRule,
 };
 
@@ -56,6 +57,34 @@ impl ValidationErrorCollection {
                 path:    None,
             }
         }
+    }
+}
+
+/// Validate a scalar value against a custom scalar type definition.
+///
+/// This function validates a JSON value against a custom scalar type registered
+/// in the schema, checking both validation rules and ELO expressions (Phase 6).
+///
+/// # Arguments
+///
+/// * `value` - The JSON value to validate
+/// * `scalar_type_name` - Name of the custom scalar type (e.g., "LibraryCode")
+/// * `schema` - The compiled schema containing custom scalar definitions
+///
+/// # Errors
+///
+/// Returns a validation error if the value doesn't match the custom scalar definition.
+pub fn validate_custom_scalar(
+    value: &Value,
+    scalar_type_name: &str,
+    schema: &CompiledSchema,
+) -> Result<()> {
+    // Check if this is a custom scalar type
+    if schema.custom_scalars.exists(scalar_type_name) {
+        schema.custom_scalars.validate(scalar_type_name, value)
+    } else {
+        // Not a custom scalar, pass through (built-in type)
+        Ok(())
     }
 }
 
@@ -277,6 +306,200 @@ mod tests {
     fn test_validate_null_field() {
         let rule = ValidationRule::Required;
         let result = validate_input(&Value::Null, "field", &[rule]);
+        assert!(result.is_err());
+    }
+
+    // ========== PHASE 6, CYCLE 1: RUNTIME VALIDATION INTEGRATION ==========
+
+    #[test]
+    fn test_validate_custom_scalar_library_code_valid() {
+        use crate::schema::CompiledSchema;
+        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+
+        let schema = {
+            let mut s = CompiledSchema::new();
+            let registry = CustomTypeRegistry::new(Default::default());
+
+            let mut def = CustomTypeDef::new("LibraryCode".to_string());
+            def.validation_rules = vec![ValidationRule::Pattern {
+                pattern: r"^LIB-[0-9]{4}$".to_string(),
+                message: Some("Library code must be LIB-#### format".to_string()),
+            }];
+
+            registry
+                .register("LibraryCode".to_string(), def)
+                .unwrap();
+
+            s.custom_scalars = registry;
+            s
+        };
+
+        let value = serde_json::json!("LIB-1234");
+        let result = validate_custom_scalar(&value, "LibraryCode", &schema);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_custom_scalar_library_code_invalid() {
+        use crate::schema::CompiledSchema;
+        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+
+        let schema = {
+            let mut s = CompiledSchema::new();
+            let registry = CustomTypeRegistry::new(Default::default());
+
+            let mut def = CustomTypeDef::new("LibraryCode".to_string());
+            def.validation_rules = vec![ValidationRule::Pattern {
+                pattern: r"^LIB-[0-9]{4}$".to_string(),
+                message: Some("Library code must be LIB-#### format".to_string()),
+            }];
+
+            registry
+                .register("LibraryCode".to_string(), def)
+                .unwrap();
+
+            s.custom_scalars = registry;
+            s
+        };
+
+        let value = serde_json::json!("INVALID");
+        let result = validate_custom_scalar(&value, "LibraryCode", &schema);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_custom_scalar_student_id_with_length() {
+        use crate::schema::CompiledSchema;
+        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+
+        let schema = {
+            let mut s = CompiledSchema::new();
+            let registry = CustomTypeRegistry::new(Default::default());
+
+            let mut def = CustomTypeDef::new("StudentID".to_string());
+            def.validation_rules = vec![
+                ValidationRule::Pattern {
+                    pattern: r"^STU-[0-9]{4}-[0-9]{3}$".to_string(),
+                    message: None,
+                },
+                ValidationRule::Length {
+                    min: Some(12),
+                    max: Some(12),
+                },
+            ];
+
+            registry
+                .register("StudentID".to_string(), def)
+                .unwrap();
+
+            s.custom_scalars = registry;
+            s
+        };
+
+        // Valid: matches pattern and length
+        let value = serde_json::json!("STU-2024-001");
+        let result = validate_custom_scalar(&value, "StudentID", &schema);
+        assert!(result.is_ok());
+
+        // Invalid: wrong pattern
+        let value = serde_json::json!("STUDENT-2024");
+        let result = validate_custom_scalar(&value, "StudentID", &schema);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_unknown_scalar_type_passthrough() {
+        use crate::schema::CompiledSchema;
+
+        let schema = CompiledSchema::new();
+
+        // Unknown scalar types should pass through (they're built-in types)
+        let value = serde_json::json!("any value");
+        let result = validate_custom_scalar(&value, "UnknownType", &schema);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_custom_scalar_patient_id_passthrough() {
+        use crate::schema::CompiledSchema;
+
+        // Schema without PatientID definition
+        let schema = CompiledSchema::new();
+
+        let value = serde_json::json!("PAT-123456");
+        let result = validate_custom_scalar(&value, "PatientID", &schema);
+        // Should pass through (not registered as custom scalar)
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_custom_scalar_with_elo_expression() {
+        use crate::schema::CompiledSchema;
+        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+
+        let schema = {
+            let mut s = CompiledSchema::new();
+            let registry = CustomTypeRegistry::new(Default::default());
+
+            let mut def = CustomTypeDef::new("StudentID".to_string());
+            def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
+
+            registry
+                .register("StudentID".to_string(), def)
+                .unwrap();
+
+            s.custom_scalars = registry;
+            s
+        };
+
+        // Valid: matches ELO expression
+        let value = serde_json::json!("STU-2024-001");
+        let result = validate_custom_scalar(&value, "StudentID", &schema);
+        assert!(result.is_ok());
+
+        // Invalid: doesn't match ELO expression
+        let value = serde_json::json!("INVALID");
+        let result = validate_custom_scalar(&value, "StudentID", &schema);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_custom_scalar_combined_rules_and_elo() {
+        use crate::schema::CompiledSchema;
+        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+
+        let schema = {
+            let mut s = CompiledSchema::new();
+            let registry = CustomTypeRegistry::new(Default::default());
+
+            let mut def = CustomTypeDef::new("PatientID".to_string());
+            def.validation_rules = vec![ValidationRule::Length {
+                min: Some(10),
+                max: Some(10),
+            }];
+            def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
+
+            registry
+                .register("PatientID".to_string(), def)
+                .unwrap();
+
+            s.custom_scalars = registry;
+            s
+        };
+
+        // Valid: passes both length rule and ELO expression
+        let value = serde_json::json!("PAT-123456");
+        let result = validate_custom_scalar(&value, "PatientID", &schema);
+        assert!(result.is_ok());
+
+        // Invalid: passes length but fails ELO expression
+        let value = serde_json::json!("NOTVALID!");
+        let result = validate_custom_scalar(&value, "PatientID", &schema);
+        assert!(result.is_err());
+
+        // Invalid: fails length rule
+        let value = serde_json::json!("PAT-12345");
+        let result = validate_custom_scalar(&value, "PatientID", &schema);
         assert!(result.is_err());
     }
 }

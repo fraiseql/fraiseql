@@ -172,7 +172,7 @@ impl SecurityConfig {
 /// let schema = CompiledSchema::from_json(json).unwrap();
 /// assert_eq!(schema.types.len(), 0);
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CompiledSchema {
     /// GraphQL object type definitions.
     #[serde(default)]
@@ -239,28 +239,6 @@ pub struct CompiledSchema {
     /// Not serialized - populated at runtime from `ir.scalars`.
     #[serde(skip)]
     pub custom_scalars: CustomTypeRegistry,
-}
-
-impl Default for CompiledSchema {
-    fn default() -> Self {
-        Self {
-            types: Vec::new(),
-            enums: Vec::new(),
-            input_types: Vec::new(),
-            interfaces: Vec::new(),
-            unions: Vec::new(),
-            queries: Vec::new(),
-            mutations: Vec::new(),
-            subscriptions: Vec::new(),
-            directives: Vec::new(),
-            fact_tables: HashMap::new(),
-            observers: Vec::new(),
-            federation: None,
-            security: None,
-            schema_sdl: None,
-            custom_scalars: CustomTypeRegistry::default(),
-        }
-    }
 }
 
 impl PartialEq for CompiledSchema {
