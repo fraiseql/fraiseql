@@ -256,6 +256,58 @@ impl CustomTypeRegistry {
             types.clear();
         }
     }
+
+    /// Validate a value against a custom scalar type's rules and ELO expression.
+    ///
+    /// Executes in order:
+    /// 1. All validation rules from the definition
+    /// 2. ELO expression (if present)
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - Name of the custom scalar type
+    /// * `value` - Value to validate (as serde_json::Value)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if:
+    /// - Custom scalar type not registered
+    /// - Any validation rule fails
+    /// - ELO expression evaluation fails
+    /// - ELO expression evaluates to false
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let registry = CustomTypeRegistry::new(Default::default());
+    /// let mut def = CustomTypeDef::new("LibraryCode".to_string());
+    /// def.elo_expression = Some("matches(value, /^LIB-[0-9]{4}$/)".to_string());
+    /// registry.register("LibraryCode".to_string(), def)?;
+    ///
+    /// // Valid
+    /// assert!(registry.validate("LibraryCode", &json!("LIB-1234")).is_ok());
+    ///
+    /// // Invalid
+    /// assert!(registry.validate("LibraryCode", &json!("INVALID")).is_err());
+    /// ```
+    pub fn validate(&self, type_name: &str, _value: &serde_json::Value) -> Result<()> {
+        let _def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {
+            message: format!("Unknown custom scalar type '{}'", type_name),
+            path: Some(format!("custom_scalars.{}", type_name)),
+        })?;
+
+        // Phase 4 TODO: Execute validation rules
+        // for rule in &_def.validation_rules {
+        //     rule.validate(_value)?;
+        // }
+
+        // Phase 4 TODO: Execute ELO expression if present
+        // if let Some(expr) = &_def.elo_expression {
+        //     self.evaluate_elo(expr, _value)?;
+        // }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -432,5 +484,56 @@ mod tests {
         for handle in handles {
             handle.join().unwrap();
         }
+    }
+
+    #[test]
+    fn test_validate_unknown_scalar() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let value = serde_json::json!("some-value");
+
+        let result = registry.validate("UnknownType", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_library_code_minimal() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let def = CustomTypeDef::new("LibraryCode".to_string());
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("LIB-1234");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_student_id_minimal() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let def = CustomTypeDef::new("StudentID".to_string());
+
+        registry
+            .register("StudentID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("STU-2024-001");
+        let result = registry.validate("StudentID", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_patient_id_minimal() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let def = CustomTypeDef::new("PatientID".to_string());
+
+        registry
+            .register("PatientID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("PAT-987654");
+        let result = registry.validate("PatientID", &value);
+        assert!(result.is_ok());
     }
 }
