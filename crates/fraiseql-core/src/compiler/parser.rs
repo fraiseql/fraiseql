@@ -40,7 +40,7 @@ use super::{
     enum_validator::EnumValidator,
     ir::{
         AuthoringIR, AutoParams, IRArgument, IRField, IRInputField, IRInputType, IRInterface,
-        IRMutation, IRQuery, IRSubscription, IRType, IRUnion, MutationOperation,
+        IRMutation, IRQuery, IRScalar, IRSubscription, IRType, IRUnion, MutationOperation,
     },
 };
 use crate::error::{FraiseQLError, Result};
@@ -161,6 +161,13 @@ impl SchemaParser {
             Vec::new()
         };
 
+        // Parse scalars if present
+        let scalars = if let Some(scalars_val) = obj.get("scalars") {
+            self.parse_scalars(scalars_val)?
+        } else {
+            Vec::new()
+        };
+
         // Warn about unsupported fragments feature
         if obj.contains_key("fragments") {
             eprintln!(
@@ -174,7 +181,7 @@ impl SchemaParser {
             interfaces,
             unions,
             input_types,
-            scalars: Vec::new(),  // TODO: Parse from schema
+            scalars,
             queries,
             mutations,
             subscriptions,
@@ -710,6 +717,57 @@ impl SchemaParser {
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
+
+    fn parse_scalars(&self, value: &Value) -> Result<Vec<IRScalar>> {
+        let array = value.as_array().ok_or_else(|| FraiseQLError::Parse {
+            message:  "scalars must be an array".to_string(),
+            location: "scalars".to_string(),
+        })?;
+
+        array
+            .iter()
+            .enumerate()
+            .map(|(i, scalar_val)| self.parse_scalar(scalar_val, i))
+            .collect()
+    }
+
+    fn parse_scalar(&self, value: &Value, index: usize) -> Result<IRScalar> {
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Parse {
+            message:  format!("Scalar at index {index} must be an object"),
+            location: format!("scalars[{index}]"),
+        })?;
+
+        let name = obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| FraiseQLError::Parse {
+                message:  format!("Scalar at index {index} missing 'name' field"),
+                location: format!("scalars[{index}].name"),
+            })?
+            .to_string();
+
+        let description = obj.get("description").and_then(|v| v.as_str()).map(String::from);
+        let specified_by_url = obj
+            .get("specified_by_url")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let base_type = obj.get("base_type").and_then(|v| v.as_str()).map(String::from);
+
+        // Parse validation rules if present
+        let validation_rules = if let Some(rules_val) = obj.get("validation_rules") {
+            serde_json::from_value(rules_val.clone()).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        Ok(IRScalar {
+            name,
+            description,
+            specified_by_url,
+            validation_rules,
+            base_type,
+        })
+    }
 }
 
 impl Default for SchemaParser {
@@ -1121,5 +1179,53 @@ mod tests {
         assert_eq!(ir.input_types.len(), 1);
         assert_eq!(ir.queries.len(), 1);
         assert_eq!(ir.mutations.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_scalars() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "scalars": [
+                {
+                    "name": "Email",
+                    "description": "Valid email address",
+                    "specified_by_url": "https://html.spec.whatwg.org/",
+                    "validation_rules": [],
+                    "base_type": null
+                },
+                {
+                    "name": "ISBN",
+                    "description": "International Standard Book Number",
+                    "specified_by_url": null,
+                    "validation_rules": [],
+                    "base_type": null
+                }
+            ]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.scalars.len(), 2);
+        assert_eq!(ir.scalars[0].name, "Email");
+        assert_eq!(ir.scalars[0].description, Some("Valid email address".to_string()));
+        assert_eq!(
+            ir.scalars[0].specified_by_url,
+            Some("https://html.spec.whatwg.org/".to_string())
+        );
+        assert_eq!(ir.scalars[1].name, "ISBN");
+    }
+
+    #[test]
+    fn test_parse_schema_with_scalars_and_types() {
+        let parser = SchemaParser::new();
+        let json = r#"{
+            "scalars": [{"name": "Email", "description": null, "specified_by_url": null, "validation_rules": [], "base_type": null}],
+            "types": [{"name": "User", "fields": []}],
+            "queries": [{"name": "users", "return_type": "User", "returns_list": true}]
+        }"#;
+
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.scalars.len(), 1);
+        assert_eq!(ir.types.len(), 1);
+        assert_eq!(ir.queries.len(), 1);
     }
 }
