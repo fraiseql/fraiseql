@@ -62,7 +62,7 @@ serde_json = "1.0"
 sha1 = "0.10"
 sha2 = "0.10"
 # Database
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
+sqlx = {version = "0.8", features = ["postgres", "sqlite", "runtime-tokio", "uuid", "chrono"]}
 # Constant-time comparison (timing attack prevention)
 subtle = "2.5"
 thiserror = "2.0"
@@ -93,7 +93,9 @@ reqwest = {version = "0.12", features = ["json"]}
 # YAML parsing for deployment tests
 serde_yaml = "0.9"
 # Database testing
-sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
+sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "sqlite"]}
+# Docker containers for integration testing
+testcontainers = "0.26"
 tempfile = "3.13"
 # Testing
 tokio-test = "0.4"

@@ -2733,6 +2733,7 @@ dependencies = [
  "sqlx",
  "subtle",
  "tempfile",
+ "testcontainers",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls 0.25.0",

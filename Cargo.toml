@@ -85,8 +85,10 @@ serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 # Crypto
 sha2 = "0.10"
-# MySQL
-sqlx = {version = "0.8", features = ["mysql", "runtime-tokio", "json"]}
+# MySQL and SQLite
+sqlx = {version = "0.8", features = ["mysql", "sqlite", "postgres", "runtime-tokio", "json"]}
+# Testing containers
+testcontainers = {version = "0.26"}
 # Testing utilities
 tempfile = "3.8"
 # Error handling
