@@ -1,10 +1,12 @@
 //! Compile-time validation for cross-field rules and schema consistency.
 //!
-//! This module validates ELO expressions at schema compilation time, ensuring:
+//! This module validates Elo expressions at schema compilation time, ensuring:
 //! - Field references exist and are properly typed
 //! - Cross-field rules reference compatible types
 //! - SQL constraints can be generated
 //! - No circular dependencies or invalid rules
+//!
+//! Elo is an expression language by Bernard Lambeau: https://elo-lang.org/
 
 use std::collections::{HashMap, HashSet};
 

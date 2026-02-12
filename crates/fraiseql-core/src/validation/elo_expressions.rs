@@ -1,16 +1,16 @@
-//! ELO expression-based validation rules.
+//! Elo expression-based validation rules.
 //!
-//! This module integrates ELO (Expression Language for Optimization) as a validation
-//! framework, enabling concise, portable validation rules that can be compiled to
+//! This module integrates Elo (https://elo-lang.org/), an expression language by Bernard Lambeau,
+//! as a validation framework, enabling concise, portable validation rules that can be compiled to
 //! multiple targets (Rust, JavaScript, SQL).
 
 use serde_json::{Value, json};
 
 use crate::error::{FraiseQLError, Result};
 
-/// ELO expression evaluator for validation rules.
+/// Elo expression evaluator for validation rules.
 ///
-/// Supports a subset of ELO syntax optimized for validation:
+/// Supports a subset of Elo syntax optimized for validation:
 /// - Comparison operators: <, <=, >, >=, ==, !=
 /// - Logical operators: &&, ||, !
 /// - Field references: user.email, user.age
