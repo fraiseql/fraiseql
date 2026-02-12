@@ -4,7 +4,6 @@ Exports public API for FraiseQL framework.
 """
 
 # Core imports
-from .cqrs import CQRSRepository
 from .decorators import connection, field, query
 from .fields import fraise_field
 from .gql.schema_builder import build_fraiseql_schema
@@ -124,7 +123,6 @@ __all__ = [
     "Auth0Config",
     "Auth0Provider",
     "AuthProvider",
-    "CQRSRepository",
     "Connection",
     "Date",
     "Edge",

@@ -722,81 +722,12 @@ class MutationDefinition:
             if hasattr(self.mutation_class, "prepare_input"):
                 input_data = self.mutation_class.prepare_input(input_data)
 
-            # Call PostgreSQL function via Rust executor
-            from fraiseql.mutations.rust_executor import execute_mutation_rust
-
-            full_function_name = f"{self.schema}.{self.function_name}"
-            # GraphQL field name: CreatePost -> createPost (lowercase first letter)
-            field_name = self.name[0].lower() + self.name[1:] if self.name else self.name
-            success_type_name = getattr(self.success_type, "__name__", "Success")  # type: ignore[attr-defined]
-            error_type_name = getattr(self.error_type, "__name__", "Error")
-
-            # Extract context arguments
-            context_args = []
-            if self.context_params:
-                for context_key in self.context_params:
-                    context_value = info.context.get(context_key)
-                    if context_value is None:
-                        msg = (
-                            f"Required context parameter '{context_key}' "
-                            f"not found in GraphQL context"
-                        )
-                        raise RuntimeError(msg)
-
-                    # Extract specific field if it's a UserContext object
-                    if hasattr(context_value, "user_id") and context_key == "user":
-                        context_args.append(context_value.user_id)
-                    else:
-                        context_args.append(context_value)
-
-            # Get connection pool from repository
-            # db is a FraiseQLRepository, we need to get the underlying pool
-            pool = db.get_pool() if hasattr(db, "get_pool") else db._pool
-
-            # Call Rust executor with a connection from the pool
-            async with pool.connection() as conn:
-                logger.debug(f"Executing mutation {self.name} with function {full_function_name}")
-                logger.debug(f"Input data keys: {list(input_data.keys()) if input_data else None}")
-                logger.debug(f"Success type: {success_type_name}, Error type: {error_type_name}")
-
-                # Extract selected fields from GraphQL query for field filtering
-                # Returns None if no specific selection found (backward compat: return all fields)
-                success_type_fields = _extract_mutation_selected_fields(info, success_type_name)
-                error_type_fields = _extract_mutation_selected_fields(info, error_type_name)
-                logger.debug(f"Selected success fields from query: {success_type_fields}")
-                logger.debug(f"Selected error fields from query: {error_type_fields}")
-
-                # Extract entity field selections for nested field filtering (GitHub issue #525)
-                entity_selections_json = None
-                if self.entity_field_name:
-                    entity_selections = _extract_entity_field_selections(
-                        info, success_type_name, self.entity_field_name
-                    )
-                    if entity_selections:
-                        entity_selections_json = json.dumps(entity_selections)
-                        logger.debug(f"Entity field selections: {entity_selections_json}")
-
-                # Extract CASCADE selections from GraphQL query
-                cascade_selections_json = self._get_cascade_selections(info)
-
-                try:
-                    rust_response = await execute_mutation_rust(
-                        conn=conn,
-                        function_name=full_function_name,
-                        input_data=input_data,
-                        field_name=field_name,
-                        success_type=success_type_name,
-                        error_type=error_type_name,
-                        entity_field_name=self.entity_field_name,
-                        entity_type=self.entity_type,
-                        context_args=context_args if context_args else None,
-                        cascade_selections=cascade_selections_json,
-                        success_type_class=self.success_type,
-                        success_type_fields=success_type_fields,
-                        error_type_fields=error_type_fields,
-                        entity_selections=entity_selections_json,
-                    )
-                    logger.debug(f"Mutation {self.name} executed successfully")
+            # Mutation execution moved to Rust fraiseql-server (Phase 11 cleanup)
+            raise NotImplementedError(
+                f"Mutation '{self.name}' execution requires Rust fraiseql-server. "
+                "Python mutation execution has been removed in v2. "
+                "Use fraiseql-cli compile schema.json to generate Rust-compatible schema."
+            )
                 except Exception as e:
                     logger.error(
                         f"Mutation {self.name} failed during execution",

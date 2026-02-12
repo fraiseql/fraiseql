@@ -1,19 +1,9 @@
-"""GraphQL subscriptions support for FraiseQL."""
+"""Subscription decorators and schema generation.
 
-from .caching import cache
-from .complexity import complexity
-from .decorator import subscription
-from .filtering import filter as subscription_filter
+Runtime subscriptions are implemented in Rust fraiseql-server.
+Python provides subscription decoration and GraphQL schema generation.
+"""
 
-# Alias for backward compatibility
-filter = subscription_filter  # noqa: A001
-from .lifecycle import with_lifecycle
+from .decorators import subscription
 
-__all__ = [
-    "cache",
-    "complexity",
-    "filter",
-    "subscription",
-    "subscription_filter",
-    "with_lifecycle",
-]
+__all__ = ["subscription"]

@@ -1,31 +1,12 @@
-"""FraiseQL auto-discovery introspection engine.
+"""Schema introspection and code generation.
 
-This module provides automatic discovery of GraphQL schemas from PostgreSQL metadata.
-It introspects database views, functions, and comments to generate types, queries, and mutations.
+Generates GraphQL input types, mutations, and queries from PostgreSQL schema.
+Runtime introspection is implemented in Rust fraiseql-server.
 """
 
-from .auto_discovery import AutoDiscovery
-from .input_generator import InputGenerator
-from .metadata_parser import MetadataParser
-from .mutation_generator import MutationGenerator
-from .postgres_introspector import (
-    CompositeAttribute,
-    CompositeTypeMetadata,
-    PostgresIntrospector,
-)
-from .query_generator import QueryGenerator
+from .auto_discovery import SchemaDiscovery
 from .type_generator import TypeGenerator
-from .type_mapper import TypeMapper
+from .mutation_generator import MutationGenerator
+from .query_generator import QueryGenerator
 
-__all__ = [
-    "AutoDiscovery",
-    "CompositeAttribute",
-    "CompositeTypeMetadata",
-    "InputGenerator",
-    "MetadataParser",
-    "MutationGenerator",
-    "PostgresIntrospector",
-    "QueryGenerator",
-    "TypeGenerator",
-    "TypeMapper",
-]
+__all__ = ["SchemaDiscovery", "TypeGenerator", "MutationGenerator", "QueryGenerator"]
