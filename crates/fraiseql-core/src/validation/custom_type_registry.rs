@@ -40,6 +40,7 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{FraiseQLError, Result};
+use super::elo_expressions::EloExpressionEvaluator;
 use super::ValidationRule;
 
 /// Configuration for the custom type registry.
@@ -299,10 +300,10 @@ impl CustomTypeRegistry {
         // Execute validation rules
         self.validate_rules(type_name, &def.validation_rules, value)?;
 
-        // Phase 4 TODO: Execute ELO expression if present
-        // if let Some(expr) = &def.elo_expression {
-        //     self.evaluate_elo(expr, value)?;
-        // }
+        // Execute ELO expression if present
+        if let Some(expr) = &def.elo_expression {
+            self.evaluate_elo(type_name, expr, value)?;
+        }
 
         Ok(())
     }
@@ -466,6 +467,32 @@ impl CustomTypeRegistry {
                     path: Some(format!("custom_scalars.{}", type_name)),
                 });
             }
+        }
+
+        Ok(())
+    }
+
+    /// Evaluate ELO expression against a value.
+    fn evaluate_elo(&self, type_name: &str, expr: &str, value: &serde_json::Value) -> Result<()> {
+        // Create context with "value" field for ELO expression evaluation
+        let context = serde_json::json!({
+            "value": value
+        });
+
+        // Create and evaluate the ELO expression
+        let evaluator = EloExpressionEvaluator::new(expr.to_string());
+        let result = evaluator.evaluate(&context)?;
+
+        if !result.valid {
+            return Err(FraiseQLError::Validation {
+                message: result.error.unwrap_or_else(|| {
+                    format!(
+                        "Custom scalar '{}' value validation failed with ELO expression",
+                        type_name
+                    )
+                }),
+                path: Some(format!("custom_scalars.{}", type_name)),
+            });
         }
 
         Ok(())
@@ -797,5 +824,191 @@ mod tests {
         // Invalid: wrong pattern but right length
         let value_invalid_pattern = serde_json::json!("PAT-12345X");
         assert!(registry.validate("PatientID", &value_invalid_pattern).is_err());
+    }
+
+    // ========== PHASE 4, CYCLE 3: ELO EXPRESSION EVALUATION ==========
+
+    #[test]
+    fn test_validate_library_code_with_elo_expression_valid() {
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("LibraryCode".to_string());
+        def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("LIB-1234");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_library_code_with_elo_expression_invalid() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("LibraryCode".to_string());
+        def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("INVALID-CODE");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_student_id_with_elo_expression_valid() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("StudentID".to_string());
+        def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
+
+        registry
+            .register("StudentID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("STU-2024-001");
+        let result = registry.validate("StudentID", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_student_id_with_elo_expression_invalid() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("StudentID".to_string());
+        def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
+
+        registry
+            .register("StudentID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("STUDENT-2024");
+        let result = registry.validate("StudentID", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_patient_id_with_elo_expression_valid() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("PatientID".to_string());
+        def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
+
+        registry
+            .register("PatientID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("PAT-987654");
+        let result = registry.validate("PatientID", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_patient_id_with_elo_expression_invalid() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("PatientID".to_string());
+        def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
+
+        registry
+            .register("PatientID".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("PATIENT123");
+        let result = registry.validate("PatientID", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_rules_then_elo_expression_both_valid() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("LibraryCode".to_string());
+        def.validation_rules = vec![ValidationRule::Length {
+            min: Some(8),
+            max: Some(8),
+        }];
+        def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        let value = serde_json::json!("LIB-1234");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_rules_pass_elo_fails() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("LibraryCode".to_string());
+        def.validation_rules = vec![ValidationRule::Length {
+            min: Some(8),
+            max: Some(8),
+        }];
+        def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
+
+        registry
+            .register("LibraryCode".to_string(), def)
+            .unwrap();
+
+        // This passes the length rule but fails the ELO pattern
+        let value = serde_json::json!("NOTVALID");
+        let result = registry.validate("LibraryCode", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_rules_fail_elo_not_evaluated() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("StudentID".to_string());
+        def.validation_rules = vec![ValidationRule::Length {
+            min: Some(10),
+            max: Some(10),
+        }];
+        def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
+
+        registry
+            .register("StudentID".to_string(), def)
+            .unwrap();
+
+        // This fails the length rule, so ELO should not be evaluated
+        let value = serde_json::json!("STU-2024");
+        let result = registry.validate("StudentID", &value);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_complex_elo_expression_with_multiple_conditions() {
+
+        let registry = CustomTypeRegistry::new(Default::default());
+        let mut def = CustomTypeDef::new("PatientID".to_string());
+        // Match pattern OR contains substring
+        def.elo_expression = Some(
+            "matches(value, \"^PAT-[0-9]{6}$\") || contains(value, \"URGENT\")".to_string(),
+        );
+
+        registry
+            .register("PatientID".to_string(), def)
+            .unwrap();
+
+        // Valid: matches pattern
+        let value1 = serde_json::json!("PAT-123456");
+        assert!(registry.validate("PatientID", &value1).is_ok());
+
+        // Valid: contains substring (even though doesn't match pattern)
+        let value2 = serde_json::json!("URGENT-CASE");
+        assert!(registry.validate("PatientID", &value2).is_ok());
+
+        // Invalid: neither matches pattern nor contains substring
+        let value3 = serde_json::json!("INVALID");
+        assert!(registry.validate("PatientID", &value3).is_err());
     }
 }
