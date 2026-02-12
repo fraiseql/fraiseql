@@ -191,22 +191,22 @@ fn test_all_network_operators_have_sql_generation() {
 // PHASE 2, CYCLE 2: Database-Specific Behavior Tests
 // ============================================================================
 
-/// Test that unimplemented network operators return clear error messages
+/// Test that unimplemented operators return clear error messages
 #[test]
-fn test_unimplemented_network_operators_return_errors() {
+fn test_unimplemented_operators_return_errors() {
     // Operators that are in the WhereOperator enum but not yet implemented
-    // (Using LTree operators as examples of unimplemented operators)
+    // (Using FTS operators as examples of unimplemented operators)
     let unimplemented_operators = vec![
-        (WhereOperator::AncestorOf, "AncestorOf"),
-        (WhereOperator::DescendantOf, "DescendantOf"),
-        (WhereOperator::MatchesLquery, "MatchesLquery"),
+        (WhereOperator::Matches, "Matches"),
+        (WhereOperator::PlainQuery, "PlainQuery"),
+        (WhereOperator::PhraseQuery, "PhraseQuery"),
     ];
 
     for (operator, op_name) in unimplemented_operators {
         let clause = WhereClause::Field {
-            path: vec!["ip_field".to_string()],
+            path: vec!["text_field".to_string()],
             operator,
-            value: json!("192.168.1.1"),
+            value: json!("search term"),
         };
 
         // Should return an error with clear message
@@ -283,19 +283,19 @@ fn test_error_messages_are_helpful() {
         "Should still generate SQL even with unusual values (validation at query time)"
     );
 
-    // Test actual unsupported operator
+    // Test actual unsupported operator (FTS)
     let unsupported_clause = WhereClause::Field {
-        path: vec!["ip_field".to_string()],
-        operator: WhereOperator::AncestorOf,  // LTree operator, not network
-        value: json!(true),
+        path: vec!["text_field".to_string()],
+        operator: WhereOperator::Matches,  // Full-text search operator
+        value: json!("search term"),
     };
 
     let error_result = WhereSqlGenerator::to_sql_for_db(&unsupported_clause, DatabaseType::PostgreSQL);
-    assert!(error_result.is_err(), "AncestorOf should not be implemented yet");
+    assert!(error_result.is_err(), "Matches (FTS) should not be implemented yet");
 
     let error_msg = format!("{:?}", error_result.err());
     assert!(
-        error_msg.contains("AncestorOf") || error_msg.contains("not yet supported"),
+        error_msg.contains("Matches") || error_msg.contains("not yet supported"),
         "Error should mention the operator name, got: {}",
         error_msg
     );

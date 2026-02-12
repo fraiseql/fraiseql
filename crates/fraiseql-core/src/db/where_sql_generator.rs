@@ -150,6 +150,151 @@ impl WhereSqlGenerator {
             WhereOperator::StrictlyContains => {
                 Self::apply_template(db_type, "strictlyLeft", &json_path, value)?
             },
+            // LTree operators (PostgreSQL-only)
+            WhereOperator::AncestorOf => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator AncestorOf is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "ancestorOf", &json_path, value)?
+            },
+            WhereOperator::DescendantOf => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DescendantOf is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "descendantOf", &json_path, value)?
+            },
+            WhereOperator::MatchesLquery => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator MatchesLquery is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "matchesLquery", &json_path, value)?
+            },
+            WhereOperator::MatchesLtxtquery => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator MatchesLtxtquery is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "matchesLtxtquery", &json_path, value)?
+            },
+            WhereOperator::MatchesAnyLquery => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator MatchesAnyLquery is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "matchesAnyLquery", &json_path, value)?
+            },
+            WhereOperator::DepthEq => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DepthEq is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "depthEq", &json_path, value)?
+            },
+            WhereOperator::DepthNeq => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DepthNeq is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "depthNeq", &json_path, value)?
+            },
+            WhereOperator::DepthGt => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DepthGt is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "depthGt", &json_path, value)?
+            },
+            WhereOperator::DepthGte => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DepthGte is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "depthGte", &json_path, value)?
+            },
+            WhereOperator::DepthLt => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DepthLt is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "depthLt", &json_path, value)?
+            },
+            WhereOperator::DepthLte => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator DepthLte is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "depthLte", &json_path, value)?
+            },
+            WhereOperator::Lca => {
+                if db_type != DatabaseType::PostgreSQL {
+                    return Err(FraiseQLError::Internal {
+                        message: format!(
+                            "LTree operator Lca is only supported on PostgreSQL, not on {:?}",
+                            db_type
+                        ),
+                        source: None,
+                    });
+                }
+                Self::apply_template(db_type, "lca", &json_path, value)?
+            },
             // All other operators
             _ => {
                 let sql_op = Self::operator_to_sql(operator, db_type)?;
@@ -367,6 +512,45 @@ impl WhereSqlGenerator {
             (DatabaseType::SQLite, "strictlyRight") => Some("CAST(SUBSTR($field, 1, INSTR($field, '/') - 1) AS TEXT) > CAST(BROADCAST(SUBSTR($1, 1, INSTR($1, '/') - 1)) AS TEXT)".to_string()),
             (DatabaseType::SQLServer, "strictlyRight") => Some("SUBSTRING($field, 1, CHARINDEX('/', $field) - 1) > CAST(BROADCAST(SUBSTRING($1, 1, CHARINDEX('/', $1) - 1)) AS VARCHAR)".to_string()),
 
+            // ========================================================================
+            // LTREE OPERATORS (PostgreSQL-only, Phase 3)
+            // ========================================================================
+            // AncestorOf: Check if ltree is ancestor of another (is contained in)
+            (DatabaseType::PostgreSQL, "ancestorOf") => Some("$field @> $1::ltree".to_string()),
+
+            // DescendantOf: Check if ltree is descendant of another (contains)
+            (DatabaseType::PostgreSQL, "descendantOf") => Some("$field <@ $1::ltree".to_string()),
+
+            // MatchesLquery: Match ltree against lquery pattern
+            (DatabaseType::PostgreSQL, "matchesLquery") => Some("$field ~ $1::lquery".to_string()),
+
+            // MatchesLtxtquery: Match ltree against ltxtquery pattern (text-based)
+            (DatabaseType::PostgreSQL, "matchesLtxtquery") => Some("$field ? $1::ltxtquery".to_string()),
+
+            // MatchesAnyLquery: Match against any of multiple lqueries
+            (DatabaseType::PostgreSQL, "matchesAnyLquery") => Some("$field ~ ANY($1::lquery[])".to_string()),
+
+            // DepthEq: Check if depth (number of labels) equals value
+            (DatabaseType::PostgreSQL, "depthEq") => Some("nlevel($field) = $1".to_string()),
+
+            // DepthNeq: Check if depth does not equal value
+            (DatabaseType::PostgreSQL, "depthNeq") => Some("nlevel($field) != $1".to_string()),
+
+            // DepthGt: Check if depth is greater than value
+            (DatabaseType::PostgreSQL, "depthGt") => Some("nlevel($field) > $1".to_string()),
+
+            // DepthGte: Check if depth is greater than or equal to value
+            (DatabaseType::PostgreSQL, "depthGte") => Some("nlevel($field) >= $1".to_string()),
+
+            // DepthLt: Check if depth is less than value
+            (DatabaseType::PostgreSQL, "depthLt") => Some("nlevel($field) < $1".to_string()),
+
+            // DepthLte: Check if depth is less than or equal to value
+            (DatabaseType::PostgreSQL, "depthLte") => Some("nlevel($field) <= $1".to_string()),
+
+            // Lca: Lowest common ancestor of two ltrees
+            (DatabaseType::PostgreSQL, "lca") => Some("lca($field, $1::ltree) IS NOT NULL".to_string()),
+
             // Add more operators in later phases
             _ => None,
         }
@@ -439,8 +623,13 @@ impl WhereSqlGenerator {
                 });
             },
 
-            // Advanced operators not yet supported
-            WhereOperator::IsLoopback
+            // Advanced operators handled via apply_template (not via operator_to_sql)
+            WhereOperator::IsIPv4
+            | WhereOperator::IsIPv6
+            | WhereOperator::IsPrivate
+            | WhereOperator::IsPublic
+            | WhereOperator::IsLoopback
+            | WhereOperator::InSubnet
             | WhereOperator::ContainsSubnet
             | WhereOperator::ContainsIP
             | WhereOperator::Overlaps
@@ -457,11 +646,6 @@ impl WhereSqlGenerator {
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
             | WhereOperator::Lca
-            | WhereOperator::IsIPv4
-            | WhereOperator::IsIPv6
-            | WhereOperator::IsPrivate
-            | WhereOperator::IsPublic
-            | WhereOperator::InSubnet
             | WhereOperator::Matches
             | WhereOperator::PlainQuery
             | WhereOperator::PhraseQuery
@@ -469,7 +653,7 @@ impl WhereSqlGenerator {
             | WhereOperator::Extended(_) => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
-                        "Operator {:?} is not yet supported in fraiseql-wire. Please contact support or file an issue.",
+                        "Operator {:?} should be handled by apply_template in generate_field_predicate, not in operator_to_sql",
                         operator
                     ),
                     source:  None,
