@@ -5,7 +5,7 @@
 //! Can be used with local Docker containers or managed PostgreSQL services.
 
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{Pool, Postgres, Row};
+use sqlx::{Pool, Postgres};
 use std::env;
 
 /// Creates a PostgreSQL pool for integration testing
@@ -34,7 +34,7 @@ pub async fn create_test_postgres_pool() -> Result<Pool<Postgres>, sqlx::Error> 
 }
 
 /// Test schema for PostgreSQL events table
-pub const TEST_POSTGRES_EVENTS_SCHEMA: &str = r#"
+pub const TEST_POSTGRES_EVENTS_SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
     event_type TEXT NOT NULL,
@@ -52,10 +52,10 @@ CREATE INDEX IF NOT EXISTS idx_events_entity_id ON events(entity_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_tenant_id ON events(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_events_data ON events USING GIN(data);
-"#;
+";
 
 /// Test schema for PostgreSQL configuration table
-pub const TEST_POSTGRES_CONFIG_SCHEMA: &str = r#"
+pub const TEST_POSTGRES_CONFIG_SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS configurations (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -66,11 +66,12 @@ CREATE TABLE IF NOT EXISTS configurations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_config_name ON configurations(name);
-"#;
+";
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::Row;
 
     #[tokio::test]
     #[ignore] // Run with: cargo test -- --ignored
