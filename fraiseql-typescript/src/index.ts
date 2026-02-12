@@ -63,6 +63,7 @@ export {
   Query,
   Mutation,
   Subscription,
+  Scalar,
   enum_,
   interface_,
   union,
@@ -88,6 +89,8 @@ export { config, exportSchema, exportTypes, getSchemaDict, exportSchemaToString 
 
 // Export scalar types for schema authoring
 export {
+  // Custom scalars
+  CustomScalar,
   // Core scalars
   SCALAR_NAMES,
   isScalarType,
@@ -163,3 +166,6 @@ export type {
   // Database scalars
   LTree,
 } from "./scalars";
+
+// Export custom scalar validators
+export { validateCustomScalar, getAllCustomScalars, ScalarValidationError } from "./validators";

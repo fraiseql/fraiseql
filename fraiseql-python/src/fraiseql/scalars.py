@@ -36,7 +36,98 @@ Custom Scalars:
     The scalar name will pass through to schema.json and be validated at runtime.
 """
 
-from typing import NewType
+from typing import Any, NewType
+
+
+# =============================================================================
+# CustomScalar Base Class
+# =============================================================================
+
+
+class CustomScalar:
+    """Base class for custom GraphQL scalars with validation.
+
+    Subclasses must define a `name` class attribute and implement
+    the three validation methods (serialize, parse_value, parse_literal).
+
+    Use with the @scalar decorator to register custom scalars with the schema.
+
+    Example:
+        ```python
+        from fraiseql import CustomScalar, scalar
+
+        @scalar
+        class Email(CustomScalar):
+            name = "Email"
+
+            def serialize(self, value: str) -> str:
+                return str(value)
+
+            def parse_value(self, value: str) -> str:
+                if "@" not in str(value):
+                    raise ValueError("Invalid email address")
+                return str(value)
+
+            def parse_literal(self, ast: Any) -> str:
+                if hasattr(ast, 'value'):
+                    return self.parse_value(ast.value)
+                raise ValueError("Invalid email literal")
+        ```
+    """
+
+    name: str
+    """Scalar name (e.g., "Email"). Must be unique in schema."""
+
+    def serialize(self, value: Any) -> Any:
+        """Convert value to output format (schema → response).
+
+        Called when serializing a field value in GraphQL response.
+
+        Args:
+            value: The internal representation (from database/object)
+
+        Returns:
+            The value formatted for GraphQL response
+
+        Raises:
+            ValueError: If value cannot be serialized
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.serialize() not implemented")
+
+    def parse_value(self, value: Any) -> Any:
+        """Validate and convert input value (client input → internal).
+
+        Called when a scalar is passed as a variable in GraphQL query.
+
+        Args:
+            value: Raw input value from client
+
+        Returns:
+            Validated/converted value
+
+        Raises:
+            ValueError: If validation fails
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.parse_value() not implemented")
+
+    def parse_literal(self, ast: Any) -> Any:
+        """Parse GraphQL literal (hardcoded value in query).
+
+        Called when a scalar is hardcoded in the GraphQL query string
+        (not as a variable).
+
+        Args:
+            ast: GraphQL AST node representing the literal
+                (has `value` attribute for string/number/etc)
+
+        Returns:
+            Validated/converted value
+
+        Raises:
+            ValueError: If literal cannot be parsed
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.parse_literal() not implemented")
+
 
 # =============================================================================
 # Core GraphQL Scalars

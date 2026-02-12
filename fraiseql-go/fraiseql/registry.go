@@ -86,6 +86,7 @@ type Schema struct {
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
 	FactTables       []FactTableDefinition      `json:"fact_tables,omitempty"`
 	AggregateQueries []AggregateQueryDefinition `json:"aggregate_queries,omitempty"`
+	CustomScalars    []map[string]interface{}   `json:"custom_scalars,omitempty"`
 }
 
 // SchemaRegistry is a singleton registry for collecting types, queries, mutations, and subscriptions
@@ -216,6 +217,14 @@ func GetSchema() Schema {
 		schema.AggregateQueries = append(schema.AggregateQueries, aggregateQuery)
 	}
 
+	// Include custom scalars
+	customScalars := GetAllCustomScalars()
+	for name := range customScalars {
+		schema.CustomScalars = append(schema.CustomScalars, map[string]interface{}{
+			"name": name,
+		})
+	}
+
 	return schema
 }
 
@@ -241,6 +250,9 @@ func Reset() {
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.aggregateQueries = make(map[string]AggregateQueryDefinition)
+
+	// Also clear custom scalars
+	ClearCustomScalars()
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them

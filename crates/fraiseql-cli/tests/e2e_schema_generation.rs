@@ -27,6 +27,7 @@ fn test_e2e_complete_compilation_pipeline() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -72,6 +73,7 @@ fn test_e2e_sql_templates_all_databases() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -123,6 +125,7 @@ fn test_e2e_lookup_data_comprehensive() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -169,6 +172,7 @@ fn test_e2e_all_operators_generated() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -225,6 +229,7 @@ fn test_e2e_compilation_deterministic() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled1 =
@@ -275,6 +280,7 @@ fn test_e2e_all_49_types_valid() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

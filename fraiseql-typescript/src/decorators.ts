@@ -6,6 +6,7 @@
  */
 
 import { SchemaRegistry, ArgumentDefinition, Field, EnumValue, FieldMetadata } from "./registry";
+import { CustomScalar } from "./scalars";
 
 /**
  * Create field-level metadata for access control and deprecation.
@@ -611,4 +612,102 @@ export function registerSubscription(
   config?: Record<string, unknown>
 ): void {
   SchemaRegistry.registerSubscription(name, entityType, nullable, args, description, config);
+}
+
+/**
+ * Decorator to register a custom scalar with the schema.
+ *
+ * This decorator registers the scalar globally so it can be:
+ * 1. Used in type annotations
+ * 2. Exported to schema.json
+ * 3. Validated at runtime
+ *
+ * @param target - CustomScalar subclass
+ * @returns The original class (unmodified)
+ * @throws If scalar name is not unique
+ * @throws If class doesn't extend CustomScalar
+ *
+ * @example
+ * ```typescript
+ * @Scalar()
+ * class Email extends CustomScalar {
+ *   name = "Email"
+ *
+ *   serialize(value: unknown): string {
+ *     return String(value)
+ *   }
+ *
+ *   parseValue(value: unknown): string {
+ *     const str = String(value)
+ *     if (!str.includes("@")) {
+ *       throw new Error("Invalid email")
+ *     }
+ *     return str
+ *   }
+ *
+ *   parseLiteral(ast: unknown): string {
+ *     if (ast && typeof ast === "object" && "value" in ast) {
+ *       return this.parseValue((ast as any).value)
+ *     }
+ *     throw new Error("Invalid email literal")
+ *   }
+ * }
+ *
+ * // Use in type:
+ * @Type()
+ * class User {
+ *   id: string
+ *   email: Email  // Uses registered Email scalar
+ *   name: string
+ * }
+ *
+ * // Export schema
+ * const schema = exportSchema("schema.json")
+ * // schema contains: "customScalars": {"Email": {...}}
+ * ```
+ *
+ * @remarks
+ * - Decorator returns class unmodified (no runtime FFI)
+ * - Registration is global (per-process)
+ * - Name must be unique within schema
+ * - Scalar must be defined before @Type that uses it
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function Scalar<T extends typeof CustomScalar>(target: T): T {
+  // Verify that target extends CustomScalar
+  if (!isCustomScalarSubclass(target)) {
+    throw new TypeError(
+      `@Scalar can only be applied to CustomScalar subclasses, got ${target.name}`
+    );
+  }
+
+  // Create instance to get the name
+  const instance = new target();
+  const scalarName = instance.name;
+
+  // Validate name
+  if (!scalarName || typeof scalarName !== "string") {
+    throw new Error(
+      `CustomScalar ${target.name} must have a 'name' property of type string`
+    );
+  }
+
+  // Register with schema registry
+  SchemaRegistry.registerScalar(scalarName, target, target.toString());
+
+  return target;
+}
+
+/**
+ * Check if a class extends CustomScalar.
+ *
+ * @internal
+ */
+function isCustomScalarSubclass(target: any): target is typeof CustomScalar {
+  try {
+    // Check prototype chain
+    return target.prototype instanceof CustomScalar || target === CustomScalar;
+  } catch {
+    return false;
+  }
 }

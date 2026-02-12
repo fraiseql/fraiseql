@@ -13,10 +13,12 @@ from fraiseql.types import extract_field_info, extract_function_signature
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from fraiseql.scalars import CustomScalar
 
 T = TypeVar("T")
 F = TypeVar("F", bound=FunctionType)
 E = TypeVar("E", bound=PythonEnum)
+S = TypeVar("S", bound="CustomScalar")
 
 
 @dataclass
@@ -672,3 +674,87 @@ def union(
         return cls
 
     return decorator
+
+
+def scalar(cls: type[S]) -> type[S]:
+    """Decorator to register a custom scalar with the schema.
+
+    This decorator registers the scalar globally so it can be:
+    1. Used in type annotations
+    2. Exported to schema.json
+    3. Validated at runtime
+
+    Args:
+        cls: CustomScalar subclass
+
+    Returns:
+        The original class (unmodified)
+
+    Raises:
+        TypeError: If class doesn't inherit from CustomScalar
+        ValueError: If scalar name is not unique or invalid
+
+    Examples:
+        >>> from fraiseql import CustomScalar, scalar
+
+        >>> @scalar
+        ... class Email(CustomScalar):
+        ...     name = "Email"
+        ...
+        ...     def serialize(self, value):
+        ...         return str(value)
+        ...
+        ...     def parse_value(self, value):
+        ...         if "@" not in str(value):
+        ...             raise ValueError("Invalid email")
+        ...         return str(value)
+        ...
+        ...     def parse_literal(self, ast):
+        ...         if hasattr(ast, 'value'):
+        ...             return self.parse_value(ast.value)
+        ...         raise ValueError("Invalid email literal")
+
+    Usage in types:
+        >>> @fraiseql.type
+        ... class User:
+        ...     id: int
+        ...     email: Email  # Uses registered Email scalar
+        ...     name: str
+
+        >>> schema = fraiseql.export_schema("schema.json")
+        >>> # schema contains: "customScalars": {"Email": {...}}
+
+    Notes:
+        - Decorator returns class unmodified (no runtime FFI)
+        - Registration is global (per-process)
+        - Name must be unique within schema
+        - Scalar must be defined before @type that uses it
+        - Classes can only be imported from fraiseql.scalars at runtime
+    """
+    # Import here to avoid circular import
+    from fraiseql.scalars import CustomScalar
+
+    # Validate that cls is a CustomScalar subclass
+    if not issubclass(cls, CustomScalar):
+        raise TypeError(
+            f"@scalar can only be applied to CustomScalar subclasses, got {cls.__name__}"
+        )
+
+    # Validate that cls has a name
+    if not hasattr(cls, "name"):
+        raise ValueError(f"CustomScalar {cls.__name__} must have a 'name' class attribute")
+
+    scalar_name = cls.name
+    if not isinstance(scalar_name, str) or not scalar_name:
+        raise ValueError(
+            f"CustomScalar name must be a non-empty string, got {scalar_name!r}"
+        )
+
+    # Register with schema registry
+    SchemaRegistry.register_scalar(
+        name=scalar_name,
+        scalar_class=cls,
+        description=cls.__doc__,
+    )
+
+    return cls

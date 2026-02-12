@@ -320,6 +320,7 @@ mod tests {
     use fraiseql_core::schema::{
         ArgumentDefinition, AutoParams, FieldDefinition, FieldType, TypeDefinition,
     };
+    use fraiseql_core::validation::CustomTypeRegistry;
 
     use super::*;
 
@@ -340,6 +341,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -381,6 +383,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -422,6 +425,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -465,6 +469,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -508,6 +513,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -561,6 +567,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();

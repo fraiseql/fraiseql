@@ -40,6 +40,113 @@
  */
 
 // =============================================================================
+// CustomScalar Abstract Base Class
+// =============================================================================
+
+/**
+ * Abstract base class for custom GraphQL scalars with validation.
+ *
+ * Subclasses must define a `name` property and implement
+ * the three validation methods (serialize, parseValue, parseLiteral).
+ *
+ * Use with the @Scalar decorator to register custom scalars with the schema.
+ *
+ * @example
+ * ```typescript
+ * class Email extends CustomScalar {
+ *   name = "Email"
+ *
+ *   serialize(value: unknown): string {
+ *     return String(value)
+ *   }
+ *
+ *   parseValue(value: unknown): string {
+ *     const str = String(value)
+ *     if (!str.includes("@")) {
+ *       throw new Error("Invalid email address")
+ *     }
+ *     return str
+ *   }
+ *
+ *   parseLiteral(ast: unknown): string {
+ *     if (ast && typeof ast === "object" && "value" in ast) {
+ *       return this.parseValue((ast as any).value)
+ *     }
+ *     throw new Error("Invalid email literal")
+ *   }
+ * }
+ * ```
+ */
+export abstract class CustomScalar {
+  /**
+   * Scalar name (e.g., "Email"). Must be unique in schema.
+   */
+  abstract name: string
+
+  /**
+   * Convert value to output format (schema → response).
+   *
+   * Called when serializing a field value in GraphQL response.
+   *
+   * @param value - The internal representation (from database/object)
+   * @returns The value formatted for GraphQL response (usually string)
+   * @throws If value cannot be serialized
+   *
+   * @example
+   * ```typescript
+   * serialize(value: Date): string {
+   *   return value.toISOString()
+   * }
+   * ```
+   */
+  abstract serialize(value: unknown): unknown
+
+  /**
+   * Validate and convert input value (client input → internal).
+   *
+   * Called when a scalar is passed as a variable in GraphQL query.
+   *
+   * @param value - Raw input value from client
+   * @returns Validated/converted value
+   * @throws If validation fails
+   *
+   * @example
+   * ```typescript
+   * parseValue(value: unknown): string {
+   *   const str = String(value)
+   *   if (!str.includes("@")) {
+   *     throw new Error("Invalid email address")
+   *   }
+   *   return str
+   * }
+   * ```
+   */
+  abstract parseValue(value: unknown): unknown
+
+  /**
+   * Parse GraphQL literal (hardcoded value in query).
+   *
+   * Called when a scalar is hardcoded in the GraphQL query string
+   * (not as a variable).
+   *
+   * @param ast - GraphQL AST node representing the literal
+   * @returns Validated/converted value
+   * @throws If literal cannot be parsed
+   *
+   * @example
+   * ```typescript
+   * parseLiteral(ast: unknown): string {
+   *   if (ast && typeof ast === "object" && "value" in ast) {
+   *     return this.parseValue((ast as any).value)
+   *   }
+   *   throw new Error(`Invalid email literal: ${ast}`)
+   * }
+   * ```
+   */
+  abstract parseLiteral(ast: unknown): unknown
+}
+
+// =============================================================================
 // Branded Type Helper
 // =============================================================================
 

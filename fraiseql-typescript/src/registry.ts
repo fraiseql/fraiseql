@@ -252,6 +252,7 @@ export class SchemaRegistry {
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static aggregateQueries: Map<string, AggregateQueryDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
+  private static customScalars: Map<string, { class: any; description?: string }> = new Map();
 
   /**
    * Register a GraphQL type.
@@ -510,6 +511,35 @@ export class SchemaRegistry {
   }
 
   /**
+   * Register a custom scalar.
+   *
+   * @param name - Scalar name (e.g., "Email")
+   * @param scalarClass - The CustomScalar subclass
+   * @param description - Optional scalar description
+   *
+   * @throws If scalar name is not unique
+   */
+  static registerScalar(name: string, scalarClass: any, description?: string): void {
+    if (this.customScalars.has(name)) {
+      throw new Error(`Scalar ${name!r} is already registered`);
+    }
+    this.customScalars.set(name, { class: scalarClass, description });
+  }
+
+  /**
+   * Get all registered custom scalars.
+   *
+   * @returns Map of scalar names to CustomScalar classes
+   */
+  static getCustomScalars(): Map<string, any> {
+    const result = new Map<string, any>();
+    for (const [name, { class: scalarClass }] of this.customScalars) {
+      result.set(name, scalarClass);
+    }
+    return result;
+  }
+
+  /**
    * Get the complete schema as an object.
    *
    * @returns Schema object with types, queries, mutations, subscriptions, and analytics sections
@@ -550,6 +580,18 @@ export class SchemaRegistry {
       schema.observers = Array.from(this.observers.values());
     }
 
+    if (this.customScalars.size > 0) {
+      const customScalars: Record<string, any> = {};
+      for (const [name, { class: scalarClass, description }] of this.customScalars) {
+        customScalars[name] = {
+          name,
+          description: description || scalarClass.__doc__ || "Custom scalar",
+          validate: true,
+        };
+      }
+      (schema as any).customScalars = customScalars;
+    }
+
     return schema;
   }
 
@@ -568,5 +610,6 @@ export class SchemaRegistry {
     this.factTables.clear();
     this.aggregateQueries.clear();
     this.observers.clear();
+    this.customScalars.clear();
   }
 }

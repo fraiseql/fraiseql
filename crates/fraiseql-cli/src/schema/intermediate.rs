@@ -4,6 +4,7 @@
 //! See .`claude/INTERMEDIATE_SCHEMA_FORMAT.md` for full specification.
 
 use serde::{Deserialize, Serialize};
+use fraiseql_core::validation::ValidationRule;
 
 /// Intermediate schema - universal format from all language libraries
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -63,6 +64,14 @@ pub struct IntermediateSchema {
     /// Observer definitions (database change event listeners)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers: Option<Vec<IntermediateObserver>>,
+
+    /// Custom scalar type definitions (Phase 5: SDK Support)
+    ///
+    /// Defines custom GraphQL scalar types with validation rules.
+    /// Custom scalars can be defined in Python, TypeScript, Java, Go, and Rust SDKs,
+    /// and are compiled into the CompiledSchema's CustomTypeRegistry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_scalars: Option<Vec<IntermediateScalar>>,
 
     /// Security configuration (from fraiseql.toml)
     /// Compiled from the security section of fraiseql.toml at compile time.
@@ -204,6 +213,56 @@ pub struct IntermediateDeprecation {
     /// Deprecation reason (what to use instead)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+}
+
+// =============================================================================
+// Custom Scalar Definitions (Phase 5: SDK Support)
+// =============================================================================
+
+/// Custom scalar type definition in intermediate format.
+///
+/// Custom scalars allow applications to define domain-specific types with validation.
+/// Scalars are defined in language SDKs (Python, TypeScript, Java, Go, Rust)
+/// and compiled into the schema.
+///
+/// # Example JSON
+///
+/// ```json
+/// {
+///   "name": "Email",
+///   "description": "Valid email address",
+///   "specified_by_url": "https://tools.ietf.org/html/rfc5322",
+///   "base_type": "String",
+///   "validation_rules": [
+///     {
+///       "type": "pattern",
+///       "value": {
+///         "pattern": "^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$"
+///       }
+///     }
+///   ]
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IntermediateScalar {
+    /// Scalar name (e.g., "Email", "Phone", "ISBN")
+    pub name: String,
+
+    /// Scalar description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// URL to specification/RFC (GraphQL spec §3.5.1)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specified_by_url: Option<String>,
+
+    /// Built-in validation rules
+    #[serde(default)]
+    pub validation_rules: Vec<ValidationRule>,
+
+    /// Base type for type aliases (e.g., "String" for Email scalar)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_type: Option<String>,
 }
 
 // =============================================================================

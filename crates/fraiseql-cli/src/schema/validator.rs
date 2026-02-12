@@ -589,6 +589,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -624,6 +625,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -680,6 +682,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -721,6 +724,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -771,6 +775,7 @@ mod tests {
                     max_delay_ms:     60000,
                 },
             }]),
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -812,6 +817,7 @@ mod tests {
                     max_delay_ms:     60000,
                 },
             }]),
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -858,6 +864,7 @@ mod tests {
                     max_delay_ms:     60000,
                 },
             }]),
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -904,6 +911,7 @@ mod tests {
                     max_delay_ms:     60000,
                 },
             }]),
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -950,6 +958,7 @@ mod tests {
                     max_delay_ms:     60000,
                 },
             }]),
+            custom_scalars: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();

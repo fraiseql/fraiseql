@@ -19,6 +19,7 @@ class SchemaRegistry:
     _queries: dict[str, dict[str, Any]] = {}
     _mutations: dict[str, dict[str, Any]] = {}
     _subscriptions: dict[str, dict[str, Any]] = {}
+    _custom_scalars: dict[str, tuple[type, str | None]] = {}  # name -> (class, description)
 
     @classmethod
     def register_type(
@@ -272,14 +273,45 @@ class SchemaRegistry:
         }
 
     @classmethod
+    def register_scalar(
+        cls,
+        name: str,
+        scalar_class: type,
+        description: str | None = None,
+    ) -> None:
+        """Register a custom scalar.
+
+        Args:
+            name: Scalar name (e.g., "Email")
+            scalar_class: The CustomScalar subclass
+            description: Optional scalar description from docstring
+
+        Raises:
+            ValueError: If scalar name is not unique
+        """
+        if name in cls._custom_scalars:
+            raise ValueError(f"Scalar {name!r} is already registered")
+
+        cls._custom_scalars[name] = (scalar_class, description)
+
+    @classmethod
+    def get_custom_scalars(cls) -> dict[str, type]:
+        """Get all registered custom scalars.
+
+        Returns:
+            Dictionary mapping scalar names to CustomScalar classes
+        """
+        return {name: scalar_class for name, (scalar_class, _) in cls._custom_scalars.items()}
+
+    @classmethod
     def get_schema(cls) -> dict[str, Any]:
         """Get the complete schema as a dictionary.
 
         Returns:
             Dictionary with "types", "enums", "input_types", "interfaces", "unions",
-            "queries", "mutations", and "subscriptions"
+            "queries", "mutations", "subscriptions", and "customScalars"
         """
-        return {
+        schema: dict[str, Any] = {
             "types": list(cls._types.values()),
             "enums": list(cls._enums.values()),
             "input_types": list(cls._input_types.values()),
@@ -289,6 +321,19 @@ class SchemaRegistry:
             "mutations": list(cls._mutations.values()),
             "subscriptions": list(cls._subscriptions.values()),
         }
+
+        # Include custom scalars if any are registered
+        if cls._custom_scalars:
+            custom_scalars = {}
+            for name, (scalar_class, description) in cls._custom_scalars.items():
+                custom_scalars[name] = {
+                    "name": name,
+                    "description": description or scalar_class.__doc__,
+                    "validate": True,
+                }
+            schema["customScalars"] = custom_scalars
+
+        return schema
 
     @classmethod
     def clear(cls) -> None:
@@ -301,6 +346,7 @@ class SchemaRegistry:
         cls._queries.clear()
         cls._mutations.clear()
         cls._subscriptions.clear()
+        cls._custom_scalars.clear()
 
 
 def generate_schema_json(types: list[type] | None = None) -> dict[str, Any]:

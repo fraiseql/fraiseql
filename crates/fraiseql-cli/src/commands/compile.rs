@@ -293,6 +293,7 @@ mod tests {
     use fraiseql_core::schema::{
         AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
     };
+    use fraiseql_core::validation::CustomTypeRegistry;
 
     #[test]
     fn test_validate_schema_success() {
@@ -353,6 +354,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -389,6 +391,7 @@ mod tests {
             federation:    None,
             security:      None,
             schema_sdl:    None,
+            custom_scalars: CustomTypeRegistry::default(),
         };
 
         // Note: Validation is private to SchemaConverter

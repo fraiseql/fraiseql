@@ -38,15 +38,20 @@ Example:
     ```
 """
 
-from fraiseql.decorators import FieldConfig, field, mutation, query, subscription
+from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, subscription
 from fraiseql.decorators import enum as enum_decorator
 from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
-from fraiseql.scalars import ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
+from fraiseql.scalars import CustomScalar, ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema, export_types
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
+from fraiseql.validators import (
+    ScalarValidationError,
+    get_all_custom_scalars,
+    validate_custom_scalar,
+)
 
 __version__ = "2.0.0-alpha.1"
 
@@ -57,11 +62,14 @@ __all__ = [
     "input_decorator",
     "interface_decorator",
     "union_decorator",
+    "scalar",
     "query",
     "mutation",
     "subscription",
     "field",
     "FieldConfig",
+    # Custom scalars
+    "CustomScalar",
     # Scalar types
     "ID",
     "UUID",
@@ -79,6 +87,10 @@ __all__ = [
     "validate_scope",
     "ScopeValidationError",
     "describe_scope_format",
+    # Custom scalar validation
+    "validate_custom_scalar",
+    "ScalarValidationError",
+    "get_all_custom_scalars",
     # Metadata
     "__version__",
 ]

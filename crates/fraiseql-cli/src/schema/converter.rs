@@ -11,6 +11,7 @@ use fraiseql_core::schema::{
     InputObjectDefinition, InterfaceDefinition, MutationDefinition, MutationOperation,
     QueryDefinition, SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
 };
+use fraiseql_core::validation::{CustomTypeDef, CustomTypeRegistry};
 use tracing::{info, warn};
 
 use super::{
@@ -18,7 +19,7 @@ use super::{
         IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
         IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
         IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateSchema,
-        IntermediateSubscription, IntermediateType, IntermediateUnion,
+        IntermediateScalar, IntermediateSubscription, IntermediateType, IntermediateUnion,
     },
     rich_filters::{RichFilterConfig, compile_rich_filters},
 };
@@ -132,7 +133,19 @@ impl SchemaConverter {
             federation: None,                // Federation metadata
             security: intermediate.security, // Security configuration from TOML
             schema_sdl: None,                // Raw GraphQL SDL
+            custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
         };
+
+        // Populate custom scalars from intermediate schema
+        if let Some(custom_scalars_vec) = intermediate.custom_scalars {
+            for scalar_def in custom_scalars_vec {
+                let custom_type = Self::convert_custom_scalar(scalar_def)?;
+                compiled.custom_scalars.register(
+                    custom_type.name.clone(),
+                    custom_type,
+                ).context("Failed to register custom scalar")?;
+            }
+        }
 
         // Compile rich filter types (EmailAddress, VIN, IBAN, etc.)
         let rich_filter_config = RichFilterConfig::default();
@@ -188,6 +201,18 @@ impl SchemaConverter {
             description: intermediate.description,
             deprecation,
         }
+    }
+
+    /// Convert `IntermediateScalar` to `CustomTypeDef`
+    fn convert_custom_scalar(intermediate: IntermediateScalar) -> Result<CustomTypeDef> {
+        Ok(CustomTypeDef {
+            name: intermediate.name,
+            description: intermediate.description,
+            specified_by_url: intermediate.specified_by_url,
+            validation_rules: intermediate.validation_rules,
+            elo_expression: None,
+            base_type: intermediate.base_type,
+        })
     }
 
     /// Convert `IntermediateInputObject` to `InputObjectDefinition`
@@ -674,6 +699,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -722,6 +748,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -761,6 +788,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -813,6 +841,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -867,6 +896,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -930,6 +960,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1009,6 +1040,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1055,6 +1087,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1105,6 +1138,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1167,6 +1201,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1251,6 +1286,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1319,6 +1355,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1364,6 +1401,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1419,6 +1457,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1477,6 +1516,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1549,6 +1589,7 @@ mod tests {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();

@@ -30,6 +30,7 @@ fn test_rich_filter_compilation_pipeline() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     // 2. Compile to schema
@@ -96,6 +97,7 @@ fn test_all_rich_types_generate_where_input() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -149,6 +151,7 @@ fn test_where_input_fields_include_standard_operators() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -197,6 +200,7 @@ fn test_sql_templates_cover_all_databases() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -256,6 +260,7 @@ fn test_lookup_data_integrity() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -314,6 +319,7 @@ fn test_compiled_schema_is_valid() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

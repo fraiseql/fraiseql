@@ -32,6 +32,7 @@ fn bench_compile_empty_schema_rich_types() {
             fact_tables:       None,
             aggregate_queries: None,
             observers:         None,
+            custom_scalars:    None,
         };
 
         let _compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -71,6 +72,7 @@ fn bench_metadata_access_performance() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -116,6 +118,7 @@ fn bench_operator_metadata_parsing() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -165,6 +168,7 @@ fn bench_database_template_access() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -220,6 +224,7 @@ fn bench_lookup_data_access() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -267,6 +272,7 @@ fn bench_full_operator_traversal() {
         fact_tables:       None,
         aggregate_queries: None,
         observers:         None,
+        custom_scalars:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
