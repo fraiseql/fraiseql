@@ -364,3 +364,184 @@ fn test_ltree_array_syntax_preserved() {
         sql
     );
 }
+
+// ============================================================================
+// PHASE 3, CYCLE 3: Comprehensive LTree Testing (12 operators × 1 database)
+// ============================================================================
+
+/// Comprehensive test matrix: All 12 LTree operators on PostgreSQL
+#[test]
+fn test_all_12_ltree_operators_on_postgresql() {
+    let ltree_operators = vec![
+        (WhereOperator::AncestorOf, "AncestorOf", "@>"),
+        (WhereOperator::DescendantOf, "DescendantOf", "<@"),
+        (WhereOperator::MatchesLquery, "MatchesLquery", "~"),
+        (WhereOperator::MatchesLtxtquery, "MatchesLtxtquery", "?"),
+        (WhereOperator::MatchesAnyLquery, "MatchesAnyLquery", "~"),
+        (WhereOperator::DepthEq, "DepthEq", "nlevel"),
+        (WhereOperator::DepthNeq, "DepthNeq", "nlevel"),
+        (WhereOperator::DepthGt, "DepthGt", "nlevel"),
+        (WhereOperator::DepthGte, "DepthGte", "nlevel"),
+        (WhereOperator::DepthLt, "DepthLt", "nlevel"),
+        (WhereOperator::DepthLte, "DepthLte", "nlevel"),
+        (WhereOperator::Lca, "Lca", "lca"),
+    ];
+
+    let mut success_count = 0;
+    let mut failures = Vec::new();
+
+    for (operator, op_name, expected_keyword) in ltree_operators {
+        let clause = WhereClause::Field {
+            path: vec!["path".to_string()],
+            operator,
+            value: json!("1.2.3"),
+        };
+
+        match WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL) {
+            Ok(sql) => {
+                // Verify SQL contains expected PostgreSQL-specific keyword
+                if sql.contains(expected_keyword) || sql.contains("nlevel") || sql.contains("lca") {
+                    success_count += 1;
+                } else {
+                    failures.push(format!(
+                        "{}: SQL missing expected '{}', got: {}",
+                        op_name, expected_keyword, sql
+                    ));
+                }
+            },
+            Err(e) => {
+                failures.push(format!("{}: Failed to generate SQL: {:?}", op_name, e));
+            },
+        }
+    }
+
+    eprintln!(
+        "\n📊 LTree Operator Test Matrix Results:\n   ✅ {} successes (out of 12)\n   ❌ {} failures",
+        success_count,
+        failures.len()
+    );
+
+    if !failures.is_empty() {
+        eprintln!("\nFailures:");
+        for failure in &failures {
+            eprintln!("  - {}", failure);
+        }
+    }
+
+    assert_eq!(
+        success_count, 12,
+        "Expected all 12 LTree operators to work on PostgreSQL"
+    );
+}
+
+/// Test that LTree operators generate different SQL for different operations
+#[test]
+fn test_ltree_operators_generate_distinct_sql() {
+    // Each operator should generate distinct SQL based on its semantics
+    let test_value = "1.2.3";
+
+    // Ancestor check
+    let ancestor_clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::AncestorOf,
+        value: json!(test_value),
+    };
+    let ancestor_sql = WhereSqlGenerator::to_sql_for_db(&ancestor_clause, DatabaseType::PostgreSQL)
+        .expect("AncestorOf should work");
+
+    // Descendant check (should be different)
+    let descendant_clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::DescendantOf,
+        value: json!(test_value),
+    };
+    let descendant_sql = WhereSqlGenerator::to_sql_for_db(&descendant_clause, DatabaseType::PostgreSQL)
+        .expect("DescendantOf should work");
+
+    // SQLs should be different
+    assert!(
+        ancestor_sql != descendant_sql,
+        "AncestorOf and DescendantOf should generate different SQL"
+    );
+
+    // Depth operators should also differ
+    let depth_eq_clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::DepthEq,
+        value: json!(3),
+    };
+    let depth_eq_sql = WhereSqlGenerator::to_sql_for_db(&depth_eq_clause, DatabaseType::PostgreSQL)
+        .expect("DepthEq should work");
+
+    let depth_gt_clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::DepthGt,
+        value: json!(3),
+    };
+    let depth_gt_sql = WhereSqlGenerator::to_sql_for_db(&depth_gt_clause, DatabaseType::PostgreSQL)
+        .expect("DepthGt should work");
+
+    assert!(
+        depth_eq_sql != depth_gt_sql,
+        "DepthEq and DepthGt should generate different SQL"
+    );
+}
+
+/// Test that all 12 LTree operators are blocked on all non-PostgreSQL databases
+#[test]
+fn test_all_ltree_operators_blocked_on_non_postgres() {
+    let ltree_operators = vec![
+        WhereOperator::AncestorOf,
+        WhereOperator::DescendantOf,
+        WhereOperator::MatchesLquery,
+        WhereOperator::MatchesLtxtquery,
+        WhereOperator::MatchesAnyLquery,
+        WhereOperator::DepthEq,
+        WhereOperator::DepthNeq,
+        WhereOperator::DepthGt,
+        WhereOperator::DepthGte,
+        WhereOperator::DepthLt,
+        WhereOperator::DepthLte,
+        WhereOperator::Lca,
+    ];
+
+    let non_postgres_dbs = vec![DatabaseType::MySQL, DatabaseType::SQLite, DatabaseType::SQLServer];
+
+    for operator in &ltree_operators {
+        for db_type in &non_postgres_dbs {
+            let clause = WhereClause::Field {
+                path: vec!["path".to_string()],
+                operator: operator.clone(),
+                value: json!("1.2.3"),
+            };
+
+            let result = WhereSqlGenerator::to_sql_for_db(&clause, *db_type);
+            assert!(
+                result.is_err(),
+                "LTree operator {:?} should be blocked on {:?}",
+                operator,
+                db_type
+            );
+        }
+    }
+}
+
+/// Integration test: verify LTree operators work with nested paths
+#[test]
+fn test_ltree_operators_with_nested_paths() {
+    let clause = WhereClause::Field {
+        path: vec!["metadata".to_string(), "hierarchy".to_string()],
+        operator: WhereOperator::AncestorOf,
+        value: json!("1.2.3"),
+    };
+
+    let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)
+        .expect("Should work with nested paths");
+
+    // Should reference the nested field correctly
+    assert!(
+        sql.contains("metadata") || sql.contains("hierarchy"),
+        "SQL should contain reference to nested path, got: {}",
+        sql
+    );
+}
