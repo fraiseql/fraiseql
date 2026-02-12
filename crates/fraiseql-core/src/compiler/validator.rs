@@ -35,6 +35,11 @@ fn extract_base_type(type_str: &str) -> &str {
     s.trim()
 }
 
+/// Check if a type is valid (either a known scalar or defined type).
+fn is_valid_type(base_type: &str, defined_types: &std::collections::HashSet<&str>) -> bool {
+    is_known_scalar(base_type) || defined_types.contains(base_type)
+}
+
 /// Validation error.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationError {
@@ -108,13 +113,8 @@ impl SchemaValidator {
             for field in &ir_type.fields {
                 let base_type = extract_base_type(&field.field_type);
 
-                // Skip validation for scalar types and list markers
-                if is_known_scalar(base_type) || base_type.is_empty() {
-                    continue;
-                }
-
-                // Check if the referenced type exists
-                if !defined_types.contains(base_type) {
+                // Skip validation for list markers and check if type is valid
+                if !base_type.is_empty() && !is_valid_type(base_type, &defined_types) {
                     return Err(FraiseQLError::Validation {
                         message: format!(
                             "Type '{}' field '{}' references unknown type '{}'",
@@ -147,7 +147,7 @@ impl SchemaValidator {
 
             // Validate return type exists
             let base_type = extract_base_type(&query.return_type);
-            if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
+            if !is_valid_type(base_type, &defined_types) {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "Query '{}' returns unknown type '{}'",
@@ -160,7 +160,7 @@ impl SchemaValidator {
             // Validate argument types
             for arg in &query.arguments {
                 let base_type = extract_base_type(&arg.arg_type);
-                if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
+                if !is_valid_type(base_type, &defined_types) {
                     return Err(FraiseQLError::Validation {
                         message: format!(
                             "Query '{}' argument '{}' has unknown type '{}'",
@@ -182,7 +182,7 @@ impl SchemaValidator {
             }
 
             let base_type = extract_base_type(&mutation.return_type);
-            if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
+            if !is_valid_type(base_type, &defined_types) {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "Mutation '{}' returns unknown type '{}'",
@@ -203,7 +203,7 @@ impl SchemaValidator {
             }
 
             let base_type = extract_base_type(&subscription.return_type);
-            if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
+            if !is_valid_type(base_type, &defined_types) {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "Subscription '{}' returns unknown type '{}'",
