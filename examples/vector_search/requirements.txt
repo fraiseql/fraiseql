@@ -1,4 +1,0 @@
-fraiseql
-pgvector
-fastapi
-uvicorn
