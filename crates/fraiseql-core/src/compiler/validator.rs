@@ -11,6 +11,7 @@
 
 use super::ir::AuthoringIR;
 use crate::error::{FraiseQLError, Result};
+use crate::schema::is_known_scalar;
 
 /// Extract the base type name from a GraphQL type string.
 ///
@@ -93,26 +94,6 @@ impl SchemaValidator {
         let defined_types: std::collections::HashSet<&str> =
             ir.types.iter().map(|t| t.name.as_str()).collect();
 
-        // Built-in scalar types
-        let scalar_types: std::collections::HashSet<&str> = [
-            "ID",
-            "String",
-            "Int",
-            "Float",
-            "Boolean",
-            "DateTime",
-            "Date",
-            "Time",
-            "JSON",
-            "UUID",
-            "Decimal",
-            "BigInt",
-            "Timestamp",
-            "Void",
-        ]
-        .into_iter()
-        .collect();
-
         // Validate each type
         for ir_type in &ir.types {
             // Validate type name is not empty
@@ -128,12 +109,12 @@ impl SchemaValidator {
                 let base_type = extract_base_type(&field.field_type);
 
                 // Skip validation for scalar types and list markers
-                if scalar_types.contains(base_type) || base_type.is_empty() {
+                if is_known_scalar(base_type) || base_type.is_empty() {
                     continue;
                 }
 
                 // Check if the referenced type exists
-                if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                if !defined_types.contains(base_type) {
                     return Err(FraiseQLError::Validation {
                         message: format!(
                             "Type '{}' field '{}' references unknown type '{}'",
@@ -154,26 +135,6 @@ impl SchemaValidator {
         let defined_types: std::collections::HashSet<&str> =
             ir.types.iter().map(|t| t.name.as_str()).collect();
 
-        // Built-in scalar types
-        let scalar_types: std::collections::HashSet<&str> = [
-            "ID",
-            "String",
-            "Int",
-            "Float",
-            "Boolean",
-            "DateTime",
-            "Date",
-            "Time",
-            "JSON",
-            "UUID",
-            "Decimal",
-            "BigInt",
-            "Timestamp",
-            "Void",
-        ]
-        .into_iter()
-        .collect();
-
         // Validate each query
         for query in &ir.queries {
             // Validate query name is not empty
@@ -186,7 +147,7 @@ impl SchemaValidator {
 
             // Validate return type exists
             let base_type = extract_base_type(&query.return_type);
-            if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+            if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "Query '{}' returns unknown type '{}'",
@@ -199,7 +160,7 @@ impl SchemaValidator {
             // Validate argument types
             for arg in &query.arguments {
                 let base_type = extract_base_type(&arg.arg_type);
-                if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+                if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
                     return Err(FraiseQLError::Validation {
                         message: format!(
                             "Query '{}' argument '{}' has unknown type '{}'",
@@ -221,7 +182,7 @@ impl SchemaValidator {
             }
 
             let base_type = extract_base_type(&mutation.return_type);
-            if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+            if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "Mutation '{}' returns unknown type '{}'",
@@ -242,7 +203,7 @@ impl SchemaValidator {
             }
 
             let base_type = extract_base_type(&subscription.return_type);
-            if !defined_types.contains(base_type) && !scalar_types.contains(base_type) {
+            if !is_known_scalar(base_type) && !defined_types.contains(base_type) {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "Subscription '{}' returns unknown type '{}'",
@@ -1068,5 +1029,118 @@ mod tests {
 
         let result = validator.validate(ir);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_builtin_scalar_types() {
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        // Test all builtin scalars are recognized in type fields
+        ir.types.push(IRType {
+            name:       "TestType".to_string(),
+            fields:     vec![
+                IRField {
+                    name:        "id".to_string(),
+                    field_type:  "ID".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "name".to_string(),
+                    field_type:  "String".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "age".to_string(),
+                    field_type:  "Int".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "rating".to_string(),
+                    field_type:  "Float".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "active".to_string(),
+                    field_type:  "Boolean".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "created".to_string(),
+                    field_type:  "DateTime".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "uid".to_string(),
+                    field_type:  "UUID".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+            ],
+            sql_source:  None,
+            description: None,
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_ok(), "All builtin scalars should be recognized");
+    }
+
+    #[test]
+    fn test_validate_rich_scalar_types() {
+        let validator = SchemaValidator::new();
+        let mut ir = AuthoringIR::new();
+
+        // Test some rich scalars are recognized
+        ir.types.push(IRType {
+            name:       "Contact".to_string(),
+            fields:     vec![
+                IRField {
+                    name:        "email".to_string(),
+                    field_type:  "Email".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "phone".to_string(),
+                    field_type:  "PhoneNumber".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "url".to_string(),
+                    field_type:  "URL".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+                IRField {
+                    name:        "ip".to_string(),
+                    field_type:  "IPAddress".to_string(),
+                    nullable:    true,
+                    description: None,
+                    sql_column:  None,
+                },
+            ],
+            sql_source:  None,
+            description: None,
+        });
+
+        let result = validator.validate(ir);
+        assert!(result.is_ok(), "Rich scalars should be recognized");
     }
 }
