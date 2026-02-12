@@ -111,8 +111,10 @@ Phases 2-5: WHERE Operators (independent of each other)
 - **Phase 9**: JSON to Arrow Conversion (8 tests, batch processing)
 - **Phase 11**: Python Runtime Cleanup (Cycles 1-4: Removed all Python operators, verified schema-authoring-only model)
 
-### Pending Phases
-- **Phase 10**: Server Testing Mocks (OPTIONAL - recommend alternative per user preference)
+### Completed Phases (Continued)
+- **Phase 10**: Hybrid Testing Infrastructure (18 real-database tests, SQLite + Testcontainers)
+
+### Remaining Phases
 - **Phase 12**: Finalize (Security audit, documentation, archaeology cleanup)
 
 ### Test Summary
