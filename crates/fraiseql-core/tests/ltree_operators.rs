@@ -260,3 +260,107 @@ fn test_ltree_error_messages_helpful() {
         error_msg
     );
 }
+
+// ============================================================================
+// PHASE 3, CYCLE 2: LTree Array Operations
+// ============================================================================
+
+/// Test MatchesAnyLquery with array of patterns
+#[test]
+fn test_ltree_matches_any_lquery_with_array() {
+    // MatchesAnyLquery should handle arrays of lquery patterns
+    let clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::MatchesAnyLquery,
+        value: json!(["1.*", "2.*", "3.*"]),  // Array of patterns
+    };
+
+    let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)
+        .expect("MatchesAnyLquery should work with array on PostgreSQL");
+
+    // Should contain ~ ANY and array syntax
+    assert!(
+        sql.contains("~") && (sql.contains("ANY") || sql.contains("array")),
+        "MatchesAnyLquery should use ~ ANY for array patterns, got: {}",
+        sql
+    );
+}
+
+/// Test MatchesAnyLquery returns error on non-PostgreSQL with array
+#[test]
+fn test_ltree_matches_any_lquery_blocked_on_mysql() {
+    let clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::MatchesAnyLquery,
+        value: json!(["1.*", "2.*"]),
+    };
+
+    let result = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::MySQL);
+    assert!(
+        result.is_err(),
+        "MatchesAnyLquery should not work on MySQL even with array"
+    );
+
+    let error_msg = format!("{:?}", result.err());
+    assert!(
+        error_msg.contains("PostgreSQL"),
+        "Error should mention PostgreSQL requirement, got: {}",
+        error_msg
+    );
+}
+
+/// Test that LTree operators handle both scalar and array values
+#[test]
+fn test_ltree_scalar_vs_array_values() {
+    // Scalar pattern
+    let scalar_clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::MatchesLquery,
+        value: json!("1.2.*"),
+    };
+
+    let scalar_sql = WhereSqlGenerator::to_sql_for_db(&scalar_clause, DatabaseType::PostgreSQL)
+        .expect("MatchesLquery should work with scalar pattern");
+
+    assert!(
+        scalar_sql.contains("~"),
+        "Scalar pattern should use ~ operator, got: {}",
+        scalar_sql
+    );
+
+    // Array pattern (with MatchesAnyLquery)
+    let array_clause = WhereClause::Field {
+        path: vec!["path".to_string()],
+        operator: WhereOperator::MatchesAnyLquery,
+        value: json!(["1.2.*", "2.3.*"]),
+    };
+
+    let array_sql = WhereSqlGenerator::to_sql_for_db(&array_clause, DatabaseType::PostgreSQL)
+        .expect("MatchesAnyLquery should work with array");
+
+    assert!(
+        array_sql.contains("~") && array_sql.contains("ANY"),
+        "Array pattern should use ~ ANY, got: {}",
+        array_sql
+    );
+}
+
+/// Test that array-based operators preserve array syntax
+#[test]
+fn test_ltree_array_syntax_preserved() {
+    let clause = WhereClause::Field {
+        path: vec!["tags".to_string()],
+        operator: WhereOperator::MatchesAnyLquery,
+        value: json!(["root.*", "section1.*"]),
+    };
+
+    let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)
+        .expect("Should generate SQL for array patterns");
+
+    // SQL should preserve array structure for PostgreSQL
+    assert!(
+        sql.contains("ANY") || sql.contains("array"),
+        "Should use ANY operator for array matching in PostgreSQL, got: {}",
+        sql
+    );
+}
