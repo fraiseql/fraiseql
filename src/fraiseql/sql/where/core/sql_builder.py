@@ -8,7 +8,7 @@ from typing import Any
 
 from psycopg.sql import SQL, Composed, Literal
 
-from fraiseql.sql.operators import get_default_registry as get_operator_registry
+# Operator registry moved to Rust fraiseql-server (Phase 11 cleanup)
 
 from .field_detection import FieldType, detect_field_type
 
@@ -154,19 +154,11 @@ def build_where_clause_recursive(where_dict: dict, path: list[str] | None = None
                         db_field_name, op_value, field_type=None
                     )
 
-                    # Convert FieldType enum to Python type for operator strategies
-                    python_field_type = _field_type_to_python_type(detected_field_type)
-
-                    # Build operator condition using operator registry
-                    registry = get_operator_registry()
-                    condition = registry.build_sql(
-                        operator,
-                        op_value,
-                        jsonb_path,
-                        field_type=python_field_type,
-                        jsonb_column="data",  # Indicate this is JSONB-extracted data
+                    # SQL generation moved to Rust fraiseql-server (Phase 11 cleanup)
+                    raise NotImplementedError(
+                        f"Operator '{operator}' requires Rust fraiseql-server. "
+                        "Python WHERE clause generation has been removed - use fraiseql-cli to compile schema."
                     )
-                    conditions.append(condition)
 
     return conditions
 

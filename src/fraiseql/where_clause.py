@@ -36,8 +36,6 @@ from typing import Any, Literal
 from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
 
-from fraiseql.sql.operators import get_default_registry
-
 # Supported operators
 COMPARISON_OPERATORS = {
     "eq": "=",
@@ -400,19 +398,12 @@ class FieldCondition:
                 sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
                 params.append(pattern)
             elif self.operator in NETWORK_OPERATORS:
-                # Delegate to NetworkOperatorStrategy via operator registry
-                registry = get_default_registry()
-                sql = registry.build_sql(
-                    operator=self.operator,
-                    value=self.value,
-                    path_sql=jsonb_expr,
-                    field_type=None,  # Will be inferred by NetworkOperatorStrategy
-                    jsonb_column="data",
+                # Network operators moved to Rust fraiseql-server
+                # Python SQL generation no longer supported (Phase 11 cleanup)
+                raise NotImplementedError(
+                    f"Network operator '{self.operator}' requires Rust fraiseql-server. "
+                    "Python WHERE clause generation has been removed - use fraiseql-cli to compile schema."
                 )
-                if sql is None:
-                    raise ValueError(
-                        f"Network operator '{self.operator}' not supported by registry"
-                    )
             else:
                 # JSONB text comparison - need to handle boolean conversion
                 sql = Composed([jsonb_expr, SQL(f" {sql_op} "), SQL("%s")])
@@ -650,20 +641,12 @@ class FieldCondition:
                     )
                     params.append(self.value)
             elif self.operator in NETWORK_OPERATORS:
-                # Delegate to NetworkOperatorStrategy via operator registry
-                registry = get_default_registry()
-                column_sql = Identifier(self.target_column)
-                sql = registry.build_sql(
-                    operator=self.operator,
-                    value=self.value,
-                    path_sql=column_sql,
-                    field_type=None,  # Will be inferred by NetworkOperatorStrategy
-                    jsonb_column=None,
+                # Network operators moved to Rust fraiseql-server
+                # Python SQL generation no longer supported (Phase 11 cleanup)
+                raise NotImplementedError(
+                    f"Network operator '{self.operator}' requires Rust fraiseql-server. "
+                    "Python WHERE clause generation has been removed - use fraiseql-cli to compile schema."
                 )
-                if sql is None:
-                    raise ValueError(
-                        f"Network operator '{self.operator}' not supported by registry"
-                    )
             else:
                 sql = Composed([Identifier(self.target_column), SQL(f" {sql_op} "), SQL("%s")])
                 params.append(self.value)

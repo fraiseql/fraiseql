@@ -46,7 +46,7 @@ Database SQL
 ### Performance Optimization (fraiseql-core)
 | Phase | Title | Scope | Effort | Status |
 |-------|-------|-------|--------|--------|
-| 6 | Direct Column Optimization | Use SQL columns instead of JSONB when available | 2-3 days | Pending |
+| 6 | Direct Column Optimization | Use SQL columns instead of JSONB when available | 2-3 days | ✅ COMPLETE |
 
 ### Rust Features (Various Crates)
 | Phase | Title | Scope | Crates | Effort | Status |
@@ -93,11 +93,21 @@ Phases 2-5: WHERE Operators (independent of each other)
 ## Implementation Strategy
 
 1. **Phases 2-5** implement WHERE operators using existing templates and database adapters (✅ COMPLETE)
-2. **Phase 6** optimizes query performance by using direct columns instead of JSONB when available
-3. **Phases 7-10** implement independent Rust features in parallel (can start while Phase 6 is in progress)
+2. **Phase 6** optimizes query performance by using direct columns instead of JSONB when available (✅ COMPLETE)
+3. **Phases 7-10** implement independent Rust features in parallel (ready to start)
 4. **Phase 11** removes Python operator code (now redundant with Rust implementation)
 5. **Phase 12** finalizes, audits, documents
 
 ## Status
 
-[~] In Progress (Phase 6: Direct Column Optimization)
+✅ Phase 6 Complete - Ready for Phase 7
+
+Completed:
+- Phases 0-1: Foundation ✅
+- Phases 2-5: WHERE Operators (Network, LTree, Array/FTS, Extended) ✅
+- Phase 6: Direct Column Optimization ✅
+
+Next:
+- Phases 7-10: Rust Features (TOML Merger, Arrow Filters, JSON→Arrow, Server Mocks) - Independent, can run in parallel
+- Phase 11: Python Cleanup - Depends on 2-10 complete
+- Phase 12: Finalize - Final phase
