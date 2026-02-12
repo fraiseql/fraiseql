@@ -589,6 +589,172 @@ impl std::fmt::Display for ExtendedOperator {
     }
 }
 
+impl ExtendedOperator {
+    /// Get the camelCase template name for this operator.
+    ///
+    /// Converts snake_case display name to camelCase for template lookup.
+    /// Example: "email_domain_eq" -> "domainEq"
+    pub fn template_name(&self) -> String {
+        // Map operator variants to template names
+        match self {
+            // Email operators
+            ExtendedOperator::EmailDomainEq(_) => "domainEq".to_string(),
+            ExtendedOperator::EmailDomainIn(_) => "domainIn".to_string(),
+            ExtendedOperator::EmailDomainEndswith(_) => "domainEndswith".to_string(),
+            ExtendedOperator::EmailLocalPartStartswith(_) => "localPartStartswith".to_string(),
+
+            // Phone operators
+            ExtendedOperator::PhoneCountryCodeEq(_) => "countryCodeEq".to_string(),
+            ExtendedOperator::PhoneCountryCodeIn(_) => "countryCodeIn".to_string(),
+            ExtendedOperator::PhoneIsValid(_) => "isValid".to_string(),
+            ExtendedOperator::PhoneTypeEq(_) => "typeEq".to_string(),
+
+            // URL operators
+            ExtendedOperator::UrlProtocolEq(_) => "protocolEq".to_string(),
+            ExtendedOperator::UrlHostEq(_) => "hostEq".to_string(),
+            ExtendedOperator::UrlPathStartswith(_) => "pathStartswith".to_string(),
+
+            // Domain/Hostname operators
+            ExtendedOperator::DomainNameTldEq(_) => "tldEq".to_string(),
+            ExtendedOperator::DomainNameTldIn(_) => "tldIn".to_string(),
+            ExtendedOperator::HostnameIsFqdn(_) => "isFqdn".to_string(),
+            ExtendedOperator::HostnameDepthEq(_) => "depthEq".to_string(),
+
+            // Location operators
+            ExtendedOperator::PostalCodeCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::PostalCodeFormatValidForCountry(_) => "formatValidForCountry".to_string(),
+            ExtendedOperator::LatitudeWithinRange { .. } => "withinRange".to_string(),
+            ExtendedOperator::LatitudeHemisphereEq(_) => "hemisphereEq".to_string(),
+            ExtendedOperator::LongitudeWithinRange { .. } => "withinRange".to_string(),
+            ExtendedOperator::LongitudeHemisphereEq(_) => "hemisphereEq".to_string(),
+
+            // Coordinate operators
+            ExtendedOperator::CoordinatesDistanceWithin { .. } => "distanceWithin".to_string(),
+            ExtendedOperator::CoordinatesWithinBoundingBox { .. } => "withinBoundingBox".to_string(),
+            ExtendedOperator::CoordinatesWithinPolygon(_) => "withinPolygon".to_string(),
+
+            // Timezone operators
+            ExtendedOperator::TimezoneOffsetEq(_) => "offsetEq".to_string(),
+            ExtendedOperator::TimezoneHasDst(_) => "hasDst".to_string(),
+            ExtendedOperator::TimezoneRegionEq(_) => "regionEq".to_string(),
+
+            // Locale/Language operators
+            ExtendedOperator::LocaleCodeLanguageEq(_) => "languageEq".to_string(),
+            ExtendedOperator::LocaleCodeCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::LocaleCodeScriptEq(_) => "scriptEq".to_string(),
+            ExtendedOperator::LanguageCodeFamilyEq(_) => "familyEq".to_string(),
+
+            // Country operators
+            ExtendedOperator::CountryCodeContinentEq(_) => "continentEq".to_string(),
+            ExtendedOperator::CountryCodeRegionEq(_) => "regionEq".to_string(),
+            ExtendedOperator::CountryCodeInEu(_) => "inEu".to_string(),
+            ExtendedOperator::CountryCodeInSchengen(_) => "inSchengen".to_string(),
+
+            // Financial operators
+            ExtendedOperator::IbanCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::IbanCountryIn(_) => "countryIn".to_string(),
+            ExtendedOperator::IbanIsValid(_) => "isValid".to_string(),
+            ExtendedOperator::CusipIssuerTypeEq(_) => "issuerTypeEq".to_string(),
+            ExtendedOperator::IsinCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::IsinAssetClassEq(_) => "assetClassEq".to_string(),
+            ExtendedOperator::SedolCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::LeiEntityCategoryEq(_) => "entityCategoryEq".to_string(),
+            ExtendedOperator::MicCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::MicSegmentEq(_) => "segmentEq".to_string(),
+            ExtendedOperator::CurrencyCodeRegionEq(_) => "regionEq".to_string(),
+            ExtendedOperator::CurrencyCodeDecimalPlacesEq(_) => "decimalPlacesEq".to_string(),
+            ExtendedOperator::MoneyInCurrency(_) => "inCurrency".to_string(),
+            ExtendedOperator::ExchangeCodeCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::ExchangeRateCurrencyPairEq(_) => "currencyPairEq".to_string(),
+            ExtendedOperator::StockSymbolExchangeEq(_) => "exchangeEq".to_string(),
+            ExtendedOperator::StockSymbolSectorEq(_) => "sectorEq".to_string(),
+
+            // Identifier operators
+            ExtendedOperator::SlugDepthEq(_) => "depthEq".to_string(),
+            ExtendedOperator::SlugSegmentEq(_) => "segmentEq".to_string(),
+            ExtendedOperator::SemanticVersionMajorEq(_) => "majorEq".to_string(),
+            ExtendedOperator::SemanticVersionMinorEq(_) => "minorEq".to_string(),
+            ExtendedOperator::SemanticVersionPatchEq(_) => "patchEq".to_string(),
+            ExtendedOperator::SemanticVersionHasPrerelease(_) => "hasPrerelease".to_string(),
+            ExtendedOperator::HashSha256LengthEq(_) => "lengthEq".to_string(),
+            ExtendedOperator::ApiKeyLengthEq(_) => "lengthEq".to_string(),
+            ExtendedOperator::ApiKeyPrefixEq(_) => "prefixEq".to_string(),
+            ExtendedOperator::LicensePlateCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::LicensePlateFormatValidForCountry(_) => "formatValidForCountry".to_string(),
+
+            // VIN operators
+            ExtendedOperator::VinWmiEq(_) => "wmiEq".to_string(),
+            ExtendedOperator::VinWmiIn(_) => "wmiIn".to_string(),
+            ExtendedOperator::VinCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::VinModelYearEq(_) => "modelYearEq".to_string(),
+            ExtendedOperator::VinIsValid(_) => "isValid".to_string(),
+
+            // Tracking/Container operators
+            ExtendedOperator::TrackingNumberCarrierEq(_) => "carrierEq".to_string(),
+            ExtendedOperator::TrackingNumberFormatValidForCarrier(_) => "formatValidForCarrier".to_string(),
+            ExtendedOperator::ContainerNumberOwnerEq(_) => "ownerEq".to_string(),
+            ExtendedOperator::ContainerNumberIsValid(_) => "isValid".to_string(),
+
+            // Networking operators
+            ExtendedOperator::IpAddressVersionEq(_) => "versionEq".to_string(),
+            ExtendedOperator::IpAddressIsPrivate(_) => "isPrivate".to_string(),
+            ExtendedOperator::Ipv4CidrContains(_) => "cidrContains".to_string(),
+            ExtendedOperator::Ipv4IsMulticast(_) => "isMulticast".to_string(),
+            ExtendedOperator::Ipv4IsReserved(_) => "isReserved".to_string(),
+            ExtendedOperator::Ipv6CidrContains(_) => "cidrContains".to_string(),
+            ExtendedOperator::Ipv6IsMulticast(_) => "isMulticast".to_string(),
+            ExtendedOperator::MacAddressVendorEq(_) => "vendorEq".to_string(),
+            ExtendedOperator::MacAddressOuiIn(_) => "ouiIn".to_string(),
+            ExtendedOperator::MacAddressIsUnicast(_) => "isUnicast".to_string(),
+            ExtendedOperator::CidrOverlapsWith(_) => "overlapsWith".to_string(),
+            ExtendedOperator::CidrContainsIp(_) => "containsIp".to_string(),
+            ExtendedOperator::CidrVersionEq(_) => "versionEq".to_string(),
+            ExtendedOperator::PortServiceEq(_) => "serviceEq".to_string(),
+            ExtendedOperator::PortIsWellKnown(_) => "isWellKnown".to_string(),
+            ExtendedOperator::PortIsRegistered(_) => "isRegistered".to_string(),
+
+            // Transportation operators
+            ExtendedOperator::AirportCodeCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::AirportCodeIsMajor(_) => "isMajor".to_string(),
+            ExtendedOperator::PortCodeCountryEq(_) => "countryEq".to_string(),
+            ExtendedOperator::FlightNumberAirlineEq(_) => "airlineEq".to_string(),
+            ExtendedOperator::FlightNumberAircraftTypeEq(_) => "aircraftTypeEq".to_string(),
+
+            // Content operators
+            ExtendedOperator::MarkdownIsValid(_) => "isValid".to_string(),
+            ExtendedOperator::HtmlIsValid(_) => "isValid".to_string(),
+            ExtendedOperator::HtmlContainsTag(_) => "containsTag".to_string(),
+            ExtendedOperator::MimeTypeTypeEq(_) => "typeEq".to_string(),
+            ExtendedOperator::MimeTypeSubtypeEq(_) => "subtypeEq".to_string(),
+            ExtendedOperator::MimeTypeCharsetEq(_) => "charsetEq".to_string(),
+            ExtendedOperator::ColorHexEq(_) => "hexEq".to_string(),
+            ExtendedOperator::ColorRgbInRange { .. } => "rgbInRange".to_string(),
+            ExtendedOperator::ColorHslInRange { .. } => "hslInRange".to_string(),
+            ExtendedOperator::ImageFormatEq(_) => "formatEq".to_string(),
+            ExtendedOperator::ImageWidthGte(_) => "widthGte".to_string(),
+            ExtendedOperator::ImageHeightGte(_) => "heightGte".to_string(),
+            ExtendedOperator::ImageSizeLte(_) => "sizeLte".to_string(),
+            ExtendedOperator::FileExtensionEq(_) => "extensionEq".to_string(),
+            ExtendedOperator::FileMimeTypeEq(_) => "mimeTypeEq".to_string(),
+            ExtendedOperator::FileSizeLte(_) => "sizeLte".to_string(),
+
+            // LTree operators
+            ExtendedOperator::LtreeDepthEq(_) => "depthEq".to_string(),
+            ExtendedOperator::LtreeAncestorEq(_) => "ancestorEq".to_string(),
+            ExtendedOperator::LtreeDescendantEq(_) => "descendantEq".to_string(),
+
+            // Range operators
+            ExtendedOperator::DateRangeDurationGte(_) => "durationGte".to_string(),
+            ExtendedOperator::DateRangeStartsAfter(_) => "startsAfter".to_string(),
+            ExtendedOperator::DateRangeEndsBefore(_) => "endsBefore".to_string(),
+            ExtendedOperator::DurationTotalSecondsEq(_) => "totalSecondsEq".to_string(),
+            ExtendedOperator::DurationTotalMinutesGte(_) => "totalMinutesGte".to_string(),
+            ExtendedOperator::PercentageInRange { .. } => "inRange".to_string(),
+            ExtendedOperator::PercentagePercentileEq(_) => "percentileEq".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

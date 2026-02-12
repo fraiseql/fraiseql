@@ -327,6 +327,11 @@ impl WhereSqlGenerator {
             WhereOperator::WebsearchQuery => {
                 Self::apply_template(db_type, "websearchQuery", &json_path, value)?
             },
+            // Extended operators (Email, Phone, Country, VIN, etc.)
+            WhereOperator::Extended(extended_op) => {
+                let template_name = extended_op.template_name();
+                Self::apply_template(db_type, &template_name, &json_path, value)?
+            },
             // All other operators
             _ => {
                 let sql_op = Self::operator_to_sql(operator, db_type)?;
@@ -648,6 +653,74 @@ impl WhereSqlGenerator {
             (DatabaseType::MySQL, "websearchQuery") => Some("MATCH($field) AGAINST($1 IN BOOLEAN MODE)".to_string()),
             (DatabaseType::SQLite, "websearchQuery") => Some("$field MATCH $1".to_string()),
             (DatabaseType::SQLServer, "websearchQuery") => Some("CONTAINS($field, $1)".to_string()),
+
+            // ========================================================================
+            // EXTENDED OPERATORS (Phase 5)
+            // ========================================================================
+            // URL: Protocol extraction
+            (DatabaseType::PostgreSQL, "protocolEq") => Some("SPLIT_PART($field, '://', 1) = $1".to_string()),
+            (DatabaseType::MySQL, "protocolEq") => Some("SUBSTRING_INDEX($field, '://', 1) = ?".to_string()),
+            (DatabaseType::SQLite, "protocolEq") => Some("SUBSTR($field, 1, INSTR($field, '://') - 1) = ?".to_string()),
+            (DatabaseType::SQLServer, "protocolEq") => Some("SUBSTRING($field, 1, CHARINDEX('://', $field) - 1) = ?".to_string()),
+
+            // URL: Host extraction
+            (DatabaseType::PostgreSQL, "hostEq") => Some("SPLIT_PART(SPLIT_PART($field, '://', 2), '/', 1) = $1".to_string()),
+            (DatabaseType::MySQL, "hostEq") => Some("SUBSTRING_INDEX(SUBSTRING_INDEX($field, '://', -1), '/', 1) = ?".to_string()),
+            (DatabaseType::SQLite, "hostEq") => Some("SUBSTR(SUBSTR($field, INSTR($field, '://') + 3), 1, INSTR(SUBSTR($field, INSTR($field, '://') + 3), '/') - 1) = ?".to_string()),
+            (DatabaseType::SQLServer, "hostEq") => Some("SUBSTRING(SUBSTRING($field, CHARINDEX('://', $field) + 3, LEN($field)), 1, CHARINDEX('/', SUBSTRING($field, CHARINDEX('://', $field) + 3, LEN($field))) - 1) = ?".to_string()),
+
+            // URL: Path extraction
+            (DatabaseType::PostgreSQL, "pathStartswith") => Some("SPLIT_PART(SPLIT_PART($field, '://', 2), '/', 2) LIKE $1 || '%'".to_string()),
+            (DatabaseType::MySQL, "pathStartswith") => Some("SUBSTRING_INDEX(SUBSTRING_INDEX($field, '://', -1), '/', -1) LIKE CONCAT(?, '%')".to_string()),
+            (DatabaseType::SQLite, "pathStartswith") => Some("SUBSTR(SUBSTR($field, INSTR($field, '://', 1) + 3), INSTR(SUBSTR($field, INSTR($field, '://') + 3), '/') + 1) LIKE ? || '%'".to_string()),
+            (DatabaseType::SQLServer, "pathStartswith") => Some("SUBSTRING($field, CHARINDEX('/', SUBSTRING($field, CHARINDEX('://', $field) + 3, LEN($field))) + CHARINDEX('://', $field) + 2, LEN($field)) LIKE ? + '%'".to_string()),
+
+            // DomainName: TLD extraction
+            (DatabaseType::PostgreSQL, "tldEq") => Some("SUBSTRING($field FROM POSITION('.' IN $field) + 1) = $1".to_string()),
+            (DatabaseType::MySQL, "tldEq") => Some("SUBSTRING($field, POSITION('.' IN $field) + 1) = ?".to_string()),
+            (DatabaseType::SQLite, "tldEq") => Some("SUBSTR($field, INSTR($field, '.') + 1) = ?".to_string()),
+            (DatabaseType::SQLServer, "tldEq") => Some("SUBSTRING($field, CHARINDEX('.', $field) + 1, LEN($field)) = ?".to_string()),
+
+            (DatabaseType::PostgreSQL, "tldIn") => Some("SUBSTRING($field FROM POSITION('.' IN $field) + 1) IN ($params)".to_string()),
+            (DatabaseType::MySQL, "tldIn") => Some("SUBSTRING($field, POSITION('.' IN $field) + 1) IN ($params)".to_string()),
+            (DatabaseType::SQLite, "tldIn") => Some("SUBSTR($field, INSTR($field, '.') + 1) IN ($params)".to_string()),
+            (DatabaseType::SQLServer, "tldIn") => Some("SUBSTRING($field, CHARINDEX('.', $field) + 1, LEN($field)) IN ($params)".to_string()),
+
+            // Hostname: FQDN check
+            (DatabaseType::PostgreSQL, "isFqdn") => Some("$field LIKE '%.%'".to_string()),
+            (DatabaseType::MySQL, "isFqdn") => Some("$field LIKE '%.%'".to_string()),
+            (DatabaseType::SQLite, "isFqdn") => Some("$field LIKE '%.%'".to_string()),
+            (DatabaseType::SQLServer, "isFqdn") => Some("$field LIKE '%.%'".to_string()),
+
+            // VIN: World Manufacturer Identifier (first 3 chars)
+            (DatabaseType::PostgreSQL, "wmiEq") => Some("SUBSTRING($field FROM 1 FOR 3) = $1".to_string()),
+            (DatabaseType::MySQL, "wmiEq") => Some("SUBSTRING($field, 1, 3) = ?".to_string()),
+            (DatabaseType::SQLite, "wmiEq") => Some("SUBSTR($field, 1, 3) = ?".to_string()),
+            (DatabaseType::SQLServer, "wmiEq") => Some("SUBSTRING($field, 1, 3) = ?".to_string()),
+
+            // VIN: WMI in list
+            (DatabaseType::PostgreSQL, "wmiIn") => Some("SUBSTRING($field FROM 1 FOR 3) IN ($params)".to_string()),
+            (DatabaseType::MySQL, "wmiIn") => Some("SUBSTRING($field, 1, 3) IN ($params)".to_string()),
+            (DatabaseType::SQLite, "wmiIn") => Some("SUBSTR($field, 1, 3) IN ($params)".to_string()),
+            (DatabaseType::SQLServer, "wmiIn") => Some("SUBSTRING($field, 1, 3) IN ($params)".to_string()),
+
+            // VIN: Country (first character)
+            (DatabaseType::PostgreSQL, "countryEq") => Some("SUBSTRING($field FROM 1 FOR 1) = $1".to_string()),
+            (DatabaseType::MySQL, "countryEq") => Some("SUBSTRING($field, 1, 1) = ?".to_string()),
+            (DatabaseType::SQLite, "countryEq") => Some("SUBSTR($field, 1, 1) = ?".to_string()),
+            (DatabaseType::SQLServer, "countryEq") => Some("SUBSTRING($field, 1, 1) = ?".to_string()),
+
+            // VIN: Model year
+            (DatabaseType::PostgreSQL, "modelYearEq") => Some("SUBSTRING($field FROM 11 FOR 1) = $1".to_string()),
+            (DatabaseType::MySQL, "modelYearEq") => Some("SUBSTRING($field, 11, 1) = ?".to_string()),
+            (DatabaseType::SQLite, "modelYearEq") => Some("SUBSTR($field, 11, 1) = ?".to_string()),
+            (DatabaseType::SQLServer, "modelYearEq") => Some("SUBSTRING($field, 11, 1) = ?".to_string()),
+
+            // VIN: Validity check
+            (DatabaseType::PostgreSQL, "isValid") => Some("LENGTH($field) = 17".to_string()),
+            (DatabaseType::MySQL, "isValid") => Some("LENGTH($field) = 17".to_string()),
+            (DatabaseType::SQLite, "isValid") => Some("LENGTH($field) = 17".to_string()),
+            (DatabaseType::SQLServer, "isValid") => Some("LEN($field) = 17".to_string()),
 
             // Add more operators in later phases
             _ => None,
