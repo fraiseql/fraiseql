@@ -4,6 +4,7 @@
 //! including security settings, project metadata, and compilation options.
 
 pub mod security;
+pub mod toml_config;
 pub mod toml_schema;
 
 use std::path::Path;
