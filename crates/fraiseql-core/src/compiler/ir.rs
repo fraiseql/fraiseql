@@ -43,6 +43,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::validation::ValidationRule;
+
 /// Authoring Intermediate Representation.
 ///
 /// This is the parsed representation of a GraphQL schema before
@@ -348,6 +350,45 @@ pub struct IRInputField {
     pub description: Option<String>,
 }
 
+/// IR Scalar type definition.
+///
+/// Represents a custom scalar type with optional validation rules.
+/// Custom scalars allow developers to define domain-specific scalar types
+/// with validation rules beyond the builtin GraphQL scalars.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IRScalar {
+    /// Scalar name (e.g., "Email", "ISBN", "IBAN").
+    pub name: String,
+
+    /// Scalar description.
+    pub description: Option<String>,
+
+    /// URL specification (RFC or standard that defines this scalar type).
+    /// Per GraphQL spec §3.5.1 (specified_by_url).
+    pub specified_by_url: Option<String>,
+
+    /// Validation rules for this scalar.
+    #[serde(default)]
+    pub validation_rules: Vec<ValidationRule>,
+
+    /// Base type for type aliases (e.g., "String" for Email alias).
+    pub base_type: Option<String>,
+}
+
+impl IRScalar {
+    /// Create a new scalar definition with minimal required fields.
+    #[must_use]
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            description: None,
+            specified_by_url: None,
+            validation_rules: Vec::new(),
+            base_type: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,5 +480,110 @@ mod tests {
     fn test_mutation_operations() {
         assert_eq!(MutationOperation::Create, MutationOperation::Create);
         assert_ne!(MutationOperation::Create, MutationOperation::Update);
+    }
+
+    #[test]
+    fn test_ir_scalar_new() {
+        let scalar = IRScalar::new("Email".to_string());
+
+        assert_eq!(scalar.name, "Email");
+        assert_eq!(scalar.description, None);
+        assert_eq!(scalar.specified_by_url, None);
+        assert_eq!(scalar.validation_rules.len(), 0);
+        assert_eq!(scalar.base_type, None);
+    }
+
+    #[test]
+    fn test_ir_scalar_with_all_fields() {
+        let scalar = IRScalar {
+            name:               "Email".to_string(),
+            description:        Some("Valid email address".to_string()),
+            specified_by_url:   Some("https://html.spec.whatwg.org/".to_string()),
+            validation_rules:   vec![
+                ValidationRule::Pattern {
+                    pattern: r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
+                    message: Some("Invalid email format".to_string()),
+                },
+            ],
+            base_type:          Some("String".to_string()),
+        };
+
+        assert_eq!(scalar.name, "Email");
+        assert_eq!(
+            scalar.description,
+            Some("Valid email address".to_string())
+        );
+        assert_eq!(
+            scalar.specified_by_url,
+            Some("https://html.spec.whatwg.org/".to_string())
+        );
+        assert_eq!(scalar.validation_rules.len(), 1);
+        assert_eq!(scalar.base_type, Some("String".to_string()));
+    }
+
+    #[test]
+    fn test_ir_scalar_serialization() {
+        let scalar = IRScalar {
+            name:             "ISBN".to_string(),
+            description:      Some("International Standard Book Number".to_string()),
+            specified_by_url: Some("https://www.isbn-international.org/".to_string()),
+            validation_rules: vec![],
+            base_type:        None,
+        };
+
+        // Serialize to JSON
+        let json = serde_json::to_value(&scalar).expect("Should serialize");
+
+        // Verify structure
+        assert_eq!(json["name"], "ISBN");
+        assert_eq!(
+            json["description"],
+            "International Standard Book Number"
+        );
+        assert_eq!(
+            json["specified_by_url"],
+            "https://www.isbn-international.org/"
+        );
+        assert_eq!(json["validation_rules"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_ir_scalar_deserialization() {
+        let json = serde_json::json!({
+            "name": "PhoneNumber",
+            "description": "Valid phone number",
+            "specified_by_url": null,
+            "validation_rules": [],
+            "base_type": "String"
+        });
+
+        let scalar: IRScalar = serde_json::from_value(json).expect("Should deserialize");
+
+        assert_eq!(scalar.name, "PhoneNumber");
+        assert_eq!(scalar.description, Some("Valid phone number".to_string()));
+        assert_eq!(scalar.specified_by_url, None);
+        assert_eq!(scalar.validation_rules.len(), 0);
+        assert_eq!(scalar.base_type, Some("String".to_string()));
+    }
+
+    #[test]
+    fn test_ir_scalar_equality() {
+        let scalar1 = IRScalar {
+            name:             "UUID".to_string(),
+            description:      Some("Universal Unique Identifier".to_string()),
+            specified_by_url: None,
+            validation_rules: vec![],
+            base_type:        None,
+        };
+
+        let scalar2 = IRScalar {
+            name:             "UUID".to_string(),
+            description:      Some("Universal Unique Identifier".to_string()),
+            specified_by_url: None,
+            validation_rules: vec![],
+            base_type:        None,
+        };
+
+        assert_eq!(scalar1, scalar2);
     }
 }
