@@ -22,7 +22,7 @@ use crate::{
         InputObjectDefinition, InterfaceDefinition, MutationDefinition, QueryDefinition,
         SubscriptionDefinition, TypeDefinition, UnionDefinition,
     },
-    validation::{CustomTypeRegistry, CustomTypeRegistryConfig, CustomTypeDef},
+    validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
 };
 
 /// Code generator.
@@ -177,7 +177,7 @@ impl CodeGenerator {
         let input_types =
             ir.input_types.iter().map(|i| Self::map_input_type(i, &known_types)).collect();
 
-        // Build custom type registry from IRScalars (Phase 5)
+        // Build custom type registry from IRScalars
         let custom_scalars = Self::build_custom_type_registry(&ir.scalars)?;
 
         Ok(CompiledSchema {
@@ -207,7 +207,7 @@ impl CodeGenerator {
             security: None,
             // Raw schema SDL: populated for federation _service query
             schema_sdl: None,
-            // Custom scalar types (Phase 5: Compiler Integration)
+            // Custom scalar types registry
             custom_scalars,
         })
     }
@@ -354,7 +354,7 @@ impl CodeGenerator {
             .collect()
     }
 
-    /// Build custom type registry from IRScalars (Phase 5).
+    /// Build custom type registry from IRScalars.
     fn build_custom_type_registry(
         ir_scalars: &[super::ir::IRScalar],
     ) -> Result<CustomTypeRegistry> {
@@ -362,12 +362,12 @@ impl CodeGenerator {
 
         for ir_scalar in ir_scalars {
             let def = CustomTypeDef {
-                name: ir_scalar.name.clone(),
-                description: ir_scalar.description.clone(),
+                name:             ir_scalar.name.clone(),
+                description:      ir_scalar.description.clone(),
                 specified_by_url: ir_scalar.specified_by_url.clone(),
                 validation_rules: ir_scalar.validation_rules.clone(),
-                elo_expression: None, // Will be set in Phase 4 (already done)
-                base_type: ir_scalar.base_type.clone(),
+                elo_expression:   None, // ELO expressions are handled separately
+                base_type:        ir_scalar.base_type.clone(),
             };
 
             registry.register(ir_scalar.name.clone(), def)?;
@@ -805,8 +805,6 @@ mod tests {
         assert_eq!(create_user.fields[1].default_value, Some("18".to_string()));
     }
 
-    // ========== PHASE 5, CYCLE 1: COMPILER INTEGRATION ==========
-
     #[test]
     fn test_generate_with_empty_scalars() {
         let generator = CodeGenerator::new(true);
@@ -828,11 +826,11 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name: "LibraryCode".to_string(),
-            description: Some("Unique library book identifier".to_string()),
+            name:             "LibraryCode".to_string(),
+            description:      Some("Unique library book identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         });
 
         let result = generator.generate(&ir, &[]);
@@ -856,27 +854,27 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name: "LibraryCode".to_string(),
-            description: None,
+            name:             "LibraryCode".to_string(),
+            description:      None,
             specified_by_url: None,
             validation_rules: vec![],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         });
 
         ir.scalars.push(IRScalar {
-            name: "StudentID".to_string(),
-            description: Some("University student identifier".to_string()),
+            name:             "StudentID".to_string(),
+            description:      Some("University student identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type: None,
+            base_type:        None,
         });
 
         ir.scalars.push(IRScalar {
-            name: "PatientID".to_string(),
-            description: Some("Hospital patient identifier".to_string()),
+            name:             "PatientID".to_string(),
+            description:      Some("Hospital patient identifier".to_string()),
             specified_by_url: Some("https://hl7.org/".to_string()),
             validation_rules: vec![],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         });
 
         let result = generator.generate(&ir, &[]);
@@ -903,11 +901,11 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name: "Email".to_string(),
-            description: Some("RFC 5322 compliant email address".to_string()),
+            name:             "Email".to_string(),
+            description:      Some("RFC 5322 compliant email address".to_string()),
             specified_by_url: Some("https://tools.ietf.org/html/rfc5322".to_string()),
             validation_rules: vec![],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         });
 
         let result = generator.generate(&ir, &[]);
@@ -916,10 +914,7 @@ mod tests {
         let schema = result.unwrap();
         let email_def = schema.custom_scalars.get("Email").unwrap();
 
-        assert_eq!(
-            email_def.description,
-            Some("RFC 5322 compliant email address".to_string())
-        );
+        assert_eq!(email_def.description, Some("RFC 5322 compliant email address".to_string()));
         assert_eq!(
             email_def.specified_by_url,
             Some("https://tools.ietf.org/html/rfc5322".to_string())
@@ -935,14 +930,14 @@ mod tests {
         let mut ir = AuthoringIR::new();
 
         ir.scalars.push(IRScalar {
-            name: "StudentID".to_string(),
-            description: None,
+            name:             "StudentID".to_string(),
+            description:      None,
             specified_by_url: None,
             validation_rules: vec![ValidationRule::Length {
                 min: Some(5),
                 max: Some(15),
             }],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         });
 
         let result = generator.generate(&ir, &[]);

@@ -44,8 +44,6 @@ mod field_type;
 mod introspection;
 mod scalar_types;
 
-pub use scalar_types::{is_known_scalar, BUILTIN_SCALARS, RICH_SCALARS};
-
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
     EnumDefinition, EnumValueDefinition, FilterOperator, InputFieldDefinition,
@@ -63,6 +61,7 @@ pub use introspection::{
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,
     IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
 };
+pub use scalar_types::{BUILTIN_SCALARS, RICH_SCALARS, is_known_scalar};
 
 #[cfg(test)]
 mod tests;

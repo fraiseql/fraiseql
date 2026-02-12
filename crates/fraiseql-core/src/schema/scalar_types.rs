@@ -129,11 +129,7 @@ mod tests {
     fn test_builtin_scalars_recognized() {
         // Test all builtin scalars are recognized
         for &scalar in BUILTIN_SCALARS {
-            assert!(
-                is_known_scalar(scalar),
-                "Builtin scalar '{}' should be recognized",
-                scalar
-            );
+            assert!(is_known_scalar(scalar), "Builtin scalar '{}' should be recognized", scalar);
         }
     }
 
@@ -141,11 +137,7 @@ mod tests {
     fn test_rich_scalars_recognized() {
         // Test all rich scalars are recognized
         for &scalar in RICH_SCALARS {
-            assert!(
-                is_known_scalar(scalar),
-                "Rich scalar '{}' should be recognized",
-                scalar
-            );
+            assert!(is_known_scalar(scalar), "Rich scalar '{}' should be recognized", scalar);
         }
     }
 

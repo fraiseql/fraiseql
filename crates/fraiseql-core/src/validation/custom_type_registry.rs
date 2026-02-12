@@ -34,14 +34,15 @@
 //! assert!(registry.exists("Email"));
 //! ```
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use serde::{Deserialize, Serialize};
 
+use super::{ValidationRule, elo_expressions::EloExpressionEvaluator};
 use crate::error::{FraiseQLError, Result};
-use super::elo_expressions::EloExpressionEvaluator;
-use super::ValidationRule;
 
 /// Configuration for the custom type registry.
 #[derive(Debug, Clone, Default)]
@@ -71,7 +72,7 @@ pub struct CustomTypeDef {
     #[serde(default)]
     pub validation_rules: Vec<ValidationRule>,
 
-    /// ELO expression for custom validation (Phase 4).
+    /// ELO expression for custom validation.
     pub elo_expression: Option<String>,
 
     /// Base type for type aliases (e.g., "String" for Email scalar).
@@ -133,7 +134,7 @@ impl CustomTypeRegistry {
     pub fn new(config: CustomTypeRegistryConfig) -> Self {
         Self {
             config: Arc::new(config),
-            types: Arc::new(RwLock::new(HashMap::new())),
+            types:  Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -158,13 +159,13 @@ impl CustomTypeRegistry {
     pub fn register(&self, name: String, def: CustomTypeDef) -> Result<()> {
         let mut types = self.types.write().map_err(|_| FraiseQLError::Validation {
             message: "Failed to acquire write lock on custom type registry".to_string(),
-            path: Some("custom_scalars".to_string()),
+            path:    Some("custom_scalars".to_string()),
         })?;
 
         if types.contains_key(&name) {
             return Err(FraiseQLError::Validation {
                 message: format!("Custom scalar '{}' already registered", name),
-                path: Some(format!("custom_scalars.{}", name)),
+                path:    Some(format!("custom_scalars.{}", name)),
             });
         }
 
@@ -175,7 +176,7 @@ impl CustomTypeRegistry {
                         "Cannot register '{}': max scalars limit ({}) reached",
                         name, max
                     ),
-                    path: Some("custom_scalars".to_string()),
+                    path:    Some("custom_scalars".to_string()),
                 });
             }
         }
@@ -210,20 +211,14 @@ impl CustomTypeRegistry {
     /// ```
     #[inline]
     pub fn exists(&self, name: &str) -> bool {
-        self.types
-            .read()
-            .map(|types| types.contains_key(name))
-            .unwrap_or(false)
+        self.types.read().map(|types| types.contains_key(name)).unwrap_or(false)
     }
 
     /// Remove a custom scalar type definition.
     ///
     /// Returns the removed definition if it existed.
     pub fn remove(&self, name: &str) -> Option<CustomTypeDef> {
-        self.types
-            .write()
-            .ok()?
-            .remove(name)
+        self.types.write().ok()?.remove(name)
     }
 
     /// Get the number of registered custom scalars.
@@ -236,10 +231,7 @@ impl CustomTypeRegistry {
     /// assert_eq!(registry.count(), 1);
     /// ```
     pub fn count(&self) -> usize {
-        self.types
-            .read()
-            .map(|types| types.len())
-            .unwrap_or(0)
+        self.types.read().map(|types| types.len()).unwrap_or(0)
     }
 
     /// List all registered custom scalars.
@@ -248,12 +240,7 @@ impl CustomTypeRegistry {
     pub fn list_all(&self) -> Vec<(String, CustomTypeDef)> {
         self.types
             .read()
-            .map(|types| {
-                types
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            })
+            .map(|types| types.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
             .unwrap_or_default()
     }
 
@@ -296,26 +283,65 @@ impl CustomTypeRegistry {
         // All 51 built-in rich scalar type names
         let rich_scalars = [
             // Contact/Communication (5)
-            "Email", "PhoneNumber", "URL", "DomainName", "Hostname",
+            "Email",
+            "PhoneNumber",
+            "URL",
+            "DomainName",
+            "Hostname",
             // Location/Address (8)
-            "PostalCode", "Latitude", "Longitude", "Coordinates", "Timezone",
-            "LocaleCode", "LanguageCode", "CountryCode",
+            "PostalCode",
+            "Latitude",
+            "Longitude",
+            "Coordinates",
+            "Timezone",
+            "LocaleCode",
+            "LanguageCode",
+            "CountryCode",
             // Financial (13)
-            "IBAN", "CUSIP", "ISIN", "SEDOL", "LEI", "MIC", "CurrencyCode",
-            "Money", "ExchangeCode", "ExchangeRate", "StockSymbol",
+            "IBAN",
+            "CUSIP",
+            "ISIN",
+            "SEDOL",
+            "LEI",
+            "MIC",
+            "CurrencyCode",
+            "Money",
+            "ExchangeCode",
+            "ExchangeRate",
+            "StockSymbol",
             // Identifiers (9)
-            "Slug", "SemanticVersion", "HashSHA256", "APIKey", "LicensePlate",
-            "VIN", "TrackingNumber", "ContainerNumber",
+            "Slug",
+            "SemanticVersion",
+            "HashSHA256",
+            "APIKey",
+            "LicensePlate",
+            "VIN",
+            "TrackingNumber",
+            "ContainerNumber",
             // Networking (6)
-            "IPAddress", "IPv4", "IPv6", "MACAddress", "CIDR", "Port",
+            "IPAddress",
+            "IPv4",
+            "IPv6",
+            "MACAddress",
+            "CIDR",
+            "Port",
             // Transportation (3)
-            "AirportCode", "PortCode", "FlightNumber",
+            "AirportCode",
+            "PortCode",
+            "FlightNumber",
             // Content (6)
-            "Markdown", "HTML", "MimeType", "Color", "Image", "File",
+            "Markdown",
+            "HTML",
+            "MimeType",
+            "Color",
+            "Image",
+            "File",
             // Database/PostgreSQL specific (1)
             "LTree",
             // Ranges (3)
-            "DateRange", "Duration", "Percentage",
+            "DateRange",
+            "Duration",
+            "Percentage",
         ];
 
         // Register all rich scalars with base_type = String
@@ -366,7 +392,7 @@ impl CustomTypeRegistry {
     pub fn validate(&self, type_name: &str, value: &serde_json::Value) -> Result<()> {
         let def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Unknown custom scalar type '{}'", type_name),
-            path: Some(format!("custom_scalars.{}", type_name)),
+            path:    Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         // Execute validation rules
@@ -403,13 +429,11 @@ impl CustomTypeRegistry {
         match rule {
             ValidationRule::Pattern { pattern, message } => {
                 self.validate_pattern(type_name, pattern, message.as_ref(), value)
-            }
+            },
             ValidationRule::Length { min, max } => {
                 self.validate_length(type_name, *min, *max, value)
-            }
-            ValidationRule::Range { min, max } => {
-                self.validate_range(type_name, *min, *max, value)
-            }
+            },
+            ValidationRule::Range { min, max } => self.validate_range(type_name, *min, *max, value),
             // Other rule types not yet supported
             _ => Ok(()),
         }
@@ -428,28 +452,23 @@ impl CustomTypeRegistry {
                 "Custom scalar '{}' pattern validation: value must be a string",
                 type_name
             ),
-            path: Some(format!("custom_scalars.{}", type_name)),
+            path:    Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         let re = regex::Regex::new(pattern).map_err(|e| FraiseQLError::Validation {
-            message: format!(
-                "Custom scalar '{}' has invalid regex pattern: {}",
-                type_name, e
-            ),
-            path: Some(format!("custom_scalars.{}.validation_rules", type_name)),
+            message: format!("Custom scalar '{}' has invalid regex pattern: {}", type_name, e),
+            path:    Some(format!("custom_scalars.{}.validation_rules", type_name)),
         })?;
 
         if !re.is_match(str_val) {
             return Err(FraiseQLError::Validation {
-                message: message
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        format!(
-                            "Custom scalar '{}' value '{}' does not match pattern '{}'",
-                            type_name, str_val, pattern
-                        )
-                    }),
-                path: Some(format!("custom_scalars.{}", type_name)),
+                message: message.cloned().unwrap_or_else(|| {
+                    format!(
+                        "Custom scalar '{}' value '{}' does not match pattern '{}'",
+                        type_name, str_val, pattern
+                    )
+                }),
+                path:    Some(format!("custom_scalars.{}", type_name)),
             });
         }
 
@@ -469,7 +488,7 @@ impl CustomTypeRegistry {
                 "Custom scalar '{}' length validation: value must be a string",
                 type_name
             ),
-            path: Some(format!("custom_scalars.{}", type_name)),
+            path:    Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         let len = str_val.len();
@@ -481,7 +500,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at least {} characters, got {}",
                         type_name, min_len, len
                     ),
-                    path: Some(format!("custom_scalars.{}", type_name)),
+                    path:    Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -493,7 +512,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at most {} characters, got {}",
                         type_name, max_len, len
                     ),
-                    path: Some(format!("custom_scalars.{}", type_name)),
+                    path:    Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -514,7 +533,7 @@ impl CustomTypeRegistry {
                 "Custom scalar '{}' range validation: value must be an integer",
                 type_name
             ),
-            path: Some(format!("custom_scalars.{}", type_name)),
+            path:    Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         if let Some(min_val) = min {
@@ -524,7 +543,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at least {}, got {}",
                         type_name, min_val, num_val
                     ),
-                    path: Some(format!("custom_scalars.{}", type_name)),
+                    path:    Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -536,7 +555,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at most {}, got {}",
                         type_name, max_val, num_val
                     ),
-                    path: Some(format!("custom_scalars.{}", type_name)),
+                    path:    Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -563,7 +582,7 @@ impl CustomTypeRegistry {
                         type_name
                     )
                 }),
-                path: Some(format!("custom_scalars.{}", type_name)),
+                path:    Some(format!("custom_scalars.{}", type_name)),
             });
         }
 
@@ -590,23 +609,17 @@ mod tests {
     #[test]
     fn test_custom_type_def_with_all_fields() {
         let def = CustomTypeDef {
-            name: "ISBN".to_string(),
-            description: Some("International Standard Book Number".to_string()),
+            name:             "ISBN".to_string(),
+            description:      Some("International Standard Book Number".to_string()),
             specified_by_url: Some("https://www.isbn-international.org/".to_string()),
             validation_rules: vec![],
-            elo_expression: Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
-            base_type: Some("String".to_string()),
+            elo_expression:   Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
+            base_type:        Some("String".to_string()),
         };
 
         assert_eq!(def.name, "ISBN");
-        assert_eq!(
-            def.description,
-            Some("International Standard Book Number".to_string())
-        );
-        assert_eq!(
-            def.specified_by_url,
-            Some("https://www.isbn-international.org/".to_string())
-        );
+        assert_eq!(def.description, Some("International Standard Book Number".to_string()));
+        assert_eq!(def.specified_by_url, Some("https://www.isbn-international.org/".to_string()));
         assert_eq!(def.elo_expression, Some("matches(value, /^[0-9-]{10,17}$/)".to_string()));
         assert_eq!(def.base_type, Some("String".to_string()));
     }
@@ -705,7 +718,7 @@ mod tests {
     #[test]
     fn test_registry_max_scalars_limit() {
         let config = CustomTypeRegistryConfig {
-            max_scalars: Some(2),
+            max_scalars:    Some(2),
             enable_caching: false,
         };
         let registry = CustomTypeRegistry::new(config);
@@ -724,8 +737,7 @@ mod tests {
 
     #[test]
     fn test_registry_concurrent_reads() {
-        use std::sync::Arc as StdArc;
-        use std::thread;
+        use std::{sync::Arc as StdArc, thread};
 
         let registry = StdArc::new(CustomTypeRegistry::new(Default::default()));
         registry
@@ -761,9 +773,7 @@ mod tests {
         let registry = CustomTypeRegistry::new(Default::default());
         let def = CustomTypeDef::new("LibraryCode".to_string());
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         let value = serde_json::json!("LIB-1234");
         let result = registry.validate("LibraryCode", &value);
@@ -775,9 +785,7 @@ mod tests {
         let registry = CustomTypeRegistry::new(Default::default());
         let def = CustomTypeDef::new("StudentID".to_string());
 
-        registry
-            .register("StudentID".to_string(), def)
-            .unwrap();
+        registry.register("StudentID".to_string(), def).unwrap();
 
         let value = serde_json::json!("STU-2024-001");
         let result = registry.validate("StudentID", &value);
@@ -789,9 +797,7 @@ mod tests {
         let registry = CustomTypeRegistry::new(Default::default());
         let def = CustomTypeDef::new("PatientID".to_string());
 
-        registry
-            .register("PatientID".to_string(), def)
-            .unwrap();
+        registry.register("PatientID".to_string(), def).unwrap();
 
         let value = serde_json::json!("PAT-987654");
         let result = registry.validate("PatientID", &value);
@@ -807,9 +813,7 @@ mod tests {
             message: Some("Library code must be LIB-#### format".to_string()),
         }];
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         let value = serde_json::json!("LIB-1234");
         let result = registry.validate("LibraryCode", &value);
@@ -825,9 +829,7 @@ mod tests {
             message: Some("Library code must be LIB-#### format".to_string()),
         }];
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         let value = serde_json::json!("INVALID");
         let result = registry.validate("LibraryCode", &value);
@@ -843,11 +845,9 @@ mod tests {
             max: Some(15),
         }];
 
-        registry
-            .register("StudentID".to_string(), def)
-            .unwrap();
+        registry.register("StudentID".to_string(), def).unwrap();
 
-        let value = serde_json::json!("STU-2024");  // 8 chars, within 5-15
+        let value = serde_json::json!("STU-2024"); // 8 chars, within 5-15
         let result = registry.validate("StudentID", &value);
         assert!(result.is_ok());
     }
@@ -861,11 +861,9 @@ mod tests {
             max: Some(15),
         }];
 
-        registry
-            .register("StudentID".to_string(), def)
-            .unwrap();
+        registry.register("StudentID".to_string(), def).unwrap();
 
-        let value = serde_json::json!("STU");  // 3 chars, below min of 5
+        let value = serde_json::json!("STU"); // 3 chars, below min of 5
         let result = registry.validate("StudentID", &value);
         assert!(result.is_err());
     }
@@ -885,9 +883,7 @@ mod tests {
             },
         ];
 
-        registry
-            .register("PatientID".to_string(), def)
-            .unwrap();
+        registry.register("PatientID".to_string(), def).unwrap();
 
         // Valid: matches pattern and length
         let value_valid = serde_json::json!("PAT-123456");
@@ -898,17 +894,13 @@ mod tests {
         assert!(registry.validate("PatientID", &value_invalid_pattern).is_err());
     }
 
-    // ========== PHASE 4, CYCLE 3: ELO EXPRESSION EVALUATION ==========
-
     #[test]
     fn test_validate_library_code_with_elo_expression_valid() {
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("LibraryCode".to_string());
         def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         let value = serde_json::json!("LIB-1234");
         let result = registry.validate("LibraryCode", &value);
@@ -917,14 +909,11 @@ mod tests {
 
     #[test]
     fn test_validate_library_code_with_elo_expression_invalid() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("LibraryCode".to_string());
         def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         let value = serde_json::json!("INVALID-CODE");
         let result = registry.validate("LibraryCode", &value);
@@ -933,14 +922,11 @@ mod tests {
 
     #[test]
     fn test_validate_student_id_with_elo_expression_valid() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("StudentID".to_string());
         def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
 
-        registry
-            .register("StudentID".to_string(), def)
-            .unwrap();
+        registry.register("StudentID".to_string(), def).unwrap();
 
         let value = serde_json::json!("STU-2024-001");
         let result = registry.validate("StudentID", &value);
@@ -949,14 +935,11 @@ mod tests {
 
     #[test]
     fn test_validate_student_id_with_elo_expression_invalid() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("StudentID".to_string());
         def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
 
-        registry
-            .register("StudentID".to_string(), def)
-            .unwrap();
+        registry.register("StudentID".to_string(), def).unwrap();
 
         let value = serde_json::json!("STUDENT-2024");
         let result = registry.validate("StudentID", &value);
@@ -965,14 +948,11 @@ mod tests {
 
     #[test]
     fn test_validate_patient_id_with_elo_expression_valid() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("PatientID".to_string());
         def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
 
-        registry
-            .register("PatientID".to_string(), def)
-            .unwrap();
+        registry.register("PatientID".to_string(), def).unwrap();
 
         let value = serde_json::json!("PAT-987654");
         let result = registry.validate("PatientID", &value);
@@ -981,14 +961,11 @@ mod tests {
 
     #[test]
     fn test_validate_patient_id_with_elo_expression_invalid() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("PatientID".to_string());
         def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
 
-        registry
-            .register("PatientID".to_string(), def)
-            .unwrap();
+        registry.register("PatientID".to_string(), def).unwrap();
 
         let value = serde_json::json!("PATIENT123");
         let result = registry.validate("PatientID", &value);
@@ -997,7 +974,6 @@ mod tests {
 
     #[test]
     fn test_validate_rules_then_elo_expression_both_valid() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("LibraryCode".to_string());
         def.validation_rules = vec![ValidationRule::Length {
@@ -1006,9 +982,7 @@ mod tests {
         }];
         def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         let value = serde_json::json!("LIB-1234");
         let result = registry.validate("LibraryCode", &value);
@@ -1017,7 +991,6 @@ mod tests {
 
     #[test]
     fn test_validate_rules_pass_elo_fails() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("LibraryCode".to_string());
         def.validation_rules = vec![ValidationRule::Length {
@@ -1026,9 +999,7 @@ mod tests {
         }];
         def.elo_expression = Some("matches(value, \"^LIB-[0-9]{4}$\")".to_string());
 
-        registry
-            .register("LibraryCode".to_string(), def)
-            .unwrap();
+        registry.register("LibraryCode".to_string(), def).unwrap();
 
         // This passes the length rule but fails the ELO pattern
         let value = serde_json::json!("NOTVALID");
@@ -1038,7 +1009,6 @@ mod tests {
 
     #[test]
     fn test_validate_rules_fail_elo_not_evaluated() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("StudentID".to_string());
         def.validation_rules = vec![ValidationRule::Length {
@@ -1047,9 +1017,7 @@ mod tests {
         }];
         def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
 
-        registry
-            .register("StudentID".to_string(), def)
-            .unwrap();
+        registry.register("StudentID".to_string(), def).unwrap();
 
         // This fails the length rule, so ELO should not be evaluated
         let value = serde_json::json!("STU-2024");
@@ -1059,17 +1027,13 @@ mod tests {
 
     #[test]
     fn test_validate_complex_elo_expression_with_multiple_conditions() {
-
         let registry = CustomTypeRegistry::new(Default::default());
         let mut def = CustomTypeDef::new("PatientID".to_string());
         // Match pattern OR contains substring
-        def.elo_expression = Some(
-            "matches(value, \"^PAT-[0-9]{6}$\") || contains(value, \"URGENT\")".to_string(),
-        );
+        def.elo_expression =
+            Some("matches(value, \"^PAT-[0-9]{6}$\") || contains(value, \"URGENT\")".to_string());
 
-        registry
-            .register("PatientID".to_string(), def)
-            .unwrap();
+        registry.register("PatientID".to_string(), def).unwrap();
 
         // Valid: matches pattern
         let value1 = serde_json::json!("PAT-123456");
@@ -1083,8 +1047,6 @@ mod tests {
         let value3 = serde_json::json!("INVALID");
         assert!(registry.validate("PatientID", &value3).is_err());
     }
-
-    // ========== PHASE 7, CYCLE 1: MIGRATION & CLEANUP ==========
 
     #[test]
     fn test_with_builtin_rich_scalars_count() {
@@ -1239,18 +1201,57 @@ mod tests {
 
         // Verify all scalars from the old RICH_SCALARS constant are present
         let all_rich_scalar_names = [
-            "Email", "PhoneNumber", "URL", "DomainName", "Hostname",
-            "PostalCode", "Latitude", "Longitude", "Coordinates", "Timezone",
-            "LocaleCode", "LanguageCode", "CountryCode",
-            "IBAN", "CUSIP", "ISIN", "SEDOL", "LEI", "MIC", "CurrencyCode",
-            "Money", "ExchangeCode", "ExchangeRate", "StockSymbol",
-            "Slug", "SemanticVersion", "HashSHA256", "APIKey", "LicensePlate",
-            "VIN", "TrackingNumber", "ContainerNumber",
-            "IPAddress", "IPv4", "IPv6", "MACAddress", "CIDR", "Port",
-            "AirportCode", "PortCode", "FlightNumber",
-            "Markdown", "HTML", "MimeType", "Color", "Image", "File",
+            "Email",
+            "PhoneNumber",
+            "URL",
+            "DomainName",
+            "Hostname",
+            "PostalCode",
+            "Latitude",
+            "Longitude",
+            "Coordinates",
+            "Timezone",
+            "LocaleCode",
+            "LanguageCode",
+            "CountryCode",
+            "IBAN",
+            "CUSIP",
+            "ISIN",
+            "SEDOL",
+            "LEI",
+            "MIC",
+            "CurrencyCode",
+            "Money",
+            "ExchangeCode",
+            "ExchangeRate",
+            "StockSymbol",
+            "Slug",
+            "SemanticVersion",
+            "HashSHA256",
+            "APIKey",
+            "LicensePlate",
+            "VIN",
+            "TrackingNumber",
+            "ContainerNumber",
+            "IPAddress",
+            "IPv4",
+            "IPv6",
+            "MACAddress",
+            "CIDR",
+            "Port",
+            "AirportCode",
+            "PortCode",
+            "FlightNumber",
+            "Markdown",
+            "HTML",
+            "MimeType",
+            "Color",
+            "Image",
+            "File",
             "LTree",
-            "DateRange", "Duration", "Percentage",
+            "DateRange",
+            "Duration",
+            "Percentage",
         ];
 
         for scalar_name in &all_rich_scalar_names {

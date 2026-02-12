@@ -120,24 +120,24 @@ fn test_schema_from_json_full() {
 #[test]
 fn test_schema_to_json_roundtrip() {
     let schema = CompiledSchema {
-        types:         vec![
+        types:          vec![
             TypeDefinition::new("User", "v_user")
                 .with_field(FieldDefinition::new("id", FieldType::Id))
                 .with_field(FieldDefinition::new("email", FieldType::String)),
         ],
-        enums:         vec![],
-        input_types:   vec![],
-        interfaces:    vec![],
-        unions:        vec![],
-        queries:       vec![QueryDefinition::new("users", "User").returning_list()],
-        mutations:     vec![],
-        subscriptions: vec![],
-        directives:    vec![],
-        fact_tables:   std::collections::HashMap::new(),
-        observers:     Vec::new(),
-        federation:    None,
-        security:      None,
-        schema_sdl:    None,
+        enums:          vec![],
+        input_types:    vec![],
+        interfaces:     vec![],
+        unions:         vec![],
+        queries:        vec![QueryDefinition::new("users", "User").returning_list()],
+        mutations:      vec![],
+        subscriptions:  vec![],
+        directives:     vec![],
+        fact_tables:    std::collections::HashMap::new(),
+        observers:      Vec::new(),
+        federation:     None,
+        security:       None,
+        schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
 
@@ -317,23 +317,23 @@ fn test_argument_definition() {
 #[test]
 fn test_operation_count() {
     let schema = CompiledSchema {
-        types:         vec![TypeDefinition::new("User", "v_user")],
-        enums:         vec![],
-        input_types:   vec![],
-        interfaces:    vec![],
-        unions:        vec![],
-        queries:       vec![
+        types:          vec![TypeDefinition::new("User", "v_user")],
+        enums:          vec![],
+        input_types:    vec![],
+        interfaces:     vec![],
+        unions:         vec![],
+        queries:        vec![
             QueryDefinition::new("users", "User"),
             QueryDefinition::new("user", "User"),
         ],
-        mutations:     vec![MutationDefinition::new("createUser", "User")],
-        subscriptions: vec![SubscriptionDefinition::new("userCreated", "User")],
-        directives:    vec![],
-        fact_tables:   std::collections::HashMap::new(),
-        observers:     Vec::new(),
-        federation:    None,
-        security:      None,
-        schema_sdl:    None,
+        mutations:      vec![MutationDefinition::new("createUser", "User")],
+        subscriptions:  vec![SubscriptionDefinition::new("userCreated", "User")],
+        directives:     vec![],
+        fact_tables:    std::collections::HashMap::new(),
+        observers:      Vec::new(),
+        federation:     None,
+        security:       None,
+        schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
 
@@ -684,7 +684,7 @@ fn test_schema_with_vector_field_json() {
 #[test]
 fn test_vector_field_roundtrip() {
     let schema = CompiledSchema {
-        types:         vec![
+        types:          vec![
             TypeDefinition::new("Document", "documents")
                 .with_field(FieldDefinition::new("id", FieldType::Id))
                 .with_field(
@@ -692,19 +692,19 @@ fn test_vector_field_roundtrip() {
                         .with_description("OpenAI embedding"),
                 ),
         ],
-        enums:         vec![],
-        input_types:   vec![],
-        interfaces:    vec![],
-        unions:        vec![],
-        queries:       vec![],
-        mutations:     vec![],
-        subscriptions: vec![],
-        directives:    vec![],
-        fact_tables:   std::collections::HashMap::new(),
-        observers:     Vec::new(),
-        federation:    None,
-        security:      None,
-        schema_sdl:    None,
+        enums:          vec![],
+        input_types:    vec![],
+        interfaces:     vec![],
+        unions:         vec![],
+        queries:        vec![],
+        mutations:      vec![],
+        subscriptions:  vec![],
+        directives:     vec![],
+        fact_tables:    std::collections::HashMap::new(),
+        observers:      Vec::new(),
+        federation:     None,
+        security:       None,
+        schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
 

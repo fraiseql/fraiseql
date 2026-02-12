@@ -84,21 +84,21 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
     security_config.default_role = Some("viewer".to_string());
 
     CompiledSchema {
-        types:           vec![user_type],
-        queries:         vec![],
-        mutations:       vec![],
-        enums:           vec![],
-        input_types:     vec![],
-        interfaces:      vec![],
-        unions:          vec![],
-        subscriptions:   vec![],
-        directives:      vec![],
-        observers:       vec![],
-        fact_tables:     HashMap::default(),
-        federation:      None,
-        security:        Some(serde_json::to_value(security_config).unwrap()),
-        schema_sdl:      None,
-        custom_scalars:  Default::default(),
+        types:          vec![user_type],
+        queries:        vec![],
+        mutations:      vec![],
+        enums:          vec![],
+        input_types:    vec![],
+        interfaces:     vec![],
+        unions:         vec![],
+        subscriptions:  vec![],
+        directives:     vec![],
+        observers:      vec![],
+        fact_tables:    HashMap::default(),
+        federation:     None,
+        security:       Some(serde_json::to_value(security_config).unwrap()),
+        schema_sdl:     None,
+        custom_scalars: Default::default(),
     }
 }
 

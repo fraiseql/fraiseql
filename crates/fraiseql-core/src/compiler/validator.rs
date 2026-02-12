@@ -10,8 +10,10 @@
 //! - Aggregate types follow required structure
 
 use super::ir::AuthoringIR;
-use crate::error::{FraiseQLError, Result};
-use crate::schema::is_known_scalar;
+use crate::{
+    error::{FraiseQLError, Result},
+    schema::is_known_scalar,
+};
 
 /// Extract the base type name from a GraphQL type string.
 ///
@@ -1038,8 +1040,8 @@ mod tests {
 
         // Test all builtin scalars are recognized in type fields
         ir.types.push(IRType {
-            name:       "TestType".to_string(),
-            fields:     vec![
+            name:        "TestType".to_string(),
+            fields:      vec![
                 IRField {
                     name:        "id".to_string(),
                     field_type:  "ID".to_string(),
@@ -1105,8 +1107,8 @@ mod tests {
 
         // Test some rich scalars are recognized
         ir.types.push(IRType {
-            name:       "Contact".to_string(),
-            fields:     vec![
+            name:        "Contact".to_string(),
+            fields:      vec![
                 IRField {
                     name:        "email".to_string(),
                     field_type:  "Email".to_string(),

@@ -747,10 +747,8 @@ impl SchemaParser {
             .to_string();
 
         let description = obj.get("description").and_then(|v| v.as_str()).map(String::from);
-        let specified_by_url = obj
-            .get("specified_by_url")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let specified_by_url =
+            obj.get("specified_by_url").and_then(|v| v.as_str()).map(String::from);
         let base_type = obj.get("base_type").and_then(|v| v.as_str()).map(String::from);
 
         // Parse validation rules if present

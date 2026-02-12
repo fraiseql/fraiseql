@@ -708,7 +708,6 @@ impl FieldType {
     }
 }
 
-
 impl std::fmt::Display for FieldType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_graphql_string())
@@ -816,10 +815,6 @@ impl FieldType {
     }
 }
 
-// ============================================================================
-// PHASE 7, CYCLE 2: RICH SCALAR REGISTRY MIGRATION TESTS
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -885,23 +880,48 @@ mod tests {
         // Test a sampling of all rich scalar categories
         let rich_scalars = vec![
             // Contact/Communication
-            "Email", "PhoneNumber", "URL", "DomainName", "Hostname",
+            "Email",
+            "PhoneNumber",
+            "URL",
+            "DomainName",
+            "Hostname",
             // Location/Address
-            "PostalCode", "Latitude", "Longitude", "Coordinates", "Timezone",
+            "PostalCode",
+            "Latitude",
+            "Longitude",
+            "Coordinates",
+            "Timezone",
             // Financial
-            "IBAN", "CUSIP", "CurrencyCode", "Money", "StockSymbol",
+            "IBAN",
+            "CUSIP",
+            "CurrencyCode",
+            "Money",
+            "StockSymbol",
             // Identifiers
-            "Slug", "SemanticVersion", "APIKey", "VIN",
+            "Slug",
+            "SemanticVersion",
+            "APIKey",
+            "VIN",
             // Networking
-            "IPAddress", "IPv4", "IPv6", "MACAddress", "CIDR",
+            "IPAddress",
+            "IPv4",
+            "IPv6",
+            "MACAddress",
+            "CIDR",
             // Transportation
-            "AirportCode", "FlightNumber",
+            "AirportCode",
+            "FlightNumber",
             // Content
-            "Markdown", "HTML", "MimeType", "Color",
+            "Markdown",
+            "HTML",
+            "MimeType",
+            "Color",
             // Database
             "LTree",
             // Ranges
-            "DateRange", "Duration", "Percentage",
+            "DateRange",
+            "Duration",
+            "Percentage",
         ];
 
         for scalar_name in rich_scalars {
@@ -937,17 +957,11 @@ mod tests {
 
         // List of rich scalar
         let result = FieldType::parse("[Email]", &known_types);
-        assert_eq!(
-            result,
-            FieldType::List(Box::new(FieldType::Scalar("Email".to_string())))
-        );
+        assert_eq!(result, FieldType::List(Box::new(FieldType::Scalar("Email".to_string()))));
 
         // List of object type
         let result = FieldType::parse("[User]", &known_types);
-        assert_eq!(
-            result,
-            FieldType::List(Box::new(FieldType::Object("User".to_string())))
-        );
+        assert_eq!(result, FieldType::List(Box::new(FieldType::Object("User".to_string()))));
     }
 
     #[test]
@@ -973,10 +987,7 @@ mod tests {
 
         // Nested list
         let result = FieldType::parse("[[String]]", &known_types);
-        assert_eq!(
-            result,
-            FieldType::List(Box::new(FieldType::List(Box::new(FieldType::String))))
-        );
+        assert_eq!(result, FieldType::List(Box::new(FieldType::List(Box::new(FieldType::String)))));
 
         // Nested list with rich scalar
         let result = FieldType::parse("[[Email]]", &known_types);

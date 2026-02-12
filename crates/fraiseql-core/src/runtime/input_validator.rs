@@ -63,7 +63,7 @@ impl ValidationErrorCollection {
 /// Validate a scalar value against a custom scalar type definition.
 ///
 /// This function validates a JSON value against a custom scalar type registered
-/// in the schema, checking both validation rules and ELO expressions (Phase 6).
+/// in the schema, checking both validation rules and ELO expressions.
 ///
 /// # Arguments
 ///
@@ -309,12 +309,12 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ========== PHASE 6, CYCLE 1: RUNTIME VALIDATION INTEGRATION ==========
-
     #[test]
     fn test_validate_custom_scalar_library_code_valid() {
-        use crate::schema::CompiledSchema;
-        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+        use crate::{
+            schema::CompiledSchema,
+            validation::{CustomTypeDef, CustomTypeRegistry},
+        };
 
         let schema = {
             let mut s = CompiledSchema::new();
@@ -326,9 +326,7 @@ mod tests {
                 message: Some("Library code must be LIB-#### format".to_string()),
             }];
 
-            registry
-                .register("LibraryCode".to_string(), def)
-                .unwrap();
+            registry.register("LibraryCode".to_string(), def).unwrap();
 
             s.custom_scalars = registry;
             s
@@ -341,8 +339,10 @@ mod tests {
 
     #[test]
     fn test_validate_custom_scalar_library_code_invalid() {
-        use crate::schema::CompiledSchema;
-        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+        use crate::{
+            schema::CompiledSchema,
+            validation::{CustomTypeDef, CustomTypeRegistry},
+        };
 
         let schema = {
             let mut s = CompiledSchema::new();
@@ -354,9 +354,7 @@ mod tests {
                 message: Some("Library code must be LIB-#### format".to_string()),
             }];
 
-            registry
-                .register("LibraryCode".to_string(), def)
-                .unwrap();
+            registry.register("LibraryCode".to_string(), def).unwrap();
 
             s.custom_scalars = registry;
             s
@@ -369,8 +367,10 @@ mod tests {
 
     #[test]
     fn test_validate_custom_scalar_student_id_with_length() {
-        use crate::schema::CompiledSchema;
-        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+        use crate::{
+            schema::CompiledSchema,
+            validation::{CustomTypeDef, CustomTypeRegistry},
+        };
 
         let schema = {
             let mut s = CompiledSchema::new();
@@ -388,9 +388,7 @@ mod tests {
                 },
             ];
 
-            registry
-                .register("StudentID".to_string(), def)
-                .unwrap();
+            registry.register("StudentID".to_string(), def).unwrap();
 
             s.custom_scalars = registry;
             s
@@ -434,8 +432,10 @@ mod tests {
 
     #[test]
     fn test_validate_custom_scalar_with_elo_expression() {
-        use crate::schema::CompiledSchema;
-        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+        use crate::{
+            schema::CompiledSchema,
+            validation::{CustomTypeDef, CustomTypeRegistry},
+        };
 
         let schema = {
             let mut s = CompiledSchema::new();
@@ -444,9 +444,7 @@ mod tests {
             let mut def = CustomTypeDef::new("StudentID".to_string());
             def.elo_expression = Some("matches(value, \"^STU-[0-9]{4}-[0-9]{3}$\")".to_string());
 
-            registry
-                .register("StudentID".to_string(), def)
-                .unwrap();
+            registry.register("StudentID".to_string(), def).unwrap();
 
             s.custom_scalars = registry;
             s
@@ -465,8 +463,10 @@ mod tests {
 
     #[test]
     fn test_validate_custom_scalar_combined_rules_and_elo() {
-        use crate::schema::CompiledSchema;
-        use crate::validation::{CustomTypeDef, CustomTypeRegistry};
+        use crate::{
+            schema::CompiledSchema,
+            validation::{CustomTypeDef, CustomTypeRegistry},
+        };
 
         let schema = {
             let mut s = CompiledSchema::new();
@@ -479,9 +479,7 @@ mod tests {
             }];
             def.elo_expression = Some("matches(value, \"^PAT-[0-9]{6}$\")".to_string());
 
-            registry
-                .register("PatientID".to_string(), def)
-                .unwrap();
+            registry.register("PatientID".to_string(), def).unwrap();
 
             s.custom_scalars = registry;
             s

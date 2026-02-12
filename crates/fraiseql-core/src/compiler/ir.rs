@@ -514,27 +514,19 @@ mod tests {
     #[test]
     fn test_ir_scalar_with_all_fields() {
         let scalar = IRScalar {
-            name:               "Email".to_string(),
-            description:        Some("Valid email address".to_string()),
-            specified_by_url:   Some("https://html.spec.whatwg.org/".to_string()),
-            validation_rules:   vec![
-                ValidationRule::Pattern {
-                    pattern: r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
-                    message: Some("Invalid email format".to_string()),
-                },
-            ],
-            base_type:          Some("String".to_string()),
+            name:             "Email".to_string(),
+            description:      Some("Valid email address".to_string()),
+            specified_by_url: Some("https://html.spec.whatwg.org/".to_string()),
+            validation_rules: vec![ValidationRule::Pattern {
+                pattern: r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
+                message: Some("Invalid email format".to_string()),
+            }],
+            base_type:        Some("String".to_string()),
         };
 
         assert_eq!(scalar.name, "Email");
-        assert_eq!(
-            scalar.description,
-            Some("Valid email address".to_string())
-        );
-        assert_eq!(
-            scalar.specified_by_url,
-            Some("https://html.spec.whatwg.org/".to_string())
-        );
+        assert_eq!(scalar.description, Some("Valid email address".to_string()));
+        assert_eq!(scalar.specified_by_url, Some("https://html.spec.whatwg.org/".to_string()));
         assert_eq!(scalar.validation_rules.len(), 1);
         assert_eq!(scalar.base_type, Some("String".to_string()));
     }
@@ -554,14 +546,8 @@ mod tests {
 
         // Verify structure
         assert_eq!(json["name"], "ISBN");
-        assert_eq!(
-            json["description"],
-            "International Standard Book Number"
-        );
-        assert_eq!(
-            json["specified_by_url"],
-            "https://www.isbn-international.org/"
-        );
+        assert_eq!(json["description"], "International Standard Book Number");
+        assert_eq!(json["specified_by_url"], "https://www.isbn-international.org/");
         assert_eq!(json["validation_rules"], serde_json::json!([]));
     }
 
