@@ -264,6 +264,72 @@ impl CustomTypeRegistry {
         }
     }
 
+    /// Create a registry with all 51 built-in rich scalar types pre-registered.
+    ///
+    /// This method registers all FraiseQL's rich scalar types including:
+    /// - Contact/Communication: Email, PhoneNumber, URL, DomainName, Hostname
+    /// - Location/Address: PostalCode, Latitude, Longitude, Coordinates, Timezone, etc.
+    /// - Financial: IBAN, CUSIP, ISIN, SEDOL, LEI, MIC, CurrencyCode, Money, etc.
+    /// - Identifiers: Slug, SemanticVersion, HashSHA256, APIKey, VIN, TrackingNumber, etc.
+    /// - Networking: IPAddress, IPv4, IPv6, MACAddress, CIDR, Port
+    /// - Transportation: AirportCode, PortCode, FlightNumber
+    /// - Content: Markdown, HTML, MimeType, Color, Image, File
+    /// - Database: LTree
+    /// - Ranges: DateRange, Duration, Percentage
+    ///
+    /// # Returns
+    ///
+    /// A new `CustomTypeRegistry` with all built-in scalars registered.
+    /// All scalars have base_type = Some("String") and no validation rules/ELO expressions.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+    /// assert!(registry.exists("Email"));
+    /// assert!(registry.exists("IBAN"));
+    /// assert_eq!(registry.count(), 51);
+    /// ```
+    pub fn with_builtin_rich_scalars() -> Self {
+        let registry = Self::new(CustomTypeRegistryConfig::default());
+
+        // All 51 built-in rich scalar type names
+        let rich_scalars = [
+            // Contact/Communication (5)
+            "Email", "PhoneNumber", "URL", "DomainName", "Hostname",
+            // Location/Address (8)
+            "PostalCode", "Latitude", "Longitude", "Coordinates", "Timezone",
+            "LocaleCode", "LanguageCode", "CountryCode",
+            // Financial (13)
+            "IBAN", "CUSIP", "ISIN", "SEDOL", "LEI", "MIC", "CurrencyCode",
+            "Money", "ExchangeCode", "ExchangeRate", "StockSymbol",
+            // Identifiers (9)
+            "Slug", "SemanticVersion", "HashSHA256", "APIKey", "LicensePlate",
+            "VIN", "TrackingNumber", "ContainerNumber",
+            // Networking (6)
+            "IPAddress", "IPv4", "IPv6", "MACAddress", "CIDR", "Port",
+            // Transportation (3)
+            "AirportCode", "PortCode", "FlightNumber",
+            // Content (6)
+            "Markdown", "HTML", "MimeType", "Color", "Image", "File",
+            // Database/PostgreSQL specific (1)
+            "LTree",
+            // Ranges (3)
+            "DateRange", "Duration", "Percentage",
+        ];
+
+        // Register all rich scalars with base_type = String
+        for &scalar_name in &rich_scalars {
+            let mut def = CustomTypeDef::new(scalar_name.to_string());
+            def.base_type = Some("String".to_string());
+
+            // Ignore registration errors - all should succeed in a fresh registry
+            let _ = registry.register(scalar_name.to_string(), def);
+        }
+
+        registry
+    }
+
     /// Validate a value against a custom scalar type's rules and ELO expression.
     ///
     /// Executes in order:
@@ -1016,5 +1082,183 @@ mod tests {
         // Invalid: neither matches pattern nor contains substring
         let value3 = serde_json::json!("INVALID");
         assert!(registry.validate("PatientID", &value3).is_err());
+    }
+
+    // ========== PHASE 7, CYCLE 1: MIGRATION & CLEANUP ==========
+
+    #[test]
+    fn test_with_builtin_rich_scalars_count() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+        assert_eq!(registry.count(), 51);
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_contact_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Contact/Communication scalars
+        assert!(registry.exists("Email"));
+        assert!(registry.exists("PhoneNumber"));
+        assert!(registry.exists("URL"));
+        assert!(registry.exists("DomainName"));
+        assert!(registry.exists("Hostname"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_location_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Location/Address scalars
+        assert!(registry.exists("PostalCode"));
+        assert!(registry.exists("Latitude"));
+        assert!(registry.exists("Longitude"));
+        assert!(registry.exists("Coordinates"));
+        assert!(registry.exists("Timezone"));
+        assert!(registry.exists("LocaleCode"));
+        assert!(registry.exists("LanguageCode"));
+        assert!(registry.exists("CountryCode"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_financial_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Financial scalars
+        assert!(registry.exists("IBAN"));
+        assert!(registry.exists("CUSIP"));
+        assert!(registry.exists("ISIN"));
+        assert!(registry.exists("SEDOL"));
+        assert!(registry.exists("LEI"));
+        assert!(registry.exists("MIC"));
+        assert!(registry.exists("CurrencyCode"));
+        assert!(registry.exists("Money"));
+        assert!(registry.exists("ExchangeCode"));
+        assert!(registry.exists("ExchangeRate"));
+        assert!(registry.exists("StockSymbol"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_identifier_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Identifier scalars
+        assert!(registry.exists("Slug"));
+        assert!(registry.exists("SemanticVersion"));
+        assert!(registry.exists("HashSHA256"));
+        assert!(registry.exists("APIKey"));
+        assert!(registry.exists("LicensePlate"));
+        assert!(registry.exists("VIN"));
+        assert!(registry.exists("TrackingNumber"));
+        assert!(registry.exists("ContainerNumber"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_networking_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Networking scalars
+        assert!(registry.exists("IPAddress"));
+        assert!(registry.exists("IPv4"));
+        assert!(registry.exists("IPv6"));
+        assert!(registry.exists("MACAddress"));
+        assert!(registry.exists("CIDR"));
+        assert!(registry.exists("Port"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_transportation_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Transportation scalars
+        assert!(registry.exists("AirportCode"));
+        assert!(registry.exists("PortCode"));
+        assert!(registry.exists("FlightNumber"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_content_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Content scalars
+        assert!(registry.exists("Markdown"));
+        assert!(registry.exists("HTML"));
+        assert!(registry.exists("MimeType"));
+        assert!(registry.exists("Color"));
+        assert!(registry.exists("Image"));
+        assert!(registry.exists("File"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_database_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Database/PostgreSQL scalars
+        assert!(registry.exists("LTree"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_range_types() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Range scalars
+        assert!(registry.exists("DateRange"));
+        assert!(registry.exists("Duration"));
+        assert!(registry.exists("Percentage"));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_has_base_type() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // All rich scalars should have base_type = String
+        let email = registry.get("Email").unwrap();
+        assert_eq!(email.base_type, Some("String".to_string()));
+
+        let iban = registry.get("IBAN").unwrap();
+        assert_eq!(iban.base_type, Some("String".to_string()));
+
+        let percentage = registry.get("Percentage").unwrap();
+        assert_eq!(percentage.base_type, Some("String".to_string()));
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_no_validation_rules() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Rich scalars should not have validation rules
+        let email = registry.get("Email").unwrap();
+        assert_eq!(email.validation_rules.len(), 0);
+
+        let iban = registry.get("IBAN").unwrap();
+        assert_eq!(iban.validation_rules.len(), 0);
+    }
+
+    #[test]
+    fn test_with_builtin_rich_scalars_backward_compatibility() {
+        let registry = CustomTypeRegistry::with_builtin_rich_scalars();
+
+        // Verify all scalars from the old RICH_SCALARS constant are present
+        let all_rich_scalar_names = [
+            "Email", "PhoneNumber", "URL", "DomainName", "Hostname",
+            "PostalCode", "Latitude", "Longitude", "Coordinates", "Timezone",
+            "LocaleCode", "LanguageCode", "CountryCode",
+            "IBAN", "CUSIP", "ISIN", "SEDOL", "LEI", "MIC", "CurrencyCode",
+            "Money", "ExchangeCode", "ExchangeRate", "StockSymbol",
+            "Slug", "SemanticVersion", "HashSHA256", "APIKey", "LicensePlate",
+            "VIN", "TrackingNumber", "ContainerNumber",
+            "IPAddress", "IPv4", "IPv6", "MACAddress", "CIDR", "Port",
+            "AirportCode", "PortCode", "FlightNumber",
+            "Markdown", "HTML", "MimeType", "Color", "Image", "File",
+            "LTree",
+            "DateRange", "Duration", "Percentage",
+        ];
+
+        for scalar_name in &all_rich_scalar_names {
+            assert!(
+                registry.exists(scalar_name),
+                "Rich scalar '{}' should be registered",
+                scalar_name
+            );
+        }
     }
 }
