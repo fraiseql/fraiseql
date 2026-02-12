@@ -116,7 +116,7 @@ impl FraiseWireAdapter {
         let mut sql = format!("SELECT data FROM {view} ");
 
         if let Some(clause) = where_clause {
-            let where_sql = WhereSqlGenerator::to_sql(clause)?;
+            let where_sql = WhereSqlGenerator::to_sql_for_db(clause, DatabaseType::PostgreSQL)?;
             sql.push_str("WHERE ");
             sql.push_str(&where_sql);
             sql.push(' ');
@@ -161,7 +161,7 @@ impl FraiseWireAdapter {
         let mut builder = client.query::<serde_json::Value>(view).chunk_size(self.chunk_size);
 
         if let Some(clause) = where_clause {
-            let where_sql = WhereSqlGenerator::to_sql(clause)?;
+            let where_sql = WhereSqlGenerator::to_sql_for_db(clause, DatabaseType::PostgreSQL)?;
             builder = builder.where_sql(where_sql);
         }
 
@@ -232,7 +232,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
 
         // Add WHERE clause if provided
         if let Some(clause) = where_clause {
-            let where_sql = WhereSqlGenerator::to_sql(clause)?;
+            let where_sql = WhereSqlGenerator::to_sql_for_db(clause, DatabaseType::PostgreSQL)?;
             builder = builder.where_sql(where_sql);
         }
 

@@ -4,11 +4,17 @@
 //! with fraiseql-wire's `where_sql()` method.
 
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::{
     db::{WhereClause, WhereOperator, DatabaseType},
     error::{FraiseQLError, Result},
 };
+
+/// Type alias for field → SQL column mappings.
+/// Maps schema field names to their direct SQL column names.
+/// Example: {"email" → "email_address", "age" → "user_age"}
+pub type ColumnMap = HashMap<String, String>;
 
 /// Generates SQL WHERE clause strings from AST.
 pub struct WhereSqlGenerator;
@@ -68,35 +74,91 @@ impl WhereSqlGenerator {
     /// let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)?;
     /// ```
     pub fn to_sql_for_db(clause: &WhereClause, db_type: DatabaseType) -> Result<String> {
-        Self::to_sql_internal(clause, db_type)
+        // Backward compatibility: use empty column map (all JSONB fallback)
+        Self::to_sql_for_db_with_columns(clause, db_type, &HashMap::new())
     }
 
-    /// Internal implementation that threads db_type through recursion.
-    fn to_sql_internal(clause: &WhereClause, db_type: DatabaseType) -> Result<String> {
+    /// Convert WHERE clause to SQL with direct column mappings.
+    ///
+    /// This method enables using direct SQL columns instead of JSONB extraction
+    /// when column mappings are provided, improving query performance through index utilization.
+    ///
+    /// # Arguments
+    ///
+    /// * `clause` - The WHERE clause to convert
+    /// * `db_type` - Target database type (PostgreSQL, MySQL, SQLite, SQL Server)
+    /// * `column_map` - Mapping of field names to SQL column names
+    ///   Example: `{"email" → "email_address", "age" → "user_age"}`
+    ///   Unmapped fields fall back to JSONB extraction: `data->>'field'`
+    ///
+    /// # Performance
+    ///
+    /// Direct columns enable database index usage:
+    /// - Direct column: `WHERE email_address = 'x'` (index scan)
+    /// - JSONB fallback: `WHERE data->>'email' = 'x'` (sequential scan)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use fraiseql_core::db::{WhereClause, WhereOperator, where_sql_generator::{WhereSqlGenerator, ColumnMap}};
+    /// use serde_json::json;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut column_map = HashMap::new();
+    /// column_map.insert("email".to_string(), "email_address".to_string());
+    ///
+    /// let clause = WhereClause::Field {
+    ///     path: vec!["email".to_string()],
+    ///     operator: WhereOperator::Eq,
+    ///     value: json!("user@example.com"),
+    /// };
+    ///
+    /// let sql = WhereSqlGenerator::to_sql_for_db_with_columns(&clause, DatabaseType::PostgreSQL, &column_map)?;
+    /// // Result: "email_address" = 'user@example.com'  (using direct column)
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn to_sql_for_db_with_columns(
+        clause: &WhereClause,
+        db_type: DatabaseType,
+        column_map: &ColumnMap,
+    ) -> Result<String> {
+        Self::to_sql_internal_with_columns(clause, db_type, column_map)
+    }
+
+    /// Internal implementation that threads db_type and column_map through recursion.
+    fn to_sql_internal_with_columns(
+        clause: &WhereClause,
+        db_type: DatabaseType,
+        column_map: &ColumnMap,
+    ) -> Result<String> {
         match clause {
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => Self::generate_field_predicate(path, operator, value, db_type),
+            } => Self::generate_field_predicate(path, operator, value, db_type, column_map),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
                     return Ok("TRUE".to_string());
                 }
-                let parts: Result<Vec<_>> =
-                    clauses.iter().map(|c| Self::to_sql_internal(c, db_type)).collect();
+                let parts: Result<Vec<_>> = clauses
+                    .iter()
+                    .map(|c| Self::to_sql_internal_with_columns(c, db_type, column_map))
+                    .collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok("FALSE".to_string());
                 }
-                let parts: Result<Vec<_>> =
-                    clauses.iter().map(|c| Self::to_sql_internal(c, db_type)).collect();
+                let parts: Result<Vec<_>> = clauses
+                    .iter()
+                    .map(|c| Self::to_sql_internal_with_columns(c, db_type, column_map))
+                    .collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
             WhereClause::Not(clause) => {
-                let inner = Self::to_sql_internal(clause, db_type)?;
+                let inner = Self::to_sql_internal_with_columns(clause, db_type, column_map)?;
                 Ok(format!("NOT ({})", inner))
             },
         }
@@ -107,8 +169,9 @@ impl WhereSqlGenerator {
         operator: &WhereOperator,
         value: &Value,
         db_type: DatabaseType,
+        column_map: &ColumnMap,
     ) -> Result<String> {
-        let json_path = Self::build_json_path(path);
+        let json_path = Self::build_json_path(path, column_map, db_type);
         let sql = match operator {
             // Null checks
             WhereOperator::IsNull => {
@@ -342,11 +405,18 @@ impl WhereSqlGenerator {
         Ok(sql)
     }
 
-    fn build_json_path(path: &[String]) -> String {
+    fn build_json_path(path: &[String], column_map: &ColumnMap, db_type: DatabaseType) -> String {
         if path.is_empty() {
             return "data".to_string();
         }
 
+        // Check if first field has a direct column mapping
+        if let Some(direct_col) = column_map.get(&path[0]) {
+            // Use direct column instead of JSONB
+            return Self::quote_identifier(direct_col, db_type);
+        }
+
+        // Fall back to JSONB extraction for unmapped fields
         if path.len() == 1 {
             // Simple path: data->>'field'
             // SECURITY: Escape field name to prevent SQL injection
@@ -364,6 +434,22 @@ impl WhereSqlGenerator {
             let nested_path = escaped_nested.join(",");
             let escaped_last = Self::escape_sql_string(last);
             format!("data#>'{{{}}}'->>'{}'", nested_path, escaped_last)
+        }
+    }
+
+    /// Quote SQL identifier with database-specific syntax.
+    ///
+    /// Different databases have different identifier quoting rules:
+    /// - PostgreSQL: double quotes `"identifier"`
+    /// - MySQL: backticks `` `identifier` ``
+    /// - SQLite: double quotes `"identifier"`
+    /// - SQL Server: brackets `[identifier]`
+    fn quote_identifier(identifier: &str, db_type: DatabaseType) -> String {
+        match db_type {
+            DatabaseType::PostgreSQL => format!(r#""{}""#, identifier),
+            DatabaseType::MySQL => format!("`{}`", identifier),
+            DatabaseType::SQLite => format!(r#""{}""#, identifier),
+            DatabaseType::SQLServer => format!("[{}]", identifier),
         }
     }
 
