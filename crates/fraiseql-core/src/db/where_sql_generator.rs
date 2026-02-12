@@ -295,6 +295,38 @@ impl WhereSqlGenerator {
                 }
                 Self::apply_template(db_type, "lca", &json_path, value)?
             },
+            // Array length operators (all databases)
+            WhereOperator::LenEq => {
+                Self::apply_template(db_type, "lenEq", &json_path, value)?
+            },
+            WhereOperator::LenNeq => {
+                Self::apply_template(db_type, "lenNeq", &json_path, value)?
+            },
+            WhereOperator::LenGt => {
+                Self::apply_template(db_type, "lenGt", &json_path, value)?
+            },
+            WhereOperator::LenGte => {
+                Self::apply_template(db_type, "lenGte", &json_path, value)?
+            },
+            WhereOperator::LenLt => {
+                Self::apply_template(db_type, "lenLt", &json_path, value)?
+            },
+            WhereOperator::LenLte => {
+                Self::apply_template(db_type, "lenLte", &json_path, value)?
+            },
+            // Full-text search operators (all databases)
+            WhereOperator::Matches => {
+                Self::apply_template(db_type, "matches", &json_path, value)?
+            },
+            WhereOperator::PlainQuery => {
+                Self::apply_template(db_type, "plainQuery", &json_path, value)?
+            },
+            WhereOperator::PhraseQuery => {
+                Self::apply_template(db_type, "phraseQuery", &json_path, value)?
+            },
+            WhereOperator::WebsearchQuery => {
+                Self::apply_template(db_type, "websearchQuery", &json_path, value)?
+            },
             // All other operators
             _ => {
                 let sql_op = Self::operator_to_sql(operator, db_type)?;
@@ -551,6 +583,72 @@ impl WhereSqlGenerator {
             // Lca: Lowest common ancestor of two ltrees
             (DatabaseType::PostgreSQL, "lca") => Some("lca($field, $1::ltree) IS NOT NULL".to_string()),
 
+            // ========================================================================
+            // ARRAY LENGTH OPERATORS (Phase 4)
+            // ========================================================================
+            // LenEq: Array length equals N
+            (DatabaseType::PostgreSQL, "lenEq") => Some("array_length($field::text[], 1) = $1".to_string()),
+            (DatabaseType::MySQL, "lenEq") => Some("JSON_LENGTH($field) = $1".to_string()),
+            (DatabaseType::SQLite, "lenEq") => Some("json_array_length($field) = $1".to_string()),
+            (DatabaseType::SQLServer, "lenEq") => Some("(SELECT COUNT(*) FROM OPENJSON($field)) = $1".to_string()),
+
+            // LenNeq: Array length not equal to N
+            (DatabaseType::PostgreSQL, "lenNeq") => Some("array_length($field::text[], 1) != $1".to_string()),
+            (DatabaseType::MySQL, "lenNeq") => Some("JSON_LENGTH($field) != $1".to_string()),
+            (DatabaseType::SQLite, "lenNeq") => Some("json_array_length($field) != $1".to_string()),
+            (DatabaseType::SQLServer, "lenNeq") => Some("(SELECT COUNT(*) FROM OPENJSON($field)) != $1".to_string()),
+
+            // LenGt: Array length > N
+            (DatabaseType::PostgreSQL, "lenGt") => Some("array_length($field::text[], 1) > $1".to_string()),
+            (DatabaseType::MySQL, "lenGt") => Some("JSON_LENGTH($field) > $1".to_string()),
+            (DatabaseType::SQLite, "lenGt") => Some("json_array_length($field) > $1".to_string()),
+            (DatabaseType::SQLServer, "lenGt") => Some("(SELECT COUNT(*) FROM OPENJSON($field)) > $1".to_string()),
+
+            // LenGte: Array length >= N
+            (DatabaseType::PostgreSQL, "lenGte") => Some("array_length($field::text[], 1) >= $1".to_string()),
+            (DatabaseType::MySQL, "lenGte") => Some("JSON_LENGTH($field) >= $1".to_string()),
+            (DatabaseType::SQLite, "lenGte") => Some("json_array_length($field) >= $1".to_string()),
+            (DatabaseType::SQLServer, "lenGte") => Some("(SELECT COUNT(*) FROM OPENJSON($field)) >= $1".to_string()),
+
+            // LenLt: Array length < N
+            (DatabaseType::PostgreSQL, "lenLt") => Some("array_length($field::text[], 1) < $1".to_string()),
+            (DatabaseType::MySQL, "lenLt") => Some("JSON_LENGTH($field) < $1".to_string()),
+            (DatabaseType::SQLite, "lenLt") => Some("json_array_length($field) < $1".to_string()),
+            (DatabaseType::SQLServer, "lenLt") => Some("(SELECT COUNT(*) FROM OPENJSON($field)) < $1".to_string()),
+
+            // LenLte: Array length <= N
+            (DatabaseType::PostgreSQL, "lenLte") => Some("array_length($field::text[], 1) <= $1".to_string()),
+            (DatabaseType::MySQL, "lenLte") => Some("JSON_LENGTH($field) <= $1".to_string()),
+            (DatabaseType::SQLite, "lenLte") => Some("json_array_length($field) <= $1".to_string()),
+            (DatabaseType::SQLServer, "lenLte") => Some("(SELECT COUNT(*) FROM OPENJSON($field)) <= $1".to_string()),
+
+            // ========================================================================
+            // FULL-TEXT SEARCH OPERATORS (Phase 4)
+            // ========================================================================
+            // Matches: Full-text search (any mode)
+            (DatabaseType::PostgreSQL, "matches") => Some("to_tsvector($field) @@ plainto_tsquery($1)".to_string()),
+            (DatabaseType::MySQL, "matches") => Some("MATCH($field) AGAINST($1 IN BOOLEAN MODE)".to_string()),
+            (DatabaseType::SQLite, "matches") => Some("$field MATCH $1".to_string()),
+            (DatabaseType::SQLServer, "matches") => Some("CONTAINS($field, $1)".to_string()),
+
+            // PlainQuery: Plain text query (no special syntax)
+            (DatabaseType::PostgreSQL, "plainQuery") => Some("to_tsvector($field) @@ plainto_tsquery($1)".to_string()),
+            (DatabaseType::MySQL, "plainQuery") => Some("MATCH($field) AGAINST($1 IN BOOLEAN MODE)".to_string()),
+            (DatabaseType::SQLite, "plainQuery") => Some("$field MATCH $1".to_string()),
+            (DatabaseType::SQLServer, "plainQuery") => Some("CONTAINS($field, $1)".to_string()),
+
+            // PhraseQuery: Phrase search (quoted strings)
+            (DatabaseType::PostgreSQL, "phraseQuery") => Some("to_tsvector($field) @@ phraseto_tsquery($1)".to_string()),
+            (DatabaseType::MySQL, "phraseQuery") => Some("MATCH($field) AGAINST($1 IN BOOLEAN MODE)".to_string()),
+            (DatabaseType::SQLite, "phraseQuery") => Some("$field MATCH $1".to_string()),
+            (DatabaseType::SQLServer, "phraseQuery") => Some("CONTAINS($field, $1)".to_string()),
+
+            // WebsearchQuery: Web search syntax (like Google)
+            (DatabaseType::PostgreSQL, "websearchQuery") => Some("to_tsvector($field) @@ websearch_to_tsquery($1)".to_string()),
+            (DatabaseType::MySQL, "websearchQuery") => Some("MATCH($field) AGAINST($1 IN BOOLEAN MODE)".to_string()),
+            (DatabaseType::SQLite, "websearchQuery") => Some("$field MATCH $1".to_string()),
+            (DatabaseType::SQLServer, "websearchQuery") => Some("CONTAINS($field, $1)".to_string()),
+
             // Add more operators in later phases
             _ => None,
         }
@@ -594,19 +692,6 @@ impl WhereSqlGenerator {
                     source:  None,
                 });
             },
-            WhereOperator::LenEq
-            | WhereOperator::LenGt
-            | WhereOperator::LenLt
-            | WhereOperator::LenGte
-            | WhereOperator::LenLte
-            | WhereOperator::LenNeq => {
-                return Err(FraiseQLError::Internal {
-                    message: format!(
-                        "Array length operators not yet supported in fraiseql-wire: {operator:?}"
-                    ),
-                    source:  None,
-                });
-            },
 
             // Vector operations not supported
             WhereOperator::L2Distance
@@ -646,6 +731,12 @@ impl WhereSqlGenerator {
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
             | WhereOperator::Lca
+            | WhereOperator::LenEq
+            | WhereOperator::LenNeq
+            | WhereOperator::LenGt
+            | WhereOperator::LenGte
+            | WhereOperator::LenLt
+            | WhereOperator::LenLte
             | WhereOperator::Matches
             | WhereOperator::PlainQuery
             | WhereOperator::PhraseQuery
@@ -1045,7 +1136,7 @@ mod tests {
         assert!(sql_pg.is_ok());
         let sql = sql_pg.unwrap();
         assert!(sql.contains("SPLIT_PART"), "PostgreSQL should use SPLIT_PART for domain extraction");
-        assert!(sql.contains("$field") == false, "Template placeholders should be substituted");
+        assert!(!sql.contains("$field"), "Template placeholders should be substituted");
         assert!(sql.contains("data->>'email'"), "Field reference should be substituted");
 
         // Test MySQL version should use SUBSTRING_INDEX (different function)

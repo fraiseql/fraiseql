@@ -191,39 +191,38 @@ fn test_all_network_operators_have_sql_generation() {
 // PHASE 2, CYCLE 2: Database-Specific Behavior Tests
 // ============================================================================
 
-/// Test that unimplemented operators return clear error messages
+/// Test that newly implemented FTS operators work
 #[test]
-fn test_unimplemented_operators_return_errors() {
-    // Operators that are in the WhereOperator enum but not yet implemented
-    // (Using FTS operators as examples of unimplemented operators)
-    let unimplemented_operators = vec![
+fn test_newly_implemented_fts_operators() {
+    // Verify that FTS operators are now working
+    let fts_operators = vec![
         (WhereOperator::Matches, "Matches"),
         (WhereOperator::PlainQuery, "PlainQuery"),
         (WhereOperator::PhraseQuery, "PhraseQuery"),
+        (WhereOperator::WebsearchQuery, "WebsearchQuery"),
     ];
 
-    for (operator, op_name) in unimplemented_operators {
+    for (operator, op_name) in fts_operators {
         let clause = WhereClause::Field {
-            path: vec!["text_field".to_string()],
+            path: vec!["content".to_string()],
             operator,
             value: json!("search term"),
         };
 
-        // Should return an error with clear message
+        // Should work on PostgreSQL
         let result = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL);
         assert!(
-            result.is_err(),
-            "Operator {} should return an error (not yet implemented)",
-            op_name
+            result.is_ok(),
+            "FTS Operator {} should be implemented on PostgreSQL: {:?}",
+            op_name,
+            result
         );
 
-        let error_msg = format!("{:?}", result);
-        // Error should mention the operator name and that it's not supported
+        let sql = result.unwrap();
         assert!(
-            error_msg.contains(op_name) || error_msg.contains("not yet supported")
-                || error_msg.contains("not supported") || error_msg.contains("not implemented"),
-            "Error message should indicate operator is not supported, got: {}",
-            error_msg
+            !sql.is_empty(),
+            "FTS Operator {} should generate SQL",
+            op_name
         );
     }
 }
@@ -281,23 +280,6 @@ fn test_error_messages_are_helpful() {
     assert!(
         result.is_ok(),
         "Should still generate SQL even with unusual values (validation at query time)"
-    );
-
-    // Test actual unsupported operator (FTS)
-    let unsupported_clause = WhereClause::Field {
-        path: vec!["text_field".to_string()],
-        operator: WhereOperator::Matches,  // Full-text search operator
-        value: json!("search term"),
-    };
-
-    let error_result = WhereSqlGenerator::to_sql_for_db(&unsupported_clause, DatabaseType::PostgreSQL);
-    assert!(error_result.is_err(), "Matches (FTS) should not be implemented yet");
-
-    let error_msg = format!("{:?}", error_result.err());
-    assert!(
-        error_msg.contains("Matches") || error_msg.contains("not yet supported"),
-        "Error should mention the operator name, got: {}",
-        error_msg
     );
 }
 

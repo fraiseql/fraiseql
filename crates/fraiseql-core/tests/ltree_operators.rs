@@ -159,7 +159,7 @@ fn test_ltree_depth_operators_postgresql() {
         };
 
         let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)
-            .expect(&format!("{} should work on PostgreSQL", op_name));
+            .expect("LTree depth operator should work on PostgreSQL");
 
         // Should contain nlevel function and comparison operator
         assert!(
@@ -194,7 +194,7 @@ fn test_ltree_pattern_matching_postgresql() {
         };
 
         let sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)
-            .expect(&format!("{} should work on PostgreSQL", op_name));
+            .expect("LTree pattern operator should work on PostgreSQL");
 
         assert!(
             sql.contains(expected_op) || sql.contains("match"),
