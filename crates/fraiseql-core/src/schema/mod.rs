@@ -42,6 +42,9 @@ mod compiled;
 mod dependency_graph;
 mod field_type;
 mod introspection;
+mod scalar_types;
+
+pub use scalar_types::{is_known_scalar, BUILTIN_SCALARS, RICH_SCALARS};
 
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
