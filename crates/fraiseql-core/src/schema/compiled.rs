@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::field_type::{FieldDefinition, FieldType};
-use crate::validation::ValidationRule;
+use crate::validation::{CustomTypeRegistry, ValidationRule};
 
 /// Role definition for field-level RBAC.
 ///
@@ -172,7 +172,7 @@ impl SecurityConfig {
 /// let schema = CompiledSchema::from_json(json).unwrap();
 /// assert_eq!(schema.types.len(), 0);
 /// ```
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompiledSchema {
     /// GraphQL object type definitions.
     #[serde(default)]
@@ -231,6 +231,56 @@ pub struct CompiledSchema {
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
+
+    /// Custom scalar type registry (Phase 5: Compiler Integration).
+    ///
+    /// Contains definitions for custom scalar types defined in the schema.
+    /// Built during code generation from IRScalar definitions.
+    /// Not serialized - populated at runtime from `ir.scalars`.
+    #[serde(skip)]
+    pub custom_scalars: CustomTypeRegistry,
+}
+
+impl Default for CompiledSchema {
+    fn default() -> Self {
+        Self {
+            types: Vec::new(),
+            enums: Vec::new(),
+            input_types: Vec::new(),
+            interfaces: Vec::new(),
+            unions: Vec::new(),
+            queries: Vec::new(),
+            mutations: Vec::new(),
+            subscriptions: Vec::new(),
+            directives: Vec::new(),
+            fact_tables: HashMap::new(),
+            observers: Vec::new(),
+            federation: None,
+            security: None,
+            schema_sdl: None,
+            custom_scalars: CustomTypeRegistry::default(),
+        }
+    }
+}
+
+impl PartialEq for CompiledSchema {
+    fn eq(&self, other: &Self) -> bool {
+        // Compare all fields except custom_scalars (runtime state)
+        self.types == other.types
+            && self.enums == other.enums
+            && self.input_types == other.input_types
+            && self.interfaces == other.interfaces
+            && self.unions == other.unions
+            && self.queries == other.queries
+            && self.mutations == other.mutations
+            && self.subscriptions == other.subscriptions
+            && self.directives == other.directives
+            && self.fact_tables == other.fact_tables
+            && self.observers == other.observers
+            && self.federation == other.federation
+            && self.security == other.security
+            && self.schema_sdl == other.schema_sdl
+    }
 }
 
 impl CompiledSchema {

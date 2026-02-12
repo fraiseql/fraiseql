@@ -22,6 +22,7 @@ use crate::{
         InputObjectDefinition, InterfaceDefinition, MutationDefinition, QueryDefinition,
         SubscriptionDefinition, TypeDefinition, UnionDefinition,
     },
+    validation::{CustomTypeRegistry, CustomTypeRegistryConfig, CustomTypeDef},
 };
 
 /// Code generator.
@@ -176,6 +177,9 @@ impl CodeGenerator {
         let input_types =
             ir.input_types.iter().map(|i| Self::map_input_type(i, &known_types)).collect();
 
+        // Build custom type registry from IRScalars (Phase 5)
+        let custom_scalars = Self::build_custom_type_registry(&ir.scalars)?;
+
         Ok(CompiledSchema {
             types,
             enums,
@@ -203,6 +207,8 @@ impl CodeGenerator {
             security: None,
             // Raw schema SDL: populated for federation _service query
             schema_sdl: None,
+            // Custom scalar types (Phase 5: Compiler Integration)
+            custom_scalars,
         })
     }
 
@@ -346,6 +352,28 @@ impl CodeGenerator {
                 }
             })
             .collect()
+    }
+
+    /// Build custom type registry from IRScalars (Phase 5).
+    fn build_custom_type_registry(
+        ir_scalars: &[super::ir::IRScalar],
+    ) -> Result<CustomTypeRegistry> {
+        let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
+
+        for ir_scalar in ir_scalars {
+            let def = CustomTypeDef {
+                name: ir_scalar.name.clone(),
+                description: ir_scalar.description.clone(),
+                specified_by_url: ir_scalar.specified_by_url.clone(),
+                validation_rules: ir_scalar.validation_rules.clone(),
+                elo_expression: None, // Will be set in Phase 4 (already done)
+                base_type: ir_scalar.base_type.clone(),
+            };
+
+            registry.register(ir_scalar.name.clone(), def)?;
+        }
+
+        Ok(registry)
     }
 
     /// Check if optimization is enabled.
@@ -775,5 +803,156 @@ mod tests {
         assert_eq!(create_user.fields.len(), 2);
         assert_eq!(create_user.fields[0].name, "name");
         assert_eq!(create_user.fields[1].default_value, Some("18".to_string()));
+    }
+
+    // ========== PHASE 5, CYCLE 1: COMPILER INTEGRATION ==========
+
+    #[test]
+    fn test_generate_with_empty_scalars() {
+        use super::super::ir::IRScalar;
+
+        let generator = CodeGenerator::new(true);
+        let mut ir = AuthoringIR::new();
+        ir.scalars = vec![];
+
+        let result = generator.generate(&ir, &[]);
+        assert!(result.is_ok());
+
+        let schema = result.unwrap();
+        assert_eq!(schema.custom_scalars.count(), 0);
+    }
+
+    #[test]
+    fn test_generate_with_single_custom_scalar() {
+        use super::super::ir::IRScalar;
+
+        let generator = CodeGenerator::new(true);
+        let mut ir = AuthoringIR::new();
+
+        ir.scalars.push(IRScalar {
+            name: "LibraryCode".to_string(),
+            description: Some("Unique library book identifier".to_string()),
+            specified_by_url: None,
+            validation_rules: vec![],
+            base_type: Some("String".to_string()),
+        });
+
+        let result = generator.generate(&ir, &[]);
+        assert!(result.is_ok());
+
+        let schema = result.unwrap();
+        assert_eq!(schema.custom_scalars.count(), 1);
+        assert!(schema.custom_scalars.exists("LibraryCode"));
+
+        let def = schema.custom_scalars.get("LibraryCode").unwrap();
+        assert_eq!(def.name, "LibraryCode");
+        assert_eq!(def.description, Some("Unique library book identifier".to_string()));
+        assert_eq!(def.base_type, Some("String".to_string()));
+    }
+
+    #[test]
+    fn test_generate_with_multiple_custom_scalars() {
+        use super::super::ir::IRScalar;
+
+        let generator = CodeGenerator::new(true);
+        let mut ir = AuthoringIR::new();
+
+        ir.scalars.push(IRScalar {
+            name: "LibraryCode".to_string(),
+            description: None,
+            specified_by_url: None,
+            validation_rules: vec![],
+            base_type: Some("String".to_string()),
+        });
+
+        ir.scalars.push(IRScalar {
+            name: "StudentID".to_string(),
+            description: Some("University student identifier".to_string()),
+            specified_by_url: None,
+            validation_rules: vec![],
+            base_type: None,
+        });
+
+        ir.scalars.push(IRScalar {
+            name: "PatientID".to_string(),
+            description: Some("Hospital patient identifier".to_string()),
+            specified_by_url: Some("https://hl7.org/".to_string()),
+            validation_rules: vec![],
+            base_type: Some("String".to_string()),
+        });
+
+        let result = generator.generate(&ir, &[]);
+        assert!(result.is_ok());
+
+        let schema = result.unwrap();
+        assert_eq!(schema.custom_scalars.count(), 3);
+
+        // Verify all scalars are registered
+        assert!(schema.custom_scalars.exists("LibraryCode"));
+        assert!(schema.custom_scalars.exists("StudentID"));
+        assert!(schema.custom_scalars.exists("PatientID"));
+
+        // Verify metadata preserved
+        let patient_id = schema.custom_scalars.get("PatientID").unwrap();
+        assert_eq!(patient_id.specified_by_url, Some("https://hl7.org/".to_string()));
+    }
+
+    #[test]
+    fn test_generate_preserves_scalar_description() {
+        use super::super::ir::IRScalar;
+
+        let generator = CodeGenerator::new(true);
+        let mut ir = AuthoringIR::new();
+
+        ir.scalars.push(IRScalar {
+            name: "Email".to_string(),
+            description: Some("RFC 5322 compliant email address".to_string()),
+            specified_by_url: Some("https://tools.ietf.org/html/rfc5322".to_string()),
+            validation_rules: vec![],
+            base_type: Some("String".to_string()),
+        });
+
+        let result = generator.generate(&ir, &[]);
+        assert!(result.is_ok());
+
+        let schema = result.unwrap();
+        let email_def = schema.custom_scalars.get("Email").unwrap();
+
+        assert_eq!(
+            email_def.description,
+            Some("RFC 5322 compliant email address".to_string())
+        );
+        assert_eq!(
+            email_def.specified_by_url,
+            Some("https://tools.ietf.org/html/rfc5322".to_string())
+        );
+    }
+
+    #[test]
+    fn test_generate_scalars_with_validation_rules() {
+        use super::super::ir::IRScalar;
+        use crate::validation::ValidationRule;
+
+        let generator = CodeGenerator::new(true);
+        let mut ir = AuthoringIR::new();
+
+        ir.scalars.push(IRScalar {
+            name: "StudentID".to_string(),
+            description: None,
+            specified_by_url: None,
+            validation_rules: vec![ValidationRule::Length {
+                min: Some(5),
+                max: Some(15),
+            }],
+            base_type: Some("String".to_string()),
+        });
+
+        let result = generator.generate(&ir, &[]);
+        assert!(result.is_ok());
+
+        let schema = result.unwrap();
+        let student_id = schema.custom_scalars.get("StudentID").unwrap();
+
+        assert_eq!(student_id.validation_rules.len(), 1);
     }
 }

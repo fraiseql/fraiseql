@@ -3,6 +3,7 @@
 use field_type::{DistanceMetric, VectorConfig, VectorIndexType};
 
 use super::*;
+use crate::validation::CustomTypeRegistry;
 
 #[test]
 fn test_empty_schema_creation() {
@@ -137,6 +138,7 @@ fn test_schema_to_json_roundtrip() {
         federation:    None,
         security:      None,
         schema_sdl:    None,
+        custom_scalars: CustomTypeRegistry::default(),
     };
 
     let json = schema.to_json().unwrap();
@@ -332,6 +334,7 @@ fn test_operation_count() {
         federation:    None,
         security:      None,
         schema_sdl:    None,
+        custom_scalars: CustomTypeRegistry::default(),
     };
 
     assert_eq!(schema.operation_count(), 4); // 2 queries + 1 mutation + 1 subscription
@@ -702,6 +705,7 @@ fn test_vector_field_roundtrip() {
         federation:    None,
         security:      None,
         schema_sdl:    None,
+        custom_scalars: CustomTypeRegistry::default(),
     };
 
     let json = schema.to_json().unwrap();

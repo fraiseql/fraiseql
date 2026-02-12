@@ -108,6 +108,12 @@ pub struct CustomTypeRegistry {
     types: Arc<RwLock<HashMap<String, CustomTypeDef>>>,
 }
 
+impl Default for CustomTypeRegistry {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
 impl CustomTypeRegistry {
     /// Create a new custom type registry.
     ///
