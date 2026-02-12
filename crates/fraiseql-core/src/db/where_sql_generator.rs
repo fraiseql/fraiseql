@@ -240,6 +240,32 @@ impl WhereSqlGenerator {
                 Some("SUBSTRING($field, CHARINDEX('@', $field) + 1, LEN($field)) IN ($params)".to_string())
             },
 
+            (DatabaseType::PostgreSQL, "domainEndswith") => {
+                Some("SPLIT_PART($field, '@', 2) LIKE '%' || $1".to_string())
+            },
+            (DatabaseType::MySQL, "domainEndswith") => {
+                Some("SUBSTRING_INDEX($field, '@', -1) LIKE CONCAT('%', ?)".to_string())
+            },
+            (DatabaseType::SQLite, "domainEndswith") => {
+                Some("SUBSTR($field, INSTR($field, '@') + 1) LIKE '%' || ?".to_string())
+            },
+            (DatabaseType::SQLServer, "domainEndswith") => {
+                Some("SUBSTRING($field, CHARINDEX('@', $field) + 1, LEN($field)) LIKE '%' + ?".to_string())
+            },
+
+            (DatabaseType::PostgreSQL, "localPartStartswith") => {
+                Some("SPLIT_PART($field, '@', 1) LIKE $1 || '%'".to_string())
+            },
+            (DatabaseType::MySQL, "localPartStartswith") => {
+                Some("SUBSTRING_INDEX($field, '@', 1) LIKE CONCAT(?, '%')".to_string())
+            },
+            (DatabaseType::SQLite, "localPartStartswith") => {
+                Some("SUBSTR($field, 1, INSTR($field, '@') - 1) LIKE ? || '%'".to_string())
+            },
+            (DatabaseType::SQLServer, "localPartStartswith") => {
+                Some("SUBSTRING($field, 1, CHARINDEX('@', $field) - 1) LIKE ? + '%'".to_string())
+            },
+
             // Add more operators in later phases
             _ => None,
         }
@@ -783,5 +809,75 @@ mod tests {
         // Verify database-specific SQL functions
         assert!(pg_template.unwrap().contains("SPLIT_PART"));
         assert!(mysql_template.unwrap().contains("SUBSTRING_INDEX"));
+    }
+
+    #[test]
+    fn test_templates_exist_for_all_email_operators() {
+        // Phase 0, Cycle 4: Integration test for template coverage
+        // Verify that email operators have templates on all 4 databases
+
+        let email_operators = vec!["domainEq", "domainIn", "domainEndswith", "localPartStartswith"];
+        let databases = vec![
+            DatabaseType::PostgreSQL,
+            DatabaseType::MySQL,
+            DatabaseType::SQLite,
+            DatabaseType::SQLServer,
+        ];
+
+        for operator in &email_operators {
+            for db in &databases {
+                let template = WhereSqlGenerator::get_template_for_operator(*db, operator);
+                assert!(template.is_some(), "Template should exist for {} on {:?}", operator, db);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parameter_substitution_per_database() {
+        // Phase 0, Cycle 4: Verify database-specific parameter syntax
+        // PostgreSQL uses $1, others use ?
+
+        let pg_sql =
+            WhereSqlGenerator::apply_template(DatabaseType::PostgreSQL, "domainEq", "data->>'email'", &json!("test@example.com"));
+        assert!(pg_sql.is_ok());
+        assert!(pg_sql.unwrap().contains("$1"), "PostgreSQL should use $1 parameter");
+
+        let mysql_sql =
+            WhereSqlGenerator::apply_template(DatabaseType::MySQL, "domainEq", "data->>'email'", &json!("test@example.com"));
+        assert!(mysql_sql.is_ok());
+        assert!(mysql_sql.unwrap().contains("?"), "MySQL should use ? parameter");
+
+        let sqlite_sql =
+            WhereSqlGenerator::apply_template(DatabaseType::SQLite, "domainEq", "data->>'email'", &json!("test@example.com"));
+        assert!(sqlite_sql.is_ok());
+        assert!(sqlite_sql.unwrap().contains("?"), "SQLite should use ? parameter");
+
+        let sqlserver_sql =
+            WhereSqlGenerator::apply_template(DatabaseType::SQLServer, "domainEq", "data->>'email'", &json!("test@example.com"));
+        assert!(sqlserver_sql.is_ok());
+        assert!(sqlserver_sql.unwrap().contains("?"), "SQL Server should use ? parameter");
+    }
+
+    #[test]
+    fn test_template_with_to_sql_for_db() {
+        // Phase 0, Cycle 4: Integration test combining database awareness with templates
+        // Verify that to_sql_for_db can be extended to use templates for extended operators
+
+        let clause = WhereClause::Field {
+            path:     vec!["email".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("test@example.com"),
+        };
+
+        // Current implementation: basic operators work the same across databases
+        let sql_pg = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL);
+        let sql_mysql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::MySQL);
+
+        assert!(sql_pg.is_ok());
+        assert!(sql_mysql.is_ok());
+
+        // For basic Eq operator, result should be identical across databases
+        // (In later phases, we'll have database-specific results for template operators)
+        assert_eq!(sql_pg.unwrap(), sql_mysql.unwrap());
     }
 }
