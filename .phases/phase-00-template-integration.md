@@ -263,7 +263,7 @@ Wire sql_templates.rs into WhereSqlGenerator so all template-based operators wor
 - [ ] Ensure no breaking changes to existing operator_to_sql API
 
 ## Status
-[ ] Not Started | [ ] In Progress | [ ] Complete
+[ ] Not Started | [ ] In Progress | [x] Complete
 
 ## Notes
 - This phase unlocks ~150 operators at once
