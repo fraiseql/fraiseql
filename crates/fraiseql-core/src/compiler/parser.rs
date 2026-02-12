@@ -174,6 +174,7 @@ impl SchemaParser {
             interfaces,
             unions,
             input_types,
+            scalars: Vec::new(),  // TODO: Parse from schema
             queries,
             mutations,
             subscriptions,

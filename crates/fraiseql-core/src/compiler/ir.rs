@@ -70,6 +70,10 @@ pub struct AuthoringIR {
     #[serde(default)]
     pub input_types: Vec<IRInputType>,
 
+    /// Custom scalar type definitions.
+    #[serde(default)]
+    pub scalars: Vec<IRScalar>,
+
     /// Query definitions.
     pub queries: Vec<IRQuery>,
 
@@ -96,6 +100,7 @@ impl AuthoringIR {
             interfaces:    Vec::new(),
             unions:        Vec::new(),
             input_types:   Vec::new(),
+            scalars:       Vec::new(),
             queries:       Vec::new(),
             mutations:     Vec::new(),
             subscriptions: Vec::new(),
@@ -400,6 +405,19 @@ mod tests {
         assert!(ir.queries.is_empty());
         assert!(ir.mutations.is_empty());
         assert!(ir.subscriptions.is_empty());
+    }
+
+    #[test]
+    fn test_authoring_ir_with_scalars() {
+        let mut ir = AuthoringIR::new();
+
+        // Add custom scalar
+        ir.scalars.push(IRScalar::new("Email".to_string()));
+        ir.scalars.push(IRScalar::new("ISBN".to_string()));
+
+        assert_eq!(ir.scalars.len(), 2);
+        assert_eq!(ir.scalars[0].name, "Email");
+        assert_eq!(ir.scalars[1].name, "ISBN");
     }
 
     #[test]
