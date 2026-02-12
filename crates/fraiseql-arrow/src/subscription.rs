@@ -130,10 +130,8 @@ impl SubscriptionManager {
     ///
     /// This is primarily useful for testing subscription functionality
     /// without requiring a live event source.
-    pub async fn simulate_event(&self, _event: crate::HistoricalEvent) {
-        // TODO: Implement event simulation for testing
-        // For now, this is a placeholder that accepts an event
-        // self.broadcast_event(&_event);
+    pub async fn simulate_event(&self, event: crate::HistoricalEvent) {
+        self.broadcast_event(&event);
     }
 
     /// Get reference to event storage if available.
@@ -257,5 +255,27 @@ mod tests {
 
         assert!(SubscriptionManager::matches_filter(&event, &None));
         assert!(SubscriptionManager::matches_filter(&event, &Some("total > 50".to_string()))); // TODO: Implement actual filter matching
+    }
+
+    #[tokio::test]
+    async fn test_simulate_event_broadcasts() {
+        let manager = SubscriptionManager::new();
+        let mut rx = manager.subscribe("sub-1".to_string(), "Order".to_string(), None);
+
+        let event = crate::HistoricalEvent {
+            id:          uuid::Uuid::new_v4(),
+            event_type:  "INSERT".to_string(),
+            entity_type: "Order".to_string(),
+            entity_id:   uuid::Uuid::new_v4(),
+            data:        serde_json::json!({"total": 100}),
+            user_id:     None,
+            tenant_id:   None,
+            timestamp:   chrono::Utc::now(),
+        };
+
+        manager.simulate_event(event.clone()).await;
+        let received = rx.try_recv();
+        assert!(received.is_ok(), "subscriber should receive simulated event");
+        assert_eq!(received.unwrap().entity_type, "Order");
     }
 }

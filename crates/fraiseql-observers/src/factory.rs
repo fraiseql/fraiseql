@@ -112,6 +112,10 @@ impl ExecutorFactory {
         // Build base executor
         let base_executor = ObserverExecutor::new(matcher, dlq);
 
+        // Note: Per-action caching is handled inside ObserverExecutor, not at factory level.
+        // Adding factory-level caching would require ObserverExecutor to accept wrapped
+        // action executors — not currently needed since dedup handles the common case.
+
         // Wrap with deduplication if enabled
         if config.performance.enable_dedup {
             let redis_config =
@@ -127,9 +131,6 @@ impl ExecutorFactory {
             // No deduplication, just wrap base executor
             Ok(Arc::new(base_executor))
         }
-
-        // TODO: Action caching is handled inside ObserverExecutor (per-action wrapping)
-        // This would require modifying ObserverExecutor to accept wrapped action executors
     }
 
     /// Build the executor stack without dedup/caching features.
