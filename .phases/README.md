@@ -52,7 +52,7 @@ Database SQL
 | Phase | Title | Scope | Crates | Effort | Status |
 |-------|-------|-------|--------|--------|--------|
 | 7 | TOML Configuration Parser | Parse database, features, runtime settings from TOML | fraiseql-cli | 2-3 days | ✅ COMPLETE |
-| 8 | Arrow Subscription Filters | Implement expression-based filter evaluation | fraiseql-arrow | 2-3 days | Pending |
+| 8 | Arrow Subscription Filters | Implement expression-based filter evaluation | fraiseql-arrow | 2-3 days | ✅ COMPLETE |
 | 9 | JSON to Arrow Conversion | Convert historical events to Arrow format | fraiseql-arrow | 2-3 days | Pending |
 | 10 | Server Testing Mocks | Mock implementations for integration tests | fraiseql-server | 2-3 days | Pending |
 
@@ -100,17 +100,19 @@ Phases 2-5: WHERE Operators (independent of each other)
 
 ## Status
 
-[~] Phases 7-10 In Progress - Rust Features
+[~] Phases 9-10 Pending - Rust Features (2 of 4 complete)
 
 Completed:
 - Phases 0-1: Foundation ✅
 - Phases 2-5: WHERE Operators (Network, LTree, Array/FTS, Extended) ✅
 - Phase 6: Direct Column Optimization ✅
-- Phase 7: TOML Configuration Parser ✅ (14 tests, all passing)
+- Phase 7: TOML Configuration Parser ✅ (14 tests)
+- Phase 8: Arrow Subscription Filters ✅ (22 new tests, 29 total)
 
 In Progress:
-- Phases 8-10: Rust Features (Arrow Filters, JSON→Arrow, Server Mocks) - Can run in parallel
 - Phase 11: Python Cleanup (Cycle 1 complete - removed operators directory) 🔨
 
 Pending:
+- Phase 9: JSON to Arrow Conversion - Ready to start
+- Phase 10: Server Testing Mocks - Ready to start
 - Phase 12: Finalize - Final phase (requires all others complete)
