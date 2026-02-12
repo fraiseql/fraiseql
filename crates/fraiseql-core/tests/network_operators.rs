@@ -186,3 +186,116 @@ fn test_all_network_operators_have_sql_generation() {
         }
     }
 }
+
+// ============================================================================
+// PHASE 2, CYCLE 2: Database-Specific Behavior Tests
+// ============================================================================
+
+/// Test that unimplemented network operators return clear error messages
+#[test]
+fn test_unimplemented_network_operators_return_errors() {
+    // Operators that are in the WhereOperator enum but not yet implemented
+    let unimplemented_operators = vec![
+        (WhereOperator::IsLoopback, "IsLoopback"),
+        (WhereOperator::ContainsSubnet, "ContainsSubnet"),
+        (WhereOperator::ContainsIP, "ContainsIP"),
+    ];
+
+    for (operator, op_name) in unimplemented_operators {
+        let clause = WhereClause::Field {
+            path: vec!["ip_field".to_string()],
+            operator,
+            value: json!("192.168.1.1"),
+        };
+
+        // Should return an error with clear message
+        let result = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL);
+        assert!(
+            result.is_err(),
+            "Operator {} should return an error (not yet implemented)",
+            op_name
+        );
+
+        let error_msg = format!("{:?}", result);
+        // Error should mention the operator name and that it's not supported
+        assert!(
+            error_msg.contains(op_name) || error_msg.contains("not yet supported")
+                || error_msg.contains("not supported") || error_msg.contains("not implemented"),
+            "Error message should indicate operator is not supported, got: {}",
+            error_msg
+        );
+    }
+}
+
+/// Test that missing templates for operator+database combinations are caught
+#[test]
+fn test_templates_exist_for_all_implemented_operators() {
+    // These operators have templates for all databases
+    let implemented_ops = vec!["isIPv4", "isIPv6", "isPrivate", "isPublic", "inSubnet"];
+    let databases = vec![
+        (DatabaseType::PostgreSQL, "PostgreSQL"),
+        (DatabaseType::MySQL, "MySQL"),
+        (DatabaseType::SQLite, "SQLite"),
+        (DatabaseType::SQLServer, "SQL Server"),
+    ];
+
+    for op_name in &implemented_ops {
+        for (db_type, db_name) in &databases {
+            // Verify template lookup works (indirectly by checking SQL generation)
+            let clause = WhereClause::Field {
+                path: vec!["ip_field".to_string()],
+                operator: match *op_name {
+                    "isIPv4" => WhereOperator::IsIPv4,
+                    "isIPv6" => WhereOperator::IsIPv6,
+                    "isPrivate" => WhereOperator::IsPrivate,
+                    "isPublic" => WhereOperator::IsPublic,
+                    "inSubnet" => WhereOperator::InSubnet,
+                    _ => panic!("Unknown operator: {}", op_name),
+                },
+                value: json!("192.168.1.1"),
+            };
+
+            let result = WhereSqlGenerator::to_sql_for_db(&clause, *db_type);
+            assert!(
+                result.is_ok(),
+                "Operator {} should have template for {} database",
+                op_name,
+                db_name
+            );
+        }
+    }
+}
+
+/// Test that template validation produces helpful error messages
+#[test]
+fn test_error_messages_are_helpful() {
+    let clause = WhereClause::Field {
+        path: vec!["ip_field".to_string()],
+        operator: WhereOperator::IsIPv4,
+        value: json!("not-an-ip"),  // Invalid value format
+    };
+
+    // Even with invalid value, SQL should generate (validation happens at query time)
+    let result = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL);
+    assert!(
+        result.is_ok(),
+        "Should still generate SQL even with unusual values (validation at query time)"
+    );
+
+    // Test actual unsupported operator
+    let unsupported_clause = WhereClause::Field {
+        path: vec!["ip_field".to_string()],
+        operator: WhereOperator::IsLoopback,
+        value: json!(true),
+    };
+
+    let error_result = WhereSqlGenerator::to_sql_for_db(&unsupported_clause, DatabaseType::PostgreSQL);
+    assert!(error_result.is_err(), "IsLoopback should not be implemented yet");
+
+    let error_msg = format!("{:?}", error_result.err());
+    assert!(
+        error_msg.contains("IsLoopback") || error_msg.contains("not yet supported"),
+        "Error should mention the operator name, got: {}",
+        error_msg
+    );
+}

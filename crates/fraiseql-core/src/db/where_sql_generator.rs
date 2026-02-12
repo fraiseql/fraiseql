@@ -207,12 +207,13 @@ impl WhereSqlGenerator {
     ) -> Result<String> {
         // Lookup template for the operator on this database
         let template = Self::get_template_for_operator(db_type, operator_name).ok_or_else(|| {
-            FraiseQLError::Validation {
+            // Provide helpful error message for missing templates
+            FraiseQLError::Internal {
                 message: format!(
-                    "No template for operator '{}' on {:?}",
+                    "Operator '{}' is not supported on {:?}. This operator may not be available for all databases.",
                     operator_name, db_type
                 ),
-                path: None,
+                source: None,
             }
         })?;
 
@@ -417,7 +418,7 @@ impl WhereSqlGenerator {
             | WhereOperator::Extended(_) => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
-                        "Operator {:?} should be handled by apply_template, not operator_to_sql",
+                        "Operator {:?} is not yet supported in fraiseql-wire. Please contact support or file an issue.",
                         operator
                     ),
                     source:  None,
