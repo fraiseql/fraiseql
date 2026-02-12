@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::scalar_types;
+
 // ============================================================================
 // Vector Types - pgvector support
 // ============================================================================
@@ -706,72 +708,6 @@ impl FieldType {
     }
 }
 
-/// Known rich scalar types.
-///
-/// These are scalar types with validation rules beyond the basic GraphQL scalars.
-/// They are stored as TEXT in PostgreSQL and validated at the application level.
-pub const RICH_SCALARS: &[&str] = &[
-    // Contact/Communication
-    "Email",
-    "PhoneNumber",
-    "URL",
-    "DomainName",
-    "Hostname",
-    // Location/Address
-    "PostalCode",
-    "Latitude",
-    "Longitude",
-    "Coordinates",
-    "Timezone",
-    "LocaleCode",
-    "LanguageCode",
-    "CountryCode",
-    // Financial
-    "IBAN",
-    "CUSIP",
-    "ISIN",
-    "SEDOL",
-    "LEI",
-    "MIC",
-    "CurrencyCode",
-    "Money",
-    "ExchangeCode",
-    "ExchangeRate",
-    "StockSymbol",
-    // Identifiers
-    "Slug",
-    "SemanticVersion",
-    "HashSHA256",
-    "APIKey",
-    "LicensePlate",
-    "VIN",
-    "TrackingNumber",
-    "ContainerNumber",
-    // Networking
-    "IPAddress",
-    "IPv4",
-    "IPv6",
-    "MACAddress",
-    "CIDR",
-    "Port",
-    // Transportation
-    "AirportCode",
-    "PortCode",
-    "FlightNumber",
-    // Content
-    "Markdown",
-    "HTML",
-    "MimeType",
-    "Color",
-    "Image",
-    "File",
-    // Database/PostgreSQL specific
-    "LTree",
-    // Ranges
-    "DateRange",
-    "Duration",
-    "Percentage",
-];
 
 impl std::fmt::Display for FieldType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -812,6 +748,17 @@ impl FieldType {
         Self::parse_type_string(type_str.trim())
     }
 
+    /// Try to match a type string against known rich scalars (case-insensitive).
+    ///
+    /// Returns the canonical scalar name if found, or None if not a rich scalar.
+    fn try_match_rich_scalar(s: &str) -> Option<String> {
+        let lower = s.to_lowercase();
+        scalar_types::RICH_SCALARS
+            .iter()
+            .find(|&&rich_scalar| lower == rich_scalar.to_lowercase())
+            .map(|&name| name.to_string())
+    }
+
     /// Internal parser for type strings.
     fn parse_type_string(s: &str) -> Self {
         // Strip non-null marker (we handle nullability separately)
@@ -840,15 +787,12 @@ impl FieldType {
             "vector" => Self::Vector,
             _ => {
                 // Check if it's a known rich scalar (case-insensitive)
-                let lower = s.to_lowercase();
-                for &rich_scalar in RICH_SCALARS {
-                    if lower == rich_scalar.to_lowercase() {
-                        return Self::Scalar(rich_scalar.to_string());
-                    }
+                if let Some(canonical_name) = Self::try_match_rich_scalar(s) {
+                    return Self::Scalar(canonical_name);
                 }
 
                 // Unknown type - default to Object for backwards compatibility
-                // Custom scalars must be explicitly defined in RICH_SCALARS or
+                // Custom scalars must be explicitly defined in scalar_types::RICH_SCALARS or
                 // handled at a higher level (e.g., schema validation)
                 Self::Object(s.to_string())
             },
@@ -869,5 +813,212 @@ impl FieldType {
             Self::Object(name) if !known_types.contains(&name) => Self::Scalar(name),
             other => other,
         }
+    }
+}
+
+// ============================================================================
+// PHASE 7, CYCLE 2: RICH SCALAR REGISTRY MIGRATION TESTS
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_builtin_scalars() {
+        let known_types = std::collections::HashSet::new();
+
+        assert_eq!(FieldType::parse("String", &known_types), FieldType::String);
+        assert_eq!(FieldType::parse("Int", &known_types), FieldType::Int);
+        assert_eq!(FieldType::parse("Float", &known_types), FieldType::Float);
+        assert_eq!(FieldType::parse("Boolean", &known_types), FieldType::Boolean);
+        assert_eq!(FieldType::parse("ID", &known_types), FieldType::Id);
+        assert_eq!(FieldType::parse("DateTime", &known_types), FieldType::DateTime);
+        assert_eq!(FieldType::parse("Date", &known_types), FieldType::Date);
+        assert_eq!(FieldType::parse("Time", &known_types), FieldType::Time);
+        assert_eq!(FieldType::parse("JSON", &known_types), FieldType::Json);
+        assert_eq!(FieldType::parse("UUID", &known_types), FieldType::Uuid);
+    }
+
+    #[test]
+    fn test_parse_rich_scalars_exact_case() {
+        let known_types = std::collections::HashSet::new();
+
+        // Email is in RICH_SCALARS and should be recognized with exact case
+        let result = FieldType::parse("Email", &known_types);
+        assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+        // IBAN is in RICH_SCALARS
+        let result = FieldType::parse("IBAN", &known_types);
+        assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
+
+        // URL is in RICH_SCALARS
+        let result = FieldType::parse("URL", &known_types);
+        assert_eq!(result, FieldType::Scalar("URL".to_string()));
+    }
+
+    #[test]
+    fn test_parse_rich_scalars_case_insensitive() {
+        let known_types = std::collections::HashSet::new();
+
+        // Email is in RICH_SCALARS - should match case-insensitively
+        let result = FieldType::parse("email", &known_types);
+        assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+        // Should also work for mixed case
+        let result = FieldType::parse("EMAIL", &known_types);
+        assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+        // IBAN - case insensitive matching
+        let result = FieldType::parse("iban", &known_types);
+        assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
+
+        // PhoneNumber - case insensitive
+        let result = FieldType::parse("phonenumber", &known_types);
+        assert_eq!(result, FieldType::Scalar("PhoneNumber".to_string()));
+    }
+
+    #[test]
+    fn test_parse_all_rich_scalars() {
+        let known_types = std::collections::HashSet::new();
+
+        // Test a sampling of all rich scalar categories
+        let rich_scalars = vec![
+            // Contact/Communication
+            "Email", "PhoneNumber", "URL", "DomainName", "Hostname",
+            // Location/Address
+            "PostalCode", "Latitude", "Longitude", "Coordinates", "Timezone",
+            // Financial
+            "IBAN", "CUSIP", "CurrencyCode", "Money", "StockSymbol",
+            // Identifiers
+            "Slug", "SemanticVersion", "APIKey", "VIN",
+            // Networking
+            "IPAddress", "IPv4", "IPv6", "MACAddress", "CIDR",
+            // Transportation
+            "AirportCode", "FlightNumber",
+            // Content
+            "Markdown", "HTML", "MimeType", "Color",
+            // Database
+            "LTree",
+            // Ranges
+            "DateRange", "Duration", "Percentage",
+        ];
+
+        for scalar_name in rich_scalars {
+            let result = FieldType::parse(scalar_name, &known_types);
+            assert_eq!(
+                result,
+                FieldType::Scalar(scalar_name.to_string()),
+                "Failed to parse rich scalar: {}",
+                scalar_name
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_unknown_type_as_object() {
+        let known_types = std::collections::HashSet::new();
+
+        // Unknown types should become Object types
+        let result = FieldType::parse("CustomType", &known_types);
+        assert_eq!(result, FieldType::Object("CustomType".to_string()));
+
+        let result = FieldType::parse("User", &known_types);
+        assert_eq!(result, FieldType::Object("User".to_string()));
+    }
+
+    #[test]
+    fn test_parse_with_list_syntax() {
+        let known_types = std::collections::HashSet::new();
+
+        // List of builtin scalar
+        let result = FieldType::parse("[String]", &known_types);
+        assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
+
+        // List of rich scalar
+        let result = FieldType::parse("[Email]", &known_types);
+        assert_eq!(
+            result,
+            FieldType::List(Box::new(FieldType::Scalar("Email".to_string())))
+        );
+
+        // List of object type
+        let result = FieldType::parse("[User]", &known_types);
+        assert_eq!(
+            result,
+            FieldType::List(Box::new(FieldType::Object("User".to_string())))
+        );
+    }
+
+    #[test]
+    fn test_parse_with_non_null_marker() {
+        let known_types = std::collections::HashSet::new();
+
+        // Non-null scalar
+        let result = FieldType::parse("String!", &known_types);
+        assert_eq!(result, FieldType::String);
+
+        // Non-null rich scalar
+        let result = FieldType::parse("Email!", &known_types);
+        assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+        // Non-null list of non-null items
+        let result = FieldType::parse("[String!]!", &known_types);
+        assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
+    }
+
+    #[test]
+    fn test_parse_nested_lists() {
+        let known_types = std::collections::HashSet::new();
+
+        // Nested list
+        let result = FieldType::parse("[[String]]", &known_types);
+        assert_eq!(
+            result,
+            FieldType::List(Box::new(FieldType::List(Box::new(FieldType::String))))
+        );
+
+        // Nested list with rich scalar
+        let result = FieldType::parse("[[Email]]", &known_types);
+        assert_eq!(
+            result,
+            FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Scalar(
+                "Email".to_string()
+            )))))
+        );
+    }
+
+    #[test]
+    fn test_parse_as_scalar_if_unknown_converts_objects() {
+        let mut known_types = std::collections::HashSet::new();
+
+        // Without known_types, unknown types become objects
+        let result = FieldType::parse("CustomType", &known_types);
+        assert_eq!(result, FieldType::Object("CustomType".to_string()));
+
+        // With parse_as_scalar_if_unknown, they become scalars
+        let result = FieldType::parse_as_scalar_if_unknown("CustomType", &known_types);
+        assert_eq!(result, FieldType::Scalar("CustomType".to_string()));
+
+        // But if it's in known_types, it stays an object
+        known_types.insert("CustomType".to_string());
+        let result = FieldType::parse_as_scalar_if_unknown("CustomType", &known_types);
+        assert_eq!(result, FieldType::Object("CustomType".to_string()));
+    }
+
+    #[test]
+    fn test_parse_case_variations() {
+        let known_types = std::collections::HashSet::new();
+
+        // Test various case combinations for builtin types
+        assert_eq!(FieldType::parse("string", &known_types), FieldType::String);
+        assert_eq!(FieldType::parse("STRING", &known_types), FieldType::String);
+        assert_eq!(FieldType::parse("String", &known_types), FieldType::String);
+
+        // Test integer variations
+        assert_eq!(FieldType::parse("int", &known_types), FieldType::Int);
+        assert_eq!(FieldType::parse("INT", &known_types), FieldType::Int);
+        assert_eq!(FieldType::parse("integer", &known_types), FieldType::Int);
+        assert_eq!(FieldType::parse("INTEGER", &known_types), FieldType::Int);
     }
 }

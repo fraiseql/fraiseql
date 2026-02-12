@@ -809,8 +809,6 @@ mod tests {
 
     #[test]
     fn test_generate_with_empty_scalars() {
-        use super::super::ir::IRScalar;
-
         let generator = CodeGenerator::new(true);
         let mut ir = AuthoringIR::new();
         ir.scalars = vec![];
