@@ -155,62 +155,6 @@ class TestCustomJWTProvider:
             )
 
 
-class TestJWKSCaching:
-    """Test JWKS caching functionality."""
-
-    def test_jwks_cache_hit(self):
-        """Test JWKS cache hit reduces fetch calls."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_jwks_cache_ttl(self):
-        """Test JWKS cache respects 1-hour TTL."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_jwks_cache_lru_eviction(self):
-        """Test JWKS cache evicts old entries when full."""
-        pass  # TODO: Requires real JWT token or mock
-
-
-class TestUserContextCaching:
-    """Test user context caching functionality."""
-
-    def test_user_context_cache_hit(self):
-        """Test user context cache hit avoids token validation."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_user_context_cache_ttl(self):
-        """Test user context cache respects TTL."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_user_context_cache_token_expiration(self):
-        """Test user context cache checks token expiration."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_user_context_cache_lru_eviction(self):
-        """Test user context cache evicts old entries when full."""
-        pass  # TODO: Requires real JWT token or mock
-
-
-class TestPerformance:
-    """Test authentication performance targets."""
-
-    def test_jwt_validation_cached_performance(self):
-        """Test cached JWT validation is <1ms."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_jwt_validation_uncached_performance(self):
-        """Test uncached JWT validation is <10ms."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_jwks_fetch_cached_performance(self):
-        """Test cached JWKS fetch is <50ms."""
-        pass  # TODO: Requires real JWT token or mock
-
-    def test_cache_hit_rate(self):
-        """Test cache hit rate is >95% in normal operation."""
-        pass  # TODO: Requires real JWT token or mock
-
-
 class TestSecurity:
     """Test security features."""
 

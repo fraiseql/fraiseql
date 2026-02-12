@@ -149,35 +149,3 @@ class TestWhereClauseHandling:
         assert len(results) == 1
         assert results[0]["status"] == "active"
 
-    @pytest.mark.asyncio
-    async def test_expected_where_clause_generation(self) -> None:
-        """Test what the WHERE clause generation should produce."""
-        # This test documents the expected WHERE clause generation behavior
-
-        test_cases = [
-            # Test case: string contains
-            {
-                "where": {"name": {"contains": "router"}},
-                "expected_sql": "data->>'name' ILIKE %s",
-                "expected_params": ["%router%"],
-            },
-            # Test case: network address isPrivate
-            {
-                "where": {"ipAddress": {"isPrivate": True}},
-                "expected_sql": "inet(data->>'ipAddress') << '10.0.0.0/8'::inet OR inet(data->>'ipAddress') << '172.16.0.0/12'::inet OR inet(data->>'ipAddress') << '192.168.0.0/16'::inet",
-                "expected_params": [],
-            },
-            # Test case: multiple conditions
-            {
-                "where": {"category": {"eq": "electronics"}, "price": {"gte": 150}},
-                "expected_sql": "data->>'category' = %s AND (data->>'price')::numeric >= %s",
-                "expected_params": ["electronics", 150],
-            },
-        ]
-
-        # This test will be implemented once we have the fix
-        # For now, just document the expected behavior
-        for _case in test_cases:
-            # TODO: Implement actual WHERE clause generation testing
-            # when the fix is ready
-            pass
