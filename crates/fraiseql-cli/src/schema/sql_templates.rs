@@ -568,6 +568,39 @@ fn extract_template_for_operator(db_name: &str, operator_name: &str) -> Option<S
                 .to_string()
         ),
 
+        // ========================================================================
+        // NETWORK OPERATORS (IPv4, IPv6, Private/Public IP validation)
+        // ========================================================================
+        // IsIPv4: Validate that field contains an IPv4 address
+        ("postgres", "isIPv4") => Some("CAST($field AS INET) IS NOT NULL AND CAST($field AS INET) ~ '\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}'".to_string()),
+        ("mysql", "isIPv4") => Some("INET_ATON($field) IS NOT NULL AND $field REGEXP '^[0-9]{1,3}\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}$'".to_string()),
+        ("sqlite", "isIPv4") => Some("$field REGEXP '^[0-9]{1,3}\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}$'".to_string()),
+        ("sqlserver", "isIPv4") => Some("$field LIKE '[0-9].[0-9].[0-9].[0-9]' AND ISNUMERIC(PARSENAME($field, 4)) = 1".to_string()),
+
+        // IsIPv6: Validate that field contains an IPv6 address
+        ("postgres", "isIPv6") => Some("CAST($field AS INET) IS NOT NULL AND CAST($field AS INET) ~ ':'".to_string()),
+        ("mysql", "isIPv6") => Some("$field REGEXP '^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$'".to_string()),
+        ("sqlite", "isIPv6") => Some("$field REGEXP '^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$'".to_string()),
+        ("sqlserver", "isIPv6") => Some("$field LIKE '%:%' AND $field NOT LIKE '%%.%%'".to_string()),
+
+        // IsPrivate: Check if IP is in private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+        ("postgres", "isPrivate") => Some("(CAST($field AS INET) << '10.0.0.0/8'::INET OR CAST($field AS INET) << '172.16.0.0/12'::INET OR CAST($field AS INET) << '192.168.0.0/16'::INET)".to_string()),
+        ("mysql", "isPrivate") => Some("(INET_ATON($field) >= INET_ATON('10.0.0.0') AND INET_ATON($field) <= INET_ATON('10.255.255.255')) OR (INET_ATON($field) >= INET_ATON('172.16.0.0') AND INET_ATON($field) <= INET_ATON('172.31.255.255')) OR (INET_ATON($field) >= INET_ATON('192.168.0.0') AND INET_ATON($field) <= INET_ATON('192.168.255.255'))".to_string()),
+        ("sqlite", "isPrivate") => Some("(CAST(SUBSTR($field, 1, INSTR($field, '.') - 1) AS INTEGER) = 10 OR (CAST(SUBSTR($field, 1, INSTR($field, '.') - 1) AS INTEGER) = 172 AND CAST(SUBSTR(SUBSTR($field, INSTR($field, '.') + 1), 1, INSTR(SUBSTR($field, INSTR($field, '.') + 1), '.') - 1) AS INTEGER) BETWEEN 16 AND 31) OR (CAST(SUBSTR($field, 1, INSTR($field, '.') - 1) AS INTEGER) = 192 AND CAST(SUBSTR(SUBSTR($field, INSTR($field, '.') + 1), 1, INSTR(SUBSTR($field, INSTR($field, '.') + 1), '.') - 1) AS INTEGER) = 168))".to_string()),
+        ("sqlserver", "isPrivate") => Some("(CAST(PARSENAME($field, 4) AS INT) = 10) OR (CAST(PARSENAME($field, 4) AS INT) = 172 AND CAST(PARSENAME($field, 3) AS INT) BETWEEN 16 AND 31) OR (CAST(PARSENAME($field, 4) AS INT) = 192 AND CAST(PARSENAME($field, 3) AS INT) = 168)".to_string()),
+
+        // IsPublic: Inverse of IsPrivate (not in private ranges)
+        ("postgres", "isPublic") => Some("NOT (CAST($field AS INET) << '10.0.0.0/8'::INET OR CAST($field AS INET) << '172.16.0.0/12'::INET OR CAST($field AS INET) << '192.168.0.0/16'::INET)".to_string()),
+        ("mysql", "isPublic") => Some("NOT ((INET_ATON($field) >= INET_ATON('10.0.0.0') AND INET_ATON($field) <= INET_ATON('10.255.255.255')) OR (INET_ATON($field) >= INET_ATON('172.16.0.0') AND INET_ATON($field) <= INET_ATON('172.31.255.255')) OR (INET_ATON($field) >= INET_ATON('192.168.0.0') AND INET_ATON($field) <= INET_ATON('192.168.255.255')))".to_string()),
+        ("sqlite", "isPublic") => Some("NOT ((CAST(SUBSTR($field, 1, INSTR($field, '.') - 1) AS INTEGER) = 10 OR (CAST(SUBSTR($field, 1, INSTR($field, '.') - 1) AS INTEGER) = 172 AND CAST(SUBSTR(SUBSTR($field, INSTR($field, '.') + 1), 1, INSTR(SUBSTR($field, INSTR($field, '.') + 1), '.') - 1) AS INTEGER) BETWEEN 16 AND 31) OR (CAST(SUBSTR($field, 1, INSTR($field, '.') - 1) AS INTEGER) = 192 AND CAST(SUBSTR(SUBSTR($field, INSTR($field, '.') + 1), 1, INSTR(SUBSTR($field, INSTR($field, '.') + 1), '.') - 1) AS INTEGER) = 168)))".to_string()),
+        ("sqlserver", "isPublic") => Some("NOT ((CAST(PARSENAME($field, 4) AS INT) = 10) OR (CAST(PARSENAME($field, 4) AS INT) = 172 AND CAST(PARSENAME($field, 3) AS INT) BETWEEN 16 AND 31) OR (CAST(PARSENAME($field, 4) AS INT) = 192 AND CAST(PARSENAME($field, 3) AS INT) = 168))".to_string()),
+
+        // InSubnet: Check if IP is within specified CIDR subnet
+        ("postgres", "inSubnet") => Some("CAST($field AS INET) << $1::INET".to_string()),
+        ("mysql", "inSubnet") => Some("INET_ATON($field) >= INET_ATON(SUBSTRING_INDEX($1, '/', 1)) AND INET_ATON($field) <= INET_ATON(BROADCAST(CAST($1 AS CHAR)))".to_string()),
+        ("sqlite", "inSubnet") => Some("INET_ATON($field) BETWEEN INET_ATON(SUBSTR($1, 1, INSTR($1, '/') - 1)) AND INET_ATON(BROADCAST(CAST($1 AS TEXT)))".to_string()),
+        ("sqlserver", "inSubnet") => Some("INET_ATON($field) >= INET_ATON(PARSENAME($1, 1, '/')) AND INET_ATON($field) <= INET_ATON(BROADCAST(CAST($1 AS VARCHAR)))".to_string()),
+
         // Standard operators (not extended operators, so no templates)
         _ => None,
     }

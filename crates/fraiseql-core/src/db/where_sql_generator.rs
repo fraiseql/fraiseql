@@ -119,6 +119,22 @@ impl WhereSqlGenerator {
                     format!("{json_path} IS NOT NULL")
                 }
             },
+            // Template-based operators (network, email, etc.)
+            WhereOperator::IsIPv4 => {
+                Self::apply_template(db_type, "isIPv4", &json_path, value)?
+            },
+            WhereOperator::IsIPv6 => {
+                Self::apply_template(db_type, "isIPv6", &json_path, value)?
+            },
+            WhereOperator::IsPrivate => {
+                Self::apply_template(db_type, "isPrivate", &json_path, value)?
+            },
+            WhereOperator::IsPublic => {
+                Self::apply_template(db_type, "isPublic", &json_path, value)?
+            },
+            WhereOperator::InSubnet => {
+                Self::apply_template(db_type, "inSubnet", &json_path, value)?
+            },
             // All other operators
             _ => {
                 let sql_op = Self::operator_to_sql(operator, db_type)?;
@@ -266,6 +282,39 @@ impl WhereSqlGenerator {
                 Some("SUBSTRING($field, 1, CHARINDEX('@', $field) - 1) LIKE ? + '%'".to_string())
             },
 
+            // ========================================================================
+            // NETWORK OPERATORS (Phase 2)
+            // ========================================================================
+            // IsIPv4: Validate that field contains an IPv4 address
+            (DatabaseType::PostgreSQL, "isIPv4") => Some("CAST($field AS INET) IS NOT NULL AND CAST($field AS INET) ~ '\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}'".to_string()),
+            (DatabaseType::MySQL, "isIPv4") => Some("INET_ATON($field) IS NOT NULL".to_string()),
+            (DatabaseType::SQLite, "isIPv4") => Some("$field REGEXP '^[0-9]{1,3}\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}$'".to_string()),
+            (DatabaseType::SQLServer, "isIPv4") => Some("ISNUMERIC(PARSENAME($field, 4)) = 1 AND ISNUMERIC(PARSENAME($field, 3)) = 1 AND ISNUMERIC(PARSENAME($field, 2)) = 1 AND ISNUMERIC(PARSENAME($field, 1)) = 1".to_string()),
+
+            // IsIPv6: Validate that field contains an IPv6 address
+            (DatabaseType::PostgreSQL, "isIPv6") => Some("CAST($field AS INET) IS NOT NULL AND CAST($field AS INET) ~ ':'".to_string()),
+            (DatabaseType::MySQL, "isIPv6") => Some("$field REGEXP '^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$'".to_string()),
+            (DatabaseType::SQLite, "isIPv6") => Some("$field REGEXP '^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$'".to_string()),
+            (DatabaseType::SQLServer, "isIPv6") => Some("$field LIKE '%:%' AND $field NOT LIKE '%%.%%'".to_string()),
+
+            // IsPrivate: Check if IP is in private ranges
+            (DatabaseType::PostgreSQL, "isPrivate") => Some("(CAST($field AS INET) << '10.0.0.0/8'::INET OR CAST($field AS INET) << '172.16.0.0/12'::INET OR CAST($field AS INET) << '192.168.0.0/16'::INET)".to_string()),
+            (DatabaseType::MySQL, "isPrivate") => Some("(INET_ATON($field) >= INET_ATON('10.0.0.0') AND INET_ATON($field) <= INET_ATON('10.255.255.255')) OR (INET_ATON($field) >= INET_ATON('172.16.0.0') AND INET_ATON($field) <= INET_ATON('172.31.255.255')) OR (INET_ATON($field) >= INET_ATON('192.168.0.0') AND INET_ATON($field) <= INET_ATON('192.168.255.255'))".to_string()),
+            (DatabaseType::SQLite, "isPrivate") => Some("$field LIKE '10.%' OR ($field LIKE '172.%' AND CAST(SUBSTR($field, INSTR($field, '.') + 1, INSTR(SUBSTR($field, INSTR($field, '.') + 1), '.') - 1) AS INTEGER) BETWEEN 16 AND 31) OR ($field LIKE '192.168.%')".to_string()),
+            (DatabaseType::SQLServer, "isPrivate") => Some("(CAST(PARSENAME($field, 4) AS INT) = 10) OR (CAST(PARSENAME($field, 4) AS INT) = 172 AND CAST(PARSENAME($field, 3) AS INT) BETWEEN 16 AND 31) OR (CAST(PARSENAME($field, 4) AS INT) = 192 AND CAST(PARSENAME($field, 3) AS INT) = 168)".to_string()),
+
+            // IsPublic: Inverse of IsPrivate
+            (DatabaseType::PostgreSQL, "isPublic") => Some("NOT (CAST($field AS INET) << '10.0.0.0/8'::INET OR CAST($field AS INET) << '172.16.0.0/12'::INET OR CAST($field AS INET) << '192.168.0.0/16'::INET)".to_string()),
+            (DatabaseType::MySQL, "isPublic") => Some("NOT ((INET_ATON($field) >= INET_ATON('10.0.0.0') AND INET_ATON($field) <= INET_ATON('10.255.255.255')) OR (INET_ATON($field) >= INET_ATON('172.16.0.0') AND INET_ATON($field) <= INET_ATON('172.31.255.255')) OR (INET_ATON($field) >= INET_ATON('192.168.0.0') AND INET_ATON($field) <= INET_ATON('192.168.255.255')))".to_string()),
+            (DatabaseType::SQLite, "isPublic") => Some("NOT ($field LIKE '10.%' OR ($field LIKE '172.%' AND CAST(SUBSTR($field, INSTR($field, '.') + 1, INSTR(SUBSTR($field, INSTR($field, '.') + 1), '.') - 1) AS INTEGER) BETWEEN 16 AND 31) OR ($field LIKE '192.168.%'))".to_string()),
+            (DatabaseType::SQLServer, "isPublic") => Some("NOT ((CAST(PARSENAME($field, 4) AS INT) = 10) OR (CAST(PARSENAME($field, 4) AS INT) = 172 AND CAST(PARSENAME($field, 3) AS INT) BETWEEN 16 AND 31) OR (CAST(PARSENAME($field, 4) AS INT) = 192 AND CAST(PARSENAME($field, 3) AS INT) = 168))".to_string()),
+
+            // InSubnet: Check if IP is within specified CIDR subnet
+            (DatabaseType::PostgreSQL, "inSubnet") => Some("CAST($field AS INET) << $1::INET".to_string()),
+            (DatabaseType::MySQL, "inSubnet") => Some("INET_ATON($field) BETWEEN INET_ATON(SUBSTRING_INDEX($1, '/', 1)) AND INET_ATON(BROADCAST(CAST($1 AS CHAR)))".to_string()),
+            (DatabaseType::SQLite, "inSubnet") => Some("CAST($field AS TEXT) BETWEEN CAST(SUBSTR($1, 1, INSTR($1, '/') - 1) AS TEXT) AND CAST(BROADCAST(CAST($1 AS TEXT)) AS TEXT)".to_string()),
+            (DatabaseType::SQLServer, "inSubnet") => Some("CAST($field AS VARCHAR) BETWEEN SUBSTRING($1, 1, CHARINDEX('/', $1) - 1) AND BROADCAST(CAST($1 AS VARCHAR))".to_string()),
+
             // Add more operators in later phases
             _ => None,
         }
@@ -338,26 +387,8 @@ impl WhereSqlGenerator {
                 });
             },
 
-            // Full-text search operators not supported yet
-            WhereOperator::Matches
-            | WhereOperator::PlainQuery
-            | WhereOperator::PhraseQuery
-            | WhereOperator::WebsearchQuery => {
-                return Err(FraiseQLError::Internal {
-                    message: format!(
-                        "Full-text search operators not yet supported in fraiseql-wire: {operator:?}"
-                    ),
-                    source:  None,
-                });
-            },
-
-            // Network operators not supported yet
-            WhereOperator::IsIPv4
-            | WhereOperator::IsIPv6
-            | WhereOperator::IsPrivate
-            | WhereOperator::IsPublic
-            | WhereOperator::IsLoopback
-            | WhereOperator::InSubnet
+            // Advanced operators not yet supported
+            WhereOperator::IsLoopback
             | WhereOperator::ContainsSubnet
             | WhereOperator::ContainsIP
             | WhereOperator::Overlaps
@@ -374,10 +405,20 @@ impl WhereSqlGenerator {
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
             | WhereOperator::Lca
+            | WhereOperator::IsIPv4
+            | WhereOperator::IsIPv6
+            | WhereOperator::IsPrivate
+            | WhereOperator::IsPublic
+            | WhereOperator::InSubnet
+            | WhereOperator::Matches
+            | WhereOperator::PlainQuery
+            | WhereOperator::PhraseQuery
+            | WhereOperator::WebsearchQuery
             | WhereOperator::Extended(_) => {
                 return Err(FraiseQLError::Internal {
                     message: format!(
-                        "Advanced operators not yet supported in fraiseql-wire: {operator:?}"
+                        "Operator {:?} should be handled by apply_template, not operator_to_sql",
+                        operator
                     ),
                     source:  None,
                 });
