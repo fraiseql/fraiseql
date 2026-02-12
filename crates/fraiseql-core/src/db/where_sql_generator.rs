@@ -154,6 +154,98 @@ impl WhereSqlGenerator {
         }
     }
 
+    /// Look up and apply a SQL template for an operator on a specific database.
+    ///
+    /// This function retrieves database-specific SQL templates and substitutes placeholders.
+    /// Templates use `$field` for the field reference and database-specific parameter placeholders
+    /// (`$1` for PostgreSQL/SQL Server, `?` for MySQL/SQLite).
+    ///
+    /// # Arguments
+    ///
+    /// * `db_type` - The target database type
+    /// * `operator_name` - The operator name (e.g., "domainEq", "wmiEq")
+    /// * `field_sql` - The JSONB field reference (e.g., "data->>'email'")
+    /// * `value` - The comparison value (used to validate parameter count)
+    ///
+    /// # Returns
+    ///
+    /// Returns substituted SQL template, or error if template not found.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let sql = WhereSqlGenerator::apply_template(
+    ///     DatabaseType::PostgreSQL,
+    ///     "domainEq",
+    ///     "data->>'email'",
+    ///     &json!("example.com"),
+    /// )?;
+    /// // Result: "SPLIT_PART(data->>'email', '@', 2) = $1"
+    /// ```
+    #[allow(dead_code)]
+    fn apply_template(
+        db_type: DatabaseType,
+        operator_name: &str,
+        field_sql: &str,
+        _value: &Value,
+    ) -> Result<String> {
+        // Lookup template for the operator on this database
+        let template = Self::get_template_for_operator(db_type, operator_name).ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: format!(
+                    "No template for operator '{}' on {:?}",
+                    operator_name, db_type
+                ),
+                path: None,
+            }
+        })?;
+
+        // Substitute $field placeholder with actual field reference
+        let sql = template.replace("$field", field_sql);
+
+        Ok(sql)
+    }
+
+    /// Get SQL template for an operator on a specific database.
+    ///
+    /// This function maintains the mapping of operators to database-specific SQL templates.
+    /// Phase 0 includes templates for email operators as a proof-of-concept.
+    /// Additional operators will be added in subsequent phases.
+    #[allow(dead_code)]
+    fn get_template_for_operator(db_type: DatabaseType, operator_name: &str) -> Option<String> {
+        match (db_type, operator_name) {
+            // ========================================================================
+            // EMAIL OPERATORS (Phase 0 example templates)
+            // ========================================================================
+            (DatabaseType::PostgreSQL, "domainEq") => {
+                Some("SPLIT_PART($field, '@', 2) = $1".to_string())
+            },
+            (DatabaseType::MySQL, "domainEq") => Some("SUBSTRING_INDEX($field, '@', -1) = ?".to_string()),
+            (DatabaseType::SQLite, "domainEq") => {
+                Some("SUBSTR($field, INSTR($field, '@') + 1) = ?".to_string())
+            },
+            (DatabaseType::SQLServer, "domainEq") => {
+                Some("SUBSTRING($field, CHARINDEX('@', $field) + 1, LEN($field)) = ?".to_string())
+            },
+
+            (DatabaseType::PostgreSQL, "domainIn") => {
+                Some("SPLIT_PART($field, '@', 2) IN ($params)".to_string())
+            },
+            (DatabaseType::MySQL, "domainIn") => {
+                Some("SUBSTRING_INDEX($field, '@', -1) IN ($params)".to_string())
+            },
+            (DatabaseType::SQLite, "domainIn") => {
+                Some("SUBSTR($field, INSTR($field, '@') + 1) IN ($params)".to_string())
+            },
+            (DatabaseType::SQLServer, "domainIn") => {
+                Some("SUBSTRING($field, CHARINDEX('@', $field) + 1, LEN($field)) IN ($params)".to_string())
+            },
+
+            // Add more operators in later phases
+            _ => None,
+        }
+    }
+
     fn operator_to_sql(operator: &WhereOperator, _db_type: DatabaseType) -> Result<&'static str> {
         // Phase 0: db_type parameter added for future database-specific implementations
         // Currently all basic operators generate the same SQL across all databases
@@ -638,5 +730,29 @@ mod tests {
         assert!(_sql_mysql.is_ok());
         assert!(_sql_sqlite.is_ok());
         assert!(_sql_sqlserver.is_ok());
+    }
+
+    #[test]
+    fn test_template_lookup_and_substitution() {
+        // Phase 0, Cycle 2: RED - Test template lookup and substitution
+        // This test ensures apply_template can lookup and substitute templates
+
+        // Test email domain extraction templates on PostgreSQL
+        let sql_pg =
+            WhereSqlGenerator::apply_template(DatabaseType::PostgreSQL, "domainEq", "data->>'email'", &json!("example.com"));
+        assert!(sql_pg.is_ok());
+        let sql = sql_pg.unwrap();
+        assert!(sql.contains("SPLIT_PART"), "PostgreSQL should use SPLIT_PART for domain extraction");
+        assert!(sql.contains("$field") == false, "Template placeholders should be substituted");
+        assert!(sql.contains("data->>'email'"), "Field reference should be substituted");
+
+        // Test MySQL version should use SUBSTRING_INDEX (different function)
+        let sql_mysql =
+            WhereSqlGenerator::apply_template(DatabaseType::MySQL, "domainEq", "data->>'email'", &json!("example.com"));
+        assert!(sql_mysql.is_ok());
+        let sql = sql_mysql.unwrap();
+        assert!(sql.contains("SUBSTRING_INDEX"), "MySQL should use SUBSTRING_INDEX");
+        assert!(sql.contains("?"), "MySQL should use ? for parameters");
+        assert!(!sql.contains("$1"), "MySQL should not use $1 style parameters");
     }
 }
