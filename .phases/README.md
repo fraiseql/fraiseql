@@ -2,8 +2,30 @@
 
 ## Overview
 
-12 phases combining WHERE operator implementation (Phases 2-6) with Rust features (Phases 7-10) and finalization.
-Python-only phases skipped in favor of complete Rust ecosystem alignment.
+11 phases combining WHERE operator implementation (Phases 2-5), Rust features (Phases 6-9), and finalization.
+Complete Rust runtime with polyglot schema authoring (any language → IntermediateSchema).
+Python is optional for schema authoring only; not part of runtime.
+
+## Architecture
+
+```
+Schema Authoring (Polyglot)
+  - Python, JavaScript, Go, Java, GraphQL SDL, SQL DDL, etc.
+  ↓
+IntermediateSchema (language-agnostic)
+  ↓
+Rust Compiler
+  ↓
+GraphQL + Types
+  ↓
+TOML Configuration (database, features, caching, etc.)
+  ↓
+User Queries (GraphQL)
+  ↓
+where_sql_generator.rs (Rust Runtime, 100%)
+  ↓
+Database SQL
+```
 
 ## Phase Map
 

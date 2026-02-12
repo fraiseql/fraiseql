@@ -1,36 +1,56 @@
-# Phase 10: Python Operator Cleanup & Verification
+# Phase 10: Python Runtime Cleanup & Verification
 
 ## Objective
-Remove Python operator code now that Rust implementation is complete. Verify all functionality is covered by Rust.
+Remove Python runtime code (operators, query execution) while keeping Python available as optional schema authoring language.
 
 ## Success Criteria
 - [ ] All Python operator modules removed (`/src/fraiseql/sql/operators/`)
-- [ ] All Python where_generator cleanup (keep only schema compilation, remove runtime SQL gen)
-- [ ] `db.py` and dependencies removed
-- [ ] All imports updated to use Rust WhereSqlGenerator
+- [ ] Python WHERE clause generation removed (no runtime SQL gen)
+- [ ] `db.py` and v1 legacy code removed
+- [ ] All runtime query execution routes to Rust only
+- [ ] Python schema authoring tools preserved (compile to IntermediateSchema)
 - [ ] All existing tests still pass
-- [ ] No broken imports or references
-- [ ] `uv run ruff check` clean
+- [ ] No broken imports in runtime path
+- [ ] `uv run ruff check` clean (for schema authoring tools only)
 - [ ] `cargo clippy` clean
 
-## Python Code to Remove
+## Python Code to Remove (Runtime Only)
 
 ### Files to Delete
 - `src/fraiseql/sql/operators/` (entire directory, 24 files, ~2,400 lines)
 - `src/fraiseql/core/db.py` (v1 legacy, ~500 lines)
-- Associated imports and registrations
+- Runtime SQL generation code from `where_generator.py`
+- Associated operator registry and strategies
 
 ### Files to Update
 - `src/fraiseql/sql/where_clause.py` - remove operator registry calls
-- `src/fraiseql/sql/where_generator.py` - schema compilation only, no runtime SQL generation
+- `src/fraiseql/sql/where_generator.py` - keep schema compilation, remove runtime SQL generation
 - Test files referencing operator strategies
+
+### Python Code to Preserve (Authoring)
+- Schema authoring/definition tools (if users want Python for this)
+- Schema compilation (Python → IntermediateSchema)
+- Configuration parsing (TOML, etc.)
+- **These are optional; Rust can also handle schema input if users prefer**
 
 ### Architecture After Cleanup
 ```
-GraphQL → where_sql_generator.rs (Rust, 100% complete) → SQL
-         (Python removed entirely from query path)
-         (Python kept only for schema authoring/compilation)
+Schema (Any Language)     Python (optional authoring tool)
+         ↓                       ↓
+  IntermediateSchema ←───────────┘
+         ↓
+  Rust Compiler
+         ↓
+  GraphQL + TOML Config
+         ↓
+  User Query (GraphQL)
+         ↓
+  where_sql_generator.rs (Rust Runtime, 100%)
+         ↓
+  Database SQL
 ```
+
+**Key Point**: Python is removed from query execution path. Schema authoring is polyglot; Python is one optional choice, not the only one.
 
 ## TDD Cycles
 

@@ -1,53 +1,71 @@
-# Phase 6: TOML Schema Merger Bug Fix
+# Phase 6: TOML Configuration Parser
 
 ## Objective
-Fix the TOML-to-intermediate schema conversion so that `types` and `fields` are produced as arrays from the source.
+Parse and validate TOML configuration files for database connections, features, runtime settings, and caching policies.
+(Note: TOML is for configuration only, not schema definition. Schemas are provided separately in any language.)
 
 ## Success Criteria
-- [ ] `TomlSchema::to_intermediate_schema()` produces `types` as a JSON array
-- [ ] Each type's `fields` are also JSON arrays with `"name"` keys injected
-- [ ] `IntermediateSchema` deserialization succeeds without conversion hacks
-- [ ] `tests/integration/test_toml_workflow.py` passes
+- [ ] Database connection strings parsed from TOML
+- [ ] Feature flags properly loaded from configuration
+- [ ] Runtime settings (caching, timeouts, etc.) validated
+- [ ] Multiple database configurations supported
+- [ ] TOML parsing errors reported clearly
 - [ ] `cargo clippy -p fraiseql-cli` clean
 - [ ] `cargo test -p fraiseql-cli` passes
 
-## Background
+## Configuration Sections (Example)
 
-**File**: `crates/fraiseql-cli/src/config/toml_schema.rs:763-829`
+```toml
+[database.primary]
+url = "postgresql://user:pass@localhost/fraiseql"
+pool_size = 20
 
-The TOML schema conversion currently produces objects that need downstream conversion. The fix involves restructuring to produce arrays directly, matching the `IntermediateSchema` expectations.
+[database.replica]
+url = "postgresql://user:pass@replica/fraiseql"
+pool_size = 10
+
+[features]
+enable_arrow = true
+enable_caching = true
+enable_subscriptions = true
+
+[cache]
+backend = "redis"
+redis_url = "redis://localhost:6379"
+ttl_seconds = 3600
+
+[runtime]
+query_timeout_ms = 30000
+max_batch_size = 1000
+```
 
 ## TDD Cycles
 
-### Cycle 1: Fix Array Conversion in TOML Schema
+### Cycle 1: Parse Database Configuration
 
-**File**: `crates/fraiseql-cli/src/config/toml_schema.rs`
+**File**: `crates/fraiseql-cli/src/config/toml_config.rs` (or similar)
 
-- **RED**: Write test expecting `types` as a JSON array
-- **GREEN**: Modify `to_intermediate_schema()` to produce arrays:
-  ```rust
-  let types_array = self.types.iter().map(|t| {
-      json!({
-          "name": t.name,
-          "fields": t.fields.iter().map(|f| {
-              let mut field = serde_json::to_value(f)?;
-              field["name"] = json!(f.name);
-              Ok(field)
-          }).collect::<Result<Vec<_>>>()?,
-          // ... other properties
-      })
-  }).collect::<Vec<_>>();
-  ```
-- **REFACTOR**: Extract array mapping logic into helper functions
-- **CLEANUP**: Test all type conversions, commit
+- **RED**: Write test expecting database config from TOML
+- **GREEN**: Implement TOML parsing for database section
+- **REFACTOR**: Support multiple database configurations
+- **CLEANUP**: Test validation and error handling, commit
 
-### Cycle 2: Test Full TOML Workflow
+### Cycle 2: Parse Feature Flags and Runtime Settings
 
-**File**: `crates/fraiseql-cli/tests/toml_schema_integration.rs`
+**File**: `crates/fraiseql-cli/src/config/toml_config.rs`
 
-- **RED**: Write test for complete TOML→Intermediate schema flow
-- **GREEN**: Verify schema round-trips without conversion hacks
-- **REFACTOR**: Add edge case tests (empty types, nested fields)
+- **RED**: Write test for feature and runtime config
+- **GREEN**: Parse features and runtime settings sections
+- **REFACTOR**: Add defaults for missing values
+- **CLEANUP**: Test all configuration combinations, commit
+
+### Cycle 3: Configuration Validation and Testing
+
+**File**: `crates/fraiseql-cli/tests/config_integration.rs`
+
+- **RED**: Write comprehensive test matrix
+- **GREEN**: Verify configuration is properly loaded and validated
+- **REFACTOR**: Add edge cases (missing sections, invalid values)
 - **CLEANUP**: All tests pass, commit
 
 ## Dependencies

@@ -42,14 +42,20 @@ Review as a senior software engineer would:
 
 - [ ] README is accurate and complete
 - [ ] Architecture documentation reflects current state
+  - [ ] Explains polyglot schema authoring (any language)
+  - [ ] Clarifies TOML is for configuration only
+  - [ ] Documents Rust-only runtime
 - [ ] WHERE operator documentation is comprehensive
 - [ ] All public APIs have examples
 - [ ] No references to development phases
+- [ ] Schema authoring guides for multiple languages (if applicable)
 - [ ] Migration guide from v1 to v2 (if applicable)
 
 **Files to Create/Update**:
 - `docs/where_operators.md` - Complete operator reference
-- `docs/architecture.md` - Updated Rust architecture
+- `docs/architecture.md` - Updated Rust architecture with polyglot authoring
+- `docs/configuration.md` - TOML configuration reference
+- `docs/schema_authoring.md` - Guide for writing schemas in any language
 - `CHANGELOG.md` - Version 2.0.0 changes
 
 ### 4. Code Archaeology Removal
