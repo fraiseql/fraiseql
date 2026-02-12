@@ -161,4 +161,4 @@ Note: The following features are already available in this release and not defer
 
 ## Contributing
 
-See [ARCHITECTURE_PRINCIPLES.md](.claude/ARCHITECTURE_PRINCIPLES.md) for contribution guidelines.
+See [ARCHITECTURE_PRINCIPLES.md](docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md) for contribution guidelines.

@@ -10,7 +10,7 @@ FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema
 
 This is a **solo-authored project** with comprehensive testing (2,400+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
 
-See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
+See [`docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md`](docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
 
 ---
 
@@ -183,7 +183,7 @@ Additional security features:
 - Field-level authorization via GraphQL directives
 - Configurable via TOML with environment variable overrides for production
 
-See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
+See [`docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md`](docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
 
 ---
 
@@ -295,7 +295,7 @@ The project includes **251 markdown files with 70,000+ lines** of documentation:
 
 **Local Documentation:**
 
-- `.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
+- `docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
 - `docs/prd/PRD.md` — Product requirements and vision
 - `docs/alpha-testing-guide.md` — Alpha testing guide
 
