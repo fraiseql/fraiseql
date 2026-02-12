@@ -135,6 +135,21 @@ impl WhereSqlGenerator {
             WhereOperator::InSubnet => {
                 Self::apply_template(db_type, "inSubnet", &json_path, value)?
             },
+            WhereOperator::IsLoopback => {
+                Self::apply_template(db_type, "isLoopback", &json_path, value)?
+            },
+            WhereOperator::ContainsIP => {
+                Self::apply_template(db_type, "containsIP", &json_path, value)?
+            },
+            WhereOperator::ContainsSubnet => {
+                Self::apply_template(db_type, "containsSubnet", &json_path, value)?
+            },
+            WhereOperator::Overlaps => {
+                Self::apply_template(db_type, "overlaps", &json_path, value)?
+            },
+            WhereOperator::StrictlyContains => {
+                Self::apply_template(db_type, "strictlyLeft", &json_path, value)?
+            },
             // All other operators
             _ => {
                 let sql_op = Self::operator_to_sql(operator, db_type)?;
@@ -315,6 +330,42 @@ impl WhereSqlGenerator {
             (DatabaseType::MySQL, "inSubnet") => Some("INET_ATON($field) BETWEEN INET_ATON(SUBSTRING_INDEX($1, '/', 1)) AND INET_ATON(BROADCAST(CAST($1 AS CHAR)))".to_string()),
             (DatabaseType::SQLite, "inSubnet") => Some("CAST($field AS TEXT) BETWEEN CAST(SUBSTR($1, 1, INSTR($1, '/') - 1) AS TEXT) AND CAST(BROADCAST(CAST($1 AS TEXT)) AS TEXT)".to_string()),
             (DatabaseType::SQLServer, "inSubnet") => Some("CAST($field AS VARCHAR) BETWEEN SUBSTRING($1, 1, CHARINDEX('/', $1) - 1) AND BROADCAST(CAST($1 AS VARCHAR))".to_string()),
+
+            // IsLoopback: Check if IP is loopback address (127.0.0.1 or ::1)
+            (DatabaseType::PostgreSQL, "isLoopback") => Some("(CAST($field AS INET) << '127.0.0.0/8'::INET OR CAST($field AS INET) << '::1/128'::INET)".to_string()),
+            (DatabaseType::MySQL, "isLoopback") => Some("(CAST($field AS UNSIGNED) >= INET_ATON('127.0.0.1') AND CAST($field AS UNSIGNED) <= INET_ATON('127.255.255.255')) OR $field = '::1'".to_string()),
+            (DatabaseType::SQLite, "isLoopback") => Some("($field LIKE '127.%' OR $field = '::1')".to_string()),
+            (DatabaseType::SQLServer, "isLoopback") => Some("(SUBSTRING($field, 1, 4) = '127.' OR $field = '::1')".to_string()),
+
+            // ContainsIP: Check if subnet contains specified IP (reverse of InSubnet)
+            (DatabaseType::PostgreSQL, "containsIP") => Some("$field::INET >> $1::INET".to_string()),
+            (DatabaseType::MySQL, "containsIP") => Some("INET_ATON(SUBSTRING_INDEX($field, '/', 1)) <= INET_ATON($1) AND INET_ATON(BROADCAST($field)) >= INET_ATON($1)".to_string()),
+            (DatabaseType::SQLite, "containsIP") => Some("CAST(SUBSTR($field, 1, INSTR($field, '/') - 1) AS TEXT) <= $1 AND CAST(BROADCAST($field) AS TEXT) >= $1".to_string()),
+            (DatabaseType::SQLServer, "containsIP") => Some("SUBSTRING($field, 1, CHARINDEX('/', $field) - 1) <= $1 AND BROADCAST(SUBSTRING($field, 1, CHARINDEX('/', $field) - 1)) >= $1".to_string()),
+
+            // ContainsSubnet: Check if subnet contains another subnet
+            (DatabaseType::PostgreSQL, "containsSubnet") => Some("$field::INET >> $1::INET".to_string()),
+            (DatabaseType::MySQL, "containsSubnet") => Some("INET_ATON(SUBSTRING_INDEX($field, '/', 1)) <= INET_ATON(SUBSTRING_INDEX($1, '/', 1)) AND INET_ATON(BROADCAST($field)) >= INET_ATON(BROADCAST($1))".to_string()),
+            (DatabaseType::SQLite, "containsSubnet") => Some("CAST(SUBSTR($field, 1, INSTR($field, '/') - 1) AS TEXT) <= CAST(SUBSTR($1, 1, INSTR($1, '/') - 1) AS TEXT)".to_string()),
+            (DatabaseType::SQLServer, "containsSubnet") => Some("SUBSTRING($field, 1, CHARINDEX('/', $field) - 1) <= SUBSTRING($1, 1, CHARINDEX('/', $1) - 1)".to_string()),
+
+            // Overlaps: Check if CIDR ranges overlap
+            (DatabaseType::PostgreSQL, "overlaps") => Some("$field::INET && $1::INET".to_string()),
+            (DatabaseType::MySQL, "overlaps") => Some("NOT (INET_ATON(BROADCAST(SUBSTRING_INDEX($field, '/', 1))) < INET_ATON(SUBSTRING_INDEX($1, '/', 1)) OR INET_ATON(SUBSTRING_INDEX($field, '/', 1)) > INET_ATON(BROADCAST(SUBSTRING_INDEX($1, '/', 1))))".to_string()),
+            (DatabaseType::SQLite, "overlaps") => Some("NOT (CAST(BROADCAST(SUBSTR($field, 1, INSTR($field, '/') - 1)) AS TEXT) < CAST(SUBSTR($1, 1, INSTR($1, '/') - 1) AS TEXT) OR CAST(SUBSTR($field, 1, INSTR($field, '/') - 1) AS TEXT) > CAST(BROADCAST(SUBSTR($1, 1, INSTR($1, '/') - 1)) AS TEXT))".to_string()),
+            (DatabaseType::SQLServer, "overlaps") => Some("NOT (BROADCAST(SUBSTRING($field, 1, CHARINDEX('/', $field) - 1)) < SUBSTRING($1, 1, CHARINDEX('/', $1) - 1) OR SUBSTRING($field, 1, CHARINDEX('/', $field) - 1) > BROADCAST(SUBSTRING($1, 1, CHARINDEX('/', $1) - 1)))".to_string()),
+
+            // StrictlyLeft: Check if first CIDR range is entirely to the left (lower IPs)
+            (DatabaseType::PostgreSQL, "strictlyLeft") => Some("$field::INET << $1::INET AND NOT ($field::INET && $1::INET)".to_string()),
+            (DatabaseType::MySQL, "strictlyLeft") => Some("INET_ATON(BROADCAST($field)) < INET_ATON(SUBSTRING_INDEX($1, '/', 1))".to_string()),
+            (DatabaseType::SQLite, "strictlyLeft") => Some("CAST(BROADCAST(SUBSTR($field, 1, INSTR($field, '/') - 1)) AS TEXT) < CAST(SUBSTR($1, 1, INSTR($1, '/') - 1) AS TEXT)".to_string()),
+            (DatabaseType::SQLServer, "strictlyLeft") => Some("CAST(BROADCAST(SUBSTRING($field, 1, CHARINDEX('/', $field) - 1)) AS VARCHAR) < SUBSTRING($1, 1, CHARINDEX('/', $1) - 1)".to_string()),
+
+            // StrictlyRight: Check if first CIDR range is entirely to the right (higher IPs)
+            (DatabaseType::PostgreSQL, "strictlyRight") => Some("$field::INET >> $1::INET AND NOT ($field::INET && $1::INET)".to_string()),
+            (DatabaseType::MySQL, "strictlyRight") => Some("INET_ATON(SUBSTRING_INDEX($field, '/', 1)) > INET_ATON(BROADCAST($1))".to_string()),
+            (DatabaseType::SQLite, "strictlyRight") => Some("CAST(SUBSTR($field, 1, INSTR($field, '/') - 1) AS TEXT) > CAST(BROADCAST(SUBSTR($1, 1, INSTR($1, '/') - 1)) AS TEXT)".to_string()),
+            (DatabaseType::SQLServer, "strictlyRight") => Some("SUBSTRING($field, 1, CHARINDEX('/', $field) - 1) > CAST(BROADCAST(SUBSTRING($1, 1, CHARINDEX('/', $1) - 1)) AS VARCHAR)".to_string()),
 
             // Add more operators in later phases
             _ => None,

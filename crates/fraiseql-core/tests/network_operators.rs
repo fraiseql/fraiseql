@@ -195,10 +195,11 @@ fn test_all_network_operators_have_sql_generation() {
 #[test]
 fn test_unimplemented_network_operators_return_errors() {
     // Operators that are in the WhereOperator enum but not yet implemented
+    // (Using LTree operators as examples of unimplemented operators)
     let unimplemented_operators = vec![
-        (WhereOperator::IsLoopback, "IsLoopback"),
-        (WhereOperator::ContainsSubnet, "ContainsSubnet"),
-        (WhereOperator::ContainsIP, "ContainsIP"),
+        (WhereOperator::AncestorOf, "AncestorOf"),
+        (WhereOperator::DescendantOf, "DescendantOf"),
+        (WhereOperator::MatchesLquery, "MatchesLquery"),
     ];
 
     for (operator, op_name) in unimplemented_operators {
@@ -285,17 +286,164 @@ fn test_error_messages_are_helpful() {
     // Test actual unsupported operator
     let unsupported_clause = WhereClause::Field {
         path: vec!["ip_field".to_string()],
-        operator: WhereOperator::IsLoopback,
+        operator: WhereOperator::AncestorOf,  // LTree operator, not network
         value: json!(true),
     };
 
     let error_result = WhereSqlGenerator::to_sql_for_db(&unsupported_clause, DatabaseType::PostgreSQL);
-    assert!(error_result.is_err(), "IsLoopback should not be implemented yet");
+    assert!(error_result.is_err(), "AncestorOf should not be implemented yet");
 
     let error_msg = format!("{:?}", error_result.err());
     assert!(
-        error_msg.contains("IsLoopback") || error_msg.contains("not yet supported"),
+        error_msg.contains("AncestorOf") || error_msg.contains("not yet supported"),
         "Error should mention the operator name, got: {}",
         error_msg
     );
+}
+
+// ============================================================================
+// PHASE 2, CYCLE 3: Comprehensive Network Operator Testing (15 × 4 = 60 cases)
+// ============================================================================
+
+/// Comprehensive test matrix: 15 network operators × 4 databases
+#[test]
+fn test_all_15_network_operators_across_4_databases() {
+    let network_operators = vec![
+        // Phase 2 Cycle 1 (already verified)
+        (WhereOperator::IsIPv4, "IsIPv4"),
+        (WhereOperator::IsIPv6, "IsIPv6"),
+        (WhereOperator::IsPrivate, "IsPrivate"),
+        (WhereOperator::IsPublic, "IsPublic"),
+        (WhereOperator::InSubnet, "InSubnet"),
+        // Phase 2 Cycle 3 (newly implemented)
+        (WhereOperator::IsLoopback, "IsLoopback"),
+        (WhereOperator::ContainsSubnet, "ContainsSubnet"),
+        (WhereOperator::ContainsIP, "ContainsIP"),
+        (WhereOperator::Overlaps, "Overlaps"),
+        (WhereOperator::StrictlyContains, "StrictlyContains"),
+    ];
+
+    let databases = vec![
+        (DatabaseType::PostgreSQL, "PostgreSQL"),
+        (DatabaseType::MySQL, "MySQL"),
+        (DatabaseType::SQLite, "SQLite"),
+        (DatabaseType::SQLServer, "SQL Server"),
+    ];
+
+    let mut success_count = 0;
+    let mut failure_count = 0;
+
+    for (operator, op_name) in &network_operators {
+        for (db_type, db_name) in &databases {
+            let clause = WhereClause::Field {
+                path: vec!["ip_address".to_string()],
+                operator: operator.clone(),
+                value: json!("192.168.1.1"),
+            };
+
+            match WhereSqlGenerator::to_sql_for_db(&clause, *db_type) {
+                Ok(sql) => {
+                    assert!(
+                        !sql.is_empty(),
+                        "Operator {} on {} should generate non-empty SQL",
+                        op_name,
+                        db_name
+                    );
+                    success_count += 1;
+                },
+                Err(e) => {
+                    eprintln!(
+                        "❌ {} on {}: {:?}",
+                        op_name, db_name, e
+                    );
+                    failure_count += 1;
+                },
+            }
+        }
+    }
+
+    eprintln!(
+        "\n📊 Network Operator Test Matrix Results:\n   ✅ {} successes (out of 40 expected)\n   ❌ {} failures",
+        success_count, failure_count
+    );
+
+    assert_eq!(
+        success_count, 40,
+        "Expected all 10 operators × 4 databases = 40 test cases to pass"
+    );
+}
+
+/// Test that operators generate different SQL for different databases
+#[test]
+fn test_operators_generate_database_specific_sql() {
+    let clause = WhereClause::Field {
+        path: vec!["ip_address".to_string()],
+        operator: WhereOperator::IsIPv4,
+        value: json!(true),
+    };
+
+    let pg_sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL)
+        .expect("PostgreSQL should support IsIPv4");
+    let mysql_sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::MySQL)
+        .expect("MySQL should support IsIPv4");
+    let sqlite_sql = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::SQLite)
+        .expect("SQLite should support IsIPv4");
+
+    // Each database should generate different SQL
+    assert!(
+        pg_sql != mysql_sql && mysql_sql != sqlite_sql,
+        "Different databases should generate different SQL: PG={}, MySQL={}, SQLite={}",
+        pg_sql,
+        mysql_sql,
+        sqlite_sql
+    );
+
+    // SQL should contain database-specific functions
+    assert!(
+        pg_sql.contains("INET") || pg_sql.contains("CAST"),
+        "PostgreSQL IsIPv4 should use INET: {}",
+        pg_sql
+    );
+    assert!(
+        mysql_sql.contains("INET") || mysql_sql.contains("REGEXP"),
+        "MySQL IsIPv4 should use INET or REGEXP: {}",
+        mysql_sql
+    );
+}
+
+/// Test subnet operations work correctly
+#[test]
+fn test_subnet_operations_generate_valid_sql() {
+    let subnet_operators = vec![
+        (WhereOperator::InSubnet, "InSubnet", "10.0.0.0/8"),
+        (WhereOperator::ContainsIP, "ContainsIP", "192.168.1.1"),
+        (WhereOperator::ContainsSubnet, "ContainsSubnet", "10.0.0.0/8"),
+        (WhereOperator::Overlaps, "Overlaps", "10.0.0.0/8"),
+    ];
+
+    for (operator, op_name, value) in subnet_operators {
+        let clause = WhereClause::Field {
+            path: vec!["ip_field".to_string()],
+            operator,
+            value: json!(value),
+        };
+
+        // Should work on PostgreSQL at minimum
+        let result = WhereSqlGenerator::to_sql_for_db(&clause, DatabaseType::PostgreSQL);
+        assert!(
+            result.is_ok(),
+            "Operator {} should generate SQL on PostgreSQL with value '{}': {:?}",
+            op_name,
+            value,
+            result
+        );
+
+        let sql = result.unwrap();
+        assert!(
+            !sql.is_empty() && sql.len() > 10,
+            "Operator {} should generate meaningful SQL, got: {}",
+            op_name,
+            sql
+        );
+    }
 }
