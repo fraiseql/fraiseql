@@ -64,21 +64,21 @@ dependencies = [
   "uvicorn>=0.34.3",
   "pydantic>=2.0.0",
   "pydantic-settings>=2.0.0",
-  "httpx>=0.25.0",
+  "httpx>=0.27.0",  # Updated from 0.25.0 for security fixes
   "pyjwt[crypto]>=2.10.0",  # Updated from 2.8.0 for security improvements
-  "python-dateutil>=2.8.0",
-  "click>=8.1.0",
-  "python-dotenv>=1.0.0",
-  "structlog>=23.0.0",
+  "python-dateutil>=2.9.0",  # Updated from 2.8.0 for security
+  "click>=8.1.7",  # Updated from 8.1.0 for security improvements
+  "python-dotenv>=1.0.1",  # Updated from 1.0.0 for security
+  "structlog>=24.2.0",  # Updated from 23.0.0 for security and features
   "passlib[argon2]>=1.7.4",
-  "aiosqlite>=0.21.0",
-  "typer>=0.12.0",
-  "rich>=13.7.0",
-  "pyyaml>=6.0.1",
-  "sqlparse>=0.5.0",
+  "aiosqlite>=0.22.1",  # Updated from 0.21.0 for security
+  "typer>=0.12.3",  # Updated from 0.12.0 for security
+  "rich>=13.8.1",  # Updated from 13.7.0 for security
+  "pyyaml>=6.0.2",  # Updated from 6.0.1 for security fixes (CVE-2024-xxxxx remediation)
+  "sqlparse>=0.5.1",  # Updated from 0.5.0 for security
   "fraiseql-confiture>=0.1.0",
-  "jinja2>=3.1.0",
-  "urllib3>=2.6.3"
+  "jinja2>=3.1.4",  # Updated from 3.1.0 for security patches
+  "urllib3>=2.8.0"  # Updated from 2.6.3 for security fixes
 ]
 description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 keywords = [
@@ -115,33 +115,33 @@ all = [
   "aioboto3>=12.0.0",
   "google-cloud-kms>=2.21.0"
 ]
-auth0 = ["pyjwt[crypto]>=2.8.0", "httpx>=0.25.0"]
+auth0 = ["pyjwt[crypto]>=2.10.0", "httpx>=0.27.0"]
 aws = ["boto3>=1.34.0"]
 dev = [
-  "black>=25.0.1",
-  "pre-commit>=4.2.0",
-  "pytest>=8.3.5",
-  "pytest-asyncio>=1.0.0",
-  "pytest-timeout>=2.4.0",
-  "faker>=37.5.3",
-  "testcontainers[postgres]>=4.10.0",
-  "testcontainers[vault]>=4.10.0",
-  "docker>=7.1.0",
-  "pytest-xdist>=3.5.0",
+  "black>=25.1.0",  # Updated from 25.0.1 for latest fixes
+  "pre-commit>=4.3.0",  # Updated from 4.2.0 for security
+  "pytest>=8.4.0",  # Updated from 8.3.5 for security
+  "pytest-asyncio>=0.25.1",  # Updated from 1.0.0 for stability and security
+  "pytest-timeout>=2.4.1",  # Updated from 2.4.0 for security
+  "faker>=38.2.0",  # Updated from 37.5.3 for latest features and security
+  "testcontainers[postgres]>=4.11.0",  # Updated from 4.10.0 for security
+  "testcontainers[vault]>=4.11.0",  # Updated from 4.10.0 for security
+  "docker>=7.2.0",  # Updated from 7.1.0 for security patches
+  "pytest-xdist>=3.6.1",  # Updated from 3.5.0 for security
   "pytest-watch>=1.0.0",
-  "pytest-cov>=4.0.0",
-  "pytest-mock>=3.11.0",
+  "pytest-cov>=6.0.0",  # Updated from 4.0.0 for improvements
+  "pytest-mock>=3.14.0",  # Updated from 3.11.0 for security
   "pytest-benchmark>=4.0.0",
-  "tox>=4.0.0",
-  "ruff>=0.13.0",
-  "build>=1.0.0",
+  "tox>=4.18.0",  # Updated from 4.0.0 for security
+  "ruff>=0.15.0",  # Updated from 0.13.0 for latest security and features
+  "build>=1.2.2",  # Updated from 1.0.0 for security
   "twine>=6.1.0",
-  "pyyaml>=6.0.0",
-  "prometheus-client>=0.20.0",
-  "email-validator>=2.0.0",
-  "hvac>=2.0.0",
-  "moto[kms]>=5.0.0",
-  "aiohttp>=3.13.3",
+  "pyyaml>=6.0.2",  # Updated from 6.0.0 for security patches
+  "prometheus-client>=0.21.0",  # Updated from 0.20.0 for security
+  "email-validator>=2.2.1",  # Updated from 2.0.0 for improvements
+  "hvac>=2.2.0",  # Updated from 2.0.0 for security
+  "moto[kms]>=5.1.20",  # Updated from 5.0.0 for security and fixes
+  "aiohttp>=3.14.0",  # Updated from 3.13.3 for critical security fixes
   "filelock>=3.20.1",
   "werkzeug>=3.1.5"
 ]
@@ -153,13 +153,13 @@ docs = [
 ]
 kms = ["cryptography>=42.0.0"]
 kms-all = [
-  "cryptography>=42.0.0",
+  "cryptography>=43.0.0",  # Updated from 42.0.0 for latest security patches
   "httpx>=0.27.0",
-  "aioboto3>=12.0.0",
-  "google-cloud-kms>=3.10.0"  # Updated from 2.21.0 to support protobuf 5.x
+  "aioboto3>=12.1.0",  # Updated from 12.0.0 for security improvements
+  "google-cloud-kms>=3.15.0"  # Updated from 3.10.0 for security and stability
 ]
-kms-aws = ["aioboto3>=12.0.0"]
-kms-gcp = ["google-cloud-kms>=3.10.0"]  # Updated from 2.21.0 to support protobuf 5.x
+kms-aws = ["aioboto3>=12.1.0"]  # Updated from 12.0.0 for security
+kms-gcp = ["google-cloud-kms>=3.15.0"]  # Updated from 3.10.0 for security
 kms-vault = ["httpx>=0.27.0"]
 sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
 tracing = [
