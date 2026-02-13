@@ -89,9 +89,14 @@ mod field_encryption_tests {
     #[test]
     #[ignore = "Incomplete test: needs actual implementation"]
     fn test_field_encrypt_api_key() {
-        // When API key encrypted (e.g., sk_live_xxx, pk_test_xxx)
+        // When API key encrypted (e.g., fake test key format)
         // Should preserve key format and content
         // Should support variable length keys (128+ characters)
+        //
+        // NOTE: Always use obviously fake keys in tests, never real credentials:
+        // ❌ DON'T: "sk_live_4eC39HqLyjWDarjtT1zdp7dc" (real Stripe test key)
+        // ✅ DO:    "sk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXX" (obviously fake)
+        // ✅ DO:    "pk_test_0000000000000000000000000000" (obviously fake)
     }
 
     /// Test OAuth token encryption
