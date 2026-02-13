@@ -1,9 +1,11 @@
 # Clippy Strict Pedantic Fix Plan
 
 ## Objective
+
 Transform codebase from partially passing clippy checks to **100% clean with `-D warnings`** across all targets and features.
 
 ## Current Status
+
 - ✅ Zero new issues from recent changes (Arrow adapter fixes)
 - ❌ 1470+ pre-existing `assert!(true)` failures
 - ❌ fraiseql-error benchmark compilation issues
@@ -14,6 +16,7 @@ Transform codebase from partially passing clippy checks to **100% clean with `-D
 ### Issue Category 1: assert!(true) Placeholders (1471 occurrences)
 
 **Affected Files:**
+
 - `crates/fraiseql-server/tests/audit_logging_tests.rs` (11+ occurrences)
 - `crates/fraiseql-server/src/encryption/mod.rs` (multiple)
 - `crates/fraiseql-server/src/encryption/database_adapter.rs` (5+)
@@ -27,9 +30,11 @@ Transform codebase from partially passing clippy checks to **100% clean with `-D
 ### Issue Category 2: fraiseql-error Benchmarks
 
 **Affected Files:**
+
 - `crates/fraiseql-error/src/lib.rs` or benchmarks
 
 **Issues:**
+
 1. `empty_line_after_outer_attr` - Formatting after attributes
 2. `unnecessary_cast` - Type casting not needed
 3. `len_zero` - Should use `.is_empty()` instead of `.len() == 0`
@@ -37,6 +42,7 @@ Transform codebase from partially passing clippy checks to **100% clean with `-D
 ### Issue Category 3: Scattered Clippy Violations
 
 Likely in:
+
 - Type comparisons
 - Unnecessary borrows
 - Pattern matching issues
@@ -49,11 +55,13 @@ Likely in:
 **Objective:** Remove code archaeology to meet CLAUDE.md finalization standards.
 
 **Issues Found:**
+
 - Phase/Cycle comments in production code (40+ occurrences)
 - Working analysis documents need clarity
 - Ensure production-ready state before test fixes
 
 **Tasks:**
+
 ```bash
 # Remove phase archaeology
 grep -r "Phase.*Cycle" crates/ --include="*.rs"
@@ -80,12 +88,14 @@ git grep -i "phase\|cycle" -- crates/ | grep -v test | wc -l
 **TDD Cycles:**
 
 #### Cycle 1: Generate Violation Report
+
 - **RED:** Write script to parse clippy output and categorize issues
 - **GREEN:** Run clippy, collect all violations with line numbers
 - **REFACTOR:** Organize by file and violation type
 - **CLEANUP:** Create structured violation catalog
 
 **Commands:**
+
 ```bash
 # Generate full clippy report
 cargo clippy --all-targets --all-features -- -D warnings 2>&1 \
@@ -96,6 +106,7 @@ grep "error\[" /tmp/clippy_full_report.txt | sed 's/.*error\[//' | cut -d']' -f1
 ```
 
 **Deliverable:**
+
 - `/home/lionel/code/fraiseql/.claude/CLIPPY_VIOLATIONS_CATALOG.md` with:
   - Total count per violation type
   - Files affected
@@ -110,12 +121,14 @@ grep "error\[" /tmp/clippy_full_report.txt | sed 's/.*error\[//' | cut -d']' -f1
 **TDD Cycles:**
 
 #### Cycle 1: Understand Intent
+
 - **RED:** Write test that verifies assert!(true) removals don't break tests
 - **GREEN:** Parse each test function, understand what it's verifying
 - **REFACTOR:** Document test intent
 - **CLEANUP:** Mark tests for removal
 
 #### Cycle 2: Replace Intelligently
+
 - **RED:** Verify test fails if we remove assertion
 - **GREEN:** Add meaningful assertion based on test context
 - **REFACTOR:** Use most specific assertion
@@ -140,6 +153,7 @@ grep "error\[" /tmp/clippy_full_report.txt | sed 's/.*error\[//' | cut -d']' -f1
    - Verify: Connections work, tables created, data inserted
 
 **Process:**
+
 ```bash
 # Find all assert!(true) lines
 grep -rn "assert!(true)" crates/fraiseql-server/
@@ -148,6 +162,7 @@ grep -rn "assert!(true)" crates/fraiseql-server/
 ```
 
 **Files to Process (in order):**
+
 1. `crates/fraiseql-server/tests/audit_logging_tests.rs` (11 assertions)
 2. `crates/fraiseql-server/src/encryption/mod.rs` (module)
 3. `crates/fraiseql-server/src/encryption/database_adapter.rs` (5)
@@ -155,6 +170,7 @@ grep -rn "assert!(true)" crates/fraiseql-server/
 5. Other test files (systematic sweep)
 
 **Verification per file:**
+
 ```bash
 # After fixing file:
 cargo test --test <test_file> --all-features
@@ -170,24 +186,28 @@ cargo clippy --test <test_file> --all-features -- -D warnings
 **TDD Cycles:**
 
 #### Cycle 1: Fix empty_line_after_outer_attr
+
 - **RED:** Run clippy, identify lines with attribute formatting
 - **GREEN:** Remove/adjust blank lines after attributes
 - **REFACTOR:** Ensure consistent style
 - **CLEANUP:** Verify
 
 #### Cycle 2: Fix unnecessary_cast
+
 - **RED:** Identify casts where types already match
 - **GREEN:** Remove unnecessary casts
 - **REFACTOR:** Simplify type inference
 - **CLEANUP:** Verify
 
 #### Cycle 3: Fix len_zero
+
 - **RED:** Find `.len() == 0` patterns
 - **GREEN:** Replace with `.is_empty()`
 - **REFACTOR:** Apply consistently across crate
 - **CLEANUP:** Verify
 
 **Files:**
+
 ```bash
 # Identify affected files
 cargo clippy --package fraiseql-error --all-features -- -D warnings 2>&1 \
@@ -203,12 +223,14 @@ cargo clippy --package fraiseql-error --all-features -- -D warnings 2>&1 \
 **TDD Cycles:**
 
 #### Cycle 1: Categorize by Violation Type
+
 - **RED:** Run clippy, parse output by warning type
 - **GREEN:** Group by `error[E...]` code
 - **REFACTOR:** Identify patterns
 - **CLEANUP:** Create fixes list
 
 #### Cycle 2: Fix by Type (Iterative)
+
 For each violation type (pedantic, nursery, cargo, etc.):
 
 - **RED:** Write test that would fail with violation
@@ -217,6 +239,7 @@ For each violation type (pedantic, nursery, cargo, etc.):
 - **CLEANUP:** Lint and verify
 
 **Common Patterns:**
+
 - `clippy::cognitive_complexity` - Extract functions
 - `clippy::too_many_arguments` - Use builder or config struct
 - `clippy::module_name_repetitions` - Rename or allow
@@ -230,6 +253,7 @@ For each violation type (pedantic, nursery, cargo, etc.):
 **Objective:** Ensure all fixes are correct and codebase is clean.
 
 **Verification Checklist:**
+
 ```bash
 # 1. All targets compile with strict clippy
 cargo clippy --all-targets --all-features -- -D warnings
@@ -253,6 +277,7 @@ cargo clippy -p fraiseql-error --all-targets --all-features -- -D warnings
 ```
 
 **Commit Pattern (per phase):**
+
 ```
 fix(clippy): Remove assert!(true) placeholders in audit tests
 
@@ -295,12 +320,15 @@ fix(clippy): Remove assert!(true) placeholders in audit tests
 ## Risk Mitigation
 
 **Risk:** Breaking tests while removing assert!(true)
+
 - **Mitigation:** Verify each test passes before/after fix
 
 **Risk:** Over-aggressive removal of legitimate code
+
 - **Mitigation:** Review context carefully, understand test intent
 
 **Risk:** Introducing new clippy violations while fixing
+
 - **Mitigation:** Run clippy after each file fix
 
 ## Next Steps

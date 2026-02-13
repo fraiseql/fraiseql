@@ -42,6 +42,7 @@ FraiseQL v2.0.0-alpha.2 is functionally complete and production-ready, but **con
 **Action**: **DELETE ENTIRE DIRECTORY**
 
 **Contains**:
+
 - 26 subdirectories (00-planning through QA-PLANNING-*)
 - Phase implementation guides
 - Planning documents
@@ -65,6 +66,7 @@ rm -rf .phases/
 **Action**: **DELETE ALL PHASE_* PREFIXED FILES**
 
 Files to remove:
+
 - `PHASE_8_COMPLETION_SUMMARY.md`
 - `PHASE_8_INDEX.md`
 - `PHASE_9_1_ACTION_TRACING_GUIDE.md`
@@ -83,6 +85,7 @@ Files to remove:
 **Action**: **DELETE ALL PHASE_* PREFIXED FILES**
 
 Files to remove:
+
 - `PHASE_1_IMPLEMENTATION_PLAN.md`
 - `PHASE_1_PROGRESS.md`
 - `PHASE_3_10_MULTIDATABASE_PLAN.md`
@@ -138,6 +141,7 @@ Files to remove:
 **Action**: Rename to descriptive names without phase numbers
 
 Examples:
+
 - `tests/chaos/phase1_validation.py` → `tests/chaos/cache_validation.py`
 - `tests/chaos/test_phase0_verification.py` → `tests/chaos/baseline_verification.py`
 - `tests/chaos/cache/test_phase3_validation.py` → `tests/chaos/cache/cache_validation.py`
@@ -151,6 +155,7 @@ Examples:
 **Status**: Recent commits contain phase references (4 of last 15 commits)
 
 **Examples**:
+
 - `feat(clippy): Phase 3 - Fix remaining 73 secondary violations`
 - `feat(clippy): Phase 2 - Remove all assert!(true) placeholder assertions`
 - `chore(cleanup): Phase 0 - Remove development archaeology markers`
@@ -179,6 +184,7 @@ Examples:
 2. **Phase References in SDK Documentation**
 
 **Files to Update**:
+
 - `fraiseql-python/PYTHON_FEATURE_PARITY.md` - 15+ "Phase" references
 - `fraiseql-php/PHP_FEATURE_PARITY.md` - 12+ "Phase" references
 - `fraiseql-java/JAVA_FEATURE_PARITY.md` - 10+ "Phase" references
@@ -188,6 +194,7 @@ Examples:
 **Action**: Rewrite documentation to remove phase numbering, focus on feature status instead
 
 **Example**:
+
 ```markdown
 # BEFORE
 **Phase 7 - Python (100% ✅)**
@@ -207,6 +214,7 @@ Examples:
 3. **WP- Work Package References**
 
 **Locations**: Found in 5+ files including:
+
 - `tests/unit/test_connection_pool_config.py:4` - WP-027
 - `docs/archive/journeys/backend-engineer.md:167` - WP-029
 - Various SECURITY_VULNERABILITIES.md and compliance docs
@@ -220,6 +228,7 @@ Examples:
 1. **Test File Naming Conventions**
 
 Some SDK test files use phase-like naming. Review and normalize:
+
 - SDK tests in `fraiseql-java/tests/`
 - SDK tests in `fraiseql-typescript/tests/`
 - SDK tests in other language bindings
@@ -237,6 +246,7 @@ Some SDK test files use phase-like naming. Review and normalize:
 ## Production Readiness Checklist
 
 ### Code Quality
+
 - [x] All tests passing (2,400+ tests)
 - [x] Clippy warnings: 0 (as of Phase 3 complete)
 - [x] Format check passing
@@ -244,6 +254,7 @@ Some SDK test files use phase-like naming. Review and normalize:
 - [x] Security audit passing (with known vulnerability allowlist)
 
 ### Release Artifacts
+
 - [ ] `.phases/` directory removed
 - [ ] All PHASE_*.md files removed
 - [ ] Cleanup planning files removed
@@ -255,6 +266,7 @@ Some SDK test files use phase-like naming. Review and normalize:
 - [ ] WP- references removed or replaced
 
 ### Verification
+
 - [ ] `git grep -i "^phase " -- "*.md" -- "*.rs" -- "*.py"` returns 0 matches
 - [ ] `git grep "PHASE_"` returns 0 matches
 - [ ] `git grep "TODO.*future.*phase"` returns 0 matches
