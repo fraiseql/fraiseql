@@ -16,17 +16,19 @@
 **Completion Date**: [To be filled]
 
 **Changes in alpha.3**:
+
 - Fixed PostgreSQL audit backend test failures
-  * Resolved duplicate event logging in concurrent scenarios
-  * Enhanced database cleanup and isolation
-  * Fixed bulk insert assertions
+  - Resolved duplicate event logging in concurrent scenarios
+  - Enhanced database cleanup and isolation
+  - Fixed bulk insert assertions
 - Resolved all Clippy pedantic warnings
-  * Split oversized `get_default_rules()` function
-  * Optimized parameter passing for `Copy` types
-  * Removed unused imports
+  - Split oversized `get_default_rules()` function
+  - Optimized parameter passing for `Copy` types
+  - Removed unused imports
 - Updated documentation and version markers
 
 **Components Ready**:
+
 - ✅ Rich filter compilation and type operators
 - ✅ Advanced type operators (PostGIS, Phone, Ranges)
 - ✅ SQL template generation for 40+ operators
@@ -37,6 +39,7 @@
 - ✅ Full test suite passing (3576+ tests)
 
 **Key Achievements**:
+
 - Full GraphQL compilation engine optimized and tested
 - Advanced schema validation and type checking
 - Production-ready audit logging system
