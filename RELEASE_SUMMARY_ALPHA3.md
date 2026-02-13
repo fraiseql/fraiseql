@@ -11,6 +11,7 @@
 ### Bug Fixes (1)
 
 #### ✅ Issue #269: JSONB field lookup with snake_case→camelCase conversion
+
 - Fixed aggregation WHERE clause field name conversion
 - GraphQL field names (camelCase) now properly converted to database columns (snake_case)
 - All 1642 unit tests pass
@@ -19,6 +20,7 @@
 ### Code Quality Improvements
 
 #### ✅ Development Artifact Cleanup
+
 - Removed entire `.phases/` directory (65 items)
 - Removed all PHASE_*.md files
 - Removed cleanup tracking files
@@ -27,6 +29,7 @@
 - Commit: `aff06995`
 
 #### ✅ Clippy Lint Fixes
+
 - Fixed all len_zero checks (use is_empty())
 - Fixed manual_string_new warnings (use String::new())
 - Auto-fixed all remaining clippy issues
@@ -67,6 +70,7 @@
 ## Release Readiness Checklist
 
 ### Code Quality
+
 - [x] All unit tests passing (1642/1642)
 - [x] Clippy warnings: 0
 - [x] Format check: ✅
@@ -74,21 +78,25 @@
 - [x] No new warnings introduced
 
 ### Bug Fixes
+
 - [x] #269 JSONB field conversion: ✅ FIXED
 - [x] #268 CLI jsonb_column: ✅ VERIFIED
 - [x] #267 Default jsonb_column: ✅ VERIFIED
 
 ### Feature Verification
+
 - [x] wire-backend feature: ✅ WORKING
 - [x] GraphQL Subscriptions: ✅ WORKING
 - [x] Rust-First Architecture: ✅ WORKING
 
 ### Documentation
+
 - [x] GitHub Issues Resolution Summary: ✅ CREATED
 - [x] Release Cleanup Assessment: ✅ CREATED
 - [x] Commit messages clear: ✅
 
 ### Git Hygiene
+
 - [x] Development artifacts removed: ✅
 - [x] Backup files removed: ✅
 - [x] Phase documentation removed: ✅
@@ -121,6 +129,7 @@
 **Recommended**: v2.0.0-alpha.3
 
 **Rationale**:
+
 - Bug fixes (issue #269)
 - Code quality improvements (clippy clean, cleanup)
 - Ready for broader testing
@@ -139,6 +148,7 @@
 ## Testing Guide for Reviewers
 
 ### Verify JSONB Fix (#269)
+
 ```bash
 # Run aggregation tests
 cargo test -p fraiseql-core --lib runtime::aggregation
@@ -147,6 +157,7 @@ cargo test -p fraiseql-core --lib runtime::aggregation
 ```
 
 ### Verify Cleanup
+
 ```bash
 # Verify no .phases directory
 ! [ -d .phases ]
@@ -159,6 +170,7 @@ git grep -i "Phase " | wc -l  # Should be 0 in code (documentation OK)
 ```
 
 ### Verify Build Quality
+
 ```bash
 # Check clippy warnings
 cargo clippy --all-targets --all-features -- -D warnings

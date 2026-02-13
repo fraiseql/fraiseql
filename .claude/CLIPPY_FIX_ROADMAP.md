@@ -32,8 +32,10 @@ cargo clippy --all-targets --all-features -- -D warnings
 ## Master Plan
 
 ### Phase 1: Audit & Catalog ✅
+
 **Status:** COMPLETE
 **Output:**
+
 - `CLIPPY_VIOLATIONS_CATALOG.md` - Detailed violation analysis
 - Top 10 affected files identified
 - Fix strategies documented
@@ -41,6 +43,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ---
 
 ### Phase 2: Fix assert!(true) Placeholders (PRIMARY WORK)
+
 **Scope:** 827 violations across test files
 **Effort:** 8-12 hours
 **Strategy:** TDD with per-batch verification
@@ -48,6 +51,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 **Batch Execution:**
 
 #### 2.1: Encryption Module Batch (117 violations)
+
 ```
 FILES (17 files × ~6-8 violations each):
 - field_encryption_tests.rs (17)
@@ -78,6 +82,7 @@ PROCESS:
 ---
 
 #### 2.2: Secrets/Auth Module Batch (27 violations)
+
 ```
 FILES:
 - secrets/schema_tests.rs (14)
@@ -92,6 +97,7 @@ Expected Output:** Auth tests verified
 ---
 
 #### 2.3: API/RBAC Module Batch (21 violations)
+
 ```
 FILES:
 - api/rbac_management/tests.rs (12)
@@ -107,6 +113,7 @@ Expected Output:** RBAC tests verified
 ---
 
 #### 2.4: Integration Tests Batch (8 violations)
+
 ```
 FILES:
 - tests/audit_logging_tests.rs (8)
@@ -120,11 +127,13 @@ Expected Output:** All integration tests verified
 ---
 
 ### Phase 3: Fix Remaining Violations (SECONDARY)
+
 **Scope:** Any non-assert!(true) violations
 **Effort:** 2-4 hours
 **Strategy:** Categorize and fix by violation type
 
 **Likely Issues:**
+
 - fraiseql-error formatting/casting issues
 - Unnecessary borrows
 - Length comparisons (`len() == 0` vs `.is_empty()`)
@@ -135,10 +144,12 @@ Expected Output:** All integration tests verified
 ---
 
 ### Phase 4: Final Verification
+
 **Scope:** Comprehensive testing and cleanup
 **Effort:** 1-2 hours
 
 **Checklist:**
+
 ```bash
 # ✅ All targets compile clean
 cargo clippy --all-targets --all-features -- -D warnings
@@ -191,6 +202,7 @@ Is this a FEATURE GATE/COMPILE-TIME test?
 ```
 
 **Quick Heuristic**:
+
 - 60% of cases → Remove (compilation is the test)
 - 30% of cases → Replace with specific assertion
 - 10% of cases → Mark incomplete with `#[ignore]`
@@ -202,6 +214,7 @@ Is this a FEATURE GATE/COMPILE-TIME test?
 ### Context: Constructor Test
 
 **BEFORE:**
+
 ```rust
 #[test]
 fn test_encryption_adapter_creation() {
@@ -211,6 +224,7 @@ fn test_encryption_adapter_creation() {
 ```
 
 **AFTER (Option 1 - Remove):**
+
 ```rust
 #[test]
 fn test_encryption_adapter_creation() {
@@ -220,6 +234,7 @@ fn test_encryption_adapter_creation() {
 ```
 
 **AFTER (Option 2 - Add Assertion):**
+
 ```rust
 #[test]
 fn test_encryption_adapter_creation() {
@@ -234,6 +249,7 @@ fn test_encryption_adapter_creation() {
 ### Context: Integration Test
 
 **BEFORE:**
+
 ```rust
 #[tokio::test]
 async fn test_audit_logging_setup() {
@@ -243,6 +259,7 @@ async fn test_audit_logging_setup() {
 ```
 
 **AFTER:**
+
 ```rust
 #[tokio::test]
 async fn test_audit_logging_setup() {
@@ -257,6 +274,7 @@ async fn test_audit_logging_setup() {
 ### Context: Feature Gate Test
 
 **BEFORE:**
+
 ```rust
 #[test]
 fn test_encryption_feature_enabled() {
@@ -266,6 +284,7 @@ fn test_encryption_feature_enabled() {
 ```
 
 **AFTER:**
+
 ```rust
 #[test]
 fn test_encryption_feature_enabled() {
@@ -306,6 +325,7 @@ CLEANUP:
 ## Success Criteria
 
 All MUST pass:
+
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings` → 0 errors
 - [ ] `cargo test --all-features` → All pass
 - [ ] `cargo check --all-targets --all-features` → Clean
@@ -318,12 +338,15 @@ All MUST pass:
 ## Risk Mitigation
 
 **Risk:** Breaking tests while changing assertions
+
 - **Mitigation:** Always run `cargo test` before moving to next file
 
 **Risk:** Over-aggressive removal of tests
+
 - **Mitigation:** Keep test functions if compilation proof is valid
 
 **Risk:** Creating verbose/redundant assertions
+
 - **Mitigation:** Prefer specific assertions over generic ones
 
 ---
@@ -347,6 +370,7 @@ All MUST pass:
 
 1. **Approve the plan** (this document)
 2. **Start Phase 2.1** with first file:
+
    ```bash
    # Begin with highest-count file
    vim crates/fraiseql-server/src/encryption/field_encryption_tests.rs
@@ -355,6 +379,7 @@ All MUST pass:
    cargo test --lib --all-features
    cargo clippy --all-features -- -D warnings
    ```
+
 3. **Track progress** by marking files complete
 4. **Commit after each batch** with summary message
 5. **Run full verification** at phase end
