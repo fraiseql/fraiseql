@@ -1,12 +1,17 @@
-# FraiseQL
+# FraiseQL v1 (Legacy)
 
-[![Quality Gate](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql/actions/workflows/quality-gate.yml)
-[![Documentation](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/docs.yml)
-[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql)](https://github.com/fraiseql/fraiseql/releases/latest)
+> ⚠️ **This is the legacy Python-based FraiseQL v1 project.** For new projects, use [FraiseQL v2](https://github.com/fraiseql/fraiseql) - a compiled Rust-based GraphQL execution engine.
+>
+> **v1 (Python-only):** `fraiseql-python` repository - Database-first GraphQL APIs in Python
+> **v2 (Rust-based):** `fraiseql` repository - Compiled GraphQL execution engine (recommended for new projects)
+
+[![Quality Gate](https://github.com/fraiseql/fraiseql-python/actions/workflows/quality-gate.yml/badge.svg?branch=dev)](https://github.com/fraiseql/fraiseql-python/actions/workflows/quality-gate.yml)
+[![Documentation](https://github.com/fraiseql/fraiseql-python/actions/workflows/docs.yml/badge.svg)](https://github.com/fraiseql/fraiseql-python/actions/workflows/docs.yml)
+[![Release](https://img.shields.io/github/v/release/fraiseql/fraiseql-python)](https://github.com/fraiseql/fraiseql-python/releases/latest)
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**v1.9.16** | **Stable** | **Rust-Powered GraphQL for PostgreSQL**
+**v1.9.16** | **Stable (Legacy)** | **Python GraphQL for PostgreSQL**
 
 **Python**: 3.13+ | **PostgreSQL**: 13+
 
