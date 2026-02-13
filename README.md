@@ -12,6 +12,23 @@ This is a **solo-authored project** with comprehensive testing (4,773+ tests, al
 
 ---
 
+## Project Structure
+
+This monorepo contains:
+
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| **fraiseql-core** | Core GraphQL engine (Rust) | ✅ v2.0.0-alpha.4 |
+| **fraiseql-server** | HTTP server & runtime | ✅ v2.0.0-alpha.4 |
+| **fraiseql-python** | Python schema authoring | ✅ v2.0.0-alpha.4 |
+| **fraiseql-typescript** | TypeScript SDK | ✅ v2.0.0-alpha.4 |
+| **fraiseql-arrow** | Apache Arrow Flight support | ✅ v2.0.0-alpha.4 |
+| **16+ Language SDKs** | Node, Go, Java, Ruby, PHP, etc. | ✅ Feature parity |
+
+For Python schema authoring details, see [`fraiseql-python/README.md`](fraiseql-python/README.md).
+
+---
+
 ## Is FraiseQL Right for You?
 
 **✅ FraiseQL is ideal if:**
@@ -685,7 +702,7 @@ If you're using FraiseQL v1, here's what changed:
 - 📖 [Full Documentation](https://fraiseql.readthedocs.io) — Comprehensive guides and API reference
 - 💬 [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) — Ask questions
 - 🐛 [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) — Report bugs or request features
-- 📧 Email: lionel.hamayon@evolution-digitale.fr
+- 📧 Email: team@fraiseql.dev
 
 ### Contribute
 - 🔧 [Contributing Guide](CONTRIBUTING.md) — How to contribute code
@@ -701,4 +718,18 @@ If you're using FraiseQL v1, here's what changed:
 
 ---
 
-**Made with ❤️ by the FraiseQL community**
+## License & Attribution
+
+**FraiseQL v2** is open source under the [MIT License](LICENSE).
+
+Copyright (c) 2024-2026 **Lionel Hamayon**, Évolution digitale
+
+Built with:
+- 🦀 Rust 1.70+ (runtime engine)
+- 🐍 Python 3.11+ (schema authoring)
+- 📊 Apache Arrow (columnar data)
+- 🔐 SecurityFirst principles
+
+---
+
+**FraiseQL**: Compile-time GraphQL, runtime efficiency.
