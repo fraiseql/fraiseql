@@ -1,6 +1,6 @@
 # FraiseQL v2
 
-**Version:** 2.0.0-alpha.1
+**Version:** 2.0.0-alpha.4
 **Status:** Alpha release available
 **Date:** February 2026
 
@@ -8,9 +8,9 @@
 
 FraiseQL v2 is a compiled GraphQL execution engine. It takes your GraphQL schema and database views, compiles them into optimized SQL at build time, then executes queries at runtime without interpretation.
 
-This is a **solo-authored project** with comprehensive testing (2,400+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
+This is a **solo-authored project** with comprehensive testing (4,773+ tests, all passing). The codebase is production-ready: strict type system (all critical Clippy warnings as errors), zero unsafe code, and validated against chaos engineering scenarios.
 
-See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
+See [`docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md`](docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md) for architecture details and contributing guidelines.
 
 ---
 
@@ -32,7 +32,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - No runtime interpretation of schema semantics (they're resolved at build)
 - Authorization rules are metadata, not code
 
-**What's included in v2.0.0-alpha.1:**
+**What's included in v2.0.0-alpha.4:**
 
 **Core GraphQL Engine:**
 
@@ -86,7 +86,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 
 **Quality & Testing:**
 
-- 2,400+ tests, all passing (unit, integration, E2E, chaos engineering)
+- 4,773+ tests, all passing (unit, integration, E2E, chaos engineering)
 - Zero unsafe code (forbidden at compile time)
 - Strict type system (all critical Clippy warnings as errors)
 - Comprehensive test coverage across all components
@@ -183,7 +183,7 @@ Additional security features:
 - Field-level authorization via GraphQL directives
 - Configurable via TOML with environment variable overrides for production
 
-See [`.claude/ARCHITECTURE_PRINCIPLES.md`](.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
+See [`docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md`](docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
 
 ---
 
@@ -248,7 +248,7 @@ That's the basic flow. For more examples and language-specific guides, see the d
 
 FraiseQL v2 supports 16+ programming languages for schema authoring. All produce the same intermediate schema format that compiles to identical runtime behavior.
 
-**Supported (v2.0.0-alpha.1):**
+**Supported (v2.0.0-alpha.4):**
 
 - Python ✅
 - TypeScript ✅
@@ -295,7 +295,7 @@ The project includes **251 markdown files with 70,000+ lines** of documentation:
 
 **Local Documentation:**
 
-- `.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
+- `docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns and principles
 - `docs/prd/PRD.md` — Product requirements and vision
 - `docs/alpha-testing-guide.md` — Alpha testing guide
 
@@ -363,13 +363,13 @@ FraiseQL provides two specialized ways to stream large result sets:
 
 **Reliability:** The codebase uses Rust's type system to prevent entire categories of bugs. No unsafe code (forbidden at compile time), all critical warnings treated as errors. Chaos engineering tests validate transaction consistency and recovery under failure scenarios. Field-level authorization is compiled as metadata, making it impossible to bypass via resolver tricks.
 
-**Maintainability:** Every feature has corresponding tests. The 2,400+ test suite covers unit tests, integration tests with real databases, E2E tests across all language SDKs, and chaos engineering scenarios. This means changes are validated end-to-end, not just at the unit level.
+**Maintainability:** Every feature has corresponding tests. The 4,773+ test suite covers unit tests, integration tests with real databases, E2E tests across all language SDKs, and chaos engineering scenarios. This means changes are validated end-to-end, not just at the unit level.
 
 ---
 
 ## Project Status
 
-Current release: **v2.0.0-alpha.1**
+Current release: **v2.0.0-alpha.4**
 
 **Core Features:**
 
@@ -408,7 +408,7 @@ Current release: **v2.0.0-alpha.1**
 
 **Quality (Complete):**
 
-- ✅ Comprehensive test suite (2,400+ tests: unit, integration, E2E, chaos engineering)
+- ✅ Comprehensive test suite (4,773+ tests: unit, integration, E2E, chaos engineering)
 - ✅ Zero unsafe code (forbidden at compile time)
 - ✅ Strict type system (all critical Clippy warnings as errors)
 - ✅ Production deployment guides and monitoring setup
