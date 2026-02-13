@@ -702,7 +702,7 @@ If you're using FraiseQL v1, here's what changed:
 - 📖 [Full Documentation](https://fraiseql.readthedocs.io) — Comprehensive guides and API reference
 - 💬 [GitHub Discussions](https://github.com/fraiseql/fraiseql/discussions) — Ask questions
 - 🐛 [GitHub Issues](https://github.com/fraiseql/fraiseql/issues) — Report bugs or request features
-- 📧 Email: team@fraiseql.dev
+- 📧 Email: lionel.hamayon@evolution-digitale.fr
 
 ### Contribute
 - 🔧 [Contributing Guide](CONTRIBUTING.md) — How to contribute code
