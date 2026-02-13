@@ -1,0 +1,42 @@
+/* FraiseQL Strawberry Theme - matches fraiseql.dev */
+:root {
+  /* Primary brand colors from fraiseql.dev */
+  --md-primary-fg-color: #e63946;
+  --md-primary-fg-color--light: #f25c66;
+  --md-primary-fg-color--dark: #c41e2c;
+  --md-accent-fg-color: #f25c66;
+}
+
+/* Slate (dark mode) adjustments */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #e63946;
+  --md-primary-fg-color--light: #f25c66;
+  --md-primary-fg-color--dark: #c41e2c;
+  --md-accent-fg-color: #f25c66;
+}
+
+/* Header - solid color matching primary */
+.md-header {
+  background: #e63946;
+}
+
+/* Tabs bar - match header color exactly */
+.md-tabs {
+  background: #e63946;
+}
+
+/* Tabs hover/active states */
+.md-tabs__link:hover,
+.md-tabs__link--active {
+  color: #fff;
+}
+
+/* Navigation links */
+.md-nav__link:hover {
+  color: #e63946;
+}
+
+/* Code highlight accent */
+.highlight .hll {
+  background-color: rgba(230, 57, 70, 0.1);
+}
