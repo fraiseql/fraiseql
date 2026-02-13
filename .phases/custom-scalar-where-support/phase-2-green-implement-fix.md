@@ -15,6 +15,7 @@ Implement the minimal code changes needed to make all the RED tests from Phase 1
 ## Context
 
 **Phase 1 Results**:
+
 - ✅ 8 unit tests FAIL (expect CIDRFilter, get StringFilter)
 - ✅ 6 integration tests FAIL (GraphQL type mismatch)
 - ✅ Root cause identified: `_get_filter_type_for_field()` doesn't detect custom scalars
@@ -26,11 +27,13 @@ Implement the minimal code changes needed to make all the RED tests from Phase 1
 ## Implementation Steps
 
 ### Step 1: Understand Current Filter Generation
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Review the `_get_filter_type_for_field()` function to understand how it currently works.
 
 **Key Points**:
+
 - Function takes `field_type` and returns appropriate filter class
 - Has special handling for built-in types (UUID, DateTime, etc.)
 - Defaults to `StringFilter` for unknown types
@@ -39,6 +42,7 @@ Implement the minimal code changes needed to make all the RED tests from Phase 1
 ---
 
 ### Step 2: Add Custom Scalar Detection
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Modify `_get_filter_type_for_field()` to detect custom scalars.
@@ -60,6 +64,7 @@ if isinstance(field_type, GraphQLScalarType):
 ---
 
 ### Step 3: Implement Custom Scalar Filter Creation
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Add `_create_custom_scalar_filter()` function.
@@ -114,6 +119,7 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
 ```
 
 **Dependencies**:
+
 - Import `GraphQLScalarType` from graphql
 - Import `make_dataclass` from dataclasses
 - Import `fraise_input` from fraiseql
@@ -122,11 +128,13 @@ def _create_custom_scalar_filter(scalar_type: GraphQLScalarType) -> type:
 ---
 
 ### Step 4: Add Global Cache
+
 **File**: `src/fraiseql/sql/graphql_where_generator.py`
 
 **Action**: Add the cache variable at module level.
 
 **Code**:
+
 ```python
 # Add near the top with other global variables
 _custom_scalar_filter_cache: dict[GraphQLScalarType, type] = {}
@@ -135,9 +143,11 @@ _custom_scalar_filter_cache: dict[GraphQLScalarType, type] = {}
 ---
 
 ### Step 5: Test the Implementation
+
 **Action**: Run the tests to see if they pass.
 
 **Commands**:
+
 ```bash
 # Run unit tests
 uv run pytest tests/unit/sql/test_custom_scalar_where_filters.py -v

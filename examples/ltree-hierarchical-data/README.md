@@ -5,26 +5,31 @@ Complete examples demonstrating PostgreSQL LTREE usage with FraiseQL for common 
 ## Examples Included
 
 ### 🏢 Organization Charts
+
 - Employee hierarchy management
 - Reporting structures
 - Department trees
 
 ### 📁 File Systems
+
 - Directory structures
 - File organization
 - Permission inheritance
 
 ### 🏷️ Category Management
+
 - Product catalogs
 - Content classification
 - Tag hierarchies
 
 ### 🌳 Biological Taxonomy
+
 - Species classification
 - Evolutionary trees
 - Biological hierarchies
 
 ### 🗂️ Document Management
+
 - Folder structures
 - Document classification
 - Archive organization
@@ -32,6 +37,7 @@ Complete examples demonstrating PostgreSQL LTREE usage with FraiseQL for common 
 ## Quick Start
 
 Each example includes:
+
 - **Database schema** with LTREE columns
 - **Sample data** population
 - **FraiseQL GraphQL schema** definition
@@ -105,6 +111,7 @@ query {
 ## Database Setup
 
 All examples require:
+
 - PostgreSQL with LTREE extension
 - GiST indexes on LTREE columns
 - FraiseQL installation
@@ -120,6 +127,7 @@ CREATE INDEX idx_path ON your_table USING GIST (path_column);
 ## Integration with FraiseQL
 
 Each example shows how to:
+
 - Define LTREE fields in FraiseQL schemas
 - Use all 23 LTREE operators in GraphQL
 - Optimize queries with database indexes
@@ -128,6 +136,7 @@ Each example shows how to:
 ## Real-World Use Cases
 
 ### E-commerce Catalog
+
 ```sql
 -- Product hierarchy: category > subcategory > product
 CREATE TABLE products (
@@ -139,6 +148,7 @@ CREATE TABLE products (
 ```
 
 ### Content Management
+
 ```sql
 -- Content hierarchy: site > section > article
 CREATE TABLE articles (
@@ -150,6 +160,7 @@ CREATE TABLE articles (
 ```
 
 ### Geographic Data
+
 ```sql
 -- Geographic hierarchy: country > state > city > district
 CREATE TABLE locations (

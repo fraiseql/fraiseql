@@ -12,12 +12,14 @@
 FraiseQL has achieved **85-90% GraphQL specification compliance** through targeted implementation of critical gaps. This report details the completion of two high-priority GraphQL spec compliance gaps that significantly enhance FraiseQL's query capabilities while maintaining its architectural integrity.
 
 **Key Accomplishments:**
+
 - ✅ **Nested Field Fragments** - Fragments now work in nested selections (not just root level)
 - ✅ **Fragment Cycle Detection** - Prevents circular fragment references with proper error handling
 - ✅ **Comprehensive Test Suite** - 10 test cases covering all fragment scenarios
 - ✅ **Architecture Validation** - Confirmed remaining "gaps" are intentionally not applicable
 
 **Business Impact:**
+
 - Enhanced developer experience with more flexible GraphQL queries
 - Improved query safety through cycle detection
 - Maintained FraiseQL's performance advantages
@@ -43,12 +45,14 @@ def process_selections(selections, document, variables):
 ```
 
 **Key Changes:**
+
 - `src/fraiseql/fastapi/routers.py`: Added `process_selections()` recursive function
 - Modified `_extract_root_query_fields()` to use recursive processing
 - Updated fragment expansion functions to handle nested contexts
 - Enhanced `extract_field_selections()` for proper field extraction
 
 **Test Coverage:**
+
 - ✅ `test_nested_fragment_spread()` - Basic nested fragment functionality
 - ✅ `test_deeply_nested_fragments()` - Multi-level nesting
 - ✅ `test_nested_fragment_with_alias()` - Aliases with nested fragments
@@ -69,12 +73,14 @@ def extract_field_selections(selection_set, document, variables, visited_fragmen
 ```
 
 **Key Changes:**
+
 - Enhanced `extract_field_selections()` with `visited_fragments` parameter
 - Added cycle detection in fragment spread expansion
 - Improved error propagation for critical validation errors
 - Maintained backward compatibility for valid fragments
 
 **Test Coverage:**
+
 - ✅ `test_fragment_cycle_detection()` - Direct A→B→A cycles
 - ✅ `test_fragment_self_reference_cycle()` - Self-referencing fragments
 - ✅ `test_deep_fragment_cycle()` - A→B→C→A chains
@@ -148,6 +154,7 @@ tests/unit/fastapi/test_multi_field_fragments.py::test_valid_fragment_no_cycle P
 ### Developer Experience Improvements
 
 **Before:**
+
 ```graphql
 # Limited fragment reuse - only at root level
 query {
@@ -157,6 +164,7 @@ query {
 ```
 
 **After:**
+
 ```graphql
 # Full fragment reuse at any nesting level
 fragment UserFields on User { id name }
@@ -175,6 +183,7 @@ query {
 ### Security Enhancements
 
 **DoS Protection:**
+
 - Circular fragment detection prevents infinite recursion
 - Hard failure on invalid fragments (no silent failures)
 - Protection against malicious fragment constructions
@@ -182,6 +191,7 @@ query {
 ### Performance Impact
 
 **Neutral Performance:**
+
 - Fragment processing adds minimal overhead (~1-2μs per query)
 - No impact on database queries (view pattern unchanged)
 - Cycle detection is O(1) for typical fragment counts
@@ -221,17 +231,20 @@ FraiseQL:               Query → View → Single Optimized Query
 ## Code Quality & Maintenance
 
 ### Pre-commit Verification
+
 ✅ Clippy strict mode: **PASS**
 ✅ Type checking: **PASS**
 ✅ Import sorting: **PASS**
 ✅ All linters: **PASS**
 
 ### Code Coverage
+
 - **New Tests**: 10 additional test cases
 - **Regression Tests**: All existing tests pass
 - **Coverage Impact**: +2% coverage on fragment handling
 
 ### Documentation Updates
+
 - Added comprehensive test cases with examples
 - Enhanced error messages for cycle detection
 - Maintained existing API documentation
@@ -241,6 +254,7 @@ FraiseQL:               Query → View → Single Optimized Query
 ## Release Preparation
 
 ### Version Recommendation
+
 **Current**: v1.8.5
 **Recommended**: v1.8.6 (minor version bump - new functionality, no breaking changes)
 
@@ -276,9 +290,11 @@ query {
 ```
 
 ### Testing
+
 - ✅ 10 new test cases covering all fragment scenarios
 - ✅ 100% test coverage on new functionality
 - ✅ Zero regressions in existing functionality
+
 ```
 
 ### Deployment Checklist

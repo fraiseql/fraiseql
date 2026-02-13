@@ -5,6 +5,7 @@ This directory contains automation scripts, utilities, and tools for the FraiseQ
 ## 📂 Directory Organization
 
 ### 🛠️ Development (`development/`)
+
 **Purpose**: Daily development workflow support
 **Usage**: Local development environment setup and maintenance
 
@@ -17,12 +18,14 @@ development/
 ```
 
 **When to use**:
+
 - Setting up development environment
 - Running type checks before commits
 - Starting local services for development
 - AI-assisted development workflows
 
 ### 🧪 Testing (`testing/`)
+
 **Purpose**: Test automation, optimization, and maintenance
 **Usage**: Test suite management and execution
 
@@ -37,12 +40,14 @@ testing/
 ```
 
 **When to use**:
+
 - Maintaining test suite quality
 - Converting test patterns
 - Running tests in isolated environments
 - Debugging test failures
 
 ### 🚀 Deployment (`deployment/`)
+
 **Purpose**: Build, package, and publish operations
 **Usage**: Preparing and releasing software packages
 
@@ -53,11 +58,13 @@ deployment/
 ```
 
 **When to use**:
+
 - Publishing new releases
 - Validating build processes
 - Package distribution
 
 ### ⚙️ Maintenance (`maintenance/`)
+
 **Purpose**: Repository maintenance and administration
 **Usage**: Repository health and structure management
 
@@ -68,11 +75,13 @@ maintenance/
 ```
 
 **When to use**:
+
 - Setting up new development branches
 - Configuring repository security
 - Maintaining repository structure
 
 ### 🔄 CI/CD (`ci-cd/`)
+
 **Purpose**: Continuous integration and release automation
 **Usage**: Automated release processes and validation
 
@@ -84,11 +93,13 @@ ci-cd/
 ```
 
 **When to use**:
+
 - Preparing software releases
 - Validating release candidates
 - Automating release workflows
 
 ### ✅ Verification (`verification/`)
+
 **Purpose**: Bug reproduction, verification, and validation
 **Usage**: Specific issue validation and network testing
 
@@ -99,6 +110,7 @@ verification/
 ```
 
 **When to use**:
+
 - Reproducing reported bugs
 - Validating bug fixes
 - Network-specific testing
@@ -106,6 +118,7 @@ verification/
 ## 🚀 Common Workflows
 
 ### Development Setup
+
 ```bash
 # Set up development environment
 ./scripts/development/start-postgres-daemon.sh
@@ -116,6 +129,7 @@ verification/
 ```
 
 ### Testing Workflows
+
 ```bash
 # Run comprehensive test suite
 ./scripts/testing/test-all-in-one-entrypoint.sh
@@ -128,6 +142,7 @@ python scripts/testing/clean_broken_tests.py
 ```
 
 ### Release Preparation
+
 ```bash
 # Validate build
 ./scripts/deployment/test-build.sh
@@ -140,6 +155,7 @@ python scripts/testing/clean_broken_tests.py
 ```
 
 ### Repository Maintenance
+
 ```bash
 # Set up new testing branch
 ./scripts/maintenance/create-testing-branch.sh feature-name
@@ -151,6 +167,7 @@ python scripts/testing/clean_broken_tests.py
 ## 🔧 Script Development Guidelines
 
 ### Script Organization Principles
+
 1. **Purpose-based grouping**: Scripts grouped by primary function
 2. **Clear naming**: Script names indicate functionality
 3. **Executable permissions**: Shell scripts marked executable
@@ -158,6 +175,7 @@ python scripts/testing/clean_broken_tests.py
 5. **Error handling**: Scripts fail fast with meaningful messages
 
 ### Adding New Scripts
+
 1. **Identify category**: Use the purpose-based directory structure
 2. **Follow naming conventions**: Use clear, descriptive names
 3. **Add documentation**: Include usage instructions and examples
@@ -165,6 +183,7 @@ python scripts/testing/clean_broken_tests.py
 5. **Test thoroughly**: Validate script works in clean environment
 
 ### Script Naming Conventions
+
 ```bash
 # Good script names
 setup-development-environment.sh    # Clear purpose
@@ -178,6 +197,7 @@ util.sh                           # Unclear purpose
 ```
 
 ### Cross-Platform Compatibility
+
 - **Shell scripts**: Use `#!/bin/bash` for Linux/macOS compatibility
 - **Python scripts**: Use `#!/usr/bin/env python3` shebang
 - **Path handling**: Use relative paths from repository root
@@ -186,6 +206,7 @@ util.sh                           # Unclear purpose
 ## 🛡️ Security Considerations
 
 ### Safe Script Practices
+
 1. **Input validation**: Validate all user inputs
 2. **Path safety**: Avoid path traversal vulnerabilities
 3. **Credential handling**: Never hardcode credentials
@@ -193,6 +214,7 @@ util.sh                           # Unclear purpose
 5. **Permission checks**: Verify required permissions
 
 ### Environment Variable Usage
+
 ```bash
 # Good: Use environment variables for configuration
 DATABASE_URL=${DATABASE_URL:-"postgresql://localhost:5432/fraiseql_test"}
@@ -207,6 +229,7 @@ fi
 ## 📋 Script Dependencies
 
 ### Common Requirements
+
 - **Python 3.8+**: For Python scripts
 - **Bash 4.0+**: For shell scripts
 - **PostgreSQL**: For database-related scripts
@@ -214,9 +237,11 @@ fi
 - **Git**: For version control operations
 
 ### Development Dependencies
+
 See `pyproject.toml` for complete Python dependencies.
 
 ### System Dependencies
+
 - `curl` - For HTTP operations
 - `jq` - For JSON processing
 - `grep`, `sed`, `awk` - For text processing
@@ -224,6 +249,7 @@ See `pyproject.toml` for complete Python dependencies.
 ## 🧹 Maintenance
 
 ### Regular Maintenance Tasks
+
 1. **Review unused scripts**: Remove obsolete automation
 2. **Update documentation**: Keep README current
 3. **Validate dependencies**: Ensure scripts work with current tools
@@ -231,13 +257,16 @@ See `pyproject.toml` for complete Python dependencies.
 5. **Security updates**: Review and update security practices
 
 ### Script Lifecycle Management
+
 - **Creation**: Follow organization and naming guidelines
 - **Evolution**: Update documentation when functionality changes
 - **Deprecation**: Mark deprecated scripts clearly
 - **Removal**: Archive or remove unused scripts
 
 ### Version-Specific Scripts
+
 Scripts tied to specific versions (like release testing) should:
+
 - Include version in filename
 - Document version requirements
 - Be archived after version EOL
@@ -245,6 +274,7 @@ Scripts tied to specific versions (like release testing) should:
 ## 🔍 Troubleshooting
 
 ### Common Issues
+
 | Problem | Likely Cause | Solution |
 |---------|--------------|----------|
 | Permission denied | Script not executable | `chmod +x script.sh` |
@@ -253,6 +283,7 @@ Scripts tied to specific versions (like release testing) should:
 | Path not found | Wrong working directory | Run from repository root |
 
 ### Getting Help
+
 1. **Script documentation**: Check script header comments
 2. **Usage patterns**: See workflow examples above
 3. **Dependencies**: Verify all requirements installed

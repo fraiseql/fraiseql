@@ -1,0 +1,167 @@
+# FraiseQL v2 Configuration
+# TOML-based schema for TOML-first workflow
+# Pairs with types.json from Python/TypeScript/Java SDKs
+
+[database]
+pool_size = 10
+ssl_mode = "prefer"
+timeout_seconds = 30
+url = "postgresql://localhost/fraiseql_dev"
+
+[fraiseql.analytics]
+enabled = true
+
+[fraiseql.analytics.metrics]
+collect_error_rates = true
+collect_field_usage = true
+collect_query_performance = true
+
+[fraiseql.caching]
+default_ttl_seconds = 300
+enabled = true
+
+[[fraiseql.caching.rules]]
+invalidate_on = ["User"]
+query = "users"
+ttl_seconds = 600
+
+[[fraiseql.caching.rules]]
+invalidate_on = ["Post"]
+query = "posts"
+ttl_seconds = 300
+
+[fraiseql.federation]
+enabled = false
+
+[fraiseql.mutations.createUser]
+description = "Create a new user"
+nullable = false
+operation = "CREATE"
+return_type = "User"
+returns_list = false
+sql_source = "INSERT INTO users (name, email) VALUES (?, ?) RETURNING *"
+
+[fraiseql.mutations.createUser.arguments]
+email = "String"
+name = "String"
+
+[fraiseql.mutations.deleteUser]
+description = "Delete a user"
+nullable = false
+operation = "DELETE"
+return_type = "Boolean"
+returns_list = false
+sql_source = "DELETE FROM users WHERE id = ? RETURNING true"
+
+[fraiseql.mutations.deleteUser.arguments]
+id = "String"
+
+[fraiseql.mutations.updateUser]
+description = "Update an existing user"
+nullable = true
+operation = "UPDATE"
+return_type = "User"
+returns_list = false
+sql_source = "UPDATE users SET name = ?, email = ? WHERE id = ? RETURNING *"
+
+[fraiseql.mutations.updateUser.arguments]
+email = "String"
+id = "String"
+name = "String"
+
+[fraiseql.observers.userCreated]
+description = "Send welcome email when user is created"
+entity = "User"
+event = "INSERT"
+
+[[fraiseql.observers.userCreated.actions]]
+method = "POST"
+timeout_ms = 5000
+type = "webhook"
+url = "https://api.example.com/webhooks/user-created"
+
+[[fraiseql.observers.userCreated.actions]]
+channel = "#user-events"
+message = "New user created: {name} ({email})"
+type = "slack"
+
+[fraiseql.observers.userDeleted]
+description = "Archive user data when deleted"
+entity = "User"
+event = "DELETE"
+
+[[fraiseql.observers.userDeleted.actions]]
+method = "POST"
+type = "webhook"
+url = "https://api.example.com/webhooks/user-deleted"
+
+[fraiseql.observers.userDeleted.retry]
+initial_delay_ms = 100
+max_attempts = 5
+max_delay_ms = 60000
+multiplier = 2.0
+
+[fraiseql.observers.userUpdated]
+condition = "email.changed()"
+description = "Log email changes for audit"
+entity = "User"
+event = "UPDATE"
+
+[[fraiseql.observers.userUpdated.actions]]
+method = "POST"
+type = "webhook"
+url = "https://api.example.com/webhooks/user-updated"
+
+[fraiseql.queries.posts]
+description = "Get all posts"
+nullable = false
+return_type = "Post"
+returns_list = true
+sql_source = "SELECT * FROM posts"
+
+[fraiseql.queries.posts.arguments]
+limit = "Int"
+offset = "Int"
+
+[fraiseql.queries.user]
+description = "Get user by ID"
+nullable = true
+return_type = "User"
+returns_list = false
+sql_source = "SELECT * FROM users WHERE id = ?"
+
+[fraiseql.queries.user.arguments]
+id = "String"
+
+[fraiseql.queries.users]
+description = "Get all users"
+nullable = false
+return_type = "User"
+returns_list = true
+sql_source = "SELECT * FROM users"
+
+[fraiseql.queries.users.arguments]
+limit = "Int"
+offset = "Int"
+
+[fraiseql.security]
+enabled = true
+
+[fraiseql.security.audit_logging]
+enabled = true
+log_auth_attempts = true
+log_level = "info"
+log_mutations = true
+
+[fraiseql.security.rate_limiting]
+auth_start_max_requests = 100
+auth_start_window_secs = 60
+authenticated_max_requests = 1000
+authenticated_window_secs = 60
+enabled = true
+
+[schema]
+database_target = "postgresql"
+description = "Example e-commerce GraphQL API with types from language SDKs"
+name = "E-commerce API"
+version = "2.0"

@@ -143,6 +143,7 @@ pytest tests/integration/graphql/mutations/ -v
 ## File Tracking
 
 ### New Files (Phases 1-3)
+
 - `fraiseql_rs/src/mutation/mod.rs`
 - `fraiseql_rs/src/mutation/types.rs`
 - `fraiseql_rs/src/mutation/parser.rs`
@@ -151,11 +152,13 @@ pytest tests/integration/graphql/mutations/ -v
 - `fraiseql_rs/src/mutation/tests.rs` (Phase 5)
 
 ### Files to Delete (Phase 4)
+
 - `src/fraiseql/mutations/entity_flattener.py` ❌
 - `src/fraiseql/mutations/parser.py` ❌
 - `tests/unit/mutations/test_entity_flattener.py` ❌
 
 ### Files to Update (Phase 4)
+
 - `src/fraiseql/mutations/rust_executor.py` (simplify)
 - `src/fraiseql/mutations/mutation_decorator.py` (return dicts)
 - `tests/unit/mutations/test_rust_executor.py` (minor updates)

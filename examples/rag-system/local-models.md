@@ -5,6 +5,7 @@ This guide shows how to use the RAG system with local embedding models instead o
 ## Why Local Models?
 
 **Benefits:**
+
 - ✅ **No API costs** - Run entirely on your hardware
 - ✅ **Data privacy** - All processing stays local
 - ✅ **Faster for small documents** - No network latency
@@ -12,6 +13,7 @@ This guide shows how to use the RAG system with local embedding models instead o
 - ✅ **Unlimited usage** - No rate limits or quotas
 
 **Trade-offs:**
+
 - ⚠️ Requires GPU for good performance
 - ⚠️ Different embedding dimensions (384 vs 1536)
 - ⚠️ Slightly lower quality than OpenAI ada-002
@@ -395,6 +397,7 @@ CPU inference is 10-50x slower than GPU. Consider:
 - **Operating cost: ~$0.86/day** (if buying GPU) or **~$12/day** (cloud GPU)
 
 **Break-even (rule of thumb):** Local typically makes sense if:
+
 - You already have a GPU
 - High volume (>100K searches/month)
 - Data privacy requirements

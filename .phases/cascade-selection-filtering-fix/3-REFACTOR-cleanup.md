@@ -9,6 +9,7 @@
 ## Context
 
 Phase 2 implemented a minimal fix. Now we refactor to:
+
 - Improve code organization
 - Add proper error handling
 - Enhance type safety
@@ -35,6 +36,7 @@ Phase 2 implemented a minimal fix. Now we refactor to:
 **File**: `fraiseql_rs/src/mutation/cascade_filter.rs`
 
 **Improvements**:
+
 1. Add comprehensive error handling
 2. Improve camelCase conversion
 3. Add type safety for field filtering
@@ -273,6 +275,7 @@ mod tests {
 ```
 
 **Run tests after this step**:
+
 ```bash
 cd fraiseql-rs && cargo test
 uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
@@ -285,6 +288,7 @@ uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 **File**: `fraiseql_rs/src/mutation/response_builder.rs`
 
 **Improvements**:
+
 1. Extract CASCADE handling to dedicated function
 2. Improve error messages
 3. Simplify conditional logic
@@ -326,6 +330,7 @@ add_cascade_if_selected(&mut obj, result, cascade_selections, auto_camel_case)?;
 ```
 
 **Run tests**:
+
 ```bash
 cd fraiseql-rs && cargo build
 uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
@@ -338,6 +343,7 @@ uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 **File**: `fraiseql/mutations/executor.py`
 
 **Improvements**:
+
 1. Extract CASCADE selection logic to helper method
 2. Add type hints
 3. Improve variable names
@@ -365,6 +371,7 @@ result_bytes = build_mutation_response(
 ```
 
 **Run tests**:
+
 ```bash
 uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 uv run pytest tests/integration/test_graphql_cascade.py -xvs
@@ -377,6 +384,7 @@ uv run pytest tests/integration/test_graphql_cascade.py -xvs
 **File**: `fraiseql/mutations/cascade_selections.py`
 
 **Improvements**:
+
 1. Add comprehensive type hints
 2. Improve function documentation
 3. Add edge case handling
@@ -430,6 +438,7 @@ def _find_cascade_in_fragment(fragment: InlineFragmentNode) -> Optional[FieldNod
 ```
 
 **Run tests**:
+
 ```bash
 uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 ```
@@ -441,6 +450,7 @@ uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 **File**: `fraiseql_rs/src/mutation/cascade_filter.rs`
 
 **Optimizations**:
+
 1. Avoid unnecessary clones
 2. Use efficient data structures
 3. Short-circuit when possible
@@ -467,6 +477,7 @@ pub fn filter_cascade_by_selections(
 ```
 
 **Run benchmarks** (if available):
+
 ```bash
 cd fraiseql-rs && cargo bench
 ```

@@ -32,6 +32,7 @@ uv run pytest tests/ -v --tb=short
 **Expected**: All tests pass, no regressions
 
 **Pay attention to**:
+
 - `tests/regression/` - All regression tests should pass
 - `tests/integration/graphql/` - GraphQL execution tests
 - `tests/integration/rust/` - Rust binding tests
@@ -127,6 +128,7 @@ print(json.dumps(response, indent=2))
 ```
 
 **Expected Output**:
+
 ```
 === to_camel_case ===
 smtp_server -> smtpServer

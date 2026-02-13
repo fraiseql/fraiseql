@@ -9,6 +9,7 @@
 As a DevOps engineer, you're responsible for deploying, monitoring, and maintaining FraiseQL applications in production. This journey covers deployment patterns, observability setup, incident response, and operational best practices.
 
 By the end of this journey, you'll have:
+
 - Production-ready deployment configurations
 - Complete observability stack (metrics, logs, traces)
 - Health checks and readiness probes configured
@@ -25,6 +26,7 @@ By the end of this journey, you'll have:
 **Read:** [Production Deployment Guide](../production/deployment/)
 
 **Production Architecture:**
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     Load Balancer                        │
@@ -53,6 +55,7 @@ By the end of this journey, you'll have:
 ```
 
 **Key Components:**
+
 - **FraiseQL Pods:** Stateless Python application (3+ replicas)
 - **PostgreSQL:** Primary for writes, read replicas for queries
 - **Connection Pooling:** PgBouncer between FraiseQL and PostgreSQL
@@ -69,6 +72,7 @@ By the end of this journey, you'll have:
 **Essential Checks:**
 
 #### Security & Compliance
+
 - [ ] Security profile configured (STANDARD/REGULATED/RESTRICTED)
 - [ ] HTTPS enforced (no HTTP allowed)
 - [ ] Database credentials rotated
@@ -77,6 +81,7 @@ By the end of this journey, you'll have:
 - [ ] SLSA provenance verified (for compliance)
 
 #### Database
+
 - [ ] Connection pooling configured (20-50 connections per pod)
 - [ ] Database backups automated (RTO/RPO acceptable)
 - [ ] Views (v_*) created and tested
@@ -85,6 +90,7 @@ By the end of this journey, you'll have:
 - [ ] Read replicas configured (for read-heavy workloads)
 
 #### Application Configuration
+
 - [ ] Environment variables secured (Kubernetes secrets)
 - [ ] Resource limits set (CPU/memory)
 - [ ] Health checks configured (/health endpoint)
@@ -92,6 +98,7 @@ By the end of this journey, you'll have:
 - [ ] Liveness probes configured (process health)
 
 #### Observability
+
 - [ ] Prometheus metrics endpoint enabled
 - [ ] Grafana dashboards configured
 - [ ] Loki (or equivalent) for log aggregation
@@ -99,6 +106,7 @@ By the end of this journey, you'll have:
 - [ ] Distributed tracing enabled (OpenTelemetry)
 
 **Example Configuration:**
+
 ```yaml
 # kubernetes/deployment.yaml
 apiVersion: apps/v1
@@ -158,6 +166,7 @@ spec:
 **PostgreSQL Production Configuration:**
 
 **1. Connection Pooling with PgBouncer:**
+
 ```ini
 # pgbouncer.ini
 [databases]
@@ -171,11 +180,13 @@ reserve_pool_size = 5
 ```
 
 **Why PgBouncer?**
+
 - Reduces PostgreSQL connection overhead
 - Handles 200+ clients with 25 actual DB connections
 - Transaction pooling for stateless queries
 
 **2. PostgreSQL Configuration:**
+
 ```conf
 # postgresql.conf
 max_connections = 100
@@ -190,6 +201,7 @@ log_line_prefix = '%t [%p]: [%l-1] db=%d,user=%u,app=%a,client=%h '
 ```
 
 **3. Read Replica Configuration:**
+
 ```yaml
 # kubernetes/postgres-replica.yaml
 apiVersion: apps/v1
@@ -211,6 +223,7 @@ spec:
 ```
 
 **Connection String Routing:**
+
 ```python
 # FraiseQL configuration
 from fraiseql import create_fraiseql_app
@@ -226,6 +239,7 @@ app = create_fraiseql_app(
 > **Note:** Explicit connection pooling parameters (pool_size, pool_max_overflow) are planned for `create_fraiseql_app()` in WP-027.
 
 **4. Backup Configuration:**
+
 ```bash
 # Automated backups with pg_dump
 #!/bin/bash
@@ -238,6 +252,7 @@ find /backups -name "fraiseql_*.dump" -mtime +7 -delete
 ```
 
 **Kubernetes CronJob:**
+
 ```yaml
 apiVersion: batch/v1
 kind: CronJob
@@ -282,6 +297,7 @@ fraiseql_cache_misses_total
 ```
 
 **Prometheus Configuration:**
+
 ```yaml
 # prometheus.yaml
 scrape_configs:
@@ -304,11 +320,13 @@ scrape_configs:
 **Read:** [Monitoring Setup](../production/monitoring/)
 
 Pre-built dashboards available in `deployments/grafana/`:
+
 - `fraiseql-overview.json` - High-level health metrics
 - `fraiseql-database.json` - PostgreSQL performance
 - `fraiseql-graphql.json` - GraphQL query analysis
 
 **Import Dashboards:**
+
 ```bash
 # Import FraiseQL dashboards
 kubectl create configmap grafana-dashboards \
@@ -321,6 +339,7 @@ kubectl create configmap grafana-dashboards \
 **Read:** [Loki Integration](../production/loki-integration/)
 
 **Loki Configuration:**
+
 ```yaml
 # promtail.yaml
 clients:
@@ -347,6 +366,7 @@ scrape_configs:
 ```
 
 **Structured Logging in FraiseQL:**
+
 ```json
 {
   "timestamp": "2025-12-08T14:30:00Z",
@@ -374,6 +394,7 @@ python app.py
 ```
 
 **Trace Context Propagation:**
+
 - HTTP headers: `traceparent`, `tracestate`
 - Database queries tagged with trace_id
 - Cross-service correlation
@@ -389,6 +410,7 @@ python app.py
 **Health Check Endpoints:**
 
 **1. Liveness Probe (`/health`):**
+
 ```bash
 curl http://localhost:8000/health
 
@@ -459,6 +481,7 @@ groups:
 ```
 
 **4. Alerting Channels:**
+
 ```yaml
 # alertmanager.yaml
 receivers:
@@ -493,6 +516,7 @@ route:
 **Deployment Strategies:**
 
 **1. Blue-Green Deployment (Recommended):**
+
 ```bash
 # Deploy new version (green)
 kubectl apply -f deployment-green.yaml
@@ -512,6 +536,7 @@ kubectl patch service fraiseql-api -p '{"spec":{"selector":{"version":"blue"}}}'
 ```
 
 **2. Canary Deployment:**
+
 ```yaml
 # Istio VirtualService
 apiVersion: networking.istio.io/v1beta1
@@ -542,6 +567,7 @@ spec:
 ```
 
 **3. Rolling Update (Default):**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -554,6 +580,7 @@ spec:
 ```
 
 **Deployment Checklist:**
+
 - [ ] Run smoke tests in staging
 - [ ] Review recent production metrics (baseline)
 - [ ] Notify team in Slack
@@ -564,6 +591,7 @@ spec:
 - [ ] Update runbook if needed
 
 **Rollback Plan:**
+
 ```bash
 # Quick rollback to previous version
 kubectl rollout undo deployment/fraiseql-api
@@ -583,6 +611,7 @@ kubectl rollout status deployment/fraiseql-api
 **Common Incidents & Resolution:**
 
 **Incident 1: High Error Rate**
+
 ```bash
 # 1. Check recent deployments
 kubectl rollout history deployment/fraiseql-api
@@ -598,6 +627,7 @@ kubectl rollout undo deployment/fraiseql-api
 ```
 
 **Incident 2: Slow Response Times**
+
 ```bash
 # 1. Check database query performance
 psql $DATABASE_URL -c "
@@ -618,6 +648,7 @@ kubectl scale deployment fraiseql-api --replicas=6
 ```
 
 **Incident 3: Database Connection Pool Exhausted**
+
 ```bash
 # 1. Check current pool usage
 curl http://fraiseql:8000/metrics | grep db_connections
@@ -638,6 +669,7 @@ kubectl set env deployment/fraiseql-api DATABASE_POOL_SIZE=40
 ```
 
 **Incident 4: Memory Leak / OOM**
+
 ```bash
 # 1. Check memory usage
 kubectl top pods -l app=fraiseql
@@ -652,6 +684,7 @@ kubectl delete pod fraiseql-pod-abc123
 ```
 
 **On-Call Checklist:**
+
 - [ ] Access to Kubernetes cluster (kubectl configured)
 - [ ] Access to Grafana/Prometheus dashboards
 - [ ] Access to Loki logs
@@ -669,6 +702,7 @@ kubectl delete pod fraiseql-pod-abc123
 **Goal:** Optimize for scale and cost efficiency
 
 **Horizontal Scaling:**
+
 ```yaml
 # Horizontal Pod Autoscaler
 apiVersion: autoscaling/v2
@@ -711,6 +745,7 @@ spec:
 ```
 
 **Database Scaling:**
+
 ```bash
 # Read replicas for read-heavy workloads
 # Route reads to replicas, writes to primary
@@ -719,6 +754,7 @@ DATABASE_URL_READ="postgresql://replica:5432/fraiseql"
 ```
 
 **Cost Optimization:**
+
 ```yaml
 # Use spot instances for non-critical environments
 nodeSelector:
@@ -735,6 +771,7 @@ resources:
 ```
 
 **Performance Tuning:**
+
 1. **Enable Rust pipeline** (7-10x JSON performance)
 2. **Database connection pooling** (PgBouncer)
 3. **Read replicas** for query-heavy loads
@@ -756,18 +793,21 @@ resources:
 ## Next Steps
 
 ### Immediate Actions
+
 1. **Run through checklist:** Complete pre-deployment checklist
 2. **Deploy to staging:** Validate configuration
 3. **Load test:** Verify scaling behavior
 4. **Practice incident response:** Simulate common failures
 
 ### Advanced Topics
+
 - **Multi-region deployment:** Active-active for HA
 - **Disaster recovery:** Cross-region backups and failover
 - **Cost optimization:** Reserved instances, spot nodes
 - **GitOps workflow:** ArgoCD or Flux for declarative deployments
 
 ### Community Resources
+
 - **Discord:** Ask DevOps questions in #deployment channel
 - **Examples:** `deployments/kubernetes/` - Production manifests
 - **Blog:** Case studies of large-scale deployments
@@ -777,12 +817,14 @@ resources:
 ### Common Issues
 
 **Pods not starting:**
+
 ```bash
 kubectl describe pod fraiseql-pod-abc123
 kubectl logs fraiseql-pod-abc123
 ```
 
 **Database connection failures:**
+
 ```bash
 # Check database is accessible
 kubectl exec -it fraiseql-pod -- psql $DATABASE_URL -c "SELECT 1"
@@ -792,6 +834,7 @@ kubectl get secret db-secrets -o yaml
 ```
 
 **Metrics not appearing in Prometheus:**
+
 ```bash
 # Check Prometheus is scraping
 curl http://prometheus:9090/api/v1/targets
@@ -801,6 +844,7 @@ kubectl exec -it fraiseql-pod -- curl localhost:8000/metrics
 ```
 
 **High memory usage:**
+
 - Check for memory leaks in custom code
 - Reduce connection pool size
 - Tune Python garbage collection
@@ -808,6 +852,7 @@ kubectl exec -it fraiseql-pod -- curl localhost:8000/metrics
 ## Summary
 
 You now have:
+
 - ✅ Production-ready Kubernetes deployment
 - ✅ Complete observability stack
 - ✅ Health checks and monitoring configured

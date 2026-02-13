@@ -135,6 +135,7 @@ pytest tests/integration/enterprise/
 ### Common Issues
 
 **Tests can't connect to database:**
+
 ```bash
 # Check PostgreSQL is running
 pg_isready -h localhost -p 5432
@@ -148,6 +149,7 @@ createdb fraiseql_test
 ```
 
 **Vault tests failing:**
+
 ```bash
 # Check Vault is running
 curl http://localhost:8200/v1/sys/health
@@ -161,6 +163,7 @@ docker restart vault
 ```
 
 **Import errors:**
+
 ```bash
 # Reinstall in development mode
 pip install -e ".[dev,all]"
@@ -228,6 +231,7 @@ def test_feature():
 ```
 
 Available fixtures:
+
 - `test_config`: Default testing configuration
 - `development_config`: Development environment
 - `production_config`: Production-like settings
@@ -341,16 +345,19 @@ pytest -m 'requires_vault or requires_auth0' \
 ### Test Failures
 
 **Database connection issues:**
+
 - Ensure PostgreSQL is running
 - Check DATABASE_URL environment variable
 - Verify database exists and is accessible
 
 **Import errors:**
+
 - Reinstall package in development mode
 - Check Python path includes src/
 - Verify all dependencies are installed
 
 **Fixture errors:**
+
 - Check fixture is defined in conftest.py
 - Ensure proper marker usage
 - Verify fixture dependencies are available
@@ -358,11 +365,13 @@ pytest -m 'requires_vault or requires_auth0' \
 ### Performance Issues
 
 **Slow tests:**
+
 - Use markers to skip slow tests during development
 - Run tests in parallel with pytest-xdist
 - Profile with pytest --profile
 
 **Memory issues:**
+
 - Use database fixtures that clean up after tests
 - Avoid loading large datasets in memory
 - Use streaming for large result sets
@@ -370,6 +379,7 @@ pytest -m 'requires_vault or requires_auth0' \
 ### Common Error Messages
 
 **"fixture 'db_connection' not found":**
+
 ```bash
 # Add the postgres marker
 @pytest.mark.requires_postgres
@@ -378,12 +388,14 @@ def test_something(db_connection):
 ```
 
 **"No module named 'fraiseql'":**
+
 ```bash
 # Install in development mode
 pip install -e .
 ```
 
 **"Connection refused":**
+
 ```bash
 # Check PostgreSQL is running
 pg_isready -h localhost -p 5432

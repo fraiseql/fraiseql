@@ -5,16 +5,19 @@
 A comprehensive demonstration of all three ways to register GraphQL queries in FraiseQL, showing the evolution from explicit registration to automatic discovery.
 
 **What you'll learn:**
+
 - Three different approaches to query registration
 - Pros and cons of each registration method
 - When to use each pattern in real applications
 - Best practices for organizing GraphQL resolvers
 
 **Prerequisites:**
+
 - `../blog_simple/` - Basic FraiseQL concepts
 - Understanding of GraphQL queries and resolvers
 
 **Next steps:**
+
 - `../blog_api/` - Enterprise patterns with mutations
 - `../enterprise_patterns/` - Advanced enterprise features
 
@@ -67,6 +70,7 @@ query {
 ```
 
 ### When to Use
+
 - ✅ New projects
 - ✅ Simple to complex applications
 - ✅ Automatic registration (no manual lists)
@@ -105,6 +109,7 @@ query {
 ```
 
 ### When to Use
+
 - ✅ Migrating from other GraphQL libraries
 - ✅ Complex query hierarchies
 - ✅ Need method-based organization
@@ -145,6 +150,7 @@ query {
 ```
 
 ### When to Use
+
 - ✅ Need explicit control over what's exposed
 - ✅ Dynamic query registration
 - ✅ Complex routing logic
@@ -191,12 +197,14 @@ Visit http://localhost:8000/graphql for GraphQL Playground.
 ### Automatic vs Explicit Registration
 
 **@fraiseql.query decorator:**
+
 - Zero-configuration registration
 - Functions are discovered automatically
 - Clean separation of concerns
 - Best for most applications
 
 **Explicit registration:**
+
 - Complete control over API surface
 - Can conditionally register queries
 - Better for complex security requirements

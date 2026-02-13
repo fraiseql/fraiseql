@@ -11,6 +11,7 @@ This document outlines the methodology used for FraiseQL performance benchmarkin
 ### Test System Specifications
 
 **Primary Benchmark System**:
+
 - **CPU**: AMD Ryzen 7 5800X (8 cores, 16 threads)
 - **RAM**: 32GB DDR4-3200
 - **Storage**: Samsung 980 PRO NVMe SSD (1TB)
@@ -18,6 +19,7 @@ This document outlines the methodology used for FraiseQL performance benchmarkin
 - **Kernel**: 6.16.6-arch1-1
 
 **Cloud Benchmark System** (for production simulation):
+
 - **Provider**: DigitalOcean
 - **Instance**: Basic-2 (2 AMD vCPUs, 2GB RAM)
 - **Storage**: 55GB NVMe SSD
@@ -27,18 +29,21 @@ This document outlines the methodology used for FraiseQL performance benchmarkin
 ### Software Versions
 
 **Core Components**:
+
 - **PostgreSQL**: 15.8
 - **Python**: 3.13.0
 - **Rust**: 1.82.0
 - **FraiseQL**: v0.11.4-dev (benchmark branch)
 
 **Python Dependencies** (key packages):
+
 - **fastapi**: 0.115.0
 - **uvicorn**: 0.32.0
 - **psycopg**: 3.2.3
 - **pydantic**: 2.9.0
 
 **System Libraries**:
+
 - **OpenSSL**: 3.4.0
 - **libpq**: 15.8
 
@@ -89,6 +94,7 @@ config = FraiseQLConfig(
 ### Dataset Specifications
 
 **Primary Test Dataset**:
+
 - **Users**: 10,000 records
 - **Posts**: 50,000 records (avg 5 posts per user)
 - **Comments**: 100,000 records (avg 2 comments per post)
@@ -96,6 +102,7 @@ config = FraiseQLConfig(
 - **Tags**: 1,000 records
 
 **Data Distribution**:
+
 - User creation dates: Normal distribution over 2 years
 - Post lengths: Pareto distribution (80% short, 20% long)
 - Comment nesting: 70% top-level, 30% replies
@@ -153,6 +160,7 @@ CREATE TABLE tv_user (
 ### Data Generation
 
 **Synthetic Data Generation**:
+
 ```python
 # Generate realistic test data
 from benchmarks.data_generator import generate_test_data
@@ -170,6 +178,7 @@ users = generate_test_data(
 ```
 
 **Data Validation**:
+
 - All foreign keys valid
 - No orphaned records
 - Realistic data distributions
@@ -184,18 +193,21 @@ users = generate_test_data(
 **Purpose**: Measure JSON transformation performance (Rust vs Python)
 
 **Methodology**:
+
 1. **Pre-generate JSON payloads** (1KB, 10KB, 100KB sizes)
 2. **Warm-up phase**: 10 iterations discarded
 3. **Measurement phase**: 100 iterations per test case
 4. **Statistical analysis**: Mean, median, 95th percentile
 
 **Test Cases**:
+
 - **Simple**: 10 fields, flat structure
 - **Medium**: 42 fields, moderate nesting
 - **Nested**: User + 15 posts (deep relationships)
 - **Large**: 100+ fields, complex nesting
 
 **Measurement Code**:
+
 ```python
 import time
 from fraiseql.core.transform import transform_json
@@ -224,6 +236,7 @@ print(f"95th percentile: {np.percentile(times, 95):.4f}ms")
 **Purpose**: Measure complete request-response cycle
 
 **Methodology**:
+
 1. **Start PostgreSQL** with benchmark configuration
 2. **Launch FraiseQL server** with test configuration
 3. **Warm-up phase**: 50 requests to populate caches
@@ -231,12 +244,14 @@ print(f"95th percentile: {np.percentile(times, 95):.4f}ms")
 5. **Concurrent testing**: Multiple threads to simulate load
 
 **Test Scenarios**:
+
 - **Cold query**: No caching, first execution
 - **APQ cached**: Automatic Persisted Queries enabled
 - **TurboRouter**: Pre-compiled query templates
 - **JSON passthrough**: Direct database JSONB output
 
 **Load Testing**:
+
 ```bash
 # Simulate concurrent users
 ab -n 1000 -c 10 http://localhost:8000/graphql \
@@ -249,12 +264,14 @@ ab -n 1000 -c 10 http://localhost:8000/graphql \
 **Purpose**: Measure APQ cache effectiveness
 
 **Methodology**:
+
 1. **Query diversity simulation**: Generate 100 unique queries
 2. **Cache warming**: Execute each query once
 3. **Measurement phase**: Execute queries with 80/20 distribution
 4. **Hit rate calculation**: Monitor cache statistics
 
 **Cache Configurations Tested**:
+
 - **Memory backend**: Fast, restart-cleared
 - **PostgreSQL backend**: Persistent, multi-instance
 
@@ -265,11 +282,13 @@ ab -n 1000 -c 10 http://localhost:8000/graphql \
 ### Measurement Accuracy
 
 **Timing Precision**:
+
 - **Resolution**: Nanosecond precision (`time.perf_counter_ns()`)
 - **Accuracy**: ±0.001ms for sub-millisecond measurements
 - **System noise**: <0.1ms variation under controlled conditions
 
 **Statistical Methods**:
+
 - **Sample size**: Minimum 100 measurements per test
 - **Outlier removal**: 5% trimmed mean for robust statistics
 - **Confidence intervals**: 95% confidence level reported
@@ -278,12 +297,14 @@ ab -n 1000 -c 10 http://localhost:8000/graphql \
 ### Performance Variability
 
 **Sources of Variance**:
+
 - **System load**: CPU scheduling, I/O operations
 - **Memory pressure**: Garbage collection pauses
 - **Network latency**: Database connection overhead
 - **Disk I/O**: Page cache warm-up
 
 **Variance Mitigation**:
+
 - **Dedicated benchmark system**: No other processes
 - **Warm-up phases**: Stabilize performance
 - **Multiple runs**: Average across 3-5 benchmark sessions
@@ -296,6 +317,7 @@ ab -n 1000 -c 10 http://localhost:8000/graphql \
 ### Environment Setup
 
 **1. System Preparation**:
+
 ```bash
 # Install system dependencies
 sudo pacman -S postgresql python rustup  # Arch Linux
@@ -308,6 +330,7 @@ createdb fraiseql_benchmark
 ```
 
 **2. Project Setup**:
+
 ```bash
 # Clone and setup
 git clone https://github.com/fraiseql/fraiseql.git
@@ -319,6 +342,7 @@ pip install -e .[rust]
 ```
 
 **3. Database Setup**:
+
 ```bash
 # Start PostgreSQL with benchmark config
 pg_ctl -D /tmp/pgdata start
@@ -333,6 +357,7 @@ python benchmarks/setup_test_data.py
 ### Running Benchmarks
 
 **Transformation Benchmarks**:
+
 ```bash
 # Rust vs Python transformation
 uv run python benchmarks/rust_vs_python_benchmark.py
@@ -341,6 +366,7 @@ uv run python benchmarks/rust_vs_python_benchmark.py
 ```
 
 **End-to-End Benchmarks**:
+
 ```bash
 # Requires running PostgreSQL
 DATABASE_URL=postgresql://localhost/fraiseql_test \
@@ -350,6 +376,7 @@ uv run python benchmarks/database_transformation_benchmark.py
 ```
 
 **Cache Benchmarks**:
+
 ```bash
 # APQ cache performance
 uv run python benchmarks/apq_cache_benchmark.py
@@ -361,12 +388,14 @@ uv run python benchmarks/apq_cache_benchmark.py
 
 **System Variability Notice**:
 Results may vary ±20% between different systems due to:
+
 - CPU microarchitecture differences
 - Memory speed and latency
 - Storage performance
 - Operating system scheduling
 
 **Validation Criteria**:
+
 - Rust transformation: 3-5x faster than Python
 - End-to-end queries: 1.5-2.5x faster with optimizations
 - Cache hit rates: 85-95% for stable query patterns
@@ -378,11 +407,13 @@ Results may vary ±20% between different systems due to:
 ### Regular Validation
 
 **Weekly Checks**:
+
 - Run transformation benchmarks
 - Verify end-to-end performance
 - Check for performance regressions
 
 **Monthly Reviews**:
+
 - Update hardware baselines
 - Re-evaluate benchmark queries
 - Refresh test datasets
@@ -390,6 +421,7 @@ Results may vary ±20% between different systems due to:
 ### Performance Regression Detection
 
 **Automated Monitoring**:
+
 ```bash
 # CI benchmark script
 #!/bin/bash
@@ -402,6 +434,7 @@ python benchmarks/compare_results.py results.json baseline.json
 ```
 
 **Regression Thresholds**:
+
 - **Transformation**: >10% slowdown triggers investigation
 - **End-to-end**: >15% slowdown requires attention
 - **Cache performance**: >5% hit rate drop needs review
@@ -420,6 +453,7 @@ python benchmarks/compare_results.py results.json baseline.json
 ### Real-World Considerations
 
 **Production Factors Not Benchmarked**:
+
 - Connection pooling overhead
 - SSL/TLS encryption
 - Load balancer latency
@@ -427,6 +461,7 @@ python benchmarks/compare_results.py results.json baseline.json
 - Background job interference
 
 **Environmental Differences**:
+
 - Cloud vs bare metal performance
 - Container orchestration overhead
 - Network latency in distributed setups

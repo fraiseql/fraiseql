@@ -26,6 +26,7 @@
 **Impact**: New users don't know which version to use.
 
 **Recommendation**:
+
 - Remove `init.sql` (or move to `/examples/_legacy/`)
 - Rename `v2_init.sql` → `setup.sql`
 - Rename `v2_mutation_functions.sql` → `mutation_functions.sql`
@@ -67,6 +68,7 @@ Already updated (correct):
 ### 4. Examples Without Mutations (No Issue) ✓
 
 These examples don't use mutations, so no action needed:
+
 - blog_simple (query-only example)
 - blog_enterprise (uses different pattern)
 - complete_cqrs_blog (has own migration system)
@@ -79,6 +81,7 @@ These examples don't use mutations, so no action needed:
 ### Immediate Actions (High Priority)
 
 1. **mutations_demo cleanup**:
+
    ```bash
    cd examples/mutations_demo
    mv init.sql _old_init.sql.deprecated
@@ -107,6 +110,7 @@ These examples don't use mutations, so no action needed:
 ## Type Comparison
 
 ### OLD: mutation_result (6 fields)
+
 ```sql
 CREATE TYPE mutation_result AS (
     id UUID,
@@ -119,6 +123,7 @@ CREATE TYPE mutation_result AS (
 ```
 
 ### NEW: mutation_response (8 fields)
+
 ```sql
 CREATE TYPE mutation_response AS (
     status TEXT,           -- NEW: First field
@@ -133,6 +138,7 @@ CREATE TYPE mutation_response AS (
 ```
 
 **Key differences**:
+
 - Field order changed (status first)
 - entity_id is TEXT (was UUID)
 - Added entity_type field
@@ -158,12 +164,14 @@ CREATE TYPE mutation_response AS (
 ## Risk Assessment
 
 **If not fixed**:
+
 - New users will be confused about which version to use
 - Some examples teach deprecated patterns
 - Inconsistent codebase makes maintenance harder
 - Migration guides are unclear
 
 **Mitigation**:
+
 - Fix high-priority items immediately
 - Add clear deprecation warnings
 - Update documentation comprehensively

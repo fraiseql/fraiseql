@@ -5,6 +5,7 @@
 **Critical Finding:** The performance difference is NOT primarily about function overhead - it's about **query pattern overhead**!
 
 Separating pure function performance from query pattern overhead reveals:
+
 1. **Pure functions** have similar performance (within 10-20%)
 2. **Query patterns** (LATERAL joins, subqueries) add 2-10x overhead
 3. For Hasura: **Which SQL pattern to generate matters more than which function to use**
@@ -16,6 +17,7 @@ Separating pure function performance from query pattern overhead reveals:
 ### Full Table Scan (10,000 rows)
 
 #### Pure Functions (No Joins/Subqueries)
+
 | Method | TPS | vs Baseline |
 |--------|-----|-------------|
 | jsonb_build_object | 8.54 | Baseline |
@@ -23,6 +25,7 @@ Separating pure function performance from query pattern overhead reveals:
 | to_jsonb | 7.33 | -14% |
 
 #### With Query Patterns (LATERAL/Subquery)
+
 | Method | TPS | vs Baseline |
 |--------|-----|-------------|
 | jsonb_build_object | 6.64 | Baseline |
@@ -31,6 +34,7 @@ Separating pure function performance from query pattern overhead reveals:
 | to_jsonb | 8.21 | +24% |
 
 **Analysis:**
+
 - **Pure function**: `row_to_json(ROW(...))` is 20% slower than `jsonb_build_object`
 - **With LATERAL**: Gap widens to 25% (LATERAL adds minimal overhead here)
 - **With subquery**: Similar to pure function (subquery is low overhead for full scans)
@@ -39,6 +43,7 @@ Separating pure function performance from query pattern overhead reveals:
 ### Paginated Query (100 rows)
 
 #### Pure Functions
+
 | Method | TPS | vs Baseline |
 |--------|-----|-------------|
 | jsonb_build_object | 17.24 | Baseline |
@@ -46,6 +51,7 @@ Separating pure function performance from query pattern overhead reveals:
 | to_jsonb | 16.28 | -6% |
 
 #### With Query Patterns
+
 | Method | TPS | vs Baseline |
 |--------|-----|-------------|
 | jsonb_build_object | 22.20 | Baseline |
@@ -54,6 +60,7 @@ Separating pure function performance from query pattern overhead reveals:
 | to_jsonb | 14.63 | -34% |
 
 **Analysis:**
+
 - **Pure function**: `row_to_json(ROW(...))` is 23% slower
 - **With LATERAL**: **DISASTER!** 47% slower - **24% overhead from LATERAL alone**
 - **With subquery**: 43% slower - **20% overhead from subquery**
@@ -62,6 +69,7 @@ Separating pure function performance from query pattern overhead reveals:
 ### Filtered Query (~100 rows)
 
 #### Pure Functions
+
 | Method | TPS | vs Baseline |
 |--------|-----|-------------|
 | jsonb_build_object | 541.59 | Baseline |
@@ -69,6 +77,7 @@ Separating pure function performance from query pattern overhead reveals:
 | to_jsonb | 516.79 | -5% |
 
 #### With Query Patterns
+
 | Method | TPS | vs Baseline |
 |--------|-----|-------------|
 | jsonb_build_object | 474.90 | Baseline |
@@ -77,6 +86,7 @@ Separating pure function performance from query pattern overhead reveals:
 | to_jsonb | 430.90 | -9% |
 
 **Analysis:**
+
 - **Pure function**: `row_to_json(ROW(...))` is only 7% slower (very competitive!)
 - **With LATERAL**: 14% slower - **7% overhead from LATERAL**
 - **With subquery**: Essentially tied! Subquery overhead is negligible for small result sets
@@ -97,6 +107,7 @@ Separating pure function performance from query pattern overhead reveals:
 | Filtered | 502.04 | 406.21 | **-19%** |
 
 **The LATERAL pattern:**
+
 ```sql
 SELECT row_to_json(t)::jsonb
 FROM table
@@ -105,6 +116,7 @@ WHERE ...
 ```
 
 **Why it's slow:**
+
 - PostgreSQL treats LATERAL as a **correlated subquery**
 - Executed **once per row** after initial filtering
 - Prevents certain query plan optimizations
@@ -113,6 +125,7 @@ WHERE ...
 ### 2. Subquery Pattern is Much Better
 
 **The subquery pattern:**
+
 ```sql
 SELECT row_to_json((SELECT t FROM (SELECT col1, col2, ...) t))
 FROM table
@@ -120,11 +133,13 @@ WHERE ...
 ```
 
 **Performance:**
+
 - Full scan: Similar to pure function
 - Paginated: -20% overhead vs pure
 - Filtered: **Negligible overhead** (tied with `jsonb_build_object`!)
 
 **Why it's better than LATERAL:**
+
 - PostgreSQL can optimize the nested SELECT
 - Not treated as correlated for every row
 - Better query plan integration
@@ -132,6 +147,7 @@ WHERE ...
 ### 3. Pure Function Performance is Competitive
 
 **ROW(...) Constructor Performance:**
+
 - Full scan: -20% vs `jsonb_build_object`
 - Paginated: -23% vs `jsonb_build_object`
 - Filtered: -7% vs `jsonb_build_object`
@@ -139,6 +155,7 @@ WHERE ...
 **This is MUCH better than the 2020 Hasura benchmarks suggested!**
 
 Likely reasons for improvement:
+
 - PostgreSQL 17.5 vs 10/11 (better JSONB optimization)
 - Modern query planner improvements
 - ROW constructor optimization
@@ -154,6 +171,7 @@ The LATERAL pattern adds 12-27% overhead for no benefit. If using `row_to_json`,
 ### 2. **Use jsonb_build_object for paginated/filtered queries**
 
 Even with pure functions competitive, `jsonb_build_object`:
+
 - Is 7-23% faster at the function level
 - Has cleaner SQL (no nested constructs)
 - Gives better query plans for filters/pagination
@@ -161,6 +179,7 @@ Even with pure functions competitive, `jsonb_build_object`:
 ### 3. **Use row_to_json ONLY for full scans with 100+ fields**
 
 When:
+
 - No filtering or pagination
 - More than 100 fields (avoid `jsonb_build_object` argument limit)
 - Use the **subquery pattern**, not LATERAL
@@ -168,6 +187,7 @@ When:
 ### 4. **Consider to_jsonb for analytics queries**
 
 For full table scans selecting all/most columns:
+
 - 14-24% faster than alternatives
 - Simpler SQL
 - Best for materialized views, exports, analytics
@@ -177,6 +197,7 @@ For full table scans selecting all/most columns:
 ## SQL Pattern Recommendations
 
 ### ✅ RECOMMENDED: jsonb_build_object (for paginated/filtered)
+
 ```sql
 SELECT jsonb_build_object(
     'id', id,
@@ -191,6 +212,7 @@ LIMIT 100;
 **Performance:** Baseline (fastest for typical queries)
 
 ### ✅ ACCEPTABLE: row_to_json with subquery (when needed)
+
 ```sql
 SELECT row_to_json((
     SELECT t FROM (
@@ -205,6 +227,7 @@ LIMIT 100;
 **Performance:** -0.4% to -20% (competitive for filtered, acceptable for paginated)
 
 ### ❌ AVOID: row_to_json with LATERAL
+
 ```sql
 SELECT row_to_json(t)::jsonb AS data
 FROM users
@@ -218,6 +241,7 @@ LIMIT 100;
 **Performance:** -14% to -47% (TERRIBLE for pagination)
 
 ### ✅ BEST FOR FULL SCANS: to_jsonb
+
 ```sql
 SELECT to_jsonb(users) - 'internal_id' AS data
 FROM users;
@@ -251,6 +275,7 @@ The original Hasura issue discussion was correct that function performance matte
 4. 🎯 **Query pattern choice matters MORE than function choice**
 
 **For Hasura:**
+
 - Switch to `jsonb_build_object` for paginated/filtered queries: **+7% to +47% improvement**
 - If keeping `row_to_json`, eliminate LATERAL: **+15% to +24% improvement**
 - Use `to_jsonb` for analytics/full scans: **+14% to +24% improvement**
@@ -260,6 +285,7 @@ The original Hasura issue discussion was correct that function performance matte
 ---
 
 **Test Environment:**
+
 - PostgreSQL 17.5
 - 10,000 rows
 - 10 clients, 4 jobs

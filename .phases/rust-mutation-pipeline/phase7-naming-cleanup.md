@@ -9,6 +9,7 @@
 ## Overview
 
 The codebase currently uses inconsistent terminology:
+
 - ✅ **Good**: "Simple format" for entity-only responses
 - ❌ **Confusing**: "v2 format", "result2", "parse_v2" for full mutation_response format
 - ✅ **Better**: "Full format" (as used in the plan)
@@ -50,6 +51,7 @@ The codebase currently uses inconsistent terminology:
 ```
 
 **All occurrences**:
+
 ```bash
 # Find all v2 references in tests
 grep -n "v2" fraiseql_rs/src/mutation/tests.rs
@@ -86,6 +88,7 @@ assert!(!MutationResult::is_simple_format_json(full));
 ```
 
 **Acceptance Criteria**:
+
 - [ ] No "v2" in test function names
 - [ ] No "v2" in comments
 - [ ] All tests still pass
@@ -115,10 +118,12 @@ prop_assert_eq!(result_first_parse.is_ok(), result_reparsed.is_ok());
 ```
 
 **Rationale**:
+
 - `result2` sounds like "version 2 result" (confusing)
 - `result_reparsed` clearly shows we're parsing the same JSON twice to test determinism
 
 **Acceptance Criteria**:
+
 - [ ] Variable renamed to `result_reparsed`
 - [ ] Comment clarified
 - [ ] Property tests still pass
@@ -132,6 +137,7 @@ prop_assert_eq!(result_first_parse.is_ok(), result_reparsed.is_ok());
 **Objective**: Ensure documentation uses consistent terminology
 
 **Current**:
+
 ```rust
 /// Mutation response format (auto-detected)
 #[derive(Debug, Clone, PartialEq)]
@@ -146,6 +152,7 @@ pub enum MutationResponse {
 **This is already correct!** ✅ No changes needed.
 
 **Acceptance Criteria**:
+
 - [ ] Verified types.rs uses "Full format" (not "v2")
 - [ ] No changes needed
 
@@ -158,6 +165,7 @@ pub enum MutationResponse {
 **Objective**: Ensure all phase docs use consistent terminology
 
 **Check**:
+
 ```bash
 # Search for any "v2" references in phase docs
 grep -r "v2\|V2" .phases/rust-mutation-pipeline/
@@ -168,6 +176,7 @@ grep -r "v2\|V2" .phases/rust-mutation-pipeline/
 **If any found**: Update to use "Simple format" and "Full format"
 
 **Acceptance Criteria**:
+
 - [ ] No "v2" references in phase documentation
 - [ ] All docs use "Simple" and "Full" consistently
 
@@ -206,6 +215,7 @@ grep -r "v2\|V2" .phases/rust-mutation-pipeline/
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Glossary added to docs
 - [ ] Clarifies two formats only
 - [ ] Explains "v2" is historical naming
@@ -224,6 +234,7 @@ grep -r "v2\|V2" .phases/rust-mutation-pipeline/
 - [x] Documentation consistent
 
 **Verification**:
+
 ```bash
 # Check for any remaining v2 references
 cd fraiseql_rs
@@ -249,6 +260,7 @@ grep -r "v2\|V2" docs/ .phases/
 ## Why This Matters
 
 Clear naming prevents confusion:
+
 - ❌ "v2" suggests there was a v1 and might be a v3
 - ✅ "Full" clearly describes what it is
 - ❌ "result2" sounds like a second result type
@@ -259,6 +271,7 @@ This is a small polish pass that makes the codebase more maintainable.
 ## Next Steps
 
 After Phase 7:
+
 - [ ] Code review for final polish
 - [ ] Prepare release notes
 - [ ] Tag v1.9.0

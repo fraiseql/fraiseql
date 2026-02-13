@@ -11,6 +11,7 @@ This guide documents the most common mistakes found during Trinity pattern verif
 **Problem**: Internal primary keys exposed in API responses, enabling enumeration attacks.
 
 **❌ Wrong**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -24,6 +25,7 @@ FROM tb_user;
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -48,6 +50,7 @@ FROM tb_user;
 **Problem**: Foreign keys reference UUID columns instead of INTEGER pk_*, causing slow JOINs.
 
 **❌ Wrong**:
+
 ```sql
 CREATE TABLE tb_post (
     pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -58,6 +61,7 @@ CREATE TABLE tb_post (
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE TABLE tb_post (
     pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -82,6 +86,7 @@ CREATE TABLE tb_post (
 **Problem**: Views don't include direct `id` column, forcing JSONB queries.
 
 **❌ Wrong**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -91,6 +96,7 @@ FROM tb_user;
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -112,6 +118,7 @@ FROM tb_user;
 **Problem**: Using old PostgreSQL SERIAL syntax instead of modern GENERATED.
 
 **❌ Wrong**:
+
 ```sql
 CREATE TABLE tb_user (
     pk_user SERIAL PRIMARY KEY,  -- ❌ Deprecated
@@ -121,6 +128,7 @@ CREATE TABLE tb_user (
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE TABLE tb_user (
     pk_user INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- ✅ Modern
@@ -144,6 +152,7 @@ CREATE TABLE tb_user (
 **Problem**: Function variables don't follow naming conventions.
 
 **❌ Wrong**:
+
 ```sql
 CREATE FUNCTION create_post(...) RETURNS JSONB AS $$
 DECLARE
@@ -157,6 +166,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE FUNCTION create_post(...) RETURNS JSONB AS $$
 DECLARE
@@ -182,6 +192,7 @@ $$ LANGUAGE plpgsql;
 **Problem**: Mutations modify base tables but don't sync projection tables.
 
 **❌ Wrong**:
+
 ```sql
 CREATE FUNCTION fn_create_user(...) RETURNS JSONB AS $$
 BEGIN
@@ -193,6 +204,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE FUNCTION fn_create_user(...) RETURNS JSONB AS $$
 DECLARE
@@ -220,6 +232,7 @@ $$ LANGUAGE plpgsql;
 **Problem**: Tables missing one or more Trinity identifiers.
 
 **❌ Wrong**:
+
 ```sql
 CREATE TABLE users (  -- ❌ Wrong table name
     id SERIAL PRIMARY KEY,  -- ❌ SERIAL + no pk_ prefix
@@ -230,6 +243,7 @@ CREATE TABLE users (  -- ❌ Wrong table name
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE TABLE tb_user (  -- ✅ tb_ prefix
     pk_user INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- ✅ pk_ prefix
@@ -253,6 +267,7 @@ CREATE TABLE tb_user (  -- ✅ tb_ prefix
 **Problem**: Tables don't follow `tb_<entity>` naming convention.
 
 **❌ Wrong**:
+
 ```sql
 CREATE TABLE users (...);        -- ❌ Plural
 CREATE TABLE User (...);         -- ❌ PascalCase
@@ -260,6 +275,7 @@ CREATE TABLE tbl_user (...);     -- ❌ tbl_ prefix
 ```
 
 **✅ Correct**:
+
 ```sql
 CREATE TABLE tb_user (...);      -- ✅ tb_ prefix, singular
 CREATE TABLE tb_blog_post (...); -- ✅ tb_ prefix, descriptive
@@ -280,6 +296,7 @@ CREATE TABLE tb_blog_post (...); -- ✅ tb_ prefix, descriptive
 **Problem**: Python GraphQL types expose internal pk_* fields.
 
 **❌ Wrong**:
+
 ```python
 from fraiseql.types import ID
 
@@ -291,6 +308,7 @@ class User:
 ```
 
 **✅ Correct**:
+
 ```python
 from fraiseql.types import ID
 
@@ -313,6 +331,7 @@ class User:
 **Problem**: Python type fields don't match JSONB view structure.
 
 **❌ Wrong**:
+
 ```sql
 -- View
 CREATE VIEW v_user AS SELECT id, jsonb_build_object('id', id, 'name', name) as data FROM tb_user;
@@ -329,6 +348,7 @@ class User:
 ```
 
 **✅ Correct**:
+
 ```python
 from fraiseql.types import ID
 
@@ -349,16 +369,19 @@ class User:
 During verification, these mistakes were found in actual examples:
 
 ### From examples/simple_blog/ (Before Fix)
+
 - ❌ Missing Trinity pattern entirely
 - ❌ Using SERIAL instead of GENERATED
 - ❌ Foreign keys to id instead of pk_*
 - ❌ Views without direct id columns
 
 ### From examples/ecommerce_api/ (Minor Issues)
+
 - ⚠️ Some functions with inconsistent variable naming
 - ⚠️ Missing sync calls in a few mutation functions
 
 ### From examples/blog_api/ (Gold Standard)
+
 - ✅ 100% compliant after Phase 5 fixes
 - ✅ All patterns correctly implemented
 - ✅ Used as reference for other examples
@@ -366,6 +389,7 @@ During verification, these mistakes were found in actual examples:
 ## 🛠️ Quick Fixes
 
 ### Automated Fixes
+
 ```bash
 # Run verification to find issues
 python .phases/verify-examples-compliance/verify.py your_example/
@@ -375,6 +399,7 @@ python .phases/verify-examples-compliance/auto_fix.py your_example/
 ```
 
 ### Manual Checklist
+
 - [ ] All tables have Trinity identifiers
 - [ ] Foreign keys reference pk_* columns
 - [ ] Views have direct id columns

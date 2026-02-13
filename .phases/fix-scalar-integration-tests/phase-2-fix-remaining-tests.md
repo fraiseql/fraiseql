@@ -12,6 +12,7 @@
 After Phase 1, we fixed 114 database roundtrip tests. However, 60 tests remain failing:
 
 **Current Status**:
+
 - ✅ 54/54 schema registration tests passing
 - ✅ 54/54 database roundtrip tests passing (Phase 1)
 - ❌ 54/54 GraphQL query tests failing
@@ -32,6 +33,7 @@ After Phase 1, we fixed 114 database roundtrip tests. However, 60 tests remain f
 **Problem**: The test has a `pass` statement at line 141, but the code below it still executes and references a non-existent function.
 
 **Code**:
+
 ```python
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
@@ -55,6 +57,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 ```
 
 **Analysis**:
+
 - The test was partially written but never completed
 - A `pass` statement doesn't act as a return - code continues executing
 - The undefined function `build_fraiseql_schema()` is called, causing NameError
@@ -62,6 +65,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 **Solution Options**:
 
 **Option A: Skip the test properly**
+
 ```python
 @pytest.mark.skip(reason="Test not yet implemented - registration test covers requirement")
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
@@ -70,6 +74,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 ```
 
 **Option B: Implement the test properly**
+
 ```python
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
     """Every scalar should work as a query argument without validation errors."""
@@ -106,6 +111,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 **Problem**: **Identical to Phase 1** - mixing f-strings with parameterized queries
 
 **Code**:
+
 ```python
 # Lines 185-201 (BROKEN)
 async with meta_test_pool.connection() as conn:
@@ -176,6 +182,7 @@ async with meta_test_pool.connection() as conn:
 **`tests/integration/meta/test_all_scalars.py`**
 
 **Changes needed**:
+
 1. Line 138-161: Fix `test_scalar_in_graphql_query` (add `@pytest.mark.skip`)
 2. Lines 186-201: Fix SQL parameter binding in `test_scalar_in_where_clause`
 3. Line 243: Fix DROP TABLE in cleanup (use `sql.SQL()`)
@@ -189,6 +196,7 @@ async with meta_test_pool.connection() as conn:
 **Location**: Lines 137-161
 
 **Current code**:
+
 ```python
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
 async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_schema):
@@ -217,6 +225,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 ```
 
 **Replace with**:
+
 ```python
 @pytest.mark.skip(reason="Test not yet implemented - schema registration test covers scalar validation")
 @pytest.mark.parametrize("scalar_name,scalar_class", get_all_scalar_types())
@@ -228,6 +237,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 ```
 
 **Key changes**:
+
 - Add `@pytest.mark.skip()` decorator
 - Remove all code after `pass` (lines 142-161)
 - Add TODO comment explaining what's needed
@@ -239,6 +249,7 @@ async def test_scalar_in_graphql_query(scalar_name, scalar_class, scalar_test_sc
 **Location**: Lines 185-201
 
 **Current code**:
+
 ```python
 # Create table in database
 async with meta_test_pool.connection() as conn:
@@ -263,6 +274,7 @@ async with meta_test_pool.connection() as conn:
 ```
 
 **Replace with**:
+
 ```python
 # Create table in database
 async with meta_test_pool.connection() as conn:
@@ -313,6 +325,7 @@ async with meta_test_pool.connection() as conn:
 **Location**: Line 243
 
 **Current code**:
+
 ```python
 finally:
     # Cleanup
@@ -322,6 +335,7 @@ finally:
 ```
 
 **Replace with**:
+
 ```python
 finally:
     # Cleanup
@@ -521,6 +535,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py -v
 **Cause**: `@pytest.mark.skip` decorator not applied, or code not removed after `pass`
 
 **Solution**:
+
 1. Ensure decorator is on line 137 (before `@pytest.mark.parametrize`)
 2. Delete all code after `pass` in the function (lines 142-161)
 3. Only keep the `pass` statement and TODO comment
@@ -530,6 +545,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py -v
 **Cause**: Missed an f-string or didn't import `sql` module
 
 **Check**:
+
 1. Line 10: `from psycopg import sql` imported at top
 2. Line 179 (in function): `from psycopg import sql` imported locally
 3. All SQL statements use `sql.SQL()` and `sql.Identifier()`
@@ -548,11 +564,13 @@ uv run pytest tests/integration/meta/test_all_scalars.py -v
 After the fix, verify edge cases:
 
 ### Test 1: JSON Scalar in WHERE Clause
+
 ```bash
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_clause[JSONScalar-scalar_class4] -vv
 ```
 
 ### Test 2: Complex Types (CIDR, UUID)
+
 ```bash
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_clause[CIDRScalar-scalar_class0] -vv
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_clause[UUIDScalar-scalar_class5] -vv
@@ -565,6 +583,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_c
 After Phase 2, consider implementing `test_scalar_in_graphql_query` properly:
 
 **Requirements**:
+
 1. Create `build_fraiseql_schema()` helper function
 2. Set up proper GraphQL schema with test queries
 3. Test that scalars work as query arguments
@@ -647,6 +666,7 @@ After completing this phase:
 ## Next Phase
 
 After this phase passes, all scalar integration tests will be in a clean state:
+
 - ✅ 114 tests passing (schema registration + database roundtrip + WHERE clause)
 - ✅ 54 tests properly skipped (GraphQL query - awaiting implementation)
 - ✅ 0 tests failing

@@ -29,6 +29,7 @@ CREATE TABLE query_cache (
 ```
 
 **Benefits:**
+
 - **ACID Consistency**: Query storage and caching have the same transactional guarantees as your data
 - **Backup Included**: APQ data is automatically included in your database backups
 - **No Redis Management**: One less service to deploy, monitor, and scale
@@ -96,12 +97,14 @@ CREATE TABLE audit_log (
 ### Operational Cost Reduction
 
 **70% Fewer Services to Operate:**
+
 - No Redis deployment, scaling, backups
 - No external monitoring setup
 - No API key management for third-party services
 - No vendor lock-in and pricing surprises
 
 **One Database to Backup:**
+
 - Single backup strategy for all data
 - Consistent backup windows
 - Simplified disaster recovery
@@ -136,12 +139,14 @@ COMMIT;
 Traditional stacks suffer from eventual consistency issues between services:
 
 **❌ Traditional Stack Problems:**
+
 - Redis cache might be stale
 - Error logs might not match database state
 - Metrics might be lost during service restarts
 - Backup consistency across multiple services
 
 **✅ FraiseQL Consistency:**
+
 - All data changes atomically
 - Audit logs match exactly with data changes
 - Metrics collection is transactional
@@ -219,6 +224,7 @@ CREATE TABLE query_metrics (
 ### Simplified Deployment
 
 **Before:**
+
 ```yaml
 # docker-compose.yml with multiple services
 services:
@@ -230,6 +236,7 @@ services:
 ```
 
 **After:**
+
 ```yaml
 # Simplified deployment
 services:

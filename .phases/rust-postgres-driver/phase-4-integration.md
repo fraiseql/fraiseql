@@ -11,6 +11,7 @@
 ## Objective
 
 Integrate all components into complete GraphQL query/mutation execution pipeline:
+
 1. Integrate streaming results with JSON transformation
 2. Implement mutations in Rust (INSERT, UPDATE, DELETE)
 3. Complete end-to-end GraphQL query → HTTP response
@@ -18,6 +19,7 @@ Integrate all components into complete GraphQL query/mutation execution pipeline
 5. Performance validation (20-30% improvement)
 
 **Success Criteria**:
+
 - ✅ All GraphQL queries execute end-to-end in Rust
 - ✅ All mutations work correctly (with transactions)
 - ✅ All 5991+ tests pass with Rust backend
@@ -708,14 +710,17 @@ make bench-compare
 ## Known Issues & Workarounds
 
 ### Issue: Large Mutations Fail
+
 **Cause**: Connection timeout or memory limit
 **Workaround**: Batch mutations or increase connection timeout
 
 ### Issue: Parity Test Fails on NULL Handling
+
 **Cause**: JSONB NULL representation differs
 **Workaround**: Normalize NULL representation before comparison
 
 ### Issue: Transaction Rollback Doesn't Work
+
 **Cause**: Error handling not triggering transaction.rollback()
 **Fix**: Ensure error propagation in Rust includes rollback
 
@@ -726,6 +731,7 @@ make bench-compare
 ### "All tests passing locally but parity test fails"
 
 Check:
+
 1. Type conversion (PostgreSQL → Rust → Python → GraphQL)
 2. NULL handling in JSONB
 3. Date/time formatting
@@ -735,6 +741,7 @@ Check:
 ### "Performance 5% worse than psycopg"
 
 Check:
+
 1. Connection pool efficiency
 2. Query plan optimization
 3. Unnecessary string allocations
@@ -751,6 +758,7 @@ Use `cargo flamegraph` to identify bottlenecks.
 ### What Tests Should Pass
 
 #### ✅ **ALL Python Tests** (5991 tests) - NO EXCEPTIONS
+
 ```bash
 # All existing Python tests must pass with Rust backend
 FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
@@ -760,6 +768,7 @@ FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
 ```
 
 #### ✅ **Rust Unit Tests** (~350 tests)
+
 ```bash
 # All Rust code must be fully tested
 cargo test --lib --verbose
@@ -768,6 +777,7 @@ cargo test --lib --verbose
 ```
 
 #### ✅ **Rust Integration Tests** (~200 tests)
+
 ```bash
 # All modules must integrate correctly
 cargo test --test '*' --verbose
@@ -776,6 +786,7 @@ cargo test --test '*' --verbose
 ```
 
 #### ✅ **Parity Tests** (Exact Match) - CRITICAL
+
 ```bash
 # Rust output MUST EXACTLY match psycopg output
 FRAISEQL_PARITY_TESTING=true uv run pytest tests/regression/parity/ -v
@@ -789,6 +800,7 @@ FRAISEQL_PARITY_TESTING=true uv run pytest tests/regression/parity/ -v
 ```
 
 #### ✅ **Performance Tests**
+
 ```bash
 # Performance must meet 20-30% improvement target
 cargo bench --bench query_execution
@@ -863,6 +875,7 @@ echo "✅ ALL TESTS PASSED - Ready for Phase 5 Deprecation!"
 ### CRITICAL: Don't Proceed to Phase 5 If
 
 ❌ Any of these are true:
+
 - [ ] ANY Python test fails
 - [ ] ANY parity test fails
 - [ ] Performance is < 15% improvement (should be 20-30%)
@@ -870,6 +883,7 @@ echo "✅ ALL TESTS PASSED - Ready for Phase 5 Deprecation!"
 - [ ] Code coverage < 85%
 
 If any of these are true:
+
 1. **STOP** - Don't proceed
 2. Debug the issue
 3. Fix in Phase 4
@@ -885,6 +899,7 @@ If any of these are true:
 This is the integration phase - everything comes together. Review is critical.
 
 **Senior reviewer should verify**:
+
 - [ ] GraphQL query execution end-to-end works?
 - [ ] GraphQL mutation execution end-to-end works?
 - [ ] All 5991+ tests pass?
@@ -895,6 +910,7 @@ This is the integration phase - everything comes together. Review is critical.
 - [ ] Code ready for Phase 5 deprecation?
 
 **Performance validation before review**:
+
 ```bash
 # Run parity tests
 FRAISEQL_PARITY_TESTING=true cargo test --test parity_tests
@@ -907,12 +923,14 @@ cat phase4_perf.txt | grep -E "time:|throughput:"
 ```
 
 **If performance not met**:
+
 - Don't proceed to Phase 5 yet
 - Profile with `cargo flamegraph`
 - Identify bottleneck
 - Optimize and retest
 
 **Reviewer checklist**:
+
 - [ ] Has junior profiled performance?
 - [ ] All parity tests passing?
 - [ ] Code is production-ready (no debug prints)?
@@ -923,6 +941,7 @@ cat phase4_perf.txt | grep -E "time:|throughput:"
 ## Success Definition
 
 ✅ Phase 4 complete when:
+
 - All GraphQL queries work end-to-end
 - All GraphQL mutations work end-to-end
 - All 5991+ tests pass

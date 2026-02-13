@@ -34,7 +34,7 @@ This guide helps teams migrate from **PostGraphile** to **FraiseQL**. This is th
 
 ## Why Migrate?
 
-### You Should Migrate If:
+### You Should Migrate If
 
 1. **Python ecosystem**: Your team prefers Python over Node.js
 2. **Type safety**: You want Python type hints for resolvers
@@ -42,7 +42,7 @@ This guide helps teams migrate from **PostGraphile** to **FraiseQL**. This is th
 4. **CASCADE**: You want automatic cache invalidation
 5. **Customization**: PostGraphile plugins feel too complex
 
-### You Should Stay If:
+### You Should Stay If
 
 1. **Node.js shop**: Your entire stack is JavaScript/TypeScript
 2. **Minimal custom logic**: PostGraphile auto-generation works perfectly
@@ -77,6 +77,7 @@ This guide helps teams migrate from **PostGraphile** to **FraiseQL**. This is th
 PostGraphile typically uses simple table names. FraiseQL recommends the trinity pattern but **your existing schema probably works as-is**.
 
 **Current (PostGraphile):**
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,6 +94,7 @@ CREATE TABLE posts (
 ```
 
 **Option A: Keep As-Is (Quickest)**
+
 ```sql
 -- Create views pointing to existing tables
 CREATE VIEW v_user AS SELECT * FROM users;
@@ -100,6 +102,7 @@ CREATE VIEW v_post AS SELECT * FROM posts;
 ```
 
 **Option B: Adopt Trinity Pattern (Recommended for Multi-tenancy)**
+
 ```sql
 -- Rename tables
 ALTER TABLE users RENAME TO tb_user;
@@ -119,6 +122,7 @@ CREATE VIEW v_post AS SELECT * FROM tb_post;
 ### 2.1 Simple Field Resolvers
 
 **Before (PostGraphile + makeExtendSchemaPlugin):**
+
 ```typescript
 // plugins/customResolvers.ts
 import { makeExtendSchemaPlugin, gql } from "graphile-utils";
@@ -140,6 +144,7 @@ const CustomResolversPlugin = makeExtendSchemaPlugin({
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.type(sql_source="v_user")
 class User:
@@ -154,6 +159,7 @@ class User:
 ```
 
 **Key Changes:**
+
 - TypeScript → Python (simpler syntax)
 - Plugin system → Direct decorator
 - `gql` strings → Type hints
@@ -165,6 +171,7 @@ class User:
 ### 3.1 Basic Queries
 
 **Before (PostGraphile - Auto-generated):**
+
 ```graphql
 # No code needed - PostGraphile generates automatically
 query {
@@ -179,6 +186,7 @@ query {
 ```
 
 **After (FraiseQL - Same auto-generation + customization):**
+
 ```python
 # If you need custom query logic
 @fraiseql.query
@@ -202,6 +210,7 @@ class Query:
 ```
 
 **GraphQL Query:**
+
 ```graphql
 query {
   users(where: {email: {endswith: "@example.com"}}) {
@@ -219,6 +228,7 @@ query {
 ### 4.1 Database Function Mutations
 
 **Before (PostGraphile):**
+
 ```sql
 -- Database function (same in both!)
 CREATE OR REPLACE FUNCTION create_user(
@@ -243,6 +253,7 @@ $$ LANGUAGE plpgsql VOLATILE;
 ```
 
 **After (FraiseQL):**
+
 ```sql
 -- Same PostgreSQL function!
 -- (Or rename to fn_create_user for consistency)
@@ -261,6 +272,7 @@ class CreateUser:
 ### 4.2 Mutations with CASCADE
 
 **Before (PostGraphile):**
+
 ```typescript
 // Custom mutation with manual cache invalidation
 import { makeExtendSchemaPlugin, gql } from "graphile-utils";
@@ -299,6 +311,7 @@ const CreatePostPlugin = makeExtendSchemaPlugin({
 ```
 
 **After (FraiseQL with CASCADE):**
+
 ```python
 @fraiseql.mutation(
     function="fn_create_post",
@@ -312,6 +325,7 @@ class CreatePost:
 ```
 
 **CASCADE Benefits:**
+
 - Automatically returns updated User with new post
 - Client cache automatically invalidated
 - No manual refetch needed
@@ -325,6 +339,7 @@ class CreatePost:
 ### Row-Level Security
 
 **Before (PostGraphile):**
+
 ```sql
 -- RLS policies (same in both!)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -339,6 +354,7 @@ USING (tenant_id = current_setting('app.tenant_id')::uuid);
 ```
 
 **After (FraiseQL):**
+
 ```sql
 -- Same RLS policies!
 -- No changes needed
@@ -361,6 +377,7 @@ app = create_fraiseql_app(
 ### Application Configuration
 
 **Before (PostGraphile):**
+
 ```typescript
 // server.ts
 import { postgraphile } from "postgraphile";
@@ -394,6 +411,7 @@ app.listen(5000);
 ```
 
 **After (FraiseQL):**
+
 ```python
 from fraiseql import create_fraiseql_app
 
@@ -417,6 +435,7 @@ app = create_fraiseql_app(
 ### Test Migration
 
 **Before (PostGraphile + Jest):**
+
 ```typescript
 import { createPostGraphileSchema } from "postgraphile";
 import { graphql } from "graphql";
@@ -436,6 +455,7 @@ describe("User queries", () => {
 ```
 
 **After (FraiseQL + pytest):**
+
 ```python
 import pytest
 from fraiseql.testing import GraphQLClient
@@ -466,6 +486,7 @@ async def test_user_by_id(graphql_client: GraphQLClient):
 PostGraphile uses promises, FraiseQL uses async/await.
 
 **Fix:**
+
 ```python
 # ✅ Correct
 async def user(self, info, id: ID) -> User | None:
@@ -478,11 +499,13 @@ PostGraphile uses smart comments (`@omit create,update`).
 FraiseQL uses explicit decorators.
 
 **Before (PostGraphile):**
+
 ```sql
 COMMENT ON TABLE users IS E'@omit create,update';
 ```
 
 **After (FraiseQL):**
+
 ```python
 # Just don't create the mutation classes
 # Only expose what you want

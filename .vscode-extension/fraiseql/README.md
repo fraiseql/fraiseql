@@ -23,6 +23,7 @@ Type `fraiseql-` in a .sql file to see all available snippets.
 ### Syntax Highlighting
 
 Status strings are highlighted:
+
 - `'created'` - Green
 - `'failed:validation'` - Red
 - `'not_found:user'` - Orange
@@ -31,10 +32,12 @@ Status strings are highlighted:
 ## Installation
 
 ### From VSIX
+
 1. Download `fraiseql-tools-1.0.0.vsix`
 2. VS Code → Extensions → ... → Install from VSIX
 
 ### From Marketplace
+
 1. Search "FraiseQL Tools"
 2. Click Install
 
@@ -48,18 +51,21 @@ Status strings are highlighted:
 ## Examples
 
 ### Create Mutation Function
+
 ```sql
 -- Type: fraiseql-mutation
 -- Result: Complete function template
 ```
 
 ### Add Validation
+
 ```sql
 -- Type: fraiseql-error-simple
 -- Result: Simple error return
 ```
 
 ### Collect Errors
+
 ```sql
 -- Type: fraiseql-collect-errors
 -- Result: Error collection pattern

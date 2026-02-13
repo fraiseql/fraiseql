@@ -34,6 +34,7 @@ async def user(info, id: ID) -> User:
 ## Accessing the Database
 
 **In Resolvers**:
+
 ```python
 db = info.context["db"]  # FraiseQLRepository instance
 ```
@@ -47,6 +48,7 @@ db = info.context["db"]  # FraiseQLRepository instance
 **Purpose**: Find multiple records with automatic GraphQL field selection
 
 **Signature**:
+
 ```python
 async def find(
     view_name: str,
@@ -66,6 +68,7 @@ async def find(
 > **Note**: The `info` parameter is automatically injected from the GraphQL context. The `field_name` is also **automatically extracted from `info.field_name`**, so you typically don't need to specify it!
 
 **Modern API (recommended)**:
+
 ```python
 @fraiseql.query
 async def users(info, limit: int = 100) -> list[User]:
@@ -75,6 +78,7 @@ async def users(info, limit: int = 100) -> list[User]:
 ```
 
 **Explicit field_name (only if needed)**:
+
 ```python
 # Only specify field_name if it differs from the function name
 return await db.find("v_user", "userList", limit=limit)
@@ -156,6 +160,7 @@ async def filtered_users(info, where: UserWhereInput | None = None) -> list[User
 **Purpose**: Find a single record with automatic GraphQL field selection
 
 **Signature**:
+
 ```python
 async def find_one(
     view_name: str,
@@ -177,6 +182,7 @@ async def find_one(
 **Returns**: The result is handled automatically by the framework. In your resolver, annotate the return type with your GraphQL type (e.g., `User | None`). Returns `None` if not found.
 
 **Examples**:
+
 ```python
 from fraiseql.types import ID
 
@@ -216,6 +222,7 @@ async def get_user(info, id: ID) -> User:
 **Purpose**: Count records matching filter criteria
 
 **Signature**:
+
 ```python
 async def count(
     view_name: str,
@@ -234,6 +241,7 @@ async def count(
 **Returns**: Integer count of matching records
 
 **Examples**:
+
 ```python
 # Count all users
 total = await db.count("v_users")
@@ -289,6 +297,7 @@ async def tenant_stats(info) -> TenantStats:
 ```
 
 **Performance**:
+
 - Uses optimized `COUNT(*)` SQL query
 - Returns plain `int` (not `RustResponseBytes`)
 - Supports same filter syntax as `find()`
@@ -303,6 +312,7 @@ async def tenant_stats(info) -> TenantStats:
 **Purpose**: Cursor-based pagination following Relay specification
 
 **Signature**:
+
 ```python
 async def paginate(
     view_name: str,
@@ -336,6 +346,7 @@ async def paginate(
 **Returns**: Dictionary with edges, page_info, and total_count
 
 **Result Structure**:
+
 ```python
 {
     "edges": [
@@ -357,6 +368,7 @@ async def paginate(
 ```
 
 **Examples**:
+
 ```python
 # Forward pagination
 result = await db.paginate("v_user", first=20)
@@ -414,6 +426,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 See [canonical fn_create_user()](../examples/canonical-examples.md#create-user-function) for a complete example with validation and error handling.
 
 Simple version:
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_user(input jsonb) RETURNS jsonb AS $$
 BEGIN
@@ -467,6 +480,7 @@ async def delete_user(info, id: ID) -> bool:
 **Purpose**: Execute a PostgreSQL function with JSONB input
 
 **Signature**:
+
 ```python
 async def execute_function(
     function_name: str,
@@ -484,6 +498,7 @@ async def execute_function(
 **Returns**: Dictionary result from the function
 
 **Examples**:
+
 ```python
 # Execute mutation function
 result = await db.execute_function(
@@ -499,6 +514,7 @@ result = await db.execute_function(
 ```
 
 **PostgreSQL Function Format**:
+
 ```sql
 CREATE OR REPLACE FUNCTION graphql.create_user(input jsonb)
 RETURNS jsonb
@@ -519,6 +535,7 @@ $$;
 **Purpose**: Execute a PostgreSQL function with context parameters
 
 **Signature**:
+
 ```python
 async def execute_function_with_context(
     function_name: str,
@@ -538,6 +555,7 @@ async def execute_function_with_context(
 **Returns**: Dictionary result from the function
 
 **Examples**:
+
 ```python
 # With tenant isolation
 result = await db.execute_function_with_context(
@@ -563,6 +581,7 @@ result = await db.execute_function_with_context(
 **Purpose**: Execute raw SQL queries
 
 **Signature**:
+
 ```python
 async def execute_raw(
     query: str,
@@ -580,6 +599,7 @@ async def execute_raw(
 **Returns**: List of dictionaries (query results)
 
 **Examples**:
+
 ```python
 # Simple query
 results = await db.execute_raw("SELECT * FROM users")
@@ -612,6 +632,7 @@ stats = await db.execute_raw(
 **Purpose**: Run operations within a database transaction
 
 **Signature**:
+
 ```python
 async def run_in_transaction(
     func: Callable[..., Awaitable[T]],
@@ -631,6 +652,7 @@ async def run_in_transaction(
 **Returns**: Result of the function
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -672,6 +694,7 @@ async def transfer(info, input: TransferInput) -> bool:
 **Purpose**: Access the underlying connection pool
 
 **Signature**:
+
 ```python
 def get_pool() -> AsyncConnectionPool
 ```
@@ -679,6 +702,7 @@ def get_pool() -> AsyncConnectionPool
 **Returns**: psycopg AsyncConnectionPool instance
 
 **Example**:
+
 ```python
 pool = db.get_pool()
 print(f"Pool size: {pool.max_size}")
@@ -700,6 +724,7 @@ FraiseQL **automatically sets PostgreSQL session variables** from GraphQL contex
 **How It Works**:
 
 1. You provide context in your FastAPI app:
+
 ```python
 async def get_context(request: Request) -> dict:
     return {
@@ -715,12 +740,14 @@ app = create_fraiseql_app(
 ```
 
 2. FraiseQL automatically executes before each database operation:
+
 ```sql
 SET LOCAL app.tenant_id = '<tenant_id_from_context>';
 SET LOCAL app.contact_id = '<contact_id_from_context>';
 ```
 
 3. Your PostgreSQL functions can access these variables:
+
 ```sql
 SELECT current_setting('app.tenant_id')::uuid;
 SELECT current_setting('app.contact_id')::uuid;
@@ -971,6 +998,7 @@ FraiseQL repository operates in two modes:
    - Slower but more developer-friendly
 
 **Mode Selection**:
+
 ```python
 # Explicit mode setting
 context = {
@@ -982,6 +1010,7 @@ context = {
 ## Best Practices
 
 **Query Optimization**:
+
 ```python
 # Use specific fields instead of SELECT *
 users = await db.find("v_user", where={"is_active": True}, limit=100)
@@ -995,6 +1024,7 @@ stats = await db.find("v_user_stats")
 ```
 
 **Error Handling**:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -1010,6 +1040,7 @@ async def get_user(info, id: ID) -> User | None:
 ```
 
 **Security**:
+
 ```python
 # Always use parameterized queries
 results = await db.execute_raw(
@@ -1022,6 +1053,7 @@ results = await db.execute_raw(
 ```
 
 **Transactions**:
+
 ```python
 # Use transactions for multi-step operations
 async def complex_operation(conn, data):

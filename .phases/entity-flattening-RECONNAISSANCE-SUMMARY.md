@@ -21,6 +21,7 @@ Reconnaissance completed for entity flattening implementation plan. All critical
 ## Key Findings
 
 ### Finding 1: Single Caller Simplifies Implementation
+
 **Impact**: MAJOR - Reduces Task 5 from "unknown number of files" to "one file change"
 
 ```
@@ -33,6 +34,7 @@ Available: self.success_type (the Python class, not just string name)
 **After reconnaissance**: Plan now says "Update single caller at line 189"
 
 ### Finding 2: Test Infrastructure Complete
+
 **Impact**: HIGH - Can start implementation immediately, no fixture setup needed
 
 ```
@@ -45,6 +47,7 @@ Test tables: posts, users already created in fixture
 **After reconnaissance**: Confirmed all test infrastructure exists
 
 ### Finding 3: Success Type Patterns Validated
+
 **Impact**: MEDIUM - Confirms `should_flatten_entity()` logic is correct
 
 ```
@@ -60,6 +63,7 @@ All have __annotations__ attribute (can introspect)
 **After reconnaissance**: Confirmed patterns match plan assumptions
 
 ### Finding 4: Test Workaround Identified
+
 **Impact**: MEDIUM - Know exactly which lines to change in Task 6
 
 ```
@@ -85,11 +89,13 @@ Change to:
 The following sections in `entity-flattening-implementation-plan.md` have been updated:
 
 ### Section Added: Pre-Implementation Reconnaissance (lines 110-165)
+
 - Documents all reconnaissance results
 - Shows commands run and findings
 - Explains impact on each task
 
 ### Section Updated: Task 5 (lines 668-751)
+
 - Replaced vague "find callers" with concrete findings
 - Shows exact location and code
 - Provides exact change needed (one-line addition)
@@ -100,11 +106,13 @@ The following sections in `entity-flattening-implementation-plan.md` have been u
 ## Files That Will Be Modified
 
 ### New Files (3)
+
 1. `src/fraiseql/mutations/entity_flattener.py` - Flattening logic
 2. `tests/unit/mutations/test_entity_flattener.py` - Unit tests
 3. `tests/integration/test_entity_flattening.py` - Integration tests
 
 ### Modified Files (3)
+
 1. `src/fraiseql/mutations/rust_executor.py` - Add parameter and call flattener
 2. `src/fraiseql/mutations/mutation_decorator.py` - Pass success_type_class parameter
 3. `tests/integration/test_graphql_cascade.py` - Revert workaround (lines 77-81)
@@ -124,6 +132,7 @@ The following sections in `entity-flattening-implementation-plan.md` have been u
 | Cascade handling | 90% | Logic sound, but edge case: what if entity HAS cascade field? |
 
 **Remaining Risk**:
+
 - Edge case: If PostgreSQL function returns `entity` JSONB with its own `cascade` field
 - Mitigation: Plan already handles this (lines 227-234) - top-level cascade takes priority
 
@@ -151,6 +160,7 @@ Before delegating to opencode:
 4. **Move to next task**
 
 **Estimated Time**:
+
 - Implementation: ~3 hours (tasks automated with opencode)
 - Verification & Testing: ~1 hour
 - Total: ~4 hours
@@ -180,6 +190,7 @@ if field_name in entity:
 ### Error Handling Gap (Noted in Review)
 
 Plan doesn't handle:
+
 - What if `entity` is a string instead of dict? → Current code: `isinstance(entity, dict)` check (line 208)
 - What if `entity` is None? → Current code: "entity" not in mutation_result check (line 201)
 
@@ -192,6 +203,7 @@ Plan doesn't handle:
 ✅ **Plan is 100% ready for implementation**
 
 All reconnaissance tasks completed. No gaps or unknowns remain. The plan has been updated with:
+
 - Exact caller location and code
 - Concrete line numbers for all changes
 - Test fixture confirmation

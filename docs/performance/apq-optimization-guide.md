@@ -16,12 +16,14 @@ APQ (Automatic Persisted Queries) is a GraphQL optimization technique that elimi
 FraiseQL offers multiple performance optimizations that work together:
 
 ### APQ (Automatic Persisted Queries)
+
 - **What it does**: Caches GraphQL query parsing by SHA256 hash
 - **Performance gain**: Eliminates 20-80ms parsing overhead per request
 - **Scope**: All queries (automatic)
 - **Storage**: Query text in database or memory
 
 ### TurboRouter
+
 - **What it does**: Bypasses GraphQL parsing and validation entirely for registered queries
 - **Performance gain**: 2-3x additional speedup beyond APQ
 - **Scope**: Pre-registered queries only
@@ -41,6 +43,7 @@ query MyQuery($id: ID!) {
 ```
 
 **Performance Stack:**
+
 - Base GraphQL: 100ms average response
 - + APQ: 20-80ms faster (eliminates parsing)
 - + TurboRouter: Additional 2-3x speedup (bypasses GraphQL entirely)
@@ -49,11 +52,13 @@ query MyQuery($id: ID!) {
 ### Performance Impact
 
 **Query Cache Benefits:**
+
 - Eliminates 20-80ms query parsing overhead per request
 - Reduces network payload (hash instead of full query)
 - Target: 90%+ hit rate in production
 
 **Response Cache Benefits:**
+
 - Can provide 260-460x speedup for identical queries
 - Bypasses GraphQL execution entirely
 - Best for read-heavy, cacheable data
@@ -91,12 +96,14 @@ FraiseQL uses a sophisticated caching approach:
 ### When to Use Each Layer
 
 **Query Cache (Always Use):**
+
 - ✅ All production environments
 - ✅ Development (helpful for debugging)
 - ✅ No downside, minimal overhead
 - ✅ Automatic query string deduplication
 
 **Response Cache (Selective Use):**
+
 - ✅ Read-heavy APIs with cacheable data
 - ✅ Public data that doesn't change frequently
 - ✅ Queries without user-specific data
@@ -138,6 +145,7 @@ app = create_fraiseql_app(config=config, types=[User, Post])
 ```
 
 **Benefits of `required` mode:**
+
 - ✅ **Prevent arbitrary queries** - Block query exploration/introspection attacks
 - ✅ **Audit all queries** - Know exactly which queries can run in production
 - ✅ **Control API surface** - Only approved queries from the codebase can execute
@@ -157,6 +165,7 @@ config = FraiseQLConfig(
 ```
 
 **Directory structure example:**
+
 ```
 graphql/
 ├── users/
@@ -233,6 +242,7 @@ config = FraiseQLConfig(
 ```
 
 This is useful for:
+
 - Debugging APQ issues
 - Temporary bypass during development
 - Legacy client compatibility
@@ -246,6 +256,7 @@ This is useful for:
 **Always enable query caching** - it provides pure performance benefits with no downsides.
 
 Benefits:
+
 - Eliminates query parsing overhead
 - Reduces network payload size
 - Improves response time consistency
@@ -272,6 +283,7 @@ Benefits:
    - Cost optimization (reduce compute)
 
 **Do NOT enable response caching** when:
+
 - Data changes frequently (real-time updates)
 - Queries are highly personalized
 - Strong consistency requirements
@@ -317,11 +329,13 @@ config = FraiseQLConfig(
 ```
 
 **Pros:**
+
 - Fastest performance (<0.1ms lookup)
 - Zero external dependencies
 - Simple configuration
 
 **Cons:**
+
 - Lost on restart
 - Not shared across instances
 - Memory consumption grows with queries
@@ -344,12 +358,14 @@ config = FraiseQLConfig(
 ```
 
 **Pros:**
+
 - Shared across instances
 - Survives restarts
 - Leverages existing PostgreSQL infrastructure
 - Automatic cleanup via TTL
 
 **Cons:**
+
 - Slightly slower than memory (~1-2ms)
 - Requires database connection
 - Additional database load
@@ -371,6 +387,7 @@ http://your-server:port/admin/apq/dashboard
 ```
 
 Features:
+
 - Real-time hit rate visualization
 - Top queries analysis
 - Health status monitoring
@@ -387,6 +404,7 @@ curl http://localhost:8000/admin/apq/health
 ```
 
 **What it means:**
+
 - **>90%**: Excellent - queries are being reused effectively
 - **70-90%**: Good - normal for varied query patterns
 - **50-70%**: Warning - high query diversity or cache warming needed
@@ -397,6 +415,7 @@ curl http://localhost:8000/admin/apq/health
 **Target:** >50% (when enabled)
 
 **What it means:**
+
 - **>80%**: Excellent - significant performance gains
 - **50-80%**: Good - response caching is beneficial
 - **30-50%**: Marginal - consider disabling if overhead isn't worth it
@@ -411,6 +430,7 @@ curl http://localhost:8000/admin/apq/top-queries?limit=10
 ```
 
 **Look for:**
+
 - High miss rate on frequent queries (cache warming opportunity)
 - Queries with long parse times (optimization candidates)
 - Unexpected query patterns (potential issues)
@@ -430,6 +450,7 @@ scrape_configs:
 ```
 
 Available metrics:
+
 - `apq_query_cache_hit_rate`: Query cache effectiveness
 - `apq_response_cache_hit_rate`: Response cache effectiveness
 - `apq_requests_total`: Total APQ requests
@@ -467,6 +488,7 @@ for query in top_queries:
 Configure your GraphQL client to use APQ:
 
 **Apollo Client:**
+
 ```javascript
 import { createPersistedQueryLink } from "@apollo/client/link/persisted-queries";
 import { sha256 } from "crypto-hash";
@@ -475,6 +497,7 @@ const link = createPersistedQueryLink({ sha256 });
 ```
 
 **urql:**
+
 ```javascript
 import { Client, cacheExchange, fetchExchange } from "urql";
 import { persistedExchange } from "@urql/exchange-persisted";
@@ -578,6 +601,7 @@ asyncio.create_task(periodic_cleanup())
 ### Problem: Low Query Cache Hit Rate (<70%)
 
 **Diagnosis:**
+
 ```bash
 curl http://localhost:8000/admin/apq/top-queries?limit=20
 ```
@@ -603,6 +627,7 @@ curl http://localhost:8000/admin/apq/top-queries?limit=20
 ### Problem: Response Cache Not Working
 
 **Diagnosis:**
+
 ```bash
 curl http://localhost:8000/admin/apq/health
 # Check response_cache_hit_rate
@@ -611,6 +636,7 @@ curl http://localhost:8000/admin/apq/health
 **Common Causes:**
 
 1. **Response caching disabled**
+
    ```python
    # Check config
    config = FraiseQLConfig(apq_cache_responses=True)  # Must be True
@@ -631,6 +657,7 @@ curl http://localhost:8000/admin/apq/health
 ### Problem: High Memory Usage
 
 **Diagnosis:**
+
 ```bash
 curl http://localhost:8000/admin/apq/metrics | grep storage_bytes
 ```
@@ -638,16 +665,19 @@ curl http://localhost:8000/admin/apq/metrics | grep storage_bytes
 **Solutions:**
 
 1. **Switch to PostgreSQL backend:**
+
    ```python
    config = FraiseQLConfig(apq_storage_backend="postgresql")
    ```
 
 2. **Reduce response TTL:**
+
    ```python
    apq_backend_config={"response_ttl": 60}  # Shorter expiration
    ```
 
 3. **Implement cache size limits:**
+
    ```python
    from fraiseql.storage.apq_store import get_storage_stats, clear_storage
 
@@ -664,16 +694,19 @@ Response cache serving outdated data after mutations
 **Solutions:**
 
 1. **Disable response caching:**
+
    ```python
    config = FraiseQLConfig(apq_cache_responses=False)
    ```
 
 2. **Reduce TTL for volatile data:**
+
    ```python
    apq_backend_config={"response_ttl": 30}  # 30 seconds
    ```
 
 3. **Implement cache invalidation:**
+
    ```python
    from fraiseql.storage import apq_store
 
@@ -693,17 +726,20 @@ Response cache serving outdated data after mutations
 ### 1. Configuration Checklist
 
 ✅ **Always Enable:**
+
 - [ ] Query caching (`apq_storage_backend` configured)
 - [ ] Metrics tracking (automatic)
 - [ ] Health monitoring endpoint
 - [ ] Dashboard access for operations team
 
 ✅ **Consider Enabling:**
+
 - [ ] Response caching (if read-heavy workload)
 - [ ] PostgreSQL/Redis backend (if multi-instance)
 - [ ] Prometheus integration (if using monitoring)
 
 ✅ **Never Do:**
+
 - [ ] Enable response caching for user-specific data without tenant isolation
 - [ ] Use memory backend in multi-instance deployments
 - [ ] Ignore health warnings (hit rate <50%)
@@ -713,6 +749,7 @@ Response cache serving outdated data after mutations
 **Set up alerts for:**
 
 1. **Critical Alert: Hit Rate <50%**
+
    ```yaml
    # Prometheus alert
    - alert: APQHitRateCritical
@@ -723,6 +760,7 @@ Response cache serving outdated data after mutations
    ```
 
 2. **Warning Alert: Hit Rate <70%**
+
    ```yaml
    - alert: APQHitRateWarning
      expr: apq_query_cache_hit_rate < 0.7
@@ -732,6 +770,7 @@ Response cache serving outdated data after mutations
    ```
 
 3. **Storage Alert: High Memory Usage**
+
    ```yaml
    - alert: APQHighStorage
      expr: apq_storage_bytes_total > 100 * 1024 * 1024
@@ -745,6 +784,7 @@ Response cache serving outdated data after mutations
 Before enabling in production:
 
 1. **Baseline without APQ:**
+
    ```bash
    # Disable APQ
    config = FraiseQLConfig(apq_storage_backend=None)
@@ -754,6 +794,7 @@ Before enabling in production:
    ```
 
 2. **Test with query cache only:**
+
    ```bash
    config = FraiseQLConfig(
        apq_storage_backend="memory",
@@ -762,6 +803,7 @@ Before enabling in production:
    ```
 
 3. **Test with full APQ:**
+
    ```bash
    config = FraiseQLConfig(
        apq_storage_backend="memory",
@@ -778,18 +820,21 @@ Before enabling in production:
 ### 4. Rollout Strategy
 
 **Phase 1: Query Cache Only**
+
 1. Enable memory backend in production
 2. Monitor for 1 week
 3. Verify hit rate >70%
 4. No rollback needed (pure performance gain)
 
 **Phase 2: PostgreSQL Backend** (if multi-instance)
+
 1. Deploy PostgreSQL backend to canary
 2. Monitor for 48 hours
 3. Verify no increased latency
 4. Roll out to production
 
 **Phase 3: Response Caching** (if applicable)
+
 1. Enable for read-only, public queries only
 2. Start with short TTL (60s)
 3. Monitor for stale data issues
@@ -799,21 +844,25 @@ Before enabling in production:
 ### 5. Maintenance
 
 **Daily:**
+
 - Check dashboard for warnings
 - Monitor hit rates
 - Review top queries
 
 **Weekly:**
+
 - Analyze hit rate trends
 - Review storage usage
 - Check for query pattern changes
 
 **Monthly:**
+
 - Review and optimize top queries
 - Audit cache effectiveness
 - Update TTL configuration if needed
 
 **Quarterly:**
+
 - Performance benchmark comparison
 - Review backend choice (memory vs PostgreSQL vs Redis)
 - Consider cache warming strategies

@@ -15,6 +15,7 @@ This runbook guides you through diagnosing and resolving database performance is
 ## 🚨 Symptoms
 
 ### Primary Indicators
+
 - GraphQL queries taking > 5 seconds
 - Database connection pool exhausted
 - Query timeout errors (> 30 seconds)
@@ -78,6 +79,7 @@ rate(fraiseql_errors_total{error_code="QUERY_TIMEOUT"}[5m]) > 0.1
 ### Step 1: Check Current Query Performance
 
 **Via Prometheus**:
+
 ```promql
 # Average query duration by query type
 avg by (query_type) (
@@ -92,6 +94,7 @@ topk(5,
 ```
 
 **Via Structured Logs**:
+
 ```bash
 # Find slow queries in last 5 minutes
 jq -r 'select(.event == "database.slow_query") |
@@ -107,6 +110,7 @@ jq -r 'select(.event == "database.query_timeout") |
 ### Step 2: Check Connection Pool Status
 
 **Via Prometheus**:
+
 ```promql
 # Active connections
 fraiseql_db_connections_active
@@ -122,6 +126,7 @@ fraiseql_db_connections_total
 ```
 
 **Via Application Code**:
+
 ```python
 from fraiseql import FraiseQL
 
@@ -135,6 +140,7 @@ print(f"Total: {pool_stats['total']}")
 ### Step 3: Identify Problematic Queries
 
 **PostgreSQL - Find Long-Running Queries**:
+
 ```sql
 SELECT
   pid,
@@ -151,6 +157,7 @@ LIMIT 10;
 ```
 
 **PostgreSQL - Check Table-Level Stats**:
+
 ```sql
 SELECT
   schemaname,
@@ -166,6 +173,7 @@ LIMIT 10;
 ```
 
 **PostgreSQL - Missing Indexes**:
+
 ```sql
 SELECT
   schemaname,
@@ -184,12 +192,14 @@ LIMIT 10;
 ### Step 4: Check Database Resource Usage
 
 **PostgreSQL - Database Size**:
+
 ```sql
 SELECT
   pg_size_pretty(pg_database_size(current_database())) AS db_size;
 ```
 
 **PostgreSQL - Connection Count**:
+
 ```sql
 SELECT count(*) AS total_connections
 FROM pg_stat_activity;
@@ -202,6 +212,7 @@ GROUP BY state;
 ```
 
 **PostgreSQL - Cache Hit Ratio** (should be > 95%):
+
 ```sql
 SELECT
   sum(heap_blks_read) AS heap_read,
@@ -232,6 +243,7 @@ conn = await app.db.get_connection(query_timeout=60)
 ```
 
 **Environment Variable Override**:
+
 ```bash
 # In production environment
 export FRAISEQL_QUERY_TIMEOUT=60  # seconds
@@ -266,6 +278,7 @@ app = FraiseQL(
 ```
 
 **Environment Variables**:
+
 ```bash
 export FRAISEQL_DB_POOL_SIZE=20
 export FRAISEQL_DB_MAX_OVERFLOW=10
@@ -276,6 +289,7 @@ export FRAISEQL_DB_MAX_OVERFLOW=10
 #### 1. Analyze and Optimize Slow Queries
 
 **Enable Query Logging**:
+
 ```sql
 -- PostgreSQL configuration
 ALTER DATABASE your_db SET log_min_duration_statement = 1000;  -- Log queries > 1s
@@ -283,6 +297,7 @@ ALTER DATABASE your_db SET log_statement = 'all';
 ```
 
 **Use EXPLAIN ANALYZE**:
+
 ```sql
 -- For slow GraphQL query
 EXPLAIN ANALYZE
@@ -290,6 +305,7 @@ SELECT ... FROM users WHERE ...;
 ```
 
 **Common Issues**:
+
 - Missing indexes → Add indexes
 - Sequential scans → Add WHERE clause indexes
 - Join order → Reorder joins
@@ -315,6 +331,7 @@ ON order_items(order_id);
 #### 3. Optimize Connection Pool Settings
 
 **Configuration Guidelines**:
+
 ```python
 # Calculate optimal pool size
 # Rule of thumb: pool_size = (available_connections / number_of_app_instances) * 0.8
@@ -467,6 +484,7 @@ groups:
 ### Grafana Dashboard Panels
 
 **1. Query Duration by Type**:
+
 ```promql
 avg by (query_type) (
   rate(fraiseql_db_query_duration_seconds_sum[5m])
@@ -475,6 +493,7 @@ avg by (query_type) (
 ```
 
 **2. Connection Pool Utilization**:
+
 ```promql
 fraiseql_db_connections_active
 fraiseql_db_connections_idle
@@ -482,11 +501,13 @@ fraiseql_db_connections_total
 ```
 
 **3. Slow Query Rate**:
+
 ```promql
 rate(fraiseql_db_queries_total{query_duration_bucket="+Inf"}[5m])
 ```
 
 **4. Query Timeout Rate**:
+
 ```promql
 rate(fraiseql_errors_total{error_code="QUERY_TIMEOUT"}[5m])
 ```

@@ -10,12 +10,14 @@
 ## Objective
 
 Automate code quality checks at commit-time and CI/CD pipeline:
+
 1. Configure prek (Rust pre-commit replacement)
 2. Setup GitHub Actions workflows
 3. Configure branch protection rules
 4. Create PR quality gates
 
 **Success Criteria**:
+
 - ✅ Pre-commit hooks working (clippy, fmt, tests)
 - ✅ GitHub Actions workflows passing
 - ✅ Branch protection enforced on dev/main

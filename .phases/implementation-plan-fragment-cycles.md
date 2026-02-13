@@ -13,6 +13,7 @@
 FraiseQL currently allows circular fragment references, which can cause infinite loops during execution. This plan adds cycle detection to reject malformed fragments at parse time, preventing runtime failures and enabling safe fragment validation.
 
 **Example of what will be prevented:**
+
 ```graphql
 # ❌ INVALID: Self-reference
 fragment A on User {
@@ -86,6 +87,7 @@ def resolve_all_fields(
 ### Current GraphQL-core Behavior
 
 GraphQL-core has **no cycle detection** in fragment resolution by default:
+
 ```python
 # graphql-core's FragmentDefinitionNode just stores references
 # No validation that references are acyclic
@@ -121,27 +123,32 @@ If cycle found: Raise ValidationError
 ### Key Design Decisions
 
 **Decision 1: When to validate cycles?**
+
 - ✅ **At parse time**, before any execution
 - Not during query execution (too late)
 - Not lazily (defeats DoS prevention)
 - In `resolve_all_fields()` is too late
 
 **Better location:**
+
 - ✅ Create separate `validate_fragment_cycles()` function
 - Call from `routers.py` immediately after parsing
 - Independent of `resolve_all_fields()`
 
 **Decision 2: Detect only direct cycles or transitive?**
+
 - ✅ **Detect all cycles** (direct, mutual, transitive)
 - Use visited set + DFS backtracking
 - Simpler and catches all cases
 
 **Decision 3: Report cycle path for debugging?**
+
 - ✅ **Yes, include path in error message**
 - Makes debugging much easier
 - Example: "Circular fragment: A → B → C → A"
 
 **Decision 4: How to handle type validation?**
+
 - ✅ **Separate concern**, but important
 - Fragment type must be compatible with field type
 - Implement as separate validation function
@@ -295,6 +302,7 @@ def _check_selection_for_fragment_spreads(
 ```
 
 **Test locally first:**
+
 ```python
 def test_cycle_detection_in_isolation():
     """Validate cycle detection works before integration"""
@@ -953,9 +961,11 @@ class TestFragmentCycleDetectionIntegration:
 ## Part 4: Complete Code Changes Summary
 
 ### Files Created
+
 1. `src/fraiseql/core/fragment_validator.py` - New validation module
 
 ### Files Modified
+
 1. `src/fraiseql/fastapi/routers.py` - Add cycle validation to endpoint
 2. `src/fraiseql/analysis/query_complexity.py` - Fix fragment handling
 3. Tests: Multiple new test files
@@ -965,9 +975,11 @@ class TestFragmentCycleDetectionIntegration:
 ## Part 5: Migration Guide
 
 ### Breaking Changes
+
 **None.** Queries that previously would have silently caused issues will now be rejected with clear error messages.
 
 ### For Users
+
 If you have queries with fragment cycles (unlikely in production, would have caused runtime errors), update them:
 
 ```graphql
@@ -990,6 +1002,7 @@ fragment A on User {
 ## Part 6: Success Criteria
 
 ### Code Quality
+
 - [ ] All unit tests pass (20+ new tests)
 - [ ] All integration tests pass
 - [ ] No regressions in existing tests
@@ -997,6 +1010,7 @@ fragment A on User {
 - [ ] Passes linting (ruff, black)
 
 ### Functionality
+
 - [ ] Self-referencing fragments rejected
 - [ ] Mutual cycles detected
 - [ ] Transitive cycles detected
@@ -1005,11 +1019,13 @@ fragment A on User {
 - [ ] Complexity analyzer handles fragments
 
 ### Performance
+
 - [ ] Cycle validation < 10ms for typical queries
 - [ ] No performance regression in query execution
 - [ ] Memory usage stable
 
 ### Documentation
+
 - [ ] Clear error messages for users
 - [ ] Docstrings explain algorithm
 - [ ] Implementation notes in code
@@ -1019,14 +1035,17 @@ fragment A on User {
 ## Part 7: Dependencies & Prerequisites
 
 ### Code Dependencies
+
 - `graphql-core >= 3.2` (already required)
 - No new external dependencies
 
 ### Files Modified
+
 1. `src/fraiseql/fastapi/routers.py`
 2. `src/fraiseql/analysis/query_complexity.py`
 
 ### Files Added
+
 1. `src/fraiseql/core/fragment_validator.py`
 2. `tests/unit/core/test_fragment_cycles.py`
 3. `tests/integration/fastapi/test_fragment_cycles.py`
@@ -1036,18 +1055,21 @@ fragment A on User {
 ## Part 8: Implementation Checklist
 
 ### Development
+
 - [ ] Create `fragment_validator.py` with cycle detection
 - [ ] Write unit tests for all cycle patterns
 - [ ] Test in isolation
 - [ ] Verify error messages are clear
 
 ### Integration
+
 - [ ] Add validation call to `routers.py`
 - [ ] Update complexity analyzer
 - [ ] Write integration tests
 - [ ] Test end-to-end
 
 ### Validation
+
 - [ ] Run full test suite (6000+ tests)
 - [ ] Verify no regressions
 - [ ] Benchmark performance
@@ -1082,11 +1104,13 @@ For each fragment:
 ```
 
 **Why backtrack?**
+
 - Different paths might reference same fragment (diamond pattern)
 - Must only mark as "in current path", not globally visited
 - Backtracking lets us explore all paths correctly
 
 **Complexity:**
+
 - Time: O(N + E) where N = fragments, E = references
 - Space: O(N) for visited set + path
 
@@ -1095,35 +1119,43 @@ For each fragment:
 ## Part 10: Testing Examples
 
 ### Example 1: Self-Reference
+
 ```graphql
 fragment A on User {
   id
   ...A  # ← Cycle: A → A
 }
 ```
+
 **Expected:** `FragmentCycleError("Circular fragment reference: A → A")`
 
 ### Example 2: Mutual
+
 ```graphql
 fragment A on User { ...B }
 fragment B on User { ...A }
 ```
+
 **Expected:** `FragmentCycleError("Circular fragment reference: A → B → A")`
 
 ### Example 3: Valid Chain (no cycle)
+
 ```graphql
 fragment A on User { ...B }
 fragment B on User { ...C }
 fragment C on User { id }
 ```
+
 **Expected:** No error ✅
 
 ### Example 4: Diamond (no cycle)
+
 ```graphql
 fragment A on User { ...B ...C }
 fragment B on User { id }
 fragment C on User { name }
 ```
+
 **Expected:** No error ✅
 
 ---

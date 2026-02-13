@@ -5,16 +5,19 @@
 A comprehensive example of PostgreSQL database migrations for FraiseQL applications, focusing on datetime UTC normalization and best practices for schema evolution.
 
 **What you'll learn:**
+
 - PostgreSQL migration patterns for JSONB data
 - UTC timestamp normalization with 'Z' suffix
 - Helper functions for consistent data formatting
 - Migration testing and validation strategies
 
 **Prerequisites:**
+
 - `../blog_simple/` - Basic FraiseQL concepts
 - PostgreSQL knowledge and migration experience
 
 **Next steps:**
+
 - `../enterprise_patterns/` - Advanced database patterns
 - `../compliance-demo/` - Production compliance features
 
@@ -27,6 +30,7 @@ This example demonstrates essential database migration patterns for FraiseQL app
 The main migration (`datetime_utc_normalization.sql`) addresses a critical issue: inconsistent timestamp formatting in JSONB data. PostgreSQL's `timestamptz` type stores UTC internally but can format timestamps differently based on client settings.
 
 **Problem Solved:**
+
 - Ensures all timestamps in GraphQL responses use ISO 8601 format with 'Z' suffix
 - Provides consistent datetime handling across different PostgreSQL configurations
 - Prevents timezone-related bugs in client applications
@@ -48,6 +52,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 ```
 
 This function:
+
 - Converts any `timestamptz` to UTC
 - Formats as ISO 8601 with milliseconds and 'Z' suffix
 - Handles NULL values gracefully
@@ -66,6 +71,7 @@ to_utc_z(created_at) AS created_at
 ```
 
 ### Affected Fields
+
 - `created_at` - Record creation timestamp
 - `updated_at` - Last modification timestamp
 - `published_at` - Content publication timestamp
@@ -75,12 +81,14 @@ to_utc_z(created_at) AS created_at
 ## When to Apply This Migration
 
 ### Required For
+
 - ✅ Production deployments with multiple timezones
 - ✅ Applications serving international users
 - ✅ Systems requiring consistent timestamp formatting
 - ✅ GraphQL APIs with datetime fields
 
 ### Optional For
+
 - 🟡 Development environments with single timezone
 - 🟡 Internal applications with controlled timezone settings
 - 🟡 Systems not exposing timestamps in APIs
@@ -110,6 +118,7 @@ SELECT
 ```
 
 Expected output:
+
 ```
 utc_time          | formatted_utc          | est_time          | formatted_est         | cet_time          | formatted_cet
 -------------------+-----------------------+-------------------+-----------------------+-------------------+------------------------
@@ -130,6 +139,7 @@ FROM users LIMIT 1;
 ## Migration Best Practices
 
 ### 1. Test in Staging First
+
 ```bash
 # Create staging database
 createdb staging_db
@@ -140,6 +150,7 @@ psql -d staging_db -f datetime_utc_normalization.sql
 ```
 
 ### 2. Backup Before Migration
+
 ```bash
 # Backup production database
 pg_dump production_db > production_backup.sql
@@ -150,6 +161,7 @@ psql -d production_restore < production_backup.sql
 ```
 
 ### 3. Gradual Rollout
+
 ```sql
 -- Option 1: Create new views alongside old ones
 CREATE VIEW users_v2 AS SELECT ...;
@@ -164,6 +176,7 @@ CREATE VIEW posts_v2 AS SELECT ...;
 ```
 
 ### 4. Rollback Plan
+
 ```sql
 -- If issues arise, rollback views to original format
 CREATE OR REPLACE VIEW users AS
@@ -179,17 +192,20 @@ FROM users;
 ## Performance Considerations
 
 ### Benefits
+
 - ✅ Consistent formatting reduces client-side processing
 - ✅ ISO 8601 format is widely supported
 - ✅ 'Z' suffix clearly indicates UTC
 - ✅ Millisecond precision maintained
 
 ### Costs
+
 - ⚠️ Slight performance overhead for `to_utc_z()` calls
 - ⚠️ Increased index size (text vs timestamptz)
 - ⚠️ Cannot use timestamptz operators on formatted strings
 
 ### Optimization Strategies
+
 ```sql
 -- Create functional indexes for common queries
 CREATE INDEX idx_posts_published_at ON posts (published_at)
@@ -203,6 +219,7 @@ ALTER TABLE posts ADD COLUMN published_at_raw timestamptz;
 ## Integration with FraiseQL
 
 ### GraphQL Schema Impact
+
 ```python
 @fraiseql.type
 class Post:
@@ -215,6 +232,7 @@ class Post:
 ```
 
 ### Client Benefits
+
 ```javascript
 // Before: Inconsistent formatting
 const post = {
@@ -233,6 +251,7 @@ const post = {
 ## Advanced Migration Patterns
 
 ### 1. Conditional Updates
+
 ```sql
 -- Only update records that need formatting
 UPDATE table_name
@@ -245,6 +264,7 @@ WHERE jsonb_data->>'createdAt' NOT LIKE '%Z';
 ```
 
 ### 2. Batch Processing
+
 ```sql
 -- Process large tables in batches
 UPDATE table_name
@@ -262,6 +282,7 @@ WHERE id IN (
 ## Monitoring and Validation
 
 ### Post-Migration Checks
+
 ```sql
 -- Verify all timestamps have Z suffix
 SELECT COUNT(*) as total_records,

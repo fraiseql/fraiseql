@@ -10,6 +10,7 @@
 ## Overview
 
 Feature flags allow running both Rust and Python database backends in parallel, enabling:
+
 - ✅ Gradual rollout without risk
 - ✅ Easy rollback if issues found
 - ✅ A/B testing between implementations
@@ -462,6 +463,7 @@ jobs:
 **Issue**: Compile error when both features enabled
 
 **Fix**: This is intentional. For production:
+
 ```bash
 cargo build --features rust-db      # ✅
 cargo build --features python-db    # ✅

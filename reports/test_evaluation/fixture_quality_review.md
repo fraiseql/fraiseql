@@ -1,6 +1,7 @@
 # Fixture Quality Review
 
 ## Summary
+
 - Files reviewed: 4 conftest files
 - Key fixtures analyzed: 5
 - Overall quality: 4.0/5
@@ -10,6 +11,7 @@
 ### Fixtures Reviewed
 
 #### 1. `clear_type_caches` (session scope, autouse)
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Scope | 5 | Appropriately session-scoped for expensive cache clearing |
@@ -20,6 +22,7 @@
 **Good**: Uses session scope to minimize cache clearing overhead.
 
 #### 2. `clear_registry` (function scope, autouse)
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Scope | 5 | Function scope appropriate for isolation |
@@ -30,6 +33,7 @@
 **Good**: Marker-based conditional clearing (`database`, `integration`, `e2e`, `forked`, `slow`, `enterprise`) is an excellent optimization pattern.
 
 #### 3. `use_snake_case` (function scope)
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Scope | 5 | Function scope for config changes |
@@ -42,6 +46,7 @@
 ### Fixture Organization
 
 The main conftest uses modular imports:
+
 ```python
 from tests.fixtures.examples.conftest_examples import *
 from tests.fixtures.database.database_conftest import *
@@ -50,11 +55,13 @@ from tests.fixtures.cascade.conftest import *
 ```
 
 **Strengths**:
+
 - Graceful fallback when dependencies unavailable
 - Logical grouping by domain
 - `FRAISEQL_AVAILABLE` flag for conditional execution
 
 **Issues**:
+
 - Star imports (`*`) make fixture discovery harder
 - No explicit list of imported fixtures
 
@@ -69,10 +76,12 @@ from tests.fixtures.cascade.conftest import *
 ## Issues Found
 
 ### P1 - High Priority
+
 1. **Star imports from fixture modules** - Hard to track which fixtures come from where
    - Recommendation: Use explicit imports or `__all__` in fixture modules
 
 ### P2 - Medium Priority
+
 2. **Missing fixture documentation** - Some fixtures lack type hints or detailed docs
    - Recommendation: Add return type hints and param descriptions
 
@@ -80,12 +89,14 @@ from tests.fixtures.cascade.conftest import *
    - Recommendation: Add fixture usage matrix or documentation
 
 ### P3 - Low Priority
+
 4. **No fixture caching for expensive operations** - Some fixtures could benefit from `@lru_cache`
    - Recommendation: Profile and add caching where beneficial
 
 ## Recommendations
 
 1. **Replace star imports with explicit imports**:
+
    ```python
    from tests.fixtures.database.database_conftest import (
        db_pool,
@@ -95,6 +106,7 @@ from tests.fixtures.cascade.conftest import *
    ```
 
 2. **Add fixture docstrings with parameter types**:
+
    ```python
    @pytest.fixture
    def use_snake_case() -> Generator[None, None, None]:
@@ -115,6 +127,7 @@ from tests.fixtures.cascade.conftest import *
 ## Overall Assessment
 
 The fixture design is solid with good use of:
+
 - Session vs function scope optimization
 - Marker-based conditional execution
 - Proper cleanup with yield patterns

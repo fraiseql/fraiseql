@@ -35,6 +35,7 @@ FraiseQL implements comprehensive SBOM generation following industry best practi
 ### Supported Jurisdictions
 
 #### 🇺🇸 North America
+
 - **United States**
   - [Executive Order 14028](https://www.whitehouse.gov/briefing-room/presidential-actions/2021/05/12/executive-order-on-improving-the-nations-cybersecurity/) (May 2021) - Software supply chain security for federal procurement
   - [NIST SP 800-161](https://csrc.nist.gov/publications/detail/sp/800-161/rev-1/final) - Cybersecurity Supply Chain Risk Management
@@ -44,6 +45,7 @@ FraiseQL implements comprehensive SBOM generation following industry best practi
   - [Canadian Program for Cyber Security Certification (CPCSC)](https://www.canada.ca/en/public-services-procurement/services/industrial-security/security-requirements-contracting/cyber-security-certification-defence-suppliers-canada.html) - Defence procurement (2025)
 
 #### 🇪🇺 Europe
+
 - **European Union**
   - [NIS2 Directive](https://digital-strategy.ec.europa.eu/en/policies/nis2-directive) (Directive 2022/2555) - Supply chain security requirements (effective Oct 2024)
   - [EU Cyber Resilience Act (CRA)](https://fossa.com/blog/sbom-requirements-cra-cyber-resilience-act/) - **Explicit SBOM requirement** for products with software (phasing in 2025-2027)
@@ -51,6 +53,7 @@ FraiseQL implements comprehensive SBOM generation following industry best practi
   - [UK NCSC Supply Chain Security Guidance](https://www.ncsc.gov.uk/collection/supply-chain-security) - 12 principles for supply chain security
 
 #### 🌏 Asia-Pacific
+
 - **Australia**
   - [Essential Eight Framework](https://www.cyber.gov.au/business-government/asds-cyber-security-frameworks/essential-eight) (ACSC) - Third-party vendor security requirements (2025 updates)
 - **Singapore**
@@ -58,6 +61,7 @@ FraiseQL implements comprehensive SBOM generation following industry best practi
   - [CSA SBOM Advisory](https://www.csa.gov.sg/about-csa/who-we-are/committees-and-panels/operational-technology-cybersecurity-expert-panel/evolving-security-threats-emerging-regualtions) - Automated SBOM generation guidance
 
 #### 🌐 International Standards
+
 - **ISO/IEC Standards**
   - [ISO 27001:2022](https://www.iso.org/standard/27001) Control 5.21 - Managing Information Security in ICT Supply Chain
   - [ISO 5962:2021](https://www.iso.org/standard/81870.html) - SPDX format standardization
@@ -132,6 +136,7 @@ SBOMs are automatically generated on every release via GitHub Actions:
 ```
 
 **Artifacts Published:**
+
 1. `fraiseql-{version}-sbom.json` - CycloneDX SBOM
 2. `fraiseql-{version}-sbom.json.sig` - Cosign signature (keyless)
 3. `fraiseql-{version}-sbom.json.pem` - Cosign certificate
@@ -209,6 +214,7 @@ sha256sum -c fraiseql-1.6.2-sbom.json.sha256
 ```
 
 **Expected Output:**
+
 ```
 fraiseql-1.6.2-sbom.json: OK
 ```
@@ -230,6 +236,7 @@ cosign verify-blob \
 ```
 
 **Expected Output:**
+
 ```
 Verified OK
 ```
@@ -276,6 +283,7 @@ trivy sbom --severity HIGH,CRITICAL fraiseql-1.6.2-sbom.json
 ### 3. Enterprise Integration
 
 Organizations can:
+
 1. Download SBOM from GitHub Releases
 2. Verify signature with Cosign
 3. Import into vulnerability management systems
@@ -324,6 +332,7 @@ Infrastructure Layer (src/fraiseql/sbom/infrastructure/)
 ```
 
 **Benefits:**
+
 - **Domain Independence**: Core logic doesn't depend on infrastructure
 - **Testability**: Domain models are easily unit-tested
 - **Extensibility**: Can add SPDX format without changing domain
@@ -333,6 +342,7 @@ Infrastructure Layer (src/fraiseql/sbom/infrastructure/)
 ### Issue: SBOM generation fails with "package not found"
 
 **Solution**: Ensure dependencies are installed:
+
 ```bash
 uv pip install ".[dev,all]"
 ```
@@ -352,6 +362,7 @@ uv pip install ".[dev,all]"
 **Cause**: Certificate identity mismatch or OIDC issuer mismatch.
 
 **Solution**: Ensure you're using the correct certificate identity:
+
 ```bash
 --certificate-identity-regexp "https://github.com/fraiseql/fraiseql"
 ```
@@ -361,6 +372,7 @@ uv pip install ".[dev,all]"
 ### Questions to Ask Vendors About SBOMs
 
 ✅ FraiseQL provides:
+
 1. **SBOM Format**: CycloneDX 1.5 (OWASP standard)
 2. **Update Frequency**: Every release
 3. **Verification**: Cryptographic signatures (Cosign + SHA256)
@@ -389,6 +401,7 @@ uv pip install ".[dev,all]"
 ### Feedback
 
 For SBOM-related questions or suggestions:
+
 - **GitHub Issues**: https://github.com/fraiseql/fraiseql/issues
 - **Security Reports**: [Create a Security Advisory](https://github.com/fraiseql/fraiseql/security/advisories/new)
 - **Email**: security@fraiseql.com (for non-security questions only)
@@ -396,6 +409,7 @@ For SBOM-related questions or suggestions:
 ---
 
 **Document Control:**
+
 - **Author**: Security Team
 - **Reviewers**: Project Maintainers
 - **Next Review**: 2026-11-21

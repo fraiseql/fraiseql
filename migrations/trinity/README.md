@@ -5,6 +5,7 @@ This directory contains SQL migrations for implementing the Trinity Identifiers 
 ## What is Trinity?
 
 Three-tier ID system for every entity:
+
 - `pk_*` (SERIAL) - Internal primary key for fast joins
 - `id` (UUID) - Public API identifier (secure, no enumeration)
 - `identifier` (TEXT) - Human-readable URL slug (optional, for some entities)
@@ -30,11 +31,13 @@ Use the template in `001_add_trinity_template.sql` and customize:
 **Before/After**: Benchmark your specific workload to measure performance gains.
 
 **Expected benefits**:
+
 - Smaller index size (4 bytes vs 16 bytes)
 - Better cache locality for joins
 - Faster index lookups (integer comparison vs UUID)
 
 **Trade-offs**:
+
 - One-time migration effort
 - Must keep both pk_* and id during transition
 - Need to update foreign key references
@@ -42,6 +45,7 @@ Use the template in `001_add_trinity_template.sql` and customize:
 ## Testing
 
 Run tests after each migration:
+
 ```bash
 # Test migration (up)
 psql $DATABASE_URL -f migrations/trinity/00X_migration.sql

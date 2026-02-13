@@ -12,6 +12,7 @@
 **You are the sole user of FraiseQL (PrintOptim backend).**
 
 **What we DON'T need:**
+
 - ❌ Deprecation warnings (no external users to warn)
 - ❌ Backward compatibility layers (just update PrintOptim)
 - ❌ Public migration guides (internal knowledge only)
@@ -19,6 +20,7 @@
 - ❌ Example repositories (you have PrintOptim)
 
 **What we DO need:**
+
 - ✅ Update FraiseQL's own tests
 - ✅ Verify no regressions
 - ✅ Basic changelog entry
@@ -39,6 +41,7 @@ uv run pytest tests/ -k "noop or validation" --co -q
 ```
 
 **Most tests should already be updated** from Phase 1-3:
+
 - ✅ Rust tests already updated (Phase 1)
 - ✅ Schema generation tests already added (Phase 3)
 - ✅ CASCADE tests already passing
@@ -101,6 +104,7 @@ class CreateMachineSuccess:
 ```
 
 ### 2. Error Types (~5-10 types)
+
 ```python
 # Before
 @fraiseql.failure
@@ -116,6 +120,7 @@ class CreateMachineError:
 ```
 
 ### 3. Test Assertions (~30-50 tests)
+
 ```python
 # Before
 assert result["__typename"] == "CreateMachineSuccess"
@@ -128,6 +133,7 @@ assert result["status"] == "noop:invalid_contract_id"
 ```
 
 ### 4. GraphQL Queries (Frontend - if any)
+
 ```graphql
 # Before
 mutation {
@@ -165,8 +171,10 @@ mutation {
 8. Deploy to production
 
 ## Timeline
+
 - FraiseQL: Already done (Phases 1-3)
 - PrintOptim: 1-2 days to update tests + types
+
 ```
 
 ---
@@ -211,12 +219,14 @@ uv run pytest tests/ -v
 **Expected:** All tests should pass (Phases 1-3 already updated the critical ones)
 
 ### Add Changelog Entry
+
 ```bash
 # Just add to CHANGELOG.md or rely on git commits
 # You already have detailed commit messages
 ```
 
 ### Create PrintOptim Migration Notes
+
 ```bash
 # Use the template above
 cat > .phases/validation-as-error-v1.8.0/PRINTOPTIM_MIGRATION.md << 'EOF'
@@ -240,6 +250,7 @@ EOF
 ## Next Steps
 
 After Phase 4 (simplified):
+
 1. Commit any test fixes
 2. Proceed to Phase 5: Release v1.8.0-beta.1
 3. Update PrintOptim to use v1.8.0-beta.1
@@ -251,6 +262,7 @@ After Phase 4 (simplified):
 **Phase 4 is MUCH simpler for internal use!**
 
 No need for:
+
 - Backward compatibility
 - Deprecation warnings
 - Public documentation
@@ -258,6 +270,7 @@ No need for:
 - External user communication
 
 Just:
+
 - ✅ Tests passing
 - ✅ Quick notes
 - ✅ Ready to release

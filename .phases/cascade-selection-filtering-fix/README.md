@@ -27,6 +27,7 @@ Currently, CASCADE data is returned in all mutation responses regardless of whet
 ## Solution
 
 Implement selection-aware CASCADE filtering:
+
 - Extract CASCADE selections from GraphQL query (Python layer)
 - Pass selections to Rust mutation pipeline
 - Filter CASCADE response based on client selection
@@ -39,9 +40,11 @@ Implement selection-aware CASCADE filtering:
 This implementation follows TDD workflow with 7 phases:
 
 ### 1. 🔴 RED - Write Failing Tests
+
 **File**: `1-RED-tests.md`
 
 Write comprehensive tests that demonstrate the bug:
+
 - CASCADE not returned when not requested
 - Full CASCADE returned when requested
 - Partial CASCADE selection support
@@ -52,9 +55,11 @@ Write comprehensive tests that demonstrate the bug:
 ---
 
 ### 2. 🟢 GREEN - Implement Fix
+
 **File**: `2-GREEN-implementation.md`
 
 Minimal implementation to make tests pass:
+
 - Extract CASCADE selections in Python executor
 - Pass selections to Rust pipeline
 - Filter CASCADE in Rust response builder
@@ -65,9 +70,11 @@ Minimal implementation to make tests pass:
 ---
 
 ### 3. 🔵 REFACTOR - Code Cleanup
+
 **File**: `3-REFACTOR-cleanup.md`
 
 Improve code quality without changing behavior:
+
 - Improve error handling
 - Add type safety
 - Optimize performance
@@ -79,9 +86,11 @@ Improve code quality without changing behavior:
 ---
 
 ### 4. 🟡 QA - Quality Assurance
+
 **File**: `4-QA-validation.md`
 
 Comprehensive testing and validation:
+
 - Update existing CASCADE tests
 - Test edge cases
 - Validate GraphQL spec compliance
@@ -93,9 +102,11 @@ Comprehensive testing and validation:
 ---
 
 ### 5. 🧹 CLEAN - Remove Artifacts
+
 **File**: `5-CLEAN-artifacts.md`
 
 Remove development artifacts:
+
 - Remove debug print statements
 - Remove explanatory comments about bug
 - Remove TODO markers
@@ -107,9 +118,11 @@ Remove development artifacts:
 ---
 
 ### 6. 📝 DOCUMENTATION - Update Docs
+
 **File**: `6-DOCUMENTATION-updates.md`
 
 Update all documentation:
+
 - CASCADE architecture docs
 - Best practices guide
 - Performance guide
@@ -122,9 +135,11 @@ Update all documentation:
 ---
 
 ### 7. 🚀 COMMIT - Release
+
 **File**: `7-COMMIT-and-release.md`
 
 Final commit and release:
+
 - Version bump to v1.8.1
 - Comprehensive commit message
 - Create git tag
@@ -139,15 +154,18 @@ Final commit and release:
 ## Key Files Modified
 
 ### Python
+
 - `fraiseql/mutations/executor.py` - Extract CASCADE selections
 - `fraiseql/mutations/cascade_selections.py` - Selection parser (already exists)
 
 ### Rust
+
 - `fraiseql_rs/src/mutation/mod.rs` - Accept cascade_selections parameter
 - `fraiseql_rs/src/mutation/response_builder.rs` - Filter CASCADE
 - `fraiseql_rs/src/mutation/cascade_filter.rs` - Selection filtering logic (NEW)
 
 ### Tests
+
 - `tests/integration/test_cascade_selection_filtering.py` - Core tests (NEW)
 - `tests/integration/test_cascade_edge_cases.py` - Edge cases (NEW)
 - `tests/integration/test_cascade_graphql_spec.py` - Spec compliance (NEW)
@@ -155,6 +173,7 @@ Final commit and release:
 - `tests/integration/test_graphql_cascade.py` - Update existing tests
 
 ### Documentation
+
 - `docs/mutations/cascade_architecture.md` - Add selection filtering
 - `docs/guides/cascade-best-practices.md` - When to request CASCADE
 - `docs/guides/performance-guide.md` - CASCADE optimization
@@ -194,11 +213,13 @@ Each phase should be completed before moving to the next:
 ## Risk Assessment
 
 ### Low Risk
+
 - Infrastructure already exists (cascade_selections.py)
 - Clear requirements from issue analysis
 - Comprehensive test coverage planned
 
 ### Mitigation
+
 - TDD approach ensures no regressions
 - Existing test suite catches breaking changes
 - Migration guide for users
@@ -267,6 +288,7 @@ Clients relying on CASCADE must add it to their selections:
 5. **Follow DO NOT lists to avoid common mistakes**
 
 Each phase file contains:
+
 - Objective and context
 - Step-by-step implementation
 - Code examples

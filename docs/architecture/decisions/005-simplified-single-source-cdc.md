@@ -266,7 +266,8 @@ Transforms to:
 
 ## Key Simplifications
 
-### Before (Dual-Path):
+### Before (Dual-Path)
+
 ```sql
 -- Build response
 v_response := build_mutation_response(...);
@@ -278,7 +279,8 @@ PERFORM log_cdc_event(...);
 RETURN v_response;
 ```
 
-### After (Single Source):
+### After (Single Source)
+
 ```sql
 -- Log everything once
 v_event_id := log_mutation_event(
@@ -295,45 +297,52 @@ RETURN (SELECT client_response::text FROM mutation_events WHERE event_id = v_eve
 ## Benefits
 
 ### 1. **Single Source of Truth**
+
 - One INSERT contains everything
 - No risk of client_response vs CDC data diverging
 - Simpler mental model
 
 ### 2. **Simpler PostgreSQL Functions**
+
 - No `build_mutation_response()` helper needed
 - No `PERFORM` for async logging
 - Just: log event, return client_response field
 
 ### 3. **Easier Debugging**
+
 - See EXACTLY what client received in CDC log
 - Reproduce issues by replaying client_response
 - Audit trail includes client response
 
 ### 4. **No Performance Change**
+
 - Still single INSERT (~1ms)
 - Still returns JSONB::text directly to Rust
 - Still ultra-direct path (no Python parsing)
 
 ### 5. **Backward Compatible CDC Consumers**
+
 - CDC consumers still get `before_state`/`after_state`
 - Plus bonus: can see what client received (`client_response`)
 
 ## Trade-offs
 
 ### Slightly Larger Events
+
 - Before: Only stored CDC diff (before/after)
 - After: Also stores client_response (~duplicate of after_state)
 - **Cost**: ~50-100 bytes per event (negligible)
 - **Benefit**: Perfect audit trail + simpler code
 
 ### Event Log Query Cost
+
 - SELECT from mutation_events on every mutation
 - **Mitigation**: event_id is PRIMARY KEY (instant lookup)
 - **Cost**: < 0.1ms (negligible vs 35ms business logic)
 
 ## Implementation Changes
 
-### Files to Update:
+### Files to Update
 
 1. **`0013_cdc_logging.sql`** - Change table schema:
    - Add `client_response JSONB NOT NULL`
@@ -419,18 +428,21 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 **YES, implement this simplification!**
 
-### Why:
+### Why
+
 1. ✅ Simpler code (single INSERT instead of build + log)
 2. ✅ Single source of truth (no divergence possible)
 3. ✅ Better audit trail (includes exact client response)
 4. ✅ Same performance (< 0.1ms overhead for event_id lookup)
 5. ✅ More debuggable (replay exact client responses)
 
-### Cost:
+### Cost
+
 - Slightly larger CDC events (~50-100 bytes per mutation)
 - This is negligible compared to benefits
 
-### Migration Path:
+### Migration Path
+
 1. Update `0013_cdc_logging.sql` with new schema
 2. Update all mutation functions to use simplified pattern
 3. Remove `0012_mutation_utils.sql` (no longer needed)

@@ -21,6 +21,7 @@ Complete reference for all FraiseQL decorators with signatures, parameters, and 
 **Purpose**: Define GraphQL object types
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -48,6 +49,7 @@ import fraiseql
 **Purpose**: Define GraphQL input types
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -66,6 +68,7 @@ class InputName:
 **Purpose**: Define GraphQL enum types from Python Enum classes
 
 **Signature**:
+
 ```python
 @enum
 class EnumName(Enum):
@@ -82,6 +85,7 @@ class EnumName(Enum):
 **Purpose**: Define GraphQL interface types
 
 **Signature**:
+
 ```python
 @interface
 class InterfaceName:
@@ -100,6 +104,7 @@ class InterfaceName:
 **Purpose**: Mark async functions as GraphQL queries
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -115,6 +120,7 @@ async def query_name(info, param1: Type1, param2: Type2 = default) -> ReturnType
 **Return Type**: Any GraphQL type (fraise_type, list, scalar, Connection, etc.)
 
 **Examples**:
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -144,6 +150,7 @@ async def search_users(
 **Purpose**: Create cursor-based pagination queries
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -177,6 +184,7 @@ import fraiseql
 **Returns**: Connection[T]
 
 **Examples**:
+
 ```python
 import fraiseql
 from fraiseql.types import Connection
@@ -217,6 +225,7 @@ async def posts_connection(
 **Purpose**: Define GraphQL mutations
 
 **Function-based Signature**:
+
 ```python
 import fraiseql
 
@@ -226,6 +235,7 @@ async def mutation_name(info, input: InputType) -> ReturnType:
 ```
 
 **Class-based Signature**:
+
 ```python
 import fraiseql
 
@@ -282,6 +292,7 @@ class DeleteUser:
 **See**: [FraiseQLConfig.default_error_config](./config.md#default_error_config) for details.
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -402,6 +413,7 @@ class CreateOrder:
 **Purpose**: Helper decorators for mutation result types
 
 **Usage**:
+
 ```python
 from fraiseql.mutations.decorators import success, failure, result
 
@@ -431,6 +443,7 @@ class CreateUserResult:
 **Purpose**: Mark methods as GraphQL fields with custom resolvers
 
 **Signature**:
+
 ```python
 import fraiseql
 
@@ -453,6 +466,7 @@ def method_name(self, info, ...params) -> ReturnType:
 | track_n1 | bool | True | Track N+1 query patterns for performance monitoring |
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -492,6 +506,7 @@ class User:
 **Purpose**: Automatically use DataLoader for field resolution
 
 **Signature**:
+
 ```python
 @dataloader_field(
     loader_class: type[DataLoader],
@@ -511,6 +526,7 @@ async def method_name(self, info) -> ReturnType:
 | description | str \| None | No | Field description for GraphQL schema |
 
 **Examples**:
+
 ```python
 from fraiseql import dataloader_field
 from fraiseql.optimization.dataloader import DataLoader
@@ -545,6 +561,7 @@ class Post:
 ```
 
 **Benefits**:
+
 - Eliminates N+1 query problems
 - Automatic batching of requests
 - Built-in caching within single request
@@ -559,6 +576,7 @@ class Post:
 **Purpose**: Mark async generator functions as GraphQL subscriptions
 
 **Signature**:
+
 ```python
 @subscription
 async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]:
@@ -571,6 +589,7 @@ async def subscription_name(info, ...params) -> AsyncGenerator[ReturnType, None]
 **Return Type**: Must be AsyncGenerator[YieldType, None]
 
 **Examples**:
+
 ```python
 from typing import AsyncGenerator
 from fraiseql.types import ID
@@ -599,6 +618,7 @@ async def on_user_posts(
 **Purpose**: Require authentication for resolver
 
 **Signature**:
+
 ```python
 @requires_auth
 async def resolver_name(info, ...params) -> ReturnType:
@@ -608,6 +628,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 **Parameters**: None
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -639,6 +660,7 @@ async def update_profile(info, input: UpdateProfileInput) -> User:
 **Purpose**: Require specific permission for resolver
 
 **Signature**:
+
 ```python
 @requires_permission(permission: str)
 async def resolver_name(info, ...params) -> ReturnType:
@@ -652,6 +674,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 | permission | str | Yes | Permission string required (e.g., "users:write") |
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -673,6 +696,7 @@ async def delete_user(info, id: ID) -> bool:
 ```
 
 **Raises**:
+
 - GraphQLError with code "UNAUTHENTICATED" if not authenticated
 - GraphQLError with code "FORBIDDEN" if missing permission
 
@@ -681,6 +705,7 @@ async def delete_user(info, id: ID) -> bool:
 **Purpose**: Require specific role for resolver
 
 **Signature**:
+
 ```python
 @requires_role(role: str)
 async def resolver_name(info, ...params) -> ReturnType:
@@ -694,6 +719,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 | role | str | Yes | Role name required (e.g., "admin") |
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -713,6 +739,7 @@ async def admin_action(info, input: AdminActionInput) -> Result:
 ```
 
 **Raises**:
+
 - GraphQLError with code "UNAUTHENTICATED" if not authenticated
 - GraphQLError with code "FORBIDDEN" if missing role
 
@@ -721,6 +748,7 @@ async def admin_action(info, input: AdminActionInput) -> Result:
 **Purpose**: Require any of the specified permissions
 
 **Signature**:
+
 ```python
 @requires_any_permission(*permissions: str)
 async def resolver_name(info, ...params) -> ReturnType:
@@ -734,6 +762,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 | *permissions | str | Yes | Variable number of permission strings |
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -749,6 +778,7 @@ async def update_user(info, id: ID, input: UpdateUserInput) -> User:
 ```
 
 **Raises**:
+
 - GraphQLError with code "UNAUTHENTICATED" if not authenticated
 - GraphQLError with code "FORBIDDEN" if missing all permissions
 
@@ -757,6 +787,7 @@ async def update_user(info, id: ID, input: UpdateUserInput) -> User:
 **Purpose**: Require any of the specified roles
 
 **Signature**:
+
 ```python
 @requires_any_role(*roles: str)
 async def resolver_name(info, ...params) -> ReturnType:
@@ -770,6 +801,7 @@ async def resolver_name(info, ...params) -> ReturnType:
 | *roles | str | Yes | Variable number of role names |
 
 **Examples**:
+
 ```python
 import fraiseql
 
@@ -784,12 +816,14 @@ async def moderate_content(info, id: ID) -> ModerationResult:
 ```
 
 **Raises**:
+
 - GraphQLError with code "UNAUTHENTICATED" if not authenticated
 - GraphQLError with code "FORBIDDEN" if missing all roles
 
 ## Decorator Combinations
 
 **Stacking decorators**:
+
 ```python
 import fraiseql, connection, type
 from fraiseql.auth import requires_auth, requires_permission
@@ -818,6 +852,7 @@ class User:
 ```
 
 **Decorator Order Rules**:
+
 1. Type decorators (@fraiseql.type, @input, @enum, @interface) - First
 2. Query/Mutation/Subscription decorators - Second
 3. Connection decorator - Before @fraiseql.query

@@ -5,6 +5,7 @@ The Trinity Pattern for managing identifiers in FraiseQL applications.
 ## Overview
 
 Trinity Identifiers provide a consistent way to handle entity identification across:
+
 - Database (internal IDs)
 - GraphQL API (public IDs)
 - External Systems (external IDs)
@@ -35,16 +36,19 @@ class Product:
 ## Benefits
 
 ### 1. Security
+
 - Don't expose internal database IDs
 - Use public IDs in URLs and APIs
 - Prevent ID enumeration attacks
 
 ### 2. Flexibility
+
 - Change internal IDs without affecting API
 - Support multiple identifier schemes
 - Integrate with external systems
 
 ### 3. Migration
+
 - Maintain compatibility during migrations
 - Support legacy identifiers
 - Gradual identifier transitions
@@ -138,16 +142,19 @@ async def create_product(
 ## Use Cases
 
 ### E-Commerce
+
 - **Internal ID**: Database UUID
 - **Public ID**: SKU (e.g., "WIDGET-001")
 - **External ID**: Supplier product code
 
 ### User Management
+
 - **Internal ID**: Database UUID
 - **Public ID**: Username
 - **External ID**: SSO provider ID
 
 ### Content Management
+
 - **Internal ID**: Database UUID
 - **Public ID**: Slug (URL-friendly)
 - **External ID**: CMS import ID

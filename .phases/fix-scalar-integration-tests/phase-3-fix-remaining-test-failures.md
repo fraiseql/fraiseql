@@ -10,11 +10,13 @@
 ## Context
 
 After Phase 1 & 2 and the scalar field type fix:
+
 - ✅ **108 tests passing** (schema registration + database roundtrip)
 - ✅ **Core functionality working** (scalars can be used as field types)
 - ❌ **50 tests failing** due to test infrastructure issues, not product bugs
 
 **Current Status**:
+
 ```
 118 passed, 50 failed
 ```
@@ -27,6 +29,7 @@ After Phase 1 & 2 and the scalar field type fix:
 
 **Test**: `test_scalar_in_graphql_query`
 **Error Example**:
+
 ```
 GraphQLError("Variable '$testValue' got invalid value 'test_value';
 Invalid airport code: test_value. Must be 3 uppercase letters (e.g., 'LAX', 'JFK', 'LHR')")
@@ -34,6 +37,7 @@ Invalid airport code: test_value. Must be 3 uppercase letters (e.g., 'LAX', 'JFK
 
 **Root Cause**:
 The `get_test_value_for_scalar()` helper function only has test values for 6 scalars:
+
 ```python
 test_values = {
     CIDRScalar: "192.168.1.0/24",
@@ -47,6 +51,7 @@ return test_values.get(scalar_class, "test_value")  # ← Returns 'test_value' f
 ```
 
 For the other 48 scalars, it returns `"test_value"`, which fails validation:
+
 - AirportCodeScalar expects 3 uppercase letters (e.g., "LAX")
 - ColorScalar expects hex color (e.g., "#FF5733")
 - PhoneNumberScalar expects E.164 format (e.g., "+14155552671")
@@ -63,6 +68,7 @@ Tests pass for the 6 scalars with defined test values + a few that accept generi
 
 **Test**: `test_scalar_in_where_clause`
 **Error**:
+
 ```
 GraphQLError("Unknown argument 'where' on field 'Query.getTestData'.")
 GraphQLError("Cannot query field 'testField' on type 'TestType'.")
@@ -71,6 +77,7 @@ GraphQLError("Cannot query field 'testField' on type 'TestType'.")
 **Root Cause #1**: Field not added to GraphQL schema
 
 **Current Code** (line 243):
+
 ```python
 @fraise_type(sql_source=table_name)
 class TestType:
@@ -81,6 +88,7 @@ class TestType:
 FraiseQL's field generation requires **type annotations**, not **assignments**.
 
 **Fix**:
+
 ```python
 @fraise_type(sql_source=table_name)
 class TestType:
@@ -93,6 +101,7 @@ class TestType:
 The `@query` decorator doesn't automatically add WHERE arguments. Looking at `test_all_where_operators.py` (which passes), queries return types with `sql_source` and FraiseQL automatically adds WHERE support.
 
 **Current Code** (lines 247-249):
+
 ```python
 @query
 async def get_test_data(info) -> list[TestType]:
@@ -112,6 +121,7 @@ This pattern should work if TestType has `sql_source`, but the field generation 
 **Location**: `tests/integration/meta/test_all_scalars.py`, line 356-363
 
 **Current** (6 scalars):
+
 ```python
 test_values = {
     CIDRScalar: "192.168.1.0/24",
@@ -124,6 +134,7 @@ test_values = {
 ```
 
 **Add** (48 more scalars):
+
 ```python
 test_values = {
     # Existing (6)
@@ -212,6 +223,7 @@ test_values = {
 **Location**: `tests/integration/meta/test_all_scalars.py`, line 243
 
 **Current** (line 240-244):
+
 ```python
 @fraise_type(sql_source=table_name)
 class TestType:
@@ -220,6 +232,7 @@ class TestType:
 ```
 
 **Replace with**:
+
 ```python
 @fraise_type(sql_source=table_name)
 class TestType:
@@ -230,6 +243,7 @@ TestType.__annotations__['test_field'] = scalar_class
 ```
 
 **OR** (cleaner approach - use typing.cast for dynamic annotation):
+
 ```python
 # Create type dynamically with proper annotations
 from typing import cast
@@ -276,6 +290,7 @@ TestType.__annotations__['test_field'] = scalar_class
 3. **Verify** each test value matches scalar validation rules
 
 **Verification**:
+
 ```bash
 # Test a few scalars that were failing
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_graphql_query -k "AirportCode" -v
@@ -293,6 +308,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_graphql
 **Lines**: 240-244
 
 **Replace**:
+
 ```python
 @fraise_type(sql_source=table_name)
 class TestType:
@@ -301,6 +317,7 @@ class TestType:
 ```
 
 **With**:
+
 ```python
 @fraise_type(sql_source=table_name)
 class TestType:
@@ -311,12 +328,14 @@ TestType.__annotations__['test_field'] = scalar_class
 ```
 
 **Verification**:
+
 ```bash
 # Test WHERE clause with one scalar
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_clause -k "CIDR" -vv
 ```
 
 **Expected Output**:
+
 - Field should be queryable in GraphQL
 - WHERE argument might still be missing (see Step 3)
 
@@ -334,6 +353,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_in_where_c
    - Special schema builder configuration
 
 **Investigation Commands**:
+
 ```bash
 # Check passing WHERE tests
 grep -n "@query" tests/integration/meta/test_all_where_operators.py -A 2
@@ -621,11 +641,13 @@ uv run pytest tests/integration/meta/test_all_scalars.py -v
 **Cause**: Test value doesn't match scalar's validation rules
 
 **Solution**:
+
 1. Check the scalar's validation function (in `src/fraiseql/types/scalars/{scalar_name}.py`)
 2. Update test value to match expected format
 3. Re-run test
 
 **Example**:
+
 ```python
 # If AirportCodeScalar validation shows it needs IATA codes
 AirportCodeScalar: "LAX",  # Valid IATA code
@@ -636,6 +658,7 @@ AirportCodeScalar: "LAX",  # Valid IATA code
 **Cause**: WHERE support not automatically added
 
 **Solution**:
+
 1. Check `test_all_where_operators.py` for pattern
 2. May need to:
    - Pass pool/context to query
@@ -647,6 +670,7 @@ AirportCodeScalar: "LAX",  # Valid IATA code
 **Cause**: FraiseQL might need field registered differently
 
 **Solution**:
+
 ```python
 # Try using Field explicitly
 from fraiseql.fields import Field
@@ -728,6 +752,7 @@ After completing this phase:
 ## Next Phase
 
 After this phase passes:
+
 - ✅ All scalar integration tests complete
 - ✅ Scalar feature fully validated
 - Move on to other integration test suites (e.g., operators, connections)

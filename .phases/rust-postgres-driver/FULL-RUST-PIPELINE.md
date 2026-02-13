@@ -46,6 +46,7 @@ HTTP Response
 ```
 
 **Bottlenecks**:
+
 - Python string manipulation for SQL (2-4ms per query)
 - Python dict traversal for WHERE clauses
 - Python regex for field name conversions
@@ -72,6 +73,7 @@ HTTP Response (bytes)
 ```
 
 **Improvements**:
+
 - No Python database code
 - Query building 10-80x faster
 - Query plan caching (5-10x for repeated queries)
@@ -118,11 +120,13 @@ These are new phases that move the entire GraphQL execution to Rust:
 **What**: Move GraphQL query parsing from Python (graphql-core C extension) to pure Rust (graphql-parser crate)
 
 **Why**:
+
 - Eliminate C extension dependency
 - Enable query plan caching (need parsed AST)
 - Faster parsing (20-50µs vs 100-200µs)
 
 **Implementation**:
+
 ```rust
 ParsedQuery { parse_graphql_query(query_string) }
   ├─ operation_type: "query" | "mutation"
@@ -132,6 +136,7 @@ ParsedQuery { parse_graphql_query(query_string) }
 ```
 
 **Testing**:
+
 - Parity with graphql-core on 1000+ test queries
 - Error messages match existing behavior
 - All 5991+ tests pass
@@ -143,12 +148,14 @@ ParsedQuery { parse_graphql_query(query_string) }
 **What**: Move all SQL generation from Python to Rust
 
 **Current Python code** (to be replaced):
+
 - `src/fraiseql/sql/sql_generator.py` - Base query building
 - `src/fraiseql/sql/where_generator.py` - WHERE clause generation
 - `src/fraiseql/where_normalization.py` - WHERE dict parsing
 - `src/fraiseql/sql/order_by_generator.py` - ORDER BY building
 
 **Rust Implementation**:
+
 ```rust
 SQLComposer { schema, parsed_query }
   ├─ Resolve field selections
@@ -159,11 +166,13 @@ SQLComposer { schema, parsed_query }
 ```
 
 **Performance Impact**:
+
 - WHERE building: 2-4ms → 50-200µs (40-80x faster)
 - Field selection: 500-1000µs → 10-50µs (50-100x faster)
 - Overall query building: 2-4ms → 50-200µs
 
 **Testing**:
+
 - Generated SQL identical to Python version (100+ test cases)
 - All WHERE operators work (eq, neq, gt, like, in, etc)
 - Nested WHERE clauses work
@@ -176,6 +185,7 @@ SQLComposer { schema, parsed_query }
 **What**: Cache pre-compiled query plans by signature
 
 **Mechanism**:
+
 ```
 Query: "query { users(where: {status: $status}) { id } }"
   ↓
@@ -187,17 +197,20 @@ Cache Lookup
 ```
 
 **Cache Strategy**:
+
 - LRU cache: 5000 plans max
 - Store only query structure (not parameter values)
 - Auto-invalidate on schema changes
 - Thread-safe with Arc<Mutex>
 
 **Performance Impact**:
+
 - Repeated queries: 150µs → 1µs (150x faster!)
 - Typical workload with 60% repetition: 1.5-2x overall speedup
 - Cache hit rate: 60-80% in real-world scenarios
 
 **Monitoring**:
+
 - Cache hit/miss rates
 - Memory usage
 - Eviction statistics
@@ -209,6 +222,7 @@ Cache Lookup
 **What**: Unify all phases into single Rust function called from Python
 
 **Before**:
+
 ```python
 # Python does:
 parsed = parse(query)
@@ -219,12 +233,14 @@ json = transform(results)
 ```
 
 **After**:
+
 ```python
 # Python just calls:
 json_bytes = await execute_graphql_query(query, vars, user)
 ```
 
 **Implementation**:
+
 ```rust
 #[pyfunction]
 pub async fn execute_graphql_query(
@@ -238,6 +254,7 @@ pub async fn execute_graphql_query(
 ```
 
 **Simplification**:
+
 - Remove all Python database code
 - Remove psycopg dependency
 - Remove SQL builder modules
@@ -245,6 +262,7 @@ pub async fn execute_graphql_query(
 - ~2000+ lines of Python deleted
 
 **Testing**:
+
 - All 5991+ tests pass
 - Zero regressions
 - Performance benchmarks confirm 5-10x improvement
@@ -343,6 +361,7 @@ Only do the highest-ROI phases:
 ### Test Coverage
 
 **Must achieve**:
+
 - ✅ All 5991+ existing tests pass
 - ✅ Zero regressions
 - ✅ Identical SQL generation (100+ test queries)
@@ -351,6 +370,7 @@ Only do the highest-ROI phases:
 ### Cache Performance
 
 **Goals**:
+
 - Hit rate: 60-80% in typical workloads
 - Cache size: < 100MB for 5000 plans
 - Lookup time: < 1µs
@@ -359,6 +379,7 @@ Only do the highest-ROI phases:
 ### Deployment Readiness
 
 **Requirements**:
+
 - Production-ready error handling
 - Comprehensive logging
 - Monitoring integration
@@ -370,15 +391,18 @@ Only do the highest-ROI phases:
 ## Risk Assessment
 
 ### Low Risk (Can proceed confidently)
+
 - ✅ **Phase 1**: Connection pool (proven pattern, tested in Phase 0 PoC)
 - ✅ **Phase 6**: GraphQL parsing (graphql-parser is mature crate)
 - ✅ **Phase 8**: Query caching (isolated feature, can be added incrementally)
 
 ### Medium Risk (Requires careful testing)
+
 - ⚠️ **Phase 2**: Query execution (most complex logic migration)
 - ⚠️ **Phase 7**: Query building (must match Python exactly)
 
 ### Higher Risk (Requires extensive validation)
+
 - 🔴 **Phase 3**: Result streaming (performance-critical, zero-copy)
 - 🔴 **Phase 4**: Full integration (touches all code paths)
 - 🔴 **Phase 5**: Deprecation (removes fallback, commits to Rust)
@@ -405,12 +429,14 @@ Only do the highest-ROI phases:
 ### Knowledge Requirements
 
 **Must have**:
+
 - Rust async/await (tokio)
 - PostgreSQL fundamentals
 - GraphQL concepts
 - Python FFI (PyO3) for integration
 
 **Nice to have**:
+
 - Performance profiling
 - Database optimization
 - Distributed systems
@@ -440,6 +466,7 @@ Phase 9 (Full Integration) ← Requires all previous
 ```
 
 **Parallel work possible**:
+
 - Phase 2 and Phase 6 can be developed in parallel (separate modules)
 - Phase 7 and Phase 8 can be started while Phase 6 is being tested
 - Phase 8 can be integrated independently
@@ -476,6 +503,7 @@ Phase 9 (Full Integration) ← Requires all previous
 ## Deployment Checklist
 
 ### Pre-Deployment
+
 - [ ] All tests passing (5991+)
 - [ ] Benchmarks show expected improvements
 - [ ] Code review completed
@@ -486,6 +514,7 @@ Phase 9 (Full Integration) ← Requires all previous
 - [ ] Load testing completed
 
 ### Deployment (Canary)
+
 - [ ] 5% traffic routed to Rust
 - [ ] Monitor error rates (target: < 0.1% delta)
 - [ ] Monitor latency (target: < 5% improvement)
@@ -494,6 +523,7 @@ Phase 9 (Full Integration) ← Requires all previous
 - [ ] Collect 2-4 hours of metrics
 
 ### Deployment (Gradual Rollout)
+
 - [ ] 25% traffic if canary successful
 - [ ] Monitor for 4-6 hours
 - [ ] 50% traffic if still healthy
@@ -501,6 +531,7 @@ Phase 9 (Full Integration) ← Requires all previous
 - [ ] 100% traffic if all checks pass
 
 ### Post-Deployment
+
 - [ ] Keep Python code for 1-2 weeks (fallback)
 - [ ] Monitor production metrics
 - [ ] Verify cache effectiveness
@@ -524,6 +555,7 @@ Once Phase 9 is complete and production-validated:
 ## References
 
 ### Detailed Phase Documentation
+
 - `phase-1-foundation.md` - Connection pool
 - `phase-2-query-execution.md` - WHERE clauses
 - `phase-3-result-streaming.md` - Zero-copy
@@ -535,6 +567,7 @@ Once Phase 9 is complete and production-validated:
 - `phase-9-full-integration.md` - ← **NEW**
 
 ### Supporting Documentation
+
 - `INDEX.md` - Master index (updated with Phases 6-9)
 - `IMPLEMENTATION_SUMMARY.md` - Quick reference
 - `POC-pyo3-async-bridge.md` - Risk validation
@@ -542,6 +575,7 @@ Once Phase 9 is complete and production-validated:
 - `FEATURE-FLAGS.md` - Rollout strategy
 
 ### External Resources
+
 - [graphql-parser crate](https://crates.io/crates/graphql-parser)
 - [tokio-postgres docs](https://docs.rs/tokio-postgres/)
 - [PyO3 guide](https://pyo3.rs/)
@@ -552,21 +586,27 @@ Once Phase 9 is complete and production-validated:
 ## Questions & Answers
 
 ### Q: Do I need to implement all 9 phases?
+
 **A**: No. Phases 1-5 provide a solid foundation. Phases 6-9 are optional optimizations for extreme performance. Many teams would be satisfied with just Phases 1-5.
 
 ### Q: What's the minimum viable implementation?
+
 **A**: Phases 1-5 (Rust PostgreSQL driver) gives you 2-3x performance with full database control in Rust. Phases 6-7 add another 10-80x on query building specifically.
 
 ### Q: Can I do Phases 6-9 without doing 1-5 first?
+
 **A**: Yes, theoretically. But Phases 1-5 are prerequisites for having a Rust database driver. Without them, you still need psycopg.
 
 ### Q: What about backwards compatibility?
+
 **A**: All changes are internal. The GraphQL API remains unchanged. Tests validate identical behavior.
 
 ### Q: How long does this really take?
+
 **A**: 56 hours (Phases 1-5) + 24 hours (Phases 6-9) = 80 hours total. With a skilled team: 10-14 weeks.
 
 ### Q: What if something breaks during migration?
+
 **A**: Use feature flags (Phase FEATURE-FLAGS.md) to route requests between Python and Rust backends. Rollback is instant.
 
 ---

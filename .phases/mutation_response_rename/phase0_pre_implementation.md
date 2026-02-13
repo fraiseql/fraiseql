@@ -1,9 +1,11 @@
 # Phase 0: Pre-Implementation Checklist
 
 ## Objective
+
 Prepare the environment and ensure we have a safe starting point for the rename.
 
 ## Duration
+
 15-30 minutes
 
 ---
@@ -11,6 +13,7 @@ Prepare the environment and ensure we have a safe starting point for the rename.
 ## Task 0.1: Verify Current State
 
 ### Check for External Users
+
 ```bash
 # Confirm no external users (already verified, but double-check)
 # If fraiseql is published to PyPI, check download stats
@@ -20,6 +23,7 @@ Prepare the environment and ensure we have a safe starting point for the rename.
 **Expected**: No external users (confirmed)
 
 ### Check Git Status
+
 ```bash
 cd /home/lionel/code/fraiseql
 git status
@@ -28,6 +32,7 @@ git status
 **Expected**: Clean working tree, or only uncommitted work you're aware of
 
 ### Check Current Branch
+
 ```bash
 git branch --show-current
 ```
@@ -39,6 +44,7 @@ git branch --show-current
 ## Task 0.2: Run Initial Tests
 
 ### Run Full Test Suite
+
 ```bash
 cd /home/lionel/code/fraiseql
 uv run pytest tests/ -v
@@ -47,10 +53,12 @@ uv run pytest tests/ -v
 **Expected**: All tests passing
 
 **If tests fail**:
+
 - Fix failures first before proceeding
 - Or note them if they're known/unrelated issues
 
 ### Check Rust Build
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql_rs
 cargo build --release
@@ -64,6 +72,7 @@ cargo test
 ## Task 0.3: Create Backup Branch
 
 ### Create Backup
+
 ```bash
 cd /home/lionel/code/fraiseql
 git checkout -b backup/before-mutation-response-rename
@@ -73,6 +82,7 @@ git push origin backup/before-mutation-response-rename
 **Purpose**: Safety net if we need to revert everything
 
 ### Return to Original Branch
+
 ```bash
 # Return to your working branch
 git checkout release/v1.7.2  # or whatever branch you were on
@@ -83,6 +93,7 @@ git checkout release/v1.7.2  # or whatever branch you were on
 ## Task 0.4: Create Working Branch
 
 ### Create Feature Branch
+
 ```bash
 git checkout -b refactor/rename-to-mutation-response
 ```
@@ -94,6 +105,7 @@ git checkout -b refactor/rename-to-mutation-response
 ## Task 0.5: Initial Scope Verification
 
 ### Count Current References
+
 ```bash
 cd /home/lionel/code/fraiseql
 
@@ -106,11 +118,13 @@ grep -r "mutation_result_v2" --include="*.py" --include="*.rs" --include="*.sql"
 **Record this number**: ____________
 
 ### List All Files with References
+
 ```bash
 grep -r "mutation_result_v2" --include="*.py" --include="*.rs" --include="*.sql" --include="*.md" . -l | sort
 ```
 
 **Expected files** (from analysis):
+
 ```
 ./CHANGELOG.md
 ./docs/features/graphql-cascade.md
@@ -136,6 +150,7 @@ grep -r "mutation_result_v2" --include="*.py" --include="*.rs" --include="*.sql"
 ## Task 0.6: Check for Generated Files
 
 ### Look for Code Generation
+
 ```bash
 # Check for generated Rust files
 find fraiseql_rs/target -name "*.rs" 2>/dev/null | head -5
@@ -151,6 +166,7 @@ find . -name "*_pb2.py" -o -name "*_generated.py" 2>/dev/null
 ## Task 0.7: Verify Dependencies
 
 ### Check Python Dependencies
+
 ```bash
 uv pip list | grep -i fraiseql
 ```
@@ -158,6 +174,7 @@ uv pip list | grep -i fraiseql
 **Expected**: Local development version
 
 ### Check Rust Dependencies
+
 ```bash
 cd fraiseql_rs
 cargo tree | head -20
@@ -170,6 +187,7 @@ cargo tree | head -20
 ## Task 0.8: Document Current State
 
 ### Create State Snapshot
+
 ```bash
 cat > /tmp/rename-snapshot.txt <<'EOF'
 Mutation Response Rename - Pre-Implementation Snapshot
@@ -208,6 +226,7 @@ Check off each item:
 ## If Any Item Fails
 
 ### Tests Failing
+
 ```bash
 # Document the failures
 uv run pytest tests/ -v --tb=short > /tmp/test-failures.txt
@@ -216,6 +235,7 @@ uv run pytest tests/ -v --tb=short > /tmp/test-failures.txt
 ```
 
 ### Git Not Clean
+
 ```bash
 # Option 1: Commit or stash current work
 git stash
@@ -226,6 +246,7 @@ git commit -m "WIP: before mutation_response rename"
 ```
 
 ### Backup Branch Exists
+
 ```bash
 # Delete old backup if safe to do so
 git branch -D backup/before-mutation-response-rename

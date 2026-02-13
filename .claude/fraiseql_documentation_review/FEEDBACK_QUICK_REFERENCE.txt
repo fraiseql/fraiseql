@@ -1,0 +1,146 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    DOCUMENTATION REVIEW FEEDBACK CARD                      ║
+║                        Keep this handy during review!                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌─ MOVING TO NEXT FILE ────────────────────────────────────────────────────┐
+│                                                                            │
+│ "OK"                          → File is good, move on                     │
+│ "APPROVE"                     → Same as OK                               │
+│ "SKIP"                        → Skip this file, go to next                │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ REQUESTING CORRECTIONS ─────────────────────────────────────────────────┐
+│                                                                            │
+│ Single line fix:                                                          │
+│   "Line 42: Change 'foo' to 'bar'"                                       │
+│                                                                            │
+│ Multiple corrections:                                                     │
+│   "Line 12: Fix typo 'recieve' → 'receive'                              │
+│    Line 45: Update version to v2.1                                       │
+│    Section 'Installation': Add note about rate limiting"                │
+│                                                                            │
+│ Add a new section:                                                        │
+│   "Add section after 'Configuration' with title 'Rate Limiting' and      │
+│    content: [describe what should be added]"                            │
+│                                                                            │
+│ Update existing section:                                                  │
+│   "Section 'API Endpoints': Update to reflect v2.1 changes,              │
+│    specifically add POST /auth/rate-limit endpoint"                      │
+│                                                                            │
+│ Remove content:                                                           │
+│   "Delete paragraph about deprecated OAuth v1 flow"                      │
+│   "Remove 'Installation from Source' section - it's outdated"            │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ PROVIDING CONTEXT ──────────────────────────────────────────────────────┐
+│                                                                            │
+│ When the document needs understanding with new context:                  │
+│                                                                            │
+│ "CONTEXT: This project now supports rate limiting, OIDC auth, and       │
+│           design audits as of v2.1. Please review with this in mind."   │
+│                                                                            │
+│ The AI will reread the doc with that context and make suggestions         │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ ASKING QUESTIONS ───────────────────────────────────────────────────────┐
+│                                                                            │
+│ "QUESTION: What is the recommended rate limit for production?"           │
+│ "QUESTION: Should this mention Redis backends?"                         │
+│ "QUESTION: Is this API endpoint still in use?"                          │
+│                                                                            │
+│ The AI will answer, then ask if this should be documented               │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ EXITING THE REVIEW ─────────────────────────────────────────────────────┐
+│                                                                            │
+│ "STOP"                        → Exit review, show summary                │
+│ "DONE"                        → Same as STOP                             │
+│ "EXIT"                        → Same as STOP                             │
+│ "EXIT REVIEW"                 → Same as STOP                             │
+│                                                                            │
+│ Session can always be resumed later!                                     │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                              RESPONSE EXAMPLES                             ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+─ Example 1: Simple approval ─
+  AI: "Here is docs/ARCHITECTURE_PRINCIPLES.md"
+  You: "OK"
+  AI: "Moving to next file..."
+
+─ Example 2: Single correction ─
+  AI: "Here is SECURITY.md"
+  You: "Line 28: Update version v2.0 to v2.1"
+  AI: "Before: '...FraiseQL v2.0 ...' After: '...FraiseQL v2.1 ...'"
+  You: "Looks good"
+  AI: "Committed! Moving to next file..."
+
+─ Example 3: Multiple corrections ─
+  AI: "Here is DEVELOPMENT.md"
+  You: "Line 15: Update npm to pnpm
+           Line 42: Change 'yarn' to 'pnpm'
+           Section 'Testing': Add note about rate limiting tests"
+  AI: "Showing corrections..."
+  You: "Yes, those look right"
+  AI: "All changes applied and committed. Next file..."
+
+─ Example 4: Context-based review ─
+  AI: "Here is README.md"
+  You: "CONTEXT: We just completed rate limiting, OIDC auth, and design
+                 audits. Some examples might be outdated. Review with
+                 current v2.1 features in mind."
+  AI: "Understood. With that context, I notice:
+       - 'Quick Start' example needs updating (doesn't show auth)
+       - 'Features' section missing rate limiting
+       Should I suggest updates?"
+  You: "Yes, update those sections"
+  AI: "Showing updated version..."
+
+─ Example 5: Asking a question ─
+  AI: "Here is TESTING.md"
+  You: "QUESTION: Should we add performance tests for rate limiting?"
+  AI: "That's a good question. Rate limiting performance is important.
+       Yes, we should have tests. Should I add a section for this?"
+  You: "Yes please, add section on 'Rate Limiting Performance Tests'"
+  AI: "Done. Does this look good?"
+  You: "OK"
+  AI: "Moving to next file..."
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                              TIPS & TRICKS                                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+✓ You can always ask the AI to explain something before correcting it
+✓ The AI will track all changes and commit them automatically
+✓ You're in control - go as fast or slow as you want
+✓ You can come back later to resume the review
+✓ Each file is reviewed completely before moving to the next
+✓ The AI will show before/after of all corrections
+✓ You can request additional changes to the same file
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                           KEYBOARD SHORTCUTS                              ║
+║                     (if using Claude Code terminal)                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+You can also structure feedback as JSON if you want to be precise:
+
+{
+  "action": "update",
+  "line": 42,
+  "from": "old text",
+  "to": "new text",
+  "reason": "More accurate for v2.1"
+}
+
+Or just use plain English - both work!
+
+═════════════════════════════════════════════════════════════════════════════

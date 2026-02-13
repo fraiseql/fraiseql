@@ -1,0 +1,243 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - feature/phase-*
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service:
+          - name: fraiseql-server
+            dockerfile: Dockerfile
+            build-context: .
+            image-suffix: "server"
+
+          - name: tutorial
+            dockerfile: tutorial/Dockerfile
+            build-context: .
+            image-suffix: "tutorial"
+
+          - name: admin-dashboard
+            dockerfile: admin-dashboard/Dockerfile
+            build-context: .
+            image-suffix: "dashboard"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.image-suffix }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.build-context }}
+          file: ${{ matrix.service.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  test-images:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    strategy:
+      matrix:
+        service:
+          - fraiseql-server
+          - tutorial
+          - admin-dashboard
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.service == 'fraiseql-server' && 'Dockerfile' || format('{0}/Dockerfile', matrix.service) }}
+          push: false
+          load: true
+          tags: test-${{ matrix.service }}:latest
+
+      - name: Test image exists
+        run: |
+          docker image inspect test-${{ matrix.service }}:latest
+          echo "✅ Image built successfully: test-${{ matrix.service }}:latest"
+
+  publish-to-docker-hub:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service:
+          - name: fraiseql-server
+            dockerfile: Dockerfile
+            build-context: .
+            image-suffix: "server"
+            docker-hub-image: fraiseql/server
+
+          - name: tutorial
+            dockerfile: tutorial/Dockerfile
+            build-context: .
+            image-suffix: "tutorial"
+            docker-hub-image: fraiseql/tutorial
+
+          - name: admin-dashboard
+            dockerfile: admin-dashboard/Dockerfile
+            build-context: .
+            image-suffix: "dashboard"
+            docker-hub-image: fraiseql/dashboard
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+      - name: Extract metadata for Docker Hub
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.service.docker-hub-image }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.build-context }}
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  verify-deployment:
+    needs: [build-and-push, publish-to-docker-hub]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start services with Docker Compose
+        run: |
+          # Use demo compose instead of examples to save resources
+          docker compose -f docker/docker-compose.demo.yml pull 2>&1 | tail -20
+          timeout 120 docker compose -f docker/docker-compose.demo.yml up -d 2>&1 || true
+          sleep 5
+          docker compose -f docker/docker-compose.demo.yml ps
+
+      - name: Verify services
+        run: |
+          # Wait for PostgreSQL to be healthy
+          timeout 30 bash -c 'until docker compose -f docker/docker-compose.demo.yml exec -T postgres-blog pg_isready -U fraiseql -d blog_fraiseql; do sleep 1; done'
+          echo "✅ PostgreSQL is healthy"
+
+          # Check FraiseQL Server health
+          timeout 30 bash -c 'until curl -s http://localhost:8000/health > /dev/null 2>&1; do sleep 1; done'
+          echo "✅ FraiseQL Server is healthy"
+
+          # Check Tutorial health
+          timeout 30 bash -c 'until curl -s http://localhost:3001/health > /dev/null 2>&1; do sleep 1; done'
+          echo "✅ Tutorial is healthy"
+
+      - name: Test GraphQL endpoint
+        run: |
+          curl -X POST http://localhost:8000/graphql \
+            -H "Content-Type: application/json" \
+            -d '{"query": "{ __typename }"}' \
+            -s | jq .
+          echo "✅ GraphQL endpoint is responding"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose.demo.yml down -v 2>&1 | tail -5
+
+  notify-success:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && success()
+
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "## 🎉 Docker Images Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
+          echo "**Images**:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository }}/server\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository }}/tutorial\`" >> $GITHUB_STEP_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository }}/dashboard\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

@@ -7,6 +7,7 @@ Integration guide for Loki log aggregation with FraiseQL applications.
 **Loki** is a horizontally-scalable, highly-available log aggregation system inspired by Prometheus. It indexes metadata (labels) rather than full-text, making it cost-effective for large-scale deployments.
 
 **Architecture:**
+
 ```
 ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
 │   FraiseQL      │      │    Promtail     │      │      Loki       │
@@ -22,11 +23,13 @@ Integration guide for Loki log aggregation with FraiseQL applications.
 ```
 
 **Components:**
+
 - **Loki:** Log storage and indexing engine
 - **Promtail:** Log collection agent (tails log files)
 - **Grafana:** Query interface and dashboards
 
 **Benefits:**
+
 - Label-based indexing (cost-effective at scale)
 - Native Grafana integration
 - LogQL query language (similar to PromQL)
@@ -93,11 +96,13 @@ curl -G http://localhost:3100/loki/api/v1/query \
 ### Development Configuration
 
 The provided `docker-compose.loki.yml` uses:
+
 - **Filesystem storage:** Logs stored in Docker volume
 - **Single instance:** No replication
 - **30-day retention:** Automatic log deletion after 30 days
 
 **Files:**
+
 - `examples/observability/loki/loki-config.yaml` - Loki server config
 - `examples/observability/loki/promtail-config.yaml` - Promtail agent config
 - `examples/observability/docker-compose.loki.yml` - Docker Compose stack
@@ -132,6 +137,7 @@ common:
 ```
 
 **Production Recommendations:**
+
 - Use S3/GCS for object storage (not filesystem)
 - Deploy 3+ Loki instances for HA
 - Use Consul or etcd for ring coordination
@@ -317,6 +323,7 @@ def log_with_trace_context(message, level="info"):
 **3. Jump from Trace to Logs:**
 
 In Grafana:
+
 1. Open trace in Tempo
 2. Click on span with errors
 3. Click **"Logs for this span"** → Opens Loki with filtered query
@@ -324,6 +331,7 @@ In Grafana:
 **4. Jump from Logs to Trace:**
 
 In Grafana Explore (Loki):
+
 1. View log entry with `trace_id`
 2. Click on trace_id link → Opens trace in Tempo
 
@@ -334,22 +342,26 @@ In Grafana Explore (Loki):
 ### Pre-built Grafana Dashboards
 
 **1. Log Volume Dashboard:**
+
 - Total log rate by job
 - Log levels distribution (info, warn, error)
 - Top 10 loggers by volume
 
 **2. Error Dashboard:**
+
 - Error rate over time
 - Top error types
 - Error distribution by tenant
 - Recent errors table
 
 **3. Performance Dashboard:**
+
 - Slow query logs (PostgreSQL)
 - High-latency requests (FraiseQL)
 - Database connection pool usage
 
 **Import Dashboards:**
+
 - Grafana Dashboard ID: 13639 (Loki + Promtail)
 - Grafana Dashboard ID: 12611 (Logs / App / Loki)
 
@@ -382,6 +394,7 @@ compactor:
 ### Storage Estimates
 
 **Assumptions:**
+
 - 100 req/sec = ~8.6M requests/day
 - Average **5-10 log entries per request** (start, end, DB queries, errors)
 - Average log entry: 500 bytes
@@ -409,6 +422,7 @@ Compressed (Loki storage):
 | 90 days   | ~195 GB        | ~1.9 TB                |
 
 **For production monitoring:**
+
 - Check actual storage usage: `docker exec fraiseql-loki du -sh /loki/chunks`
 - Monitor ingestion rate: `curl http://localhost:3100/metrics | grep loki_distributor_bytes_received_total`
 - Set alerts if usage exceeds estimates by 50%
@@ -495,6 +509,7 @@ curl http://localhost:9080/targets | jq
 ```
 
 **Common Issues:**
+
 - Log file path incorrect in `promtail-config.yaml`
 - Log file permissions (Promtail needs read access)
 - Loki URL incorrect (should be `http://loki:3100`)
@@ -590,11 +605,13 @@ networks:
 ### From ELK Stack
 
 **Differences:**
+
 - Loki indexes labels, not full-text (cheaper at scale)
 - LogQL vs Lucene query syntax
 - No Kibana (use Grafana)
 
 **Migration Steps:**
+
 1. Run Loki + ELK in parallel
 2. Configure Promtail to tail same logs
 3. Validate queries in Grafana
@@ -604,10 +621,12 @@ networks:
 ### From Splunk
 
 **Cost Savings:**
+
 - Splunk: ~$150/GB ingested
 - Loki: ~$0.023/GB (S3 storage) + compute
 
 **Migration:**
+
 - Loki is not a Splunk replacement (no full-text search)
 - Best for structured logs (JSON)
 - Use labels for filtering, not grep-style searches
@@ -633,6 +652,7 @@ Efficient LogQL queries are critical for performance at scale. Follow these patt
 **Why**: Label filters use Loki's index (instant), JSON filters require parsing (slow).
 
 **Performance Impact**:
+
 - Label filters: <10ms (indexed lookup)
 - JSON filters: 100-1000ms+ (full scan + parse)
 
@@ -665,6 +685,7 @@ Efficient LogQL queries are critical for performance at scale. Follow these patt
 ```
 
 **Best Practices**:
+
 - Default to last 1 hour in dashboards
 - Use 5-15 minute ranges for debugging
 - Only use 24h+ for historical analysis
@@ -688,17 +709,20 @@ labels:
 ```
 
 **High cardinality labels** (> 1000 unique values):
+
 - ❌ user_id, session_id, request_id, trace_id
 - ❌ IP addresses, URLs
 - ❌ Timestamps, UUIDs
 
 **Low cardinality labels** (< 100 unique values):
+
 - ✅ environment (dev, staging, prod)
 - ✅ service name (fraiseql, postgres, nginx)
 - ✅ log level (debug, info, warn, error)
 - ✅ region (us-east-1, eu-west-1)
 
 **Impact**: High cardinality causes:
+
 - Slow queries (more chunks to scan)
 - High memory usage
 - Index bloat
@@ -706,33 +730,41 @@ labels:
 ### Common Query Patterns with Performance
 
 **Pattern 1: Recent Errors**
+
 ```logql
 # Fast: Labels + line filter + small time range
 {job="fraiseql", env="production"} |= "error" [15m]
 ```
+
 **Performance**: <100ms for millions of logs
 
 **Pattern 2: Specific User Activity**
+
 ```logql
 # Fast: Labels + line filter + JSON filter
 {job="fraiseql"} |= "user_id" | json | user_id="123" [1h]
 ```
+
 **Performance**: <500ms
 
 **Pattern 3: Error Rate (Metrics Query)**
+
 ```logql
 # Fast: Count errors per minute
 sum(rate({job="fraiseql"} |= "error" [5m]))
 ```
+
 **Performance**: <200ms (aggregated)
 
 **Pattern 4: Top Error Messages**
+
 ```logql
 # Moderate: TopK with JSON parsing
 topk(10, sum by (error_message)
   (count_over_time({job="fraiseql"} |= "error" | json [1h]))
 )
 ```
+
 **Performance**: 1-3 seconds (acceptable for dashboards)
 
 ### Query Performance Checklist
@@ -767,6 +799,7 @@ FraiseQL supports both PostgreSQL error tables and Loki log aggregation. Each se
 **Purpose**: Structured error tracking with management and analytics.
 
 **Table Structure**:
+
 ```sql
 CREATE TABLE monitoring.errors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -782,6 +815,7 @@ CREATE TABLE monitoring.errors (
 ```
 
 **Use PostgreSQL errors for**:
+
 - ✅ **Error management**: Track status (new, investigating, resolved)
 - ✅ **Deduplication**: Group identical errors by fingerprint
 - ✅ **Long-term storage**: Keep error history (months to years)
@@ -790,6 +824,7 @@ CREATE TABLE monitoring.errors (
 - ✅ **Team workflow**: Assign errors, add notes, mark as resolved
 
 **Example Query**:
+
 ```sql
 -- Top 10 unresolved errors
 SELECT fingerprint, message, occurrence_count, last_seen_at
@@ -804,6 +839,7 @@ LIMIT 10;
 **Purpose**: Full-context debugging with trace correlation.
 
 **Use Loki for**:
+
 - ✅ **Log context**: See all logs around an error (before/after)
 - ✅ **Trace correlation**: Link logs to OpenTelemetry traces via trace_id
 - ✅ **Debugging**: Search logs by user_id, request_id, session_id
@@ -812,6 +848,7 @@ LIMIT 10;
 - ✅ **Short-term retention**: Keep detailed logs for 7-30 days
 
 **Example Query**:
+
 ```logql
 -- All logs for a specific trace
 {job="fraiseql"} | json | trace_id="abc123" [15m]
@@ -912,18 +949,21 @@ Loki Logs:
 ### When to Use Only One
 
 **Only PostgreSQL** (no Loki):
+
 - Small applications (<10 requests/sec)
 - Minimal logging needs
 - Cost-sensitive (avoid Loki infrastructure)
 - **Limitation**: No log context, harder debugging
 
 **Only Loki** (no PostgreSQL):
+
 - Prototyping/development
 - No error management workflow needed
 - Short-term applications
 - **Limitation**: No error deduplication, no analytics
 
 **Both** (recommended):
+
 - Production applications
 - Team collaboration needed
 - Compliance requirements
@@ -1381,10 +1421,12 @@ curl -X POST http://localhost:9090/-/reload
 **Issue 1: Ingestion Rate is Zero**
 
 **Symptoms:**
+
 - `rate(loki_distributor_bytes_received_total[5m]) == 0`
 - Logs not appearing in Grafana
 
 **Diagnosis:**
+
 ```bash
 # Check Promtail logs
 docker logs fraiseql-promtail --tail 100
@@ -1399,6 +1441,7 @@ curl -X POST http://localhost:3100/loki/api/v1/push \
 ```
 
 **Resolution:**
+
 - Verify Promtail can reach log files (permissions)
 - Check Promtail → Loki network connectivity
 - Verify Loki URL in `promtail-config.yaml`
@@ -1407,10 +1450,12 @@ curl -X POST http://localhost:3100/loki/api/v1/push \
 **Issue 2: High Query Latency**
 
 **Symptoms:**
+
 - Query P99 latency >10 seconds
 - Grafana dashboards slow to load
 
 **Diagnosis:**
+
 ```promql
 # Identify slow queries
 topk(10,
@@ -1419,6 +1464,7 @@ topk(10,
 ```
 
 **Resolution:**
+
 - Reduce time range (use 1h instead of 24h)
 - Add label filters to queries
 - Increase `max_query_parallelism` in `loki-config.yaml`
@@ -1427,12 +1473,14 @@ topk(10,
 **Issue 3: Samples Rejected (Rate Limiting)**
 
 **Symptoms:**
+
 - `rate(loki_discarded_samples_total[5m]) > 0`
 - Alert: `LokiRateLimitExceeded`
 
 **Resolution:**
 
 Edit `loki-config.yaml`:
+
 ```yaml
 limits_config:
   ingestion_rate_mb: 32      # Increase from 16
@@ -1440,6 +1488,7 @@ limits_config:
 ```
 
 Restart Loki:
+
 ```bash
 docker-compose -f docker-compose.loki.yml restart loki
 ```
@@ -1447,10 +1496,12 @@ docker-compose -f docker-compose.loki.yml restart loki
 **Issue 4: Storage Backend Errors (S3/GCS)**
 
 **Symptoms:**
+
 - `rate(loki_store_chunk_request_duration_seconds_count{status_code=~"5.."}) > 0`
 - Logs: "failed to put chunk"
 
 **Diagnosis:**
+
 ```bash
 # Check Loki logs for storage errors
 docker logs fraiseql-loki | grep -i "storage error"
@@ -1461,6 +1512,7 @@ gsutil ls gs://your-loki-bucket  # GCS
 ```
 
 **Resolution:**
+
 - Verify IAM permissions (S3: PutObject, GetObject, DeleteObject)
 - Check network connectivity to cloud provider
 - Verify bucket exists and is accessible
@@ -1469,17 +1521,20 @@ gsutil ls gs://your-loki-bucket  # GCS
 **Issue 5: High Cardinality**
 
 **Symptoms:**
+
 - `loki_ingester_memory_streams > 100000`
 - Slow queries
 - High memory usage
 
 **Diagnosis:**
+
 ```logql
 # Count unique label combinations
 {job="fraiseql"} | json | label_format unique_labels="{{ __labels__ }}"
 ```
 
 **Resolution:**
+
 - Remove high-cardinality labels (user_id, trace_id, request_id)
 - Move high-cardinality fields to JSON (not labels)
 - Use static labels only (env, service, level)
@@ -1487,10 +1542,12 @@ gsutil ls gs://your-loki-bucket  # GCS
 **Issue 6: Compaction Not Running**
 
 **Symptoms:**
+
 - `rate(loki_compactor_runs_completed_total[1h]) == 0`
 - Disk usage increasing
 
 **Diagnosis:**
+
 ```bash
 # Check compactor logs
 docker logs fraiseql-loki | grep compactor
@@ -1500,6 +1557,7 @@ curl http://localhost:3100/compactor/ring
 ```
 
 **Resolution:**
+
 ```yaml
 # Enable compaction in loki-config.yaml
 compactor:
@@ -1600,6 +1658,7 @@ datasources:
 ```
 
 **Benefits:**
+
 - Complete data isolation between tenants
 - Single Loki instance for multiple environments
 - Cost-effective (no separate Loki deployments)
@@ -1672,6 +1731,7 @@ services:
 ```
 
 **Access flow:**
+
 ```
 User → OAuth2 Proxy (Google/Okta/Azure AD) → Loki
 ```
@@ -1765,6 +1825,7 @@ server:
 ```
 
 **Benefits:**
+
 - Encrypted log data in transit
 - Prevents man-in-the-middle attacks
 - Client authentication (mTLS)
@@ -2018,6 +2079,7 @@ networks:
 ```
 
 **Benefits:**
+
 - Promtail can't execute arbitrary Docker commands
 - Read-only container discovery
 - Reduces attack surface
@@ -2264,16 +2326,19 @@ table_manager:
 ## References
 
 **Official Documentation:**
+
 - Loki: https://grafana.com/docs/loki/latest/
 - Promtail: https://grafana.com/docs/loki/latest/clients/promtail/
 - LogQL: https://grafana.com/docs/loki/latest/logql/
 
 **FraiseQL Integration:**
+
 - Observability Overview: `docs/production/observability.md`
 - OpenTelemetry Setup: `docs/production/monitoring.md`
 - Error Tracking: `docs/production/observability.md#error-tracking`
 
 **Configuration Files:**
+
 - Loki Config: `examples/observability/loki/loki-config.yaml`
 - Promtail Config: `examples/observability/loki/promtail-config.yaml`
 - Docker Compose: `examples/observability/docker-compose.loki.yml`

@@ -43,6 +43,7 @@ open http://localhost:8000/graphql
 ### Test Queries
 
 **Simple Query**:
+
 ```graphql
 query {
   users(limit: 10) {
@@ -54,6 +55,7 @@ query {
 ```
 
 **N+1 Prevention Test**:
+
 ```graphql
 query {
   users(limit: 5) {
@@ -71,6 +73,7 @@ query {
 ```
 
 **Complex Nested Query**:
+
 ```graphql
 query {
   posts(limit: 10) {
@@ -148,26 +151,31 @@ See [optimizations.md](optimizations.md) for detailed performance optimizations 
 This submission supports all required benchmark scenarios:
 
 ### 1. Simple Query (P0)
+
 - **Query**: `users(limit: 10)`
 - **Expected**: < 1ms response time
 - **Database queries**: 1
 
 ### 2. N+1 Prevention (P0)
+
 - **Query**: `users(limit: 50) { posts { author { name } } }`
 - **Expected**: Single database query (not 51 queries)
 - **Prevention**: CQRS denormalization
 
 ### 3. Complex Filtering (P1)
+
 - **Query**: `usersWhere(where: {...}, orderBy: {...})`
 - **Expected**: Efficient SQL generation
 - **Database queries**: 1
 
 ### 4. Mutations (P1)
+
 - **Mutation**: `createUser(input: {...})`
 - **Expected**: < 10ms with sync
 - **Side effects**: Explicit sync to query side
 
 ### 5. Deep Nesting (P2)
+
 - **Query**: Posts with nested author and comments
 - **Expected**: Single query performance
 - **Database queries**: 1
@@ -240,6 +248,7 @@ docker-compose exec postgres pg_isready -U fraiseql
 ```
 
 **Slow queries**:
+
 ```bash
 # Check if tv_* tables have data
 docker-compose exec postgres psql -U fraiseql -d blog_demo \
@@ -251,6 +260,7 @@ docker-compose exec postgres psql -U fraiseql -d blog_demo \
 ```
 
 **N+1 queries detected**:
+
 - Verify that queries use `tv_*` tables (denormalized)
 - Check that mutations call explicit sync functions
 - Ensure sync operations completed successfully

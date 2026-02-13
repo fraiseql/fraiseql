@@ -25,6 +25,7 @@ Remove **all traces of the journey** to achieve an **evergreen codebase**. A dev
 ### 1. Inline Journey Comments
 
 **In Test Files**:
+
 ```python
 # REMOVE comments like:
 # "BUG: smtp_server should return as smtpServer"
@@ -38,6 +39,7 @@ Remove **all traces of the journey** to achieve an **evergreen codebase**. A dev
 ```
 
 **In Implementation Files**:
+
 ```rust
 // REMOVE comments like:
 // "Fix for JSONB nested camelCase bug"
@@ -51,6 +53,7 @@ Remove **all traces of the journey** to achieve an **evergreen codebase**. A dev
 ### 2. Bug Reference Comments
 
 **REMOVE**:
+
 ```python
 """Regression test for JSONB nested field camelCase conversion.
 
@@ -63,6 +66,7 @@ Issues:
 ```
 
 **REPLACE WITH**:
+
 ```python
 """Test that nested JSONB objects have camelCase field names.
 
@@ -77,6 +81,7 @@ from JSONB data to camelCase for:
 ### 3. TDD Phase Markers
 
 **REMOVE**:
+
 ```python
 # RED: This test should fail initially
 # GREEN: Now passes after implementation
@@ -86,6 +91,7 @@ from JSONB data to camelCase for:
 ### 4. Temporary Test Assertions
 
 **REMOVE overly defensive assertions**:
+
 ```python
 # REMOVE:
 assert "smtpServer" in config, (
@@ -101,6 +107,7 @@ assert config["smtpServer"]["ipAddress"] == "13.16.1.10"
 ### 5. Temporary Files
 
 **DELETE**:
+
 ```bash
 # Bug report (no longer needed)
 rm /tmp/FRAISEQL_JSONB_NESTED_FIELD_BUG.md
@@ -112,6 +119,7 @@ rm /tmp/fraiseql-*
 ### 6. Phase Plans (Optional)
 
 **AFTER merge to main**, archive or delete:
+
 ```bash
 # Option A: Archive for historical reference
 mv .phases/jsonb-nested-camelcase-fix/ .phases/_archive/
@@ -127,6 +135,7 @@ rm -rf .phases/jsonb-nested-camelcase-fix/
 ### 1. Clear, Timeless Documentation
 
 **Docstrings should read as if the feature always existed**:
+
 ```python
 class TestJSONBNestedCamelCase:
     """Test camelCase conversion for nested JSONB objects.
@@ -140,6 +149,7 @@ class TestJSONBNestedCamelCase:
 ### 2. Meaningful Test Names
 
 **Test names should describe behavior, not history**:
+
 ```python
 # GOOD
 def test_nested_object_fields_convert_to_camelcase(self):
@@ -154,6 +164,7 @@ def test_dns1_no_longer_missing(self):
 ### 3. Essential Comments
 
 **Keep comments that explain WHY, not WHAT**:
+
 ```rust
 // Handle underscore before digit: dns_1 → dns1
 // This differs from standard camelCase (dns_1 → dns1, not dnsOne)
@@ -215,6 +226,7 @@ grep -r "fix for\|was missing\|added to handle" fraiseql_rs/src/
 ### Final Review
 
 Read through the code as if you've never seen it before. Ask:
+
 - Does every comment add value?
 - Does the docstring make sense without knowing the bug history?
 - Would a new developer understand this code?
@@ -233,6 +245,7 @@ git rebase -i HEAD~5
 ```
 
 **Final Commit Message**:
+
 ```
 fix(jsonb): convert nested JSONB object fields to camelCase
 

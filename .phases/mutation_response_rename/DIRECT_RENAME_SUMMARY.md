@@ -7,10 +7,12 @@
 ## What Changed
 
 **Strategy switched from:**
+
 - ❌ v1.8.0 alias strategy (both names supported)
 - ❌ Deprecation warnings and migration timeline
 
 **To:**
+
 - ✅ Direct rename everywhere
 - ✅ Clean, simple find/replace
 - ✅ No aliases, no deprecation machinery
@@ -18,6 +20,7 @@
 ## Implementation
 
 ### Simple Approach
+
 ```bash
 # 1. Rename migration file
 git mv migrations/trinity/005_add_mutation_result_v2.sql \
@@ -63,6 +66,7 @@ grep -r "mutation_result_v2" \
 ## Ready to Execute
 
 All phase files ready:
+
 - `phase0_pre_implementation.md` ✅
 - `phase1_postgresql.md` ✅ (simple rename)
 - `phase2_rust.md` ✅

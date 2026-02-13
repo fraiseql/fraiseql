@@ -5,16 +5,19 @@
 Production-ready example demonstrating FraiseQL's built-in tenant-aware APQ caching for multi-tenant SaaS applications.
 
 **What you'll learn:**
+
 - Automatic Persisted Queries (APQ) for bandwidth reduction
 - Multi-tenant cache isolation
 - Performance optimization techniques
 - Cache hit rate monitoring
 
 **Prerequisites:**
+
 - `../blog_api/` - Basic FraiseQL patterns
 - Understanding of multi-tenant architecture
 
 **Next steps:**
+
 - `../caching_example.py` - Alternative caching approaches
 - `../turborouter/` - Pre-compiled query routing
 - `../saas-starter/` - Complete SaaS foundation
@@ -22,12 +25,14 @@ Production-ready example demonstrating FraiseQL's built-in tenant-aware APQ cach
 ## What is APQ?
 
 **Automatic Persisted Queries (APQ)** is a GraphQL optimization technique where:
+
 1. Client sends a **hash** of the query instead of the full query string
 2. Server looks up the query in cache using the hash
 3. If found, executes it immediately (saves bandwidth + parsing time)
 4. If not found, client sends full query + server caches it
 
 **Benefits:**
+
 - ⚡ **Reduced bandwidth:** Hash is ~64 bytes vs. full query (often 1-5KB)
 - 🚀 **Faster parsing:** Pre-parsed queries execute immediately
 - 💾 **Lower memory:** Deduplicated queries across all clients
@@ -38,11 +43,13 @@ Production-ready example demonstrating FraiseQL's built-in tenant-aware APQ cach
 In SaaS applications with multiple tenants sharing the same infrastructure:
 
 **Problem:** Traditional APQ caches queries globally, but different tenants might have:
+
 - Different permissions (can't share cached results)
 - Different data isolation requirements
 - Different query patterns
 
 **FraiseQL Solution:** Tenant-aware APQ that automatically:
+
 - ✅ Isolates cached responses per tenant
 - ✅ Prevents data leakage between tenants
 - ✅ Maintains high cache hit rates per tenant
@@ -146,12 +153,14 @@ async def add_tenant_context(request, call_next):
 ### Cache Key Format
 
 **Without tenant isolation (traditional APQ):**
+
 ```
 Key: hash
 abc123... → { users: [...] }  # All tenants share same cache
 ```
 
 **With tenant isolation (FraiseQL):**
+
 ```
 Key: hash@tenant_id
 abc123...@acme-corp  → { users: [...acme data...] }
@@ -163,6 +172,7 @@ abc123...@globex-inc → { users: [...globex data...] }
 FraiseQL includes tenant-aware APQ backends out of the box:
 
 **Memory Backend (Development/Testing):**
+
 ```python
 config = FraiseQLConfig(
     apq_storage_backend="memory",
@@ -172,6 +182,7 @@ config = FraiseQLConfig(
 ```
 
 **Redis Backend (Production):**
+
 ```python
 config = FraiseQLConfig(
     apq_storage_backend="redis",
@@ -182,6 +193,7 @@ config = FraiseQLConfig(
 ```
 
 **PostgreSQL Backend (Production with JSONB):**
+
 ```python
 config = FraiseQLConfig(
     apq_storage_backend="postgresql",
@@ -306,6 +318,7 @@ const { data } = await client.query({
 ### Bandwidth Savings
 
 **Example query:**
+
 ```graphql
 query GetUserDashboard($filters: UserFilters!) {
   users(where: $filters, limit: 50) {
@@ -376,6 +389,7 @@ class MonitoredAPQBackend(RedisAPQBackend):
 ### Grafana Dashboard
 
 Monitor per-tenant cache performance:
+
 - Hit rate by tenant (target: >85%)
 - Cache size by tenant
 - Average response time with/without cache
@@ -386,11 +400,13 @@ Monitor per-tenant cache performance:
 ### 1. Tenant Isolation
 
 **FraiseQL automatically ensures:**
+
 - ✅ Cache keys include tenant_id
 - ✅ No cross-tenant cache hits
 - ✅ Context validation before caching
 
 **Your responsibility:**
+
 - ✅ Validate JWT signatures
 - ✅ Extract tenant_id securely
 - ✅ Don't trust client-provided tenant_id
@@ -424,6 +440,7 @@ apq_cache_ttl=3600  # 1 hour
 **Problem:** Cache hit rate <50%
 
 **Possible causes:**
+
 1. **Queries not stable** - Use fragments, avoid inline queries
 2. **TTL too short** - Increase `apq_cache_ttl`
 3. **Too many tenants** - Scale Redis/storage
@@ -434,6 +451,7 @@ apq_cache_ttl=3600  # 1 hour
 **Problem:** Tenant seeing another tenant's data
 
 **Debug:**
+
 ```python
 # Add logging to extract_tenant_id
 def extract_tenant_id(self, context):
@@ -443,6 +461,7 @@ def extract_tenant_id(self, context):
 ```
 
 **Check:**
+
 - JWT contains correct tenant_id
 - Middleware extracts it properly
 - Context passes through to APQ backend
@@ -454,6 +473,7 @@ def extract_tenant_id(self, context):
 **Cause:** Query strings changed (different hash)
 
 **Solutions:**
+
 1. **Pre-warm cache** - Send queries from CI/CD
 2. **Gradual rollout** - Blue/green deployment
 3. **Accept temporary miss rate** - Cache rebuilds quickly

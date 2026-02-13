@@ -11,6 +11,7 @@
 **Work Completed**: Exported Rust authentication to Python via PyO3 bindings (final 15% of Phase 10)
 
 **Test Results**:
+
 - ✅ 6067/6067 core tests PASSING
 - ✅ 5/5 new auth tests PASSING
 - ✅ 0 regressions
@@ -27,6 +28,7 @@
 ### 1.1 PyO3 Bindings Implementation (py_bindings.rs)
 
 **✅ What's Good:**
+
 - Clean separation of PyUserContext (data) and PyAuthProvider (factory)
 - Proper #[pyclass] and #[pymethods] attributes
 - Static factory methods for Auth0 and CustomJWT
@@ -50,8 +52,9 @@
 ### 1.2 Module Exports (lib.rs)
 
 **✅ What's Good:**
+
 - Both classes correctly added to module via m.add_class::<>()
-- Both classes added to __all__ export list
+- Both classes added to **all** export list
 - Clear comment marking Phase 10 additions
 - Proper placement in module registration sequence
 
@@ -60,7 +63,7 @@
 | Issue | Severity | Details |
 |-------|----------|---------|
 | **Module not fully exposed** | Medium | PyAuthProvider is exposed, but validate_token() would need pyo3-asyncio which is commented out in Cargo.toml. Validation only works in Rust. |
-| **__all__ export only for factory** | Low | __all__ includes "PyAuthProvider" and "PyUserContext" but no validation functions since none are exposed. |
+| ****all** export only for factory** | Low | **all** includes "PyAuthProvider" and "PyUserContext" but no validation functions since none are exposed. |
 
 **Assessment**: Exports are **correct** but **intentionally incomplete** - no token validation exposed to Python yet.
 
@@ -69,6 +72,7 @@
 ### 1.3 Cargo.toml Dependencies
 
 **✅ What's Good:**
+
 - jsonwebtoken = "9.2" added (used by jwt.rs)
 - reqwest = { version = "0.11", features = ["json"] } added
 - tokio = { version = "1.35", features = ["full"] } present
@@ -88,6 +92,7 @@
 ### 1.4 Test Updates (test_rust_auth.py)
 
 **✅ What's Good:**
+
 - Import check correctly uses fraiseql._fraiseql_rs path
 - HAS_RUST_AUTH boolean properly gates tests
 - 5 tests updated from pytest.skip() to actual assertions
@@ -117,6 +122,7 @@
 ### 2.1 HTTPS Validation
 
 **✅ Status**: IMPLEMENTED IN RUST
+
 - jwt.rs line 41-46: HTTPS-only check on JWKS URL
 - jwt.rs line 550-552: Validation enforced in JWTValidator::new()
 - Occurs at provider creation time (early validation)
@@ -128,6 +134,7 @@
 ### 2.2 Token Hashing
 
 **✅ Status**: IMPLEMENTED IN RUST
+
 - cache.rs lines 481-486: SHA256 token hashing
 - Never stores raw JWT tokens in cache
 - Hash used as cache key
@@ -139,6 +146,7 @@
 ### 2.3 Algorithm Restriction
 
 **✅ Status**: IMPLEMENTED IN RUST
+
 - jwt.rs line 158: algorithms: vec![Algorithm::RS256]
 - Only RS256 allowed (rejects HS256, others)
 - No algorithm negotiation
@@ -150,6 +158,7 @@
 ### 2.4 Timeout Protection
 
 **✅ Status**: IMPLEMENTED IN RUST
+
 - jwt.rs lines 49-51: 5-second timeout on JWKS fetch
 - Prevents hanging requests
 
@@ -160,6 +169,7 @@
 ### 2.5 Memory Safety
 
 **✅ Status**: SAFE
+
 - Arc<Mutex<>> for thread-safe caching
 - LRU cache with max 100 keys prevents unbounded growth
 - No unsafe code in py_bindings.rs
@@ -223,6 +233,7 @@ Total: 5 passing, 18 skipped
 ### 3.2 Test Coverage Gaps
 
 **Critical Gaps** (prevent production use):
+
 1. ❌ No token validation tests - core functionality untested
 2. ❌ No error handling tests - what happens with invalid tokens?
 3. ❌ No cache behavior tests - LRU eviction, TTL, hit rates
@@ -242,6 +253,7 @@ Total: 5 passing, 18 skipped
 **Phase 10 Status**: Implementation 100%, Testing 21% (5/23 tests)
 
 **To reach "production-ready"**: Need 80%+ coverage
+
 - Must implement: token validation, error cases, cache behavior
 - Should implement: performance baselines, async tests
 - Can defer: integration, rotation, concurrency
@@ -253,6 +265,7 @@ Total: 5 passing, 18 skipped
 ### 4.1 Python API Integration
 
 **Current State**:
+
 ```python
 # ✅ This works:
 from fraiseql._fraiseql_rs import PyAuthProvider, PyUserContext
@@ -269,6 +282,7 @@ user_context = await auth.validate_token(token)  # Not exposed
 ### 4.2 Unified Pipeline Integration
 
 **Current State**:
+
 - UserContext is used in unified.rs (pipeline/unified.rs)
 - Pipeline expects UserContext with user_id, roles, permissions, exp
 - PyUserContext is correctly structured to match
@@ -276,6 +290,7 @@ user_context = await auth.validate_token(token)  # Not exposed
 **Issue**: No integration of PyAuthProvider validation into pipeline. How does token validation flow into execute_graphql_query()?
 
 **Location**: fraiseql_rs/src/pipeline/unified.rs execute_sync()
+
 - Currently takes UserContext as parameter (line 42)
 - No auth validation middleware
 
@@ -288,6 +303,7 @@ user_context = await auth.validate_token(token)  # Not exposed
 **Question**: How does Python FastAPI middleware use PyAuthProvider?
 
 **Expected**:
+
 ```python
 # In Python auth middleware
 from fraiseql._fraiseql_rs import PyAuthProvider
@@ -305,11 +321,13 @@ user_context = await validate_token(request.headers.get("Authorization"))
 ### 5.1 Code Comments
 
 **✅ Good**:
+
 - py_bindings.rs has docstrings on all public methods
 - Comments explain factory pattern
 - Comments note async limitation
 
 **⚠️ Missing**:
+
 - No examples of how to use PyAuthProvider from Python
 - No documentation on why only factory methods exposed
 - No migration guide for Python code using old auth
@@ -317,6 +335,7 @@ user_context = await validate_token(request.headers.get("Authorization"))
 ### 5.2 Phase Documentation
 
 **File**: .phases/phase-10-auth-integration-CORRECTED.md
+
 - 977 lines of detailed spec
 - Covers Rust implementation completely
 - Does NOT mention PyO3 bindings or Python integration
@@ -353,16 +372,19 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 ### 7.1 Async Token Validation Not Exposed
 
 **Problem**: PyAuthProvider::validate_token() is not exposed to Python.
+
 - Rust code has async validate_token() method
 - Python binding would require pyo3-asyncio
 - pyo3-asyncio requires PyO3 0.20, conflicts with PyO3 0.25
 
 **Impact**:
+
 - Can't validate tokens from Python async code
 - Factory methods work but validation must stay in Rust
 - Phase 10 integration is incomplete for Python usage
 
 **Recommendation**:
+
 - Option A: Downgrade to PyO3 0.20 + add pyo3-asyncio (risky)
 - Option B: Wait for pyo3-asyncio PyO3 0.25 support
 - Option C: Use tokio::spawn_blocking() wrapper (workaround)
@@ -370,6 +392,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 ### 7.2 18 Test Stubs Remain
 
 **Impact**: No verification that:
+
 - Tokens are actually validated
 - Cache works as designed
 - Performance meets targets
@@ -390,6 +413,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 ### Production Readiness: ⚠️ CONDITIONAL
 
 **Green Lights** ✅:
+
 - Rust implementation is complete and correct
 - Basic factory tests pass
 - Security features are implemented
@@ -397,6 +421,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 - Code compiles and passes clippy
 
 **Red Flags** 🚩:
+
 - Token validation not exposed to Python
 - 18 critical tests skipped
 - No error handling tests
@@ -404,6 +429,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 - Async support not available
 
 **Yellow Flags** ⚠️:
+
 - pyo3-asyncio version conflict needs resolution
 - Documentation gap between plan and implementation
 - Integration with unified pipeline not verified
@@ -422,6 +448,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 ## 9. Recommendations
 
 ### Must-Fix Before Production
+
 1. **[ ] Implement token validation in Python**
    - Either expose validate_token() via pyo3-asyncio
    - Or provide Python wrapper in fraiseql/auth/rust_provider.py
@@ -433,6 +460,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
    - Estimated effort: 2 hours
 
 ### Should-Fix Before Release
+
 3. **[ ] Implement cache behavior tests**
    - Verify LRU eviction works
    - Verify TTL enforcement works
@@ -445,6 +473,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
    - Estimated effort: 2 hours
 
 ### Nice-to-Have
+
 5. **[ ] Performance baseline tests**
 6. **[ ] Integration with unified pipeline**
 7. **[ ] JWKS rotation tests**
@@ -454,22 +483,26 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 ## 10. Final Assessment
 
 ### Code Quality: ✅ GOOD
+
 - Well-structured, properly documented
 - Follows PyO3 best practices
 - Security features implemented
 - Clean separation of concerns
 
 ### Test Quality: ⚠️ INCOMPLETE
+
 - 5/23 tests implemented
 - 18 critical gaps remain
 - No validation testing
 
 ### Documentation: ⚠️ OUTDATED
+
 - Plan doesn't match implementation (async support missing)
 - No Python usage examples
 - No migration guide
 
 ### Security: ✅ SOLID
+
 - HTTPS validation ✅
 - Token hashing ✅
 - Algorithm restriction ✅
@@ -477,6 +510,7 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 - Memory bounds ✅
 
 ### Production Readiness: ⚠️ CONDITIONAL
+
 - **Rust implementation**: ✅ Production-ready
 - **Python integration**: ❌ Not ready
 - **Test coverage**: ❌ Insufficient
@@ -500,11 +534,13 @@ From .phases/phase-10-auth-integration-CORRECTED.md:
 **Phase 10 Rust implementation is complete and correct.** The work properly exports authentication to Python via PyO3 bindings. However, **the Python integration is incomplete** - factories work but token validation isn't exposed.
 
 **Recommendation**:
+
 - ✅ Commit to feature/rust-postgres-driver (current status)
 - ✅ Can merge to dev after Phase 11 (when RBAC integration completes)
 - ❌ Do NOT deploy to production until token validation is exposed to Python
 
 **Next Steps**:
+
 1. Phase 11 should resolve pyo3-asyncio version conflict
 2. Phase 11 should expose validate_token() to Python
 3. Add 15-20 more tests for comprehensive coverage

@@ -5,6 +5,7 @@
 A comprehensive analytics and business intelligence API built with FraiseQL, demonstrating time-series data handling, complex aggregations, and real-time analytics capabilities.
 
 **What you'll learn:**
+
 - Time-series data handling with PostgreSQL
 - Complex analytical queries and aggregations
 - Real-time analytics and dashboard APIs
@@ -12,10 +13,12 @@ A comprehensive analytics and business intelligence API built with FraiseQL, dem
 - Performance optimization for analytical workloads
 
 **Prerequisites:**
+
 - `../ecommerce/` - Complex business logic patterns
 - Understanding of analytical data patterns
 
 **Next steps:**
+
 - `../real_time_chat/` - Add real-time features
 - `../enterprise_patterns/` - Add compliance and audit trails
 
@@ -45,6 +48,7 @@ This example demonstrates FraiseQL's analytical capabilities:
 ## Key Components
 
 ### 1. Data Collection
+
 - User session tracking
 - Page view analytics
 - Custom event tracking
@@ -52,6 +56,7 @@ This example demonstrates FraiseQL's analytical capabilities:
 - Error monitoring
 
 ### 2. Analytics Engine
+
 - Real-time aggregations
 - Historical trend analysis
 - Cohort analysis
@@ -59,6 +64,7 @@ This example demonstrates FraiseQL's analytical capabilities:
 - A/B test results
 
 ### 3. Visualization
+
 - GraphQL APIs for dashboards
 - Time-series data export
 - Custom report generation
@@ -156,18 +162,21 @@ query GetConversionFunnel($appId: UUID!) {
 ## Performance Features
 
 ### 1. Time-series Optimization
+
 - TimescaleDB hypertables for automatic partitioning
 - Efficient time-based queries
 - Automatic data compression
 - Retention policies for old data
 
 ### 2. Pre-computed Aggregations
+
 - Materialized views for common metrics
 - Incremental view updates
 - Background refresh jobs
 - Query result caching
 
 ### 3. Analytical SQL
+
 - Window functions for trend analysis
 - CTEs for complex calculations
 - Lateral joins for correlated data

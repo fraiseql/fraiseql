@@ -39,6 +39,7 @@ class User(BaseModel):
 Unlike ORM-based approaches where you might accidentally include sensitive fields in your GraphQL schema, FraiseQL makes it structurally impossible:
 
 **❌ Traditional ORM Approach:**
+
 ```python
 # Accidentally exposes everything from the User model
 class UserType(DjangoObjectType):
@@ -48,11 +49,13 @@ class UserType(DjangoObjectType):
 ```
 
 **✅ FraiseQL Approach:**
+
 ```sql
 -- View only contains safe fields by design
 CREATE VIEW user_safe AS
 SELECT id, email, created_at FROM users;
 ```
+
 ```python
 # Type can only reference fields that exist in the view
 class User(BaseModel):
@@ -67,6 +70,7 @@ class User(BaseModel):
 Traditional GraphQL resolvers often over-fetch data from the database, then filter it in application code. This creates security risks where sensitive data might be temporarily loaded into memory before being filtered out.
 
 **❌ ORM Over-Fetching Risk:**
+
 ```python
 def resolve_user(self, info, user_id):
     user = User.objects.get(id=user_id)  # Loads ALL fields
@@ -79,6 +83,7 @@ def resolve_user(self, info, user_id):
 ```
 
 **✅ FraiseQL Security by Design:**
+
 ```sql
 -- Database never loads sensitive fields
 CREATE VIEW user_public AS
@@ -115,11 +120,13 @@ query {
 FraiseQL implements defense in depth with complementary security layers:
 
 ### Layer 1: Database View Constraints
+
 - Defines the absolute maximum data accessible
 - Enforced by PostgreSQL's view system
 - Cannot be bypassed by application code
 
 ### Layer 2: Python Type System
+
 - Provides compile-time guarantees
 - IDE support for catching field access errors
 - Runtime validation of data structure
@@ -127,6 +134,7 @@ FraiseQL implements defense in depth with complementary security layers:
 ## Best Practices for Secure Views
 
 ### 1. Principle of Least Privilege
+
 ```sql
 -- Only expose what's needed for the specific use case
 CREATE VIEW user_profile AS
@@ -139,6 +147,7 @@ FROM users;
 ```
 
 ### 2. Contextual Views for Different Roles
+
 ```sql
 -- Public profile view
 CREATE VIEW user_public AS
@@ -154,6 +163,7 @@ SELECT id, email, display_name, settings FROM users;
 ```
 
 ### 3. Row-Level Security Integration
+
 ```sql
 -- Combine with PostgreSQL RLS
 CREATE VIEW posts_visible AS
@@ -165,6 +175,7 @@ ALTER VIEW posts_visible SET (security_barrier = true);
 ```
 
 ### 4. Audit Trail Views
+
 ```sql
 -- Separate view for audit data
 CREATE VIEW user_audit AS
@@ -181,6 +192,7 @@ FROM users;
 When migrating from traditional GraphQL frameworks, focus on translating your authorization logic into view definitions:
 
 **Before:**
+
 ```python
 # Complex permission checks in resolvers
 def resolve_user_email(self, info):
@@ -190,6 +202,7 @@ def resolve_user_email(self, info):
 ```
 
 **After:**
+
 ```sql
 -- Permission logic becomes view logic
 CREATE VIEW user_with_email AS

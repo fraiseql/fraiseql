@@ -5,16 +5,19 @@
 [A 1-2 sentence description of what this example demonstrates and its primary purpose.]
 
 **What you'll learn:**
+
 - [Key learning objective 1]
 - [Key learning objective 2]
 - [Key learning objective 3]
 - [Key learning objective 4]
 
 **Prerequisites:**
+
 - `[Other Example](https://github.com/fraiseql/fraiseql/tree/main/examples/other_example)` - [Why this prerequisite is needed]
 - [Any additional knowledge or tools required]
 
 **Next steps:**
+
 - `[Next Example](https://github.com/fraiseql/fraiseql/tree/main/examples/next_example)` - [What this builds toward]
 - `[Another Example](https://github.com/fraiseql/fraiseql/tree/main/examples/another_example)` - [Alternative progression path]
 

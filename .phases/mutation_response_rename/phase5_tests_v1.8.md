@@ -1,12 +1,15 @@
 # Phase 5: Test Files Updates (v1.8.0)
 
 ## Objective
+
 Update test files to use `mutation_response` as the recommended pattern.
 
 ## Duration
+
 1 hour
 
 ## Files to Modify
+
 - `tests/fixtures/cascade/conftest.py`
 - `tests/test_mutations/test_status_taxonomy.py`
 - `tests/integration/graphql/mutations/test_unified_camel_case.py`
@@ -16,6 +19,7 @@ Update test files to use `mutation_response` as the recommended pattern.
 ## Strategy for v1.8.0
 
 **Tests should:**
+
 1. Use `mutation_response` (new name) to demonstrate best practices
 2. Old tests using `mutation_result_v2` don't need to change (backward compatible)
 3. New tests should use `mutation_response`
@@ -31,7 +35,8 @@ For EACH file:
 3. Update casts `::mutation_result_v2` → `::mutation_response`
 4. Update docstrings/comments mentioning the type
 
-### Example change:
+### Example change
+
 ```python
 # OLD
 await db.execute("""
@@ -157,6 +162,7 @@ async def test_helper_functions_return_mutation_response(db_connection):
 - [ ] Both type names verified working
 
 ## Git Commit
+
 ```bash
 git add tests/
 git commit -m "test: update to use mutation_response

@@ -5,26 +5,31 @@ This directory contains comprehensive examples demonstrating different GraphQL C
 ## Examples Overview
 
 ### 1. Basic Create with Side Effects (`create_post/`)
+
 - **Pattern**: Single entity creation with related entity updates
 - **Use Case**: Creating a post that updates author's post count
 - **Complexity**: Basic
 
 ### 2. Update with Multiple Entities (`update_user_profile/`)
+
 - **Pattern**: Updating one entity that affects related entities
 - **Use Case**: User profile update that invalidates cached data
 - **Complexity**: Intermediate
 
 ### 3. Delete with Cleanup (`delete_comment/`)
+
 - **Pattern**: Entity deletion with cascade cleanup
 - **Use Case**: Deleting a comment that updates post stats
 - **Complexity**: Intermediate
 
 ### 4. Complex Business Logic (`place_order/`)
+
 - **Pattern**: Multi-entity transaction with inventory management
 - **Use Case**: E-commerce order placement with inventory updates
 - **Complexity**: Advanced
 
 ### 5. Batch Operations (`bulk_update_tags/`)
+
 - **Pattern**: Bulk operations with selective CASCADE
 - **Use Case**: Updating multiple tags with minimal cache invalidation
 - **Complexity**: Advanced

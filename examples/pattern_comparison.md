@@ -5,6 +5,7 @@
 ### Mutation Responses
 
 **Basic Pattern (todo_quickstart.py):**
+
 ```python
 async def create_user(info, input: CreateUserInput) -> User:
     # Simple success/error handling
@@ -13,6 +14,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 ```
 
 **Enterprise Pattern (blog_api/):**
+
 ```python
 class CreateUser(
     FraiseQLMutation,  # Clean default pattern
@@ -27,12 +29,14 @@ class CreateUser(
 ### Function Architecture
 
 **Basic Pattern:**
+
 ```sql
 -- Single function with mixed concerns
 CREATE FUNCTION create_user(input_data JSONB) RETURNS JSONB;
 ```
 
 **Enterprise Pattern:**
+
 ```sql
 -- App layer: Input handling
 CREATE FUNCTION app.create_user(...) RETURNS app.mutation_result;
@@ -71,6 +75,7 @@ CREATE FUNCTION core.create_user(...) RETURNS app.mutation_result;
 ## Pattern Evolution
 
 ### Stage 1: Basic CRUD
+
 ```python
 # Simple, direct approach
 @fraiseql.query
@@ -84,6 +89,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 ```
 
 ### Stage 2: Structured Responses
+
 ```python
 # Add success/error structure
 class CreateUser(FraiseQLMutation):
@@ -93,6 +99,7 @@ class CreateUser(FraiseQLMutation):
 ```
 
 ### Stage 3: Business Logic Handling
+
 ```python
 # Add NOOP for business rules
 class CreateUser(FraiseQLMutation):
@@ -103,6 +110,7 @@ class CreateUser(FraiseQLMutation):
 ```
 
 ### Stage 4: Full Enterprise
+
 ```python
 # Complete audit, validation, and error handling
 class CreateUser(
@@ -120,6 +128,7 @@ class CreateUser(
 ### Error Handling Evolution
 
 **Basic:**
+
 ```python
 try:
     user = await create_user(input)
@@ -129,6 +138,7 @@ except Exception as e:
 ```
 
 **Enterprise:**
+
 ```python
 # Structured error with native error arrays
 class CreateUserError:
@@ -142,6 +152,7 @@ class CreateUserError:
 ### Validation Evolution
 
 **Basic:**
+
 ```python
 @fraiseql.input
 class CreateUserInput:
@@ -150,6 +161,7 @@ class CreateUserInput:
 ```
 
 **Enterprise:**
+
 ```python
 @fraiseql.input
 class CreateUserInput:
@@ -162,6 +174,7 @@ class CreateUserInput:
 ### Database Function Evolution
 
 **Basic:**
+
 ```sql
 CREATE FUNCTION create_user(input_data JSONB) RETURNS JSONB AS $$
 BEGIN
@@ -177,6 +190,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Enterprise:**
+
 ```sql
 -- App layer: Input sanitization
 CREATE FUNCTION app.create_user(

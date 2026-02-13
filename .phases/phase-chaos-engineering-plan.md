@@ -31,14 +31,17 @@ This plan establishes a comprehensive chaos engineering test suite to validate F
 ## 📋 Phase Breakdown
 
 ### Phase 0: Chaos Engineering Foundation
+
 **Duration**: 3-4 days
 **Effort**: 15-20 hours
 **Objective**: Set up infrastructure and baseline measurements
 
 #### 0.1 - Chaos Tool Selection & Setup
+
 **Objective**: Evaluate and install chaos engineering tools
 
 **Tasks**:
+
 - [ ] Evaluate chaos tools for Python/Rust integration:
   - `pytest-chaos` - Native pytest chaos injection
   - `chaos-toolkit` - Declarative chaos experiments
@@ -51,12 +54,14 @@ This plan establishes a comprehensive chaos engineering test suite to validate F
 - [ ] Document tool usage patterns
 
 **Acceptance Criteria**:
+
 - ✅ Chaos tools installed and working
 - ✅ Can inject failures in controlled manner
 - ✅ Failures can be measured quantitatively
 - ✅ Tests reproducible and deterministic
 
 **Files to Create**:
+
 ```
 fraiseql/chaos/
 ├── __init__.py
@@ -70,9 +75,11 @@ fraiseql/chaos/
 ---
 
 #### 0.2 - Baseline Performance Metrics
+
 **Objective**: Establish healthy-state performance baseline
 
 **Tasks**:
+
 - [ ] Measure normal query execution times:
   - Simple queries (SELECT * FROM users)
   - Complex nested queries
@@ -93,12 +100,14 @@ fraiseql/chaos/
 - [ ] Document all baselines in metrics.json
 
 **Acceptance Criteria**:
+
 - ✅ Baseline file with 50+ metrics
 - ✅ All metrics measurable within ±5%
 - ✅ Repeatability: Same query ±3% variance
 - ✅ Baseline used as reference for chaos tests
 
 **Expected Baselines** (FraiseQL v1.8.9):
+
 - Simple query: 15-25ms
 - Nested query (3 levels): 40-60ms
 - Token validation (cached): <1ms
@@ -109,9 +118,11 @@ fraiseql/chaos/
 ---
 
 #### 0.3 - Chaos Test Infrastructure
+
 **Objective**: Build reusable chaos testing framework
 
 **Tasks**:
+
 - [ ] Create `ChaosTestCase` base class:
   - Setup/teardown for chaos injection
   - Failure injection helpers
@@ -133,12 +144,14 @@ fraiseql/chaos/
   - Report generation
 
 **Acceptance Criteria**:
+
 - ✅ Base class usable for all chaos tests
 - ✅ Metrics collected automatically
 - ✅ Results stored in structured format (JSON/CSV)
 - ✅ Comparison tools show % deviation from baseline
 
 **Example Usage**:
+
 ```python
 class TestDatabaseChaos(ChaosTestCase):
     @chaos_inject(
@@ -155,11 +168,13 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 ### Phase 1: Network & Connectivity Chaos
+
 **Duration**: 5-6 days
 **Effort**: 25-30 hours
 **Objective**: Validate behavior under network failures
 
 #### 1.1 - Database Connection Failures
+
 **Test Suite**: `tests/chaos/network/test_db_connection_chaos.py`
 
 **Failure Scenarios**:
@@ -210,6 +225,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 1.2 - Network Latency Injection
+
 **Test Suite**: `tests/chaos/network/test_network_latency_chaos.py`
 
 **Failure Scenarios**:
@@ -253,6 +269,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 1.3 - Packet Loss & Corruption
+
 **Test Suite**: `tests/chaos/network/test_packet_loss_chaos.py`
 
 **Failure Scenarios**:
@@ -299,11 +316,13 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 ### Phase 2: Database & Query Chaos
+
 **Duration**: 6-7 days
 **Effort**: 30-40 hours
 **Objective**: Validate resilience to database-level failures
 
 #### 2.1 - Query Execution Failures
+
 **Test Suite**: `tests/chaos/database/test_query_failure_chaos.py`
 
 **Failure Scenarios**:
@@ -355,6 +374,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 2.2 - Data Consistency Failures
+
 **Test Suite**: `tests/chaos/database/test_data_consistency_chaos.py`
 
 **Failure Scenarios**:
@@ -394,6 +414,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 2.3 - PostgreSQL Failure Modes
+
 **Test Suite**: `tests/chaos/database/test_postgres_failures.py`
 
 **Failure Scenarios**:
@@ -435,11 +456,13 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 ### Phase 3: Cache & Auth Chaos
+
 **Duration**: 5-6 days
 **Effort**: 25-35 hours
 **Objective**: Validate resilience to cache and authentication failures
 
 #### 3.1 - Cache Failure Scenarios
+
 **Test Suite**: `tests/chaos/cache/test_cache_failures.py`
 
 **Failure Scenarios**:
@@ -491,6 +514,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 3.2 - JWKS & Token Cache Failures
+
 **Test Suite**: `tests/chaos/auth/test_jwks_cache_failures.py`
 
 **Failure Scenarios**:
@@ -536,6 +560,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 3.3 - Authentication Failure Modes
+
 **Test Suite**: `tests/chaos/auth/test_auth_failures.py`
 
 **Failure Scenarios**:
@@ -576,11 +601,13 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 ### Phase 4: Resource & Concurrency Chaos
+
 **Duration**: 6-7 days
 **Effort**: 35-45 hours
 **Objective**: Validate behavior under high load and resource constraints
 
 #### 4.1 - Memory & Resource Constraints
+
 **Test Suite**: `tests/chaos/resources/test_memory_chaos.py`
 
 **Failure Scenarios**:
@@ -626,6 +653,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 4.2 - High Concurrency Chaos
+
 **Test Suite**: `tests/chaos/concurrency/test_concurrent_chaos.py`
 
 **Failure Scenarios**:
@@ -681,6 +709,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 4.3 - Cascading Failure Chaos
+
 **Test Suite**: `tests/chaos/cascading/test_cascading_failures.py`
 
 **Failure Scenarios**:
@@ -731,11 +760,13 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 ### Phase 5: Monitoring & Observability Chaos
+
 **Duration**: 4-5 days
 **Effort**: 20-25 hours
 **Objective**: Validate that failures are detectable and observable
 
 #### 5.1 - Metrics & Observability Under Chaos
+
 **Test Suite**: `tests/chaos/observability/test_metrics_chaos.py`
 
 **Failure Scenarios**:
@@ -779,6 +810,7 @@ class TestDatabaseChaos(ChaosTestCase):
 ---
 
 #### 5.2 - Chaos Test Report Generation
+
 **Test Suite**: `tests/chaos/reporting/test_report_generation.py`
 
 **Deliverables**:
@@ -906,36 +938,43 @@ tests/chaos/
 ## 📋 Success Criteria
 
 ### Phase 0
+
 - [ ] Chaos tools installed and functional
 - [ ] Baseline metrics documented (50+ metrics)
 - [ ] Chaos framework ready for tests
 
 ### Phase 1
+
 - [ ] 30+ network chaos tests passing
 - [ ] All connection failures handled gracefully
 - [ ] System recovers automatically
 
 ### Phase 2
+
 - [ ] 35+ database chaos tests passing
 - [ ] Zero data corruption under failures
 - [ ] Clear error messages to users
 
 ### Phase 3
+
 - [ ] 30+ cache/auth tests passing
 - [ ] Cache never returns stale/corrupted data
 - [ ] Auth failures explicit (not silent)
 
 ### Phase 4
+
 - [ ] 35+ resource/concurrency tests passing
 - [ ] No deadlocks under high concurrency
 - [ ] Fair resource allocation verified
 
 ### Phase 5
+
 - [ ] 20+ observability tests passing
 - [ ] All failures detectable and loggable
 - [ ] Reports generated automatically
 
 ### Overall (All Phases)
+
 - [ ] 150+ chaos tests all passing
 - [ ] Production readiness verified
 - [ ] Recovery procedures documented
@@ -946,6 +985,7 @@ tests/chaos/
 ## 🎯 Key Metrics & KPIs
 
 ### Reliability Metrics
+
 - **Recovery Time**: Time from failure injection to normal operation
   - Target: <5 seconds for most failures
 - **Data Loss Rate**: % of data lost during failures
@@ -954,6 +994,7 @@ tests/chaos/
   - Target: 0%
 
 ### Performance Metrics
+
 - **Graceful Degradation**: Max latency increase under failures
   - Target: <3x baseline for most failures
 - **Throughput Under Load**: Requests/sec with concurrency + failures
@@ -962,6 +1003,7 @@ tests/chaos/
   - Target: <500MB for normal query load
 
 ### Observability Metrics
+
 - **Failure Detection Latency**: Time to detect failure
   - Target: <1 second
 - **Alert Accuracy**: % of alerts that are true positives
@@ -974,26 +1016,31 @@ tests/chaos/
 ## 🚀 Running the Chaos Tests
 
 ### Single Test
+
 ```bash
 pytest tests/chaos/network/test_db_connection_chaos.py::TestDatabaseConnection::test_connection_refused -xvs
 ```
 
 ### All Tests in Phase
+
 ```bash
 pytest tests/chaos/network/ -v --tb=short
 ```
 
 ### All Chaos Tests
+
 ```bash
 pytest tests/chaos/ -v --chaos-report=chaos_report.html
 ```
 
 ### With Specific Failure Injection
+
 ```bash
 pytest tests/chaos/ -v -m "failure_type:network_latency" --chaos-duration=120
 ```
 
 ### Generate Comparison Report
+
 ```bash
 pytest tests/chaos/ -v --baseline=baseline_metrics.json --report=comparison.html
 ```
@@ -1003,18 +1050,21 @@ pytest tests/chaos/ -v --baseline=baseline_metrics.json --report=comparison.html
 ## 📚 Dependencies & Tools
 
 ### Required
+
 - `pytest` (already have)
 - `toxiproxy` (network chaos)
 - `pytest-asyncio` (async test support)
 - `locust` (load generation, optional)
 
 ### Recommended
+
 - `pytest-benchmark` (performance baselines)
 - `psutil` (resource monitoring)
 - `memory-profiler` (memory usage analysis)
 - `pympler` (heap analysis for memory leaks)
 
 ### Installation
+
 ```bash
 pip install pytest-chaos toxiproxy pytest-asyncio locust pytest-benchmark psutil memory-profiler pympler
 ```
@@ -1038,24 +1088,28 @@ Before starting Phase 0, ensure:
 ## 🤝 Team Roles
 
 ### Chaos Engineer (Lead)
+
 - Designs chaos scenarios
 - Implements test suite
 - Analyzes results
 - Generates reports
 
 ### QA/Test Engineer
+
 - Executes tests
 - Documents failures
 - Validates recovery procedures
 - Tests edge cases
 
 ### DevOps/SRE (Support)
+
 - Manages test infrastructure
 - Monitors resource usage
 - Handles toxiproxy setup
 - Troubleshoots environmental issues
 
 ### Product/Architecture (Stakeholder)
+
 - Reviews scenarios
 - Sets acceptance criteria
 - Prioritizes failures to test
@@ -1066,6 +1120,7 @@ Before starting Phase 0, ensure:
 ## 📝 Documentation & Deliverables
 
 ### Per Phase
+
 - [ ] Test plan (this document)
 - [ ] Test cases (in code comments)
 - [ ] Baseline metrics (JSON)
@@ -1073,6 +1128,7 @@ Before starting Phase 0, ensure:
 - [ ] Test results (HTML report)
 
 ### Final Deliverables (After All Phases)
+
 1. **Chaos Test Suite**: 150+ reproducible tests
 2. **Baseline Metrics**: Reference performance under normal conditions
 3. **Runbook**: How to interpret test results
@@ -1099,16 +1155,19 @@ Before starting Phase 0, ensure:
 ## 🎓 Learning Resources
 
 ### Chaos Engineering Principles
+
 - Netflix Chaos Monkey (concept origin)
 - Principles of Chaos Engineering (chaosengineering.org)
 - "Release It!" by Michael Nygard (circuit breakers, bulkheads)
 
 ### Tools Documentation
+
 - Toxiproxy: https://github.com/Shopify/toxiproxy
 - pytest-chaos: Community library, custom implementation
 - Locust: https://locust.io/
 
 ### FraiseQL Specific
+
 - Connection pool configuration
 - JWKS cache strategy
 - PostgreSQL timeout settings

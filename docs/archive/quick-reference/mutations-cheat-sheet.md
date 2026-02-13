@@ -50,6 +50,7 @@ $$ LANGUAGE plpgsql;
 ## Error Patterns
 
 ### Pattern 1: Auto-Generated (Simple)
+
 ```sql
 -- Just set status and message
 result.status := 'validation:';
@@ -58,6 +59,7 @@ result.message := 'Email is required';
 ```
 
 ### Pattern 2: Explicit Multiple Errors
+
 ```sql
 -- Build errors array manually
 result.status := 'validation:';
@@ -85,6 +87,7 @@ result.metadata := jsonb_build_object(
 ## Common Patterns
 
 ### Input Validation
+
 ```sql
 -- Extract and validate
 user_email := input_payload->>'email';
@@ -96,6 +99,7 @@ END IF;
 ```
 
 ### Not Found Check
+
 ```sql
 SELECT * INTO user_record FROM users WHERE id = user_id;
 IF NOT FOUND THEN
@@ -106,6 +110,7 @@ END IF;
 ```
 
 ### Duplicate Check
+
 ```sql
 IF EXISTS (SELECT 1 FROM users WHERE email = user_email) THEN
     result.status := 'conflict:duplicate';
@@ -115,6 +120,7 @@ END IF;
 ```
 
 ### Conditional Update (Optimistic Locking)
+
 ```sql
 UPDATE machines SET status = 'running'
 WHERE id = machine_id AND status = 'idle'
@@ -145,11 +151,13 @@ CREATE TYPE mutation_response AS (
 ```
 
 **What Rust Generates (You DON'T set):**
+
 - ❌ `code` - Generated from status string
 - ❌ `identifier` - Extracted from status string
 - ❌ `errors` array - Auto-generated or from metadata.errors
 
 **What You Set:**
+
 - ✅ `status` - Status string
 - ✅ `message` - Summary message
 - ✅ `entity` - Entity data (use `row_to_json(NEW)`)
@@ -175,6 +183,7 @@ mutation_assert(condition boolean, error_message text) -> void
 ```
 
 **Usage:**
+
 ```sql
 -- Validate response before returning
 PERFORM mutation_assert(

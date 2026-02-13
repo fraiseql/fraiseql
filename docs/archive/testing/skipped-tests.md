@@ -13,6 +13,7 @@
 FraiseQL maintains a comprehensive test suite with 4,603 passing tests and only 28 skipped tests (0.6% skip rate). All skipped tests have valid technical reasons and clear documentation for how to run them individually or enable them in specific environments.
 
 **Why Tests Are Skipped:**
+
 - Schema Registry Singleton (7 tests) - Architectural limitation, tests pass individually
 - External Services Required (10 tests) - KMS providers, database features
 - Incomplete Features (5 tests) - Work in progress
@@ -25,6 +26,7 @@ FraiseQL maintains a comprehensive test suite with 4,603 passing tests and only 
 ## Category 1: Schema Registry Singleton (7 tests) 🏗️
 
 ### Root Cause
+
 FraiseQL's Schema Registry is a global singleton that can only be initialized once per Python process. This is by design for performance and consistency, but it means tests that create multiple schemas cannot run in the same process.
 
 ### Status: ✅ Tests Pass Individually
@@ -40,6 +42,7 @@ All these tests work perfectly when run in isolation. The skip is only needed fo
    - `test_multiple_assignments_all_have_correct_nested_typename`
 
    **Run individually:**
+
    ```bash
    pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
    ```
@@ -49,6 +52,7 @@ All these tests work perfectly when run in isolation. The skip is only needed fo
 2. **`tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_basic_queries`**
 
    **Run individually:**
+
    ```bash
    pytest tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_basic_queries -v
    ```
@@ -58,6 +62,7 @@ All these tests work perfectly when run in isolation. The skip is only needed fo
 3. **`tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_performance_baseline`**
 
    **Run individually:**
+
    ```bash
    pytest tests/integration/examples/test_blog_simple_integration.py::test_blog_simple_performance_baseline -v
    ```
@@ -67,6 +72,7 @@ All these tests work perfectly when run in isolation. The skip is only needed fo
 4. **`tests/integration/graphql/test_graphql_query_execution_complete.py::test_graphql_field_selection`**
 
    **Run individually:**
+
    ```bash
    pytest tests/integration/graphql/test_graphql_query_execution_complete.py::test_graphql_field_selection -v
    ```
@@ -76,6 +82,7 @@ All these tests work perfectly when run in isolation. The skip is only needed fo
 5. **`tests/unit/core/test_rust_pipeline.py::test_build_graphql_response_with_nested_object_aliases`**
 
    **Run individually:**
+
    ```bash
    pytest tests/unit/core/test_rust_pipeline.py::test_build_graphql_response_with_nested_object_aliases -v
    ```
@@ -95,6 +102,7 @@ All these tests work perfectly when run in isolation. The skip is only needed fo
 ## Category 2: External Services Required (10 tests) 🔌
 
 ### Root Cause
+
 These tests require external services (Vault, AWS KMS, pgvector) that are not available in standard CI environments.
 
 ### Status: ⚠️ Can Be Enabled Locally
@@ -104,6 +112,7 @@ Set appropriate environment variables to enable these tests.
 ### 2.1 KMS Integration Tests (6 tests)
 
 #### Vault Tests (3 tests)
+
 **Location:** `tests/integration/security/test_kms_integration.py`
 
 ```python
@@ -111,11 +120,13 @@ Set appropriate environment variables to enable these tests.
 ```
 
 **Tests:**
+
 - `test_vault_provider_encrypt_decrypt`
 - `test_vault_provider_key_rotation`
 - `test_vault_provider_connection_error`
 
 **Enable locally:**
+
 ```bash
 # Start Vault in dev mode
 docker run --rm --cap-add=IPC_LOCK \
@@ -134,6 +145,7 @@ pytest tests/integration/security/test_kms_integration.py::test_vault_provider_e
 ```
 
 #### AWS KMS Tests (3 tests)
+
 **Location:** `tests/integration/security/test_kms_integration.py`
 
 ```python
@@ -141,11 +153,13 @@ pytest tests/integration/security/test_kms_integration.py::test_vault_provider_e
 ```
 
 **Tests:**
+
 - `test_aws_kms_provider_encrypt_decrypt`
 - `test_aws_kms_provider_key_rotation`
 - `test_aws_kms_provider_connection_error`
 
 **Enable locally:**
+
 ```bash
 # Configure AWS credentials
 export AWS_REGION=us-east-1
@@ -162,11 +176,13 @@ pytest tests/integration/security/test_kms_integration.py::test_aws_kms_provider
 ```
 
 ### 2.2 Cascade Feature Tests (4 tests)
+
 **Location:** `tests/integration/test_graphql_cascade.py`
 
 **Skip Reason:** "Cascade feature not fully implemented"
 
 **Tests:**
+
 - `test_cascade_mutation_updates_cache`
 - `test_cascade_delete_propagates`
 - `test_cascade_update_with_side_effects`
@@ -183,6 +199,7 @@ The GraphQL Cascade feature is planned but not yet implemented. These tests defi
 ## Category 3: Database Schema Required (2 tests) 📋
 
 ### Root Cause
+
 Tests require SpecQL-generated database schema that must be created separately.
 
 **Location:** `tests/integration/test_introspection/test_composite_type_generation_integration.py`
@@ -190,10 +207,12 @@ Tests require SpecQL-generated database schema that must be created separately.
 **Skip Reason:** "SpecQL test schema not found - run SpecQL or apply test schema SQL"
 
 **Tests:**
+
 - `test_composite_type_to_graphql_type`
 - `test_enum_type_generation`
 
 **Enable by creating test schema:**
+
 ```bash
 # Create test database
 psql -c "CREATE DATABASE specql_test;"
@@ -206,6 +225,7 @@ pytest tests/integration/test_introspection/test_composite_type_generation_integ
 ```
 
 **Alternative:** Set `SPECQL_TEST_DB` environment variable:
+
 ```bash
 export SPECQL_TEST_DB=postgresql://localhost/specql_test
 pytest tests/integration/test_introspection/ -v
@@ -216,6 +236,7 @@ pytest tests/integration/test_introspection/ -v
 ## Category 4: Known External Issues (3 tests) 🐛
 
 ### 4.1 Starlette TestClient Lifespan Deadlock (1 test)
+
 **Location:** `tests/system/fastapi_system/test_lifespan.py:157`
 
 **Skip Reason:**
@@ -228,12 +249,14 @@ pytest tests/integration/test_introspection/ -v
 **Upstream Issue:** https://github.com/encode/starlette/issues/1315
 
 **Workaround:** Manual testing with actual server:
+
 ```python
 # works in production, just can't be tested with TestClient
 uvicorn myapp:app --host 0.0.0.0 --port 8000
 ```
 
 ### 4.2 Flaky Performance Test (1 test)
+
 **Location:** `tests/performance/test_rustresponsebytes_performance.py:39`
 
 **Skip Reason:** "Flaky performance test - threshold depends on system load. Target: <2ms for 10,000 checks"
@@ -243,6 +266,7 @@ uvicorn myapp:app --host 0.0.0.0 --port 8000
 **Status:** ⚠️ System-Dependent
 
 **Enable manually:**
+
 ```bash
 # Run on quiet system with minimal load
 pytest tests/performance/test_rustresponsebytes_performance.py::test_rustresponsebytes_check_performance -v
@@ -251,6 +275,7 @@ pytest tests/performance/test_rustresponsebytes_performance.py::test_rustrespons
 **Note:** Performance thresholds are environment-specific. Test passes on development machines but may fail on CI runners.
 
 ### 4.3 APQ PostgreSQL Connection (1 test)
+
 **Location:** `tests/test_apq_registration.py:93`
 
 **Skip Reason:** "Requires actual PostgreSQL connection"
@@ -258,6 +283,7 @@ pytest tests/performance/test_rustresponsebytes_performance.py::test_rustrespons
 **Test:** `test_apq_postgresql_backend_registration`
 
 **Enable with database:**
+
 ```bash
 # Start PostgreSQL
 docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=test postgres:15
@@ -274,21 +300,25 @@ pytest tests/test_apq_registration.py::test_apq_postgresql_backend_registration 
 ## Category 5: Advanced Type System (2 tests) 🧬
 
 ### Root Cause
+
 Tests require advanced forward reference and self-referential type handling that's not yet implemented.
 
 **Location:** `tests/unit/sql/test_nested_where_input_auto_generation.py`
 
 **Tests:**
+
 - `test_self_referential_type` (line 58)
 - `test_forward_reference_during_decoration` (line 167)
 
 **Skip Reasons:**
+
 - "Self-referential types require advanced forward reference handling"
 - "Forward references during decoration require special handling - use correct definition order instead"
 
 **Status:** 🚧 Future Enhancement
 
 **Workaround:** Use correct definition order:
+
 ```python
 # ❌ Don't do this (forward reference)
 @fraise_type
@@ -311,6 +341,7 @@ class Node:
 ## Category 6: Deprecated Features (1 test) 🗑️
 
 ### Root Cause
+
 Legacy code path that has been superseded by newer implementation.
 
 **Location:** `tests/unit/core/test_rust_pipeline.py:117`
@@ -324,12 +355,14 @@ Legacy code path that has been superseded by newer implementation.
 **Replacement:** Use `field_selections` with aliases (see `docs/rust/rust-field-projection.md`)
 
 **Old API:**
+
 ```python
 # ❌ Deprecated
 field_paths = ["user.id", "user.name"]
 ```
 
 **New API:**
+
 ```python
 # ✅ Current
 field_selections = [
@@ -357,6 +390,7 @@ field_selections = [
 ## Running Specific Skipped Tests
 
 ### Run All Schema Registry Tests
+
 ```bash
 # Run each file individually
 pytest tests/regression/test_issue_112_nested_jsonb_typename.py -v
@@ -366,6 +400,7 @@ pytest tests/unit/core/test_rust_pipeline.py::test_build_graphql_response_with_n
 ```
 
 ### Run KMS Tests (with services)
+
 ```bash
 # Start Vault
 docker run -d --rm --cap-add=IPC_LOCK \
@@ -387,6 +422,7 @@ docker stop vault
 ```
 
 ### Run SpecQL Tests (with schema)
+
 ```bash
 # Setup test database
 createdb specql_test
@@ -404,6 +440,7 @@ dropdb specql_test
 ## CI/CD Considerations
 
 ### GitHub Actions
+
 All 28 skipped tests are expected in CI. The skip conditions handle missing services gracefully:
 
 ```yaml
@@ -415,6 +452,7 @@ All 28 skipped tests are expected in CI. The skip conditions handle missing serv
 ```
 
 ### Local Development
+
 Developers can enable specific tests by setting up external services:
 
 ```bash
@@ -426,6 +464,7 @@ DATABASE_URL=postgresql://localhost/test
 ```
 
 ### Pre-Commit Hook
+
 Schema Registry tests should be run individually before committing changes to schema code:
 
 ```bash

@@ -12,6 +12,7 @@
 FraiseQL's field selection optimization works correctly for **top-level queries** but does **NOT work for nested JSONB objects** embedded in parent data. This means that when a client requests specific fields from a nested object (e.g., `networkConfiguration { id ipAddress }`), FraiseQL returns **ALL fields** instead of just the requested ones.
 
 **Example:**
+
 ```graphql
 query {
   allocations {
@@ -44,6 +45,7 @@ FraiseQL has a sophisticated field selection system:
 ### The Problem
 
 **Top-Level Query Flow (WORKS ✅):**
+
 ```
 1. Query: allocations { id name }
 2. Decorator injects info into context
@@ -56,6 +58,7 @@ FraiseQL has a sophisticated field selection system:
 ```
 
 **Nested Object Flow (BROKEN ❌):**
+
 ```
 1. Query: allocations { networkConfiguration { id ipAddress } }
 2. Decorator injects info into context
@@ -93,6 +96,7 @@ async def resolve_nested_field(parent: dict[str, Any], info: GraphQLResolveInfo,
 ```
 
 **The issue:**
+
 - The resolver finds the nested object in parent data (line 55)
 - It converts the dict to the type (lines 64-88)
 - **It does NOT check what fields were requested**
@@ -102,6 +106,7 @@ async def resolve_nested_field(parent: dict[str, Any], info: GraphQLResolveInfo,
 ### Why Top-Level Works
 
 Top-level queries work because:
+
 1. Field paths are extracted at query execution time (db.py:632-640)
 2. Field selections are built with full materialized paths (db.py:642-668)
 3. Rust pipeline receives these paths and applies projections during deserialization
@@ -110,6 +115,7 @@ Top-level queries work because:
 ### Why Nested Fails
 
 Nested resolution fails because:
+
 1. The `info` parameter in nested resolver is **scoped to that field** (not the root query)
 2. Extracting `field_paths_from_info(info)` at nested level gives **relative paths**, not full paths
 3. The resolver doesn't have access to **parent-computed field selections**
@@ -149,6 +155,7 @@ Nested resolution fails because:
 ### Data Flow
 
 **Top-Level (WORKS):**
+
 ```
 GraphQL Query
     ↓
@@ -168,6 +175,7 @@ Rust deserializes ONLY selected fields
 ```
 
 **Nested (BROKEN):**
+
 ```
 GraphQL Query (allocations { networkConfig { id ipAddress } })
     ↓
@@ -197,29 +205,36 @@ if value is not None:
 ### Why Simple Fixes Won't Work
 
 **Option 1: Extract field paths in nested resolver**
+
 ```python
 # In nested_field_resolver.py
 field_paths = extract_field_paths_from_info(info)
 ```
+
 ❌ **Problem**: The `info` parameter is scoped to the nested field, so you'd get paths like `[["id"], ["ipAddress"]]` (relative), not `[["network_configuration", "id"]]` (absolute).
 
 **Option 2: Pass selections via context**
+
 ```python
 # In db.find():
 info.context["_field_selections"] = field_selections_json
 # In nested_field_resolver.py:
 selections = info.context.get("_field_selections")
 ```
+
 ❌ **Problem**: Need to match absolute paths like `["network_configuration", "id"]` to current field name. Complex path matching logic required.
 
 **Option 3: Apply filtering in nested resolver**
+
 ```python
 # Get current field path from GraphQL execution
 current_path = info.path.as_list()  # e.g., ["allocations", 0, "networkConfig"]
 # Filter value to only include fields at this path
 filtered_value = apply_field_filter(value, selections_for_path)
 ```
+
 ⚠️ **Partial**: This could work but requires significant changes:
+
 - Need to store computed selections in context
 - Need path-matching logic
 - Need field filtering implementation
@@ -232,6 +247,7 @@ filtered_value = apply_field_filter(value, selections_for_path)
 Created test file: `tests/regression/nested_field_selection_bug.py`
 
 **Test Case**: `test_nested_field_selection_broken()`
+
 - Creates a device with nested network configuration
 - Requests only `{ id ipAddress }` from nested object
 - **Expected**: Only id and ipAddress in response
@@ -246,17 +262,20 @@ Created test file: `tests/regression/nested_field_selection_bug.py`
 ### Performance Impact
 
 **Bandwidth Overhead**:
+
 - Example: NetworkConfiguration has 15 fields
 - Client requests: 2 fields (id, ipAddress)
 - Actual response: 15 fields
 - **Overhead**: 7.5x more data than needed (~650% larger payload)
 
 **CPU Overhead**:
+
 - Python deserializes all JSONB fields into objects
 - GraphQL serializes all fields to JSON
 - **Overhead**: ~5-7x more CPU cycles (no Rust zero-copy benefit)
 
 **Memory Overhead**:
+
 - All fields loaded into memory
 - **Overhead**: ~7.5x more memory per nested object
 
@@ -265,6 +284,7 @@ Created test file: `tests/regression/nested_field_selection_bug.py`
 From `/tmp/fraiseql-nested-field-selection-bug.md`:
 
 **Query**:
+
 ```graphql
 fragment NetworkConfigurationFields on NetworkConfiguration {
   id
@@ -284,6 +304,7 @@ fragment NetworkConfigurationFields on NetworkConfiguration {
 
 **Expected**: ~13 fields
 **Actual**: 15+ fields including:
+
 - `ipAddressCidr` (NOT requested)
 - `nDirectAllocations` (NOT requested)
 - Other unrequested fields
@@ -301,6 +322,7 @@ fragment NetworkConfigurationFields on NetworkConfiguration {
 **Implementation**:
 
 1. **Store computed selections in context** (db.py):
+
 ```python
 # In db.find() after building field_selections (line 668)
 if info and hasattr(info, "context"):
@@ -315,6 +337,7 @@ if info and hasattr(info, "context"):
 ```
 
 2. **Apply selections in nested resolver** (nested_field_resolver.py):
+
 ```python
 async def resolve_nested_field(parent: dict[str, Any], info: GraphQLResolveInfo, **kwargs: Any) -> Any:
     value = getattr(parent, field_name, None)
@@ -335,6 +358,7 @@ async def resolve_nested_field(parent: dict[str, Any], info: GraphQLResolveInfo,
 ```
 
 3. **Add field filtering helper**:
+
 ```python
 def _apply_field_selections(value: Any, current_path: list[str], all_selections: dict) -> Any:
     """Filter object fields based on GraphQL selection set."""
@@ -363,12 +387,14 @@ def _apply_field_selections(value: Any, current_path: list[str], all_selections:
 ```
 
 **Pros**:
+
 - ✅ Complete fix for nested field selection
 - ✅ Minimal code changes (~50-70 lines)
 - ✅ Backward compatible (no breaking changes)
 - ✅ Maintains performance benefits of field selection
 
 **Cons**:
+
 - ⚠️ Adds complexity to nested resolver
 - ⚠️ Requires careful path matching logic
 - ⚠️ Need comprehensive tests for edge cases
@@ -380,15 +406,18 @@ def _apply_field_selections(value: Any, current_path: list[str], all_selections:
 **Benefit**: Full Rust performance for nested objects
 
 **Implementation**:
+
 - Modify Rust to handle nested object field selection
 - Pass nested paths to Rust: `["network_configuration.id", "network_configuration.ip_address"]`
 - Rust deserializer applies projections at nested level
 
 **Pros**:
+
 - ✅ Maximum performance (full Rust pipeline)
 - ✅ Clean Python code (Rust handles complexity)
 
 **Cons**:
+
 - ❌ Requires Rust changes (outside Python scope)
 - ❌ More complex testing
 - ❌ Longer development time
@@ -400,6 +429,7 @@ def _apply_field_selections(value: Any, current_path: list[str], all_selections:
 **Benefit**: Guides users to avoid the issue
 
 **Implementation**:
+
 - Document the limitation in FraiseQL docs
 - Provide best practices for avoiding the issue:
   - Use database views with pre-selected columns
@@ -407,11 +437,13 @@ def _apply_field_selections(value: Any, current_path: list[str], all_selections:
   - Design APIs to minimize nested object complexity
 
 **Pros**:
+
 - ✅ Quick solution
 - ✅ No code changes
 - ✅ No risk of regressions
 
 **Cons**:
+
 - ❌ Doesn't fix the underlying issue
 - ❌ Users still pay performance penalty
 - ❌ Not a real solution
@@ -423,6 +455,7 @@ def _apply_field_selections(value: Any, current_path: list[str], all_selections:
 **Implement Option A (Context-Based Field Selection Propagation)** with the following approach:
 
 ### Phase 1: TDD RED (Write Failing Tests)
+
 1. Expand `tests/regression/nested_field_selection_bug.py` with comprehensive tests
 2. Test single-level nesting (networkConfig { id ipAddress })
 3. Test multi-level nesting (allocation { networkConfig { gateway { id ipAddress } } })
@@ -430,18 +463,21 @@ def _apply_field_selections(value: Any, current_path: list[str], all_selections:
 5. Run tests → **All should FAIL** (demonstrating the bug)
 
 ### Phase 2: TDD GREEN (Implement Fix)
+
 1. Add `_fraiseql_field_selections` storage in `db.find()` (db.py:668)
 2. Add `_apply_field_selections()` helper function (nested_field_resolver.py)
 3. Modify `resolve_nested_field()` to apply selections (nested_field_resolver.py:54-88)
 4. Run tests → **All should PASS**
 
 ### Phase 3: TDD REFACTOR (Optimize and Clean)
+
 1. Extract path matching logic to separate module
 2. Add logging for field selection application
 3. Optimize dict filtering for large objects
 4. Add benchmarks to measure performance improvement
 
 ### Phase 4: TDD QA (Quality Assurance)
+
 1. Run full test suite (6000+ tests)
 2. Test with PrintOptim backend (real-world validation)
 3. Profile memory and CPU usage

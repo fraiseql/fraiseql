@@ -9,6 +9,7 @@ How we measure FraiseQL's performance and how to reproduce results.
 **Claim**: "7-10x faster than Python JSON serialization"
 
 **Test Setup:**
+
 - **Baseline**: Python `json.dumps()` on dict with 1000 fields
 - **FraiseQL**: Rust pipeline processing JSONB from PostgreSQL
 - **Hardware**: AWS c6i.xlarge (4 vCPU, 8GB RAM)
@@ -24,6 +25,7 @@ How we measure FraiseQL's performance and how to reproduce results.
 | Field selection (10/100 fields) | 380ms | 45ms | 8.4x |
 
 **Methodology:**
+
 ```python
 # baseline.py - Python JSON serialization
 import json
@@ -66,6 +68,7 @@ println!("Rust: {:.2}ms", duration.as_millis());
 **Claim**: "Sub-millisecond to single-digit millisecond P95 latency"
 
 **Test Setup:**
+
 - **Tool**: Apache Bench (ab)
 - **Concurrency**: 50 concurrent connections
 - **Requests**: 10,000 total requests
@@ -104,6 +107,7 @@ python parse_ab_results.py ab_output.txt
 **Claim**: "Zero N+1 queries through database-level composition"
 
 **Test Setup:**
+
 - **Scenario**: Fetch 100 users with their posts (avg 10 posts per user)
 - **Baseline (ORM)**: SQLAlchemy without eager loading
 - **FraiseQL**: JSONB view with nested composition
@@ -164,6 +168,7 @@ FROM tb_user;
 **Claim**: "PostgreSQL UNLOGGED tables match Redis performance"
 
 **Test Setup:**
+
 - **Operations**: SET and GET operations
 - **Data**: 1KB JSON blobs
 - **Volume**: 10,000 operations
@@ -178,6 +183,7 @@ FROM tb_user;
 | Throughput | 12,500 ops/sec | 8,300 ops/sec | -34% |
 
 **Analysis:**
+
 - Redis is faster for pure caching
 - PostgreSQL eliminates need for separate service
 - PostgreSQL provides ACID guarantees (Redis doesn't)
@@ -185,6 +191,7 @@ FROM tb_user;
 - **Operational simplicity**: One database instead of two
 
 **When to use Redis vs PostgreSQL caching:**
+
 - **Use Redis**: >100k ops/sec, sub-millisecond P99 required
 - **Use PostgreSQL**: Simplicity, ACID guarantees, <50k ops/sec acceptable
 
@@ -240,6 +247,7 @@ pytest benchmarks/test_caching_performance.py -v
 All benchmarks run on consistent hardware:
 
 **Cloud Instance:**
+
 - **Provider**: AWS
 - **Instance**: c6i.xlarge
 - **CPU**: 4 vCPU (Intel Xeon Platinum 8375C)
@@ -300,12 +308,14 @@ When comparing FraiseQL to other frameworks:
 ### Why FraiseQL is Faster
 
 **Root cause of speedup:**
+
 1. **No Python serialization**: Rust processes JSON, not Python
 2. **Database composition**: PostgreSQL builds JSONB once
 3. **Zero N+1 queries**: Views pre-compose nested data
 4. **Compiled performance**: Rust is 10-100x faster than Python for JSON
 
 **Trade-offs:**
+
 - ✅ Much faster for reads
 - ⚠️ Requires PostgreSQL (not multi-database)
 - ⚠️ More SQL knowledge needed
@@ -324,6 +334,7 @@ Have a benchmark to add? Submit a PR with:
 5. **Statistical analysis** (mean, median, P95, P99)
 
 **Benchmark standards:**
+
 - Must be reproducible by others
 - Include comparison baseline
 - Document limitations

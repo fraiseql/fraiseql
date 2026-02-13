@@ -26,6 +26,7 @@ All parameters should be auto-wired for queries returning `list[FraiseType]` or 
 ### Existing Infrastructure (Already Implemented)
 
 **`FraiseQLRepository.find()` already supports all kwargs** (db.py:1657-1742):
+
 - `limit` - extracted and applied (line 1737-1738)
 - `offset` - extracted and applied (line 1741-1742)
 - `order_by` - handles multiple formats (lines 1706-1734):
@@ -35,6 +36,7 @@ All parameters should be auto-wired for queries returning `list[FraiseType]` or 
   - String format (raw SQL)
 
 **`CQRSRepository._convert_order_by_to_tuples()`** (repository.py:604-636) handles:
+
 - List of tuples: `[("created_at", "DESC"), ("id", "ASC")]`
 - GraphQL dict/list format (auto-converted)
 - OrderBySet objects with `.instructions` attribute
@@ -52,6 +54,7 @@ Set up shared test fixtures following QA-recommended architecture. Use explicit 
 ### Architecture Decision (QA Recommendation)
 
 **DO NOT create `GraphQLTestHelper` class** - it adds unnecessary abstraction. Instead:
+
 - Create focused fixture utilities in a new `tests/fixtures/graphql/` module
 - Use explicit patterns in tests (schema building + execution visible)
 - Split tests by scope: schema-only vs execution tests

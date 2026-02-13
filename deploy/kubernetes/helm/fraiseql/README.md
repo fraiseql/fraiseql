@@ -72,6 +72,7 @@ secrets:
 ```
 
 Install with custom values:
+
 ```bash
 helm install my-fraiseql fraiseql/fraiseql -f values-production.yaml
 ```
@@ -141,6 +142,7 @@ async def readiness():
 ### Kubernetes Configuration
 
 The Helm chart automatically configures:
+
 - **Liveness probe**: `/health` - Simple check, pod is alive
 - **Readiness probe**: `/ready` - Full health checks (DB, cache, etc.)
 - **Startup probe**: `/health` - Allows slow startup (up to 150s)
@@ -242,12 +244,14 @@ helm uninstall my-fraiseql
 ## Troubleshooting
 
 ### Check Pod Status
+
 ```bash
 kubectl get pods -l app.kubernetes.io/name=fraiseql
 kubectl logs -l app.kubernetes.io/name=fraiseql --tail=100
 ```
 
 ### Check Health
+
 ```bash
 kubectl port-forward svc/my-fraiseql 8000:80
 curl http://localhost:8000/health
@@ -255,6 +259,7 @@ curl http://localhost:8000/ready
 ```
 
 ### Check Metrics
+
 ```bash
 curl http://localhost:8000/metrics
 ```

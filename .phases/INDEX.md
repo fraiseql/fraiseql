@@ -5,12 +5,14 @@ Last Updated: December 17, 2025
 ## Timestamped Directories
 
 ### QA-PLANNING-20251217-115602 (Latest)
+
 **Purpose**: v1.8.6 Release - Fragment Enhancements QA & Commit Plan
 **Created**: December 17, 2025, 11:56 UTC
 **Status**: ✅ Ready for Execution
 **Timeline**: 4-6 hours (same-day release)
 
 **Contents** (6 documents, 3200 lines, 100+ checklists):
+
 - `START-HERE.md` - Quick navigation guide
 - `README-QA-PLANNING.md` - Overview and roadmap
 - `QA-EXECUTION-SUMMARY.md` - 3-phase execution plan
@@ -19,12 +21,14 @@ Last Updated: December 17, 2025
 - `fraiseql-graphql-compliance-report.md` - Implementation details
 
 **How to Use**:
+
 1. Open: `START-HERE.md`
 2. Choose your role/task
 3. Follow the appropriate document
 4. Execute Phases A, B, C
 
 **Next Steps**:
+
 - Read `START-HERE.md` for quick orientation
 - Execute Phase A using `QA-REVIEW-PLAN.md` (2-3 hours)
 - Execute Phase B using `DOCUMENTATION-QUALITY-ASSURANCE.md` (1-2 hours)
@@ -100,12 +104,14 @@ Last Updated: December 17, 2025
 ## Key Information
 
 ### What Was Built
+
 - Feature 1: Nested Fragment Support (fragments work at any depth)
 - Feature 2: Fragment Cycle Detection (protection against circular refs)
 - Tests: 10 new test cases (100% pass rate)
 - Code Quality: All tests passing, security reviewed, backward compatible
 
 ### Quality Metrics
+
 ✅ 10/10 new tests passing
 ✅ 5991/5991 existing tests passing
 ✅ Type coverage: 100%
@@ -114,6 +120,7 @@ Last Updated: December 17, 2025
 ✅ Breaking changes: None
 
 ### Release Strategy
+
 - Current: v1.8.5
 - Target: v1.8.6 (patch bump)
 - Automated: `make pr-ship-patch`
@@ -125,12 +132,14 @@ Last Updated: December 17, 2025
 ## How to Start
 
 ### Option 1: Quick Start (5 min)
+
 ```bash
 cd /home/lionel/code/fraiseql/.phases/QA-PLANNING-20251217-115602
 cat START-HERE.md
 ```
 
 ### Option 2: Jump to Phase A (Code QA)
+
 ```bash
 cd /home/lionel/code/fraiseql/.phases/QA-PLANNING-20251217-115602
 # Open: QA-REVIEW-PLAN.md
@@ -138,6 +147,7 @@ cd /home/lionel/code/fraiseql/.phases/QA-PLANNING-20251217-115602
 ```
 
 ### Option 3: Jump to Phase B (Doc QA)
+
 ```bash
 cd /home/lionel/code/fraiseql/.phases/QA-PLANNING-20251217-115602
 # Open: DOCUMENTATION-QUALITY-ASSURANCE.md
@@ -145,6 +155,7 @@ cd /home/lionel/code/fraiseql/.phases/QA-PLANNING-20251217-115602
 ```
 
 ### Option 4: Jump to Phase C (Release)
+
 ```bash
 cd /home/lionel/code/fraiseql
 git checkout -b chore/prepare-v1.8.6-release
@@ -156,11 +167,13 @@ make pr-ship-patch  # Fully automated!
 ## Success Criteria
 
 ### All 3 Phases Pass?
+
 - ✅ Phase A: Code Quality Approved
 - ✅ Phase B: Documentation Approved
 - ✅ Phase C: v1.8.6 Released
 
 ### Quality Gates Met?
+
 - ✅ 100% test pass rate
 - ✅ Zero regressions
 - ✅ Backward compatible
@@ -169,6 +182,7 @@ make pr-ship-patch  # Fully automated!
 - ✅ Security reviewed
 
 ### Release Ready?
+
 - ✅ Version bumped (8 files)
 - ✅ Git tag created
 - ✅ PR auto-merge enabled

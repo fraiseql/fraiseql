@@ -11,6 +11,7 @@
 ## Objective
 
 Complete the Rust migration by removing all Python/psycopg dependencies:
+
 1. Remove all psycopg code paths and fallbacks
 2. Remove psycopg dependencies from pyproject.toml
 3. Clean up feature flags (Rust-only)
@@ -18,6 +19,7 @@ Complete the Rust migration by removing all Python/psycopg dependencies:
 5. Achieve evergreen state (production-ready)
 
 **Success Criteria**:
+
 - ✅ Zero psycopg references in codebase
 - ✅ No fallback code paths
 - ✅ All 5991+ tests pass with Rust backend only
@@ -30,12 +32,14 @@ Complete the Rust migration by removing all Python/psycopg dependencies:
 ## Why This Phase Matters
 
 **Problem**: Code contains legacy psycopg paths and feature flags
+
 - Creates technical debt
 - Makes testing complex
 - Confuses future developers
 - Prevents optimizations specific to Rust
 
 **Solution**: Remove all traces of psycopg
+
 - Clean, simple codebase
 - Single implementation path
 - Easier to maintain and extend
@@ -48,6 +52,7 @@ Complete the Rust migration by removing all Python/psycopg dependencies:
 ### Step 1: Identify All psycopg References
 
 **Command**:
+
 ```bash
 grep -r "psycopg" src/ fraiseql_rs/ --include="*.py" --include="*.rs" --include="*.toml"
 grep -r "python.db" src/ fraiseql_rs/ --include="*.py" --include="*.rs"
@@ -55,6 +60,7 @@ grep -r "fallback" src/ fraiseql_rs/ --include="*.py" --include="*.rs"
 ```
 
 **Expected files with psycopg**:
+
 - `src/fraiseql/db.py` - Old database layer (DELETE)
 - `src/fraiseql/core/database.py` - May have imports (CLEAN)
 - `src/fraiseql/core/rust_pipeline.py` - May have fallback (CLEAN)
@@ -77,6 +83,7 @@ git rm src/fraiseql/db.py
 ```
 
 **What's being moved**:
+
 - Connection pool → Rust (Phase 1)
 - Query execution → Rust (Phase 2)
 - Result transformation → Rust (Phase 3)
@@ -89,6 +96,7 @@ git rm src/fraiseql/db.py
 **File**: `src/fraiseql/core/database.py`
 
 Before (Phase 4):
+
 ```python
 """Database layer with fallback support"""
 import os
@@ -116,6 +124,7 @@ class RustDatabasePool:
 ```
 
 After (Phase 5):
+
 ```python
 """Rust-native database layer"""
 from _fraiseql_rs import execute_query_async, execute_mutation_async
@@ -137,6 +146,7 @@ class RustDatabasePool:
 ### Step 4: Update Python Imports
 
 **Find all imports**:
+
 ```bash
 grep -r "from fraiseql.db import" src/ tests/
 grep -r "from psycopg" src/ tests/
@@ -144,6 +154,7 @@ grep -r "psycopg" src/ --include="*.py"
 ```
 
 **Update pattern**:
+
 ```python
 # BEFORE
 from fraiseql.db import get_connection
@@ -160,6 +171,7 @@ from fraiseql.core.database import RustDatabasePool
 **File**: `pyproject.toml`
 
 Before:
+
 ```toml
 dependencies = [
     "fastapi>=0.115.12",
@@ -182,6 +194,7 @@ tracing = [
 ```
 
 After:
+
 ```toml
 dependencies = [
     "fastapi>=0.115.12",
@@ -209,6 +222,7 @@ tracing = [
 **File**: `fraiseql_rs/Cargo.toml`
 
 Before (Phase 4):
+
 ```toml
 [features]
 default = ["rust-db"]
@@ -222,6 +236,7 @@ psycopg-sys = "0.1"
 ```
 
 After (Phase 5):
+
 ```toml
 [features]
 # No conditional features - Rust is the only backend
@@ -256,12 +271,14 @@ async fn execute_query() { ... }
 **Update**: Configuration code that checked for feature flags
 
 Before:
+
 ```python
 USE_RUST_BACKEND = os.getenv("FRAISEQL_DB_BACKEND", "rust").lower() == "rust"
 ENABLE_PARITY_TESTING = os.getenv("FRAISEQL_PARITY_TESTING", "false").lower() == "true"
 ```
 
 After:
+
 ```python
 # Rust backend is the only option - environment variables no longer needed
 # DATABASE_URL still required, but FRAISEQL_DB_BACKEND is no longer checked
@@ -272,11 +289,13 @@ After:
 ### Step 8: Remove Compatibility Tests
 
 **Files to DELETE**:
+
 - `tests/regression/test_rust_db_parity.py` - No longer needed (only one backend)
 - `tests/integration/db/test_psycopg_*.py` - Legacy tests
 - Any tests checking feature flags
 
 **Files to UPDATE**:
+
 - Remove `FRAISEQL_DB_BACKEND` environment variable from test configurations
 - Remove parity test execution from CI/CD
 - Simplify test setup (no need for both-backend testing)
@@ -302,11 +321,13 @@ async def test_query():
 **File**: `.github/workflows/ci.yml`
 
 Remove jobs/steps:
+
 - Psycopg-specific test jobs
 - Parity testing workflows
 - Feature flag testing
 
 Keep:
+
 - Full test suite (only Rust backend)
 - Integration tests
 - Regression tests
@@ -319,6 +340,7 @@ Keep:
 **Files to create/update**:
 
 **1. `docs/architecture/database-layer.md`** (NEW)
+
 ```markdown
 # Database Layer Architecture
 
@@ -342,11 +364,13 @@ Since v1.9.0, entire database layer is Rust-native.
 ```
 
 **2. Update README.md**
+
 - Highlight "Rust-native database layer"
 - Update performance claims (now 20-30% faster)
 - Remove references to psycopg
 
 **3. Update CHANGELOG.md**
+
 ```
 ## v1.9.0 - Rust-Native Database Layer
 
@@ -549,6 +573,7 @@ git rebase -i HEAD~6
 ```
 
 **Squashed Commit Message**:
+
 ```
 refactor(db): Complete Rust-native PostgreSQL driver migration (Phase 5)
 
@@ -600,7 +625,7 @@ future Rust-only optimizations.
 
 ## Post-Merge Cleanup
 
-### On dev branch (after merge):
+### On dev branch (after merge)
 
 ```bash
 # 1. Verify merge is complete
@@ -630,6 +655,7 @@ git push origin v1.9.0
 ## Success Definition
 
 ✅ Phase 5 complete when:
+
 - Zero psycopg references in codebase
 - No fallback code paths remain
 - All 5991+ tests pass (Rust backend only)
@@ -645,6 +671,7 @@ git push origin v1.9.0
 ## Timeline
 
 **Estimated**: 6 hours
+
 - Identifying references: 30 min
 - Removing files/code: 1.5 hours
 - Dependency cleanup: 1 hour
@@ -671,6 +698,7 @@ The codebase is now Rust-native with no technical debt from dual backends. Futur
 **Goal**: Remove Python db layer while keeping all integration tests passing.
 
 ### Tests That STAY (5900+ tests)
+
 ```bash
 # All GraphQL integration tests stay - they work with Rust backend now
 FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
@@ -680,6 +708,7 @@ FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
 ```
 
 **Examples of tests that stay**:
+
 ```python
 # GraphQL queries (backend-agnostic)
 def test_graphql_simple_query()
@@ -708,6 +737,7 @@ def test_api_error_response()
 ```
 
 ### Tests That GET REMOVED (~50-100 tests)
+
 ```bash
 # Tests that specifically test psycopg or Python db.py
 
@@ -715,6 +745,7 @@ def test_api_error_response()
 ```
 
 **Examples of tests to remove**:
+
 ```python
 # ❌ Tests of deleted Python code
 def test_psycopg_connection_pool()       # psycopg doesn't exist anymore
@@ -733,6 +764,7 @@ def test_python_pool_lifecycle()
 ### Test Removal Process
 
 **Step 1: Identify Python-Specific Tests**
+
 ```bash
 # Find tests that import Python db modules
 grep -r "from fraiseql.db import" tests/
@@ -743,6 +775,7 @@ grep -r "psycopg" tests/
 ```
 
 **Step 2: Remove Tests**
+
 ```bash
 # Remove or comment out ~50-100 tests
 # These are tests of code being deleted
@@ -754,6 +787,7 @@ grep -r "psycopg" tests/
 ```
 
 **Step 3: Verify Remaining Tests**
+
 ```bash
 # All remaining tests should pass with Rust-only backend
 uv run pytest tests/ -v
@@ -813,15 +847,17 @@ echo ""
 echo "✅ PHASE 5 COMPLETE - Rust-only deployment!"
 ```
 
-### Important: Don't Remove Tests Yet!
+### Important: Don't Remove Tests Yet
 
 **During Phases 1-4**:
+
 - ✅ Keep ALL 5991 tests
 - ✅ Add Rust tests
 - ✅ Run parity tests
 - ✅ Make sure everything passes
 
 **Only in Phase 5**:
+
 - ✅ Remove Python-specific tests (~50-100)
 - ✅ Remove feature flag tests (~10)
 - ✅ Keep integration/API/E2E tests (~5900)
@@ -831,11 +867,13 @@ echo "✅ PHASE 5 COMPLETE - Rust-only deployment!"
 ## 👥 Final Review Checkpoint
 
 **Before merging Phase 5 to dev, request sign-off from**:
+
 - [ ] Technical Lead (architecture sound?)
 - [ ] QA Lead (all tests passing?)
 - [ ] DevOps Lead (deployment safe?)
 
 **Critical verifications**:
+
 - [ ] All 5991+ existing tests pass
 - [ ] No performance regressions
 - [ ] psycopg completely removed (no imports)
@@ -845,6 +883,7 @@ echo "✅ PHASE 5 COMPLETE - Rust-only deployment!"
 - [ ] Release notes prepared
 
 **Before hitting "Merge"**:
+
 ```bash
 # Final validation
 cargo test --all
@@ -859,6 +898,7 @@ grep -r "psycopg" src/ fraiseql_rs/ || echo "✅ psycopg removed"
 ```
 
 **Post-merge procedure**:
+
 1. Monitor logs for any errors (next 1 hour)
 2. Check performance metrics (next 24 hours)
 3. Verify no database issues in production
@@ -866,6 +906,7 @@ grep -r "psycopg" src/ fraiseql_rs/ || echo "✅ psycopg removed"
 5. Archive phase documentation
 
 **Rollback procedure** (if needed):
+
 ```bash
 git revert <commit-hash>
 git push origin dev
@@ -896,12 +937,14 @@ A: No. Environment variables like `DATABASE_URL` remain the same. `FRAISEQL_DB_B
 ## Risk Assessment
 
 ### Low Risk ✅
+
 - Feature tested end-to-end in Phases 1-4
 - All 5991+ tests provide confidence
 - Parity tests verify output correctness
 - Performance benchmarks track improvements
 
 ### Mitigation Strategies
+
 - Keep feature branch available for quick rollback
 - Tag release before deleting phase documentation
 - Maintain git history for archaeology if needed

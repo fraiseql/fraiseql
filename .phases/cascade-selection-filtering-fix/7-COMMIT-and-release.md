@@ -9,6 +9,7 @@
 ## Context
 
 All implementation, testing, cleanup, and documentation is complete. Now we need to:
+
 1. Create a comprehensive commit
 2. Update version numbers
 3. Create release notes
@@ -339,9 +340,11 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 Response includes CASCADE anyway (larger payload).
 
 **After (v1.8.0-beta.1)**:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -355,6 +358,7 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 CASCADE only included when requested (smaller payload).
 
 ### Partial CASCADE Selection
@@ -405,6 +409,7 @@ See [Migration Guide](docs/guides/migrating-to-cascade.md) for details.
 ## 🧪 Testing
 
 Comprehensive test coverage added:
+
 - Selection filtering tests
 - Edge case tests
 - GraphQL spec compliance tests
@@ -417,6 +422,7 @@ This release improves GraphQL spec compliance and provides significant performan
 ## 🧪 Beta Testing
 
 This is a beta release. Please test thoroughly before using in production:
+
 1. Test CASCADE selection filtering with your mutations
 2. Verify partial CASCADE selections work as expected
 3. Measure performance improvements
@@ -425,6 +431,7 @@ This is a beta release. Please test thoroughly before using in production:
 ---
 
 **Full Changelog**: [v1.8.0-alpha.5...v1.8.0-beta.1](https://github.com/yourusername/fraiseql/compare/v1.8.0-alpha.5...v1.8.0-beta.1)
+
 ```
 
 ---
@@ -478,6 +485,7 @@ pip install --index-url https://test.pypi.org/simple/ fraiseql==1.8.0b1
 ### Announce Release
 
 **Locations**:
+
 1. GitHub Discussions (if enabled)
 2. Discord/Slack community (if exists)
 3. Twitter/X (if applicable)

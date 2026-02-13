@@ -1,0 +1,31 @@
+{
+  "recommendations": [
+    // Rust Development
+    "rust-lang.rust-analyzer",        // Core Rust language support
+    "vadimcn.vscode-lldb",             // Debugging support
+
+    // TOML & Configuration
+    "tamasfe.even-better-toml",        // TOML syntax and validation
+
+    // Dependency Management
+    "serayuzgur.crates",               // Cargo.toml dependency versions
+
+    // Code Quality
+    "usernamehw.errorlens",            // Inline error messages
+    "streetsidesoftware.code-spell-checker", // Spell checking
+
+    // Git Integration
+    "eamodio.gitlens",                 // Enhanced Git features
+
+    // Testing
+    "hbenl.vscode-test-explorer",      // Test explorer UI
+    "swellaby.vscode-rust-test-adapter", // Rust test adapter
+
+    // Documentation
+    "yzhang.markdown-all-in-one",      // Markdown support
+
+    // General Productivity
+    "gruntfuggly.todo-tree",           // TODO/FIXME highlighting
+    "shd101wyy.markdown-preview-enhanced" // Better markdown preview
+  ]
+}

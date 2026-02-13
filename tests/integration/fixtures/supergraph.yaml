@@ -1,0 +1,18 @@
+federation_version: =2.0.0
+
+subgraphs:
+  users:
+    routing_url: http://users-subgraph:4001/graphql
+    schema:
+      subgraph_url_header:
+        name: x-subgraph-url-users
+  orders:
+    routing_url: http://orders-subgraph:4002/graphql
+    schema:
+      subgraph_url_header:
+        name: x-subgraph-url-orders
+  products:
+    routing_url: http://products-subgraph:4003/graphql
+    schema:
+      subgraph_url_header:
+        name: x-subgraph-url-products

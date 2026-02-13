@@ -148,11 +148,13 @@ if __name__ == "__main__":
 ```
 
 **Expected Output:**
+
 ```
 ✅ Authenticated as: Alice (alice@example.com)
 ```
 
 **Without Token (Unauthorized):**
+
 ```
 ❌ Errors: [{'message': 'Authentication required', 'locations': [...]}]
 ```
@@ -164,6 +166,7 @@ if __name__ == "__main__":
 FraiseQL provides a flexible authentication system supporting multiple providers (Auth0, custom JWT, native sessions) with fine-grained authorization through decorators and field-level permissions.
 
 **Core Components:**
+
 - AuthProvider interface for pluggable authentication
 - UserContext structure propagated to all resolvers
 - Decorators: @requires_auth, @requires_permission, @requires_role
@@ -214,6 +217,7 @@ class AuthProvider(ABC):
 ```
 
 **Implementation Requirements:**
+
 - Must validate token signature and expiration
 - Must extract user information into UserContext
 - Should log authentication events for audit
@@ -351,6 +355,7 @@ Auth0 JWT tokens must contain:
 ```
 
 **Custom Claims:**
+
 - Roles: `https://{api_identifier}/roles` (namespaced)
 - Permissions: `permissions` or `scope` (standard OAuth2)
 - Metadata: Any additional claims
@@ -625,6 +630,7 @@ async def update_profile(info, name: str, email: str) -> User:
 ```
 
 **Behavior:**
+
 - Checks `info.context["user"]` exists and is UserContext instance
 - Raises GraphQLError with code "UNAUTHENTICATED" if not authenticated
 - Resolver only executes if user is authenticated
@@ -653,6 +659,7 @@ async def delete_user(info, user_id: str) -> bool:
 ```
 
 **Permission Format:**
+
 - Convention: `resource:action` (e.g., "orders:read", "users:write")
 - Flexible: Any string format works
 - Case-sensitive: "Orders:Read" != "orders:read"
@@ -734,6 +741,7 @@ async def refund_order(info, order_id: str, reason: str) -> Order:
 ```
 
 **Decorator Order:**
+
 - Outermost decorator executes first
 - Recommended: @fraiseql.mutation/@fraiseql.query first, then auth decorators
 - Auth checks happen before resolver logic
@@ -866,6 +874,7 @@ async def logout_all_sessions(authorization: str = Header(...)):
 ```
 
 **Token Requirements:**
+
 - Tokens must include `jti` (JWT ID) claim for revocation tracking
 - Tokens must include `sub` (subject) claim for user identification
 
@@ -1018,6 +1027,7 @@ class MultiAuthProvider:
 ### Token Security
 
 **DO:**
+
 - Use RS256 for Auth0 (asymmetric keys)
 - Use HS256 for internal services (symmetric keys)
 - Rotate secret keys periodically
@@ -1026,6 +1036,7 @@ class MultiAuthProvider:
 - Validate `aud` and `iss` claims
 
 **DON'T:**
+
 - Store tokens in localStorage (use httpOnly cookies or memory)
 - Use weak secret keys (minimum 32 bytes)
 - Set excessive expiration times

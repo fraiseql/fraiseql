@@ -1,6 +1,7 @@
 # PrintOptim Migration Notes - FraiseQL v1.8.0-beta.1
 
 ## Quick Summary
+
 - FraiseQL v1.8.0-beta.1 changes how validation errors work
 - `noop:*` now returns Error type (not Success with null entity)
 - Error type has `code` field (422, 404, 409, 500)
@@ -28,6 +29,7 @@ class CreateMachineSuccess:
 ```
 
 **Files to check:**
+
 - `printoptim_backend/mutations/machine/types.py`
 - `printoptim_backend/mutations/contract/types.py`
 - `printoptim_backend/mutations/user/types.py`
@@ -56,6 +58,7 @@ class CreateMachineError:
 ```
 
 **Files to check:**
+
 - Same files as Success types
 - Search for `@fraiseql.failure`
 
@@ -81,11 +84,13 @@ assert result["message"] is not None
 ```
 
 **Files to check:**
+
 - `printoptim_backend/tests/mutations/test_machine.py`
 - `printoptim_backend/tests/mutations/test_contract.py`
 - Any test that checks for `machine is None` or similar
 
 **Quick find command:**
+
 ```bash
 cd /home/lionel/code/printoptim_backend
 grep -r "machine.*is None" tests/
@@ -133,6 +138,7 @@ mutation CreateMachine($input: CreateMachineInput!) {
 ## Migration Steps
 
 ### Step 1: Update FraiseQL Dependency
+
 ```bash
 cd /home/lionel/code/printoptim_backend
 # Update pyproject.toml
@@ -140,12 +146,14 @@ uv add fraiseql@1.8.0-beta.1  # Or whatever version
 ```
 
 ### Step 2: Run Tests to Find Failures
+
 ```bash
 uv run pytest tests/ -v
 # Expect ~30-50 failures
 ```
 
 ### Step 3: Fix Success Types
+
 ```bash
 # Find all Success types with nullable entities
 grep -r "| None = None" printoptim_backend/mutations/ | grep "@fraiseql.success" -A 5
@@ -154,6 +162,7 @@ grep -r "| None = None" printoptim_backend/mutations/ | grep "@fraiseql.success"
 ```
 
 ### Step 4: Fix Error Types
+
 ```bash
 # Find all Error types
 grep -r "@fraiseql.failure" printoptim_backend/mutations/
@@ -162,6 +171,7 @@ grep -r "@fraiseql.failure" printoptim_backend/mutations/
 ```
 
 ### Step 5: Fix Test Assertions
+
 ```bash
 # For each failing test:
 # 1. Change "CreateMachineSuccess" → "CreateMachineError"
@@ -170,18 +180,21 @@ grep -r "@fraiseql.failure" printoptim_backend/mutations/
 ```
 
 ### Step 6: Verify
+
 ```bash
 uv run pytest tests/ -v
 # All tests should pass
 ```
 
 ### Step 7: Deploy to Staging
+
 ```bash
 # Deploy and test manually
 # Verify mutations work correctly
 ```
 
 ### Step 8: Deploy to Production
+
 ```bash
 # Once staging looks good
 ```
@@ -191,6 +204,7 @@ uv run pytest tests/ -v
 ## Common Patterns
 
 ### Pattern 1: Validation Error (noop:*)
+
 ```python
 # v1.7.x
 assert result["__typename"] == "CreateMachineSuccess"
@@ -205,6 +219,7 @@ assert result["message"] is not None
 ```
 
 ### Pattern 2: Not Found Error
+
 ```python
 # v1.7.x
 assert result["__typename"] == "UpdateMachineError"
@@ -217,6 +232,7 @@ assert result["status"].startswith("not_found:")
 ```
 
 ### Pattern 3: Success Case
+
 ```python
 # v1.7.x
 assert result["__typename"] == "CreateMachineSuccess"

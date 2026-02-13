@@ -7,9 +7,11 @@ Detailed Product Requirements Documents for each core component to rebuild.
 ## PRD 1: Core Type System
 
 ### **Overview**
+
 Clean, Pythonic API for defining GraphQL types using decorators and dataclasses.
 
 ### **Goals**
+
 - Intuitive API (feel like standard Python)
 - Type-safe (leverage Python's type hints)
 - GraphQL spec compliant
@@ -50,6 +52,7 @@ class CreateUserInput:
 ### **Features**
 
 #### 1. Type Decorator
+
 - Converts Python class → GraphQL Object Type
 - Auto-generates GraphQL schema
 - Supports:
@@ -60,11 +63,13 @@ class CreateUserInput:
   - Nested types (`User` has `list[Post]`)
 
 #### 2. Input Decorator
+
 - Converts Python class → GraphQL Input Type
 - Used for mutation arguments
 - Validation support (future: Pydantic integration)
 
 #### 3. Field Decorator
+
 - Custom resolvers
 - Async support
 - Description for GraphQL schema
@@ -73,6 +78,7 @@ class CreateUserInput:
 ### **Implementation Details**
 
 #### Files
+
 ```
 src/fraiseql/types/
 ├── __init__.py             # Public API
@@ -87,6 +93,7 @@ src/fraiseql/types/
 ```
 
 #### Type Registration
+
 ```python
 # Registry pattern for auto-discovery
 class TypeRegistry:
@@ -102,6 +109,7 @@ class TypeRegistry:
 ```
 
 #### GraphQL Schema Generation
+
 ```python
 def generate_graphql_type(python_class: type) -> GraphQLObjectType:
     """Convert Python class to GraphQL type"""
@@ -137,12 +145,14 @@ def test_type_decorator():
 ```
 
 ### **Port from v0**
+
 - ✅ `types/fraise_type.py` (simplify)
 - ✅ `types/fraise_input.py` (simplify)
 - ✅ `types/scalars/` (keep all)
 - ❌ Remove N+1 tracking complexity
 
 ### **Success Criteria**
+
 - [ ] All Python types map to GraphQL types
 - [ ] Supports async field resolvers
 - [ ] Clean error messages
@@ -153,9 +163,11 @@ def test_type_decorator():
 ## PRD 2: Repository Pattern (Command/Query)
 
 ### **Overview**
+
 Explicit command/query separation following CQRS pattern.
 
 ### **Goals**
+
 - Clear separation of concerns
 - Explicit sync (no magic triggers)
 - Type-safe operations
@@ -298,6 +310,7 @@ async def batch_sync_tv_user(db: AsyncConnection, user_ids: list[UUID]) -> None:
 ### **Implementation Details**
 
 #### Files
+
 ```
 src/fraiseql/repositories/
 ├── __init__.py
@@ -307,6 +320,7 @@ src/fraiseql/repositories/
 ```
 
 #### Where Clause Builder Integration
+
 ```python
 from fraiseql.sql.where_builder import build_where_clause
 
@@ -368,12 +382,14 @@ async def test_explicit_sync(db):
 ```
 
 ### **Port from v0**
+
 - ✅ `cqrs/repository.py` (simplify command/query split)
 - ✅ `cqrs/executor.py` (merge into repositories)
 - ❌ Remove complex batch operations
 - ❌ Remove automatic trigger support
 
 ### **Success Criteria**
+
 - [ ] Clear command/query separation
 - [ ] Explicit sync functions
 - [ ] Transaction support
@@ -386,9 +402,11 @@ async def test_explicit_sync(db):
 ## PRD 3: Decorator System (@query, @mutation)
 
 ### **Overview**
+
 Simple, intuitive decorators for registering GraphQL resolvers.
 
 ### **Goals**
+
 - Auto-registration (no manual wiring)
 - Type-safe (leverage Python type hints)
 - Async/await support
@@ -474,6 +492,7 @@ async def user_updated(info, user_id: UUID) -> AsyncGenerator[User, None]:
 ### **Implementation Details**
 
 #### Registry Pattern
+
 ```python
 # fraiseql/gql/registry.py
 
@@ -503,6 +522,7 @@ class SchemaRegistry:
 ```
 
 #### Decorator Implementation
+
 ```python
 # fraiseql/decorators.py
 
@@ -525,6 +545,7 @@ def mutation(fn: Callable) -> Callable:
 ```
 
 #### Schema Generation
+
 ```python
 # fraiseql/gql/schema_builder.py
 
@@ -579,6 +600,7 @@ def test_schema_generation():
 ```
 
 ### **Port from v0**
+
 - ✅ `decorators.py` (simplify)
 - ✅ `gql/schema_builder.py`
 - ❌ Remove @field complexity (N+1 tracking, etc.)
@@ -586,6 +608,7 @@ def test_schema_generation():
 - ❌ Remove @connection (build separate decorator)
 
 ### **Success Criteria**
+
 - [ ] Auto-registration works
 - [ ] Type hints → GraphQL types
 - [ ] Async/await support
@@ -597,9 +620,11 @@ def test_schema_generation():
 ## PRD 4: SQL Where Clause Builder
 
 ### **Overview**
+
 Type-safe, composable WHERE clause generation for JSONB queries.
 
 ### **Goals**
+
 - Support common operators (eq, ne, gt, lt, contains, in)
 - JSONB-aware (query inside tv_* data column)
 - SQL injection safe
@@ -783,11 +808,13 @@ def test_sql_injection_safe():
 ```
 
 ### **Port from v0**
+
 - ✅ `sql/where/` entire directory (it's already clean!)
 - ✅ `sql/operators.py`
 - ✅ Enhance for JSONB support
 
 ### **Success Criteria**
+
 - [ ] All operators work
 - [ ] JSONB column support
 - [ ] SQL injection safe (parameterized queries)
@@ -799,9 +826,11 @@ def test_sql_injection_safe():
 ## PRD 5: Rust Integration
 
 ### **Overview**
+
 Python ↔ Rust bridge for high-performance JSON transformation.
 
 ### **Goals**
+
 - 40x speedup over pure Python
 - Transparent (user doesn't see it)
 - Field selection
@@ -1047,11 +1076,13 @@ def test_rust_vs_python_performance():
 ```
 
 ### **Port from v0**
+
 - ✅ `core/rust_transformer.py`
 - ✅ `fraiseql_rs/` Rust crate
 - ✅ Enhance with field selection
 
 ### **Success Criteria**
+
 - [ ] 30-40x speedup over Python
 - [ ] Field selection works
 - [ ] snake_case → camelCase

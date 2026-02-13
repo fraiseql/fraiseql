@@ -13,6 +13,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ## 🎯 Start Here: Quick Navigation
 
 ### ⭐ For Junior Engineers (New to Rust?) - START HERE! (1-2 days)
+
 1. **PREREQUISITES.md** (30 min) - Verify your Rust/PostgreSQL knowledge
 2. **ENVIRONMENT_SETUP.md** (45 min) - Install all tools
 3. **GLOSSARY.md** (reference) - Understand terminology as you read
@@ -24,15 +25,18 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ---
 
 ### For Decision Makers (30 min)
+
 → **README.md** - Is this feasible? What are the risks?
 
 ### For Architects (2-3 hours)
+
 1. README.md (big picture)
 2. IMPLEMENTATION_SUMMARY.md (decisions)
 3. POC-pyo3-async-bridge.md (risk assessment)
 4. FEATURE-FLAGS.md (rollout strategy)
 
 ### For Experienced Developers (56+ hours total)
+
 1. **Pre-implementation** (16 hours):
    - Phase 0.1-0.5 (6 hours setup)
    - PyO3 PoC (4-6 hours validation)
@@ -45,11 +49,13 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 6. **Phase 5: Deprecation** (6 hours)
 
 ### For QA/Testing (4 hours)
+
 1. TESTING_STRATEGY.md
 2. Phase 0.2-0.3 (test infrastructure)
 3. FEATURE-FLAGS.md (parity testing)
 
 ### For DevOps (2 hours)
+
 1. Phase 0.4-0.5 (CI/CD + Makefile)
 2. Phase 0.3 (benchmarks)
 3. README.md (configuration)
@@ -61,6 +67,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ### **Core Architecture** (Read First)
 
 #### **README.md** (Start Here!)
+
 - 🎯 Strategic overview
 - 🏗️ Architecture decisions (Python API + Rust core)
 - ⚠️ Async/PyO3 integration details
@@ -73,6 +80,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ---
 
 #### **IMPLEMENTATION_SUMMARY.md** (Quick Reference)
+
 - 📋 Critical implementation notes
 - 🏗️ Architecture summary
 - 🎯 Key decisions with reasoning
@@ -87,6 +95,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ### **🆕 Junior-Friendly Resources**
 
 #### **PREREQUISITES.md** (For Beginners)
+
 - 📋 Quick self-assessment (know Rust? async? SQL?)
 - 🎓 Recommended learning paths (1 day vs 3 days)
 - 📚 Rust concepts explained (ownership, borrowing, async)
@@ -100,6 +109,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ---
 
 #### **ENVIRONMENT_SETUP.md** (Installation Guide)
+
 - 🔧 Step-by-step tool installation (Rust, PostgreSQL, Docker)
 - ✅ Verification checklist after each step
 - 🚨 Troubleshooting common setup issues
@@ -111,6 +121,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ---
 
 #### **GLOSSARY.md** (Technical Reference)
+
 - 📖 150+ technical terms defined
 - 🔗 Cross-references between concepts
 - 📚 External resources for each topic
@@ -122,6 +133,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 ---
 
 #### **JUNIOR_GUIDE.md** (Common Mistakes & Debugging)
+
 - ❌ Common mistakes per phase (with fixes)
 - 🐛 Debugging strategies (5-minute troubleshooting process)
 - 📖 How to read Rust compiler errors
@@ -137,6 +149,7 @@ See: **FULL-RUST-PIPELINE.md** for comprehensive overview
 Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents instead of one 6-hour document.
 
 #### **Phase 0.1: Clippy & Linting** (1.5 hours)
+
 - 🔍 Strict code quality standards
 - 📏 Clippy configuration (20+ lints)
 - 🔐 `.clippy.toml` setup
@@ -149,6 +162,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ---
 
 #### **Phase 0.2: Test Architecture** (1.5 hours)
+
 - 🧪 Complete testing infrastructure
 - 📂 Test directory structure (unit/integration/e2e)
 - 🗄️ TestDatabase helper (Docker containers)
@@ -161,6 +175,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ---
 
 #### **Phase 0.3: Benchmarking & Performance** (1.5 hours)
+
 - ⏱️ Criterion.rs benchmark suites
 - 📈 Baseline capture & regression detection
 - 📊 HTML report generation
@@ -173,6 +188,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ---
 
 #### **Phase 0.4: Pre-commit Hooks & CI/CD** (1 hour)
+
 - 🪝 prek hook configuration
 - 🤖 GitHub Actions workflows
 - 🔐 Branch protection rules
@@ -184,6 +200,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ---
 
 #### **Phase 0.5: Build System & Makefile** (1 hour)
+
 - 🎯 **60+ Makefile targets** (all workflows discoverable)
 - 🔨 Build targets (debug, release, check)
 - 🧪 Test targets (unit, integration, all, verbose)
@@ -198,6 +215,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ### **Critical Pre-Implementation Validation**
 
 #### **POC-pyo3-async-bridge.md** ⭐ HIGHEST PRIORITY (4-6 hours)
+
 - ⚠️ **MUST PASS before Phase 1**
 - 🧪 Minimal Rust async module (proof of concept)
 - 🧪 12 validation tests (covering all critical paths)
@@ -208,6 +226,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 **Why Critical**: Async bridge is riskiest component; proves architecture works before committing to 50 hours
 
 **Success Criteria**:
+
 - Rust module compiles
 - Python can import module
 - All 12 tests pass
@@ -219,6 +238,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ### **Supporting Documentation**
 
 #### **SCHEMA-INTROSPECTION-BRIDGE.md**
+
 - 🏗️ Python-Rust type system communication
 - 📝 ColumnDefinition struct (Rust)
 - 📋 TableSchema struct (Rust)
@@ -232,6 +252,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 ---
 
 #### **FEATURE-FLAGS.md**
+
 - 🚀 Gradual rollout strategy
 - 🎯 Feature flag design (rust-db, python-db)
 - 🧪 Cargo.toml configuration
@@ -251,6 +272,7 @@ Phase 0 establishes infrastructure. **NEW**: Split into 5 focused sub-documents 
 Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
 
 ##### **Phase 1: Foundation** (8 hours)
+
 - 🎯 Set up connection pool + async/PyO3 bridge
 - 🔗 Async & PyO3 integration (see POC-pyo3-async-bridge.md)
 - 🗄️ Connection pool with deadpool-postgres
@@ -261,6 +283,7 @@ Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
 ---
 
 ##### **Phase 2: Query Execution** (12 hours)
+
 - 🎯 Implement WHERE clauses, SQL generation, transactions
 - 🔄 Transaction support module
 - 🔍 WHERE clause builder (fully recursive)
@@ -272,6 +295,7 @@ Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
 ---
 
 ##### **Phase 3: Result Streaming** (10 hours)
+
 - 🎯 Zero-copy streaming database → HTTP
 - 📤 Streaming response builder
 - 📝 JSON transformation (snake_case → camelCase)
@@ -282,6 +306,7 @@ Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
 ---
 
 ##### **Phase 4: Integration** (8 hours)
+
 - 🎯 Complete GraphQL pipeline integration
 - 🔄 Query execution pipeline (full GraphQL)
 - 📝 Mutation execution with transactions
@@ -293,6 +318,7 @@ Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
 ---
 
 ##### **Phase 5: Deprecation & Finalization** (6 hours)
+
 - 🎯 Remove psycopg, achieve evergreen state
 - ❌ Remove Python database fallback paths
 - 📦 Remove psycopg dependencies
@@ -308,6 +334,7 @@ Establish Rust as the complete PostgreSQL database layer, replacing psycopg.
 Move entire GraphQL execution (parsing → SQL building → caching) to Rust for maximum performance.
 
 ##### **Phase 6: GraphQL Parsing in Rust** (8 hours)
+
 - 🎯 Parse GraphQL queries with `graphql-parser` crate
 - 📝 Create Rust AST structures
 - 🔗 Python ↔ Rust bridge via PyO3
@@ -318,6 +345,7 @@ Move entire GraphQL execution (parsing → SQL building → caching) to Rust for
 ---
 
 ##### **Phase 7: Query Building in Rust** (12 hours)
+
 - 🎯 Move all SQL generation to Rust
 - 🔍 WHERE clause building (recursive)
 - 📝 ORDER BY, LIMIT, OFFSET handling
@@ -329,6 +357,7 @@ Move entire GraphQL execution (parsing → SQL building → caching) to Rust for
 ---
 
 ##### **Phase 8: Query Plan Caching** (6-8 hours)
+
 - 🎯 Cache compiled query plans by signature
 - 💾 LRU cache (5000 plans max)
 - 📊 Cache statistics and monitoring
@@ -340,6 +369,7 @@ Move entire GraphQL execution (parsing → SQL building → caching) to Rust for
 ---
 
 ##### **Phase 9: Full Integration & Cleanup** (8 hours)
+
 - 🎯 Unified Rust pipeline end-to-end
 - 📞 Single entry point: `execute_graphql_query()`
 - ❌ Remove all Python database code (2900+ lines)
@@ -353,6 +383,7 @@ Move entire GraphQL execution (parsing → SQL building → caching) to Rust for
 ### **Testing & Quality**
 
 #### **TESTING_STRATEGY.md**
+
 - 🔺 Test pyramid (60% unit, 30% integration, 10% e2e)
 - 🧪 Test types & when to use
 - 📊 Parity testing (Rust vs psycopg)
@@ -465,17 +496,20 @@ python tests/poc_pyo3_bridge.py
 ## 🎯 Success Metrics
 
 **Before Implementation**:
+
 - ✅ PyO3 PoC passes all 12 tests
 - ✅ Phase 0 setup complete
 - ✅ `make qa` passes
 
 **During Implementation**:
+
 - ✅ Tests pass at each phase
 - ✅ `make bench` shows stable performance
 - ✅ Parity tests pass (Rust == psycopg)
 - ✅ `make qa` always passes before commit
 
 **After Implementation**:
+
 - ✅ All 5991+ existing tests pass
 - ✅ Zero regressions
 - ✅ 20-30% performance improvement

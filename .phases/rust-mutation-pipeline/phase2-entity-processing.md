@@ -9,6 +9,7 @@
 ## Overview
 
 This phase implements the core transformation logic:
+
 1. Detect and extract entities from wrapper objects
 2. Add `__typename` to all entities
 3. Apply camelCase conversion
@@ -25,6 +26,7 @@ Still purely Rust - no Python changes yet.
 **Objective**: Detect and extract entities from wrapper objects, handle direct entities
 
 **Context**: PostgreSQL functions sometimes return wrapped entities:
+
 - Wrapper: `{"post": {...}, "message": "Created"}` - entity nested inside
 - Direct: `{"id": "123", "title": "..."}` - entity is the entire object
 
@@ -163,12 +165,14 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs
 cargo test entity_processor::tests --lib
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Wrapper detection works correctly
 - [ ] Direct entities processed correctly
 - [ ] Wrapper fields extracted properly
@@ -184,6 +188,7 @@ cargo test entity_processor::tests --lib
 **Objective**: Add `__typename` to entities and apply camelCase conversion
 
 **Prerequisites**:
+
 - Check if `fraiseql_rs/src/camel_case.rs` exists (it should from existing code)
 - If not, we'll create a simple implementation
 
@@ -360,6 +365,7 @@ mod typename_tests {
 ```
 
 **Check for camelCase utility**:
+
 ```bash
 # Check if it exists
 ls fraiseql_rs/src/camel_case.rs
@@ -369,6 +375,7 @@ ls fraiseql_rs/src/camel_case.rs
 ```
 
 **Acceptance Criteria**:
+
 - [ ] __typename added to all entities
 - [ ] camelCase conversion works
 - [ ] Nested objects transformed recursively
@@ -427,6 +434,7 @@ mod tests {
 ```
 
 And update `fraiseql_rs/src/lib.rs`:
+
 ```rust
 pub mod camel_case;
 ```
@@ -509,6 +517,7 @@ mod cascade_tests {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] CASCADE processed with __typename
 - [ ] camelCase conversion applied
 - [ ] Nested CASCADE data transformed correctly
@@ -544,6 +553,7 @@ pub use entity_processor::{  // NEW
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs
 cargo build
@@ -568,6 +578,7 @@ Before moving to Phase 3:
 - [ ] Existing Python tests still pass (no changes made yet)
 
 **Verification commands**:
+
 ```bash
 # Rust tests
 cd fraiseql_rs

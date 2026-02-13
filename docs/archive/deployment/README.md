@@ -77,6 +77,7 @@ volumes:
 **File**: `deployment/docker-compose.prod.yml`
 
 Includes:
+
 - ✅ FraiseQL application (3 replicas with health checks)
 - ✅ PostgreSQL 16 with optimized configuration
 - ✅ PgBouncer connection pooling
@@ -159,10 +160,12 @@ spec:
 ### Kubernetes (Production-Ready)
 
 **Files**:
+
 - `deployment/k8s/deployment.yaml` - Application deployment, service, HPA, ingress
 - `deployment/k8s/postgres.yaml` - PostgreSQL StatefulSet with persistent storage
 
 Includes:
+
 - ✅ Horizontal Pod Autoscaler (3-10 replicas)
 - ✅ Resource requests and limits
 - ✅ Liveness, readiness, and startup probes
@@ -195,24 +198,28 @@ kubectl get hpa -n fraiseql
 Before deploying these templates:
 
 #### Secrets & Configuration
+
 - [ ] Update `.env` or Kubernetes secrets with strong passwords
 - [ ] Generate unique `SECRET_KEY` (32+ random characters)
 - [ ] Configure `ALLOWED_ORIGINS` for your domain
 - [ ] Set up error notification email
 
 #### Infrastructure
+
 - [ ] Provision persistent storage (50GB+ for PostgreSQL)
 - [ ] Configure backup strategy (pg_dump scheduled)
 - [ ] Set up monitoring (import Grafana dashboards)
 - [ ] Configure DNS for your domain
 
 #### Security
+
 - [ ] Enable TLS/SSL certificates (Let's Encrypt or ACM)
 - [ ] Configure firewall rules (block PostgreSQL port externally)
 - [ ] Enable Row-Level Security in PostgreSQL
 - [ ] Review CORS configuration
 
 #### Performance
+
 - [ ] Tune PostgreSQL configuration for your hardware
 - [ ] Configure PgBouncer pool sizes
 - [ ] Set appropriate resource limits
@@ -227,6 +234,7 @@ Before deploying these templates:
 ### AWS Deployment
 
 **Recommended Stack:**
+
 - **Compute**: ECS Fargate or EKS
 - **Database**: RDS PostgreSQL (t3.medium or larger)
 - **Connection Pooling**: RDS Proxy or PgBouncer sidecar
@@ -248,6 +256,7 @@ docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/fraiseql-app:l
 ```
 
 **AWS-specific considerations:**
+
 - Use RDS PostgreSQL 16+ with pgBouncer via RDS Proxy
 - Enable Multi-AZ for high availability
 - Use ElastiCache for PostgreSQL if needed (though FraiseQL caching in PostgreSQL is often sufficient)
@@ -257,6 +266,7 @@ docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/fraiseql-app:l
 ### GCP Deployment
 
 **Recommended Stack:**
+
 - **Compute**: Cloud Run or GKE
 - **Database**: Cloud SQL for PostgreSQL
 - **Connection Pooling**: Cloud SQL Proxy
@@ -278,6 +288,7 @@ gcloud run deploy fraiseql-app \
 ```
 
 **GCP-specific considerations:**
+
 - Use Cloud SQL with connection pooling (built-in)
 - Enable automatic scaling (Cloud Run handles this)
 - Use Secret Manager for credentials
@@ -287,6 +298,7 @@ gcloud run deploy fraiseql-app \
 ### Azure Deployment
 
 **Recommended Stack:**
+
 - **Compute**: Container Instances or AKS
 - **Database**: Azure Database for PostgreSQL - Flexible Server
 - **Connection Pooling**: PgBouncer sidecar

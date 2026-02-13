@@ -1,6 +1,7 @@
 # Database Schema Conventions
 
 ## Overview
+
 FraiseQL uses consistent naming conventions to clearly separate different types of database objects and their purposes. This convention system makes the codebase self-documenting and helps developers understand object roles at a glance.
 
 ## ASCII Art Diagram
@@ -31,8 +32,10 @@ FraiseQL uses consistent naming conventions to clearly separate different types 
 ## Naming Convention Details
 
 ### tb_* - Base Tables (Write Storage)
+
 **Purpose**: Normalized data storage for writes
 **Characteristics**:
+
 - ACID compliant transactions
 - Primary key constraints
 - Foreign key relationships
@@ -40,6 +43,7 @@ FraiseQL uses consistent naming conventions to clearly separate different types 
 - No direct client access
 
 **Example**:
+
 ```sql
 CREATE TABLE tb_user (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,14 +65,17 @@ CREATE TABLE tb_post (
 ```
 
 ### v_* - JSONB Views (Read Models)
+
 **Purpose**: Fast, denormalized reads for GraphQL
 **Characteristics**:
+
 - Returns JSONB objects ready for GraphQL
 - Pre-joined related data
 - Optimized for specific query patterns
 - Real-time (reflects current table state)
 
 **Example**:
+
 ```sql
 CREATE VIEW v_post AS
 SELECT jsonb_build_object(
@@ -97,14 +104,17 @@ GROUP BY p.id, u.id, u.name, u.email;
 ```
 
 ### tv_* - Table Views (Denormalized)
+
 **Purpose**: Denormalized table views for efficient querying and analytics
 **Characteristics**:
+
 - Denormalized data structure optimized for reads
 - Can be efficiently updated (one record at a time vs full refresh)
 - Better than fully materialized views for incremental updates
 - Supports complex joins, aggregations, and computed fields
 
 **Example**:
+
 ```sql
 -- Denormalized table view for efficient analytics queries
 CREATE TABLE tv_post_stats (
@@ -155,8 +165,10 @@ $$ LANGUAGE plpgsql;
 ```
 
 ### fn_* - Business Logic Functions
+
 **Purpose**: Encapsulate write operations and business rules
 **Characteristics**:
+
 - Input validation
 - Business rule enforcement
 - Transaction management
@@ -164,6 +176,7 @@ $$ LANGUAGE plpgsql;
 - May update multiple tables
 
 **Example**:
+
 ```sql
 CREATE FUNCTION fn_create_post(
     p_title text,
@@ -247,18 +260,21 @@ graph TD
 ## Convention Benefits
 
 ### Self-Documenting Code
+
 - **tb_user**: "This is a base table for user storage"
 - **v_post**: "This is a view for reading post data"
 - **tv_stats**: "This is a table view for statistics"
 - **fn_create_post**: "This function creates a post"
 
 ### Clear Separation of Concerns
+
 - **Writes**: Always go through functions (business logic)
 - **Reads**: Use views (fast) or table views (complex)
 - **Storage**: Normalized tables with constraints
 - **Presentation**: Denormalized JSONB views
 
 ### Performance Optimization
+
 - **Reads**: Pre-computed joins in views
 - **Writes**: Validation and business logic in functions
 - **Analytics**: Expensive computations in table views
@@ -267,12 +283,14 @@ graph TD
 ## Migration Patterns
 
 ### From Traditional ORM
+
 ```
 Traditional: User.find(id) → SQL → ORM → Object
 FraiseQL:   v_user WHERE id = ? → JSONB → GraphQL
 ```
 
 ### From REST API
+
 ```
 REST: POST /api/posts → Controller → SQL Inserts → Response
 FraiseQL: mutation createPost → fn_create_post → tb_* updates → JSONB
@@ -281,6 +299,7 @@ FraiseQL: mutation createPost → fn_create_post → tb_* updates → JSONB
 ## Common Patterns
 
 ### User Management
+
 ```sql
 -- Storage
 CREATE TABLE tb_user (...);
@@ -294,6 +313,7 @@ CREATE FUNCTION fn_update_user(...) RETURNS void AS $$ ... $$;
 ```
 
 ### Content with Comments
+
 ```sql
 -- Storage
 CREATE TABLE tb_post (...);
@@ -318,36 +338,42 @@ CREATE FUNCTION fn_add_comment(...) RETURNS uuid AS $$ ... $$;
 ### When to Use Each Type
 
 **Use tb_* tables for:**
+
 - Primary data storage
 - Data that needs referential integrity
 - Data modified by business logic
 - Data that needs auditing
 
 **Use v_* views for:**
+
 - GraphQL query responses
 - Real-time data requirements
 - Simple object relationships
 - Performance-critical reads
 
 **Use tv_* tables for:**
+
 - Complex aggregations
 - Statistical computations
 - Data warehouse scenarios
 - Expensive calculations
 
 **Use fn_* functions for:**
+
 - Multi-table operations
 - Business rule validation
 - Audit trail creation
 - Complex write operations
 
 ### Naming Guidelines
+
 - Always use full prefixes (tb_, v_, tv_, fn_)
 - Use descriptive names after prefix
 - Use snake_case consistently
 - Keep names concise but clear
 
 ### Maintenance
+
 - Document view dependencies
 - Version function interfaces
 - Monitor view performance

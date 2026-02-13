@@ -11,6 +11,7 @@
 **CRITICAL**: This phase WILL break existing tests temporarily. We're changing from typed objects to dicts.
 
 Tasks:
+
 1. Simplify `rust_executor.py` (remove entity flattening)
 2. Update `mutation_decorator.py` (remove parsing, return dicts)
 3. Delete obsolete files (`entity_flattener.py`, `parser.py`)
@@ -25,6 +26,7 @@ Tasks:
 **Objective**: Remove entity flattening, simplify to just call Rust
 
 **Changes**:
+
 - ❌ Remove `flatten_entity_wrapper()` import and call
 - ❌ Remove format conversion logic
 - ✅ Call `fraiseql_rs.build_mutation_response()` directly
@@ -34,6 +36,7 @@ Tasks:
 See `/tmp/fraiseql_rust_greenfield_implementation_plan_v2.md` lines 1863-2001 for full code.
 
 **Key changes**:
+
 ```python
 # BEFORE (lines to delete)
 from fraiseql.mutations.entity_flattener import flatten_entity_wrapper
@@ -60,6 +63,7 @@ return RustResponseBytes(response_bytes, schema_type=success_type)
 ```
 
 **Acceptance Criteria**:
+
 - [ ] File ~50 lines shorter
 - [ ] No flattening logic
 - [ ] No format conversion
@@ -75,6 +79,7 @@ return RustResponseBytes(response_bytes, schema_type=success_type)
 **Objective**: Remove Python parsing, return dicts instead of typed objects
 
 **Changes**:
+
 - ❌ Remove `parse_mutation_result()` import and call
 - ❌ Remove `__cascade__` attribute attachment
 - ✅ Return dicts directly in non-HTTP mode
@@ -129,6 +134,7 @@ return mutation_result
 ```
 
 **Acceptance Criteria**:
+
 - [ ] No Python parsing
 - [ ] Returns `RustResponseBytes` in HTTP mode
 - [ ] Returns dict in non-HTTP mode
@@ -140,11 +146,13 @@ return mutation_result
 ### Task 4.3: Delete Obsolete Files
 
 **Files to delete**:
+
 1. `src/fraiseql/mutations/entity_flattener.py`
 2. `src/fraiseql/mutations/parser.py`
 3. `tests/unit/mutations/test_entity_flattener.py`
 
 **Verification**:
+
 ```bash
 # Delete files
 rm src/fraiseql/mutations/entity_flattener.py
@@ -159,6 +167,7 @@ grep -r "mutations.parser" src/
 ```
 
 **Check for other files importing these**:
+
 ```bash
 # Find all imports
 git grep "from fraiseql.mutations.entity_flattener"
@@ -168,6 +177,7 @@ git grep "from fraiseql.mutations.parser"
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Files deleted (~700 LOC removed)
 - [ ] No remaining imports
 - [ ] No import errors when running tests
@@ -181,6 +191,7 @@ git grep "from fraiseql.mutations.parser"
 1. **`tests/unit/mutations/test_rust_executor.py`**
 
 Change from:
+
 ```python
 # OLD
 response = result.to_json()
@@ -188,6 +199,7 @@ assert response["data"]["createUser"]["user"]["__typename"] == "User"
 ```
 
 To:
+
 ```python
 # NEW (same - already using dicts)
 response = result.to_json()
@@ -249,6 +261,7 @@ async def test_mutation_returns_dict(db_pool):
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All existing tests updated for dict access
 - [ ] New integration test added
 - [ ] Tests use dict syntax: `result["field"]["nested"]`
@@ -284,6 +297,7 @@ def success_response():
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Fixtures return dicts
 - [ ] Fixtures have correct structure with __typename
 - [ ] Tests using fixtures updated
@@ -303,6 +317,7 @@ def success_response():
 - [ ] Code coverage maintained (>85%)
 
 **Verification**:
+
 ```bash
 # Count deleted lines
 git diff --stat
@@ -324,6 +339,7 @@ pytest tests/ --cov=fraiseql.mutations --cov-report=term-missing
 **For users**: None - all changes are internal
 
 **For tests**:
+
 - Tests now receive dicts instead of typed objects
 - Dict access: `result["user"]["id"]` instead of `result.user.id`
 - CASCADE at success level: `result["cascade"]` not `result.user.cascade`
@@ -331,6 +347,7 @@ pytest tests/ --cov=fraiseql.mutations --cov-report=term-missing
 ## Rollback Plan
 
 If critical issues found:
+
 1. Revert Phase 4 commits
 2. Keep Phase 1-3 (Rust code is harmless if not called)
 3. Fix issues

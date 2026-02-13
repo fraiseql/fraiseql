@@ -17,6 +17,7 @@ Successfully created a comprehensive Python version testing infrastructure for F
 ### 1. GitHub Actions Workflow (`.github/workflows/python-version-matrix.yml`)
 
 **Features:**
+
 - ✅ Tests all 3 Python versions (3.11, 3.12, 3.13) in parallel
 - ✅ Full PostgreSQL service setup for integration tests
 - ✅ Rust toolchain and fraiseql_rs extension compilation
@@ -26,17 +27,20 @@ Successfully created a comprehensive Python version testing infrastructure for F
 - ✅ Manual trigger capability via workflow_dispatch
 
 **When it runs:**
+
 - Every push to `main` or `dev` branches
 - Every pull request to `main` or `dev` branches
 - Can be manually triggered from GitHub Actions UI
 
 **Parallelization:**
+
 - All 3 Python versions run simultaneously
 - Typical run time: ~5-10 minutes total (not 15-30 minutes sequentially)
 
 ### 2. Tox Configuration (`tox.ini`)
 
 **Test Environments:**
+
 - `py311` - Test on Python 3.11
 - `py312` - Test on Python 3.12
 - `py313` - Test on Python 3.13
@@ -52,6 +56,7 @@ Successfully created a comprehensive Python version testing infrastructure for F
 - `clean` - Clean up artifacts
 
 **Usage:**
+
 ```bash
 # Run all Python version tests
 tox
@@ -90,14 +95,14 @@ tox -l
 | **Concurrent jobs** | 20 | 20 |
 | **Cost** | **$0.00** | $0.00 (within limits) |
 
-### What "Unlimited" Means:
+### What "Unlimited" Means
 
 1. **No credit consumption** - Run as many tests as you want
 2. **No billing** - Completely free for open-source
 3. **Full feature access** - All GitHub Actions features available
 4. **Matrix jobs** - Run multiple versions in parallel at no cost
 
-### Only Costs Apply If:
+### Only Costs Apply If
 
 ❌ Using **self-hosted runners** (you're not)
 ❌ Using **larger runners** (you're using `ubuntu-latest` which is free)
@@ -110,18 +115,20 @@ tox -l
 ## Workflow Architecture
 
 ### Existing Quality Gate Workflow
+
 **File:** `.github/workflows/quality-gate.yml`
 **Purpose:** Comprehensive quality checks (tests, lint, security)
 **Python version:** 3.13 only
 **When:** Every push/PR
 
 ### New Python Version Matrix Workflow
+
 **File:** `.github/workflows/python-version-matrix.yml`
 **Purpose:** Test compatibility across Python 3.11, 3.12, 3.13
 **Python versions:** All 3 in parallel
 **When:** Every push/PR
 
-### How They Work Together:
+### How They Work Together
 
 ```
 Push/PR to main or dev
@@ -142,6 +149,7 @@ Push/PR to main or dev
 ```
 
 **Benefits:**
+
 - Quality gate catches issues quickly (single version)
 - Matrix tests ensure cross-version compatibility
 - Both run in parallel, no waiting
@@ -151,7 +159,8 @@ Push/PR to main or dev
 
 ## Expected Run Times
 
-### Per Python Version (in matrix):
+### Per Python Version (in matrix)
+
 - Checkout + Setup: ~30 seconds
 - Install dependencies: ~2-3 minutes
 - Run tests: ~3-5 minutes
@@ -159,11 +168,13 @@ Push/PR to main or dev
 
 **Total per version:** ~5-8 minutes
 
-### Parallel Execution:
+### Parallel Execution
+
 - All 3 versions run simultaneously
 - **Total wall time:** ~5-8 minutes (not 15-24 minutes!)
 
-### GitHub Actions Concurrency:
+### GitHub Actions Concurrency
+
 - Free tier: 20 concurrent jobs
 - Your workflow: 3 jobs (well within limits)
 
@@ -171,7 +182,7 @@ Push/PR to main or dev
 
 ## Viewing Results
 
-### On GitHub:
+### On GitHub
 
 1. **Navigate to Actions tab:**
    `https://github.com/fraiseql/fraiseql/actions`
@@ -189,13 +200,15 @@ Push/PR to main or dev
 
 4. **Status badges:**
    You can add to README.md:
+
    ```markdown
    [![Python Version Matrix](https://github.com/fraiseql/fraiseql/actions/workflows/python-version-matrix.yml/badge.svg)](https://github.com/fraiseql/fraiseql/actions/workflows/python-version-matrix.yml)
    ```
 
-### Coverage Reports:
+### Coverage Reports
 
 Each Python version uploads coverage to Codecov with flags:
+
 - `python-3.11`
 - `python-3.12`
 - `python-3.13`
@@ -206,7 +219,7 @@ View at: `https://codecov.io/gh/fraiseql/fraiseql`
 
 ## Testing Locally Before Push
 
-### Using Tox:
+### Using Tox
 
 ```bash
 # Test all Python versions (if installed)
@@ -222,7 +235,7 @@ tox -e quick
 tox -e lint,type-check
 ```
 
-### Using uv directly:
+### Using uv directly
 
 ```bash
 # Current Python version
@@ -238,9 +251,10 @@ python3.13 -m pytest
 
 ## Maintenance
 
-### When to Update Workflow:
+### When to Update Workflow
 
 1. **Adding Python 3.14 support (future):**
+
    ```yaml
    # In .github/workflows/python-version-matrix.yml
    matrix:
@@ -266,12 +280,13 @@ python3.13 -m pytest
    - Update `[testenv]` deps in tox.ini
    - GitHub Actions will pick up changes automatically
 
-### Cost Monitoring (Even Though It's Free):
+### Cost Monitoring (Even Though It's Free)
 
 Check your usage at:
 `https://github.com/settings/billing/summary`
 
 **What you'll see for public repos:**
+
 - Usage: Unlimited
 - Cost: $0.00
 - Minutes remaining: ∞
@@ -280,7 +295,7 @@ Check your usage at:
 
 ## Troubleshooting
 
-### If a Python Version Fails:
+### If a Python Version Fails
 
 1. **Check the logs:**
    - Go to Actions tab
@@ -294,13 +309,15 @@ Check your usage at:
    - **Test flakiness:** Unrelated to Python version
 
 3. **Local reproduction:**
+
    ```bash
    tox -e py311  # Test the specific failing version
    ```
 
-### If GitHub Actions Won't Start:
+### If GitHub Actions Won't Start
 
 1. **Check workflow file syntax:**
+
    ```bash
    # Validate YAML
    yamllint .github/workflows/python-version-matrix.yml
@@ -318,14 +335,15 @@ Check your usage at:
 
 ## Next Steps
 
-### Immediate:
+### Immediate
+
 1. ✅ Branch created: `fix/python-version-requirement`
 2. ✅ All changes committed
 3. ⏭️ Push branch to GitHub
 4. ⏭️ Create Pull Request
 5. ⏭️ Watch GitHub Actions run automatically!
 
-### Push Commands:
+### Push Commands
 
 ```bash
 # Push the branch
@@ -350,9 +368,10 @@ See commit message and PYTHON_VERSION_ANALYSIS.md for full details.
 - Comprehensive documentation in PYTHON_VERSION_ANALYSIS.md"
 ```
 
-### After PR is Merged:
+### After PR is Merged
 
 The workflow will:
+
 1. Run on every future push to `main` or `dev`
 2. Run on every pull request
 3. Provide immediate feedback on Python version compatibility
@@ -363,6 +382,7 @@ The workflow will:
 ## Summary Statistics
 
 **Files Created:**
+
 - ✅ `.github/workflows/python-version-matrix.yml` (210 lines)
 - ✅ `tox.ini` (137 lines)
 - ✅ `PYTHON_VERSION_ANALYSIS.md` (426 lines)
@@ -370,6 +390,7 @@ The workflow will:
 - ✅ `GITHUB_ACTIONS_SETUP.md` (this file)
 
 **Files Modified:**
+
 - ✅ `pyproject.toml` (Python version, classifiers, target versions)
 - ✅ `README.md` (Badge and prerequisites)
 - ✅ `uv.lock` (Dependency lock update)

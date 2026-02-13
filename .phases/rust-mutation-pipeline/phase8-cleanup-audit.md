@@ -15,6 +15,7 @@ This is the **final quality gate** before declaring the Rust mutation pipeline c
 ## Audit Scope
 
 **Files to Audit**:
+
 - All documentation files (`docs/`, `README.md`, etc.)
 - All code comments and docstrings
 - All test comments and examples
@@ -23,6 +24,7 @@ This is the **final quality gate** before declaring the Rust mutation pipeline c
 - All example code and guides
 
 **What to Look For**:
+
 - References to deleted files (`entity_flattener.py`, `parser.py`)
 - References to old architecture ("5-layer pipeline", "Python normalize/flatten/transform/parse")
 - Outdated terminology ("v2 format" instead of "Full format")
@@ -38,6 +40,7 @@ This is the **final quality gate** before declaring the Rust mutation pipeline c
 **Objective**: Remove references to old architecture and update terminology
 
 **Search Commands**:
+
 ```bash
 # Find references to deleted files
 grep -r "entity_flattener\|parser\.py" docs/ README.md
@@ -50,12 +53,14 @@ grep -r "v2 format\|v2 response" docs/ README.md
 ```
 
 **Expected Updates**:
+
 - Replace "5-layer Python/Rust architecture" with "unified 2-layer Rust pipeline"
 - Remove references to `entity_flattener.py` and `parser.py`
 - Update any "v2 format" to "Full format"
 - Update architecture diagrams if they exist
 
 **Acceptance Criteria**:
+
 - [ ] No references to deleted files
 - [ ] No references to old 5-layer architecture
 - [ ] Consistent terminology throughout docs
@@ -70,6 +75,7 @@ grep -r "v2 format\|v2 response" docs/ README.md
 **Objective**: Remove comments referencing old architecture
 
 **Search Commands**:
+
 ```bash
 # Python comments
 grep -r "#.*entity_flattener\|#.*parser\.py\|#.*5-layer" src/
@@ -79,11 +85,13 @@ grep -r "//.*entity_flattener\|//.*parser\.py\|//.*5-layer" fraiseql_rs/src/
 ```
 
 **Expected Updates**:
+
 - Remove comments about "calling entity_flattener"
 - Remove comments about "parsing with parser.py"
 - Update comments that reference the old pipeline flow
 
 **Acceptance Criteria**:
+
 - [ ] No code comments reference deleted files
 - [ ] No code comments reference old architecture
 - [ ] Comments accurately describe current implementation
@@ -97,17 +105,20 @@ grep -r "//.*entity_flattener\|//.*parser\.py\|//.*5-layer" fraiseql_rs/src/
 **Objective**: Update function/class docstrings that reference old components
 
 **Search Commands**:
+
 ```bash
 # Find docstrings mentioning old components
 grep -r -A 2 -B 2 "entity_flattener\|parser\.py\|5-layer" src/
 ```
 
 **Expected Updates**:
+
 - Update `rust_executor.py` docstrings to reflect simplified interface
 - Update `mutation_decorator.py` docstrings for dict returns
 - Remove references to deleted dependencies
 
 **Acceptance Criteria**:
+
 - [ ] All docstrings accurate and current
 - [ ] No docstrings reference deleted files
 - [ ] Function descriptions match actual behavior
@@ -121,6 +132,7 @@ grep -r -A 2 -B 2 "entity_flattener\|parser\.py\|5-layer" src/
 **Objective**: Ensure test comments are accurate and helpful
 
 **Search Commands**:
+
 ```bash
 # Find test comments that might be outdated
 grep -r "# Test.*entity_flattener\|# Test.*parser" tests/
@@ -128,11 +140,13 @@ grep -r "#.*5-layer\|#.*old.*pipeline" tests/
 ```
 
 **Expected Updates**:
+
 - Update test comments that reference old behavior
 - Ensure test names and comments reflect current functionality
 - Remove any TODO comments about old architecture
 
 **Acceptance Criteria**:
+
 - [ ] Test comments accurate and helpful
 - [ ] No test comments reference deleted components
 - [ ] Test names clearly describe what they're testing
@@ -146,17 +160,20 @@ grep -r "#.*5-layer\|#.*old.*pipeline" tests/
 **Objective**: Ensure all examples work with new architecture
 
 **Search Commands**:
+
 ```bash
 # Check for examples using old patterns
 grep -r "entity_flattener\|parser\.py" examples/ docs/examples/ docs/guides/
 ```
 
 **Expected Updates**:
+
 - Update any example code that imports deleted modules
 - Update example comments that reference old architecture
 - Test that examples still work (if applicable)
 
 **Acceptance Criteria**:
+
 - [ ] All examples use current API
 - [ ] No examples reference deleted components
 - [ ] Examples run successfully (if executable)
@@ -170,6 +187,7 @@ grep -r "entity_flattener\|parser\.py" examples/ docs/examples/ docs/guides/
 **Objective**: Remove any leftover imports of deleted modules
 
 **Search Commands**:
+
 ```bash
 # Find imports of deleted files
 grep -r "from.*entity_flattener\|import.*entity_flattener" src/
@@ -177,10 +195,12 @@ grep -r "from.*parser\|import.*parser" src/
 ```
 
 **Expected Updates**:
+
 - Remove any imports of `entity_flattener` or `parser.py`
 - Clean up any unused imports that were related to old architecture
 
 **Acceptance Criteria**:
+
 - [ ] No imports of deleted modules
 - [ ] No unused imports related to old architecture
 - [ ] All imports are valid and used
@@ -194,17 +214,20 @@ grep -r "from.*parser\|import.*parser" src/
 **Objective**: Ensure configuration reflects current architecture
 
 **Search Commands**:
+
 ```bash
 # Check for references to old components in config
 grep -r "entity_flattener\|parser\.py" *.toml Makefile*
 ```
 
 **Expected Updates**:
+
 - Remove any test configurations for deleted test files
 - Update any build/lint configurations if needed
 - Ensure all paths and references are current
 
 **Acceptance Criteria**:
+
 - [ ] Configuration files reference only existing files
 - [ ] No references to deleted components
 - [ ] All configurations are valid
@@ -218,6 +241,7 @@ grep -r "entity_flattener\|parser\.py" *.toml Makefile*
 **Objective**: Document all changes made during cleanup audit
 
 **Content Structure**:
+
 ```markdown
 # Cleanup Audit Summary - Phase 8
 
@@ -260,6 +284,7 @@ grep -r "entity_flattener\|parser\.py" *.toml Makefile*
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Summary document created
 - [ ] All changes documented
 - [ ] Verification checklist complete
@@ -279,6 +304,7 @@ grep -r "entity_flattener\|parser\.py" *.toml Makefile*
 - [ ] Task 8.8: Cleanup summary created
 
 **Verification**:
+
 ```bash
 # Final comprehensive check
 grep -r "entity_flattener\|parser\.py\|5-layer" . --exclude-dir=.git
@@ -306,6 +332,7 @@ python -c "import src.fraiseql.mutations; print('Imports OK')"
 ## Why This Matters
 
 This final audit ensures:
+
 - **No confusion**: Future developers won't see references to deleted code
 - **Accurate docs**: Documentation matches the actual implementation
 - **Clean codebase**: No dead references or outdated comments
@@ -322,6 +349,7 @@ This final audit ensures:
 - [ ] Cleanup summary documents all changes
 
 **Final Verification**:
+
 ```bash
 # This should pass with zero findings (except git history)
 find . -name "*.py" -o -name "*.rs" -o -name "*.md" | \
@@ -333,6 +361,7 @@ find . -name "*.py" -o -name "*.rs" -o -name "*.md" | \
 ## Next Steps
 
 After Phase 8:
+
 - [ ] Final code review
 - [ ] Performance testing
 - [ ] Production deployment preparation

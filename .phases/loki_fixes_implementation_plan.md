@@ -17,6 +17,7 @@ The Loki integration commit `c4e7632` contains **4 critical issues** and **10 im
 4. **Missing security hardening** (default passwords, Docker socket exposure)
 
 **TDD Assessment:** ❌ **Not applicable** - This is purely configuration and documentation fixes. No business logic to test. Verification will be done via:
+
 - Docker Compose smoke tests (stack starts successfully)
 - Manual LogQL query validation against running Loki instance
 - Documentation review
@@ -26,6 +27,7 @@ The Loki integration commit `c4e7632` contains **4 critical issues** and **10 im
 ## Phase 1: Critical Configuration Fixes (MUST DO)
 
 ### Objective
+
 Fix issues that will cause immediate production failures (crashes, query errors, security vulnerabilities).
 
 **Estimated Time:** 45 minutes
@@ -39,6 +41,7 @@ Fix issues that will cause immediate production failures (crashes, query errors,
 **Problem:** Using deprecated `boltdb-shipper` and `schema: v11`
 
 **Changes:**
+
 ```yaml
 # BEFORE (lines 19-27):
 schema_config:
@@ -64,6 +67,7 @@ schema_config:
 ```
 
 **Also remove deprecated `table_manager` (lines 58-60):**
+
 ```yaml
 # DELETE these lines:
 table_manager:
@@ -72,6 +76,7 @@ table_manager:
 ```
 
 **Add to `limits_config` (line 36):**
+
 ```yaml
 limits_config:
   retention_period: 720h  # Moved from table_manager
@@ -81,6 +86,7 @@ limits_config:
 ```
 
 **Verification:**
+
 ```bash
 # Start Loki with new config
 docker-compose -f examples/observability/docker-compose.loki.yml up -d loki
@@ -104,6 +110,7 @@ docker logs fraiseql-loki 2>&1 | grep -i "schema\|deprecated\|warning"
 **Changes Required:**
 
 **Location 1: `fraiseql-app` job (lines 34-39):**
+
 ```yaml
 # BEFORE:
 - labels:
@@ -119,6 +126,7 @@ docker logs fraiseql-loki 2>&1 | grep -i "schema\|deprecated\|warning"
 ```
 
 **Location 2: `fraiseql-errors` job (lines 73-77):**
+
 ```yaml
 # BEFORE:
 - labels:
@@ -133,6 +141,7 @@ docker logs fraiseql-loki 2>&1 | grep -i "schema\|deprecated\|warning"
 ```
 
 **Location 3: `docker` job (lines 131-135):**
+
 ```yaml
 # BEFORE:
 - labels:
@@ -149,6 +158,7 @@ docker logs fraiseql-loki 2>&1 | grep -i "schema\|deprecated\|warning"
 ```
 
 **Keep JSON parsing (DO NOT REMOVE):**
+
 ```yaml
 # Keep this - we still extract as JSON fields, just not labels
 - json:
@@ -160,6 +170,7 @@ docker logs fraiseql-loki 2>&1 | grep -i "schema\|deprecated\|warning"
 ```
 
 **Verification:**
+
 ```bash
 # Restart Promtail
 docker-compose -f examples/observability/docker-compose.loki.yml restart promtail
@@ -184,6 +195,7 @@ curl -G http://localhost:3100/loki/api/v1/query \
 **Changes Required:**
 
 **Query #1 (Line 211):**
+
 ```markdown
 # BEFORE:
 {job="fraiseql-app"} | json | level="error" [1h]
@@ -197,6 +209,7 @@ count_over_time({job="fraiseql-app"} | json | level="error" [1h])
 ```
 
 **Query #3 (Line 225):**
+
 ```markdown
 # BEFORE:
 rate({job="fraiseql-app"} | json | level="error" [5m])
@@ -206,6 +219,7 @@ rate(count_over_time({job="fraiseql-app"} | json | level="error" [5m]))
 ```
 
 **Query #6 (Line 247):**
+
 ```markdown
 # BEFORE:
 {job="postgresql"} | regexp "duration: (?P<duration>\\d+\\.\\d+) ms" | duration > 1000
@@ -219,6 +233,7 @@ rate(count_over_time({job="fraiseql-app"} | json | level="error" [5m]))
 ```
 
 **Query #9 (Line 264):**
+
 ```markdown
 # BEFORE:
 sum by (context_tenant_id) (
@@ -237,6 +252,7 @@ sum by (tenant_id) (
 ```
 
 **Add new section after line 278:**
+
 ```markdown
 ### Query Syntax Notes
 
@@ -252,6 +268,7 @@ sum by (tenant_id) (
 ```
 
 **Verification:**
+
 ```bash
 # Test each corrected query against running Loki
 LOKI_URL="http://localhost:3100"
@@ -280,6 +297,7 @@ curl -G "$LOKI_URL/loki/api/v1/query_range" \
 **Changes:**
 
 **1. Fix Grafana default password (lines 44-45):**
+
 ```yaml
 # BEFORE:
 - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -289,6 +307,7 @@ curl -G "$LOKI_URL/loki/api/v1/query_range" \
 ```
 
 **2. Add security note to compose file (after line 1):**
+
 ```yaml
 # Security Warning: Set environment variables before deploying:
 #   export GRAFANA_ADMIN_PASSWORD='your-secure-password'
@@ -296,6 +315,7 @@ curl -G "$LOKI_URL/loki/api/v1/query_range" \
 ```
 
 **3. Add Docker socket proxy (add new service after line 36):**
+
 ```yaml
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:latest
@@ -330,6 +350,7 @@ curl -G "$LOKI_URL/loki/api/v1/query_range" \
 **File:** `docs/production/loki_integration.md`
 
 **Add before line 43 (Quick Start):**
+
 ```markdown
 ### Security Setup (Required)
 
@@ -346,11 +367,13 @@ export GRAFANA_ADMIN_PASSWORD='your-secure-password-here'
 ```
 
 **⚠️ Warning:** The default setup uses:
+
 - Filesystem storage (not suitable for production scale)
 - Single instance (no high availability)
 - Docker socket access (security risk)
 
 See [Production Configuration](#production-configuration) for hardening.
+
 ```
 
 **Verification:**
@@ -372,6 +395,7 @@ curl -u admin:test123 http://localhost:3000/api/org | jq '.name'
 ## Phase 2: Important Configuration Improvements (SHOULD DO)
 
 ### Objective
+
 Add missing production-critical features and improve performance.
 
 **Estimated Time:** 45 minutes
@@ -383,6 +407,7 @@ Add missing production-critical features and improve performance.
 **File:** `examples/observability/loki/loki-config.yaml`
 
 **Add after line 44 (after `limits_config`):**
+
 ```yaml
 # Query performance optimization
 query_scheduler:
@@ -417,6 +442,7 @@ storage_config:
 ```
 
 **Update comments at end of file (after line 62):**
+
 ```yaml
 # For production, switch to object storage (S3/GCS):
 #
@@ -457,6 +483,7 @@ storage_config:
 **Problem:** Regex won't match JSON format logs.
 
 **Replace entire file:**
+
 ```yaml
 apiVersion: 1
 
@@ -493,6 +520,7 @@ datasources:
 ```
 
 **Verification:**
+
 ```bash
 # Test with sample JSON log containing trace_id
 echo '{
@@ -512,6 +540,7 @@ echo '{
 **File:** `examples/observability/loki/promtail-config.yaml`
 
 **Add after line 32 (in `fraiseql-app` pipeline):**
+
 ```yaml
     pipeline_stages:
       # Parse JSON logs
@@ -539,6 +568,7 @@ echo '{
 ```
 
 **Add comment explaining cardinality:**
+
 ```yaml
       # Cardinality note: Only add tenant_id as label if you have:
       # - < 1000 tenants (low cardinality)
@@ -553,6 +583,7 @@ echo '{
 ## Phase 3: Documentation Improvements (SHOULD DO)
 
 ### Objective
+
 Fix incorrect information and add missing critical sections.
 
 **Estimated Time:** 60 minutes
@@ -564,6 +595,7 @@ Fix incorrect information and add missing critical sections.
 **File:** `docs/production/loki_integration.md`
 
 **Replace section starting at line 377:**
+
 ```markdown
 ### Storage Estimates
 
@@ -576,6 +608,7 @@ Fix incorrect information and add missing critical sections.
 **Calculations:**
 
 ```
+
 Logs per day:
   100 req/sec × 5 logs/req × 86,400 sec/day = 43M logs/day
 
@@ -584,6 +617,7 @@ Raw size:
 
 Compressed (Loki storage):
   21.5 GB ÷ 10 = 2.15 GB/day
+
 ```
 
 **Storage Requirements:**
@@ -613,6 +647,7 @@ curl http://localhost:3100/metrics | grep loki_distributor_bytes_received_total
 2. **Sample high-volume info logs** (keep 10%, saves ~30%)
 3. **Shorter retention** for non-error logs
 4. **Use S3/GCS** with lifecycle policies (archive to Glacier after 90 days)
+
 ```
 
 ---
@@ -640,6 +675,7 @@ curl http://localhost:3100/metrics | grep loki_distributor_bytes_received_total
 ```
 
 **Performance Impact:**
+
 - Label filter: Scans 1 stream (error logs only)
 - JSON filter: Scans ALL streams, parses JSON, then filters
 
@@ -654,6 +690,7 @@ curl http://localhost:3100/metrics | grep loki_distributor_bytes_received_total
 ```
 
 **Recommendations:**
+
 - Exploratory queries: 1h
 - Dashboards: 5m-15m
 - Alerting: 5m
@@ -670,6 +707,7 @@ curl http://localhost:3100/metrics | grep loki_distributor_bytes_received_total
 ```
 
 **Line filter operators:**
+
 - `|=` : Contains (fast text search)
 - `!=` : Not contains
 - `|~` : Regex match (slower, but still faster than JSON parsing)
@@ -686,6 +724,7 @@ sum by (level) (count_over_time({job="fraiseql-app"} [1h]))
 ```
 
 **Cardinality Guidelines:**
+
 - Low (< 10 values): level, environment, job
 - Medium (10-100): exception_type, container
 - High (100-1000): tenant_id (OK if needed)
@@ -714,16 +753,19 @@ Before running a query, verify:
 ### Common Query Patterns
 
 **Pattern: Find all logs for a trace**
+
 ```logql
 {job="fraiseql-app"} | json | trace_id="abc123def456"
 ```
 
 **Pattern: Error rate per minute**
+
 ```logql
 sum(rate(count_over_time({job="fraiseql-app", level="error"} [1m])))
 ```
 
 **Pattern: Top error types**
+
 ```logql
 topk(10,
   sum by (exception_type) (
@@ -733,11 +775,13 @@ topk(10,
 ```
 
 **Pattern: Logs matching pattern (fast)**
+
 ```logql
 {job="fraiseql-app", level="error"} |= "database" |= "connection" | json
 ```
 
 **Pattern: Extract numeric values and filter**
+
 ```logql
 {job="postgresql"}
   |= "duration:"
@@ -746,6 +790,7 @@ topk(10,
   | __error__=""
   | ms > 1000
 ```
+
 ```
 
 ---
@@ -834,12 +879,14 @@ LIMIT 1;
 ```
 
 In Grafana:
+
 1. Open trace in Tempo (using trace_id from PostgreSQL)
 2. Click span with error
 3. Click "Logs for this span" → View full context in Loki
 4. See all logs before/after error (application state, DB queries, etc.)
 
 **3. Developer resolves error:**
+
 ```sql
 -- Mark as resolved in PostgreSQL
 UPDATE monitoring.errors
@@ -863,6 +910,7 @@ Loki logs remain until retention expires (no cleanup needed).
 | Pattern matching across logs? | ❌ No | ✅ Yes (LogQL regex) |
 
 **Summary:** PostgreSQL = **error management**, Loki = **log debugging**. Use both together for complete observability.
+
 ```
 
 ---
@@ -894,6 +942,7 @@ rate(loki_ingester_streams_created_total[5m])
 ```
 
 **Query Performance:**
+
 ```promql
 # Query duration P99 (should be < 5s)
 histogram_quantile(0.99,
@@ -905,6 +954,7 @@ rate(loki_slow_queries_total[5m])
 ```
 
 **Storage Health:**
+
 ```promql
 # Chunk flush failures (should be 0)
 rate(loki_ingester_chunks_flush_errors_total[5m])
@@ -916,6 +966,7 @@ rate(loki_compactor_runs_completed_total[5m])
 ### Recommended Alerts
 
 **Alert Rules for Prometheus:**
+
 ```yaml
 groups:
   - name: loki
@@ -1054,6 +1105,7 @@ frontend:
 # Check slow query log
 docker logs fraiseql-loki | grep "slow query"
 ```
+
 ```
 
 ---
@@ -1099,6 +1151,7 @@ auth_enabled: true
 ```
 
 **Promtail config:**
+
 ```yaml
 clients:
   - url: http://loki:3100/loki/api/v1/push
@@ -1106,6 +1159,7 @@ clients:
 ```
 
 **Grafana datasource:**
+
 ```yaml
 jsonData:
   httpHeaderName1: 'X-Scope-OrgID'
@@ -1114,6 +1168,7 @@ secureJsonData:
 ```
 
 **Query isolation:**
+
 ```bash
 # Tenant A can only see their logs
 curl -H "X-Scope-OrgID: tenant-a" http://loki:3100/loki/api/v1/query?query={job="app"}
@@ -1127,6 +1182,7 @@ curl -H "X-Scope-OrgID: tenant-b" http://loki:3100/loki/api/v1/query?query={job=
 **Best for:** Single team, simple auth
 
 **Nginx config:**
+
 ```nginx
 upstream loki {
     server loki:3100;
@@ -1154,12 +1210,14 @@ server {
 ```
 
 **Create auth file:**
+
 ```bash
 htpasswd -c /etc/nginx/.htpasswd-push promtail
 htpasswd -c /etc/nginx/.htpasswd-query grafana
 ```
 
 **Promtail with basic auth:**
+
 ```yaml
 clients:
   - url: https://loki.company.com/loki/api/v1/push
@@ -1192,6 +1250,7 @@ docker run -d \
 ### TLS/SSL Encryption
 
 **Loki server TLS:**
+
 ```yaml
 server:
   http_listen_port: 3100
@@ -1209,6 +1268,7 @@ server:
 ```
 
 **Promtail client TLS:**
+
 ```yaml
 clients:
   - url: https://loki:3100/loki/api/v1/push
@@ -1220,6 +1280,7 @@ clients:
 ```
 
 **Generate self-signed certs (development only):**
+
 ```bash
 # CA certificate
 openssl req -x509 -newkey rsa:4096 -days 365 -nodes \
@@ -1250,6 +1311,7 @@ openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key \
 ### Network Isolation
 
 **Docker network isolation:**
+
 ```yaml
 networks:
   loki-internal:
@@ -1275,6 +1337,7 @@ services:
 ```
 
 **Kubernetes NetworkPolicy:**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1307,6 +1370,7 @@ spec:
 **Problem:** Logs may contain sensitive data (passwords, tokens, PII).
 
 **Solution 1: Sanitize at log source (Python):**
+
 ```python
 import re
 
@@ -1327,6 +1391,7 @@ class SanitizingFormatter(logging.Formatter):
 ```
 
 **Solution 2: Sanitize in Promtail:**
+
 ```yaml
 pipeline_stages:
   - json:
@@ -1344,6 +1409,7 @@ pipeline_stages:
 ```
 
 **Solution 3: Drop sensitive logs entirely:**
+
 ```yaml
 pipeline_stages:
   - match:
@@ -1358,6 +1424,7 @@ pipeline_stages:
 **Problem:** Promtail needs Docker socket access to read container logs, which is a security risk.
 
 **Solution: Use Docker socket proxy (limited permissions):**
+
 ```yaml
 services:
   docker-socket-proxy:
@@ -1388,6 +1455,7 @@ services:
 ```
 
 **Alternative:** Use log files instead of Docker API:
+
 ```yaml
 # Write container logs to files, tail files with Promtail
 # Configure Docker daemon to use json-file logging:
@@ -1406,6 +1474,7 @@ services:
 ### Secrets Management
 
 **❌ BAD: Hardcoded secrets**
+
 ```yaml
 clients:
   - url: https://loki:3100/loki/api/v1/push
@@ -1415,6 +1484,7 @@ clients:
 ```
 
 **✅ GOOD: Environment variables**
+
 ```yaml
 clients:
   - url: https://loki:3100/loki/api/v1/push
@@ -1424,6 +1494,7 @@ clients:
 ```
 
 **✅ BETTER: Docker secrets**
+
 ```yaml
 services:
   promtail:
@@ -1438,6 +1509,7 @@ secrets:
 ```
 
 **✅ BEST: Kubernetes secrets + sealed-secrets**
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -1465,11 +1537,13 @@ data:
 - [ ] Backup strategy for Loki configuration and data
 
 **For classified environments (DoD IL4/IL5):**
+
 - [ ] FIPS 140-2 compliant encryption
 - [ ] Audit logging enabled
 - [ ] No internet egress (air-gapped deployment)
 - [ ] Government-approved PKI certificates
 - [ ] STIG hardening applied to all containers
+
 ```
 
 ---
@@ -1591,6 +1665,7 @@ echo "Clean up with: docker-compose -f docker-compose.loki.yml down -v"
 ```
 
 **Run test:**
+
 ```bash
 chmod +x examples/observability/test-loki-stack.sh
 cd examples/observability
@@ -1602,6 +1677,7 @@ cd examples/observability
 ### Task 4.2: Validate LogQL Queries
 
 **Create query test script:**
+
 ```bash
 #!/bin/bash
 # File: examples/observability/test-logql-queries.sh
@@ -1673,6 +1749,7 @@ echo "=== All LogQL queries passed! ==="
 ```
 
 **Run test:**
+
 ```bash
 chmod +x examples/observability/test-logql-queries.sh
 cd examples/observability
@@ -1684,6 +1761,7 @@ cd examples/observability
 ### Task 4.3: Test Trace Correlation Regex
 
 **Create regex test:**
+
 ```bash
 #!/bin/bash
 # Test Grafana derived field regex
@@ -1707,6 +1785,7 @@ fi
 ## Phase 5: Documentation & Commit (MUST DO)
 
 ### Objective
+
 Update documentation and commit all fixes.
 
 **Estimated Time:** 15 minutes
@@ -1716,6 +1795,7 @@ Update documentation and commit all fixes.
 ### Task 5.1: Update Commit Message
 
 **Commit all changes with descriptive message:**
+
 ```bash
 git add -A
 
@@ -1861,6 +1941,7 @@ No code changes needed - just ensure logs are JSON format.
 ### 2. Label Changes
 
 **Removed labels:**
+
 - `trace_id` (now JSON field only)
 - `span_id` (now JSON field only)
 - `fingerprint` (now JSON field only)
@@ -1910,6 +1991,7 @@ If you encounter issues:
 1. Check logs: `docker logs fraiseql-loki`
 2. Run smoke tests: `./test-loki-stack.sh`
 3. See troubleshooting: `docs/production/loki_integration.md#troubleshooting`
+
 ```
 
 ---

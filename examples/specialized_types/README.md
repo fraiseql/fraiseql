@@ -5,6 +5,7 @@ Production-ready examples demonstrating PostgreSQL's specialized types for infra
 ## What This Example Demonstrates
 
 This is a **complete specialized types showcase** with:
+
 - IPv4/IPv6 addresses with CIDR notation support
 - Network operations (subnet containment, private IP detection)
 - JSONB for flexible schemas and metadata
@@ -30,6 +31,7 @@ class NetworkDevice:
 ```
 
 **Benefits:**
+
 - ✅ Automatic validation (invalid IPs rejected)
 - ✅ CIDR notation support (`192.168.1.0/24`)
 - ✅ Network operators (subnet containment, overlaps)
@@ -59,6 +61,7 @@ class NetworkDevice:
 ```
 
 **Benefits:**
+
 - ✅ Flexible schema (add fields without migrations)
 - ✅ Fast queries with GIN indexes
 - ✅ Nested object support
@@ -66,6 +69,7 @@ class NetworkDevice:
 - ✅ Containment operators (`@>`, `<@`)
 
 **When to use JSONB:**
+
 - User preferences and settings
 - Metadata that varies by type
 - API responses to store
@@ -85,6 +89,7 @@ class NetworkDevice:
 ```
 
 **Benefits:**
+
 - ✅ Containment checks (`@>`, `<@`, `&&`)
 - ✅ GIN indexes for fast queries
 - ✅ Type-safe at database level
@@ -105,6 +110,7 @@ class Device:
 ```
 
 **Benefits:**
+
 - ✅ Globally unique (no collisions)
 - ✅ Great for distributed systems
 - ✅ 16 bytes (compact)
@@ -220,6 +226,7 @@ class Device:
 ```
 
 **GraphQL Query:**
+
 ```graphql
 query FindDevice {
   device_by_ip(ip_address: "192.168.1.10") {
@@ -231,6 +238,7 @@ query FindDevice {
 ```
 
 **Database:**
+
 ```sql
 CREATE TABLE devices (
     id SERIAL PRIMARY KEY,
@@ -256,6 +264,7 @@ class Device:
 ```
 
 **GraphQL Query:**
+
 ```graphql
 query IPv6Devices {
   devices {
@@ -288,6 +297,7 @@ async def devices_in_subnet(info, cidr: str) -> list[NetworkDevice]:
 ```
 
 **GraphQL Query:**
+
 ```graphql
 query SubnetDevices {
   devices_in_subnet(cidr: "192.168.1.0/24") {
@@ -300,6 +310,7 @@ query SubnetDevices {
 ```
 
 **Database Implementation:**
+
 ```sql
 -- Find devices in subnet using << operator
 SELECT * FROM devices
@@ -644,6 +655,7 @@ pip install -r requirements.txt
 ```
 
 Or with uv:
+
 ```bash
 uv pip install -r requirements.txt
 ```
@@ -708,6 +720,7 @@ python main.py
 ```
 
 The API will be available at:
+
 - **GraphQL Playground:** http://localhost:8000/graphql
 - **API Documentation:** http://localhost:8000/docs
 

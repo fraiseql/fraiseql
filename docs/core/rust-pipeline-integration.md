@@ -24,6 +24,7 @@ FraiseQL's architecture separates responsibilities: Python handles GraphQL schem
 **Other frameworks can't do this—they're locked into ORM serialization.** Traditional GraphQL frameworks serialize ORM objects to JSON in Python, creating unavoidable performance bottlenecks. FraiseQL's exclusive Rust pipeline bypasses Python entirely for JSON processing, delivering **7-10x faster** response times.
 
 This architecture is unique to FraiseQL. No other GraphQL framework combines:
+
 - PostgreSQL-native JSONB views
 - Zero Python serialization overhead
 - Rust-powered JSON transformation
@@ -74,13 +75,15 @@ sequenceDiagram
 
 ## The Boundary
 
-### What Python Does:
+### What Python Does
+
 - Define GraphQL types and queries
 - Execute PostgreSQL queries
 - Collect JSONB strings from database
 - Call Rust pipeline with JSON strings
 
-### What Rust Does:
+### What Rust Does
+
 - Concatenate JSON array
 - Transform JSONB to GraphQL JSON
 - Convert field names to camelCase
@@ -89,7 +92,8 @@ sequenceDiagram
 
 ## Code Example
 
-### Python Side:
+### Python Side
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -111,7 +115,8 @@ async def users(info) -> list[User]:
     return await repo.find("v_user")
 ```
 
-### Under the Hood:
+### Under the Hood
+
 ```python
 # In FraiseQLRepository.find():
 async def find(self, source: str):
@@ -135,7 +140,8 @@ async def find(self, source: str):
     return RustResponseBytes(response_bytes)
 ```
 
-### Rust Side (fraiseql_rs crate):
+### Rust Side (fraiseql_rs crate)
+
 ```rust
 #[pyfunction]
 pub fn build_graphql_response(
@@ -164,6 +170,7 @@ pub fn build_graphql_response(
 ## Performance Benefits
 
 By delegating to Rust:
+
 - **7-10x faster** JSON transformation
 - **Zero Python overhead** for string operations
 - **Direct UTF-8 bytes** to HTTP (no Python serialization)
@@ -171,18 +178,21 @@ By delegating to Rust:
 ## Type Safety
 
 The Python/Rust boundary is type-safe via PyO3:
+
 - Python `list[str]` → Rust `Vec<String>`
 - Python `str | None` → Rust `Option<String>`
 - Rust `Vec<u8>` → Python `bytes`
 
 ## Debugging
 
-### Enable Rust Logs:
+### Enable Rust Logs
+
 ```bash
 RUST_LOG=fraiseql_rs=debug python app.py
 ```
 
-### Inspect Rust Output:
+### Inspect Rust Output
+
 ```python
 from fraiseql.core.rust_pipeline import RustResponseBytes
 import json

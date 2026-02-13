@@ -1,530 +1,450 @@
+<!-- Skip to main content -->
+---
+
+title: Troubleshooting Decision Tree
+description: Use this decision tree to quickly identify which troubleshooting guide applies to your problem.
+keywords: ["debugging", "implementation", "best-practices", "deployment", "tutorial"]
+tags: ["documentation", "reference"]
+---
+
 # Troubleshooting Decision Tree
 
-Quick diagnosis for common FraiseQL issues.
+**Status:** ✅ Production Ready
+**Audience:** Developers, DevOps, Support Engineers
+**Reading Time:** 5 minutes
+**Last Updated:** 2026-02-05
 
-## 🚨 Problem Categories
-
-**Choose your problem type:**
-
-1. [Installation & Setup](#1-installation--setup-issues)
-2. [Database Connection](#2-database-connection-issues)
-3. [GraphQL Queries](#3-graphql-query-issues)
-4. [Performance](#4-performance-issues)
-5. [Deployment](#5-deployment-issues)
-6. [Authentication](#6-authentication-issues)
+Use this decision tree to quickly identify which troubleshooting guide applies to your problem.
 
 ---
 
-## 1. Installation & Setup Issues
+## 🎯 Start Here: What's Your Problem?
 
-### ❌ "ModuleNotFoundError: No module named 'fraiseql'"
+### Step 1: Identify the Symptom Category
 
-**Diagnosis:**
-```bash
-pip show fraiseql
-```
+**Select the one that best describes your situation:**
 
-**If not installed:**
-```bash
-pip install fraiseql
-```
+```text
+<!-- Code example in TEXT -->
+Does your problem involve...
 
-**If installed but still error:**
-- ✅ Check you're using correct Python environment
-- ✅ Verify virtual environment activated: `which python`
-- ✅ Reinstall: `pip install --force-reinstall fraiseql`
+1. Starting the server or deployment?
+   → Go to: DEPLOYMENT ISSUES
 
----
+2. GraphQL queries returning errors?
+   → Go to: QUERY EXECUTION ISSUES
 
-### ❌ "ImportError: cannot import name 'type' from 'fraiseql'"
+3. Mutations not working or failing?
+   → Go to: MUTATION ISSUES
 
-**Diagnosis:**
-- Check Python version: `python --version`
-- **Required**: Python 3.13+
+4. Real-time updates or subscriptions?
+   → Go to: SUBSCRIPTION ISSUES
 
-**Fix:**
-```bash
-# Upgrade Python
-pyenv install 3.10
-pyenv global 3.10
+5. Authentication or authorization problems?
+   → Go to: AUTHENTICATION & AUTHORIZATION
 
-# Or use system package manager
-sudo apt install python3.10  # Ubuntu
-brew install python@3.10     # macOS
-```
+6. Slow queries or performance issues?
+   → Go to: PERFORMANCE ISSUES
 
----
+7. Database connection problems?
+   → Go to: DATABASE CONNECTIVITY
 
-### ❌ "Rust pipeline not found" or "RustError"
+8. Configuration issues?
+   → Go to: CONFIGURATION ISSUES
 
-**Diagnosis:**
-```bash
-pip show fraiseql | grep Version
-```
+9. Specific error codes?
+   → Go to: ERROR CODE LOOKUP
 
-**Fix:**
-```bash
-# Install with Rust support
-pip install "fraiseql[rust]"
-
-# Verify Rust pipeline
-python -c "from fraiseql.rust import RustPipeline; print('Rust OK')"
-```
-
-**If still failing:**
-- Rust compiler required for building
-- Install: https://rustup.rs/
-- Then: `pip install --no-binary fraiseql "fraiseql[rust]"`
+10. Multi-service or federation problems?
+    → Go to: FEDERATION ISSUES
+```text
+<!-- Code example in TEXT -->
 
 ---
 
-## 2. Database Connection Issues
+## 🚀 DEPLOYMENT ISSUES
 
-### Decision Tree
+**Container fails to start:**
 
-```
-❌ Cannot connect to database
-    |
-    ├─→ "Connection refused"
-    |       └─→ PostgreSQL not running
-    |           └─→ Start PostgreSQL: systemctl start postgresql
-    |
-    ├─→ "password authentication failed"
-    |       └─→ Check DATABASE_URL credentials
-    |           └─→ Verify: psql ${DATABASE_URL}
-    |
-    ├─→ "database does not exist"
-    |       └─→ Create database: createdb fraiseql
-    |
-    └─→ "too many connections"
-            └─→ Use PgBouncer connection pooler
-                └─→ See: docs/production/deployment.md#pgbouncer
-```
+- Check Docker image build: `docker build . --no-cache`
+- Verify Rust compilation: `cargo build --release`
+- Review startup logs: `docker logs <container_id>`
+- → **Full guide:** [Deployment Guide](../deployment/guide.md)
 
----
+**Application crashes during startup:**
 
-### ❌ "asyncpg.exceptions.InvalidPasswordError"
+- Check schema compilation: `FraiseQL compile schema.json`
+- Verify TOML syntax: `FraiseQL validate config.toml`
+- Check environment variables: `env | grep FRAISEQL`
+- → **Full guide:** [Production Deployment](./production-deployment.md)
 
-**Diagnosis:**
-```bash
-# Test connection manually
-psql postgresql://user:password@localhost/dbname
+**Server starts but no requests work:**
 
-# If works, check environment variable
-echo $DATABASE_URL
-```
+- Verify port is listening: `netstat -an | grep 5000`
+- Check firewall rules: `sudo iptables -L`
+- Test with curl: `curl -i http://localhost:5000/health`
+- → **Full guide:** [Deployment Guide](../deployment/guide.md)
 
-**Fix:**
-```bash
-# Correct format:
-export DATABASE_URL="postgresql://user:password@host:5432/database"
+**Service won't connect to database:**
 
-# Special characters in password? URL-encode them:
-# @ → %40, # → %23, etc.
-```
+- → Go to: **DATABASE CONNECTIVITY** (below)
 
 ---
 
-### ❌ "relation 'v_user' does not exist"
+## 🔍 QUERY EXECUTION ISSUES
 
-**Diagnosis:**
-```sql
--- Check if view exists
-SELECT table_name FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'v_user';
-```
+**Query returns GraphQL error:**
 
-**Fix:**
-```sql
--- Create missing view
-CREATE VIEW v_user AS
-SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'name', name,
-        'email', email
-    ) as data
-FROM tb_user;
-```
+**Error type:**
 
-**Prevention:**
-- Run migrations: `psql -f schema.sql`
-- Check [DDL Organization Guide](../core/ddl-organization.md)
+```text
+<!-- Code example in TEXT -->
+Is the error about...
 
----
+a) "Field X doesn't exist"?
+   - Check schema is compiled: `schema.compiled.json` exists
+   - Verify field name in schema definition
+   - Regenerate schema: `FraiseQL compile`
+   → [Troubleshooting Guide: Schema Errors](../troubleshooting.md#schema-errors)
 
-## 3. GraphQL Query Issues
+b) "Unauthorized" or "Permission denied"?
+   → Go to: AUTHENTICATION & AUTHORIZATION
 
-### Decision Tree
+c) Database error (SQL error in message)?
+   → Go to: DATABASE CONNECTIVITY
 
-```
-❌ GraphQL query fails
-    |
-    ├─→ "Cannot query field 'X' on type 'Y'"
-    |       └─→ Field not in GraphQL schema
-    |           └─→ Check @type decorator includes field
-    |
-    ├─→ "Variable '$X' of type 'Y' used in position expecting 'Z'"
-    |       └─→ Type mismatch in query
-    |           └─→ Fix variable type or make nullable: String | null
-    |
-    ├─→ "Field 'X' of required type 'Y!' was not provided"
-    |       └─→ Missing required field
-    |           └─→ Add field or make optional in @input class
-    |
-    └─→ Query returns null unexpectedly
-            └─→ Check PostgreSQL view returns data
-                └─→ Run: SELECT data FROM v_table LIMIT 1;
-```
+d) "Query timeout"?
+   → Go to: PERFORMANCE ISSUES
+
+e) Something else?
+   → Go to: ERROR CODE LOOKUP
+```text
+<!-- Code example in TEXT -->
+
+**Query returns null when expecting data:**
+
+- Verify data exists in database: `SELECT * FROM table_name LIMIT 1;`
+- Check WHERE clause filters: `SELECT * FROM table_name WHERE ... LIMIT 1;`
+- Verify authorization isn't hiding data (row-level filters)
+- Check pagination offset: Is `skip` too high?
+- → [Troubleshooting Guide: No Results](../troubleshooting.md#no-results)
+
+**Query response is incomplete or truncated:**
+
+- Check pagination limit: Default is 100, max is 1000
+- Increase limit in query: `users(first: 500) { ... }`
+- Check response size: Very large responses may be truncated
+- → [Troubleshooting Guide: Incomplete Results](../troubleshooting.md#incomplete-results)
+
+**Query takes too long:**
+
+- → Go to: **PERFORMANCE ISSUES**
 
 ---
 
-### ❌ "Cannot return null for non-nullable field"
+## ✏️ MUTATION ISSUES
 
-**Diagnosis:**
-```python
-import fraiseql
+**Mutation fails or returns error:**
 
-# Check type definition
-@fraiseql.type(sql_source="v_user")
-class User:
-    id: int           # Required (non-nullable)
-    name: str         # Required
-    email: str | None # Optional (nullable)
-```
+**Error type:**
 
-**Fix:**
+```text
+<!-- Code example in TEXT -->
+Is the error about...
 
-**Option 1**: Make field nullable in Python:
-```python
-@fraiseql.type(sql_source="v_user")
-class User:
-    name: str | None  # Now nullable
-```
+a) "Constraint violation" (duplicate key, foreign key)?
+   - Check unique constraints: SHOW UNIQUE CONSTRAINTS
+   - Verify foreign key exists: SELECT * FROM referenced_table WHERE id = ...
+   → [Troubleshooting Guide: Constraint Violations](../troubleshooting.md#constraint-violations)
 
-**Option 2**: Ensure PostgreSQL view never returns NULL:
-```sql
-CREATE VIEW v_user AS
-SELECT
-    id,
-    jsonb_build_object(
-        'id', id,
-        'name', COALESCE(name, 'Unknown'),  -- Never null
-        'email', email  -- Can be null
-    ) as data
-FROM tb_user;
-```
+b) "Invalid input" or "Validation error"?
+   - Review input validation error message
+   - Check field types match schema
+   → [Troubleshooting Guide: Input Validation](../troubleshooting.md#input-validation)
 
----
+c) "Permission denied"?
+   → Go to: AUTHENTICATION & AUTHORIZATION
 
-### ❌ "Expected type 'Int', found 'String'"
+d) Database error?
+   → Go to: DATABASE CONNECTIVITY
 
-**Diagnosis:**
-- Type mismatch between GraphQL schema and PostgreSQL
+e) Something else?
+   → Go to: ERROR CODE LOOKUP
+```text
+<!-- Code example in TEXT -->
 
-**Fix:**
+**Mutation succeeds but data looks wrong:**
 
-**Python type** → **PostgreSQL type** mapping:
-- `int` → `INTEGER`, `BIGINT`
-- `str` → `TEXT`, `VARCHAR`
-- `float` → `DOUBLE PRECISION`, `NUMERIC`
-- `bool` → `BOOLEAN`
-- `datetime` → `TIMESTAMP`, `TIMESTAMPTZ`
+- Verify mutation result in GraphQL response
+- Query database directly: `SELECT * FROM table_name WHERE id = ...`
+- Check for triggers or stored procedures modifying data
+- → [Troubleshooting Guide: Data Integrity](../troubleshooting.md#data-integrity)
 
-**Example fix:**
-```python
-import fraiseql
+**Mutation is very slow:**
 
-# Wrong
-@fraiseql.type(sql_source="v_user")
-class User:
-    id: str  # PostgreSQL has INTEGER
-
-# Correct
-@fraiseql.type(sql_source="v_user")
-class User:
-    id: int  # Matches PostgreSQL INTEGER
-```
+- → Go to: **PERFORMANCE ISSUES**
 
 ---
 
-## 4. Performance Issues
+## 🔄 SUBSCRIPTION ISSUES
 
-### Decision Tree
+**Subscription not connecting:**
 
-```
-❌ Queries are slow
-    |
-    ├─→ N+1 query problem
-    |       └─→ Use JSONB views with nested jsonb_agg
-    |           └─→ See: performance/index.md#n-plus-one
-    |
-    ├─→ Missing database indexes
-    |       └─→ Add indexes on foreign keys and WHERE clauses
-    |           └─→ CREATE INDEX idx_post_user_id ON tb_post(user_id);
-    |
-    ├─→ Large result sets
-    |       └─→ Implement pagination
-    |           └─→ Use LIMIT/OFFSET or cursor-based
-    |
-    └─→ Connection pool exhausted
-            └─→ Use PgBouncer
-                └─→ See: production/deployment.md#pgbouncer
-```
+- Verify WebSocket endpoint: `wss://server:5000/graphql`
+- Check WebSocket proxy configuration
+- Verify authentication token in subscription
+- → [Troubleshooting Guide: WebSocket Connection](../troubleshooting.md#websocket)
 
----
+**Subscription connects but no events:**
 
-### ❌ "Too many connections to database"
+- Verify CDC enabled: Check `tb_entity_change_log` has data
+- Check event filtering: `where` clause might hide events
+- Verify polling interval: Default 100ms, configurable
+- → [Subscriptions Architecture](../architecture/realtime/subscriptions.md#debugging)
 
-**Diagnosis:**
-```sql
--- Check current connections
-SELECT count(*) FROM pg_stat_activity;
-SELECT max_connections FROM pg_settings WHERE name = 'max_connections';
-```
+**Subscription receives stale data:**
 
-**Immediate fix:**
-```sql
--- Kill idle connections
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE state = 'idle' AND state_change < now() - interval '5 minutes';
-```
-
-**Permanent fix:**
-
-**Install PgBouncer:**
-```bash
-# Docker Compose
-services:
-  pgbouncer:
-    image: pgbouncer/pgbouncer
-    environment:
-      - DATABASE_URL=postgresql://user:pass@db:5432/fraiseql
-      - POOL_MODE=transaction
-      - DEFAULT_POOL_SIZE=20
-    ports:
-      - "6432:6432"
-
-# Update DATABASE_URL to use PgBouncer
-DATABASE_URL=postgresql://user:pass@pgbouncer:6432/fraiseql
-```
+- Check event timestamp vs current time
+- Verify database replication lag (if multi-database)
+- Check CDC polling interval: Increase if too low
+- → [Troubleshooting Guide: Event Delivery](../troubleshooting.md#event-delivery)
 
 ---
 
-## 5. Deployment Issues
+## 🔐 AUTHENTICATION & AUTHORIZATION
 
-### ❌ "Health check failing in Kubernetes"
+**Can't log in:**
 
-**Diagnosis:**
-```bash
-# Check pod logs
-kubectl logs -f deployment/fraiseql-app -n fraiseql
+- Verify OAuth provider is configured
+- Check client ID and secret in vault: `echo $OAUTH_CLIENT_ID`
+- Verify redirect URI matches OAuth provider settings
+- Check OAuth provider health: Can you log in directly to provider?
+- → [Authentication Provider Guide](../integrations/authentication/provider-selection-guide.md)
 
-# Test health endpoint manually
-kubectl port-forward deployment/fraiseql-app 8000:8000 -n fraiseql
-curl http://localhost:8000/health
-```
+**Token rejected or expired:**
 
-**Common causes:**
+- Check token expiry: JWT tokens expire after 1 hour
+- Verify token refresh working: Is refresh token valid?
+- Check token signature: Token might be from different issuer
+- → [Authentication Security Checklist](../integrations/authentication/security-checklist.md)
 
-1. **Database not ready:**
-   ```yaml
-   # Add initContainer to wait for database
-   initContainers:
-   - name: wait-for-db
-     image: busybox
-     command: ['sh', '-c', 'until nc -z postgres 5432; do sleep 1; done']
-   ```
+**Query or mutation denied with "Unauthorized":**
 
-2. **Wrong DATABASE_URL:**
-   ```yaml
-   # Check secret
-   kubectl get secret fraiseql-secrets -n fraiseql -o yaml
-   echo "BASE64_STRING" | base64 -d
-   ```
+- Verify user is authenticated: Check Authorization header
+- Check user has required role: Verify in RBAC configuration
+- Check field-level permissions: Some fields might be restricted
+- → [RBAC & Field Authorization](../enterpri../../guides/authorization-quick-start.md)
 
-3. **Not enough resources:**
-   ```yaml
-   resources:
-     requests:
-       memory: "256Mi"  # Increase if OOMKilled
-       cpu: "250m"
-   ```
+**Row-level data hidden or unauthorized:**
+
+- Verify row-level security filter in schema: `where: Where... = FraiseQL.where(...)`
+- Check tenant/org filtering is working
+- Verify context values passed: `x-tenant-id` header set?
+- → [RBAC Guide](../enterpri../../guides/authorization-quick-start.md)
 
 ---
 
-### ❌ "Container keeps restarting"
+## ⚡ PERFORMANCE ISSUES
 
-**Diagnosis:**
-```bash
-# Check exit code
-kubectl describe pod <pod-name> -n fraiseql
+**Single query is slow (>1 second):**
 
-# Common exit codes:
-# 137 → OOMKilled (increase memory)
-# 1   → Application error (check logs)
-# 143 → SIGTERM (graceful shutdown, normal)
-```
+1. Is it the first query? (Cold start, schema compilation)
+2. Is database responding slowly? Test database directly: `time psql -c "SELECT COUNT(*) FROM table"`
+3. Is query complex (many nested fields)?
+   - Simplify query, remove nested selections
+   - Add filtering to reduce rows scanned
+   - → [Performance Tuning Runbook](../operations/performance-tuning-runbook.md)
 
-**Fix:**
-```yaml
-# Increase memory limit
-resources:
-  limits:
-    memory: "1Gi"  # Was 512Mi
+**Specific query always slow:**
 
-# Add startup probe (more time to start)
-startupProbe:
-  httpGet:
-    path: /health
-    port: 8000
-  failureThreshold: 30  # 30 * 5s = 150s max startup
-  periodSeconds: 5
-```
+- Analyze query: `EXPLAIN ANALYZE ...` on database
+- Check indexes exist on filtered columns
+- Check database statistics: `ANALYZE table_name;`
+- Consider table-backed views (tv_*) for frequently accessed data
+- → [View Selection Guide](./view-selection-performance-testing.md)
 
----
+**All queries getting slower over time:**
 
-## 6. Authentication Issues
+- Check database connection pool: `SHOW max_connections;`
+- Check for connection leaks: Count open connections
+- Verify indexes haven't fragmented: `REINDEX;`
+- Check disk space: `df -h`
+- → [Database Connectivity](#database-connectivity)
 
-### ❌ "@authorized decorator not working"
+**High latency for federation queries:**
 
-**Diagnosis:**
-```python
-# Check if user context is set
-import fraiseql
+- Check inter-service latency: `ping service-name`
+- Verify database indexes on @key fields
+- Check federation strategy: HTTP vs DirectDB vs Local
+- → [Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)
 
-@authorized(roles=["admin"])
-@fraiseql.mutation
-class DeletePost:
-    async def resolve(self, info):
-        # Check context
-        print(f"User: {info.context.get('user')}")
-        print(f"Roles: {info.context.get('roles')}")
-```
+**Memory usage increasing:**
 
-**Fix:**
-
-**Ensure context middleware sets user:**
-```python
-from fraiseql.fastapi import create_fraiseql_app
-
-async def get_context(request):
-    # Extract JWT token
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-
-    # Decode token
-    user = decode_jwt(token)
-
-    # Return context with user and roles
-    return {
-        "user": user,
-        "roles": user.get("roles", []),
-        "request": request
-    }
-
-app = create_fraiseql_app(
-    ...,
-    context_getter=get_context
-)
-```
+- Check for memory leaks: Monitor `top -p <pid>`
+- Verify connection pooling: Connections should be reused
+- Check query result caching: Cache size might be too large
+- → [Performance Tuning Runbook](../operations/performance-tuning-runbook.md)
 
 ---
 
-### ❌ "Row-Level Security blocking queries"
+## 🗄️ DATABASE CONNECTIVITY
 
-**Diagnosis:**
-```sql
--- Check RLS policies
-SELECT tablename, policyname, cmd, qual
-FROM pg_policies
-WHERE schemaname = 'public';
+**Can't connect to database:**
 
--- Test as specific user
-SET ROLE tenant_user;
-SELECT * FROM tb_post;  -- Should only see tenant's posts
-```
+- Verify database server is running: `ping db-host`
+- Check database port: `telnet db-host 5432`
+- Verify credentials: Username, password, database name
+- Check connection string: `postgresql://user:pass@host:5432/db`
+- → [Database Connection Guide](../deployment/guide.md#database)
 
-**Fix:**
+**Connection times out:**
 
-**If no rows returned when expected:**
-```sql
--- Check if policy is correct
-ALTER POLICY tenant_isolation ON tb_post
-USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+- Increase timeout: `connect_timeout=30`
+- Check firewall rules: `telnet db-host 5432`
+- Check network latency: `ping db-host`
+- Verify database isn't overloaded
+- → [Connection Pooling Guide](../deployment/guide.md#pooling)
 
--- Ensure tenant_id is set
-SET app.current_tenant_id = 'tenant-uuid-here';
+**"Too many connections" error:**
 
--- Test again
-SELECT * FROM tb_post;
-```
+- Check connection pool size: Default 10, max 100
+- Check for connection leaks: `SELECT COUNT(*) FROM pg_stat_activity;`
+- Increase database `max_connections` if needed
+- Enable connection pooling: PgBouncer or built-in pool
+- → [Connection Pooling Guide](../deployment/guide.md#pooling)
 
----
+**SSL/TLS connection errors:**
 
-## 🆘 Still Stuck?
+- Verify SSL mode: `sslmode=require` in connection string
+- Check certificate chain: `openssl s_client -connect db-host:5432`
+- Verify certificate not expired: `openssl x509 -enddate`
+- → [TLS Configuration](../deployment/guide.md#tls)
 
-### Before Opening an Issue
+**Authentication errors:**
 
-1. **Search existing issues**: [GitHub Issues](../issues)
-2. **Check discussions**: [GitHub Discussions](../discussions)
-3. **Review documentation**: [Complete Docs](../../README.md)
-
-### Opening a Good Issue
-
-Include:
-- **FraiseQL version**: `pip show fraiseql | grep Version`
-- **Python version**: `python --version`
-- **PostgreSQL version**: `psql --version`
-- **Minimal reproduction**:  smallest code that reproduces issue
-- **Error messages**: Full stack trace
-- **What you've tried**: Show troubleshooting steps attempted
-
-**Template:**
-```markdown
-## Environment
-- FraiseQL: 1.0.0
-- Python: 3.10.5
-- PostgreSQL: 16.1
-- OS: Ubuntu 22.04
-
-## Issue
-[Clear description of problem]
-
-## Reproduction
-\```python
-# Minimal code to reproduce
-\```
-
-## Error
-\```
-Full error message
-\```
-
-## Attempted Fixes
-- Tried X, result: Y
-- Tried Z, result: W
-```
+- Check database user password (special characters might need escaping)
+- Verify database user has SELECT/INSERT/UPDATE permissions
+- Check `pg_hba.conf` (PostgreSQL) for connection restrictions
+- → [Database Hardening](./production-security-checklist.md#database-hardening)
 
 ---
 
-## 📊 Most Common Issues
+## ⚙️ CONFIGURATION ISSUES
 
-| Issue | Frequency | Quick Fix |
-|-------|-----------|-----------|
-| Wrong Python version | 40% | Use Python 3.13+ |
-| DATABASE_URL format | 25% | Check postgresql://user:pass@host/db |
-| Missing PostgreSQL view | 15% | Run schema.sql migrations |
-| Connection pool exhausted | 10% | Use PgBouncer |
-| Type mismatch (GraphQL) | 10% | Align Python types with PostgreSQL |
+**Configuration not taking effect:**
+
+- Check TOML syntax: `FraiseQL validate config.toml`
+- Verify environment variables override: Variables take precedence
+- Check file permissions: Can FraiseQL read config file?
+- Restart server after config change
+- → [Troubleshooting Guide](../troubleshooting.md)
+
+**Environment variables not recognized:**
+
+- Check variable name: `FRAISEQL_*` prefix required
+- Verify case sensitivity: `FRAISEQL_RATE_LIMIT_ENABLED` (not camelCase)
+- Check for typos: List all set variables: `env | grep FRAISEQL`
+- → [Troubleshooting Guide](../troubleshooting.md)
+
+**TOML parsing error:**
+
+- Use TOML validator: <https://www.toml-lint.com/>
+- Check for invalid characters or quotes
+- Verify array syntax: `[[section]]` vs `[section]`
+- → [Configuration Examples](../deployment/guide.md#configuration)
 
 ---
 
+## 🔢 ERROR CODE LOOKUP
+
+**Have an error code?** (Format: E_XXXXX_NNN)
+
+```text
+<!-- Code example in TEXT -->
+Error Category:
+- E_PARSE_* → GraphQL parsing errors
+- E_BINDING_* → Schema binding/type errors
+- E_VALIDATION_* → Request validation errors
+- E_AUTH_* → Authentication/authorization errors
+- E_DB_* → Database errors
+- E_FEDERATION_* → Federation-specific errors
+- E_INTERNAL_* → Internal server errors
+
+To find your error:
+1. Copy error code: "E_BINDING_UNKNOWN_FIELD_202"
+2. Search GitHub issues: "E_BINDING_UNKNOWN_FIELD_202"
+3. Refer to [Main Troubleshooting Guide](../troubleshooting.md)
+```text
+<!-- Code example in TEXT -->
+
+**Don't see your error?**
+
+- → Go to: **[Main Troubleshooting Guide](../troubleshooting.md)**
+
 ---
 
-## 📖 Related Resources
+## 🔗 FEDERATION ISSUES
 
-- **[Detailed Troubleshooting Guide](troubleshooting.md)** - Specific error messages with step-by-step solutions
-- **[GitHub Issues](../issues)** - Report bugs and search existing issues
-- **[GitHub Discussions](../discussions)** - Ask questions and get help from the community
+**Entity not found in federation:**
+
+- Verify @key directive matches across subgraphs
+- Check entity exists in database: `SELECT * FROM table WHERE id = ...`
+- Verify federation strategy: HTTP vs DirectDB vs Local
+- → [Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)
+
+**Federation query very slow:**
+
+- Check inter-service latency: `ping other-service`
+- Verify database indexes on @key fields
+- Consider switching to DirectDB strategy
+- → [Federation Performance](../integrations/federation/guide.md#performance-optimization)
+
+**SAGA transaction failed:**
+
+- Check SAGA logs: Look for compensation steps
+- Verify all services are running
+- Check inter-service network connectivity
+- → [SAGA Pattern](../integrations/federation/sagas.md)
+
+---
+
+## 📞 Still Having Issues?
+
+**If you can't find your problem:**
+
+1. **Check if you have an error code:**
+   - Search: [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
+   - Refer to: [Troubleshooting Guide](../troubleshooting.md)
+
+2. **Review comprehensive guides:**
+   - **[Main Troubleshooting Guide](../troubleshooting.md)** — All FAQs and common issues
+   - **[Production Deployment](./production-deployment.md)** — Deployment procedures
+   - **[Performance Tuning](../operations/performance-tuning-runbook.md)** — Performance optimization
+
+3. **Get help:**
+   - **Open a GitHub Issue:** [GitHub Issues](https://github.com/FraiseQL/FraiseQL/issues)
+   - **Include:** Error code, steps to reproduce, environment details (database, language, OS)
+   - **Tag:** `troubleshooting` label for visibility
+
+---
+
+## See Also
+
+**Complete Troubleshooting Guides:**
+
+- **[Main Troubleshooting Guide](../troubleshooting.md)** — Comprehensive FAQ
+- **[Authentication Troubleshooting](../integrations/authentication/troubleshooting.md)** — Auth-specific issues
+- **[Federation Troubleshooting](../integrations/federation/guide.md#troubleshooting)** — Multi-service issues
+- **[Observer Troubleshooting](../guides/observers.md#troubleshooting)** — Event system issues
+
+**Related Guides:**
+
+- **[Production Deployment](./production-deployment.md)** — Deployment and operations
+- **[Performance Tuning](../operations/performance-tuning-runbook.md)** — Optimization
+- **[Monitoring & Observability](./monitoring.md)** — Observability setup
+- **[Common Gotchas](./common-gotchas.md)** — Pitfalls and solutions
+
+---
+
+**Last Updated:** 2026-02-05
+**Version:** v2.0.0-alpha.1

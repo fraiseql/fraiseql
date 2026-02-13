@@ -48,6 +48,7 @@ This example demonstrates FraiseQL's enterprise compliance capabilities required
 ```
 
 **Why This Matters:**
+
 - **Tamper Detection**: Any modification breaks the chain
 - **Cryptographic Proof**: HMAC signatures verify authenticity
 - **Compliance**: Required for SOC 2, HIPAA, FedRAMP
@@ -76,6 +77,7 @@ This example demonstrates FraiseQL's enterprise compliance capabilities required
 ```
 
 **Why This Matters:**
+
 - **Supply Chain Security**: Verify software origins
 - **Zero-Trust**: Don't trust, verify every artifact
 - **Compliance**: Required for FedRAMP, DoD IL4+
@@ -107,6 +109,7 @@ python main.py
 ```
 
 The server starts on http://localhost:8000 with:
+
 - **GraphQL Playground**: http://localhost:8000/graphql
 - **Verify Audit Chain**: GET http://localhost:8000/compliance/verify-audit-chain
 - **Verify SLSA**: POST http://localhost:8000/compliance/slsa/verify/{artifact}
@@ -140,6 +143,7 @@ curl http://localhost:8000/compliance/verify-audit-chain
 ```
 
 Response:
+
 ```json
 {
   "total_entries": 150,
@@ -163,6 +167,7 @@ Response:
 ```
 
 **Chain Integrity Check:**
+
 - ✅ `chain_intact: true` - No tampering detected
 - ❌ `chain_intact: false` - Audit trail has been modified
 
@@ -207,6 +212,7 @@ curl -X POST http://localhost:8000/compliance/slsa/verify/fraiseql?version=0.1.0
 ```
 
 Response:
+
 ```json
 {
   "artifact": "fraiseql@0.1.0",
@@ -270,6 +276,7 @@ curl http://localhost:8000/compliance/kms/rotate/arn:aws:kms:us-east-1:123456789
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -300,6 +307,7 @@ mutation CreateDocument {
 ```
 
 **What Happens:**
+
 1. Document created with SHA-256 checksum
 2. Audit entry automatically created in chain
 3. HMAC signature generated
@@ -326,6 +334,7 @@ query Document {
 ### 1. Cryptographic Audit Trail
 
 **Implementation:**
+
 ```sql
 -- Each audit entry is cryptographically linked
 CREATE TABLE tb_audit_trail (
@@ -338,6 +347,7 @@ CREATE TABLE tb_audit_trail (
 ```
 
 **Chain Verification Function:**
+
 ```sql
 CREATE FUNCTION fn_verify_audit_chain() RETURNS TABLE(...) AS $$
 BEGIN
@@ -349,6 +359,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Benefits:**
+
 - **Tamper-Evident**: Any modification breaks the chain
 - **Non-Repudiation**: HMAC signatures prove authenticity
 - **Forensic Ready**: Complete audit history for investigations
@@ -357,12 +368,14 @@ $$ LANGUAGE plpgsql;
 ### 2. SLSA Provenance Tracking
 
 **SLSA Levels:**
+
 - **Level 1**: Documentation of build process
 - **Level 2**: Automated build service
 - **Level 3**: Provenance attestation + tamper resistance (FraiseQL target)
 - **Level 4**: Two-person review + hermetic builds
 
 **FraiseQL SLSA Support:**
+
 ```sql
 CREATE TABLE tb_slsa_provenance (
     artifact_digest TEXT,     -- SHA-256 of artifact
@@ -375,6 +388,7 @@ CREATE TABLE tb_slsa_provenance (
 ```
 
 **Verification Process:**
+
 1. Fetch attestation from artifact
 2. Verify signature with `cosign`
 3. Check builder identity (OIDC)
@@ -384,16 +398,19 @@ CREATE TABLE tb_slsa_provenance (
 ### 3. KMS Integration Patterns
 
 **Supported KMS Providers:**
+
 - **AWS KMS**: `arn:aws:kms:...`
 - **GCP KMS**: `projects/.../keyRings/.../cryptoKeys/...`
 - **HashiCorp Vault**: `vault/.../...`
 
 **Use Cases:**
+
 - **Audit Signing**: HMAC keys for audit trail
 - **Data Encryption**: AES-256-GCM for sensitive fields
 - **Document Signing**: RSA-2048 for digital signatures
 
 **Example:**
+
 ```sql
 -- Reference KMS key
 INSERT INTO tb_kms_key (key_id, key_provider, key_purpose)
@@ -413,6 +430,7 @@ INSERT INTO tb_encrypted_field (
 ### 4. Immutable Audit Logs
 
 **PostgreSQL-Level Immutability:**
+
 ```sql
 -- Revoke DELETE and UPDATE on audit table
 REVOKE DELETE, UPDATE ON tb_audit_trail FROM PUBLIC;
@@ -422,6 +440,7 @@ GRANT INSERT ON tb_audit_trail TO app_user;
 ```
 
 **Application-Level Protection:**
+
 - No DELETE mutations exposed in GraphQL
 - No UPDATE mutations for audit entries
 - Read-only access via views
@@ -529,6 +548,7 @@ curl http://localhost:8000/graphql \
 ### KMS Integration
 
 **AWS KMS Example:**
+
 ```python
 import boto3
 
@@ -544,6 +564,7 @@ hmac_signature = response['Mac']
 ```
 
 **GCP KMS Example:**
+
 ```python
 from google.cloud import kms
 
@@ -560,6 +581,7 @@ hmac_signature = response.mac
 ### Monitoring
 
 **Metrics to Track:**
+
 - Audit entries per hour
 - Chain verification failures
 - SLSA verification attempts
@@ -567,6 +589,7 @@ hmac_signature = response.mac
 - Average audit query latency
 
 **Alerts to Configure:**
+
 - Chain integrity failure (CRITICAL)
 - Unusual audit volume (WARNING)
 - SLSA verification failure (HIGH)

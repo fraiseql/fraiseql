@@ -33,11 +33,13 @@ complete_cqrs_blog/
 ## ✅ Features Demonstrated
 
 ### 1. **CQRS Architecture** ✓
+
 - Command tables: `tb_user`, `tb_post`, `tb_comment` (normalized)
 - Query tables: `tv_user`, `tv_post`, `tv_comment` (denormalized JSONB)
 - Clear separation of write and read concerns
 
 ### 2. **Explicit Sync Pattern** ✓
+
 ```python
 # Write to command side
 post_id = await create_post_in_tb(...)
@@ -50,18 +52,21 @@ return await read_from_tv_post(post_id)
 ```
 
 **Benefits**:
+
 - Full visibility (no hidden triggers)
 - Easy testing (mock sync functions)
 - Industrial control (batch, defer, skip)
 - Performance monitoring built-in
 
 ### 3. **GraphQL API** ✓
+
 - Queries read from `tv_*` tables (sub-millisecond)
 - Mutations write to `tb_*` and sync to `tv_*`
 - Zero N+1 queries (everything denormalized)
 - Strawberry GraphQL integration
 
 ### 4. **Performance Monitoring** ✓
+
 ```bash
 GET /metrics         # Sync performance metrics
 GET /metrics/cache   # Cache metrics (placeholder)
@@ -69,18 +74,21 @@ GET /health          # Health check endpoint
 ```
 
 **Metrics tracked**:
+
 - Total syncs in 24h
 - Average sync duration
 - Success rate
 - Failures by entity type
 
 ### 5. **Database Migrations** ✓
+
 - SQL migration files
 - Simple migration runner
 - Seed data included
 - Production-ready schema
 
 ### 6. **Docker Setup** ✓
+
 - PostgreSQL 17.5 with extensions
 - FastAPI application
 - Grafana for monitoring
@@ -186,6 +194,7 @@ mutation {
 ```
 
 **Operations**:
+
 1. INSERT into tb_post (~1ms)
 2. Sync to tv_post (~5-10ms)
 3. Sync author to tv_user (~5ms)
@@ -227,6 +236,7 @@ mutation {
 ### 1. Migration Guide
 
 Create `docs/guides/migrations.md`:
+
 - Show how to use `fraiseql migrate` CLI
 - Migration file structure
 - Rolling back migrations
@@ -237,6 +247,7 @@ Create `docs/guides/migrations.md`:
 ### 2. CASCADE Guide
 
 Create `docs/guides/cascade.md`:
+
 - Auto-CASCADE rule generation from GraphQL schema
 - How CASCADE invalidation works
 - When to use auto vs manual rules
@@ -247,6 +258,7 @@ Create `docs/guides/cascade.md`:
 ### 3. Explicit Sync Guide
 
 Create `docs/guides/explicit-sync.md`:
+
 - The sync pattern explained
 - How to write sync functions
 - Batching and performance
@@ -257,6 +269,7 @@ Create `docs/guides/explicit-sync.md`:
 ### 4. Complete Tutorial
 
 Create `docs/tutorials/complete-cqrs-example.md`:
+
 - Step-by-step walkthrough of this example
 - Explaining each file
 - How to customize for your needs
@@ -300,12 +313,14 @@ docker-compose up
 ```
 
 In 30 seconds, you'll have:
+
 - A working GraphQL API
 - CQRS pattern demonstrated
 - Performance metrics available
 - Docker-ready deployment
 
 Learn more: [Complete CQRS Example](./)
+
 ```
 
 ---

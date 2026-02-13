@@ -1,12 +1,15 @@
 # Phase 4: Documentation Updates
 
 ## Objective
+
 Update all user-facing documentation to use `mutation_response`.
 
 ## Duration
+
 2 hours
 
 ## Files to Modify
+
 - `docs/mutations/status-strings.md`
 - `docs/features/sql-function-return-format.md`
 - `docs/features/mutation-result-reference.md`
@@ -23,7 +26,8 @@ For EACH file:
 2. Review examples for clarity
 3. Update any diagrams/tables
 
-### Verification (per file):
+### Verification (per file)
+
 ```bash
 ! grep -i "mutation_result_v2" docs/mutations/status-strings.md
 ! grep -i "mutation_result_v2" docs/features/sql-function-return-format.md
@@ -37,7 +41,8 @@ For EACH file:
 
 **File**: `CHANGELOG.md`
 
-### Add entry at top:
+### Add entry at top
+
 ```markdown
 ## [Unreleased]
 
@@ -53,12 +58,14 @@ For EACH file:
 ---
 
 ## Acceptance Criteria
+
 - [ ] All doc files updated
 - [ ] No `mutation_result_v2` in docs/
 - [ ] CHANGELOG entry added
 - [ ] Examples are correct
 
 ## Git Commit
+
 ```bash
 git add docs/ CHANGELOG.md
 git commit -m "docs: update mutation_response references

@@ -10,6 +10,7 @@
 ## Objective
 
 Implement query execution in Rust:
+
 1. Async connection acquisition from pool
 2. WHERE clause building (migrate from Python)
 3. SQL generation (migrate from Python)
@@ -17,6 +18,7 @@ Implement query execution in Rust:
 5. Result streaming from database
 
 **Success Criteria**:
+
 - ✅ WHERE clauses build correctly (parity with psycopg)
 - ✅ SQL queries execute and return results
 - ✅ Query parameters properly bound
@@ -59,11 +61,13 @@ HTTP Response
 ### WHERE Clause Architecture
 
 **Current Python Implementation** (`sql/graphql_where_generator.py`):
+
 - Recursive WHERE clause building
 - Type-aware filtering
 - Operator support: `=`, `!=`, `>`, `<`, `>=`, `<=`, `IN`, `LIKE`, etc.
 
 **New Rust Implementation**:
+
 - Direct port of Python logic
 - Same performance characteristics
 - Type-safe handling
@@ -77,6 +81,7 @@ HTTP Response
 **File**: `fraiseql_rs/Cargo.toml`
 
 Add if not already present:
+
 ```toml
 [dependencies]
 thiserror = "1.0"      # Better error handling
@@ -227,6 +232,7 @@ impl DatabasePool {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql_rs --lib db::pool::tests
 ```
@@ -527,6 +533,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql_rs --lib db::where_builder::tests
 ```
@@ -706,6 +713,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql_rs --lib sql
 ```
@@ -899,6 +907,7 @@ class TestQueryParity:
 ## Verification Commands
 
 ### Unit Tests
+
 ```bash
 # WHERE clause builder
 cargo test -p fraiseql_rs --lib db::where_builder
@@ -911,6 +920,7 @@ cargo test -p fraiseql_rs --lib db::query
 ```
 
 ### Integration Tests
+
 ```bash
 # Query execution (once database is connected)
 uv run pytest tests/integration/db/test_rust_queries.py -v
@@ -920,6 +930,7 @@ uv run pytest tests/regression/test_rust_db_parity.py -v
 ```
 
 ### Full Verification
+
 ```bash
 # Build everything
 cargo build -p fraiseql_rs
@@ -934,22 +945,26 @@ FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
 ## Acceptance Criteria
 
 ### Compile & Build
+
 - [ ] `cargo build -p fraiseql_rs` completes without errors
 - [ ] All WHERE clause tests pass
 - [ ] All SQL generation tests pass
 
 ### Functionality
+
 - [ ] WHERE clauses build correctly (parity with Python)
 - [ ] SQL queries execute successfully
 - [ ] Query results match psycopg output
 - [ ] Parameters properly bound (no SQL injection)
 
 ### Performance
+
 - [ ] Query execution is 20-30% faster than psycopg
 - [ ] No memory leaks (sustained load testing)
 - [ ] Connection pool performs efficiently
 
 ### Backward Compatibility
+
 - [ ] All 5991+ existing tests pass
 - [ ] No API changes visible to users
 
@@ -960,11 +975,13 @@ FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
 ### Issue: WHERE clause doesn't match Python version
 
 **Check**:
+
 - Compare generated SQL with Python version
 - Verify parameter binding order
 - Check operator implementations
 
 **Debug**:
+
 ```bash
 # Print generated SQL
 RUST_LOG=debug cargo test -p fraiseql_rs --lib db::where_builder
@@ -973,11 +990,13 @@ RUST_LOG=debug cargo test -p fraiseql_rs --lib db::where_builder
 ### Issue: Query returns wrong results
 
 **Check**:
+
 - Parameter binding order
 - Type conversion (String vs Int vs Json)
 - Column ordering
 
 **Debug**:
+
 ```rust
 eprintln!("SQL: {}", sql);
 eprintln!("Params: {:?}", params);

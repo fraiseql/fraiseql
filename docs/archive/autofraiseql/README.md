@@ -5,11 +5,13 @@ AutoFraiseQL is FraiseQL's automatic GraphQL schema generation from PostgreSQL d
 ## ✨ Key Features
 
 ### 🔄 Automatic Schema Generation
+
 - **Database-First**: Define your API in PostgreSQL, get GraphQL automatically
 - **Zero Boilerplate**: No manual GraphQL schema files to maintain
 - **Type Safety**: Full TypeScript/Python type generation included
 
 ### 📝 PostgreSQL Comments → GraphQL Descriptions
+
 AutoFraiseQL automatically converts PostgreSQL object comments into GraphQL schema descriptions:
 
 - **View comments** → GraphQL type descriptions
@@ -34,11 +36,13 @@ type Mutation {
 ```
 
 ### 🎯 Smart Introspection
+
 - **Pattern-Based Discovery**: Automatically finds views (`v_*`), functions (`fn_*`), and types
 - **Schema-Aware**: Respects PostgreSQL schemas for multi-tenant applications
 - **Performance Optimized**: Efficient queries with minimal database load
 
 ### 🔧 Enterprise-Ready
+
 - **Multi-Tenant**: Schema-based tenant isolation
 - **Security**: Built-in authentication and authorization
 - **Monitoring**: Comprehensive metrics and health checks
@@ -125,6 +129,7 @@ app = FraiseQL()
 ## 🎯 Use Cases
 
 ### API Documentation
+
 Keep your GraphQL API documentation in sync with your database schema:
 
 ```sql
@@ -135,6 +140,7 @@ Updated daily at 02:00 UTC.';
 ```
 
 ### Multi-Team Collaboration
+
 Database comments serve as the single source of truth for API contracts:
 
 ```sql
@@ -145,6 +151,7 @@ Returns JWT token valid for 24 hours.';
 ```
 
 ### Schema Evolution
+
 Comments help track API changes and maintain backward compatibility:
 
 ```sql

@@ -9,6 +9,7 @@
 ## Context
 
 During development, we may have added:
+
 - Debug print statements
 - Temporary comments explaining the fix
 - TODO markers
@@ -24,6 +25,7 @@ All of these must be removed before final commit.
 ### 1. Remove Debug/Print Statements
 
 **Files to check**:
+
 - `fraiseql/mutations/executor.py`
 - `fraiseql/mutations/cascade_selections.py`
 - `fraiseql_rs/src/mutation/mod.rs`
@@ -31,6 +33,7 @@ All of these must be removed before final commit.
 - `fraiseql_rs/src/mutation/cascade_filter.rs`
 
 **Search for**:
+
 ```bash
 # Python
 grep -r "print(" fraiseql/mutations/
@@ -46,6 +49,7 @@ grep -r "// TEMP" fraiseql-rs/src/mutation/
 ```
 
 **Remove**:
+
 - Any `print()` statements added for debugging
 - Any `logger.debug()` calls that are development-only
 - Any `println!()` or `dbg!()` macros in Rust
@@ -55,6 +59,7 @@ grep -r "// TEMP" fraiseql-rs/src/mutation/
 ### 2. Remove Explanatory Comments About the Bug
 
 **Bad comments to remove**:
+
 ```python
 # This fixes the CASCADE selection bug
 # Before this fix, CASCADE was always included
@@ -63,6 +68,7 @@ grep -r "// TEMP" fraiseql-rs/src/mutation/
 ```
 
 **Good comments to keep**:
+
 ```python
 # Extract CASCADE selections from GraphQL query
 # Filter CASCADE fields based on client selection
@@ -76,6 +82,7 @@ grep -r "// TEMP" fraiseql-rs/src/mutation/
 ### 3. Remove TODO Markers
 
 **Search for**:
+
 ```bash
 grep -r "TODO" fraiseql/mutations/
 grep -r "FIXME" fraiseql/mutations/
@@ -85,6 +92,7 @@ grep -r "TODO" fraiseql-rs/src/mutation/
 ```
 
 **Action**:
+
 - If TODO is addressed: Remove it
 - If TODO is future work: Move to GitHub issue, remove from code
 - If TODO is critical: Address it now or move to issue
@@ -94,6 +102,7 @@ grep -r "TODO" fraiseql-rs/src/mutation/
 ### 4. Remove Commented-Out Code
 
 **Search for**:
+
 ```bash
 # Python
 grep -B2 -A2 "^[[:space:]]*#.*cascade" fraiseql/mutations/*.py
@@ -103,11 +112,13 @@ grep -B2 -A2 "^[[:space:]]*//.*cascade" fraiseql-rs/src/mutation/*.rs
 ```
 
 **Remove**:
+
 - Any old implementation code that's commented out
 - Any alternative approaches that weren't used
 - Any code examples in comments
 
 **Keep**:
+
 - Code examples in docstrings (if part of documentation)
 - Legitimate documentation comments
 
@@ -118,11 +129,13 @@ grep -B2 -A2 "^[[:space:]]*//.*cascade" fraiseql-rs/src/mutation/*.rs
 **Files**: `tests/integration/test_cascade_selection_filtering.py`
 
 **Remove**:
+
 - Temporary test skip markers
 - Debug assertions
 - Comments like "This test should fail" or "Temporary until..."
 
 **Keep**:
+
 - Docstrings explaining what the test validates
 - Comments explaining complex test setup
 - Comments explaining expected behavior
@@ -132,6 +145,7 @@ grep -B2 -A2 "^[[:space:]]*//.*cascade" fraiseql-rs/src/mutation/*.rs
 ### 6. Verify No Hardcoded Values
 
 **Check for**:
+
 ```bash
 # Hardcoded test UUIDs outside of test files
 grep -r "00000000-0000-0000-0000" fraiseql/mutations/
@@ -141,6 +155,7 @@ grep -r '"cascade"' fraiseql/mutations/ | grep -v test | grep -v "\.py:.*#"
 ```
 
 **Action**:
+
 - Ensure hardcoded values are only in tests
 - Production code should use constants or configuration
 
@@ -149,6 +164,7 @@ grep -r '"cascade"' fraiseql/mutations/ | grep -v test | grep -v "\.py:.*#"
 ### 7. Clean Up Imports
 
 **Python**:
+
 ```bash
 # Find unused imports
 uv run ruff check fraiseql/mutations/ --select F401
@@ -158,12 +174,14 @@ uv run ruff check fraiseql/mutations/ --select F401 --fix
 ```
 
 **Rust**:
+
 ```bash
 cd fraiseql-rs
 cargo clippy -- -W unused-imports
 ```
 
 **Remove**:
+
 - Unused imports
 - Imports only used in debug code
 - Duplicate imports
@@ -173,6 +191,7 @@ cargo clippy -- -W unused-imports
 ### 8. Remove Temporary Type Ignores
 
 **Search for**:
+
 ```bash
 grep -r "type: ignore" fraiseql/mutations/
 grep -r "# type: ignore" fraiseql/mutations/
@@ -181,6 +200,7 @@ grep -r "#[allow(" fraiseql-rs/src/mutation/
 ```
 
 **Action**:
+
 - If type ignore is still needed: Add comment explaining why
 - If type ignore was temporary workaround: Fix the type issue
 - If noqa is needed: Ensure it's specific (e.g., `# noqa: F401` not `# noqa`)
@@ -190,6 +210,7 @@ grep -r "#[allow(" fraiseql-rs/src/mutation/
 ### 9. Format Code
 
 **Python**:
+
 ```bash
 # Format with black (if used)
 uv run black fraiseql/mutations/
@@ -202,6 +223,7 @@ uv run ruff check fraiseql/mutations/ --select I --fix
 ```
 
 **Rust**:
+
 ```bash
 cd fraiseql-rs
 cargo fmt
@@ -212,6 +234,7 @@ cargo fmt
 ### 10. Final Linting
 
 **Python**:
+
 ```bash
 # Run ruff
 uv run ruff check fraiseql/mutations/
@@ -221,6 +244,7 @@ uv run mypy fraiseql/mutations/
 ```
 
 **Rust**:
+
 ```bash
 cd fraiseql-rs
 
@@ -236,6 +260,7 @@ cargo fmt -- --check
 ## Specific Cleanup Commands
 
 ### Command 1: Remove Print Statements
+
 ```bash
 # Find and review print statements
 find fraiseql/mutations -name "*.py" -exec grep -l "print(" {} \;
@@ -244,6 +269,7 @@ find fraiseql/mutations -name "*.py" -exec grep -l "print(" {} \;
 ```
 
 ### Command 2: Remove Debug Comments
+
 ```bash
 # Find comments with "fix", "bug", "before", "after"
 grep -rn "# .*[Ff]ix" fraiseql/mutations/
@@ -255,6 +281,7 @@ grep -rn "# .*[Aa]fter" fraiseql/mutations/
 ```
 
 ### Command 3: Clean Unused Imports
+
 ```bash
 # Auto-remove unused imports
 uv run ruff check fraiseql/mutations/ --select F401 --fix
@@ -264,6 +291,7 @@ uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 ```
 
 ### Command 4: Format Everything
+
 ```bash
 # Python
 uv run ruff format fraiseql/mutations/
@@ -281,6 +309,7 @@ uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 ## Files to Clean
 
 ### Priority 1 (Core Implementation)
+
 - [ ] `fraiseql/mutations/executor.py`
 - [ ] `fraiseql/mutations/cascade_selections.py`
 - [ ] `fraiseql_rs/src/mutation/mod.rs`
@@ -288,12 +317,14 @@ uv run pytest tests/integration/test_cascade_selection_filtering.py -xvs
 - [ ] `fraiseql_rs/src/mutation/cascade_filter.rs`
 
 ### Priority 2 (Tests)
+
 - [ ] `tests/integration/test_cascade_selection_filtering.py`
 - [ ] `tests/integration/test_cascade_edge_cases.py`
 - [ ] `tests/integration/test_cascade_graphql_spec.py`
 - [ ] `tests/integration/test_cascade_performance.py`
 
 ### Priority 3 (Updated Existing)
+
 - [ ] `tests/integration/test_graphql_cascade.py`
 
 ---
@@ -338,7 +369,7 @@ cd fraiseql-rs && cargo build --release
 
 ## Anti-Patterns to Avoid
 
-### ❌ Don't Leave These:
+### ❌ Don't Leave These
 
 ```python
 # This fixes the CASCADE selection bug where CASCADE was always returned
@@ -349,7 +380,7 @@ def _get_cascade_selections(self, info):
     ...
 ```
 
-### ✅ Clean Version:
+### ✅ Clean Version
 
 ```python
 def _get_cascade_selections(self, info: GraphQLResolveInfo | None) -> str | None:
@@ -433,6 +464,7 @@ After this phase completes:
 **Verdict**: ✅ **PRODUCTION-READY**
 
 The code meets all quality standards:
+
 - [x] Zero debug code
 - [x] Zero technical debt
 - [x] Clean, maintainable code
@@ -443,6 +475,7 @@ The code meets all quality standards:
 - [x] Documented type limitations
 
 **Acceptable Non-Blocking Warnings**:
+
 1. Type ignore style (PGH003) - GraphQL library limitation
 2. Too many arguments (Clippy) - Standard builder pattern
 3. Schema validation prints - Legitimate user warnings
@@ -450,6 +483,7 @@ The code meets all quality standards:
 ### Files Verified Clean
 
 **Core Implementation**: All ✅
+
 - src/fraiseql/mutations/executor.py
 - src/fraiseql/mutations/cascade_selections.py
 - src/fraiseql/mutations/mutation_decorator.py
@@ -458,6 +492,7 @@ The code meets all quality standards:
 - fraiseql_rs/src/mutation/cascade_filter.rs
 
 **Tests**: All ✅
+
 - tests/integration/test_cascade_selection_filtering.py
 - tests/integration/test_cascade_edge_cases.py
 - tests/integration/test_cascade_graphql_spec.py

@@ -88,6 +88,7 @@ Total: ~0.77ms
    - With Rust: add app servers, transformation scales linearly
 
 3. **Complexity**
+
    ```
    C Extension:
    - Write C code (harder than Rust)
@@ -105,6 +106,7 @@ Total: ~0.77ms
    ```
 
 4. **Deployment complexity**
+
    ```bash
    # C Extension deployment
    - Install PostgreSQL dev headers
@@ -129,12 +131,14 @@ Total: ~0.77ms
 ### Scenario 1: High-throughput API (1000 req/s)
 
 **C Extension:**
+
 - Database does 1000 transformations/sec
 - Database CPU: +5-10% load
 - Bottleneck: Database
 - Cost: Expensive database instance needed
 
 **Rust (current):**
+
 - Database does 1000 queries/sec (lighter)
 - App servers do transformations (GIL-free)
 - Bottleneck: App servers (cheap to scale)
@@ -145,11 +149,13 @@ Total: ~0.77ms
 ### Scenario 2: Simple CRUD app (10 req/s)
 
 **C Extension:**
+
 - Saves 0.03ms per request
 - 10 req/s × 0.03ms = 0.3ms/sec saved
 - Negligible impact
 
 **Rust (current):**
+
 - Works out of the box
 - No database privileges needed
 - Easier deployment
@@ -159,10 +165,12 @@ Total: ~0.77ms
 ### Scenario 3: Real-time dashboard (100 queries/sec, same data)
 
 **C Extension:**
+
 - Database recalculates transformation 100 times/sec
 - No caching possible (PostgreSQL doesn't cache function results)
 
 **Rust (current):**
+
 - Can cache transformed results in Redis/Memcached
 - App-layer caching is flexible
 - Transformation happens once, cache serves 100 requests
@@ -222,6 +230,7 @@ Datum camelforge_c(PG_FUNCTION_ARGS) {
 ```
 
 **So C extension vs PL/pgSQL**:
+
 - C: ~0.02ms (50-100x faster than PL/pgSQL) ✅
 - Rust: ~0.05ms (25-50x faster than PL/pgSQL) ✅
 - PL/pgSQL: ~2-5ms (baseline) ❌
@@ -277,6 +286,7 @@ Only consider C extension if:
 ## Conclusion
 
 **C extension would be 3.75% faster, but:**
+
 - 10x more complex to build
 - 100x harder to maintain
 - Terrible scaling properties
