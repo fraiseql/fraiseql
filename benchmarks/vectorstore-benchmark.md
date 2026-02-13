@@ -15,6 +15,7 @@ This benchmark suite evaluates the performance characteristics of FraiseQL's vec
 ## Prerequisites
 
 ### Database Setup
+
 ```bash
 # Ensure PostgreSQL with pgvector extension is available
 createdb fraiseql_benchmark
@@ -22,6 +23,7 @@ psql fraiseql_benchmark -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
 ### Python Dependencies
+
 ```bash
 # Install FraiseQL with optional dependencies
 pip install fraiseql[langchain,llamaindex]
@@ -33,6 +35,7 @@ pip install langchain llama-index
 ## Running Benchmarks
 
 ### Basic Usage
+
 ```python
 import asyncio
 import psycopg_pool
@@ -62,6 +65,7 @@ asyncio.run(run_benchmarks())
 ```
 
 ### Command Line Usage
+
 ```bash
 # Run with default configuration
 python -c "
@@ -224,6 +228,7 @@ The benchmark provides direct comparisons between LangChain and LlamaIndex:
 ### Common Issues
 
 1. **pgvector Extension Missing**
+
    ```sql
    -- Connect to your database
    CREATE EXTENSION IF NOT EXISTS vector;
@@ -248,6 +253,7 @@ The benchmark provides direct comparisons between LangChain and LlamaIndex:
 Based on benchmark results, consider these optimizations:
 
 1. **Database Tuning**
+
    ```sql
    -- Increase connection pool size
    ALTER SYSTEM SET max_connections = 200;

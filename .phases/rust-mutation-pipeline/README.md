@@ -7,6 +7,7 @@ This directory contains the phased implementation plan for the greenfield Rust m
 ## Goal
 
 Replace:
+
 - **Current**: PostgreSQL → Python Normalize → Python Flatten → Rust Transform → Python Parse → JSON (~2300 LOC)
 - **Target**: PostgreSQL → Rust Pipeline → JSON/Dict (~1000 LOC Rust)
 
@@ -22,6 +23,7 @@ CASCADE is just an optional field in Full format, not a separate format variant.
 ## Phases
 
 ### Phase 1: Core Rust Types (FOUNDATION)
+
 **Duration**: 1-2 days
 **Files**: 3 Rust files
 **Tests**: Keep existing, will be green throughout
@@ -33,6 +35,7 @@ Define the foundational type system and format detection.
 - [ ] Task 1.3: Basic parser (JSON → types)
 
 ### Phase 2: Entity Processing (CORE LOGIC)
+
 **Duration**: 2-3 days
 **Files**: 2 Rust files
 **Tests**: Keep existing, update incrementally
@@ -44,6 +47,7 @@ Handle entity extraction, __typename, and camelCase conversion.
 - [ ] Task 2.3: CASCADE processing
 
 ### Phase 3: Response Building (TRANSFORMATION)
+
 **Duration**: 2-3 days
 **Files**: 2 Rust files
 **Tests**: Keep existing, update for dict responses
@@ -55,6 +59,7 @@ Build GraphQL-compliant responses from processed data.
 - [ ] Task 3.3: Schema validation
 
 ### Phase 4: Python Integration (GLUE)
+
 **Duration**: 2 days
 **Files**: 3 Python files (simplify/delete)
 **Tests**: Update for new behavior
@@ -67,6 +72,7 @@ Integrate Rust pipeline with Python layer.
 - [ ] Task 4.4: Delete obsolete files
 
 ### Phase 5: Testing & Validation (QUALITY)
+
 **Duration**: 3-4 days
 **Files**: Test updates
 **Tests**: Comprehensive validation
@@ -79,6 +85,7 @@ Ensure everything works correctly.
 - [ ] Task 5.4: Property-based tests
 
 ### Phase 6: Documentation (POLISH)
+
 **Duration**: 1-2 days
 **Files**: Documentation
 **Tests**: N/A
@@ -90,6 +97,7 @@ Document the new architecture.
 - [ ] Task 6.3: Examples
 
 ### Phase 7: Naming Cleanup (POLISH)
+
 **Duration**: 0.5 days (4 hours)
 **Files**: Test file, docs
 **Tests**: Rename only
@@ -103,6 +111,7 @@ Remove confusing "v2" terminology, use clear "Simple" and "Full" format names.
 - [ ] Task 7.5: Add terminology glossary
 
 ### Phase 8: Cleanup Audit (FINAL QUALITY GATE)
+
 **Duration**: 1 day (8 hours)
 **Files**: Docs, comments, examples
 **Tests**: Verification only
@@ -127,6 +136,7 @@ Audit and remove outdated documentation and code remnants from old architecture.
 ### Existing Tests: KEEP THEM
 
 We have excellent test coverage:
+
 - `test_rust_executor.py` - Tests current executor (will update incrementally)
 - `test_mutation_patterns.py` - Tests both simple and class-based patterns (will stay green)
 - `test_entity_flattener.py` - Will be deleted in Phase 4 (entity_flattener.py deleted)

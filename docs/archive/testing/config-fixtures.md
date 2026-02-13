@@ -58,6 +58,7 @@ def test_config(postgres_url: str):
 **Use for:** Most integration tests, general functionality testing.
 
 **Example:**
+
 ```python
 def test_basic_query(test_config):
     """Test basic GraphQL query functionality."""
@@ -86,6 +87,7 @@ def development_config(postgres_url: str):
 **Use for:** Testing development-specific behaviors, CORS handling, debug features.
 
 **Example:**
+
 ```python
 def test_cors_in_development(development_config):
     """Test CORS behavior in development."""
@@ -116,6 +118,7 @@ def production_config(postgres_url: str):
 **Use for:** Testing production security features, authentication requirements, feature disabling.
 
 **Example:**
+
 ```python
 def test_production_security(production_config):
     """Test that playground is disabled in production."""
@@ -142,6 +145,7 @@ def apq_required_config(postgres_url: str):
 **Use for:** Testing APQ security, ensuring only persisted queries are allowed.
 
 **Example:**
+
 ```python
 def test_apq_required_mode(apq_required_config):
     """Test that APQ is required."""
@@ -167,6 +171,7 @@ def apq_disabled_config(postgres_url: str):
 **Use for:** Testing behavior without APQ, ensuring queries work without persistence.
 
 **Example:**
+
 ```python
 def test_without_apq(apq_disabled_config):
     """Test behavior when APQ is disabled."""
@@ -195,6 +200,7 @@ def vault_kms_config(postgres_url: str):
 **Use for:** Testing Vault KMS integration, encryption features.
 
 **Example:**
+
 ```python
 @pytest.mark.requires_vault
 def test_vault_encryption(vault_kms_config):
@@ -225,6 +231,7 @@ def custom_config(postgres_url: str):
 **Use for:** Tests requiring specific configuration combinations not covered by other fixtures.
 
 **Example:**
+
 ```python
 def test_custom_apq_settings(custom_config):
     """Test custom APQ configuration."""
@@ -373,6 +380,7 @@ def test_explicit_config(test_config):
 ### From Environment Variables
 
 **Before:**
+
 ```python
 def test_something():
     # Relies on FRAISEQL_ENVIRONMENT=testing
@@ -380,6 +388,7 @@ def test_something():
 ```
 
 **After:**
+
 ```python
 def test_something(test_config):
     # Explicit, no environment dependencies
@@ -389,6 +398,7 @@ def test_something(test_config):
 ### From Manual Config Creation
 
 **Before:**
+
 ```python
 def test_production_behavior():
     config = FraiseQLConfig(
@@ -401,6 +411,7 @@ def test_production_behavior():
 ```
 
 **After:**
+
 ```python
 def test_production_behavior(production_config):
     # All production settings pre-configured

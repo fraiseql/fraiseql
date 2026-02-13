@@ -58,6 +58,7 @@ WHERE is_active = true LIMIT 100;
 > "What is the most efficient way to just send back the selected fields from the query?"
 
 **Your current approach IS the most efficient:**
+
 - PostgreSQL selects only needed fields with `jsonb_build_object()`
 - Rust transforms to camelCase
 - For queries with >50 fields, switch to full `data` column + Rust filtering
@@ -77,6 +78,7 @@ From your QUERY_EXECUTION_PATH_ANALYSIS.md, optimize these instead:
 ---
 
 **Benchmark files:**
+
 - Full results: `results/benchmark_20251016_233008.md`
 - Detailed analysis: `ANALYSIS.md`
 - Setup script: `00_setup.sql`

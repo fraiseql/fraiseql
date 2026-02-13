@@ -5,6 +5,7 @@
 **Context:** Fix bug where `error_config` is ignored in HTTP mode because Rust hardcodes only `"failed:"` and `"noop:"` prefixes. Implement comprehensive status handling based on GraphQL Cascade feedback.
 
 **Related:**
+
 - Bug report: `/home/lionel/code/printoptim_backend_manual_migration/docs/FRAISEQL_BUG_ERROR_CONFIG_NOT_PASSED_TO_RUST.md`
 - GraphQL Cascade issue: https://github.com/graphql-cascade/graphql-cascade/issues/1
 - Current Rust code: `fraiseql_rs/src/mutation/mod.rs:88-96`
@@ -16,9 +17,11 @@
 **Objective:** Write comprehensive tests for all status categories before changing implementation.
 
 ### Task 1.1: Add test file for status taxonomy
+
 **File:** `fraiseql_rs/src/mutation/tests.rs`
 
 **Add tests:**
+
 ```rust
 #[cfg(test)]
 mod test_status_taxonomy {
@@ -142,6 +145,7 @@ mod test_status_taxonomy {
 ```
 
 ### Task 1.2: Run tests to verify they FAIL
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql_rs
 cargo test test_status_taxonomy -- --nocapture
@@ -150,6 +154,7 @@ cargo test test_status_taxonomy -- --nocapture
 **Expected:** Most tests fail because current implementation only recognizes `"noop:"` and `"failed:"`.
 
 **Acceptance Criteria:**
+
 - [ ] Test file created with 20+ test cases
 - [ ] Tests cover: success keywords, all error prefixes, noop, case insensitivity, edge cases
 - [ ] `cargo test` shows failing tests (RED phase complete)
@@ -161,9 +166,11 @@ cargo test test_status_taxonomy -- --nocapture
 **Objective:** Make all tests pass with minimal implementation.
 
 ### Task 2.1: Update `MutationStatus::from_str()` implementation
+
 **File:** `fraiseql_rs/src/mutation/mod.rs:88-127`
 
 **Replace current implementation:**
+
 ```rust
 impl MutationStatus {
     /// Parse status string into enum with minimal taxonomy
@@ -275,9 +282,11 @@ impl MutationStatus {
 ```
 
 ### Task 2.2: Update `VALID_STATUS_PREFIXES` constant
+
 **File:** `fraiseql_rs/src/mutation/mod.rs:149-152`
 
 **Update to reflect new prefixes:**
+
 ```rust
 /// Valid mutation status prefixes/values for format detection
 const VALID_STATUS_PREFIXES: &[&str] = &[
@@ -291,6 +300,7 @@ const VALID_STATUS_PREFIXES: &[&str] = &[
 ```
 
 ### Task 2.3: Run tests to verify they PASS
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql_rs
 cargo test test_status_taxonomy -- --nocapture
@@ -299,6 +309,7 @@ cargo test test_status_taxonomy -- --nocapture
 **Expected:** All tests pass (GREEN phase complete).
 
 **Acceptance Criteria:**
+
 - [ ] All 20+ tests pass
 - [ ] `cargo test` shows no failures
 - [ ] GREEN phase complete
@@ -310,9 +321,11 @@ cargo test test_status_taxonomy -- --nocapture
 **Objective:** Test full mutation pipeline with new status taxonomy.
 
 ### Task 3.1: Add integration test for mutation response building
+
 **File:** `fraiseql_rs/src/mutation/tests.rs`
 
 **Add integration tests:**
+
 ```rust
 #[cfg(test)]
 mod test_mutation_response_integration {
@@ -555,6 +568,7 @@ mod test_mutation_response_integration {
 ```
 
 ### Task 3.2: Run full test suite
+
 ```bash
 cd /home/lionel/code/fraiseql/fraiseql_rs
 cargo test
@@ -563,6 +577,7 @@ cargo test
 **Expected:** All tests pass (unit + integration).
 
 **Acceptance Criteria:**
+
 - [ ] Integration tests added (6+ scenarios)
 - [ ] All tests pass
 - [ ] Code coverage includes error detection logic
@@ -574,9 +589,11 @@ cargo test
 **Objective:** Verify Python ↔ Rust integration works correctly.
 
 ### Task 4.1: Create Python test for status taxonomy
+
 **File:** `tests/test_mutations/test_status_taxonomy.py`
 
 **Add test:**
+
 ```python
 """Test status taxonomy in Python → Rust → Python flow."""
 import pytest
@@ -811,6 +828,7 @@ async def test_timeout_error_detected(db_connection, clear_registry):
 ```
 
 ### Task 4.2: Run Python tests
+
 ```bash
 cd /home/lionel/code/fraiseql
 uv run pytest tests/test_mutations/test_status_taxonomy.py -v
@@ -819,6 +837,7 @@ uv run pytest tests/test_mutations/test_status_taxonomy.py -v
 **Expected:** All Python integration tests pass.
 
 **Acceptance Criteria:**
+
 - [ ] Python tests added (4+ scenarios)
 - [ ] Tests cover error detection, noop handling, success cases
 - [ ] All tests pass
@@ -830,9 +849,11 @@ uv run pytest tests/test_mutations/test_status_taxonomy.py -v
 **Objective:** Document the status taxonomy for FraiseQL users.
 
 ### Task 5.1: Create status string documentation
+
 **File:** `docs/mutations/status-strings.md`
 
 **Content:**
+
 ```markdown
 # FraiseQL Status String Conventions
 
@@ -870,6 +891,7 @@ Prefixes indicating operation failures. These map to the Error type in GraphQL.
 | `timeout:` | Operation timeout | 408 | `timeout:external_api` |
 
 **Example:**
+
 ```sql
 IF EXISTS (SELECT 1 FROM users WHERE email = v_email) THEN
     RETURN ('conflict:duplicate_email', 'Email already exists', ...)::mutation_result_v2;
@@ -885,11 +907,13 @@ Indicates no change was made, but it's not an error. Maps to Success type.
 | `noop:` | No operation performed | Success |
 
 **Common noop reasons:**
+
 - `noop:duplicate` - Entity already exists (idempotent operation)
 - `noop:unchanged` - No fields changed
 - `noop:blocked` - Blocked by business rules
 
 **Example:**
+
 ```sql
 INSERT INTO subscriptions (user_id, plan_id)
 VALUES (v_user_id, v_plan_id)
@@ -1021,9 +1045,11 @@ See docs/mutations/status-strings.md for complete guide.
 ```
 
 ### Task 5.3: Add changelog entry
+
 **File:** `CHANGELOG.md`
 
 **Add entry:**
+
 ```markdown
 ## [Unreleased]
 
@@ -1059,6 +1085,7 @@ class CreateUser: ...
 ```
 
 **After (update PostgreSQL functions):**
+
 ```sql
 -- Use standardized prefixes in PostgreSQL
 RETURN ('failed:validation_error', 'Invalid email', ...)::mutation_result_v2;
@@ -1067,6 +1094,7 @@ RETURN ('noop:duplicate', 'Already exists', ...)::mutation_result_v2;
 ```
 
 No Python changes needed - `error_config` can be removed.
+
 ```
 
 **Acceptance Criteria:**
@@ -1091,6 +1119,7 @@ uv run pytest tests/ -v
 **Expected:** All tests pass with new Rust code.
 
 ### Task 6.2: Update PrintOptim to test the fix
+
 **File:** Create test in PrintOptim to verify `validation:` prefix works
 
 ```bash
@@ -1100,6 +1129,7 @@ uv pip install -e /home/lionel/code/fraiseql
 ```
 
 ### Task 6.3: Run PrintOptim's failing test
+
 ```bash
 cd /home/lionel/code/printoptim_backend_manual_migration
 # Run the test mentioned in bug report
@@ -1109,6 +1139,7 @@ uv run pytest -xvs tests/test_public_address_mutations.py::test_create_public_ad
 **Expected:** Test now passes - `validation:` errors return Error type.
 
 ### Task 6.4: Create verification issue in PrintOptim docs
+
 **File:** Update bug report with resolution
 
 Add to `/home/lionel/code/printoptim_backend_manual_migration/docs/FRAISEQL_BUG_ERROR_CONFIG_NOT_PASSED_TO_RUST.md`:
@@ -1136,6 +1167,7 @@ None - existing PrintOptim code works with updated FraiseQL. The `PRINTOPTIM_ERR
 ```
 
 **Acceptance Criteria:**
+
 - [ ] FraiseQL built successfully with Rust changes
 - [ ] All FraiseQL tests pass
 - [ ] PrintOptim updated to use new FraiseQL
@@ -1156,17 +1188,21 @@ None - existing PrintOptim code works with updated FraiseQL. The `PRINTOPTIM_ERR
 ## Related Files
 
 **Rust:**
+
 - `fraiseql_rs/src/mutation/mod.rs` - Core implementation
 - `fraiseql_rs/src/mutation/tests.rs` - Unit tests
 
 **Python:**
+
 - `src/fraiseql/mutations/error_config.py` - Python config (deprecated for HTTP mode)
 - `tests/test_mutations/test_status_taxonomy.py` - Integration tests
 
 **Documentation:**
+
 - `docs/mutations/status-strings.md` - User guide
 - `CHANGELOG.md` - Release notes
 - `/home/lionel/code/printoptim_backend_manual_migration/docs/FRAISEQL_BUG_ERROR_CONFIG_NOT_PASSED_TO_RUST.md` - Bug report
 
 **GraphQL Cascade:**
+
 - https://github.com/graphql-cascade/graphql-cascade/issues/1 - Spec proposal

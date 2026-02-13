@@ -1,4 +1,5 @@
 # CASCADE Cache Invalidation
+
 # Server-Side Cache Invalidation
 
 > **Note**: This document describes server-side cache invalidation, not the [GraphQL Cascade](../features/graphql-cascade.md) client-side update feature.
@@ -25,6 +26,7 @@ posts = await cache.get(f"user:{user_id}:posts")
 ```
 
 **Common solutions**:
+
 - ❌ **Time-based expiry**: Wasteful, can still serve stale data
 - ❌ **Manual invalidation**: Error-prone, easy to forget
 - ❌ **Invalidate everything**: Too aggressive, kills performance
@@ -78,6 +80,7 @@ type Comment {
 ```
 
 **CASCADE graph**:
+
 ```
 User
  ├─> Post (author relationship)
@@ -132,6 +135,7 @@ async def setup_cascade():
 ```
 
 **Output** (when `verbose=True`):
+
 ```
 CASCADE: Analyzing GraphQL schema...
 CASCADE: Detected relationship: User -> Post (field: posts)
@@ -257,11 +261,13 @@ published_posts_rule = CacheInvalidationRule(
 ### CASCADE Overhead
 
 **Cost of CASCADE**:
+
 - Rule evaluation: **<1ms** per invalidation
 - Pattern matching: **~0.1ms** per pattern
 - Actual invalidation: **~0.5ms** per cache key
 
 **Example**:
+
 ```python
 # User changes → cascades to 10 posts
 # Cost: 1ms + (10 × 0.5ms) = 6ms total
@@ -470,12 +476,14 @@ await sync.sync_user([user_id])
 **Solution**:
 
 1. Check CASCADE rules are set up:
+
    ```python
    rules = await cache.get_cascade_rules()
    print(rules)  # Should show user -> post rule
    ```
 
 2. Verify entity type matches:
+
    ```python
    # ✅ Correct
    await cache.invalidate("user:123")  # Matches "user" entity
@@ -485,6 +493,7 @@ await sync.sync_user([user_id])
    ```
 
 3. Enable CASCADE logging:
+
    ```python
    await cache.set_cascade_logging(True, level="DEBUG")
    ```
@@ -496,6 +505,7 @@ await sync.sync_user([user_id])
 **Solution**:
 
 1. Review CASCADE rules:
+
    ```python
    # ❌ Too broad
    rule = CacheInvalidationRule("user", cascade_to=["*"])
@@ -505,6 +515,7 @@ await sync.sync_user([user_id])
    ```
 
 2. Limit CASCADE depth:
+
    ```python
    rule = CacheInvalidationRule(
        "user",
@@ -514,6 +525,7 @@ await sync.sync_user([user_id])
    ```
 
 3. Use conditional CASCADE:
+
    ```python
    # Only cascade if published
    rule = CacheInvalidationRule(

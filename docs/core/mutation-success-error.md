@@ -15,6 +15,7 @@ class CreateUser:
 ```
 
 **GraphQL Result**:
+
 ```graphql
 union CreateUserResult = UserCreated | ValidationError
 
@@ -210,6 +211,7 @@ class UserCreated:
 ```
 
 **GraphQL**:
+
 ```graphql
 {
   createUser {
@@ -232,6 +234,7 @@ class UserCreated:
 ```
 
 **GraphQL**:
+
 ```graphql
 {
   createUser {
@@ -260,6 +263,7 @@ return UserUpdated(
 ```
 
 **GraphQL**:
+
 ```graphql
 {
   updateUser {
@@ -288,6 +292,7 @@ return UserCreated(
 ```
 
 **GraphQL**:
+
 ```graphql
 {
   createUser {
@@ -408,6 +413,7 @@ class ValidationError:
 ```
 
 **Error codes should be:**
+
 - UPPERCASE_SNAKE_CASE
 - Descriptive (VALIDATION_ERROR, not ERR001)
 - Unique across your application
@@ -459,6 +465,7 @@ return UserUpdated(
 ### Relay-Style Mutations (GraphQL Best Practice)
 
 **Traditional Relay**:
+
 ```graphql
 type CreateUserPayload {
   userEdge: UserEdge
@@ -467,6 +474,7 @@ type CreateUserPayload {
 ```
 
 **FraiseQL Equivalent**:
+
 ```python
 @fraiseql.success
 class UserCreated:
@@ -477,6 +485,7 @@ class UserCreated:
 ### Strawberry (Python)
 
 **Strawberry**:
+
 ```python
 @strawberry.type
 class CreateUserSuccess:
@@ -486,6 +495,7 @@ class CreateUserSuccess:
 ```
 
 **FraiseQL**:
+
 ```python
 @fraiseql.success
 class UserCreated:

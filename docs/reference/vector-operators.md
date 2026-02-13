@@ -18,14 +18,17 @@ Vector similarity search enables semantic search by comparing high-dimensional v
 ## Distance Operators
 
 ### 1. Cosine Distance (`<=>`)
+
 **Use when:** Comparing document similarity, semantic search (most common)
 
 **Characteristics:**
+
 - Measures angle between vectors (normalized)
 - Range: 0.0 (identical) to 2.0 (opposite)
 - Best for: Text embeddings, semantic similarity
 
 **Example:**
+
 ```sql
 -- Find similar documents
 SELECT * FROM documents
@@ -34,14 +37,17 @@ LIMIT 10;
 ```
 
 ### 2. L2 Distance (`<->`)
+
 **Use when:** Euclidean distance needed, spatial similarity, exact matches
 
 **Characteristics:**
+
 - Measures straight-line distance in vector space
 - Range: 0.0 (identical) to ∞ (very different)
 - Best for: Image similarity, spatial data, precise matches
 
 **Example:**
+
 ```sql
 -- Find spatially similar items
 SELECT * FROM images
@@ -54,11 +60,13 @@ LIMIT 5;
 **Use when:** Dot product similarity, learned similarity metrics
 
 **Characteristics:**
+
 - Negative inner product (more negative = more similar)
 - Range: -∞ to ∞
 - Best for: Pre-trained embeddings, recommendation systems
 
 **Example:**
+
 ```sql
 -- Recommendation based on learned similarity
 SELECT * FROM products
@@ -71,11 +79,13 @@ LIMIT 10;
 **Use when:** Manhattan distance, sparse vectors, grid-based distances
 
 **Characteristics:**
+
 - Sum of absolute differences
 - Range: 0.0 (identical) to ∞ (very different)
 - Best for: Sparse data, categorical features, grid navigation
 
 **Example:**
+
 ```sql
 -- Sparse vector similarity
 SELECT * FROM features
@@ -88,11 +98,13 @@ LIMIT 8;
 **Use when:** Binary vectors, hash-based similarity
 
 **Characteristics:**
+
 - Count of differing bits
 - Range: 0 (identical) to dimension size (completely different)
 - Best for: Binary embeddings, locality-sensitive hashing
 
 **Example:**
+
 ```sql
 -- Binary hash similarity
 SELECT * FROM hashes
@@ -105,11 +117,13 @@ LIMIT 5;
 **Use when:** Set similarity, sparse binary features
 
 **Characteristics:**
+
 - Measures set overlap (1 - Jaccard similarity)
 - Range: 0.0 (identical sets) to 1.0 (no overlap)
 - Best for: Tag similarity, sparse binary data
 
 **Example:**
+
 ```sql
 -- Set-based similarity
 SELECT * FROM tags

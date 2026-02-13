@@ -11,18 +11,21 @@
 ## Context
 
 **Why This Phase Matters:**
+
 - Rate limiting is critical for DDoS protection
 - Security headers prevent common attacks (XSS, CSRF, clickjacking)
 - Audit logging is required for compliance (SOC2, HIPAA, GDPR)
 - Rust enforcement is 10-50x faster than Python middleware
 
 **Dependencies:**
+
 - Phase 10 (Auth) ✅ Required
 - Phase 11 (RBAC) ✅ Required
 - UserContext with full auth/RBAC data
 - Integration with Phase 11 RBAC cache invalidation
 
 **Performance Target:**
+
 - Rate limit check: <0.05ms
 - Security header injection: <0.01ms
 - Audit log write: <0.5ms (async)
@@ -33,6 +36,7 @@
 ## Files to Modify/Create
 
 ### Rust Files (fraiseql_rs/src/security/)
+
 - **mod.rs** (NEW): Security module exports
 - **config.rs** (NEW): Security configuration management
 - **errors.rs** (NEW): Security-specific error types
@@ -44,15 +48,18 @@
 - **cors.rs** (NEW): CORS policy enforcement
 
 ### Integration Files
+
 - **fraiseql_rs/src/lib.rs**: Add security module
 - **fraiseql_rs/src/pipeline/unified.rs**: Integrate security checks
 - **fraiseql_rs/Cargo.toml**: Add dependencies
 
 ### Python Migration Files
+
 - **src/fraiseql/security/rust_security.py** (NEW): Python wrapper
 - **src/fraiseql/security/**: Deprecate Python implementations
 
 ### Test Files
+
 - **tests/test_rust_security.py** (NEW): Integration tests
 - **tests/unit/security/test_rate_limiting.rs** (NEW): Rust tests
 
@@ -1591,6 +1598,7 @@ class RustAuditLogger:
 ## Verification Commands
 
 ### Build and Test
+
 ```bash
 # Build
 cargo build --release
@@ -1605,6 +1613,7 @@ pytest tests/performance/test_security_performance.py -xvs
 ```
 
 ### Expected Performance
+
 ```
 Rate Limit Check: <0.05ms
 Security Headers: <0.01ms
@@ -1619,6 +1628,7 @@ Total Security Overhead: <1ms
 ## Acceptance Criteria
 
 **Functionality:**
+
 - ✅ Token bucket rate limiting
 - ✅ Security header enforcement
 - ✅ Async audit logging
@@ -1627,11 +1637,13 @@ Total Security Overhead: <1ms
 - ✅ All existing security tests pass
 
 **Performance:**
+
 - ✅ Security overhead <1ms total
 - ✅ 10-50x faster than Python
 - ✅ Async audit logging (non-blocking)
 
 **Testing:**
+
 - ✅ Integration tests pass
 - ✅ Performance benchmarks
 - ✅ Security hardening tests
@@ -1668,16 +1680,19 @@ serde_json = "1.0"  # For audit metadata
 ## Migration Strategy
 
 **Week 1: Core Security**
+
 - Rate limiting
 - Security headers
 - Query validation
 
 **Week 2: Audit Logging**
+
 - Async audit logger
 - Event types
 - PostgreSQL integration
 
 **Week 3: Production**
+
 - Gradual rollout
 - Monitor performance
 - Deprecate Python security
@@ -1687,6 +1702,7 @@ serde_json = "1.0"  # For audit metadata
 ## Summary
 
 **Phase 12 completes the enterprise security layer:**
+
 - ✅ Rate limiting (DDoS protection)
 - ✅ Security headers (XSS, CSRF, clickjacking prevention)
 - ✅ Audit logging (compliance)
@@ -1694,6 +1710,7 @@ serde_json = "1.0"  # For audit metadata
 - ✅ All security features in Rust for maximum performance
 
 **Combined with Phases 10-11:**
+
 - Complete auth/RBAC/security stack in Rust
 - Sub-millisecond security overhead
 - Production-ready enterprise hardening

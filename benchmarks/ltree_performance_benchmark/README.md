@@ -16,46 +16,55 @@ This benchmark measures query performance for PostgreSQL LTREE operations using 
 ## Tested Operators
 
 ### Basic Operations (4)
+
 - Equality (`=`)
 - Inequality (`!=`)
 - IN array
 - NOT IN array
 
 ### Hierarchical Operations (2)
+
 - Ancestor of (`@>`)
 - Descendant of (`<@`)
 
 ### Pattern Matching (3)
+
 - LQUERY match (`~`)
 - LTXTQUERY match (`@`)
 - Match any LQUERY (`?`)
 
 ### Path Analysis (8)
+
 - Path depth (`nlevel`, `nlevel_eq`, `nlevel_gt`, etc.)
 - Subpath extraction (`subpath`)
 - Sublabel position (`index`, `index_eq`, `index_gte`)
 
 ### Path Manipulation (2)
+
 - Concatenation (`||`)
 - Lowest common ancestor (`lca`)
 
 ### Array Operations (2)
+
 - IN array
 - Array contains (`@>`)
 
 ## Running the Benchmark
 
 ### Prerequisites
+
 - PostgreSQL database
 - Python dependencies: `psycopg_pool`
 
 ### Setup
+
 ```bash
 # Create database and run setup
 psql -U postgres -d fraiseql_test -f 00_setup.sql
 ```
 
 ### Execute Benchmark
+
 ```bash
 cd benchmarks/ltree_performance_benchmark
 python ltree_benchmark.py
@@ -64,6 +73,7 @@ python ltree_benchmark.py
 ## Results
 
 The benchmark generates:
+
 - **Operator Performance**: Average, median, min/max response times for each operator
 - **Index Comparison**: Performance difference with/without GiST index
 - **JSON Report**: Detailed results saved to timestamped file
@@ -71,6 +81,7 @@ The benchmark generates:
 ## Expected Performance
 
 With GiST index:
+
 - Basic operations: < 1ms
 - Hierarchical operations: 1-5ms
 - Pattern matching: 2-10ms

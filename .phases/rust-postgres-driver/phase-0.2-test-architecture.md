@@ -10,6 +10,7 @@
 ## Objective
 
 Establish comprehensive test infrastructure for all 5 implementation phases:
+
 1. Create test module structure (unit/integration/e2e)
 2. Set up test utilities and fixtures
 3. Configure database test containers
@@ -17,6 +18,7 @@ Establish comprehensive test infrastructure for all 5 implementation phases:
 5. Create test helpers for common operations
 
 **Success Criteria**:
+
 - ✅ Test directory structure created
 - ✅ Test utilities module available
 - ✅ TestDatabase helper working
@@ -69,6 +71,7 @@ touch fraiseql_rs/tests/e2e/mod.rs
 ```
 
 **Resulting structure**:
+
 ```
 fraiseql_rs/
 ├── src/
@@ -630,37 +633,37 @@ overflow-checks = true
 
 ## test: Run full test suite (unit + integration)
 test:
-	cd fraiseql_rs && cargo test --lib --test '*'
-	@echo "✅ All tests passed"
+ cd fraiseql_rs && cargo test --lib --test '*'
+ @echo "✅ All tests passed"
 
 ## test-unit: Run only unit tests (fast)
 test-unit:
-	cd fraiseql_rs && cargo test --lib
-	@echo "✅ Unit tests passed"
+ cd fraiseql_rs && cargo test --lib
+ @echo "✅ Unit tests passed"
 
 ## test-integration: Run only integration tests (requires DB)
 test-integration:
-	cd fraiseql_rs && cargo test --test '*'
-	@echo "✅ Integration tests passed"
+ cd fraiseql_rs && cargo test --test '*'
+ @echo "✅ Integration tests passed"
 
 ## test-all: Run all tests including e2e and examples
 test-all: test
-	cd fraiseql_rs && cargo test --all
-	@echo "✅ All tests passed including examples"
+ cd fraiseql_rs && cargo test --all
+ @echo "✅ All tests passed including examples"
 
 ## test-verbose: Run tests with verbose output
 test-verbose:
-	cd fraiseql_rs && cargo test --all -- --nocapture --test-threads=1
-	@echo "✅ Verbose test run complete"
+ cd fraiseql_rs && cargo test --all -- --nocapture --test-threads=1
+ @echo "✅ Verbose test run complete"
 
 ## coverage: Generate code coverage report
 coverage:
-	cd fraiseql_rs && cargo tarpaulin --out Html --output-dir coverage/
-	@echo "📊 Coverage report generated in coverage/index.html"
+ cd fraiseql_rs && cargo tarpaulin --out Html --output-dir coverage/
+ @echo "📊 Coverage report generated in coverage/index.html"
 
 ## watch: Watch for changes and run tests (requires cargo-watch)
 watch:
-	cargo watch -x "test --lib" -x clippy
+ cargo watch -x "test --lib" -x clippy
 ```
 
 ---
@@ -697,6 +700,7 @@ make test-all
 **Issue**: testcontainers can't start PostgreSQL container
 
 **Fix**:
+
 ```bash
 # Install Docker
 # macOS
@@ -715,6 +719,7 @@ sudo usermod -aG docker $USER
 **Issue**: Test database not ready in time
 
 **Fix**: Increase retry timeout in `TestDatabase::wait_for_db()`:
+
 ```rust
 let mut retries = 60;  // Increased from 30
 tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;  // Increased from 100
@@ -754,6 +759,7 @@ tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;  // Increased
 **Why**: Test infrastructure is foundational. Getting feedback now prevents problems in all future phases.
 
 **What to prepare for review**:
+
 ```bash
 # Show your work
 git add fraiseql_rs/tests/
@@ -766,6 +772,7 @@ cargo test --lib
 ---
 
 **Estimated Duration**: 1.5 hours
+
 - Create directories: 10 min
 - Write TestDatabase: 30 min
 - Write fixtures and assertions: 30 min

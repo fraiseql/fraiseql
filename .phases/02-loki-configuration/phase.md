@@ -16,12 +16,14 @@ Pentagon-Readiness Assessment notes "Limited Loki implementation evidence" (-1 p
 ## Objective
 
 Create Loki configuration examples that enable operators to:
+
 1. Deploy Loki + Promtail for log aggregation
 2. Parse FraiseQL application logs
 3. Integrate with existing Grafana dashboards
 4. Query logs with LogQL for troubleshooting
 
 **Deliverables:**
+
 - Loki server configuration
 - Promtail agent configuration
 - Docker Compose setup for quick deployment
@@ -32,12 +34,14 @@ Create Loki configuration examples that enable operators to:
 ## Context Files
 
 **Review these files before writing (orchestrator will copy to `context/`):**
+
 - `docs/production/MONITORING.md` - Existing observability setup
 - `examples/observability/` - Existing observability examples (if any)
 - Any existing docker-compose files
 - Log format documentation (if exists)
 
 **External References:**
+
 - Loki documentation: https://grafana.com/docs/loki/latest/
 - Promtail configuration: https://grafana.com/docs/loki/latest/clients/promtail/configuration/
 - LogQL query language: https://grafana.com/docs/loki/latest/logql/
@@ -51,6 +55,7 @@ Create Loki configuration examples that enable operators to:
 **File:** `.phases/02-loki-configuration/output/loki-config.yaml`
 
 **Requirements:**
+
 - [ ] Basic server configuration (HTTP port 3100)
 - [ ] Retention policy (30 days for production)
 - [ ] Storage backend: filesystem for dev/testing, S3/GCS for production
@@ -59,6 +64,7 @@ Create Loki configuration examples that enable operators to:
 - [ ] Limits configuration (reasonable defaults)
 
 **Key Sections:**
+
 ```yaml
 server:
   http_listen_port: 3100
@@ -87,6 +93,7 @@ table_manager:
 **File:** `.phases/02-loki-configuration/output/promtail-config.yaml`
 
 **Requirements:**
+
 - [ ] Scrape configuration for FraiseQL logs
 - [ ] JSON log parsing (if FraiseQL logs are JSON)
 - [ ] Label extraction (level, trace_id, span_id)
@@ -94,6 +101,7 @@ table_manager:
 - [ ] Multiple log sources (application, audit, errors)
 
 **Key Sections:**
+
 ```yaml
 server:
   http_listen_port: 9080
@@ -126,6 +134,7 @@ pipeline_stages:
 **File:** `.phases/02-loki-configuration/output/docker-compose.loki.yml`
 
 **Requirements:**
+
 - [ ] Loki service with volume mounts
 - [ ] Promtail service with log volume mounts
 - [ ] Grafana service (optional, for testing)
@@ -134,6 +143,7 @@ pipeline_stages:
 - [ ] Health checks
 
 **Services:**
+
 ```yaml
 version: '3.8'
 
@@ -161,6 +171,7 @@ volumes:
 **File:** `.phases/02-loki-configuration/output/LOKI_INTEGRATION.md`
 
 **Requirements:**
+
 - [ ] Overview of Loki + Promtail architecture
 - [ ] Installation instructions (Docker Compose)
 - [ ] Configuration for development vs production
@@ -171,12 +182,14 @@ volumes:
 **Required Sections:**
 
 #### Architecture Overview
+
 - Loki: Log aggregation and storage
 - Promtail: Log collector agent
 - Grafana: Query and visualization
 - Integration with OpenTelemetry traces
 
 #### Quick Start (Docker Compose)
+
 ```bash
 # Start Loki stack
 docker-compose -f examples/observability/docker-compose.loki.yml up -d
@@ -189,6 +202,7 @@ curl http://localhost:3100/ready
 ```
 
 #### Production Configuration
+
 - Use S3/GCS for storage
 - Scale ingester and querier components
 - Configure retention policies
@@ -197,37 +211,45 @@ curl http://localhost:3100/ready
 #### Common LogQL Queries
 
 **Must include examples for:**
+
 1. **All errors in last hour:**
+
    ```logql
    {job="fraiseql-app"} |= "ERROR" [1h]
    ```
 
 2. **Logs for specific trace:**
+
    ```logql
    {job="fraiseql-app"} | json | trace_id="abc123"
    ```
 
 3. **Rate of errors per minute:**
+
    ```logql
    rate({job="fraiseql-app"} |= "ERROR" [5m])
    ```
 
 4. **Top 10 error messages:**
+
    ```logql
    topk(10, sum by (message) (rate({job="fraiseql-app"} | json | level="error" [1h])))
    ```
 
 5. **Filter by user or tenant:**
+
    ```logql
    {job="fraiseql-app"} | json | user_id="user123"
    ```
 
 #### Correlation with OpenTelemetry
+
 - How to jump from Loki log to Tempo trace using trace_id
 - How to configure Grafana to link logs and traces
 - Example of unified observability workflow
 
 #### Troubleshooting
+
 - Loki not receiving logs
 - Promtail parsing errors
 - Storage issues
@@ -248,6 +270,7 @@ After completion:
 ```
 
 These will be moved to:
+
 ```
 examples/observability/loki/
 ├── loki-config.yaml
@@ -265,6 +288,7 @@ docs/production/
 ### Log Format Assumptions
 
 FraiseQL likely logs in JSON format with fields like:
+
 ```json
 {
   "timestamp": "2025-12-04T10:15:30Z",
@@ -307,6 +331,7 @@ grep "trace_id" promtail-config.yaml
 ```
 
 **Optional:** If time permits, test the stack:
+
 ```bash
 # Start stack
 docker-compose -f docker-compose.loki.yml up -d

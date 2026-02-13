@@ -5,6 +5,7 @@
 A comprehensive real-time chat API built with FraiseQL, demonstrating WebSocket subscriptions, PostgreSQL LISTEN/NOTIFY, and advanced real-time features.
 
 **What you'll learn:**
+
 - WebSocket-based real-time messaging
 - PostgreSQL LISTEN/NOTIFY for events
 - Presence tracking and typing indicators
@@ -12,11 +13,13 @@ A comprehensive real-time chat API built with FraiseQL, demonstrating WebSocket 
 - Scalable real-time application design
 
 **Prerequisites:**
+
 - `../enterprise_patterns/` - Enterprise patterns foundation
 - Understanding of WebSocket concepts
 - Experience with real-time applications
 
 **Next steps:**
+
 - `../analytics_dashboard/` - Add business intelligence
 - `../admin-panel/` - Administrative interfaces
 - Custom real-time features for your domain

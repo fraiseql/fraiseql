@@ -13,11 +13,13 @@ FraiseQL implements a CQRS (Command Query Responsibility Segregation) architectu
 **Purpose**: Eliminate N+1 query problems by separating read and write concerns.
 
 **Implementation**:
+
 - **Command side** (`tb_*` tables): Normalized tables for data integrity and writes
 - **Query side** (`tv_*` tables): Denormalized JSONB tables for fast reads
 - **Explicit sync**: Manual synchronization from `tb_*` to `tv_*` tables
 
 **Performance Impact**:
+
 - **Query performance**: 10-100x faster than traditional JOIN queries
 - **N+1 prevention**: Single database query for complex nested relationships
 - **Response time**: Sub-millisecond for cached queries
@@ -29,6 +31,7 @@ FraiseQL implements a CQRS (Command Query Responsibility Segregation) architectu
 **Purpose**: Store complete query results as JSONB to eliminate runtime joins.
 
 **Implementation**:
+
 ```sql
 -- Query-side table with pre-computed JSONB
 CREATE TABLE tv_post (
@@ -38,6 +41,7 @@ CREATE TABLE tv_post (
 ```
 
 **Benefits**:
+
 - **Zero joins**: All data available in single table lookup
 - **Fast serialization**: Direct JSONB output to GraphQL
 - **Indexable**: GIN indexes on JSONB for complex queries
@@ -47,6 +51,7 @@ CREATE TABLE tv_post (
 **Purpose**: Efficient database connection management for high concurrency.
 
 **Configuration**:
+
 ```python
 db_pool = await asyncpg.create_pool(
     database_url,
@@ -57,6 +62,7 @@ db_pool = await asyncpg.create_pool(
 ```
 
 **Performance Impact**:
+
 - **Connection reuse**: Eliminates connection overhead
 - **Concurrent requests**: Handles 100+ concurrent connections
 - **Resource efficiency**: Optimal connection utilization
@@ -66,6 +72,7 @@ db_pool = await asyncpg.create_pool(
 **Purpose**: Minimize database round trips during sync operations.
 
 **Implementation**:
+
 ```python
 # Batch sync multiple posts at once
 async def sync_post(self, post_ids: List[UUID]):
@@ -77,6 +84,7 @@ async def sync_post(self, post_ids: List[UUID]):
 ```
 
 **Benefits**:
+
 - **Reduced round trips**: Batch operations instead of individual syncs
 - **Better throughput**: Higher sync performance under load
 - **Atomic operations**: All-or-nothing sync consistency
@@ -86,6 +94,7 @@ async def sync_post(self, post_ids: List[UUID]):
 **Purpose**: Optimize query performance with appropriate indexes.
 
 **Indexes Applied**:
+
 ```sql
 -- Primary keys (automatic)
 -- Foreign key indexes for joins
@@ -98,6 +107,7 @@ CREATE INDEX idx_tv_post_data_gin ON tv_post USING gin(data);
 ```
 
 **Performance Impact**:
+
 - **Lookup speed**: O(1) primary key lookups
 - **Join performance**: Fast foreign key traversals
 - **JSONB queries**: Efficient complex field queries
@@ -107,11 +117,13 @@ CREATE INDEX idx_tv_post_data_gin ON tv_post USING gin(data);
 **Purpose**: Cache frequently accessed query results.
 
 **Implementation**:
+
 - **Application-level caching**: In-memory cache for hot queries
 - **Database-level caching**: PostgreSQL shared buffers for query-side tables
 - **Connection pooling**: Reuse connections to leverage connection-level caching
 
 **Configuration**:
+
 - **Shared buffers**: 256MB PostgreSQL memory for data caching
 - **Work mem**: 16MB per connection for sort operations
 - **Effective cache size**: 1GB (tuned for available system memory)
@@ -121,16 +133,19 @@ CREATE INDEX idx_tv_post_data_gin ON tv_post USING gin(data);
 ### For GraphQL Benchmark Suite
 
 **N+1 Query Prevention**:
+
 - All resolvers use pre-denormalized data from `tv_*` tables
 - No DataLoader required (built into CQRS design)
 - Single database query per GraphQL operation
 
 **Query Complexity Management**:
+
 - Denormalized data eliminates complex joins
 - JSONB storage allows field-level selection without additional queries
 - Fixed query patterns enable predictable performance
 
 **Connection Efficiency**:
+
 - Connection pool sized for benchmark concurrency (max 20 connections)
 - Prepared statements for repeated queries
 - Connection-level result caching
@@ -174,12 +189,14 @@ CREATE INDEX idx_tv_post_data_gin ON tv_post USING gin(data);
 ### Performance Trade-offs
 
 **Advantages**:
+
 - ✅ Sub-millisecond query responses
 - ✅ Zero N+1 queries
 - ✅ Predictable performance
 - ✅ High concurrency support
 
 **Costs**:
+
 - ❌ Increased storage (denormalized data)
 - ❌ Sync complexity (explicit synchronization)
 - ❌ Write performance overhead (sync operations)

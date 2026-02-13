@@ -18,6 +18,7 @@ Event sourcing patterns in FraiseQL: entity change logs, temporal queries, audit
 Event sourcing stores all changes to application state as a sequence of events. FraiseQL supports event sourcing through entity change logs, Debezium-style before/after snapshots, and temporal query capabilities.
 
 **Key Patterns:**
+
 - Entity Change Log as event store
 - Before/after snapshots (Debezium pattern)
 - Event replay capabilities

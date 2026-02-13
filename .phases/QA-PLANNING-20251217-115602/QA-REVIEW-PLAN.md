@@ -9,6 +9,7 @@
 ## 🎯 Executive Summary
 
 This plan establishes a structured approach to:
+
 1. **QA Review** the implementation work completed by the agent
 2. **Documentation validation** across all updated files
 3. **Code cohesiveness** verification
@@ -32,6 +33,7 @@ This plan establishes a structured approach to:
 ```
 
 **QA Tasks:**
+
 - [ ] **Task 1.1.1**: Verify `process_selections()` recursion depth limits
   - Check: Maximum recursion depth handling
   - Check: Stack overflow protections
@@ -76,7 +78,9 @@ Expected: 10 test cases covering:
 ```
 
 **QA Tasks:**
+
 - [ ] **Task 1.2.1**: Run full test suite locally
+
   ```bash
   make test
   # Verify: All 10 tests pass
@@ -175,6 +179,7 @@ TARGET LOCATIONS:
 - [ ] **Task 2.2.2**: Example Queries Validation
 
   **Nested Fragments Examples:**
+
   ```graphql
   fragment UserFields on User { id name }
 
@@ -186,6 +191,7 @@ TARGET LOCATIONS:
     }
   }
   ```
+
   - [ ] Example 1: Basic nested fragment spread
   - [ ] Example 2: Multiple nested levels (3+ deep)
   - [ ] Example 3: Mixed inline + spread fragments
@@ -193,10 +199,12 @@ TARGET LOCATIONS:
   - [ ] Example 5: Fragment with directives
 
   **Cycle Detection Examples:**
+
   ```graphql
   fragment A on Type { ...B }
   fragment B on Type { ...A }
   ```
+
   - [ ] Example 1: Direct A ↔ B cycle
   - [ ] Example 2: Self-reference A ↔ A
   - [ ] Example 3: Long chain A → B → C → A
@@ -262,28 +270,34 @@ All documentation examples should:
 ### 3.1 Full Test Suite Execution
 
 - [ ] **Task 3.1.1**: Run complete test suite
+
   ```bash
   cd /home/lionel/code/fraiseql
   make test
   ```
+
   - Verify: All 5991+ tests pass
   - Verify: No new failures
   - Verify: New 10 fragment tests included
   - Verify: Zero regressions
 
 - [ ] **Task 3.1.2**: Run linting and formatting checks
+
   ```bash
   make lint
   make format
   ```
+
   - Verify: No lint errors
   - Verify: Code properly formatted
   - Verify: Import sorting correct
 
 - [ ] **Task 3.1.3**: Type checking
+
   ```bash
   mypy src/fraiseql/fastapi/routers.py
   ```
+
   - Verify: No type errors
   - Verify: Type annotations complete
   - Verify: Compatible with Python 3.10+
@@ -291,10 +305,12 @@ All documentation examples should:
 ### 3.2 Documentation Build & Validation
 
 - [ ] **Task 3.2.1**: Build documentation
+
   ```bash
   cd /home/lionel/code/fraiseql
   make docs  # If available, or equivalent
   ```
+
   - Verify: No broken links
   - Verify: Code examples properly highlighted
   - Verify: Images/diagrams render correctly
@@ -399,27 +415,35 @@ Security: DoS protection against circular references
 Before committing:
 
 - [ ] **Task 4.3.1**: Run all tests
+
   ```bash
   make test
   ```
+
   - Result: All tests pass ✅
 
 - [ ] **Task 4.3.2**: Run linting
+
   ```bash
   make lint
   ```
+
   - Result: No issues ✅
 
 - [ ] **Task 4.3.3**: Run formatting
+
   ```bash
   make format
   ```
+
   - Result: Code formatted ✅
 
 - [ ] **Task 4.3.4**: Verify git status
+
   ```bash
   git status
   ```
+
   - Check: Only intended files modified
   - Check: No accidental dependencies updates
   - Check: Cargo.lock/uv.lock appropriately updated
@@ -429,17 +453,21 @@ Before committing:
 After commit:
 
 - [ ] **Task 4.4.1**: Verify commit content
+
   ```bash
   git show HEAD
   ```
+
   - Check: Message clear and complete
   - Check: Changes match description
   - Check: Files logically grouped
 
 - [ ] **Task 4.4.2**: Verify history
+
   ```bash
   git log --oneline -10
   ```
+
   - Check: Commit in correct position
   - Check: Message format consistent with history
 
@@ -472,6 +500,7 @@ make pr-ship-patch  # Automated 5-phase workflow
 ```
 
 This will:
+
 - [ ] Phase 0: Sync with origin/dev
 - [ ] Phase 1: Run full test suite (5991+ tests)
 - [ ] Phase 2: Bump version in all 8 files atomically
@@ -557,27 +586,32 @@ This will:
 ## 📋 Execution Order
 
 ### Phase 1: QA Review (Today)
+
 1. Review code changes (1.1-1.4)
 2. Validate test suite (1.2)
 3. Performance check (1.3)
 4. Security review (1.4)
 
 ### Phase 2: Documentation Review (Today)
+
 1. Check documentation files (2.1-2.4)
 2. Validate examples (2.3)
 3. Code cohesiveness review (2.4)
 
 ### Phase 3: Integration (Today)
+
 1. Run full test suite (3.1)
 2. Build documentation (3.2)
 3. Backward compatibility (3.3)
 
 ### Phase 4: Commit (When Phase 1-3 Complete)
+
 1. Prepare commit (4.1-4.2)
 2. Pre-commit checks (4.3)
 3. Verify commit (4.4)
 
 ### Phase 5: Release (When Phase 4 Complete)
+
 1. Version bump (5.1)
 2. Release checklist (5.2)
 3. Release notes (5.3)
@@ -596,6 +630,7 @@ This will:
 - [ ] Release preparation ready (Part 5)
 
 **Approval Sign-Off:**
+
 - [ ] Code review: _______________
 - [ ] Documentation review: _______________
 - [ ] QA sign-off: _______________

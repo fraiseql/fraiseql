@@ -9,11 +9,13 @@
 ### What's Changing
 
 **v1.7.x (OLD):**
+
 - Validation failures → Success type with `machine: null`
 - Confusing semantics ("Success" for failures)
 - Type safety issues
 
 **v1.8.0 (NEW):**
+
 - Validation failures → Error type with `code: 422`
 - Clear semantics (Success = succeeded, Error = failed)
 - Type safe (Success always has non-null entity)
@@ -33,10 +35,12 @@
 ## 📁 Implementation Phases
 
 ### [Phase 1: Rust Core Changes](./01_PHASE_1_RUST_CORE.md)
+
 **Timeline:** Week 1, Days 1-3
 **Risk:** HIGH (core mutation pipeline)
 
 **Key Changes:**
+
 - Update `response_builder.rs:24` - Remove `|| result.status.is_noop()`
 - Add `build_error_response_with_code()` function
 - Add `map_status_to_code()` function (noop→422, not_found→404, etc.)
@@ -44,6 +48,7 @@
 - Update status enum methods
 
 **Files Modified:**
+
 - `fraiseql_rs/src/mutation/response_builder.rs`
 - `fraiseql_rs/src/mutation/mod.rs`
 - `fraiseql_rs/src/mutation/types.rs`
@@ -52,10 +57,12 @@
 ---
 
 ### [Phase 2: Python Layer Updates](./02_PHASE_2_PYTHON_LAYER.md)
+
 **Timeline:** Week 1, Days 4-5
 **Risk:** MEDIUM (backward compatibility)
 
 **Key Changes:**
+
 - Remove `error_as_data_prefixes` from error config
 - Move `noop:`, `blocked:` to `error_prefixes`
 - Add `get_error_code()` method
@@ -63,6 +70,7 @@
 - Validate Success types have non-null entity
 
 **Files Modified:**
+
 - `src/fraiseql/mutations/error_config.py`
 - `src/fraiseql/mutations/types.py`
 - `src/fraiseql/mutations/rust_executor.py`
@@ -72,16 +80,19 @@
 ---
 
 ### [Phase 3: Schema Generation](./03_PHASE_3_SCHEMA_GENERATION.md)
+
 **Timeline:** Week 2, Days 1-3
 **Risk:** MEDIUM (schema changes)
 
 **Key Changes:**
+
 - Generate union types for all mutations
 - Ensure Success types have non-nullable entity fields
 - Ensure Error types include `code: Int!` field
 - Add schema validation
 
 **Files Modified:**
+
 - `src/fraiseql/schema/mutation_schema_generator.py`
 - `src/fraiseql/graphql/schema_builder.py`
 - `src/fraiseql/schema/validator.py` (new)
@@ -89,16 +100,19 @@
 ---
 
 ### [Phase 4: Testing & Documentation](./04_PHASE_4_TESTING_DOCS.md)
+
 **Timeline:** Week 2, Days 4-5
 **Risk:** LOW (documentation)
 
 **Key Changes:**
+
 - Update ALL FraiseQL tests
 - Write comprehensive migration guide
 - Update status strings documentation
 - Create code examples (before/after)
 
 **Files Modified:**
+
 - `tests/integration/test_graphql_cascade.py`
 - `tests/integration/graphql/mutations/test_mutation_error_handling.py`
 - `docs/migrations/v1.8.0.md` (new)
@@ -107,10 +121,12 @@
 ---
 
 ### [Phase 5: Verification & Release](./05_PHASE_5_VERIFICATION_RELEASE.md)
+
 **Timeline:** Week 3
 **Risk:** LOW (verification)
 
 **Key Tasks:**
+
 - Run full test suite
 - Performance benchmarking
 - Beta release (v1.8.0-beta.1)
@@ -122,15 +138,20 @@
 ## 🚀 Getting Started
 
 ### Step 1: Read the Overview
+
 Start with [`00_OVERVIEW.md`](./00_OVERVIEW.md) for architectural context.
 
 ### Step 2: Understand the Architecture
+
 Review Tim Berners-Lee's feedback:
+
 - `/tmp/fraiseql_tim_feedback_analysis.md`
 - `/tmp/fraiseql_validation_error_architecture_review.md`
 
 ### Step 3: Begin Implementation
+
 Follow phases in order:
+
 1. [Phase 1: Rust Core](./01_PHASE_1_RUST_CORE.md)
 2. [Phase 2: Python Layer](./02_PHASE_2_PYTHON_LAYER.md)
 3. [Phase 3: Schema Generation](./03_PHASE_3_SCHEMA_GENERATION.md)
@@ -144,6 +165,7 @@ Follow phases in order:
 ### User Code Changes Required
 
 **1. Update Success Types**
+
 ```python
 # OLD (v1.7.x)
 @fraiseql.success
@@ -157,6 +179,7 @@ class CreateMachineSuccess:
 ```
 
 **2. Update Error Types**
+
 ```python
 # OLD (v1.7.x)
 @fraiseql.failure
@@ -174,6 +197,7 @@ class CreateMachineError:
 ```
 
 **3. Update Test Assertions**
+
 ```python
 # OLD (v1.7.x)
 assert result["__typename"] == "CreateMachineSuccess"
@@ -186,6 +210,7 @@ assert result["status"] == "noop:invalid_contract_id"
 ```
 
 **4. Update GraphQL Fragments**
+
 ```graphql
 # OLD (v1.7.x)
 mutation {
@@ -227,6 +252,7 @@ mutation {
 ## 🎯 Success Criteria
 
 ### FraiseQL Core
+
 - [ ] All Rust tests pass
 - [ ] All Python tests pass
 - [ ] Schema validates
@@ -236,6 +262,7 @@ mutation {
 - [ ] v1.8.0 released to PyPI
 
 ### PrintOptim Migration
+
 - [ ] ~30-50 tests updated
 - [ ] GraphQL fragments updated
 - [ ] Frontend error handling updated
@@ -248,6 +275,7 @@ mutation {
 ## 📚 Resources
 
 ### Implementation Docs
+
 - [Phase 1: Rust Core](./01_PHASE_1_RUST_CORE.md)
 - [Phase 2: Python Layer](./02_PHASE_2_PYTHON_LAYER.md)
 - [Phase 3: Schema Generation](./03_PHASE_3_SCHEMA_GENERATION.md)
@@ -255,11 +283,13 @@ mutation {
 - [Phase 5: Verification & Release](./05_PHASE_5_VERIFICATION_RELEASE.md)
 
 ### Architecture Docs
+
 - Tim's Feedback Analysis: `/tmp/fraiseql_tim_feedback_analysis.md`
 - Architecture Review: `/tmp/fraiseql_validation_error_architecture_review.md`
 - PrintOptim Issue: `/tmp/fraiseql_cascade_validation_error_handling.md`
 
 ### External References
+
 - [GraphQL Best Practices](https://graphql.org/learn/best-practices/)
 - [REST Status Codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
 - [HTTP Semantics (RFC 9110)](https://www.rfc-editor.org/rfc/rfc9110.html)
@@ -280,18 +310,21 @@ Questions during implementation?
 ## 📝 Notes
 
 ### Why Big Bang?
+
 - Cleaner migration path (no hybrid state)
 - Simpler mental model (one pattern, not two)
 - Forces comprehensive testing
 - Clear cutover point
 
 ### Why FraiseQL First?
+
 - PrintOptim depends on FraiseQL
 - FraiseQL changes are foundational
 - Allows beta testing before PrintOptim migration
 - Parallel migration not possible (dependency)
 
 ### Risk Mitigation
+
 - Comprehensive test coverage
 - Beta release period (1+ week)
 - Performance benchmarking

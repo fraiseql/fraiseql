@@ -1,14 +1,17 @@
 # ADR-0003: KMS Architecture with Rust Pipeline Compatibility
 
 ## Status
+
 Accepted
 
 ## Context
+
 FraiseQL uses a high-performance Rust pipeline for JSON transformation (~6-17ms latency). Adding per-request KMS encryption would introduce 50-200ms latency penalty per call, making the framework unusably slow for real-time APIs.
 
 The framework needs enterprise-grade encryption for sensitive data while maintaining the performance characteristics that make it competitive.
 
 ## Decision
+
 Implement envelope encryption with startup-time key initialization:
 
 1. **Startup Key Retrieval**: At application startup, request data encryption key (DEK) from KMS
@@ -19,6 +22,7 @@ Implement envelope encryption with startup-time key initialization:
 ## Implementation
 
 ### Key Retrieval Flow
+
 ```python
 # At startup
 kms_provider = VaultKMSProvider(config)
@@ -31,6 +35,7 @@ self._encrypted_dek = data_key.encrypted
 ```
 
 ### Runtime Encryption
+
 ```python
 # Hot path - no KMS calls
 encrypted_data = await local_encrypt(
@@ -40,6 +45,7 @@ encrypted_data = await local_encrypt(
 ```
 
 ### Key Rotation
+
 ```python
 async def rotate_keys(self):
     """Background task to rotate DEK."""
@@ -53,6 +59,7 @@ async def rotate_keys(self):
 ## Providers Supported
 
 ### HashiCorp Vault
+
 ```python
 # Uses transit/datakey endpoint
 response = await vault_client.post("/v1/transit/datakey/plaintext/my-key")
@@ -60,6 +67,7 @@ response = await vault_client.post("/v1/transit/datakey/plaintext/my-key")
 ```
 
 ### AWS KMS
+
 ```python
 # Uses GenerateDataKey
 response = await kms_client.generate_data_key(
@@ -70,6 +78,7 @@ response = await kms_client.generate_data_key(
 ```
 
 ### GCP Cloud KMS
+
 ```python
 # Local key generation + remote encryption
 local_key = secrets.token_bytes(32)  # 256-bit AES key
@@ -82,11 +91,13 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 ## Security Analysis
 
 ### Threat Model
+
 - **Primary Threat**: DEK exposure in memory
 - **Mitigation**: Short-lived keys, memory protection, container isolation
 - **Acceptable Risk**: DEK lifetime measured in hours/days, not permanent
 
 ### Attack Vectors Considered
+
 1. **Memory Dump Attack**: Container memory accessible
    - Mitigation: Short key lifetime, encrypted at rest, secure enclaves
 2. **Side Channel Attack**: Timing/analysis of encryption operations
@@ -97,6 +108,7 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 ## Performance Characteristics
 
 ### Latency Comparison
+
 | Operation | Without KMS | With KMS (per-request) | With Envelope Encryption |
 |-----------|-------------|------------------------|------------------------|
 | JSON Transform | 6-17ms | 56-217ms (+50-200ms) | 6-17ms (no change) |
@@ -104,6 +116,7 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 | Startup Time | 100ms | 100ms | 150ms (+50ms for key fetch) |
 
 ### Memory Overhead
+
 - **DEK Size**: 32 bytes (AES-256)
 - **Encrypted DEK**: ~100-200 bytes
 - **Total Memory**: < 1KB per application instance
@@ -111,6 +124,7 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 ## Consequences
 
 ### Positive
+
 - ✅ **Maintains Performance**: No impact on hot path latency
 - ✅ **Enterprise Security**: Full KMS integration with industry standards
 - ✅ **Multi-Provider**: Vault, AWS, GCP support
@@ -118,12 +132,14 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 - ✅ **Rust Compatible**: No changes needed to Rust pipeline
 
 ### Negative
+
 - ❌ **Memory Key Storage**: DEK exists in plaintext in memory
 - ❌ **Key Rotation Complexity**: Background task management
 - ❌ **Startup Dependency**: KMS must be available at startup
 - ❌ **Provider Differences**: GCP requires local key generation
 
 ### Neutral
+
 - ⚪ **Operational Complexity**: Additional KMS management
 - ⚪ **Monitoring Needs**: Key rotation health checks
 - ⚪ **Provider Lock-in**: Architecture works with any envelope encryption KMS
@@ -131,16 +147,19 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 ## Alternatives Considered
 
 ### Option 1: Per-Request KMS Encryption
+
 - **Pros**: Maximum security, no local key storage
 - **Cons**: 50-200ms latency penalty, unusable for real-time APIs
 - **Decision**: Rejected due to performance impact
 
 ### Option 2: Client-Side Encryption
+
 - **Pros**: No server-side key management
 - **Cons**: Complex client integration, key distribution challenges
 - **Decision**: Rejected due to increased complexity
 
 ### Option 3: Database-Level Encryption
+
 - **Pros**: Transparent encryption, PostgreSQL TDE
 - **Cons**: Limited to PostgreSQL, no application control
 - **Decision**: Rejected due to lack of flexibility
@@ -148,12 +167,14 @@ encrypted_key = await kms_client.asymmetric_encrypt(
 ## Implementation Notes
 
 ### Key Rotation Strategy
+
 - **Time-based**: Rotate every 24 hours
 - **Size-based**: Rotate after N encryptions
 - **Error-based**: Rotate on KMS errors
 - **Manual**: API endpoint for immediate rotation
 
 ### Monitoring Requirements
+
 ```python
 # Key rotation metrics
 key_rotation_success_total
@@ -163,6 +184,7 @@ kms_response_time_seconds
 ```
 
 ### Error Handling
+
 - **Startup Failure**: Fail fast if KMS unavailable
 - **Runtime Failure**: Fallback to local-only mode with alerts
 - **Rotation Failure**: Alert but continue with old key

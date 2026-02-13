@@ -107,6 +107,7 @@ Test execution time: ~0.09s
 ### Development History
 
 Historical development documentation archived in `docs/development-history/`:
+
 - Phase 1: POC
 - Phase 2: CamelCase conversion
 - Phase 3: JSON transformation
@@ -164,12 +165,14 @@ async def resolve_user(info, user_id: int):
 ### Performance Impact
 
 **Before (Pure Python):**
+
 - CamelCase conversion: 0.5-1ms per field
 - Dict traversal: 5-10ms for 20 fields
 - Nested arrays: 15-30ms
 - **Total: 20-40ms** for complex queries
 
 **After (fraiseql-rs):**
+
 - CamelCase conversion: 0.01-0.05ms per field
 - JSON parsing: 0.1-0.2ms
 - Nested arrays: 0.5-1ms
@@ -180,24 +183,30 @@ async def resolve_user(info, user_id: int):
 ## Use Cases
 
 ### 1. GraphQL API Responses
+
 Transform database JSONB to GraphQL responses with automatic type injection.
 
 ### 2. Batch Processing
+
 Process thousands of records efficiently with SchemaRegistry.
 
 ### 3. Real-time Streaming
+
 WebSocket transformations with minimal latency.
 
 ### 4. Microservices
+
 Fast JSON transformations for inter-service communication.
 
 ## Dependencies
 
 ### Runtime
+
 - Python 3.8+
 - No Python dependencies (pure Rust extension)
 
 ### Build Time
+
 - Rust 1.70+
 - PyO3 0.25.1
 - serde 1.0
@@ -275,6 +284,7 @@ The module is ready for integration into FraiseQL and can immediately replace ex
 **Status**: ✅ **PRODUCTION READY**
 
 **Recommended Next Steps**:
+
 1. Integrate into FraiseQL GraphQL resolvers
 2. Monitor performance in production
 3. Gather user feedback

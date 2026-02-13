@@ -477,6 +477,7 @@ print("Available fields:", dir(where_input))
 ### From Verbose Field Definitions
 
 **Before (Verbose):**
+
 ```python
 print_servers: list[PrintServer] = fraise_field(
     default_factory=list,
@@ -486,6 +487,7 @@ print_servers: list[PrintServer] = fraise_field(
 ```
 
 **After (Clean):**
+
 ```python
 @auto_nested_array_filters  # Just add this decorator
 @fraise_type
@@ -496,6 +498,7 @@ class NetworkConfiguration:
 ### Backward Compatibility
 
 The new registration-based API is **fully backward compatible**:
+
 - Existing verbose field definitions continue to work
 - Can mix verbose and clean approaches in the same codebase
 - Registry takes precedence over field metadata when both are present
@@ -564,6 +567,7 @@ python -m pytest tests/test_nested_array_registry.py -v
 ```
 
 Test coverage includes:
+
 - 40+ test cases covering all functionality
 - Complex nested logical operator combinations
 - Edge cases (empty arrays, null values)

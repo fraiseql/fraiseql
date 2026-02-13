@@ -18,6 +18,7 @@ Domain-Driven Design patterns in FraiseQL: bounded contexts, repositories, aggre
 Bounded contexts are explicit boundaries within which a domain model is defined. FraiseQL supports DDD patterns through repositories, schema organization, and context integration.
 
 **Key Concepts:**
+
 - Repository pattern per bounded context
 - Database schema per context (tb_*, tv_* patterns)
 - Context integration patterns
@@ -46,6 +47,7 @@ A bounded context is an explicit boundary within which a particular domain model
 ```
 
 **Same entity, different models:**
+
 - Orders Context: Customer (name, shipping address, order history)
 - Catalog Context: Customer (preferences, viewed products, cart)
 - Billing Context: Customer (billing address, payment methods, credit)
@@ -53,12 +55,14 @@ A bounded context is an explicit boundary within which a particular domain model
 ### Identifying Bounded Contexts
 
 Questions to ask:
+
 1. Does this concept mean different things in different parts of the system?
 2. Do different teams own different parts of the domain?
 3. Would changes in one area require changes in another?
 4. Is there natural data privacy/security boundary?
 
 **Example Contexts:**
+
 ```
 Organization Management Context:
 - Organizations, Users, Roles, Permissions
@@ -258,6 +262,7 @@ Examples:
 ```
 
 **Prefixes:**
+
 - `tb_` - Tables (base data)
 - `tv_` - Views (derived data)
 - `tf_` - Functions (stored procedures)
@@ -270,6 +275,7 @@ Examples:
 An aggregate is a cluster of domain objects that can be treated as a single unit. An aggregate has one root entity (aggregate root) and a boundary.
 
 **Rules:**
+
 1. External objects can only reference the aggregate root
 2. Aggregate root enforces all invariants
 3. Aggregates are consistency boundaries
@@ -424,22 +430,27 @@ async def submit_order(info: GraphQLResolveInfo, order_id: ID) -> Order:
 ### Integration Patterns
 
 **1. Shared Kernel**
+
 - Common types/entities used by multiple contexts
 - Example: Customer ID, Money, Address
 
 **2. Customer/Supplier**
+
 - One context (supplier) provides API
 - Other context (customer) consumes API
 
 **3. Conformist**
+
 - Downstream context conforms to upstream model
 - No translation layer
 
 **4. Anti-Corruption Layer (ACL)**
+
 - Translation layer between contexts
 - Protects domain model from external changes
 
 **5. Published Language**
+
 - Well-defined integration schema
 - GraphQL as published language
 

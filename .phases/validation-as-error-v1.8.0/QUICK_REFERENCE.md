@@ -267,12 +267,14 @@ extend type Mutation {
 ## 📝 Migration Checklist
 
 ### Code Updates
+
 - [ ] Remove `| None` from Success type entity fields
 - [ ] Add `code: int` field to Error types
 - [ ] Add `status: str` field to Error types
 - [ ] Update mutation return types to unions
 
 ### Test Updates
+
 - [ ] Change assertions from `CreateMachineSuccess` to `CreateMachineError` for validation
 - [ ] Assert `code == 422` for validation errors
 - [ ] Assert `code == 404` for not found errors
@@ -280,11 +282,13 @@ extend type Mutation {
 - [ ] Remove assertions for `machine is None`
 
 ### GraphQL Updates
+
 - [ ] Add `__typename` to all mutation queries
 - [ ] Add fragments for Success and Error types
 - [ ] Handle union types in client code
 
 ### Frontend Updates
+
 - [ ] Update error handling to check `code` field
 - [ ] Update success handling (entity always exists)
 - [ ] Update TypeScript types (if codegen used)

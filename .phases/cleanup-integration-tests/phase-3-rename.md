@@ -1,12 +1,15 @@
 # Phase 3: Rename Files to Remove Process Hints (REFACTOR)
 
 ## Objective
+
 Rename all test files to remove development process hints like `_fix`, `_regression`, `_simple`, `_extended`, `_complex`, etc.
 
 ## Context
+
 Many test files have names that reveal the iterative development process. These need clean, professional names that describe WHAT they test, not WHEN or WHY they were created.
 
 ## Files to Modify
+
 Based on inventory: 17 files to rename (plus 2 from Phase 2 consolidation)
 
 ## Implementation Steps
@@ -239,6 +242,7 @@ uv run pytest tests/integration/ -v --tb=short
 **Expected output**: All tests pass
 
 **If tests fail**:
+
 - Should not fail due to renames alone (Python imports by file path)
 - If failures occur, likely unrelated to renames
 - Check git status to see which files changed
@@ -259,6 +263,7 @@ uv run pytest tests/integration/ -v
 ```
 
 **Expected output**:
+
 - 19 renamed files in git status
 - 0 files with process hints
 - All tests pass
@@ -299,18 +304,21 @@ All tests passing. No functionality changes."
 
 **Problem**: `git mv` fails with "source file doesn't exist"
 **Solution**:
+
 1. Check if file was already renamed or deleted in Phase 2
 2. Verify exact file path with `ls tests/integration/**/*.py | grep <filename>`
 3. Update path in command
 
 **Problem**: Tests fail after rename
 **Solution**:
+
 1. Check if failure is related to rename (unlikely)
 2. Run `git diff` to see if any code changed unexpectedly
 3. Check pytest discovery isn't confused (test files must start with `test_`)
 
 **Problem**: Git status shows "deleted" and "untracked" instead of "renamed"
 **Solution**: You used `mv` instead of `git mv`. Fix with:
+
 ```bash
 git add -A  # This will detect the rename
 git status  # Should now show "renamed"
@@ -323,6 +331,7 @@ git status  # Should now show "renamed"
 
 **What if I make a typo in the new name?**
 Use `git mv` again to fix it:
+
 ```bash
 git mv tests/integration/graphql/test_typo.py tests/integration/graphql/test_correct_name.py
 ```
@@ -334,6 +343,7 @@ Not yet - that's Phase 4. Right now we're only changing file names.
 Renaming 19 files is error-prone. Each verification catches mistakes early.
 
 **Time estimate**: ~1 hour
+
 - Renames: ~30 minutes
 - Verification: ~15 minutes
 - Test run: ~15 minutes

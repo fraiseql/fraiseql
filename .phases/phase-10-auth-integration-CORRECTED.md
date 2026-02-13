@@ -20,6 +20,7 @@
 **Status**: Ready for implementation
 
 **Changes from v1.0**:
+
 - ✅ Fixed JWK to PEM conversion (use built-in)
 - ✅ Added all missing imports
 - ✅ Fixed PyO3 async return types
@@ -36,17 +37,20 @@
 ## Context
 
 **Why This Phase Matters:**
+
 - Token validation is on the critical path (every request)
 - JWT libraries in Rust (jsonwebtoken) are 5-10x faster than Python PyJWT
 - Eliminates Python auth provider overhead
 - Enables auth caching in Rust for sub-millisecond validation
 
 **Dependencies:**
+
 - Phase 9 (Unified Pipeline) ✅ Complete
 - Rust GraphQL execution pipeline
 - UserContext struct already exists in unified.rs (will be updated)
 
 **Performance Target:**
+
 - JWT validation: <1ms (currently ~5-10ms in Python)
 - Cached user context: <0.1ms
 - Auth0 JWKS fetch: <50ms (cached for 1 hour)
@@ -56,6 +60,7 @@
 ## Files to Modify/Create
 
 ### Rust Files (fraiseql_rs/src/auth/)
+
 - **mod.rs** (NEW): Auth module exports
 - **jwt.rs** (NEW): JWT token validation with jsonwebtoken crate
 - **provider.rs** (NEW): Auth provider trait (Auth0, JWT, custom)
@@ -63,15 +68,18 @@
 - **errors.rs** (NEW): Auth error types (TokenExpired, InvalidToken, etc.)
 
 ### Integration Files
+
 - **fraiseql_rs/src/lib.rs**: Add auth module, PyAuth class
 - **fraiseql_rs/src/pipeline/unified.rs**: Update UserContext, integrate auth validation
 - **fraiseql_rs/Cargo.toml**: Add dependencies
 
 ### Python Migration Files
+
 - **src/fraiseql/auth/rust_provider.py** (NEW): Python wrapper for Rust auth
 - **src/fraiseql/auth/base.py**: Keep interface, deprecate Python implementations
 
 ### Test Files
+
 - **tests/test_rust_auth.py** (NEW): Integration tests for Rust auth
 - **fraiseql_rs/tests/auth_tests.rs** (NEW): Rust unit tests
 
@@ -733,6 +741,7 @@ fn fraiseql_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 ## Verification Commands
 
 ### Build Rust Extension
+
 ```bash
 cd fraiseql_rs
 cargo build --release
@@ -741,6 +750,7 @@ maturin develop --release
 ```
 
 ### Run Auth Tests
+
 ```bash
 # Unit tests (Rust)
 cargo test --lib auth
@@ -756,6 +766,7 @@ pytest tests/performance/test_auth_performance.py -xvs
 ```
 
 ### Expected Test Output
+
 ```
 tests/test_rust_auth.py::test_auth0_validation ✓ (2ms)
 tests/test_rust_auth.py::test_jwt_validation ✓ (1ms)
@@ -776,6 +787,7 @@ Performance:
 ## Acceptance Criteria
 
 **Functionality:**
+
 - ✅ JWT token validation with JWKS support (built-in)
 - ✅ Auth0 provider implementation
 - ✅ Custom JWT provider implementation
@@ -786,12 +798,14 @@ Performance:
 - ✅ Timeout protection for JWKS fetching
 
 **Performance:**
+
 - ✅ JWT validation: <1ms (cached), <10ms (uncached)
 - ✅ 5-10x faster than Python implementation
 - ✅ Cache hit rate >95% for production workloads
 - ✅ JWKS cache reduces external API calls
 
 **Testing:**
+
 - ✅ All existing auth tests pass
 - ✅ New Rust unit tests for JWT validation
 - ✅ Integration tests for Auth0 and custom JWT
@@ -800,6 +814,7 @@ Performance:
 - ✅ Security tests (HTTPS validation, timeout)
 
 **Quality:**
+
 - ✅ No compilation warnings
 - ✅ No clippy warnings
 - ✅ Proper error propagation
@@ -849,30 +864,35 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 ## Migration Strategy
 
 **Phase 1: Add Rust Auth (Week 1)**
+
 - Implement Rust JWT validation (with all fixes applied)
 - Add Auth0Provider and CustomJWTProvider
 - Add caching layer with LRU
 - Unit tests for all components
 
 **Phase 2: Python Wrapper (Week 1)**
+
 - Create RustAuth0Provider wrapper
 - Maintain backward compatibility
 - Add integration tests
 - Performance benchmarks
 
 **Phase 3: Gradual Migration (Week 2)**
+
 - Update FastAPI to use Rust auth by default
 - Keep Python auth as fallback
 - Monitor performance improvements
 - Feature flag: `use_rust_auth`
 
 **Phase 4: Production Rollout (Week 2-3)**
+
 - Canary deployment (1% → 10% → 50% → 100%)
 - Monitor error rates and latency
 - Collect performance metrics
 - Full Rust auth in production
 
 **Phase 5: Deprecation (Week 3+)**
+
 - Deprecate Python auth implementations
 - Remove after 2 releases
 - Update documentation
@@ -882,12 +902,14 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 ## Performance Expectations
 
 **Before (Python):**
+
 - JWT validation: ~5-10ms
 - No caching (every request validates)
 - Python PyJWT overhead
 - No JWKS caching
 
 **After (Rust):**
+
 - First validation: ~5ms (JWKS fetch)
 - Cached validation: <1ms
 - JWKS cached for 1 hour
@@ -896,6 +918,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 - LRU cache prevents unbounded growth
 
 **Real-World Impact:**
+
 - 1000 req/s → Auth overhead: 1s/s → 0.1s/s
 - P99 latency: -4-9ms
 - CPU usage: -10-20%
@@ -906,6 +929,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 ## Security Enhancements
 
 **✅ All Security Issues Fixed:**
+
 1. Token hashing (SHA256) - never store raw tokens
 2. HTTPS-only JWKS URLs - reject HTTP
 3. Algorithm restriction (RS256 only)
@@ -918,6 +942,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 ## QA Corrections Applied
 
 **Critical Fixes (5/5):**
+
 - ✅ JWK to PEM conversion (use built-in `DecodingKey::from_jwk`)
 - ✅ Missing imports (SystemTime, Arc, Mutex)
 - ✅ PyO3 async return type (UserContext → PyUserContext)
@@ -925,6 +950,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 - ✅ pyo3-asyncio dependency
 
 **Runtime Fixes (5/5):**
+
 - ✅ JWKS fetch timeout (5 seconds)
 - ✅ LRU cache for JWKS (100 keys max)
 - ✅ HTTPS validation for JWKS URLs
@@ -932,6 +958,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 - ✅ Exp field in UserContext
 
 **Improvements (4/4):**
+
 - ✅ Documented Auth0 custom claims format
 - ✅ Improved error messages for validation failures
 - ✅ Exp in UserContext (no duplicate extraction)
@@ -944,6 +971,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 ## Next Phase Preview
 
 **Phase 11** will add:
+
 - RBAC permission resolution in Rust
 - Role hierarchy computation
 - PostgreSQL-backed permission caching
@@ -954,6 +982,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 ## Summary of Changes from v1.0
 
 **Code Changes:**
+
 1. jwt.rs: Use built-in JWK support, add timeout, HTTPS validation, LRU cache
 2. provider.rs: Add exp to UserContext, document custom claims
 3. cache.rs: Simplify (exp now in UserContext), add stats
@@ -961,6 +990,7 @@ pyo3-asyncio = { version = "0.21", features = ["tokio-runtime"] }  # ✅ Added
 5. lib.rs: Fix PyO3 async return type conversion
 
 **Dependency Changes:**
+
 - Added: pyo3-asyncio with tokio features
 - Ensured: tokio has "full" features
 - All others unchanged (already correct)

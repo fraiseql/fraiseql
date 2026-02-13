@@ -43,6 +43,7 @@ query {
 ```
 
 **Error Response:**
+
 ```json
 {
   "errors": [
@@ -81,6 +82,7 @@ fragment UserExtended on User {
 ```
 
 **Fix:**
+
 ```graphql
 # ✅ DO THIS INSTEAD
 fragment UserBasic on User {
@@ -108,6 +110,7 @@ fragment RecursiveUser on User {
 ```
 
 **Fix:**
+
 ```graphql
 # ✅ DO THIS INSTEAD
 fragment UserSummary on User {

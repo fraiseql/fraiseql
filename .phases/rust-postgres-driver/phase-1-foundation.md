@@ -10,12 +10,14 @@
 ## Objective
 
 Establish the Rust database foundation layer:
+
 1. Set up tokio-postgres + deadpool connection pool
 2. Create schema registry integration
 3. Verify connection lifecycle
 4. Pass all 5991+ existing tests (backward compatibility)
 
 **Success Criteria**:
+
 - ✅ Connection pool initializes and manages connections
 - ✅ Schema registry bridges Python and Rust
 - ✅ All existing tests pass (no regressions)
@@ -111,6 +113,7 @@ async-trait = "0.1"
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs && cargo check
 # Should compile without errors
@@ -140,6 +143,7 @@ pub use types::{QueryParam, QueryResult};
 ```
 
 **Verification**:
+
 ```bash
 cargo build -p fraiseql_rs
 # Should compile (but pool module will be incomplete)
@@ -232,6 +236,7 @@ impl From<tokio_postgres::Error> for DatabaseError {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql_rs --lib db::types
 # Should pass (simple type tests)
@@ -488,6 +493,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo test -p fraiseql_rs --lib db::pool::tests
 # Should pass all tests
@@ -561,6 +567,7 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cargo build -p fraiseql_rs
 # Should compile completely
@@ -581,6 +588,7 @@ m.add_class::<db::pool::DatabasePool>()?;
 ```
 
 **Verification**:
+
 ```bash
 cargo build -p fraiseql_rs
 # Should compile
@@ -733,6 +741,7 @@ def create_pool_from_env() -> RustDatabasePool:
 ```
 
 **Verification**:
+
 ```bash
 uv run python -c "from fraiseql.core.database import RustDatabasePool; print('✅ Import successful')"
 # Should print: ✅ Import successful
@@ -787,6 +796,7 @@ class TestDatabasePool:
 ```
 
 **Verification**:
+
 ```bash
 uv run pytest tests/integration/db/test_rust_pool.py -v
 # Should pass (skipped tests are OK at this stage)
@@ -808,21 +818,25 @@ uv run pytest tests/ -v -k "not rust" --tb=short
 ## Acceptance Criteria
 
 ### Compile & Build
+
 - [ ] `cargo build -p fraiseql_rs` completes without errors
 - [ ] `cargo test -p fraiseql_rs --lib db` passes all tests
 - [ ] `uv run pytest tests/integration/db/ -v` passes (skipped OK)
 
 ### Python Integration
+
 - [ ] `from fraiseql.core.database import RustDatabasePool` succeeds
 - [ ] `RustDatabasePool("...", enabled=False)` initializes correctly
 - [ ] `pool.get_stats()` returns dict (even when disabled)
 
 ### Backward Compatibility
+
 - [ ] All 5991+ existing tests pass
 - [ ] No changes to public API
 - [ ] psycopg still works (fallback mode)
 
 ### Documentation
+
 - [ ] All new Rust code has doc comments
 - [ ] All new Python code has docstrings
 - [ ] Type hints complete
@@ -836,6 +850,7 @@ uv run pytest tests/ -v -k "not rust" --tb=short
 ### What Tests Should Pass
 
 #### ✅ **Existing Python Tests** (~5991 tests)
+
 ```bash
 # All existing tests continue to pass
 # They test through the Python API wrapper
@@ -853,6 +868,7 @@ FRAISEQL_DB_BACKEND=python uv run pytest tests/ -v
 **Why they pass**: Tests call `schema.execute()` or HTTP endpoints. They don't care which backend (Python or Rust) handles the query.
 
 #### ✅ **New Rust Unit Tests** (~50 tests)
+
 ```bash
 # Add tests for connection pool implementation
 # These test Rust code directly
@@ -862,6 +878,7 @@ cargo test --lib db::pool
 ```
 
 #### ✅ **New Rust Integration Tests** (~20 tests)
+
 ```bash
 # Test connection pool with actual database
 
@@ -870,6 +887,7 @@ cargo test --test '*pool*'
 ```
 
 #### ✅ **Parity Tests** (~10 tests)
+
 ```bash
 # Verify Rust pool matches Python pool behavior
 
@@ -880,30 +898,35 @@ FRAISEQL_PARITY_TESTING=true cargo test
 ### Testing Checklist for Phase 1
 
 - [ ] **Python tests pass with Rust backend**
+
   ```bash
   FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
   # Should see: "5991 passed"
   ```
 
 - [ ] **Rust unit tests for pool pass**
+
   ```bash
   cargo test --lib db::pool --verbose
   # Should see: "test result: ok. ~50 passed"
   ```
 
 - [ ] **Integration tests pass**
+
   ```bash
   cargo test --test '*'
   # Should see: all integration tests pass
   ```
 
 - [ ] **Parity tests pass** (both backends match)
+
   ```bash
   FRAISEQL_PARITY_TESTING=true cargo test regression::parity
   # Should see: "test result: ok"
   ```
 
 - [ ] **No regressions**
+
   ```bash
   # Verify performance baseline
   cargo bench --benchmark connection_pool -- --save-baseline phase-1
@@ -911,6 +934,7 @@ FRAISEQL_PARITY_TESTING=true cargo test
   ```
 
 - [ ] **Feature flags work**
+
   ```bash
   # Test each backend independently
   cargo build --no-default-features --features python-db
@@ -921,12 +945,14 @@ FRAISEQL_PARITY_TESTING=true cargo test
 ### What Should NOT Be Changed
 
 ❌ **Don't port existing Python tests**
+
 - The 5991 existing Python tests test the Python API layer
 - They don't care which backend handles database operations
 - Just keep them running as-is
 - In Phase 5, remove tests that specifically test psycopg
 
 ❌ **Don't remove psycopg yet**
+
 - It's still the fallback in Phase 1
 - Feature flags keep both backends active
 - We'll remove it in Phase 5 (Deprecation phase)
@@ -981,6 +1007,7 @@ echo "✅ Phase 1 Testing Complete!"
 ### Issue: `error: could not compile 'fraiseql_rs'`
 
 **Check**:
+
 ```bash
 cargo update
 cargo build -p fraiseql_rs --verbose
@@ -1005,6 +1032,7 @@ Look for missing dependencies or Rust version issues.
 ## Verification Commands
 
 ### Quick Check
+
 ```bash
 # Compile check
 cargo check -p fraiseql_rs
@@ -1017,6 +1045,7 @@ uv run pytest tests/integration/db/ -v
 ```
 
 ### Full Verification
+
 ```bash
 # Build everything
 cargo build -p fraiseql_rs
@@ -1030,6 +1059,7 @@ uv run pytest tests/regression/ -v
 ```
 
 ### Performance Baseline
+
 ```bash
 # Get current psycopg performance baseline
 uv run pytest tests/performance/ -v 2>&1 | tee baseline_phase1.txt
@@ -1051,6 +1081,7 @@ uv run pytest tests/performance/ -v 2>&1 | tee baseline_phase1.txt
 **Why**: Phase 1 is foundational. Wrong patterns here cascade through all other phases.
 
 **What to show reviewer**:
+
 ```bash
 # Run all tests to show they pass
 cargo test --lib phase_1
@@ -1063,6 +1094,7 @@ cargo test --lib -- --nocapture
 ```
 
 **What NOT to worry about yet**:
+
 - Performance optimization (comes in Phase 3)
 - Full SQL generation (covered in Phase 2)
 - Result streaming (Phase 3 focus)

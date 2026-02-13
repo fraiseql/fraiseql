@@ -59,6 +59,7 @@ git checkout -b fix/cascade-nesting-v1.8.0a5
 **Copy the complete module from:** `01_IMPLEMENTATION_PLAN.md` → Step 2.1
 
 **Key points:**
+
 - 8-field struct matching PrintOptim's `mutation_response`
 - CASCADE at Position 7
 - Error handling with clear messages
@@ -68,11 +69,13 @@ git checkout -b fix/cascade-nesting-v1.8.0a5
 **Edit:** `fraiseql_rs/src/mutation/mod.rs`
 
 **Add near top:**
+
 ```rust
 mod postgres_composite;  // NEW
 ```
 
 **Update `build_mutation_response()` function:**
+
 ```rust
 // Try 8-field parser first, fallback to simple format
 let result = match postgres_composite::PostgresMutationResponse::from_json(mutation_json) {
@@ -86,6 +89,7 @@ let result = match postgres_composite::PostgresMutationResponse::from_json(mutat
 **Edit:** `fraiseql_rs/src/mutation/tests.rs`
 
 **Add test module at end:**
+
 ```rust
 #[cfg(test)]
 mod cascade_fix_tests {
@@ -205,16 +209,19 @@ uv run pytest tests/api/mutations/scd/allocation/ -v
 ### Step 9: Version Bump (10 min)
 
 **Edit:** `fraiseql_rs/Cargo.toml`
+
 ```toml
 version = "1.8.0-alpha.5"
 ```
 
 **Edit:** `pyproject.toml`
+
 ```toml
 version = "1.8.0a5"
 ```
 
 **Edit:** `CHANGELOG.md` (add at top)
+
 ```markdown
 ## [1.8.0-alpha.5] - 2025-12-06
 
@@ -265,11 +272,13 @@ python -c "import fraiseql; print(fraiseql.__version__)"
 ### Issue: Compilation Error
 
 **Error:**
+
 ```
 error[E0432]: unresolved import `crate::mutation::postgres_composite`
 ```
 
 **Fix:**
+
 ```rust
 // Ensure this line is in fraiseql_rs/src/mutation/mod.rs
 mod postgres_composite;
@@ -278,11 +287,13 @@ mod postgres_composite;
 ### Issue: Tests Fail
 
 **Error:**
+
 ```
 thread 'cascade_fix_tests::test_parse_8field_mutation_response' panicked
 ```
 
 **Fix:**
+
 - Check JSON structure has all 8 fields
 - Verify field names match exactly (status, message, etc.)
 - Check for typos in struct field names
@@ -290,6 +301,7 @@ thread 'cascade_fix_tests::test_parse_8field_mutation_response' panicked
 ### Issue: CASCADE Still in Entity
 
 **Symptom:**
+
 ```json
 "allocation": {
   "cascade": {...}  // Still here!
@@ -297,6 +309,7 @@ thread 'cascade_fix_tests::test_parse_8field_mutation_response' panicked
 ```
 
 **Fix:**
+
 - Verify `to_mutation_result()` extracts cascade from `self.cascade`
 - Check `response_builder.rs` places cascade at wrapper level
 - Ensure you're using the latest fraiseql build
@@ -304,11 +317,13 @@ thread 'cascade_fix_tests::test_parse_8field_mutation_response' panicked
 ### Issue: Build Fails
 
 **Error:**
+
 ```
 error: failed to compile `fraiseql` due to previous error
 ```
 
 **Fix:**
+
 ```bash
 # Clean and rebuild
 cargo clean
@@ -377,6 +392,7 @@ You'll know you're done when:
 After release:
 
 1. Update PrintOptim's `pyproject.toml`:
+
    ```toml
    fraiseql = ">=1.8.0a5"
    ```

@@ -7,6 +7,7 @@
 ## Overview
 
 FraiseQL is migrating core functionality from Python to Rust across 12 phases, targeting:
+
 - **10-100x performance improvement**
 - **Sub-millisecond GraphQL execution**
 - **Zero-copy data processing**
@@ -40,15 +41,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Replace Python psycopg pool with Rust sqlx pool
 
 **Benefits**:
+
 - 3-5x faster connection management
 - Better resource utilization
 - Native async support
 
 **Key Files**:
+
 - `fraiseql_rs/src/db/pool.rs`
 - `fraiseql_rs/src/db/connection.rs`
 
 **Performance**:
+
 - Connection acquisition: <1ms (vs 3-5ms Python)
 - Pool overhead: <0.1ms
 
@@ -59,14 +63,17 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Stream database results directly to JSON without Python overhead
 
 **Benefits**:
+
 - 2-3x faster result processing
 - Lower memory usage
 - Parallel row processing
 
 **Key Files**:
+
 - `fraiseql_rs/src/db/streaming.rs`
 
 **Performance**:
+
 - Row processing: 1M rows/sec (vs 300K/sec Python)
 - Memory: 50% reduction
 
@@ -77,15 +84,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Process JSONB data in Rust without Python JSON library
 
 **Benefits**:
+
 - 7-10x faster JSONB extraction
 - Zero-copy field access
 - Efficient nested object handling
 
 **Key Files**:
+
 - `fraiseql_rs/src/jsonb/parser.rs`
 - `fraiseql_rs/src/jsonb/extractor.rs`
 
 **Performance**:
+
 - JSONB field extraction: <10μs (vs 100μs Python)
 - Nested object access: 7-10x faster
 
@@ -96,15 +106,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Transform database rows to GraphQL JSON in Rust
 
 **Benefits**:
+
 - 5-7x faster serialization
 - Zero-copy string handling
 - Efficient buffer management
 
 **Key Files**:
+
 - `fraiseql_rs/src/transform/row_to_json.rs`
 - `fraiseql_rs/src/transform/builder.rs`
 
 **Performance**:
+
 - JSON serialization: 5-7x faster
 - Buffer allocation: 60% reduction
 
@@ -115,15 +128,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Build complete GraphQL responses in Rust
 
 **Benefits**:
+
 - 3-4x faster response building
 - Efficient multi-field merging
 - Direct HTTP bytes output
 
 **Key Files**:
+
 - `fraiseql_rs/src/response/builder.rs`
 - `fraiseql_rs/src/response/merger.rs`
 
 **Performance**:
+
 - Multi-field response: 3-4x faster
 - Memory allocations: 40% reduction
 
@@ -134,15 +150,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Parse GraphQL queries in Rust with graphql-parser crate
 
 **Benefits**:
+
 - 3-5x faster parsing
 - Better error messages
 - Query structure analysis
 
 **Key Files**:
+
 - `fraiseql_rs/src/graphql/parser.rs`
 - `fraiseql_rs/src/graphql/types.rs`
 
 **Performance**:
+
 - Query parsing: <1ms (vs 3-5ms Python)
 - AST construction: 3-5x faster
 
@@ -153,15 +172,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Generate SQL queries in Rust from parsed GraphQL
 
 **Benefits**:
+
 - 5-8x faster SQL generation
 - Better WHERE clause optimization
 - Efficient parameter binding
 
 **Key Files**:
+
 - `fraiseql_rs/src/query/composer.rs`
 - `fraiseql_rs/src/query/where_builder.rs`
 
 **Performance**:
+
 - SQL generation: <1ms (vs 5-10ms Python)
 - WHERE clause building: 5-8x faster
 
@@ -172,15 +194,18 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: LRU cache for SQL query plans with signature-based lookup
 
 **Benefits**:
+
 - 10-50x faster for repeated queries
 - Thread-safe concurrent access
 - Automatic cache eviction
 
 **Key Files**:
+
 - `fraiseql_rs/src/cache/mod.rs`
 - `fraiseql_rs/src/cache/signature.rs`
 
 **Performance**:
+
 - Cache lookup: <0.1ms
 - Cache hit rate: >95%
 - Cache miss overhead: <0.5ms
@@ -192,19 +217,23 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Complete end-to-end GraphQL execution in Rust
 
 **Benefits**:
+
 - 7-10x faster overall
 - Single Rust call for entire query
 - Zero Python overhead
 
 **Key Files**:
+
 - `fraiseql_rs/src/pipeline/unified.rs`
 - `tests/test_full_pipeline.py`
 
 **Performance**:
+
 - End-to-end query: 7-10x faster
 - Total latency: <10ms (simple queries)
 
 **Integration**:
+
 - Combines Phases 1-8
 - Mock database (Phase 9)
 - Production database integration (next step)
@@ -216,33 +245,39 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Move JWT validation and auth to Rust
 
 **Benefits**:
+
 - 5-10x faster token validation
 - JWKS caching (1-hour TTL)
 - User context caching
 
 **Key Features**:
+
 - JWT validation with jsonwebtoken crate
 - Auth0 provider implementation
 - Custom JWT provider
 - Token caching (LRU)
 
 **Performance Targets**:
+
 - JWT validation: <1ms cached, <10ms uncached
 - JWKS fetch: <50ms (cached for 1 hour)
 - User context extraction: <0.1ms
 
 **Files to Create**:
+
 - `fraiseql_rs/src/auth/jwt.rs`
 - `fraiseql_rs/src/auth/provider.rs`
 - `fraiseql_rs/src/auth/cache.rs`
 - `src/fraiseql/auth/rust_provider.py`
 
 **Timeline**: 3 weeks
+
 - Week 1: Core JWT validation
 - Week 2: Providers and caching
 - Week 3: Production rollout
 
 **Acceptance Criteria**:
+
 - ✅ All existing auth tests pass
 - ✅ 5-10x performance improvement
 - ✅ Backward compatible Python API
@@ -256,23 +291,27 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Move RBAC and permission checks to Rust
 
 **Benefits**:
+
 - 10-100x faster permission checks
 - Role hierarchy in PostgreSQL CTEs
 - Multi-layer caching
 
 **Key Features**:
+
 - Role hierarchy computation
 - Permission resolver with caching
 - Field-level authorization
 - GraphQL directive enforcement
 
 **Performance Targets**:
+
 - Cached permission check: <0.1ms
 - Uncached permission check: <1ms
 - Role hierarchy: <2ms
 - Field auth overhead: <0.05ms per field
 
 **Files to Create**:
+
 - `fraiseql_rs/src/rbac/models.rs`
 - `fraiseql_rs/src/rbac/hierarchy.rs`
 - `fraiseql_rs/src/rbac/resolver.rs`
@@ -280,11 +319,13 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 - `fraiseql_rs/src/rbac/field_auth.rs`
 
 **Timeline**: 3 weeks
+
 - Week 1: Core RBAC (hierarchy, resolver)
 - Week 2: Field-level auth and directives
 - Week 3: Production rollout
 
 **Acceptance Criteria**:
+
 - ✅ All existing RBAC tests pass
 - ✅ 10-100x performance improvement
 - ✅ Role hierarchy works correctly
@@ -298,11 +339,13 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 **Objective**: Move security features to Rust
 
 **Benefits**:
+
 - 10-50x faster security checks
 - Async audit logging
 - Sub-millisecond overhead
 
 **Key Features**:
+
 - Token bucket rate limiting
 - Security header enforcement
 - Async audit logging
@@ -310,6 +353,7 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 - CSRF protection
 
 **Performance Targets**:
+
 - Rate limit check: <0.05ms
 - Security headers: <0.01ms
 - Audit log (async): <0.5ms
@@ -317,6 +361,7 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 - Total overhead: <1ms
 
 **Files to Create**:
+
 - `fraiseql_rs/src/security/rate_limit.rs`
 - `fraiseql_rs/src/security/headers.rs`
 - `fraiseql_rs/src/security/audit.rs`
@@ -324,11 +369,13 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 - `fraiseql_rs/src/security/csrf.rs`
 
 **Timeline**: 3 weeks
+
 - Week 1: Rate limiting and headers
 - Week 2: Audit logging and validation
 - Week 3: Production rollout
 
 **Acceptance Criteria**:
+
 - ✅ All security tests pass
 - ✅ 10-50x performance improvement
 - ✅ Async audit logging works
@@ -374,6 +421,7 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 | **Total** | **7-12ms** | **6-7x overall** |
 
 **For cached queries (>95% of production traffic):**
+
 - **Before**: 43-90ms
 - **After**: 3-5ms
 - **Improvement**: **10-30x**
@@ -385,6 +433,7 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 ### Phases 1-9 (Complete)
 
 **Status**: ✅ Complete and in production
+
 - All core GraphQL execution in Rust
 - Mock database for Phase 9
 - Python API maintained for compatibility
@@ -393,11 +442,13 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 ### Phases 10-12 (Q1-Q2 2025)
 
 **Timeline**:
+
 - Phase 10 (Auth): Jan-Feb 2025
 - Phase 11 (RBAC): Feb-Mar 2025
 - Phase 12 (Security): Mar-Apr 2025
 
 **Strategy**:
+
 1. **Week 1**: Core Rust implementation
 2. **Week 2**: Testing and Python wrapper
 3. **Week 3**: Production rollout
@@ -408,6 +459,7 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 ### Production Readiness
 
 **Before Production:**
+
 - ✅ All tests pass (5991+ tests)
 - ✅ Performance benchmarks meet targets
 - ✅ Backward compatibility verified
@@ -415,6 +467,7 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 - ✅ Monitoring in place
 
 **Production Rollout:**
+
 - Feature flag: `use_rust_auth`, `use_rust_rbac`, `use_rust_security`
 - Canary: 1% → 10% → 50% → 100%
 - Rollback: Single config change
@@ -425,22 +478,26 @@ FraiseQL is migrating core functionality from Python to Rust across 12 phases, t
 ## Testing Strategy
 
 ### Unit Tests (Rust)
+
 ```bash
 cargo test --lib
 ```
 
 ### Integration Tests (Python)
+
 ```bash
 pytest tests/ -xvs
 ```
 
 ### Performance Benchmarks
+
 ```bash
 cargo bench
 pytest tests/performance/ -xvs
 ```
 
 ### Load Testing
+
 ```bash
 # Before and after comparisons
 locust -f tests/load/graphql_load.py
@@ -495,6 +552,7 @@ thiserror = "1.0"
 ## Documentation
 
 ### Phase Plans
+
 - `.phases/phase-01-database-pool.md` (if exists)
 - `.phases/phase-02-result-streaming.md` (if exists)
 - ...
@@ -504,6 +562,7 @@ thiserror = "1.0"
 - `.phases/phase-12-security-features.md`
 
 ### API Documentation
+
 ```bash
 # Rust API docs
 cargo doc --open
@@ -512,6 +571,7 @@ cargo doc --open
 ```
 
 ### Migration Guides
+
 - `docs/migration/python-to-rust.md` (to be created)
 - `docs/migration/auth-migration.md` (to be created)
 - `docs/migration/rbac-migration.md` (to be created)
@@ -521,18 +581,21 @@ cargo doc --open
 ## Success Metrics
 
 ### Performance
+
 - ✅ End-to-end latency: <10ms (simple queries)
 - ✅ Cached queries: <5ms
 - ✅ 10-100x improvement over Python
 - ✅ P99 latency: <50ms
 
 ### Reliability
+
 - ✅ Zero regressions in existing tests
 - ✅ Error rate: <0.01%
 - ✅ Cache hit rate: >95%
 - ✅ Connection pool: 100% utilization
 
 ### Maintainability
+
 - ✅ Code coverage: >90%
 - ✅ Documentation: 100% public APIs
 - ✅ No clippy warnings
@@ -543,6 +606,7 @@ cargo doc --open
 ## Future Phases (Beyond Phase 12)
 
 ### Potential Future Work
+
 - **Phase 13**: Subscriptions (WebSocket/SSE in Rust)
 - **Phase 14**: Federation (Apollo Federation support)
 - **Phase 15**: Advanced caching (Redis integration)
@@ -555,6 +619,7 @@ cargo doc --open
 ## Conclusion
 
 The FraiseQL Rust migration is a comprehensive effort to achieve:
+
 - **10-100x performance improvement**
 - **Sub-millisecond latency** for most operations
 - **Production-grade security** with minimal overhead

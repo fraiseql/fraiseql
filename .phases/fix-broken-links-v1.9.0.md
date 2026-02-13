@@ -22,6 +22,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 ## Problem Analysis
 
 ### CI/CD Status
+
 ```
 ✅ Python Version Matrix Tests - PASSED
 ✅ Verify Examples Compliance - PASSED
@@ -32,6 +33,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 ### Link Pattern Issues
 
 **Issue #1: Directory Links (401 occurrences)**
+
 ```markdown
 # BAD (causes failure)
 [Authentication](multi-tenancy/)
@@ -43,6 +45,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 ```
 
 **Issue #2: Archived Content (10 occurrences)**
+
 ```markdown
 # Files moved to docs/archive/
 ../../docs/mutations/migration-guide.md → docs/archive/mutations/migration-guide.md
@@ -50,6 +53,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 ```
 
 **Issue #3: README Paths (10 occurrences)**
+
 ```markdown
 # Inconsistent README references
 ../api-reference/README/  # Should be: ../api-reference/README.md or ../api-reference/
@@ -64,12 +68,14 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 **Scope**: Fix 401 directory-style links
 
 **Method**: Create Python script to:
+
 1. Scan all `.md` files in `docs/`, `examples/`, root
 2. Find markdown links ending with `/` (directory-style)
 3. Replace with `.md` extension (file-style)
 4. Preserve relative path structure
 
 **Pattern Transformations**:
+
 ```python
 # Relative same-directory links
 "authentication/" → "authentication.md"
@@ -85,6 +91,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 ```
 
 **Files Affected** (estimated):
+
 - `docs/advanced/*.md` (~50 links)
 - `docs/performance/*.md` (~40 links)
 - `docs/production/*.md` (~60 links)
@@ -103,6 +110,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 **Files to Update**:
 
 1. **examples/_TEMPLATE/README.md**:
+
    ```diff
    - ../../docs/mutations/migration-guide.md
    + ../../docs/archive/mutations/migration-guide.md
@@ -112,24 +120,28 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
    ```
 
 2. **docs/production/runbooks/database-performance-degradation.md**:
+
    ```diff
    - ../../performance/optimization.md
    + [Create new file or point to docs/performance/performance-guide.md]
    ```
 
 3. **docs/production/runbooks/authentication-failures.md**:
+
    ```diff
    - ../../guides/jwt-security.md
    + [Create new file or point to docs/advanced/authentication.md]
    ```
 
 4. **docs/production/runbooks/rate-limiting-triggered.md**:
+
    ```diff
    - ../../api/rate-limits.md
    + [Create new file or remove link]
    ```
 
 5. **docs/production/runbooks/graphql-query-dos.md**:
+
    ```diff
    - ../../performance/query-optimization.md
    + ../../performance/performance-guide.md
@@ -140,6 +152,7 @@ The v1.9.0 release CI/CD is blocked by 421 broken documentation links. Analysis 
 **Scope**: Fix 10 README path inconsistencies
 
 **Strategy**: Standardize README references to use:
+
 - Directory references: `../api-reference/` (points to README.md)
 - OR explicit file: `../api-reference/README.md`
 
@@ -237,6 +250,7 @@ if __name__ == '__main__':
 ### Step 2: Test Script on Sample Files
 
 **Command**:
+
 ```bash
 # Dry-run test
 python3 scripts/fix-doc-links.py --dry-run
@@ -251,6 +265,7 @@ git diff docs/advanced/authentication.md
 ### Step 3: Run Full Automated Fix
 
 **Command**:
+
 ```bash
 # Create backup branch
 git checkout -b fix/documentation-links-automated
@@ -269,6 +284,7 @@ git diff docs/ | head -100
 ### Step 4: Manual Fixes for Archived Links
 
 **Files to edit manually**:
+
 1. `examples/_TEMPLATE/README.md` (2 links)
 2. `docs/production/runbooks/database-performance-degradation.md` (1 link)
 3. `docs/production/runbooks/authentication-failures.md` (1 link)
@@ -276,6 +292,7 @@ git diff docs/ | head -100
 5. `docs/production/runbooks/graphql-query-dos.md` (1 link)
 
 **Decision required**: Some links point to files that don't exist. Options:
+
 - **Option A**: Point to archive versions
 - **Option B**: Point to active equivalent docs
 - **Option C**: Remove the links (mark as TODO)
@@ -283,6 +300,7 @@ git diff docs/ | head -100
 ### Step 5: Verify All Links Pass
 
 **Command**:
+
 ```bash
 # Run link validation
 ./scripts/validate-docs.sh links
@@ -295,6 +313,7 @@ git diff docs/ | head -100
 ### Step 6: Commit and Push
 
 **Commands**:
+
 ```bash
 # Stage all changes
 git add -A
@@ -340,17 +359,21 @@ All quality gates should pass after merge."
 ### Pre-Merge Verification
 
 1. **Link Validation**:
+
    ```bash
    ./scripts/validate-docs.sh links
    ```
+
    Expected: 0 broken links
 
 2. **Other Doc Checks**:
+
    ```bash
    ./scripts/validate-docs.sh files
    ./scripts/validate-docs.sh versions
    ./scripts/validate-docs.sh install
    ```
+
    Expected: All pass
 
 3. **Manual Spot Check**:
@@ -386,6 +409,7 @@ All quality gates should pass after merge."
 ### Rollback Plan
 
 If issues arise:
+
 ```bash
 # Revert commit
 git revert <commit-hash>
@@ -440,6 +464,7 @@ git reset --hard origin/dev
 ## Appendix A: Sample Link Transformations
 
 ### Before (Broken)
+
 ```markdown
 [Authentication](multi-tenancy/)
 [Performance Guide](../performance/index/)
@@ -449,6 +474,7 @@ git reset --hard origin/dev
 ```
 
 ### After (Fixed)
+
 ```markdown
 [Authentication](multi-tenancy.md)
 [Performance Guide](../performance/index.md)

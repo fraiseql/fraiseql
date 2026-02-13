@@ -5,18 +5,21 @@ This example demonstrates how to build a production-ready GraphQL API with compr
 ## Security Features Implemented
 
 ### 🛡️ Rate Limiting
+
 - **GraphQL Operation-Aware**: Different limits for queries, mutations, and subscriptions
 - **Complexity-Based**: Rate limiting based on query complexity (simple, medium, complex)
 - **Redis Support**: Distributed rate limiting with Redis for horizontal scaling
 - **User-Based**: Different limits for authenticated vs anonymous users
 
 ### 🔒 CSRF Protection
+
 - **Mutation Protection**: All mutations require valid CSRF tokens
 - **Multiple Token Sources**: Supports tokens in headers, cookies, or GraphQL variables
 - **Session Integration**: Tokens are bound to user sessions for enhanced security
 - **Configurable**: Separate configs for production and development
 
 ### 🛡️ Security Headers
+
 - **Content Security Policy**: Strict CSP with configurable directives
 - **Frame Protection**: X-Frame-Options to prevent clickjacking
 - **HSTS**: HTTP Strict Transport Security for HTTPS enforcement
@@ -24,6 +27,7 @@ This example demonstrates how to build a production-ready GraphQL API with compr
 - **Feature Control**: Permissions-Policy to disable dangerous browser features
 
 ### ✅ Input Validation
+
 - **GraphQL Schema Validation**: Type-safe inputs with FraiseQL
 - **Custom Validators**: Additional business logic validation
 - **Sanitization**: XSS and injection prevention
@@ -87,6 +91,7 @@ python secure_graphql_api.py
 ### Security Configurations
 
 #### Production Setup
+
 ```python
 from fraiseql.security import setup_production_security
 
@@ -100,6 +105,7 @@ security = setup_production_security(
 ```
 
 #### Development Setup
+
 ```python
 from fraiseql.security import setup_development_security
 
@@ -110,6 +116,7 @@ security = setup_development_security(
 ```
 
 #### Custom GraphQL Setup
+
 ```python
 from fraiseql.security import create_security_config_for_graphql, setup_security
 

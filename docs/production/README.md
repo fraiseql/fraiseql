@@ -41,6 +41,7 @@ Complete guides for deploying, monitoring, and running FraiseQL in production en
 ## Cost Optimization
 
 **Replace 4 Services with PostgreSQL** - Save $5,400-48,000/year:
+
 - **Caching**: PostgreSQL UNLOGGED tables (replaces Redis)
 - **Error Tracking**: Built-in monitoring (replaces Sentry)
 - **Observability**: PostgreSQL-based metrics (replaces APM tools)
@@ -53,6 +54,7 @@ See [Monitoring Guide](monitoring.md) for migration from Redis/Sentry.
 Before deploying to production:
 
 ### Database
+
 - [ ] Connection pooling configured (PgBouncer or pgpool-II)
 - [ ] Row-Level Security policies created
 - [ ] Audit logging enabled
@@ -60,6 +62,7 @@ Before deploying to production:
 - [ ] PostgreSQL extensions installed (`uuid-ossp`, `ltree`, etc.)
 
 ### Application
+
 - [ ] Environment variables secured (use secrets manager)
 - [ ] CORS configured for production domains
 - [ ] Rate limiting enabled
@@ -67,12 +70,14 @@ Before deploying to production:
 - [ ] Error tracking initialized
 
 ### Monitoring
+
 - [ ] Grafana dashboards imported
 - [ ] Alert notifications configured
 - [ ] OpenTelemetry traces enabled
 - [ ] Log aggregation setup
 
 ### Security
+
 - [ ] HTTPS/TLS configured
 - [ ] SQL injection protection verified
 - [ ] Authentication/authorization tested
@@ -88,10 +93,12 @@ Before deploying to production:
 ## Platform-Specific Guides
 
 ### Container Platforms
+
 - **Docker**: See [Deployment Guide](deployment.md#docker-setup)
 - **Kubernetes**: See [Deployment Guide](deployment.md#kubernetes-deployment)
 
 ### Cloud Providers
+
 - **AWS**: ECS/Fargate + RDS PostgreSQL
 - **GCP**: Cloud Run + Cloud SQL
 - **Azure**: Container Instances + PostgreSQL Flexible Server

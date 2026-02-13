@@ -21,6 +21,7 @@ After implementing the CASCADE fix, the following documentation needs to be upda
 **File:** `fraiseql_rs/Cargo.toml`
 
 **Current:**
+
 ```toml
 [package]
 name = "fraiseql-rs"
@@ -28,6 +29,7 @@ version = "1.8.0-alpha.4"
 ```
 
 **Update to:**
+
 ```toml
 [package]
 name = "fraiseql-rs"
@@ -43,6 +45,7 @@ version = "1.8.0-alpha.5"
 **File:** `pyproject.toml`
 
 **Current:**
+
 ```toml
 [project]
 name = "fraiseql"
@@ -50,6 +53,7 @@ version = "1.8.0a4"
 ```
 
 **Update to:**
+
 ```toml
 [project]
 name = "fraiseql"
@@ -137,6 +141,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete release history.
 ### 4. Migration Documentation (if exists)
 
 **Files to Check:**
+
 - `docs/MIGRATION.md`
 - `docs/UPGRADING.md`
 - Any migration guides
@@ -170,6 +175,7 @@ Before (Bug):
 ```
 
 After (Fixed):
+
 ```json
 {
   "createAllocation": {
@@ -193,6 +199,7 @@ mutation {
   }
 }
 ```
+
 ```
 
 ---
@@ -221,6 +228,7 @@ type CreateAllocationSuccess {
 ```
 
 **Note:** Prior to v1.8.0-alpha.5, CASCADE incorrectly appeared inside the entity object. This has been fixed.
+
 ```
 
 ---
@@ -258,6 +266,7 @@ def test_cascade_location():
     # CASCADE NOT in entity ✅
     assert "cascade" not in result["createAllocation"]["allocation"]
 ```
+
 ```
 
 ---
@@ -294,18 +303,21 @@ See `fraiseql_rs/src/mutation/postgres_composite.rs` for implementation details.
 ## Documentation Checklist
 
 ### Pre-Release (Critical)
+
 - [ ] Update `fraiseql_rs/Cargo.toml` version to 1.8.0-alpha.5
 - [ ] Update `pyproject.toml` version to 1.8.0a5
 - [ ] Add v1.8.0-alpha.5 entry to CHANGELOG.md
 - [ ] Verify all version references are consistent
 
 ### Post-Release (Important)
+
 - [ ] Update README.md with recent changes section
 - [ ] Update migration documentation (if exists)
 - [ ] Update API documentation examples
 - [ ] Review and update code examples
 
 ### Future Updates (Nice to Have)
+
 - [ ] Add developer documentation about composite parsing
 - [ ] Update test documentation
 - [ ] Create troubleshooting guide for CASCADE issues
@@ -353,14 +365,18 @@ head -50 CHANGELOG.md
 ## Documentation Style Guide
 
 ### Version Format
+
 - Rust: `1.8.0-alpha.5` (with hyphens)
 - Python: `1.8.0a5` (no hyphens, 'a' for alpha)
 
 ### Date Format
+
 - Use ISO 8601: `2025-12-06`
 
 ### Changelog Categories
+
 Use conventional commit categories:
+
 - **Fixed** - Bug fixes
 - **Added** - New features
 - **Changed** - Changes to existing functionality
@@ -369,7 +385,9 @@ Use conventional commit categories:
 - **Security** - Security fixes
 
 ### Code Examples
+
 Always show:
+
 - Before (if bug fix)
 - After (current behavior)
 - Expected usage
@@ -379,11 +397,13 @@ Always show:
 ## Related Files
 
 ### Design Documents
+
 - Main design: `/tmp/fraiseql_mutation_pipeline_design.md`
 - Test report: `/tmp/fraiseql_v1.8.0a4_test_report.md`
 - Test output: `/tmp/cascade_v1.8.0a4_test_output.txt`
 
 ### Phase Documents
+
 - `.phases/phase_cascade_fix_v1.8.0a5/INDEX.md`
 - `.phases/phase_cascade_fix_v1.8.0a5/README.md`
 - `.phases/phase_cascade_fix_v1.8.0a5/00_OVERVIEW.md`
@@ -416,6 +436,7 @@ Reference: `~/code/graphql-cascade/`
 ## Timeline
 
 ### Before PyPI Publish
+
 1. Update Cargo.toml version (5 min)
 2. Update pyproject.toml version (5 min)
 3. Update CHANGELOG.md (15 min)
@@ -424,6 +445,7 @@ Reference: `~/code/graphql-cascade/`
 **Total:** ~35 minutes
 
 ### After PyPI Publish
+
 1. Update README.md (10 min)
 2. Update migration docs (15 min)
 3. Review examples (20 min)

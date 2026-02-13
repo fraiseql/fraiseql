@@ -13,23 +13,27 @@ FraiseQL is designed for **production-grade security and regulatory compliance**
 ### Key Security Features
 
 ✅ **Supply Chain Security**
+
 - SLSA Level 3 provenance with cryptographic signing
 - Automated SBOM generation (CycloneDX, SPDX)
 - Reproducible builds with integrity verification
 
 ✅ **Data Protection**
+
 - Multi-provider KMS integration (AWS, Azure, GCP, HashiCorp Vault)
 - Row-level security (RLS) with PostgreSQL policies
 - Encrypted audit trails with tamper-proof cryptographic chain
 - PII anonymization for development environments
 
 ✅ **Access Control**
+
 - Role-based access control (RBAC)
 - Multi-tenant data isolation
 - Fine-grained authorization policies
 - JWT-based authentication
 
 ✅ **Audit & Compliance**
+
 - Comprehensive audit logging with Change Data Capture (CDC)
 - Immutable audit trails with event hashing
 - Compliance profiles (GDPR, HIPAA, SOC 2, FedRAMP)
@@ -76,6 +80,7 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 - [ ] **Incident Response** - Automated responses to security events
 
 **Guides:**
+
 - [Audit Trails Deep Dive](../advanced/event-sourcing.md#audit-trails)
 - [Production Monitoring](../production/monitoring/)
 
@@ -86,9 +91,11 @@ Use this checklist to assess FraiseQL's compliance with your organization's requ
 ### United States
 
 #### Executive Order 14028 (Cybersecurity)
+
 **Status:** ✅ Fully Compliant
 
 FraiseQL meets federal software procurement requirements:
+
 - SBOM generation for dependency visibility
 - Cryptographic signing with Cosign
 - Secure software development practices
@@ -97,9 +104,11 @@ FraiseQL meets federal software procurement requirements:
 **Reference:** [White House EO 14028](https://www.whitehouse.gov/briefing-room/presidential-actions/2021/05/12/executive-order-on-improving-the-nations-cybersecurity/)
 
 #### NIST SP 800-218 (Secure Software Development Framework)
+
 **Status:** ✅ Compliant
 
 FraiseQL implements SSDF practices:
+
 - **Prepare the Organization:** Security profiles and KMS architecture
 - **Protect the Software:** SBOM, provenance, signing
 - **Produce Well-Secured Software:** Parameterized queries, input validation
@@ -108,9 +117,11 @@ FraiseQL implements SSDF practices:
 **Reference:** [NIST SP 800-218](https://csrc.nist.gov/publications/detail/sp/800-218/final)
 
 #### FedRAMP (Federal Risk and Authorization Management Program)
+
 **Status:** 🔄 Architecture supports FedRAMP requirements
 
 FraiseQL provides FedRAMP-compatible controls:
+
 - Moderate and High baseline controls
 - Continuous monitoring capabilities
 - Audit logging and incident response
@@ -121,9 +132,11 @@ FraiseQL provides FedRAMP-compatible controls:
 ### European Union
 
 #### GDPR (General Data Protection Regulation)
+
 **Status:** ✅ Compliant
 
 FraiseQL supports GDPR requirements:
+
 - **Right to Erasure:** Soft deletes with audit retention
 - **Data Portability:** JSON export of user data
 - **Consent Management:** Tracking consent status and changes
@@ -132,9 +145,11 @@ FraiseQL supports GDPR requirements:
 **Implementation:** [GDPR Compliance Features](../compliance/global-regulations.md#gdpr)
 
 #### NIS2 Directive (Network and Information Security)
+
 **Status:** ✅ Supports essential entities requirements
 
 FraiseQL provides NIS2 compliance support:
+
 - Incident reporting capabilities
 - Supply chain security (SBOM, provenance)
 - Security risk management
@@ -145,9 +160,11 @@ FraiseQL provides NIS2 compliance support:
 ### Canada
 
 #### CCCS SBOM Guidance
+
 **Status:** ✅ Compliant
 
 FraiseQL follows joint US-Canada SBOM guidance:
+
 - CycloneDX/SPDX format support
 - Vulnerability tracking integration
 - Critical infrastructure transparency
@@ -157,9 +174,11 @@ FraiseQL follows joint US-Canada SBOM guidance:
 ### United Kingdom
 
 #### UK Cyber Essentials
+
 **Status:** ✅ Technical controls implemented
 
 FraiseQL provides Cyber Essentials technical controls:
+
 - Secure configuration management
 - Access control and authentication
 - Malware protection (dependency scanning)
@@ -178,21 +197,25 @@ FraiseQL provides Cyber Essentials technical controls:
 FraiseQL supports HIPAA compliance for Protected Health Information (PHI):
 
 **Technical Safeguards:**
+
 - Encryption at rest and in transit
 - Access control with audit logging
 - Unique user identification
 - Automatic logoff (session management)
 
 **Administrative Safeguards:**
+
 - Role-based access control
 - Audit logging and monitoring
 - Security incident procedures
 
 **Physical Safeguards:**
+
 - Workstation security (application-level)
 - Device and media controls (KMS integration)
 
 **Requirements:**
+
 - Business Associate Agreement (BAA) with hosting provider
 - Security risk assessment
 - Policies and procedures documentation
@@ -204,6 +227,7 @@ FraiseQL supports HIPAA compliance for Protected Health Information (PHI):
 **Status:** 🔄 Architecture supports PCI-DSS requirements
 
 FraiseQL provides PCI-DSS compatible controls:
+
 - Strong access control measures (Requirement 7, 8)
 - Encryption of cardholder data (Requirement 3)
 - Audit logging and monitoring (Requirement 10)
@@ -218,26 +242,31 @@ FraiseQL provides PCI-DSS compatible controls:
 FraiseQL implements controls for SOC 2 Type II:
 
 **Security:**
+
 - Access control and authentication
 - Logical and physical access controls
 - Encryption and key management
 
 **Availability:**
+
 - System monitoring and alerting
 - Incident response procedures
 - Backup and recovery
 
 **Confidentiality:**
+
 - Data encryption
 - Secure transmission protocols
 - Data classification
 
 **Processing Integrity:**
+
 - Input validation
 - Error handling and logging
 - Data integrity checks
 
 **Privacy:**
+
 - Data minimization
 - Consent management
 - Data retention policies
@@ -251,9 +280,11 @@ FraiseQL implements controls for SOC 2 Type II:
 FraiseQL provides three security profiles for different regulatory environments:
 
 ### 🟢 STANDARD (Default)
+
 **Use Cases:** General applications, internal tools, non-regulated industries
 
 **Features:**
+
 - Basic audit logging
 - Standard encryption
 - RBAC with PostgreSQL roles
@@ -263,9 +294,11 @@ FraiseQL provides three security profiles for different regulatory environments:
 **Overhead:** Minimal (~5% performance impact)
 
 ### 🟡 REGULATED
+
 **Use Cases:** Healthcare (HIPAA), finance (PCI-DSS), government contractors
 
 **Features:**
+
 - Comprehensive audit trails with CDC
 - KMS integration (AWS KMS, Azure Key Vault, GCP KMS)
 - Field-level encryption for sensitive data
@@ -276,14 +309,17 @@ FraiseQL provides three security profiles for different regulatory environments:
 **Overhead:** Moderate (~10-15% performance impact)
 
 **Requirements:**
+
 - KMS provider account
 - Audit log storage (PostgreSQL or external)
 - Monitoring infrastructure
 
 ### 🔴 RESTRICTED
+
 **Use Cases:** Defense contractors, critical infrastructure, classified systems
 
 **Features:**
+
 - All REGULATED features plus:
 - Air-gapped deployment support
 - Hardware security module (HSM) integration
@@ -295,6 +331,7 @@ FraiseQL provides three security profiles for different regulatory environments:
 **Overhead:** Higher (~20-25% performance impact)
 
 **Requirements:**
+
 - HSM or FIPS 140-2 Level 3 KMS
 - Dedicated audit infrastructure
 - Security Operations Center (SOC) integration
@@ -452,27 +489,32 @@ fraiseql compliance report --format pdf
 **Upgrade to Compliance-Ready:**
 
 1. **Assess Current Security Posture**
+
    ```bash
    fraiseql security audit
    ```
 
 2. **Add Audit Logging**
+
    ```bash
    fraiseql audit init --retroactive
    ```
 
 3. **Configure Encryption**
+
    ```bash
    fraiseql kms configure --provider [aws|azure|gcp|vault]
    fraiseql encrypt sensitive-fields
    ```
 
 4. **Enable RLS Policies**
+
    ```bash
    fraiseql rbac enable --multi-tenant
    ```
 
 5. **Test Compliance**
+
    ```bash
    fraiseql compliance test --standard [gdpr|hipaa|soc2]
    ```
@@ -482,22 +524,27 @@ fraiseql compliance report --format pdf
 ## Support & Resources
 
 ### Documentation
+
 - **[Security Best Practices](../production/security/)**
 - **[Architecture Decisions](../architecture/decisions/README/)**
 - **[Production Deployment](../production/deployment/)**
 
 ### Tools
+
 - **SBOM Generator:** `fraiseql sbom generate`
 - **Security Scanner:** `fraiseql security check`
 - **Compliance Reporter:** `fraiseql compliance report`
 
 ### Community
+
 - **GitHub Discussions:** Security questions and best practices
 - **Security Advisories:** Subscribe for vulnerability notifications
 - **Bug Bounty Program:** Report security issues responsibly
 
 ### Professional Services
+
 For compliance consulting, security audits, or custom implementations:
+
 - Email: security@fraiseql.com
 - Enterprise Support: Available for REGULATED/RESTRICTED deployments
 
@@ -518,6 +565,7 @@ A: No. Core security features (RBAC, audit logging, input validation) are built-
 **Q: What's the performance impact of security features?**
 
 A:
+
 - STANDARD profile: ~5% overhead (minimal)
 - REGULATED profile: ~10-15% overhead (moderate)
 - RESTRICTED profile: ~20-25% overhead (comprehensive protection)
@@ -531,6 +579,7 @@ A: See [SLSA Provenance Verification Guide](./slsa-provenance/) *(coming in WP-0
 **Q: Can I generate SBOMs for my application?**
 
 A: Yes. FraiseQL includes SBOM generation for your entire application stack:
+
 ```bash
 fraiseql sbom generate --format cyclonedx --output sbom.json
 ```
@@ -538,6 +587,7 @@ fraiseql sbom generate --format cyclonedx --output sbom.json
 **Q: Is FraiseQL vulnerable to supply chain attacks?**
 
 A: FraiseQL implements multiple protections:
+
 - Cryptographically signed releases
 - SLSA Level 3 provenance
 - Reproducible builds
@@ -548,6 +598,7 @@ A: FraiseQL implements multiple protections:
 **Q: Does FraiseQL encrypt data at rest?**
 
 A: Yes, when using REGULATED or RESTRICTED profiles with KMS integration. FraiseQL supports:
+
 - Database-level encryption (PostgreSQL)
 - Field-level encryption (sensitive data)
 - Key rotation and lifecycle management
@@ -559,6 +610,7 @@ A: Audit logs use cryptographic chaining - each event includes a hash of the pre
 **Q: Can I anonymize PII for development environments?**
 
 A: Yes. FraiseQL includes PII anonymization tools:
+
 ```bash
 fraiseql data anonymize --env development
 ```
@@ -572,6 +624,7 @@ A: Yes. RESTRICTED profile supports fully air-gapped deployments for classified 
 **Q: How long are audit logs retained?**
 
 A: Configurable per regulatory requirements:
+
 - GDPR: Typically 6-12 months
 - HIPAA: Minimum 6 years
 - SOC 2: Varies by control
@@ -579,6 +632,7 @@ A: Configurable per regulatory requirements:
 **Q: Can I export audit logs for external SIEM?**
 
 A: Yes. FraiseQL supports audit log export to:
+
 - Splunk, Datadog, New Relic (via OpenTelemetry)
 - AWS CloudWatch, Azure Monitor, GCP Cloud Logging
 - Custom SIEM via webhook or API
@@ -592,6 +646,7 @@ A: Yes. FraiseQL supports audit log export to:
 ---
 
 **Next Steps:**
+
 - Review [SLSA Provenance Verification](./slsa-provenance/) *(coming in WP-011)*
 - Check [Compliance Matrix](./compliance-matrix/) *(coming in WP-012)*
 - Configure [Security Profiles](./security-profiles/) *(coming in WP-013)*

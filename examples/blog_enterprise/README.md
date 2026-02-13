@@ -5,6 +5,7 @@ An enterprise-grade blog application demonstrating advanced FraiseQL patterns an
 ## 🌟 Overview
 
 This is a **production-ready enterprise blog application** that showcases:
+
 - **Domain-driven design** with bounded contexts
 - **Advanced PostgreSQL patterns** (stored procedures, triggers, materialized views)
 - **Enterprise authentication** with role-based access control

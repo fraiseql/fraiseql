@@ -37,6 +37,7 @@ await conn.execute(
 ```
 
 **Why it fails**:
+
 1. The f-string interpolates `table_name` and `column_name` at Python level
 2. The resulting SQL string is: `INSERT INTO test_cidrsca... (cidrscalar_col) VALUES ($1)`
 3. psycopg3 sees the literal text `$1` (not a placeholder) because it came from an f-string
@@ -51,6 +52,7 @@ await conn.execute(
 Use `psycopg.sql` module to safely compose dynamic SQL with placeholders.
 
 **Pattern**:
+
 ```python
 from psycopg import sql
 
@@ -66,6 +68,7 @@ await conn.execute(
 ```
 
 **How it works**:
+
 1. `sql.SQL()` creates a composable SQL string
 2. `{}` placeholders are for identifiers (table/column names)
 3. `%s` is for data values (the actual placeholder)
@@ -81,6 +84,7 @@ await conn.execute(
 **`tests/integration/meta/test_all_scalars.py`**
 
 **Changes needed**: 3 locations
+
 1. Line 265-270: INSERT statement (add parameterization)
 2. Line 1 (imports): Add `from psycopg import sql`
 3. Line 280: DROP TABLE statement (optional - use sql.Identifier for consistency)
@@ -94,11 +98,13 @@ await conn.execute(
 **Location**: Top of file (after existing imports)
 
 **Add**:
+
 ```python
 from psycopg import sql
 ```
 
 **Result**:
+
 ```python
 """Meta-test for ALL scalar types integration."""
 
@@ -116,6 +122,7 @@ from fraiseql.types.scalars import __all__ as ALL_SCALARS
 **Location**: Lines 263-270
 
 **Current code**:
+
 ```python
 # Insert test value
 test_value = get_test_value_for_scalar(scalar_class)
@@ -128,6 +135,7 @@ await conn.execute(
 ```
 
 **Replace with**:
+
 ```python
 # Insert test value
 test_value = get_test_value_for_scalar(scalar_class)
@@ -143,6 +151,7 @@ await conn.execute(
 ```
 
 **Key changes**:
+
 - Remove `f` prefix from the string
 - Use `sql.SQL()` wrapper
 - Change `$1` to `%s` (psycopg3 style placeholder)
@@ -156,11 +165,13 @@ await conn.execute(
 **Location**: Line 273
 
 **Current code**:
+
 ```python
 result = await conn.execute(f"SELECT {column_name} FROM {table_name} WHERE id = 1")
 ```
 
 **Replace with**:
+
 ```python
 result = await conn.execute(
     sql.SQL("SELECT {} FROM {} WHERE id = 1").format(
@@ -179,11 +190,13 @@ result = await conn.execute(
 **Location**: Lines 255, 280
 
 **Current code**:
+
 ```python
 await conn.execute(f"DROP TABLE IF EXISTS {table_name}")
 ```
 
 **Replace with**:
+
 ```python
 await conn.execute(
     sql.SQL("DROP TABLE IF EXISTS {}").format(
@@ -201,6 +214,7 @@ await conn.execute(
 **Location**: Lines 256-261
 
 **Current code**:
+
 ```python
 await conn.execute(f"""
     CREATE TABLE {table_name} (
@@ -211,6 +225,7 @@ await conn.execute(f"""
 ```
 
 **Replace with**:
+
 ```python
 await conn.execute(
     sql.SQL("""
@@ -354,6 +369,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py -v
 **Cause**: Incorrect import or wrong psycopg version
 
 **Solution**:
+
 ```bash
 # Check psycopg3 is installed
 uv pip list | grep psycopg
@@ -367,6 +383,7 @@ uv pip list | grep psycopg
 **Cause**: Missed an f-string or incorrect placeholder syntax
 
 **Check**:
+
 1. No `f` prefix before SQL strings
 2. Use `%s` (not `$1`) for value placeholders
 3. Use `{}` for identifier placeholders
@@ -377,10 +394,12 @@ uv pip list | grep psycopg
 **Cause**: Incorrect use of `sql.Identifier()` vs `sql.SQL()`
 
 **Rule**:
+
 - `sql.Identifier()`: for table names, column names (gets quoted)
 - `sql.SQL()`: for SQL keywords, types (no quotes)
 
 **Example**:
+
 ```python
 # WRONG - quotes the type
 sql.Identifier("TEXT")  # → "TEXT" (invalid PostgreSQL)
@@ -396,12 +415,14 @@ sql.SQL("TEXT")  # → TEXT (valid PostgreSQL)
 After the fix, verify edge cases:
 
 ### Test 1: Special Characters in Table Names
+
 ```bash
 # Tables with underscores, numbers
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_database_roundtrip[IPv6AddressScalar-...] -v
 ```
 
 ### Test 2: Complex Values (JSON, Arrays)
+
 ```bash
 # Scalars with complex PostgreSQL types
 uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_database_roundtrip[JSONScalar-...] -v
@@ -409,6 +430,7 @@ uv run pytest tests/integration/meta/test_all_scalars.py::test_scalar_database_r
 ```
 
 ### Test 3: Null Values (if implemented)
+
 Currently, the test always uses non-null values. Consider adding a separate test for null handling.
 
 ---

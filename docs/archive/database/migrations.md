@@ -35,6 +35,7 @@ confiture migrate up
 ```
 
 **Key features:**
+
 - 4 migration strategies (including zero-downtime)
 - Build databases from DDL in <1 second
 - Production data sync with PII anonymization
@@ -53,6 +54,7 @@ psql -d your_database -f docs/database/example-migration.sql
 ```
 
 The script handles:
+
 - Table renaming (`users` → `tb_user`)
 - View creation (`v_user`, `v_post`)
 - Computed view creation (`tv_user_with_stats`)
@@ -63,12 +65,14 @@ The script handles:
 ## When to Migrate
 
 **Migrate when:**
+
 - Your application has >10,000 rows per table
 - Query performance is >5ms per request
 - You need embedded relationships without JOINs
 - You're preparing for production deployment
 
 **Wait if:**
+
 - You're in early prototype/MVP stage
 - Dataset is <1,000 rows per table
 - Performance is acceptable (<2ms per query)
@@ -80,6 +84,7 @@ The script handles:
 ### Step 1: Assessment (2 minutes)
 
 **Inventory your tables:**
+
 ```sql
 -- Find all tables without tb_ prefix
 SELECT table_name, table_type
@@ -93,6 +98,7 @@ ORDER BY table_name;
 ```
 
 **Check foreign key relationships:**
+
 ```sql
 -- Map relationships between tables
 SELECT
@@ -109,12 +115,14 @@ WHERE tc.constraint_type = 'FOREIGN KEY'
 ### Step 2: Database Migration (5 minutes)
 
 **Option A: Use Example Script (Recommended)**
+
 ```bash
 # Run the pre-built migration
 psql -d your_database -f docs/database/example-migration.sql
 ```
 
 **Option B: Manual Migration**
+
 ```sql
 -- Rename tables with tb_ prefix
 ALTER TABLE users RENAME TO tb_user;
@@ -150,6 +158,7 @@ GROUP BY u.id, u.name, u.email;
 ### Step 3: Application Updates (5 minutes)
 
 **Update FraiseQL types:**
+
 ```python
 # Before (simple)
 @fraiseql.type(sql_source="users")
@@ -175,6 +184,7 @@ class User:
 ```
 
 **Update queries:**
+
 ```python
 # Before
 @fraiseql.query
@@ -192,6 +202,7 @@ async def user_with_stats(info, id: ID) -> UserWithStats:
 ### Step 4: Testing (3 minutes)
 
 **Verify data integrity:**
+
 ```sql
 -- Check all data migrated correctly
 SELECT
@@ -203,6 +214,7 @@ SELECT 'tv_user_with_stats rows', COUNT(*) FROM tv_user_with_stats;
 ```
 
 **Test performance:**
+
 ```sql
 -- Compare query performance
 EXPLAIN ANALYZE SELECT * FROM users WHERE id = $1;
@@ -280,6 +292,7 @@ This uses **Foreign Data Wrapper (FDW)** technology. For detailed steps, see [Co
 ### Foreign Key Constraints
 
 **Problem:** Foreign keys reference old table names
+
 ```sql
 -- Before migration
 ALTER TABLE posts ADD CONSTRAINT fk_user
@@ -287,6 +300,7 @@ FOREIGN KEY (user_id) REFERENCES users(id);
 ```
 
 **Solution:** Update foreign keys
+
 ```sql
 -- After migration
 ALTER TABLE tb_post ADD CONSTRAINT fk_user
@@ -296,6 +310,7 @@ FOREIGN KEY (user_id) REFERENCES tb_user(id);
 ### Existing Views Break
 
 **Problem:** Views reference renamed tables
+
 ```sql
 -- This view breaks after rename
 CREATE VIEW user_summary AS
@@ -303,6 +318,7 @@ SELECT COUNT(*) FROM users;
 ```
 
 **Solution:** Update view definitions
+
 ```sql
 -- Update to use new table name
 CREATE OR REPLACE VIEW user_summary AS
@@ -312,12 +328,14 @@ SELECT COUNT(*) FROM tb_user;
 ### Application Code References
 
 **Problem:** Hard-coded SQL references old names
+
 ```python
 # This breaks after migration
 cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
 ```
 
 **Solution:** Use FraiseQL repository pattern
+
 ```python
 # Use FraiseQL abstraction
 user = await db.find_one("v_user", id=user_id)
@@ -326,6 +344,7 @@ user = await db.find_one("v_user", id=user_id)
 ### Edge Case 4: Materialized Views
 
 **Problem:** Materialized views depend on renamed tables
+
 ```sql
 -- Materialized view breaks
 CREATE MATERIALIZED VIEW mv_user_stats AS
@@ -333,6 +352,7 @@ SELECT COUNT(*) FROM users;
 ```
 
 **Solution:** Refresh materialized views after migration
+
 ```sql
 -- Update and refresh
 CREATE OR REPLACE MATERIALIZED VIEW mv_user_stats AS
@@ -344,6 +364,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_stats;
 ### Edge Case 5: Triggers on Tables
 
 **Problem:** Existing triggers reference old table names
+
 ```sql
 -- Trigger breaks after rename
 CREATE TRIGGER trg_user_audit
@@ -352,6 +373,7 @@ FOR EACH ROW EXECUTE FUNCTION log_user_change();
 ```
 
 **Solution:** Update triggers to use new table names
+
 ```sql
 -- Update trigger for new table name
 CREATE OR REPLACE TRIGGER trg_user_audit
@@ -371,6 +393,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Solution:** Use FraiseQL repository pattern
+
 ```python
 # Use FraiseQL abstraction
 user = await db.find_one("v_user", id=user_id)
@@ -395,6 +418,7 @@ DROP VIEW IF EXISTS tv_user_with_stats;
 ```
 
 **Application rollback:**
+
 ```python
 # Revert type definitions
 @fraiseql.type(sql_source="users")
@@ -413,17 +437,20 @@ async def user(info, id: ID) -> User:
 ## Migration Checklist
 
 ### Pre-Migration
+
 - [ ] **Backup database** (`pg_dump your_db > backup.sql`)
 - [ ] **Test on staging** (never migrate production directly)
 - [ ] **Document current schema** (`pg_dump --schema-only > schema_before.sql`)
 
 ### Migration
+
 - [ ] **Run example script** or manual migration steps
 - [ ] **Verify row counts** match between old and new tables
 - [ ] **Test sample queries** work correctly
 - [ ] **Check performance** improvement
 
 ### Post-Migration
+
 - [ ] **Update application code** (type definitions, queries)
 - [ ] **Run test suite** (all tests must pass)
 - [ ] **Monitor for errors** (check logs for 1 hour)
@@ -468,6 +495,7 @@ After successful migration:
 ---
 
 **Success Criteria:**
+
 - [ ] All tables renamed to `tb_*` prefix
 - [ ] API views (`v_*`) created and working
 - [ ] Computed views (`tv_*`) created and returning data

@@ -15,6 +15,7 @@ Replace psycopg (Python PostgreSQL driver) with a native Rust driver (`tokio-pos
 **Goal**: Move all database operations to high-performance Rust while keeping Python as the public interface.
 
 **Key Benefits**:
+
 - ✅ 20-30% faster query execution (Rust vs Python)
 - ✅ Zero-copy result streaming to HTTP responses
 - ✅ True async throughout (no GIL contention)
@@ -28,6 +29,7 @@ Replace psycopg (Python PostgreSQL driver) with a native Rust driver (`tokio-pos
 ## Architecture Decision
 
 ### Current Stack (Before)
+
 ```
 User (Python API)
   ↓ psycopg (Python)
@@ -40,12 +42,14 @@ HTTP Response
 ```
 
 **Problems**:
+
 - Two language boundaries (Python→DB, then result→Rust)
 - Result marshalling overhead (dict/row objects)
 - Connection pool management complexity in Python
 - Some query building still in Python
 
 ### New Stack (After)
+
 ```
 User (Python API) ← No change visible
   ↓ (thin wrapper)
@@ -66,6 +70,7 @@ HTTP Response
 ```
 
 **Benefits**:
+
 - ✅ Single fast path: Rust→DB→Rust→HTTP
 - ✅ No marshalling overhead
 - ✅ Zero-copy streaming
@@ -99,6 +104,7 @@ HTTP Response
 FraiseQL uses **pyo3-asyncio** to bridge Python async/await with Rust tokio runtime. This is the most critical integration point.
 
 **Architecture**:
+
 ```
 Python (asyncio.run())
     ↓
@@ -120,6 +126,7 @@ Python awaits result
 **Key Implementation Details**:
 
 1. **PyO3 Function Signature**:
+
 ```rust
 use pyo3_asyncio::tokio;
 
@@ -156,6 +163,7 @@ fn execute_query_async(
 **Critical**: Type conversion is where many FFI bugs occur.
 
 **Conversion Layer** (`fraiseql_rs/src/py_types.rs` - NEW):
+
 ```rust
 /// Convert Python dict to QueryParam
 pub fn python_to_query_param(py_obj: &PyAny) -> PyResult<QueryParam> {
@@ -256,6 +264,7 @@ pub fn postgres_to_query_param(row: &tokio_postgres::Row, col_idx: usize) -> Res
 ### Python-Rust Boundary (PyO3)
 
 **What crosses the boundary**:
+
 ```python
 # Query definition (structured data)
 QueryDef {
@@ -290,27 +299,32 @@ ResponseBytes { bytes: Vec<u8> }
 ### What Moves to Rust ✨
 
 **Phase 1**: Connection pooling foundation
+
 - Connection pool setup with `deadpool-postgres`
 - Basic connection management
 - Connection initialization with PostgreSQL settings
 
 **Phase 2**: Query execution
+
 - Raw query execution (simple SELECT, INSERT, UPDATE, DELETE)
 - WHERE clause building
 - SQL generation
 - Parameter binding
 
 **Phase 3**: Result processing
+
 - Result streaming from database
 - Row iteration
 - Direct bytes to response (zero-copy where possible)
 
 **Phase 4**: Response building
+
 - Integration with existing JSON transformation
 - Full GraphQL response building in Rust
 - Zero-copy streaming to HTTP
 
 **Phase 5**: Complete replacement
+
 - Remove psycopg dependency
 - Update all consumers (db.py, mutations, etc.)
 - Full Rust-native core
@@ -337,6 +351,7 @@ async fn execute_query(...) -> Result<ResponseBytes> {
 ```
 
 This allows:
+
 - ✅ Running both in parallel during transition
 - ✅ Quick rollback if issues found
 - ✅ Gradual migration of code
@@ -363,6 +378,7 @@ This allows:
 ## Files to Create/Modify
 
 ### New Rust Code
+
 ```
 fraiseql_rs/src/
 ├── db/                          # NEW: Database layer
@@ -383,6 +399,7 @@ fraiseql_rs/src/
 ```
 
 ### Python Wrapper Updates
+
 ```
 src/fraiseql/
 ├── db.py                        # MODIFY: Add Rust backend option
@@ -395,6 +412,7 @@ src/fraiseql/
 ```
 
 ### New Tests
+
 ```
 fraiseql_rs/tests/
 ├── test_db_pool.rs              # Connection pool tests
@@ -416,6 +434,7 @@ tests/
 ## Verification Strategy
 
 ### Phase 1: Foundation
+
 ```bash
 # Connection pool setup
 cargo test -p fraiseql_rs --lib db::pool::tests
@@ -426,6 +445,7 @@ cargo test -p fraiseql_rs --lib schema_registry::tests
 ```
 
 ### Phase 2: Query Execution
+
 ```bash
 # WHERE clause builder
 cargo test -p fraiseql_rs --lib db::where_builder::tests
@@ -437,6 +457,7 @@ uv run pytest tests/integration/db/test_rust_queries.py -v
 ```
 
 ### Phase 3: Result Streaming
+
 ```bash
 # Response building
 cargo test -p fraiseql_rs --lib response::builder::tests
@@ -444,6 +465,7 @@ uv run pytest tests/integration/db/test_rust_response.py -v
 ```
 
 ### Phase 4: Full Integration
+
 ```bash
 # Parity tests: Rust implementation vs psycopg
 uv run pytest tests/regression/test_rust_db_parity.py -v
@@ -453,6 +475,7 @@ FRAISEQL_DB_BACKEND=rust uv run pytest tests/ -v
 ```
 
 ### Phase 5: Deprecation
+
 ```bash
 # Run full suite with psycopg removed
 uv run pytest tests/ -v
@@ -466,6 +489,7 @@ grep -r "psycopg" src/fraiseql/ || echo "✅ No psycopg references"
 ## Success Metrics
 
 ### Must Have (Exit Criteria)
+
 - [ ] Phase 1: Connection pool initializes successfully
 - [ ] Phase 2: All WHERE clauses generate correctly
 - [ ] Phase 3: Response streaming works end-to-end
@@ -473,11 +497,13 @@ grep -r "psycopg" src/fraiseql/ || echo "✅ No psycopg references"
 - [ ] Phase 5: 100% psycopg removal, no regressions
 
 ### Performance Goals
+
 - ✅ Query execution: 20-30% faster than psycopg
 - ✅ Response time: 15-25% faster end-to-end
 - ✅ Memory usage: 10-15% lower
 
 ### Quality Gates
+
 - ✅ Zero regressions in existing tests
 - ✅ Parity tests pass (Rust output == psycopg output)
 - ✅ Code review approval
@@ -510,6 +536,7 @@ testcontainers = "0.15"          # Database containers
 ### Python Dependencies
 
 No new dependencies needed. Keep existing:
+
 - psycopg (remove in Phase 5)
 - graphql-core
 - fastapi
@@ -518,6 +545,7 @@ No new dependencies needed. Keep existing:
 ### Infrastructure
 
 ✅ Already have:
+
 - PyO3 build system working
 - Async runtime (tokio via Python)
 - Testing framework
@@ -528,28 +556,36 @@ No new dependencies needed. Keep existing:
 ## Risk Mitigation
 
 ### Risk 1: Rust Async Complexity
+
 **Mitigation**:
+
 - Use well-tested libraries (tokio, deadpool)
 - Extensive unit tests for each component
 - Feature flag fallback to psycopg
 - Gradual rollout (Phase 1-5)
 
 ### Risk 2: Performance Regression
+
 **Mitigation**:
+
 - Benchmark existing psycopg performance
 - Continuous performance testing
 - Profile with `criterion` benchmark suite
 - Parity tests catch regressions
 
 ### Risk 3: Compatibility Issues
+
 **Mitigation**:
+
 - Keep Python API identical
 - Feature flags for gradual transition
 - Comprehensive parity tests
 - Easy rollback via git revert
 
 ### Risk 4: Connection Pool Behavior Changes
+
 **Mitigation**:
+
 - Thorough pool testing
 - Connection lifecycle tests
 - Error handling and recovery tests
@@ -562,18 +598,21 @@ No new dependencies needed. Keep existing:
 ### Error Classification & Strategy
 
 **1. Transient Errors (Retry)**
+
 - Connection timeout (backoff: 100ms, 200ms, 400ms, max 1s)
 - Connection refused (database not ready)
 - Query timeout
 - Network interruption mid-query
 
 **2. Permanent Errors (Fail Fast)**
+
 - Authentication failure
 - Permission denied
 - Table/column not found
 - Type mismatch in parameters
 
 **3. Partial Errors (Stream Interrupted)**
+
 - Connection breaks after rows start streaming
 - Caller disconnects during stream
 - Memory allocation failure during result collection
@@ -703,6 +742,7 @@ RUST_DB_POOL_STATS_INTERVAL_S=0    # 0 = disabled
 ### Parity with Current psycopg Configuration
 
 **psycopg → Rust mapping**:
+
 ```
 PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
     ↓ (combined into)
@@ -732,6 +772,7 @@ cargo build --features python-db
 ```
 
 **Rollback success criteria**:
+
 - [ ] All tests pass
 - [ ] Performance returns to baseline
 - [ ] No user-visible changes
@@ -771,15 +812,18 @@ Week 2:
 ## References
 
 ### Rust Libraries
+
 - [tokio-postgres docs](https://docs.rs/tokio-postgres/)
 - [deadpool-postgres docs](https://docs.rs/deadpool-postgres/)
 - [pyo3-asyncio docs](https://docs.rs/pyo3-asyncio/)
 
 ### FraiseQL Documentation
+
 - `docs/RELEASE_WORKFLOW.md` - Release process
 - `src/fraiseql/CLAUDE.md` - Development guide (this repo)
 
 ### Previous Phase Plans
+
 - `.phases/jsonb-nested-camelcase-fix/` - TDD example
 - `.phases/cleanup-integration-tests/` - Multi-phase example
 
@@ -790,6 +834,7 @@ Week 2:
 ### Q1: Why not keep psycopg after Phase 5?
 
 psycopg doesn't provide any advantages once Rust core is fully functional:
+
 - Rust is faster (tokio-postgres benchmarks: 3-5x faster)
 - Rust uses less memory
 - Rust is type-safe (no runtime surprises)
@@ -801,6 +846,7 @@ psycopg doesn't provide any advantages once Rust core is fully functional:
 ### Q2: What about connection pooling configuration?
 
 Deadpool-postgres will expose the same configuration options:
+
 - Pool size
 - Connection timeout
 - Idle timeout
@@ -813,6 +859,7 @@ These will be configurable via environment variables and Python config.
 ### Q3: How do we handle connection state/prepared statements?
 
 tokio-postgres supports prepared statement caching. We'll:
+
 1. Cache prepared WHERE/SELECT patterns
 2. Reuse connections from pool (state preserved)
 3. Handle connection timeout/reset properly
@@ -822,6 +869,7 @@ tokio-postgres supports prepared statement caching. We'll:
 ### Q4: What about transactions?
 
 Transactions will be handled in Rust:
+
 ```rust
 let mut client = pool.get().await?;
 let transaction = client.transaction().await?;

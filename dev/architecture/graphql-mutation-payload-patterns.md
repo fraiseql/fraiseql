@@ -1,4 +1,5 @@
 # GraphQL Mutation Payload Patterns
+
 ## Production Patterns from PrintOptim Backend
 
 This document describes the client-side GraphQL mutation patterns observed in production code, covering query structure, payload handling, and response patterns.
@@ -26,6 +27,7 @@ mutation OperationName($input: InputTypeName!) {
 ```
 
 **Key Elements:**
+
 - Single `$input` variable with exact type
 - Union/interface response requiring `__typename`
 - Inline fragments for success/error cases
@@ -37,6 +39,7 @@ mutation OperationName($input: InputTypeName!) {
 ### Variable Passing
 
 **Always use variables:**
+
 ```python
 input_data = {"name": "value", "id": "uuid"}
 result = await client.execute(mutation, variables={"input": input_data})
@@ -51,6 +54,7 @@ result = await client.execute(mutation, variables={"input": input_data})
 | **Empty String** | `"field": ""` | `""` | Converted to null |
 
 **Example:**
+
 ```python
 # Update only name, leave other fields unchanged
 input_data = {
@@ -71,6 +75,7 @@ input_data = {
 ## 3. Response Patterns
 
 ### Success Response
+
 ```graphql
 ... on CreateEntitySuccess {
     message
@@ -83,6 +88,7 @@ input_data = {
 ```
 
 **Python:**
+
 ```python
 result = await client.execute(mutation, variables)
 assert "errors" not in result
@@ -93,6 +99,7 @@ if mutation_result["__typename"] == "CreateEntitySuccess":
 ```
 
 ### Error Response
+
 ```graphql
 ... on CreateEntityError {
     message
@@ -107,6 +114,7 @@ if mutation_result["__typename"] == "CreateEntitySuccess":
 ```
 
 **Python:**
+
 ```python
 if mutation_result["__typename"] == "CreateEntityError":
     error = mutation_result["errors"][0]
@@ -123,6 +131,7 @@ if mutation_result["__typename"] == "CreateEntityError":
 ## 4. Common Operations
 
 ### Create
+
 ```graphql
 mutation CreateLocation($input: CreateLocationInput!) {
     createLocation(input: $input) {
@@ -161,6 +170,7 @@ input_data = {
 ```
 
 ### Update
+
 ```graphql
 mutation UpdateLocation($input: UpdateLocationInput!) {
     updateLocation(input: $input) {
@@ -191,6 +201,7 @@ input_data = {
 ```
 
 ### Delete
+
 ```graphql
 mutation DeleteLocation($input: DeletionInput!) {
     deleteLocation(input: $input) {
@@ -220,6 +231,7 @@ input_data = {"id": "uuid"}
 ## 5. Best Practices
 
 ### ✅ Always Do
+
 1. Use variables, not inline values
 2. Check `"errors"` in result first
 3. Check `__typename` to discriminate unions
@@ -228,6 +240,7 @@ input_data = {"id": "uuid"}
 6. Request `errors` array for error details
 
 ### ❌ Never Do
+
 1. Inline mutation arguments
 2. Assume success without checking `__typename`
 3. Use empty strings for null
@@ -272,6 +285,7 @@ elif mutation_result["__typename"] == "OperationError":
 ## 7. Testing Patterns
 
 ### Verify Success
+
 ```python
 assert create_result["__typename"] == "CreateEntitySuccess"
 entity = create_result["entity"]
@@ -280,6 +294,7 @@ assert entity["name"] == input_data["name"]
 ```
 
 ### Verify Duplicate Detection
+
 ```python
 # Create first time
 result1 = await client.execute(mutation, variables={"input": input_data})
@@ -299,6 +314,7 @@ assert error_result["conflictEntity"]["id"] is not None
 ## 8. Domain-Specific Examples
 
 ### Geographic (with nested address)
+
 ```python
 input_data = {
     "locationLevelId": "uuid",
@@ -315,6 +331,7 @@ input_data = {
 ```
 
 ### Hierarchical (with path recalculation)
+
 ```python
 input_data = {
     "id": "org-unit-uuid",
@@ -332,6 +349,7 @@ input_data = {
 ```
 
 ### Temporal (SCD pattern)
+
 ```python
 input_data = {
     "id": "allocation-uuid",

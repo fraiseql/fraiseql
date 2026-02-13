@@ -3,6 +3,7 @@
 > **A production-ready example demonstrating FraiseQL's CQRS pattern with explicit sync**
 
 This example showcases:
+
 - ✅ **Database migrations** with `fraiseql migrate`
 - ✅ **CQRS pattern** with `tb_*` (command) and `tv_*` (query) tables
 - ✅ **Explicit sync** pattern (NO database triggers!)
@@ -21,6 +22,7 @@ This example showcases:
 ## 🚀 Quick Start (5 Minutes)
 
 ### Prerequisites
+
 - Docker & Docker Compose
 - Git
 
@@ -41,6 +43,7 @@ open http://localhost:8000/graphql
 ```
 
 That's it! The example is now running with:
+
 - PostgreSQL with sample data
 - GraphQL API on port 8000
 - Grafana dashboard on port 3000
@@ -131,6 +134,7 @@ await sync.sync_post([post_id], mode='incremental')
 ```
 
 **Why explicit instead of triggers?**
+
 - ✅ **Visibility**: Sync is in your code, not hidden in database
 - ✅ **Testing**: Easy to mock sync in tests
 - ✅ **Control**: Batch syncs, defer them, skip in special cases
@@ -219,6 +223,7 @@ mutation CreatePost {
 ```
 
 **What happens**:
+
 1. Insert into `tb_post` (command side)
 2. **Explicit sync** to `tv_post` (query side)
 3. **Explicit sync** author to `tv_user` (post count changed)
@@ -245,6 +250,7 @@ mutation AddComment {
 ```
 
 **What happens**:
+
 1. Insert into `tb_comment` (command side)
 2. **Explicit sync** post to `tv_post` (comment added)
 3. **Explicit sync** author to `tv_user` (comment count changed)
@@ -436,6 +442,7 @@ post_id = await create_post(...)
 ### Performance Tips
 
 1. **Batch syncs** when creating multiple entities:
+
    ```python
    post_ids = []
    for data in batch:
@@ -447,6 +454,7 @@ post_id = await create_post(...)
    ```
 
 2. **Defer syncs** for low-priority updates:
+
    ```python
    # High priority: sync immediately
    await sync.sync_post([post_id])
@@ -456,6 +464,7 @@ post_id = await create_post(...)
    ```
 
 3. **Monitor sync performance**:
+
    ```python
    # Check metrics to find slow syncs
    metrics = await get_sync_metrics()
@@ -483,6 +492,7 @@ cat migrations/001_initial_schema.sql
 ### 2. Modify the Example
 
 Try adding a new entity (e.g., "Category"):
+
 1. Add `tb_category` and `tv_category` tables
 2. Create `sync_category()` function
 3. Add GraphQL types and mutations
@@ -491,6 +501,7 @@ Try adding a new entity (e.g., "Category"):
 ### 3. Benchmark It
 
 Compare FraiseQL with other frameworks:
+
 - Run the same queries in Hasura
 - Run the same queries in Postgraphile
 - Compare response times
@@ -500,6 +511,7 @@ Compare FraiseQL with other frameworks:
 ### 4. Deploy to Production
 
 This example is production-ready! Just:
+
 1. Set environment variables
 2. Use production PostgreSQL
 3. Enable SSL
@@ -511,12 +523,14 @@ This example is production-ready! Just:
 ## 📚 Documentation
 
 ### FraiseQL Documentation
+
 - **Main Docs**: https://fraiseql.dev/docs
 - **CQRS Pattern**: https://fraiseql.dev/docs/architecture/cqrs
 - **Explicit Sync**: https://fraiseql.dev/docs/guides/explicit-sync
 - **Performance**: https://fraiseql.dev/docs/performance
 
 ### Related Projects
+
 - **confiture**: https://github.com/fraiseql/confiture - Migration management
 - **jsonb_ivm**: https://github.com/fraiseql/jsonb_ivm - Incremental View Maintenance
 - **pg_fraiseql_cache**: https://github.com/fraiseql/pg_fraiseql_cache - Cache invalidation
@@ -568,6 +582,7 @@ docker-compose exec postgres psql -U fraiseql -d blog_demo \
 ## 🤝 Contributing
 
 Found an issue or want to improve the example?
+
 1. Open an issue: https://github.com/yourusername/fraiseql/issues
 2. Submit a PR: https://github.com/yourusername/fraiseql/pulls
 

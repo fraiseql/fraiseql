@@ -13,6 +13,7 @@
 Currently, FraiseQL expands fragment spreads **only at the root query level**. This plan adds recursive fragment expansion so fragments work in nested field selections—critical for complex denormalized view queries.
 
 **Example of what will work after implementation:**
+
 ```graphql
 fragment UserFields on User {
   id
@@ -90,6 +91,7 @@ When `resolve()` encounters a `FieldNode`, it appends it to results **without pr
 ### Impact on FraiseQL
 
 With complex denormalized views like:
+
 ```python
 @fraiseql.type(sql_source="tv_user_with_extended_profile")
 class UserWithProfile:
@@ -124,16 +126,19 @@ Root Selection Set
 ### Key Design Decisions
 
 **Decision 1: Mutate field nodes or return new ones?**
+
 - ✅ **Mutate existing FieldNode** (graphql-core allows modification)
 - Simpler and maintains object identity
 - FieldNode is already mutable during parsing phase
 
 **Decision 2: When to resolve nested fragments?**
+
 - ✅ **During initial fragment resolution** (in `resolve_all_fields`)
 - Not during query execution (would be too late for routing)
 - Matches existing pattern of resolving at parse time
 
 **Decision 3: How to handle field deduplication with nested fields?**
+
 - ✅ **Deduplicate at each level** (root and nested)
 - Prevents duplicate nested selections
 - Maintains aliasing support
@@ -145,11 +150,13 @@ Root Selection Set
 ### Step 1: Understand Current Fragment Structure (15 minutes)
 
 **What to review:**
+
 1. How `FieldNode` represents selection_set
 2. How `FragmentDefinitionNode` stores selections
 3. How deduplication works
 
 **Files to examine:**
+
 ```bash
 # Review graphql-core structure
 python3 -c "
@@ -172,6 +179,7 @@ grep -n "resolve_all_fields" tests/unit/core/test_fragment_resolver.py | head -2
 **File:** `src/fraiseql/core/fragment_resolver.py`
 
 **Current code (lines 40-62):**
+
 ```python
 def resolve(sel: SelectionNode) -> None:
     if sel.kind == "field":
@@ -183,6 +191,7 @@ def resolve(sel: SelectionNode) -> None:
 ```
 
 **Change to:**
+
 ```python
 def resolve(sel: SelectionNode) -> None:
     if sel.kind == "field":
@@ -216,6 +225,7 @@ def resolve(sel: SelectionNode) -> None:
 ```
 
 **Test this step:**
+
 ```python
 def test_field_with_nested_selection_preserved():
     """Field with nested selections is preserved"""
@@ -246,6 +256,7 @@ def test_field_with_nested_selection_preserved():
 Now that we recurse into nested selections, fragment spreads within them will be automatically expanded by the recursive call to `resolve_all_fields()`.
 
 **Verify this works:**
+
 ```python
 def test_nested_fragment_spread_basic():
     """Fragment spread in nested field selection"""
@@ -275,6 +286,7 @@ def test_nested_fragment_spread_basic():
 ### Step 4: Handle Inline Fragments in Nested Selections (15 minutes)
 
 **Current code already handles inline fragments in the resolve loop:**
+
 ```python
 elif sel.kind == "inline_fragment":
     inline_frag = cast("InlineFragmentNode", sel)
@@ -284,6 +296,7 @@ elif sel.kind == "inline_fragment":
 ```
 
 **Verify it works with nested inline fragments:**
+
 ```python
 def test_nested_inline_fragment():
     """Inline fragment in nested selection"""
@@ -384,6 +397,7 @@ def test_nested_fragment_with_alias():
 ### Step 7: Integration with Multi-Field Queries (30 minutes)
 
 **Files:**
+
 - `src/fraiseql/fastapi/routers.py` (multi-field query handler)
 - `tests/integration/fastapi/test_nested_fragments.py` (NEW)
 
@@ -580,6 +594,7 @@ def deduplicate_fields(fields: list[FieldNode]) -> list[FieldNode]:
 ```
 
 **Changes:**
+
 - Lines 31-48: Add recursive resolution of `field_node.selection_set`
 - Reconstruct FieldNode with resolved nested selections
 - Preserve all metadata (alias, arguments, directives, location info)
@@ -1048,13 +1063,17 @@ class TestNestedFragmentsIntegration:
 ## Part 6: Migration Guide
 
 ### Breaking Changes
+
 **None.** This is purely additive functionality.
 
 ### Migration
+
 **No migration needed.** Existing queries continue to work exactly as before.
 
 ### For Users
+
 Starting with the next release:
+
 ```graphql
 # OLD (still works): Repeated fragment definitions
 fragment UserFields { id name email }
@@ -1083,6 +1102,7 @@ query {
 ## Part 7: Success Criteria
 
 ### Code Quality
+
 - [ ] All unit tests pass (15+ new tests)
 - [ ] All integration tests pass
 - [ ] No regressions in existing fragment tests
@@ -1090,11 +1110,13 @@ query {
 - [ ] Passes linting (ruff, black)
 
 ### Performance
+
 - [ ] Fragment resolution time < 5% variance from baseline
 - [ ] Deeply nested queries (5+ levels) resolve in < 100ms
 - [ ] Memory usage stable (no memory leaks)
 
 ### Functionality
+
 - [ ] Nested fragment spreads expanded correctly
 - [ ] Inline fragments in nested selections work
 - [ ] Aliases preserved through all nesting levels
@@ -1102,6 +1124,7 @@ query {
 - [ ] Complex denormalized view queries work
 
 ### Documentation
+
 - [ ] Docstring updated with examples
 - [ ] Implementation notes added to fragment_resolver.py
 - [ ] No migration guide needed (backward compatible)
@@ -1111,17 +1134,21 @@ query {
 ## Part 8: Dependencies & Prerequisites
 
 ### Code Dependencies
+
 - `graphql-core >= 3.2` (already required by FraiseQL)
 - No new external dependencies
 
 ### Files Modified
+
 1. `src/fraiseql/core/fragment_resolver.py` (main change)
 
 ### Files Added
+
 1. `tests/unit/core/test_nested_fragments.py` (new unit tests)
 2. `tests/integration/fastapi/test_nested_fragments.py` (new integration tests)
 
 ### Testing Infrastructure
+
 - Existing pytest fixtures
 - No new test infrastructure needed
 
@@ -1130,16 +1157,19 @@ query {
 ## Part 9: Rollout Plan
 
 ### Phase 1: Development (Day 1)
+
 - [ ] Implement recursive resolution in fragment_resolver.py
 - [ ] Write unit tests
 - [ ] Run test suite, fix issues
 
 ### Phase 2: Integration (Day 2)
+
 - [ ] Write integration tests
 - [ ] Test with real FraiseQL endpoints
 - [ ] Benchmark performance
 
 ### Phase 3: Validation (Day 3)
+
 - [ ] Run full test suite (6000+ tests)
 - [ ] Verify no regressions
 - [ ] Code review
@@ -1150,6 +1180,7 @@ query {
 ## Part 10: Post-Implementation Verification
 
 ### Manual Testing Checklist
+
 ```python
 # Test 1: Simple nested fragment
 query {
@@ -1184,6 +1215,7 @@ class UserExtended:
 ```
 
 ### Regression Testing
+
 ```bash
 # Run full test suite
 pytest tests/ -v

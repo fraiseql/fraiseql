@@ -15,6 +15,7 @@ This runbook guides you through detecting, mitigating, and preventing GraphQL qu
 ## 🚨 Symptoms
 
 ### Primary Indicators
+
 - Sudden spike in query execution time
 - High CPU usage (> 90%)
 - Database connection pool exhaustion
@@ -102,6 +103,7 @@ fraiseql_graphql_query_complexity_total > 1000
 ### Step 1: Identify Attack Pattern
 
 **Via Prometheus - Query Complexity**:
+
 ```promql
 # Top users by query complexity
 topk(10,
@@ -116,6 +118,7 @@ count(fraiseql_graphql_query_limit > 1000)
 ```
 
 **Via Structured Logs**:
+
 ```bash
 # Find expensive queries in last 10 minutes
 jq -r 'select(.event == "graphql.expensive_query") |
@@ -138,6 +141,7 @@ jq -r 'select(.event == "graphql.expensive_query") |
 **Common Attack Patterns**:
 
 **1. Deep Nesting (Circular Queries)**:
+
 ```graphql
 # Attack query - deeply nested relationships
 query {
@@ -162,6 +166,7 @@ query {
 ```
 
 **2. Large Batch Requests**:
+
 ```graphql
 # Attack query - requesting huge result sets
 query {
@@ -180,6 +185,7 @@ query {
 ```
 
 **3. Expensive Field Combinations**:
+
 ```graphql
 # Attack query - combining expensive computed fields
 query {
@@ -193,6 +199,7 @@ query {
 ```
 
 **Extract Query from Logs**:
+
 ```bash
 # Get actual query that caused issue
 jq -r 'select(.event == "graphql.expensive_query" and .context.user_id == "user_attack") |
@@ -203,6 +210,7 @@ jq -r 'select(.event == "graphql.expensive_query" and .context.user_id == "user_
 ### Step 3: Check System Resources
 
 **Database Load**:
+
 ```sql
 -- Check active queries
 SELECT
@@ -227,6 +235,7 @@ WHERE datname = current_database();
 ```
 
 **Application Resources**:
+
 ```promql
 # CPU usage
 rate(process_cpu_seconds_total[5m])
@@ -241,12 +250,14 @@ fraiseql_db_connections_active
 ### Step 4: Determine Attack vs. Misconfiguration
 
 **Attack Indicators**:
+
 - Same user/IP sending many expensive queries
 - Queries with unusual complexity
 - Sudden pattern change (normal → expensive)
 - Distributed source IPs (coordinated attack)
 
 **Misconfiguration Indicators**:
+
 - Frontend sending overly broad queries
 - Integration fetching unnecessary data
 - Missing pagination in production code
@@ -290,6 +301,7 @@ app.add_plugin(complexity_analyzer)
 ```
 
 **Environment Variable Override**:
+
 ```bash
 # Apply immediately without code changes
 export FRAISEQL_MAX_QUERY_COMPLEXITY=500
@@ -321,6 +333,7 @@ await BlockList.add_ip(
 ```
 
 **Via Admin API**:
+
 ```bash
 curl -X POST http://localhost:8000/admin/blocks \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -374,6 +387,7 @@ app.add_validation_rule(depth_limit)
 ```
 
 **Configuration**:
+
 ```python
 # config/security.py
 GRAPHQL_SECURITY = {
@@ -408,6 +422,7 @@ app.add_validation_rule(complexity_limit)
 ```
 
 **How Complexity is Calculated**:
+
 ```python
 # Example query
 """
@@ -446,6 +461,7 @@ async def get_context(request):
 ```
 
 **PostgreSQL-level Timeout** (already configured):
+
 ```python
 # In db.py:119-133
 async def get_connection(self, query_timeout: int = 30):
@@ -638,6 +654,7 @@ groups:
 ### Grafana Dashboard Panels
 
 **1. Query Duration Histogram**:
+
 ```promql
 histogram_quantile(0.95,
   rate(fraiseql_graphql_query_duration_seconds_bucket[5m])
@@ -645,6 +662,7 @@ histogram_quantile(0.95,
 ```
 
 **2. Query Complexity Distribution**:
+
 ```promql
 histogram_quantile(0.95,
   rate(fraiseql_graphql_query_complexity_bucket[5m])
@@ -652,6 +670,7 @@ histogram_quantile(0.95,
 ```
 
 **3. Top Expensive Queries (by user)**:
+
 ```promql
 topk(10,
   sum by (user_id) (
@@ -661,6 +680,7 @@ topk(10,
 ```
 
 **4. Timeout Rate**:
+
 ```promql
 rate(fraiseql_errors_total{error_code="QUERY_TIMEOUT"}[5m])
 ```

@@ -55,10 +55,12 @@
 #### 1. Authentication Tests (`tests/chaos/auth/`)
 
 **Files**:
+
 - `test_auth_chaos.py` (6 tests)
 - `test_auth_chaos_real.py` (4 tests)
 
 **Initial Results** (from partial data):
+
 ```
 test_authentication_service_outage         FAILED
 test_concurrent_authentication_load        PASSED  ← Previously failed!
@@ -69,6 +71,7 @@ test_role_based_access_control_failure    FAILED
 ```
 
 **Observations**:
+
 - `test_concurrent_authentication_load` NOW PASSES (was failing before)
   - Indicates environment variability
   - Confirms need for adaptive configuration
@@ -78,11 +81,13 @@ test_role_based_access_control_failure    FAILED
 #### 2. Cache Tests (`tests/chaos/cache/`)
 
 **Files**:
+
 - `test_cache_chaos.py` (6 tests)
 - `test_cache_chaos_real.py` (4 tests)
 - `test_phase3_validation_real.py` (5 tests)
 
 **Initial Results**:
+
 ```
 test_cache_backend_failure                 PASSED
 test_cache_corruption_handling             PASSED
@@ -93,6 +98,7 @@ test_cache_warmup_after_failure            PASSED
 ```
 
 **Observations**:
+
 - Better pass rate than auth tests (~67% passing)
 - Failures appear to be resource-related (memory pressure, stampede)
 - Real DB tests show different behavior
@@ -129,9 +135,11 @@ Based on test names and early results:
 
 1. **Wait for Full Analysis** ✅ Running
 2. **Run Analysis Script**
+
    ```bash
    python scripts/analyze_chaos_failures.py /tmp/chaos-full-analysis.txt
    ```
+
 3. **Review Generated Reports**
    - `tests/chaos/analysis/failure_report.txt`
    - `tests/chaos/analysis/failure_inventory.csv`
@@ -144,6 +152,7 @@ Based on test names and early results:
    - Validate auto-categorization from script
 
 5. **Create Priority Matrix**
+
    ```
    [HIGH PRIORITY]
    - Security-related failures (auth, RBAC, JWT)
@@ -172,6 +181,7 @@ Based on test names and early results:
 **File**: `scripts/analyze_chaos_failures.py`
 
 **Features**:
+
 - Automatic categorization based on test names
 - Priority assignment
 - Multiple output formats (TXT, CSV)
@@ -183,6 +193,7 @@ Based on test names and early results:
   - UNKNOWN: Needs manual review
 
 **Usage**:
+
 ```bash
 # Run tests
 pytest tests/chaos -v --tb=short > output.txt 2>&1
@@ -196,6 +207,7 @@ python scripts/analyze_chaos_failures.py output.txt
 ```
 
 **Output Example**:
+
 ```
 CHAOS TEST FAILURE ANALYSIS REPORT
 ================================================================================
@@ -226,10 +238,12 @@ ENVIRONMENT     15 tests
 ### 1. Environment Variability
 
 **Evidence**: `test_concurrent_authentication_load`
+
 - **Previous run**: FAILED (no contention detected)
 - **Current run**: PASSED
 
 **Conclusion**: Tests are highly sensitive to:
+
 - System load
 - Hardware performance
 - Random timing variations
@@ -241,6 +255,7 @@ ENVIRONMENT     15 tests
 **Pattern**: `*_real.py` tests have higher failure rate
 
 **Hypothesis**:
+
 - Real PostgreSQL has different timing characteristics
 - Connection overhead affects test expectations
 - Transaction behavior differs from mocks
@@ -250,6 +265,7 @@ ENVIRONMENT     15 tests
 ### 3. Category Performance
 
 **Ranking** (best to worst pass rate, preliminary):
+
 1. Cache tests (~67% passing)
 2. Database tests (data pending)
 3. Authentication tests (~33% passing)

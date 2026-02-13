@@ -72,6 +72,7 @@ class User:
 ```
 
 **With field extraction:**
+
 ```graphql
 query {
   users { id, name }  # Non-admin request
@@ -82,6 +83,7 @@ query {
 ```
 
 **With always passthrough:**
+
 ```graphql
 query {
   users { id, name }  # Non-admin request
@@ -113,6 +115,7 @@ data: {
 ```
 
 **Client request:**
+
 ```graphql
 query {
   users { id, name }  # Only need 20 bytes
@@ -120,10 +123,12 @@ query {
 ```
 
 **With field extraction:**
+
 - PostgreSQL sends: `{"id": 1, "name": "John"}` (20 bytes)
 - Network: 20 bytes × 1000 users = **20 KB**
 
 **With always passthrough:**
+
 - PostgreSQL sends: entire 750KB record
 - Network: 750 KB × 1000 users = **750 MB**
 - **37,500x more data transferred!**
@@ -205,6 +210,7 @@ LIMIT 10;
 ```
 
 **Disk I/O impact:**
+
 - Field extraction: Read only needed fields (targeted)
 - Always passthrough: Read entire JSONB blob (wasteful)
 
@@ -231,10 +237,12 @@ query {
 ```
 
 **With field extraction:**
+
 - Can apply per-field transformations
 - Custom resolvers can adapt to client needs
 
 **With always passthrough:**
+
 - One format for everyone
 - No flexibility
 
@@ -263,6 +271,7 @@ Let me benchmark this:
 ### Scenario: User with 50 fields, client requests 5
 
 **Setup:**
+
 - User record: 50 fields, 10KB total
 - Client needs: 5 fields (id, name, email, created_at, status)
 - Minimal data: 200 bytes
@@ -286,12 +295,14 @@ Let me benchmark this:
 ### Case Study: E-commerce Product List
 
 **Scenario:**
+
 - 1000 products
 - Each product: 100 fields (images, descriptions, specs, reviews, etc.)
 - Average size: 50KB per product
 - Client needs: id, name, price, thumbnail (500 bytes)
 
 **With field extraction:**
+
 ```
 PostgreSQL: 1000 × 500 bytes = 500 KB
 Network transfer: 500 KB
@@ -300,6 +311,7 @@ Load time: 0.5 seconds ✅
 ```
 
 **With always passthrough:**
+
 ```
 PostgreSQL: 1000 × 50 KB = 50 MB
 Network transfer: 50 MB
@@ -308,6 +320,7 @@ Load time: 30+ seconds on mobile ❌
 ```
 
 **Impact:**
+
 - 100x slower
 - Users abandon page
 - SEO penalty (Core Web Vitals)
@@ -333,6 +346,7 @@ class Company:
 ```
 
 **GraphQL query from regular employee:**
+
 ```graphql
 query {
   companies { id, name }
@@ -340,10 +354,12 @@ query {
 ```
 
 **With field extraction:**
+
 - Returns: `{"id": 1, "name": "Acme Corp"}`
 - Sensitive data protected ✅
 
 **With always passthrough:**
+
 - Returns: Everything including `revenue`, `trade_secrets`, `employee_salaries`
 - **MASSIVE data breach** ❌
 - Compliance violation (GDPR, SOC2, etc.)
@@ -364,6 +380,7 @@ else:
 ```
 
 **This gives you:**
+
 1. ✅ GraphQL spec compliance
 2. ✅ Security (field-level auth works)
 3. ✅ Bandwidth efficiency
@@ -372,6 +389,7 @@ else:
 6. ✅ Pure passthrough when beneficial (no field selection)
 
 **"Always passthrough" would give you:**
+
 1. ❌ Spec violation
 2. ❌ Security vulnerabilities
 3. ❌ Bandwidth waste (8-100x more data)
@@ -385,10 +403,12 @@ else:
 **Do NOT generalize pure passthrough to all cases.**
 
 The current implementation strikes the right balance:
+
 - Use pure passthrough when the client wants all fields (fastest)
 - Use field extraction when the client wants specific fields (secure, efficient)
 
 **The 0.05ms transformation time is negligible compared to:**
+
 - Network savings: 10-50ms (200x more important)
 - Security: Priceless
 - Compliance: Required by law

@@ -53,10 +53,12 @@ flowchart TB
 - **Queries (Reads)**: Queries that fetch data from optimized views
 
 **Benefits**:
+
 - Optimized read paths with PostgreSQL views
 - ACID transactions for writes
 
 **See Also**:
+
 - [CQRS Implementation](../../examples/complete_cqrs_blog/) - Complete CQRS blog example
 - [Enterprise Patterns](../../examples/blog_api/) - Production CQRS with audit trails
 - Independent scaling of reads and writes
@@ -66,6 +68,7 @@ flowchart TB
 FraiseQL's core pattern for GraphQL types - database views return pre-composed JSONB:
 
 **Data Flow:**
+
 ```
 ┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
 │  tb_user        │  →   │   v_user         │  →   │  GraphQL        │
@@ -82,6 +85,7 @@ FraiseQL's core pattern for GraphQL types - database views return pre-composed J
 ```
 
 **SQL Example (with Trinity Identifiers):**
+
 ```sql
 -- Base table with trinity identifiers
 CREATE TABLE tb_user (
@@ -107,6 +111,7 @@ FROM tb_user;
 ```
 
 **Python Type Definition:**
+
 ```python
 import fraiseql
 import fraiseql
@@ -123,6 +128,7 @@ class User:
 ```
 
 **Why This Pattern?**
+
 - ✅ **PostgreSQL composes JSONB** - One query, no N+1 problems
 - ✅ **Rust transforms efficiently** - Compiled performance for field selection
 - ✅ **Explicit field control** - Only fields in JSONB are accessible
@@ -224,6 +230,7 @@ FROM tb_user u;
 ```
 
 **Rule:**
+
 - **Always include `id`** (public identifier) for WHERE filtering
 - **Include `pk_*`** only if other views need to JOIN to this view
 - **Never include `pk_*` in JSONB** (internal only)
@@ -269,6 +276,7 @@ query {
 ✅ **Use id for API contracts** (stable, never changes)
 ✅ **Use identifier for URLs** (human-friendly, can update)
 ✅ **Index all three** for query performance:
+
 ```sql
 CREATE INDEX idx_post_pk ON tb_post(pk_post);        -- Primary key (automatic)
 CREATE UNIQUE INDEX idx_post_id ON tb_post(id);      -- API lookups
@@ -282,6 +290,7 @@ CREATE UNIQUE INDEX idx_post_identifier ON tb_post(identifier);  -- URL lookups
 Projection tables (`tv_*`) are regular tables (NOT views!) that store materialized JSONB data:
 
 **When to use:**
+
 - Read-heavy workloads (10:1+ read:write ratio)
 - Large datasets (>100k rows) where view JOINs are too slow
 - GraphQL APIs needing sub-millisecond response times
@@ -380,18 +389,21 @@ $$;
 ```
 
 **Benefits:**
+
 - ✅ **100-200x faster reads** - 0.05-0.5ms (vs 5-10ms for views)
 - ✅ **Embedded relations** - Nested data pre-composed
 - ✅ **Works with Rust pipeline** - JSONB → Rust → HTTP
 - ✅ **No N+1 queries** - Everything in one lookup
 
 **Trade-offs:**
+
 - ❌ **Write complexity** - Mutations must call sync functions
 - ❌ **Storage overhead** - Duplicates data (1.5-2x)
 - ❌ **Manual sync** - Developer must remember
 - ⚠️ **Not for high-write tables** - Sync overhead
 
 **Python mapping:**
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -404,6 +416,7 @@ class User:
 ```
 
 **Common misconception:**
+
 ```sql
 -- ❌ WRONG - PostgreSQL can't do this!
 CREATE TABLE tv_user (
@@ -415,6 +428,7 @@ CREATE TABLE tv_user (
 ```
 
 **Where GENERATED ALWAYS works:**
+
 ```sql
 -- ✅ Same-row scalar extraction (for indexing)
 CREATE TABLE tb_user (
@@ -438,6 +452,7 @@ FraiseQL automatically extracts field descriptions from your Python code for Gra
 3. **Docstring Fields sections** (lowest priority)
 
 **Example:**
+
 ```python
 import fraiseql
 import fraiseql
@@ -459,6 +474,7 @@ class User:
 ```
 
 **Generated GraphQL schema:**
+
 ```graphql
 type User {
   "Public API identifier"
@@ -478,6 +494,7 @@ type User {
 ```
 
 **Auto-applied to:**
+
 - ✅ Type fields (visible in Apollo Studio)
 - ✅ Where clause filter operators (`eq`, `gt`, `contains`, etc.)
 - ✅ Input type fields
@@ -485,6 +502,7 @@ type User {
 - ✅ Specialized type operators (network, LTree, coordinates)
 
 **Benefits:**
+
 - No separate documentation files to maintain
 - Descriptions live next to type definitions
 - AI tools (Claude, Copilot) can see context
@@ -510,6 +528,7 @@ class User:
 ```
 
 **Without trinity pattern (simpler entities):**
+
 ```python
 import fraiseql
 import fraiseql
@@ -540,6 +559,7 @@ async def get_users(info) -> list[User]:
 Write operations (two patterns supported):
 
 **Simple pattern (function-based):**
+
 ```python
 import fraiseql
 import fraiseql
@@ -557,6 +577,7 @@ async def create_user(info, input: CreateUserInput) -> User:
 ```
 
 **Class-based pattern (with success/failure):**
+
 ```python
 import fraiseql
 import fraiseql
@@ -590,6 +611,7 @@ class CreateUser:
 ```
 
 **Corresponding PostgreSQL function:**
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_user(
     p_name TEXT,
@@ -636,25 +658,30 @@ $$ LANGUAGE plpgsql;
 FraiseQL automatically generates strongly-typed `WhereInput` types for filtering with field-specific operators.
 
 **Basic operators (all types):**
+
 - `eq` / `neq` - Equality checks
 - `in` / `nin` - List membership (NOT IN)
 - `isnull` - Null checks (true = IS NULL, false = IS NOT NULL)
 
 **Numeric operators (Int, Float, Decimal):**
+
 - `gt` / `gte` - Greater than (or equal)
 - `lt` / `lte` - Less than (or equal)
 
 **String operators:**
+
 - `contains` - Substring search (case-sensitive)
 - `startswith` - Prefix match
 - `endswith` - Suffix match
 
 **Date/DateTime operators:**
+
 - All numeric operators (`gt`, `gte`, `lt`, `lte`)
 - `in` / `nin` for specific dates
 - `isnull` for optional date fields
 
 **Example - basic filtering:**
+
 ```graphql
 query {
   users(where: {
@@ -672,6 +699,7 @@ query {
 **Specialized Type Operators:**
 
 **1. Coordinates (Geographic Filtering)**
+
 ```graphql
 query {
   stores(where: {
@@ -690,6 +718,7 @@ query {
 ```
 
 **2. Network Addresses (IP/CIDR Filtering)**
+
 ```graphql
 query {
   servers(where: {
@@ -718,6 +747,7 @@ query {
 ```
 
 **Network classification operators:**
+
 - `inSubnet` - IP within CIDR range
 - `inRange` - IP between from/to addresses
 - `isPrivate` / `isPublic` - RFC 1918 detection
@@ -734,6 +764,7 @@ query {
 - `isGlobalUnicast` - Global unicast addresses
 
 **3. LTree (Hierarchical Paths)**
+
 ```graphql
 query {
   categories(where: {
@@ -760,6 +791,7 @@ query {
 ```
 
 **LTree hierarchical operators:**
+
 - `ancestor_of` - Path is ancestor of target
 - `descendant_of` - Path is descendant of target
 - `matches_lquery` - Pattern match with wildcards
@@ -793,6 +825,7 @@ query {
 ```
 
 **Nested array filtering:**
+
 ```graphql
 query {
   users(where: {
@@ -813,6 +846,7 @@ query {
 ```
 
 **How it works:**
+
 1. FraiseQL inspects your type fields
 2. Generates appropriate filter class per field type
 3. Creates `TypeWhereInput` with logical operators
@@ -820,6 +854,7 @@ query {
 5. PostgreSQL executes with proper type casting
 
 **Example generated type:**
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -846,6 +881,7 @@ class ServerWhereInput:
 ```
 
 **Benefits:**
+
 - ✅ **Type-safe filtering** - No runtime query errors
 - ✅ **Field-specific operators** - `contains` for strings, `gt` for numbers
 - ✅ **Specialized types** - Network, geographic, hierarchical queries
@@ -874,6 +910,7 @@ async def users(info, first: int | None = None, after: str | None = None) -> Con
 ```
 
 **Configuration options:**
+
 - `node_type`: The type being paginated (required)
 - `view_name`: Database view (defaults to `v_<function_name>`)
 - `default_page_size`: Default results per page (default: 20)
@@ -882,6 +919,7 @@ async def users(info, first: int | None = None, after: str | None = None) -> Con
 - `include_total_count`: Include total count (default: True)
 
 **Returned Connection type includes:**
+
 - `nodes`: List of items (User[])
 - `pageInfo`: Pagination info (hasNextPage, hasPreviousPage, startCursor, endCursor)
 - `totalCount`: Total number of items (optional)
@@ -893,6 +931,7 @@ async def users(info, first: int | None = None, after: str | None = None) -> Con
 Read-optimized database views that compose JSONB for GraphQL:
 
 **Simple view (without trinity pattern):**
+
 ```sql
 CREATE VIEW v_note AS
 SELECT
@@ -908,6 +947,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **View with trinity identifiers:**
+
 ```sql
 CREATE VIEW v_user AS
 SELECT
@@ -924,6 +964,7 @@ WHERE deleted_at IS NULL;
 ```
 
 **View that will be referenced by others (includes pk_*):**
+
 ```sql
 CREATE VIEW v_post AS
 SELECT
@@ -938,6 +979,7 @@ FROM tb_post;
 ```
 
 **Key points:**
+
 - **Always include `id`** as direct column for efficient WHERE filtering
 - **Include `pk_*`** only if other views need to JOIN/reference this view
 - **Never include `pk_*` in JSONB** data column (internal only)
@@ -993,17 +1035,20 @@ Cache GraphQL queries by SHA-256 hash to reduce bandwidth and improve performanc
 4. **Server:** Retrieves query from cache, executes, returns result
 
 **Benefits:**
+
 - ✅ **Bandwidth reduction** - 90%+ for large queries (send 64-char hash vs full query)
 - ✅ **Faster uploads** - Especially on mobile networks
 - ✅ **Query optimization** - Server can optimize cached queries
 - ✅ **Works with Rust pipeline** - PostgreSQL → JSONB → Rust → HTTP (no slowdown)
 
 **See Also**:
+
 - [APQ Multi-tenant Example](../../examples/apq_multi_tenant/) - APQ with tenant isolation
 
 **Configuration:**
 
 **Memory backend (single instance):**
+
 ```python
 from fraiseql import FraiseQLConfig
 
@@ -1014,6 +1059,7 @@ config = FraiseQLConfig(
 ```
 
 **PostgreSQL backend (multi-instance):**
+
 ```python
 config = FraiseQLConfig(
     apq_storage_backend="postgresql",
@@ -1055,12 +1101,14 @@ const { data } = await client.query({
 ```
 
 **Server logs:**
+
 ```
 [APQ] Cache miss - storing query hash: 5d41402abc4b2a76b9719d911017c592
 [APQ] Cache hit - executing query from hash: 5d41402abc4b2a76b9719d911017c592
 ```
 
 **When to use:**
+
 - Large, complex queries (>1KB)
 - Mobile applications (limited bandwidth)
 - Multi-instance deployments (use PostgreSQL backend)
@@ -1090,6 +1138,7 @@ print(f"Cached queries: {stats.total_queries}")
 ```
 
 **See also:**
+
 - [Multi-tenant APQ Setup](../../examples/apq_multi_tenant/)
 
 ### Rust JSON Pipeline
@@ -1097,24 +1146,28 @@ print(f"Cached queries: {stats.total_queries}")
 FraiseQL's exclusive architecture: PostgreSQL → Rust → HTTP
 
 **Traditional frameworks:**
+
 ```
 PostgreSQL → Rows → ORM → Python objects → JSON serialize → Response
             ╰────────── Python overhead ──────────╯
 ```
 
 **FraiseQL:**
+
 ```
 PostgreSQL → JSONB → Rust transform → HTTP Response
             ╰────── 7-10x faster ──────╯
 ```
 
 **Why Rust?**
+
 - **Compiled performance** - No Python serialization overhead
 - **7-10x faster JSON processing** - Rust handles field selection
 - **Zero-copy path** - Direct bytes to HTTP response
 - **No GIL contention** - Parallel request processing
 
 **Architectural advantage:**
+
 - PostgreSQL composes JSONB once (no N+1 queries)
 - Rust selects only requested fields (respects GraphQL query)
 - No Python in the hot path (compiled speed for every request)
@@ -1126,6 +1179,7 @@ PostgreSQL → JSONB → Rust transform → HTTP Response
 FraiseQL prevents accidental data leaks through explicit JSONB view contracts:
 
 **The ORM security problem:**
+
 ```python
 # Traditional ORM - ALL columns loaded
 class User(Base):
@@ -1139,6 +1193,7 @@ class User(Base):
 ```
 
 **FraiseQL's explicit whitelisting:**
+
 ```sql
 -- Only safe fields in JSONB view
 CREATE VIEW v_user AS
@@ -1155,6 +1210,7 @@ FROM tb_user;
 ```
 
 **Security benefits:**
+
 - ✅ **Whitelist-only** - Only fields in JSONB are accessible
 - ✅ **Database-enforced** - PostgreSQL is the security boundary
 - ✅ **Two-layer protection** - SQL view + Python type
@@ -1188,6 +1244,7 @@ FROM tb_user;
 ```
 
 **Protection:**
+
 - ✅ **Fixed depth** - Attackers can't exceed view definition
 - ✅ **No middleware needed** - GraphQL schema validates automatically
 - ✅ **Array size limits** - LIMIT clauses prevent huge responses

@@ -10,6 +10,7 @@
 ## Strategy
 
 Since there are **no users yet**, we can:
+
 1. **Skip gradual migration** - Go straight to final state
 2. **Remove UUID entirely** from public API (keep internal for compatibility)
 3. **Make ID the only documented type** for identifiers
@@ -332,6 +333,7 @@ find docs/ -name "*.md" -exec sed -i \
 ```
 
 **Manual review needed**:
+
 - Check for cases where UUID is explicitly needed (correlation_id, etc.)
 - Update GraphQL schema examples: `id: UUID!` → `id: ID!`
 
@@ -559,7 +561,7 @@ async def test_id_type_in_schema_introspection(schema_with_id):
 
 ---
 
-### 7. Update __init__.py Exports (5 min)
+### 7. Update **init**.py Exports (5 min)
 
 **File**: `src/fraiseql/__init__.py`
 
@@ -724,6 +726,7 @@ Before pushing:
 ### Code Changes
 
 **Files modified**: ~90 files
+
 - `src/fraiseql/types/`: 3 files
 - `src/fraiseql/cli/`: 2 files
 - `src/fraiseql/gql/`: 1 file
@@ -737,6 +740,7 @@ Before pushing:
 ### API Changes
 
 **Before**:
+
 ```python
 from fraiseql.types import UUID
 
@@ -746,6 +750,7 @@ class User:
 ```
 
 **After**:
+
 ```python
 from fraiseql.types import ID
 
@@ -757,6 +762,7 @@ class User:
 ### GraphQL Schema Changes
 
 **Before**:
+
 ```graphql
 type User {
   id: UUID!
@@ -765,6 +771,7 @@ type User {
 ```
 
 **After**:
+
 ```graphql
 type User {
   id: ID!

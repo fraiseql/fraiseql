@@ -130,6 +130,45 @@ CVE-2022-0563
 # Mitigation: Enhanced monitoring, update when patches available
 # -----------------------------------------------------------------------------
 
+# CVE-2025-14104: util-linux heap buffer overread
+# Justification: Requires 256+ byte username input to setpwnam() function
+# Impact: Heap buffer overread in rarely-used account management utilities
+# Severity: MEDIUM
+# Mitigation:
+#   - Container runs as non-root 'fraiseql' user
+#   - No user account management operations in runtime
+#   - chfn/chsh/getpwent utilities not exposed via API
+#   - Container filesystem is read-only during operation
+# Status: MONITORING - Patch available in Debian, waiting for python:3.13-slim update
+# Review Date: 2026-02-11 (weekly check for Debian package update)
+CVE-2025-14104
+
+# CVE-2025-6141: ncurses stack buffer overflow
+# Justification: Stack buffer overflow in termcap handling (rare input)
+# Impact: Potential DoS if processing malicious termcap data
+# Severity: LOW
+# Mitigation:
+#   - Application is GraphQL API, does not process terminal data
+#   - ncurses library included in base image but not used by FraiseQL
+#   - No user input processed as termcap/terminfo
+#   - Defense-in-depth: ASLR, stack canaries prevent exploitation
+# Status: MONITORING - Patch available in Debian, waiting for python:3.13-slim update
+# Review Date: 2026-02-11 (weekly check for Debian package update)
+CVE-2025-6141
+
+# CVE-2024-56433: shadow-utils subordinate ID configuration
+# Justification: Improper default subordinate ID ranges in /etc/login.defs
+# Impact: Local privilege escalation if attacker has local user access
+# Severity: LOW
+# Mitigation:
+#   - Container runs as non-root 'fraiseql' user
+#   - No local user creation/modification at runtime
+#   - /etc/login.defs is immutable during operation
+#   - No interactive shell access to container
+# Status: MONITORING - Patch available in Debian, waiting for python:3.13-slim update
+# Review Date: 2026-02-11 (weekly check for Debian package update)
+CVE-2024-56433
+
 # CVE-2025-9820: GnuTLS vulnerability (GNUTLS-SA-2025-11-18)
 # Justification: Recently disclosed, details not fully public
 # Impact: TLS library vulnerability, severity unclear

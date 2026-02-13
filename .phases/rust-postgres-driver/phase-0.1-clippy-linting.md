@@ -10,12 +10,14 @@
 ## Objective
 
 Establish strict Rust code quality standards using Clippy:
+
 1. Configure aggressive Clippy linting rules
 2. Set up `.clippy.toml` configuration file
 3. Create lint enforcement in CI/CD
 4. Verify all existing code passes new standards
 
 **Success Criteria**:
+
 - ✅ `cargo clippy -- -D warnings` passes with zero warnings
 - ✅ All Clippy lints configured in `Cargo.toml` and `.clippy.toml`
 - ✅ `.clippy.toml` committed to repository
@@ -27,12 +29,14 @@ Establish strict Rust code quality standards using Clippy:
 ## Why This Matters
 
 **Code Quality Signal**:
+
 - Clippy catches common mistakes at compile time
 - Prevents technical debt accumulation
 - Enforces consistent patterns across team
 - Catches performance anti-patterns early
 
 **Preventing Regressions**:
+
 - Warns about `todo!()` and `unimplemented!()` macros
 - Detects panics and unwraps in production code
 - Prevents debug macros in commits (`dbg!()`, `println!()`)
@@ -97,6 +101,7 @@ unsafe_op_in_unsafe_fn = "warn"   # Require docs in unsafe fns
 ```
 
 **Why each rule**:
+
 - `todo = "deny"` - Forces completion before merge (non-negotiable)
 - `unwrap_used = "warn"` - Catches potential panics in async code
 - `missing_docs = "warn"` - Ensures API documentation
@@ -133,6 +138,7 @@ single-char-binding-names-threshold = 5  # Single-letter vars in closures
 ```
 
 **Threshold Rationale**:
+
 - `too-many-arguments-threshold = 8`: 8+ args signals design issue
 - `cognitive-complexity-threshold = 30`: Function too complex to understand
 - `type-complexity-threshold = 500`: Generic types getting unwieldy
@@ -258,6 +264,7 @@ Using `prek` (Rust-based pre-commit replacement):
 ```
 
 **Setup pre-commit**:
+
 ```bash
 # Install prek
 brew install j178/tap/prek  # macOS
@@ -286,44 +293,45 @@ prek run --all
 
 ## lint: Run all linting checks (Clippy + fmt)
 lint: lint-clippy lint-fmt
-	@echo "✅ All linting checks passed"
+ @echo "✅ All linting checks passed"
 
 ## clippy: Run Clippy with strict warnings
 clippy:
-	cd fraiseql_rs && cargo clippy --all-targets --all-features -- -D warnings
-	@echo "✅ Clippy checks passed"
+ cd fraiseql_rs && cargo clippy --all-targets --all-features -- -D warnings
+ @echo "✅ Clippy checks passed"
 
 ## lint-clippy: Alias for clippy
 lint-clippy: clippy
 
 ## lint-fmt: Check code formatting (no changes)
 lint-fmt:
-	cd fraiseql_rs && cargo fmt --all -- --check
-	@echo "✅ Code formatting is correct"
+ cd fraiseql_rs && cargo fmt --all -- --check
+ @echo "✅ Code formatting is correct"
 
 ## format: Auto-format all code
 format:
-	cd fraiseql_rs && cargo fmt --all
-	@echo "✅ Code formatted"
+ cd fraiseql_rs && cargo fmt --all
+ @echo "✅ Code formatted"
 
 ## check: Quick compilation check (faster than build)
 check:
-	cd fraiseql_rs && cargo check --all-targets
-	@echo "✅ Code compiles"
+ cd fraiseql_rs && cargo check --all-targets
+ @echo "✅ Code compiles"
 
 ## clean-clippy: Clear Clippy warnings cache
 clean-clippy:
-	cd fraiseql_rs && cargo clean && cargo build --message-format=short
+ cd fraiseql_rs && cargo clean && cargo build --message-format=short
 
 ## qa: Complete quality assurance pass (check → clippy → fmt → test)
 qa: check clippy lint-fmt
-	@echo "✅ QA pipeline passed"
+ @echo "✅ QA pipeline passed"
 
 help:
-	@grep "^##" Makefile | sed 's/## //'
+ @grep "^##" Makefile | sed 's/## //'
 ```
 
 **Usage**:
+
 ```bash
 make clippy          # Run Clippy checks
 make format          # Auto-format code
@@ -366,6 +374,7 @@ make qa
 **Issue**: Clippy warns about unused imports
 
 **Fix**: Remove the import or add `#[allow(unused_imports)]` if needed:
+
 ```rust
 // If needed for tests or examples
 #[allow(unused_imports)]
@@ -379,6 +388,7 @@ use crate::db::pool::ConnectionPool;
 **Issue**: Code contains `todo!()` and Clippy denies it
 
 **Solution**: Either complete the code or use `#[allow(clippy::todo)]` with justification:
+
 ```rust
 #[allow(clippy::todo)]  // TODO: Implement in Phase 2
 fn future_feature() {
@@ -393,7 +403,9 @@ fn future_feature() {
 **Issue**: Function has more than 8 parameters
 
 **Solutions**:
+
 1. **Refactor to use struct**:
+
 ```rust
 // Before
 fn execute(a: T1, b: T2, c: T3, d: T4, e: T5, f: T6, g: T7, h: T8, i: T9) {}
@@ -406,6 +418,7 @@ fn execute(params: ExecuteParams) {}
 ```
 
 2. **Or use builder pattern**:
+
 ```rust
 ExecuteBuilder::new()
     .with_param_a(value_a)
@@ -420,6 +433,7 @@ ExecuteBuilder::new()
 **Issue**: Clippy suggests simpler control flow
 
 **Fix**:
+
 ```rust
 // Before
 if condition {
@@ -441,6 +455,7 @@ if condition {
 ## Performance Impact
 
 Running Clippy adds ~5-10 seconds to compilation:
+
 - **First run**: 10-15 seconds (full analysis)
 - **Subsequent runs**: 2-5 seconds (incremental)
 
@@ -468,6 +483,7 @@ Running Clippy adds ~5-10 seconds to compilation:
 ---
 
 **Estimated Duration**: 1.5 hours
+
 - Setup: 30 min (write configs)
 - Fix existing code: 45 min (if needed)
 - Verify: 15 min (CI/CD, local testing)

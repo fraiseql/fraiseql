@@ -9,6 +9,7 @@
 As a security officer or compliance auditor, you need to rapidly assess whether FraiseQL meets your organization's security requirements and regulatory obligations. This journey provides a systematic evaluation framework covering supply chain security, data protection, access controls, and compliance evidence.
 
 By the end of this journey, you'll have:
+
 - Complete compliance checklist for your framework (ISO 27001, GDPR, PCI-DSS, FedRAMP, etc.)
 - Security profile recommendation (STANDARD/REGULATED/RESTRICTED)
 - Risk assessment with mitigation strategies
@@ -24,6 +25,7 @@ By the end of this journey, you'll have:
 **Read:** [Security & Compliance Hub](../security-compliance/README/)
 
 **Key Security Features:**
+
 - ✅ **Supply Chain Security:** SLSA Level 3 provenance, automated SBOM
 - ✅ **Data Protection:** KMS integration (AWS, Azure, GCP, Vault), field-level encryption
 - ✅ **Access Control:** RBAC with row-level security (RLS), multi-tenant isolation
@@ -47,6 +49,7 @@ By the end of this journey, you'll have:
 **Supported Compliance Frameworks:**
 
 **International Standards:**
+
 - ✅ **ISO/IEC 27001:2022** - Information Security Management
 - ✅ **GDPR** (EU/EEA + global) - Data Protection Regulation
 - ✅ **PCI-DSS 4.0** - Payment Card Industry Security
@@ -54,6 +57,7 @@ By the end of this journey, you'll have:
 - ✅ **HIPAA** - Health Insurance Portability and Accountability Act
 
 **Regional Frameworks:**
+
 - ✅ **🇺🇸 United States:** FedRAMP (Low/Moderate/High), NIST 800-53, DoD IL4/IL5
 - ✅ **🇪🇺 European Union:** NIS2 Directive, DORA (Digital Operational Resilience Act)
 - ✅ **🇬🇧 United Kingdom:** NCSC Cyber Essentials, UK GDPR
@@ -64,6 +68,7 @@ By the end of this journey, you'll have:
 **Quick Compliance Check:**
 
 **If your organization requires GDPR compliance:**
+
 ```
 ✅ Right to access (Art. 15) - Data export API
 ✅ Right to rectification (Art. 16) - GraphQL mutations with audit
@@ -78,6 +83,7 @@ Recommended Profile: REGULATED minimum
 ```
 
 **If your organization requires FedRAMP Moderate:**
+
 ```
 ✅ AC-2 (Account Management) - RBAC + RLS with PostgreSQL session variables
 ✅ AU-2 (Audit Events) - Cryptographic audit trails (SHA-256 + HMAC chains)
@@ -90,6 +96,7 @@ Recommended Profile: REGULATED
 ```
 
 **If your organization requires PCI-DSS 4.0:**
+
 ```
 ✅ 3.4.1 (Render PAN unreadable) - Field-level encryption with KMS
 ✅ 4.2.1 (Strong crypto for transmission) - TLS 1.2+ enforced
@@ -103,6 +110,7 @@ Recommended Profile: REGULATED minimum
 
 **Evidence Location:**
 All control implementations link to test files for verification:
+
 - Audit tests: `tests/integration/enterprise/audit/`
 - RBAC tests: `tests/integration/enterprise/rbac/`
 - Security configuration: `docs/security/configuration.md`
@@ -118,6 +126,7 @@ All control implementations link to test files for verification:
 **Decision Matrix:**
 
 **Choose STANDARD if:**
+
 - ❌ No regulatory compliance requirements
 - ❌ Internal tools only (non-customer facing)
 - ❌ Non-sensitive data
@@ -125,6 +134,7 @@ All control implementations link to test files for verification:
 - ✅ Rapid prototyping
 
 **Choose REGULATED if:**
+
 - ✅ GDPR, HIPAA, PCI-DSS, ISO 27001 compliance required
 - ✅ Customer personal data (PII)
 - ✅ Financial or healthcare data
@@ -132,6 +142,7 @@ All control implementations link to test files for verification:
 - ✅ Production systems in regulated industries
 
 **Choose RESTRICTED if:**
+
 - ✅ FedRAMP High or DoD IL5 compliance required
 - ✅ Critical infrastructure (NIS2, Essential Eight Level 3)
 - ✅ Banking/finance critical systems
@@ -140,6 +151,7 @@ All control implementations link to test files for verification:
 - ✅ Air-gapped deployment support needed
 
 **Configuration Example:**
+
 ```python
 from fraiseql.security import SecurityProfile
 
@@ -179,6 +191,7 @@ app = create_fraiseql_app(
 **Read:** [SLSA Provenance Verification Guide](../security-compliance/slsa-provenance/)
 
 **Supply Chain Security Features:**
+
 - ✅ **SLSA Level 3** provenance with cryptographic signing
 - ✅ **Automated SBOM** generation (CycloneDX and SPDX formats)
 - ✅ **Reproducible builds** with integrity verification
@@ -207,12 +220,14 @@ cosign verify-attestation --type slsaprovenance \
 ```
 
 **What This Verifies:**
+
 - Package was built by official GitHub Actions workflow
 - No tampering between build and distribution
 - Complete build environment documented
 - Dependencies cryptographically tracked
 
 **SBOM Verification:**
+
 ```bash
 # Download SBOM
 curl -O https://github.com/fraiseql/fraiseql/releases/latest/download/fraiseql-sbom.json
@@ -228,6 +243,7 @@ grype sbom:fraiseql-sbom.json
 ```
 
 **For Audit Documentation:**
+
 - **Provenance Certificate:** `fraiseql-*.whl.provenance`
 - **SBOM (CycloneDX):** `fraiseql-sbom.json`
 - **SBOM (SPDX):** `fraiseql-sbom.spdx.json`
@@ -242,6 +258,7 @@ grype sbom:fraiseql-sbom.json
 **Risk Analysis:**
 
 **✅ Low Risk Areas:**
+
 1. **Supply Chain Security** - SLSA Level 3, cryptographic verification, automated SBOM
 2. **Data Protection** - Industry-standard KMS integration (AWS, Azure, GCP, Vault)
 3. **Audit Trails** - Cryptographic chain integrity (SHA-256 + HMAC)
@@ -274,6 +291,7 @@ grype sbom:fraiseql-sbom.json
    - **Impact:** Medium (standard for new software adoption)
 
 **Risk Mitigation Checklist:**
+
 - [ ] Conduct internal security review of FraiseQL codebase
 - [ ] Run penetration testing on FraiseQL-based API
 - [ ] Review cryptographic implementations (audit trails, KMS integration)
@@ -290,6 +308,7 @@ grype sbom:fraiseql-sbom.json
 Use this checklist for final approval decision:
 
 ### Technical Controls
+
 - [ ] Security profile selected and configured
 - [ ] KMS integration configured and tested (REGULATED+)
 - [ ] Row-level security (RLS) policies implemented
@@ -299,6 +318,7 @@ Use this checklist for final approval decision:
 - [ ] Field-level encryption configured for sensitive data (REGULATED+)
 
 ### Compliance Evidence
+
 - [ ] Compliance framework requirements mapped
 - [ ] Control implementation evidence reviewed
 - [ ] SLSA provenance verified
@@ -307,6 +327,7 @@ Use this checklist for final approval decision:
 - [ ] Audit trail integrity verified
 
 ### Operational Security
+
 - [ ] Security monitoring configured (Prometheus/Grafana)
 - [ ] Incident response runbook prepared
 - [ ] Backup and disaster recovery tested
@@ -315,6 +336,7 @@ Use this checklist for final approval decision:
 - [ ] Security training completed for development team
 
 ### Risk Management
+
 - [ ] Risk assessment documented
 - [ ] Mitigation strategies defined
 - [ ] Third-party security audit scheduled (if required)
@@ -325,6 +347,7 @@ Use this checklist for final approval decision:
 ## Decision Framework
 
 **APPROVE if:**
+
 - ✅ Compliance requirements met for your framework
 - ✅ Appropriate security profile selected
 - ✅ Risk mitigation strategies acceptable
@@ -333,11 +356,13 @@ Use this checklist for final approval decision:
 - ✅ Development team trained on security features
 
 **CONDITIONAL APPROVAL if:**
+
 - ⚠️ Minor gaps in compliance evidence (addressable with configuration)
 - ⚠️ Operational security controls need improvement
 - ⚠️ Additional testing required (penetration testing, load testing)
 
 **REJECT if:**
+
 - ❌ Critical compliance gaps cannot be addressed
 - ❌ Security profile insufficient for regulatory requirements
 - ❌ High-risk areas unmitigated
@@ -356,18 +381,21 @@ Use this checklist for final approval decision:
 ## Next Steps
 
 ### For Security Approval
+
 1. **Complete checklist** - Ensure all items checked
 2. **Review evidence** - Collect compliance documentation
 3. **Document decision** - Approval memo with conditions
 4. **Plan audits** - Schedule security review and penetration testing
 
 ### For Implementation
+
 1. **Configure security profile** - Choose STANDARD/REGULATED/RESTRICTED
 2. **Setup monitoring** - Prometheus/Grafana for security events
 3. **Enable audit logging** - Configure retention and review procedures
 4. **Train team** - Security features and best practices
 
 ### For Ongoing Compliance
+
 - **Quarterly reviews** - Audit log review, access control validation
 - **Annual audits** - External security assessment, penetration testing
 - **Continuous monitoring** - Security event alerting, vulnerability scanning
@@ -376,6 +404,7 @@ Use this checklist for final approval decision:
 ## Related Resources
 
 ### Documentation
+
 - [Security & Compliance Hub](../security-compliance/README/) - Overview
 - [Compliance Matrix](../security-compliance/compliance-matrix/) - Framework mappings
 - [Security Profiles](../security-compliance/security-profiles/) - Configuration guide
@@ -383,11 +412,13 @@ Use this checklist for final approval decision:
 - [Production Security](../production/security/) - Operational security guide
 
 ### Test Evidence
+
 - Audit trail tests: `tests/integration/enterprise/audit/`
 - RBAC tests: `tests/integration/enterprise/rbac/`
 - Security configuration: `tests/integration/security/`
 
 ### Community
+
 - **Discord:** #security channel for security questions
 - **Security Advisories:** GitHub Security tab
 - **Bug Bounty:** Responsible disclosure program
@@ -417,6 +448,7 @@ A: KMS providers handle rotation automatically. FraiseQL re-encrypts data on rea
 ## Summary
 
 You now have:
+
 - ✅ Complete compliance framework mapping
 - ✅ Security profile recommendation
 - ✅ Risk assessment documentation

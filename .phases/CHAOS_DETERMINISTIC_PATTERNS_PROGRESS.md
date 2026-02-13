@@ -45,20 +45,24 @@ for i in range(iterations):
 ### 2. Tests Fixed with Deterministic Patterns
 
 #### Auth Category (3 tests)
+
 - ✅ `test_concurrent_authentication_load` - Thread-based contention (10% rate)
 - ✅ `test_race_condition_prevention` - Fixed assertion for deterministic counts
 - ✅ `test_role_based_access_control_failure` - RBAC policy failures (60/15/10/15% rates)
 
 #### Network Category (4 tests)
+
 - ✅ `test_packet_loss_recovery` - Deterministic 20% loss rate
 - ✅ `test_packet_corruption_handling` - Additive model (corruption + impact)
 - ✅ `test_adaptive_retry_under_packet_loss` - Deterministic retry scheduling
 - ✅ `test_network_recovery_after_corruption` - Progressive degradation
 
 #### Concurrency Category (1 test)
+
 - ✅ `test_race_condition_prevention` - Thread-based deterministic failures
 
 #### Resources Category (1 test)
+
 - ✅ `test_memory_pressure_handling` - Deterministic GC pressure (20% rate)
 
 ### 3. Timing Threshold Adjustments
@@ -71,6 +75,7 @@ Fixed **sub-millisecond timing variance** in containerized database operations:
 | `test_slow_connection_establishment` | 1.5x | **2.0x** | Connection pool warmup |
 
 **Root Cause**: Sub-millisecond measurements in containers have inherent variance from:
+
 - First query cache effects (10x faster)
 - Container networking jitter (0.1-0.5ms)
 - Python GIL / OS scheduler (0.1-1ms)
@@ -132,6 +137,7 @@ Execution Time: ~597 seconds (~10 minutes)
 **Pattern**: Random Chaos Monkey → **Deterministic MTBF-based Scheduling**
 
 **Benefits Achieved**:
+
 - ✅ Zero variance in CI/CD pipelines
 - ✅ Repeatable failure scenarios
 - ✅ Predictable test execution times
@@ -230,6 +236,7 @@ These tests occasionally fail due to **genuine database timing variance**, not r
 ### Variance is NOT From Random Patterns
 
 All remaining variance is from **real-world system behavior**:
+
 - Container networking jitter
 - Database connection pool warmup
 - Python garbage collection
@@ -294,6 +301,7 @@ assert recovery_time < chaos_time * 0.1  # 10x faster than chaos state
 ### Commits Ready for Review
 
 All commits are on `release/v1.9.0a1` branch:
+
 - Clean commit messages with technical details
 - Pre-commit hooks passed (ruff, formatting, trailing whitespace)
 - Test results included in commit messages

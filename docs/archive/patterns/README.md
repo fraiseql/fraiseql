@@ -5,14 +5,17 @@ Common design patterns and architectural approaches for FraiseQL applications.
 ## Core Patterns
 
 ### Trinity Identifiers
+
 **[Trinity Identifiers Pattern](../database/trinity-identifiers/)** - Three-tier ID system for optimal performance and UX
 
 The trinity pattern uses three types of identifiers per entity:
+
 - **`pk_*`** - Internal integer IDs for fast database joins
 - **`id`** - Public UUID for API stability (never changes)
 - **`identifier`** - Human-readable slugs for SEO and usability
 
 **Example:**
+
 ```python
 @fraiseql.type(sql_source="v_post")
 class Post:
@@ -30,16 +33,19 @@ class Post:
 **[CQRS Pattern](../advanced/bounded-contexts.md#cqrs-pattern)** - Separate read and write models
 
 FraiseQL implements CQRS at the database level:
+
 - **Queries (Reads)**: Use views (`v_*`) or table views (`tv_*`) with pre-composed JSONB
 - **Mutations (Writes)**: Use functions (`fn_*`) with business logic in PostgreSQL
 
 **Benefits:**
+
 - Read models optimized for GraphQL responses (no N+1 queries)
 - Write models contain validation and business rules
 - Clear separation of concerns
 - Database-enforced consistency
 
 **Example:**
+
 ```sql
 -- Read model (view)
 CREATE VIEW v_user AS
@@ -85,11 +91,13 @@ $$ LANGUAGE plpgsql;
 ```
 
 **When to use:**
+
 - Complex queries requiring joins across multiple tables
 - Performance-critical read paths
 - Data that doesn't change frequently
 
 **Trade-offs:**
+
 - ✅ Instant lookups (pre-computed joins)
 - ✅ Embedded relations (no N+1 queries)
 - ❌ Requires explicit synchronization
@@ -100,9 +108,11 @@ $$ LANGUAGE plpgsql;
 ## Advanced Patterns
 
 ### Multi-Tenancy
+
 **[Multi-Tenancy Pattern](../advanced/multi-tenancy/)** - Isolate data per tenant
 
 Strategies:
+
 - **Row-Level Security (RLS)**: PostgreSQL enforces tenant isolation
 - **Schema-per-tenant**: Separate schemas for each customer
 - **Database-per-tenant**: Complete isolation (enterprise)
@@ -112,14 +122,17 @@ Strategies:
 ---
 
 ### Event Sourcing
+
 **[Event Sourcing Pattern](../advanced/event-sourcing/)** - Store events instead of current state
 
 FraiseQL supports event sourcing with PostgreSQL:
+
 - Store domain events in append-only tables
 - Project events into read models (views or table views)
 - Replay events for rebuilding state
 
 **Example use cases:**
+
 - Audit logging with full history
 - CQRS with event-driven architecture
 - Temporal queries ("what was the state on date X?")
@@ -129,14 +142,17 @@ FraiseQL supports event sourcing with PostgreSQL:
 ---
 
 ### Bounded Contexts
+
 **[Bounded Contexts Pattern](../advanced/bounded-contexts/)** - Organize code by domain
 
 Domain-Driven Design applied to FraiseQL:
+
 - Separate modules per business domain
 - Shared database with schema organization
 - Clear boundaries between contexts
 
 **Example structure:**
+
 ```
 app/
 ├── domain/
@@ -153,6 +169,7 @@ app/
 ## Database Patterns
 
 ### Naming Conventions
+
 **[DDL Organization](../core/ddl-organization/)** - Consistent naming for clarity
 
 - `tb_*` - Base tables (source of truth)
@@ -163,6 +180,7 @@ app/
 ---
 
 ### Hybrid Tables Pattern
+
 **[Database Patterns](../advanced/database-patterns.md#hybrid-tables)** - Mix relational and JSONB storage
 
 Store structured data in columns, flexible data in JSONB:
@@ -186,12 +204,14 @@ CREATE TABLE tb_product (
 **[Authentication Guide](../advanced/authentication/)** - Common auth patterns
 
 Strategies:
+
 - JWT tokens with PostgreSQL validation
 - Session-based authentication
 - OAuth2 integration
 - Row-Level Security for authorization
 
 **Authorization decorator:**
+
 ```python
 @authorized(roles=["admin", "editor"])
 @fraiseql.mutation
@@ -205,15 +225,18 @@ class DeletePost:
 ## Real-World Examples
 
 ### Blog API Patterns
+
 - **Simple**: [blog_simple](../../examples/blog_simple/) - Basic CRUD
 - **Intermediate**: [blog_api](../../examples/blog_api/) - Nested relations
 - **Enterprise**: [blog_enterprise](../../examples/blog_enterprise/) - Full CQRS + bounded contexts
 
 ### E-commerce Patterns
+
 - [ecommerce](../../examples/ecommerce/) - Product catalog, cart, orders
 - [ecommerce_api](../../examples/ecommerce_api/) - Advanced filtering
 
 ### SaaS Patterns
+
 - [saas-starter](../../examples/saas-starter/) - Multi-tenancy template
 - [apq_multi_tenant](../../examples/apq_multi_tenant/) - APQ + multi-tenancy
 

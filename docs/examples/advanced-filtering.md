@@ -25,6 +25,7 @@ This guide provides practical, real-world examples of using FraiseQL's advanced 
 **Scenario**: Customer searches for "gaming laptop" with price range, in-stock only, and specific features.
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE tb_product (
     id UUID PRIMARY KEY,
@@ -66,6 +67,7 @@ FROM tb_product;
 ```
 
 **GraphQL Query**:
+
 ```graphql
 query SearchGamingLaptops {
   products(
@@ -117,6 +119,7 @@ query SearchGamingLaptops {
 ```
 
 **Generated SQL** (simplified):
+
 ```sql
 SELECT data
 FROM v_product
@@ -141,6 +144,7 @@ LIMIT 20;
 **Scenario**: Given a product with tags `["electronics", "smartphone", "5G"]`, find similar products.
 
 **GraphQL Query**:
+
 ```graphql
 query SimilarProducts($productTags: [String!]!) {
   products(
@@ -176,6 +180,7 @@ query SimilarProducts($productTags: [String!]!) {
 ```
 
 **Variables**:
+
 ```json
 {
   "productTags": ["electronics", "smartphone", "5G"]
@@ -191,6 +196,7 @@ query SimilarProducts($productTags: [String!]!) {
 **Scenario**: Find products with invalid SKU codes (should be `PROD-XXXX` where each X is a digit 0-9).
 
 **GraphQL Query**:
+
 ```graphql
 query InvalidProducts {
   products(
@@ -218,6 +224,7 @@ query InvalidProducts {
 **Scenario**: Search blog posts by content and metadata.
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE tb_post (
     id UUID PRIMARY KEY,
@@ -243,6 +250,7 @@ FOR EACH ROW EXECUTE FUNCTION
 ```
 
 **GraphQL Query**:
+
 ```graphql
 query SearchPublishedPosts($query: String!, $category: String!) {
   posts(
@@ -289,6 +297,7 @@ query SearchPublishedPosts($query: String!, $category: String!) {
 ```
 
 **Variables**:
+
 ```json
 {
   "query": "graphql api tutorial",
@@ -303,6 +312,7 @@ query SearchPublishedPosts($query: String!, $category: String!) {
 **Scenario**: Quality check - find draft posts that can't be published due to missing data.
 
 **GraphQL Query**:
+
 ```graphql
 query IncompleteDrafts {
   posts(
@@ -355,6 +365,7 @@ query IncompleteDrafts {
 **Scenario**: Find an author's most popular posts by topic.
 
 **GraphQL Query**:
+
 ```graphql
 query AuthorPopularPosts($authorId: UUID!, $topics: [String!]!) {
   posts(
@@ -386,6 +397,7 @@ query AuthorPopularPosts($authorId: UUID!, $topics: [String!]!) {
 ```
 
 **Variables**:
+
 ```json
 {
   "authorId": "550e8400-e29b-41d4-a716-446655440000",
@@ -402,6 +414,7 @@ query AuthorPopularPosts($authorId: UUID!, $topics: [String!]!) {
 **Scenario**: Security audit - find all users who can manage billing.
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE tb_user (
     id UUID PRIMARY KEY,
@@ -417,6 +430,7 @@ CREATE INDEX idx_user_permissions ON tb_user USING gin(permissions);
 ```
 
 **GraphQL Query**:
+
 ```graphql
 query UsersWithBillingAccess {
   users(
@@ -461,6 +475,7 @@ query UsersWithBillingAccess {
 **Scenario**: Security cleanup - find admin accounts that haven't logged in recently.
 
 **GraphQL Query**:
+
 ```graphql
 query InactiveAdmins($thresholdDate: String!) {
   users(
@@ -502,6 +517,7 @@ query InactiveAdmins($thresholdDate: String!) {
 ```
 
 **Variables**:
+
 ```json
 {
   "thresholdDate": "2024-07-01T00:00:00Z"
@@ -515,6 +531,7 @@ query InactiveAdmins($thresholdDate: String!) {
 **Scenario**: Check if user has required permissions for an action.
 
 **GraphQL Query**:
+
 ```graphql
 query CanUserPerformAction(
   $userId: UUID!,
@@ -560,6 +577,7 @@ query CanUserPerformAction(
 **Scenario**: Find error logs matching pattern with context.
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE tb_log_entry (
     id UUID PRIMARY KEY,
@@ -577,6 +595,7 @@ CREATE INDEX idx_log_search ON tb_log_entry USING gin(search_vector);
 ```
 
 **GraphQL Query**:
+
 ```graphql
 query SearchErrorLogs($startTime: String!, $endTime: String!) {
   logEntries(
@@ -634,6 +653,7 @@ query SearchErrorLogs($startTime: String!, $endTime: String!) {
 **Scenario**: Find IPs/users hitting rate limits.
 
 **GraphQL Query**:
+
 ```graphql
 query RateLimitViolations($since: String!) {
   logEntries(
@@ -677,6 +697,7 @@ query RateLimitViolations($since: String!) {
 **Scenario**: Find tenants using specific features.
 
 **Database Schema**:
+
 ```sql
 CREATE TABLE tb_tenant (
     id UUID PRIMARY KEY,
@@ -692,6 +713,7 @@ CREATE INDEX idx_tenant_settings ON tb_tenant USING gin(settings);
 ```
 
 **GraphQL Query**:
+
 ```graphql
 query PremiumTenantsWithHighUsage {
   tenants(
@@ -742,6 +764,7 @@ query PremiumTenantsWithHighUsage {
 **Scenario**: Find tenants eligible for new feature rollout.
 
 **GraphQL Query**:
+
 ```graphql
 query FeatureRolloutEligible($featureName: String!) {
   tenants(
@@ -797,6 +820,7 @@ query FeatureRolloutEligible($featureName: String!) {
 **Scenario**: Find tenants with potential issues.
 
 **GraphQL Query**:
+
 ```graphql
 query TenantsNeedingAttention {
   tenants(
@@ -851,6 +875,7 @@ query TenantsNeedingAttention {
 For every example above, appropriate indexes are created. **Without indexes, these queries will be slow**.
 
 **Critical indexes**:
+
 ```sql
 -- Array filters
 CREATE INDEX idx_tags ON table USING gin(tags);

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "fraiseql.fullname" . }}-config
+  labels:
+    {{- include "fraiseql.labels" . | nindent 4 }}
+data:
+  RUST_LOG: {{ .Values.env.RUST_LOG | quote }}
+  DATABASE_HOST: {{ .Values.database.host | quote }}
+  DATABASE_PORT: {{ .Values.database.port | quote }}
+  DATABASE_NAME: {{ .Values.database.name | quote }}
+  GRAPHQL_PATH: {{ .Values.application.graphql.path | quote }}
+  GRAPHQL_COMPLEXITY_LIMIT: {{ .Values.application.graphql.complexity_limit | quote }}

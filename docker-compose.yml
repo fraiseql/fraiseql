@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  fraiseql:
+    build: .
+    ports:
+      - "8815:8815"
+    environment:
+      RUST_LOG: debug
+      DATABASE_URL: postgresql://fraiseql:fraiseql@postgres:5432/fraiseql
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fraiseql-net
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fraiseql
+      POSTGRES_PASSWORD: fraiseql
+      POSTGRES_DB: fraiseql
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraiseql-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - fraiseql-net
+
+volumes:
+  postgres_data:
+
+networks:
+  fraiseql-net:
+    driver: bridge

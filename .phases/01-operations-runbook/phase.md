@@ -12,6 +12,7 @@
 Operational documentation is scattered across multiple files in `docs/production/`, making it difficult for operators to find critical information during incidents. We need a centralized runbook that consolidates operational knowledge with quick reference tables and incident response flowcharts.
 
 **Current Documentation:**
+
 - `docs/production/MONITORING.md` (505+ lines)
 - `docs/production/ALERTING.md`
 - Other production docs in `docs/production/`
@@ -21,6 +22,7 @@ Operational documentation is scattered across multiple files in `docs/production
 ## Objective
 
 Create `OPERATIONS_RUNBOOK.md` in the project root that:
+
 1. Provides quick reference for emergency situations
 2. Links to detailed documentation for deep dives
 3. Includes incident response flowcharts (ASCII or Mermaid)
@@ -34,6 +36,7 @@ Create `OPERATIONS_RUNBOOK.md` in the project root that:
 ## Context Files
 
 **Review these files before writing (orchestrator will copy to `context/`):**
+
 - `docs/production/MONITORING.md` - Main monitoring documentation
 - `docs/production/ALERTING.md` - Alert definitions
 - `docs/production/*.md` - Any other production docs
@@ -49,12 +52,14 @@ Create `OPERATIONS_RUNBOOK.md` in the project root that:
 **Required Sections:**
 
 ### 1. Quick Reference (Top of File)
+
 - Emergency contacts table
 - Critical threshold values table
 - Most common commands (copy-paste ready)
 - Link to monitoring dashboards
 
 ### 2. Monitoring Overview
+
 - Grafana dashboard links
 - Key metrics to watch (RED metrics: Rate, Errors, Duration)
 - Alert severity levels
@@ -63,6 +68,7 @@ Create `OPERATIONS_RUNBOOK.md` in the project root that:
 ### 3. Incident Response Procedures
 
 **For each of the 3 incident types, include:**
+
 - **Detection:** How the incident is detected (alert name, threshold)
 - **Investigation:** Step-by-step debug process with actual commands
 - **Remediation:** Specific actions to resolve the issue
@@ -72,33 +78,39 @@ Create `OPERATIONS_RUNBOOK.md` in the project root that:
 **Required Incident Types:**
 
 #### 3.1. High Latency
+
 - P95 latency exceeds SLO
 - Investigation: Check OpenTelemetry traces, slow queries, connection pool
 - Remediation: Scale resources, optimize queries, rollback deployment
 
 #### 3.2. High Error Rate
+
 - Error rate > 0.1%
 - Investigation: Check logs, recent deployments, database connectivity
 - Remediation: Rollback, fix RLS policies, restart services
 
 #### 3.3. Database Connection Exhaustion
+
 - Connection pool exhausted
 - Investigation: Check active connections, long-running queries
 - Remediation: Kill long queries, scale connection pool, identify leak
 
 ### 4. Deployment Procedures
+
 - Pre-deployment checklist
 - Rollback procedure (specific commands)
 - Health check verification
 - Database migration safety checks
 
 ### 5. Troubleshooting Guide
+
 - Common error messages and their meanings
 - Debug commands for each subsystem
 - Log file locations and formats
 - How to query OpenTelemetry traces
 
 ### 6. Reference Links
+
 - Link to detailed docs: `docs/production/MONITORING.md`
 - Link to security profiles: `docs/security/PROFILES.md`
 - Link to audit logging: `COMPLIANCE/AUDIT/AUDIT_LOGGING.md`
@@ -109,6 +121,7 @@ Create `OPERATIONS_RUNBOOK.md` in the project root that:
 ## Requirements
 
 **Content Quality:**
+
 - [ ] 300-500 lines (comprehensive but scannable)
 - [ ] All commands are copy-paste ready with actual paths/values
 - [ ] At least 1 flowchart (ASCII art or Mermaid diagram)
@@ -117,12 +130,14 @@ Create `OPERATIONS_RUNBOOK.md` in the project root that:
 - [ ] Written for operators under pressure (clear, concise, actionable)
 
 **Tone:**
+
 - Direct, imperative language ("Check logs", not "You should check logs")
 - Emergency-focused (assume reader is stressed during incident)
 - No fluff or marketing language
 - Technical accuracy over completeness
 
 **Format:**
+
 - GitHub-flavored Markdown
 - Use tables for quick reference data
 - Use code blocks for commands
@@ -174,16 +189,19 @@ psql -c "SELECT count(*) FROM pg_stat_activity"
 ## Monitoring Overview
 
 ### Grafana Dashboards
+
 - **Main Dashboard:** https://grafana.example.com/d/fraiseql-overview
 - **Database Dashboard:** https://grafana.example.com/d/fraiseql-db
 - **Security Dashboard:** https://grafana.example.com/d/fraiseql-security
 
 ### Key Metrics (RED)
+
 - **Rate:** Requests per second
 - **Errors:** Error rate percentage
 - **Duration:** P50, P95, P99 latency
 
 [... continue with full structure ...]
+
 ```
 
 ---

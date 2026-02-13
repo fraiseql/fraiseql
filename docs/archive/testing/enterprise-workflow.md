@@ -37,6 +37,7 @@ Enterprise CI Pipeline (enterprise-tests.yml)
 ### Manual Triggers
 
 Via GitHub Actions UI:
+
 1. Go to repository → Actions tab
 2. Select "Enterprise Tests (Optional)" workflow
 3. Click "Run workflow"
@@ -49,6 +50,7 @@ Via GitHub Actions UI:
 **Purpose**: Test encryption/decryption with HashiCorp Vault
 
 **Requirements**:
+
 - Vault server running in development mode
 - Transit engine enabled
 - Test encryption keys created
@@ -56,6 +58,7 @@ Via GitHub Actions UI:
 **Markers**: `@pytest.mark.requires_vault`
 
 **Example**:
+
 ```python
 @pytest.mark.requires_vault
 def test_data_encryption(vault_client):
@@ -69,6 +72,7 @@ def test_data_encryption(vault_client):
 **Purpose**: Test authentication and authorization flows
 
 **Requirements**:
+
 - Auth0 mock responses (no real Auth0 server needed)
 - JWT validation logic
 - User context handling
@@ -76,6 +80,7 @@ def test_data_encryption(vault_client):
 **Markers**: `@pytest.mark.requires_auth0`
 
 **Example**:
+
 ```python
 @pytest.mark.requires_auth0
 def test_jwt_validation(auth_config):
@@ -145,6 +150,7 @@ pytest -m 'requires_postgres and not requires_vault and not requires_auth0'
 **Problem**: Vault containers can be slow to start or flaky
 
 **Solutions**:
+
 - **Exponential backoff**: 2^attempt seconds (up to ~17 minutes)
 - **Health checks**: Wait for `/v1/sys/health` endpoint
 - **Grace period**: 20 seconds before first health check
@@ -153,6 +159,7 @@ pytest -m 'requires_postgres and not requires_vault and not requires_auth0'
 ### Failure Handling
 
 **Enterprise job failures don't stop the workflow**:
+
 - `continue-on-error: true` on enterprise jobs
 - Summary job always succeeds (logs results)
 - Test artifacts uploaded for debugging
@@ -162,6 +169,7 @@ pytest -m 'requires_postgres and not requires_vault and not requires_auth0'
 **PostgreSQL**: Always available (required for all tests)
 
 **Vault**: Optional, with fallback handling:
+
 ```python
 @pytest.mark.skipif(not os.environ.get("VAULT_ADDR"), reason="Vault not available")
 def test_vault_feature():
@@ -201,6 +209,7 @@ def test_vault_feature():
 ### Vault Issues
 
 **Container not starting**:
+
 ```bash
 # Check container status
 docker ps | grep vault
@@ -213,6 +222,7 @@ docker restart vault
 ```
 
 **Health check failing**:
+
 ```bash
 # Manual health check
 curl http://localhost:8200/v1/sys/health
@@ -223,6 +233,7 @@ curl -H "X-Vault-Token: $VAULT_TOKEN" \
 ```
 
 **Encryption failing**:
+
 ```bash
 # List available keys
 curl -H "X-Vault-Token: $VAULT_TOKEN" \
@@ -237,11 +248,13 @@ curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
 ### Auth0 Issues
 
 **Mock setup problems**:
+
 - Check mock configuration in test fixtures
 - Verify JWT generation logic
 - Ensure test tokens are properly formatted
 
 **Validation failures**:
+
 - Check token expiration
 - Verify audience/issuer claims
 - Confirm signing algorithm
@@ -251,12 +264,14 @@ curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
 ### Adding New Enterprise Tests
 
 1. **Choose appropriate marker**:
+
    ```python
    @pytest.mark.requires_vault  # For Vault features
    @pytest.mark.requires_auth0  # For Auth0 features
    ```
 
 2. **Handle service unavailability**:
+
    ```python
    @pytest.mark.requires_vault
    @pytest.mark.skipif(not os.environ.get("VAULT_ADDR"), reason="Vault not available")
@@ -265,6 +280,7 @@ curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 3. **Use proper fixtures**:
+
    ```python
    def test_vault_encryption(vault_kms_config):
        # vault_kms_config has Vault settings
@@ -331,16 +347,19 @@ curl -X POST -H "X-Vault-Token: $VAULT_TOKEN" \
 ### Common Issues
 
 **"Vault not available" errors**:
+
 - Ensure Vault container is running
 - Check VAULT_ADDR and VAULT_TOKEN environment variables
 - Verify transit engine is enabled
 
 **Auth0 mock failures**:
+
 - Check mock setup in test fixtures
 - Verify JWT token format
 - Ensure test keys are properly configured
 
 **CI timeout issues**:
+
 - Enterprise tests have longer timeouts
 - Check for slow external service calls
 - Consider optimizing test setup

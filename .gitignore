@@ -1,16 +1,13 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Experimental/Private Extensions
-fraiseql-relay-extension/
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
+env/
+venv/
+.venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -23,187 +20,94 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# PyO3 / Rust-Python FFI
+# .cargo/ - We DO commit .cargo/config.toml for team tooling
+*.whl
 
-# Unit test / coverage reports
-htmlcov/
-coverage_html/
-.tox/
-.nox/
+# Testing
+.pytest_cache/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
+htmlcov/
+.tox/
 .hypothesis/
-.pytest_cache/
-cover/
+*.cover
+.cache
+coverage/
+tarpaulin-report.html
+cobertura.xml
+lcov.info
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# poetry
-poetry.lock
-
-# pdm
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
+# Type checking
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
 .pytype/
 
-# Cython debug symbols
-cython_debug/
-
-# PyCharm
+# IDEs and Editors
+# .vscode/ - We DO commit VSCode settings for team consistency
 .idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# VS Code
-.vscode/
-
-# macOS
+# OS
 .DS_Store
-
-# Windows
 Thumbs.db
+*.bak
+*.tmp
 
-# Project specific
-/tmp/
+# Environment
+.env
+.env.local
+.env.*.local
+*.local
+
+# Documentation build artifacts
+docs/_build/
+docs/.buildinfo
+site/
+.doctrees/
+
+# Development phase documentation (not shipped in releases)
+.phases/
+
+# Database
 *.db
 *.sqlite
 *.sqlite3
-/private/
-*debug*.py
-# Only ignore test_*.py files in the root directory, not in tests/
-/test_*.py
-!tests/
 
-# Benchmark results
-benchmarks/performance-benchmarks/results-aggregator/*.json
-
-# Private tickets
-/tickets/
-
-# Test fixture caches
-tests/fixtures/examples/.database_state_cache.json
-tests/fixtures/examples/.dependency_cache.json
-tests/fixtures/examples/.install_log.txt
-
-# Additional caches and logs
-.ruff_cache/
-.mypy_cache/
-security_events.log
-tox_failure*.log
+# Logs
 *.log
+logs/
 
-# TODO directory (deployment analysis and guides)
-TODO/
+# Compiled schemas
+*.compiled.json
+compiled_schemas/
 
-# Temporary implementation and planning files (root directory only)
-/*_GUIDE*.md
-/*_IMPLEMENTATION*.md
-/*_PLAN*.md
-/assessment*.md
-/tmp_*.sh
-/migrate_*.sh
-/*.json
-!/package.json
-!/tsconfig.json
+# Local development
+.local/
+tmp/
+temp/
 
-# Archive directory
-/archive/
+# CI/CD
+.gitlab-ci-local/
 
-# Phase tracking directory for Pentagon-Readiness implementation
-# Note: Now tracked in git - remove this line if phases should be version controlled
-# .phases/
-
-# Reports directory - generated files
-/reports/coverage/
-/reports/security/*-scan.json
-/reports/security/*-cves.json
+# Analysis work-in-progress
+TODO_*/

@@ -7,6 +7,7 @@ Following patterns from leading Rust+Python projects (Ruff, pydantic-core, Polar
 ### ✅ 1. Added Source Distribution (sdist) Build
 
 **New Job**: `build-sdist`
+
 - Builds source distribution using `maturin sdist`
 - Required for PyPI complete package metadata
 - Allows users to install from source
@@ -25,6 +26,7 @@ build-sdist:
 ### ✅ 2. Added Artifact Validation Job
 
 **New Job**: `validate`
+
 - Validates all built artifacts before publishing
 - Uses `twine check --strict` for PyPI compliance
 - Verifies Rust extension `.so` files are present in wheels
@@ -33,6 +35,7 @@ build-sdist:
 ### ✅ 3. Switched to `uv publish` (2025 Standard)
 
 **Old**:
+
 ```yaml
 - uses: pypa/gh-action-pypi-publish@release/v1
   with:
@@ -40,6 +43,7 @@ build-sdist:
 ```
 
 **New**:
+
 ```yaml
 - name: Install uv
   uses: astral-sh/setup-uv@v7
@@ -49,6 +53,7 @@ build-sdist:
 ```
 
 **Benefits**:
+
 - Faster and more reliable publishing
 - Built-in trusted publishing support (no tokens needed)
 - Consistent with modern Python tooling
@@ -59,6 +64,7 @@ build-sdist:
 **Changed**: `maturin-version: latest` → `maturin-version: "1.9.6"`
 
 **Benefits**:
+
 - Reproducible builds
 - Easier debugging
 - Controlled updates
@@ -66,6 +72,7 @@ build-sdist:
 ### ✅ 5. Added GitHub Release Automation
 
 **New Job**: `create-release`
+
 - Automatically creates GitHub releases for tags
 - Generates release notes from commits
 - Attaches all wheels and sdist to release
@@ -74,6 +81,7 @@ build-sdist:
 ### ✅ 6. Updated Artifact Downloads
 
 **Changed**: Now includes both wheels and sdist in all relevant jobs
+
 ```yaml
 pattern: '{wheels-*,sdist}'
 ```
@@ -81,6 +89,7 @@ pattern: '{wheels-*,sdist}'
 ### ✅ 7. Removed PYPI_TOKEN Dependency
 
 **Trusted Publishing**: Now uses `id-token: write` permission instead of API tokens
+
 - More secure
 - No token management required
 - GitHub OIDC authentication
@@ -114,6 +123,7 @@ create-release (GitHub release)
 ### GitHub Environment (Already Configured)
 
 The `release` environment is used for publishing, providing:
+
 - Protection rules for releases
 - Audit trail
 - Manual approval gates (optional)
@@ -121,6 +131,7 @@ The `release` environment is used for publishing, providing:
 ## Testing the Workflow
 
 **Dry Run** (test without publishing):
+
 ```bash
 # Create a test tag locally
 git tag v1.1.2-test
@@ -137,6 +148,7 @@ git push origin :refs/tags/v1.1.2-test
 ```
 
 **Production Release**:
+
 ```bash
 # Create release tag
 git tag v1.1.2

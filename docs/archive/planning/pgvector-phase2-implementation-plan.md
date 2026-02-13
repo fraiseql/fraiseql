@@ -6,6 +6,7 @@
 ## Executive Summary
 
 This plan extends FraiseQL's pgvector support with:
+
 1. Integration test fix for ORDER BY vector distance (currently skipped)
 2. Additional pgvector operators (L1/Manhattan, Hamming, Jaccard)
 3. Complete ORDER BY vector distance implementation with proper GraphQL input objects
@@ -15,6 +16,7 @@ Current state: 5/6 integration tests passing, vector WHERE filters working, ORDE
 ## Current Implementation Status
 
 ### ✅ Completed (Phase 1)
+
 - Vector field detection via name patterns (embedding, vector, etc.)
 - VectorFilter GraphQL input with 3 operators:
   - `cosine_distance` (<=>)
@@ -26,11 +28,13 @@ Current state: 5/6 integration tests passing, vector WHERE filters working, ORDE
 - 5/6 integration tests passing
 
 ### ⏭️ Skipped Test
+
 - `test_vector_order_by_distance` (line 129-133 in `test_vector_e2e.py`)
 - Reason: "ORDER BY vector distance not yet implemented in integration test"
 - Root cause: Test needs to use GraphQL input objects properly
 
 ### 📊 Current Architecture
+
 ```
 Vector WHERE:
 GraphQL Input (VectorFilter) → WHERE SQL (vectors.py) → PostgreSQL
@@ -50,6 +54,7 @@ GraphQL Input (VectorOrderBy) → ORDER BY SQL (order_by_generator.py) → Postg
 **Objective**: Un-skip and fix `test_vector_order_by_distance` integration test
 
 **Root Cause Analysis**:
+
 - Test comment says "requires GraphQL OrderByInput objects, not plain dicts"
 - Current test at line 129-133 is skipped with pytest.skip()
 - The infrastructure exists but test needs proper GraphQL input object usage
@@ -57,6 +62,7 @@ GraphQL Input (VectorOrderBy) → ORDER BY SQL (order_by_generator.py) → Postg
 #### TDD Cycle 1.1: Write Proper Integration Test
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/test_vector_e2e.py:129-150
 @pytest.mark.asyncio
@@ -86,21 +92,25 @@ async def test_vector_order_by_distance(db_pool, vector_test_setup) -> None:
 **Expected Failure**: Test should fail because VectorOrderBy input object is not being properly converted to OrderBy SQL in the repository layer.
 
 **GREEN Phase**:
+
 - Verify `_convert_order_by_input_to_sql` in `graphql_order_by_generator.py:92-195` handles VectorOrderBy correctly
 - Check lines 136-161: VectorOrderBy processing logic exists
 - May need to fix how repository passes order_by to SQL generator
 - Minimal fix: Ensure VectorOrderBy instances are detected and converted
 
 **Files to modify**:
+
 - `tests/integration/test_vector_e2e.py:129-150` - Update test
 - `src/fraiseql/db.py` or repository layer - Ensure proper conversion
 
 **REFACTOR Phase**:
+
 - Clean up conversion logic if needed
 - Add type hints for clarity
 - Ensure pattern follows existing WHERE clause conversion
 
 **QA Phase**:
+
 - [ ] Test passes with proper VectorOrderBy input
 - [ ] Test works with all 3 distance operators (cosine, l2, inner_product)
 - [ ] Integration with other ORDER BY fields works
@@ -113,6 +123,7 @@ async def test_vector_order_by_distance(db_pool, vector_test_setup) -> None:
 **Objective**: Add support for pgvector's `<+>` L1/Manhattan distance operator
 
 **Why L1 Distance**:
+
 - Available in pgvector via `<+>` operator
 - Useful for sparse vectors and categorical data
 - Complements existing L2 distance (Euclidean)
@@ -121,6 +132,7 @@ async def test_vector_order_by_distance(db_pool, vector_test_setup) -> None:
 #### TDD Cycle 2.1: Add L1 Distance to VectorFilter
 
 **RED Phase**:
+
 ```python
 # File: tests/unit/sql/where/operators/test_vector_operators.py
 def test_l1_distance_filter():
@@ -141,6 +153,7 @@ def test_l1_distance_filter():
 **Expected Failure**: `ImportError: cannot import name 'build_l1_distance_sql'`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/where/operators/vectors.py:49-57
 def build_l1_distance_sql(path_sql: SQL, value: list[float]) -> Composed:
@@ -157,11 +170,13 @@ def build_l1_distance_sql(path_sql: SQL, value: list[float]) -> Composed:
 ```
 
 **REFACTOR Phase**:
+
 - Ensure consistent pattern with other vector operators
 - Add comprehensive docstring with use cases
 - Follow DRY principle if possible
 
 **QA Phase**:
+
 - [ ] Unit test passes
 - [ ] SQL output is correct
 - [ ] Type hints are accurate
@@ -169,6 +184,7 @@ def build_l1_distance_sql(path_sql: SQL, value: list[float]) -> Composed:
 #### TDD Cycle 2.2: Expose L1 in VectorFilter GraphQL Schema
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/graphql/schema/test_vector_filter.py
 def test_vector_filter_includes_l1_distance():
@@ -186,6 +202,7 @@ def test_vector_filter_includes_l1_distance():
 **Expected Failure**: `AttributeError: 'VectorFilter' has no attribute 'l1_distance'`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/graphql_where_generator.py
 # Update VectorFilter input type to include l1_distance
@@ -208,11 +225,13 @@ class VectorFilter:
 ```
 
 **REFACTOR Phase**:
+
 - Update operator registration in `__init__.py`
 - Ensure GraphQL schema includes new field
 - Update documentation strings
 
 **QA Phase**:
+
 - [ ] GraphQL schema test passes
 - [ ] Field is properly typed
 - [ ] Docstring is comprehensive
@@ -220,6 +239,7 @@ class VectorFilter:
 #### TDD Cycle 2.3: Integrate L1 into WHERE Clause Generation
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/test_vector_e2e.py
 @pytest.mark.asyncio
@@ -241,20 +261,24 @@ async def test_vector_l1_distance_filter(db_pool, vector_test_setup) -> None:
 **Expected Failure**: May fail with "Unknown operator: l1_distance" or similar
 
 **GREEN Phase**:
+
 - Update operator mapping in `where/operators/__init__.py`
 - Register `build_l1_distance_sql` function
 - Ensure WHERE clause builder recognizes "l1_distance"
 
 **Files to modify**:
+
 - `src/fraiseql/sql/where/operators/__init__.py`
 - WHERE clause generation logic
 
 **REFACTOR Phase**:
+
 - Ensure consistent operator registration pattern
 - Clean up operator mapping dictionary
 - Add inline documentation
 
 **QA Phase**:
+
 - [ ] Integration test passes
 - [ ] L1 distance queries return correct results
 - [ ] Composes with other filters
@@ -263,6 +287,7 @@ async def test_vector_l1_distance_filter(db_pool, vector_test_setup) -> None:
 #### TDD Cycle 2.4: Add L1 to VectorOrderBy
 
 **RED Phase**:
+
 ```python
 # File: tests/unit/sql/test_order_by_vector.py
 def test_l1_distance_order_by():
@@ -284,6 +309,7 @@ def test_l1_distance_order_by():
 **Expected Failure**: L1 distance not recognized in `_build_vector_distance_sql`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/order_by_generator.py:103-147
 # Update _build_vector_distance_sql to handle l1_distance
@@ -307,11 +333,13 @@ def _build_vector_distance_sql(
 ```
 
 **REFACTOR Phase**:
+
 - Add comprehensive docstring updates
 - Ensure operator mapping is maintainable
 - Consider extracting operator map to constant
 
 **QA Phase**:
+
 - [ ] Unit test passes
 - [ ] Integration test with ORDER BY works
 - [ ] Composes with other ORDER BY fields
@@ -319,6 +347,7 @@ def _build_vector_distance_sql(
 #### TDD Cycle 2.5: Update VectorOrderBy GraphQL Input
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/graphql/schema/test_vector_order_by.py
 def test_vector_order_by_includes_l1():
@@ -332,6 +361,7 @@ def test_vector_order_by_includes_l1():
 **Expected Failure**: `AttributeError: 'VectorOrderBy' has no attribute 'l1_distance'`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/graphql_order_by_generator.py:28-46
 @fraise_input
@@ -351,10 +381,12 @@ class VectorOrderBy:
 ```
 
 **REFACTOR Phase**:
+
 - Update conversion logic in `_convert_order_by_input_to_sql`
 - Add l1_distance handling in lines 146-161
 
 **QA Phase**:
+
 - [ ] GraphQL schema test passes
 - [ ] End-to-end ORDER BY test passes
 - [ ] Documentation updated
@@ -362,6 +394,7 @@ class VectorOrderBy:
 #### TDD Cycle 2.6: End-to-End Integration Test
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/test_vector_e2e.py
 @pytest.mark.asyncio
@@ -389,11 +422,13 @@ async def test_vector_l1_end_to_end(db_pool, vector_test_setup) -> None:
 **GREEN Phase**: Should pass if all previous cycles completed successfully
 
 **REFACTOR Phase**:
+
 - Clean up test structure
 - Add comments explaining L1 use case
 - Ensure test is maintainable
 
 **QA Phase**:
+
 - [ ] Full integration test passes
 - [ ] WHERE + ORDER BY composition works
 - [ ] All existing tests still pass
@@ -406,6 +441,7 @@ async def test_vector_l1_end_to_end(db_pool, vector_test_setup) -> None:
 **Objective**: Add support for pgvector's binary vector distance operators
 
 **Why Binary Operators**:
+
 - Hamming distance (`<~>`) - for bit vectors, counts differing bits
 - Jaccard distance (`<%>`) - for set similarity with bit vectors
 - Useful for categorical/binary features, fingerprints, hash-based similarity
@@ -416,6 +452,7 @@ async def test_vector_l1_end_to_end(db_pool, vector_test_setup) -> None:
 #### TDD Cycle 3.1: Add Hamming Distance Operator
 
 **RED Phase**:
+
 ```python
 # File: tests/unit/sql/where/operators/test_vector_operators.py
 def test_hamming_distance_filter():
@@ -437,6 +474,7 @@ def test_hamming_distance_filter():
 **Expected Failure**: `ImportError: cannot import name 'build_hamming_distance_sql'`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/where/operators/vectors.py:58-68
 def build_hamming_distance_sql(path_sql: SQL, value: str) -> Composed:
@@ -455,11 +493,13 @@ def build_hamming_distance_sql(path_sql: SQL, value: str) -> Composed:
 ```
 
 **REFACTOR Phase**:
+
 - Add type handling for bit vectors vs float vectors
 - Consider field name pattern detection for bit vectors
 - Update docstrings with use cases
 
 **QA Phase**:
+
 - [ ] Unit test passes
 - [ ] SQL output is correct
 - [ ] Type hints handle str input for bit vectors
@@ -467,6 +507,7 @@ def build_hamming_distance_sql(path_sql: SQL, value: str) -> Composed:
 #### TDD Cycle 3.2: Add Jaccard Distance Operator
 
 **RED Phase**:
+
 ```python
 # File: tests/unit/sql/where/operators/test_vector_operators.py
 def test_jaccard_distance_filter():
@@ -487,6 +528,7 @@ def test_jaccard_distance_filter():
 **Expected Failure**: `ImportError: cannot import name 'build_jaccard_distance_sql'`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/where/operators/vectors.py:69-79
 def build_jaccard_distance_sql(path_sql: SQL, value: str) -> Composed:
@@ -505,11 +547,13 @@ def build_jaccard_distance_sql(path_sql: SQL, value: str) -> Composed:
 ```
 
 **REFACTOR Phase**:
+
 - Ensure consistent pattern with Hamming
 - Add comprehensive examples
 - Document bit vector representation
 
 **QA Phase**:
+
 - [ ] Unit test passes
 - [ ] SQL generation is correct
 - [ ] Documentation is clear
@@ -517,6 +561,7 @@ def build_jaccard_distance_sql(path_sql: SQL, value: str) -> Composed:
 #### TDD Cycle 3.3: Update VectorFilter Schema for Binary Operators
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/graphql/schema/test_vector_filter.py
 def test_vector_filter_binary_operators():
@@ -535,6 +580,7 @@ def test_vector_filter_binary_operators():
 **Expected Failure**: `AttributeError: 'VectorFilter' has no attributes for binary operators`
 
 **GREEN Phase**:
+
 ```python
 # File: src/fraiseql/sql/graphql_where_generator.py
 @fraise_input
@@ -571,11 +617,13 @@ class VectorFilter:
 ```
 
 **REFACTOR Phase**:
+
 - Update operator registration
 - Add type validation for bit strings
 - Document bit vector format
 
 **QA Phase**:
+
 - [ ] Schema test passes
 - [ ] GraphQL accepts str input for binary operators
 - [ ] Type hints are accurate
@@ -583,6 +631,7 @@ class VectorFilter:
 #### TDD Cycle 3.4: Integration Tests for Binary Operators
 
 **RED Phase**:
+
 ```python
 # File: tests/integration/test_vector_binary.py
 """Integration tests for binary vector operators (Hamming, Jaccard)."""
@@ -669,20 +718,24 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 **Expected Failure**: Operators not registered in WHERE clause generation
 
 **GREEN Phase**:
+
 - Register `hamming_distance` and `jaccard_distance` in operator mapping
 - Update WHERE clause builder to handle string (bit) values
 - Ensure proper SQL type casting
 
 **Files to modify**:
+
 - `src/fraiseql/sql/where/operators/__init__.py`
 - WHERE clause generation logic
 
 **REFACTOR Phase**:
+
 - Clean up operator registration pattern
 - Add type discrimination for float vs bit vectors
 - Improve error messages for type mismatches
 
 **QA Phase**:
+
 - [ ] Integration tests pass
 - [ ] Binary operators work with WHERE clauses
 - [ ] Type handling is correct (str for bits, list[float] for vectors)
@@ -695,6 +748,7 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 **RED Phase**: Write failing tests for ORDER BY with Hamming/Jaccard
 
 **GREEN Phase**:
+
 - Update `_build_vector_distance_sql` to handle hamming_distance and jaccard_distance
 - Add operators to VectorOrderBy GraphQL input
 - Update conversion logic
@@ -712,11 +766,13 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 #### TDD Cycle 4.1: Update Feature Documentation
 
 **Files to update**:
+
 - `docs/features/pgvector.md` - Add L1, Hamming, Jaccard sections
 - `docs/examples/semantic-search.md` - Add examples with new operators
 - `README.md` - Mention expanded operator support
 
 **Updates needed**:
+
 1. **VectorFilter Schema** section - add new operators
 2. **Distance Operators** section - add L1, Hamming, Jaccard subsections
 3. **Use Cases** section - add binary vector use cases:
@@ -726,6 +782,7 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 4. **Code Examples** - show binary vector usage
 
 **Example Addition**:
+
 ```markdown
 #### L1 Distance (`l1_distance`)
 - **Operator**: `<+>` (L1/Manhattan distance)
@@ -750,6 +807,7 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 **New documentation file**: `docs/examples/binary-vectors.md`
 
 **Content**:
+
 - Setup with bit vector columns
 - Hamming distance for fingerprint matching
 - Jaccard distance for tag similarity
@@ -758,6 +816,7 @@ async def test_jaccard_distance_filter(db_pool, binary_vector_test_setup) -> Non
 - Index setup for binary vectors
 
 **Example**:
+
 ```python
 # Fingerprint matching with Hamming distance
 @fraise_type
@@ -784,11 +843,13 @@ similar = await repo.find(
 **File**: `README.md`
 
 **Changes**:
+
 - Update feature list to mention "6 vector distance operators"
 - Add brief mention of binary vector support
 - Link to expanded pgvector documentation
 
 **QA Phase**:
+
 - [ ] All documentation is accurate
 - [ ] Examples are tested and working
 - [ ] Links are correct
@@ -799,12 +860,14 @@ similar = await repo.find(
 ## Success Criteria
 
 ### Phase 1 Complete
+
 - [ ] `test_vector_order_by_distance` passes (not skipped)
 - [ ] ORDER BY vector distance works with GraphQL input objects
 - [ ] Integration with WHERE + ORDER BY works
 - [ ] All 6/6 integration tests passing
 
 ### Phase 2 Complete
+
 - [ ] L1 distance operator implemented for WHERE
 - [ ] L1 distance operator implemented for ORDER BY
 - [ ] VectorFilter includes `l1_distance` field
@@ -813,6 +876,7 @@ similar = await repo.find(
 - [ ] Documentation updated with L1 examples
 
 ### Phase 3 Complete
+
 - [ ] Hamming distance operator implemented
 - [ ] Jaccard distance operator implemented
 - [ ] Binary vector integration tests pass
@@ -820,12 +884,14 @@ similar = await repo.find(
 - [ ] Documentation includes binary vector guide
 
 ### Phase 4 Complete
+
 - [ ] Feature documentation updated
 - [ ] Binary vector examples added
 - [ ] README updated
 - [ ] All examples tested and working
 
 ### Overall Success
+
 - [ ] All tests passing (unit + integration)
 - [ ] Code quality standards met (ruff, mypy)
 - [ ] 6 vector distance operators supported:
@@ -845,27 +911,32 @@ similar = await repo.find(
 ## Implementation Notes
 
 ### Type Handling Strategy
+
 - **Float vectors**: `list[float]` in Python, `vector(N)` in PostgreSQL
 - **Binary vectors**: `str` in Python (e.g., "101010"), `bit(N)` in PostgreSQL
 - Field detection remains same (name patterns), but type determines available operators
 
 ### Operator Registration Pattern
+
 - Each operator has dedicated `build_*_sql` function in `vectors.py`
 - Registration in `where/operators/__init__.py` maps GraphQL field to SQL builder
 - ORDER BY uses same pattern in `order_by_generator.py`
 
 ### GraphQL Schema Evolution
+
 - VectorFilter grows to 6 distance operator fields + isnull
 - VectorOrderBy grows to 6 distance operator fields
 - Backward compatible (all fields are Optional)
 
 ### Testing Strategy
+
 1. **Unit tests**: SQL generation for each operator
 2. **Schema tests**: GraphQL input types include new fields
 3. **Integration tests**: End-to-end with PostgreSQL + pgvector
 4. **E2E tests**: Combined WHERE + ORDER BY scenarios
 
 ### Performance Considerations
+
 - Binary operators typically faster than float vector operators
 - HNSW indexes support cosine, L2, inner product
 - IVFFlat indexes support all float operators
@@ -877,25 +948,33 @@ similar = await repo.find(
 ## Risk Mitigation
 
 ### Risk: Type Confusion (float vs bit vectors)
+
 **Mitigation**:
+
 - Clear type hints (list[float] vs str)
 - Explicit error messages for type mismatches
 - Comprehensive documentation explaining when to use each
 
 ### Risk: PostgreSQL Version Compatibility
+
 **Mitigation**:
+
 - Document minimum pgvector version for each operator
 - Graceful degradation if operator not supported
 - Clear error messages pointing to pgvector documentation
 
 ### Risk: Breaking Changes to GraphQL Schema
+
 **Mitigation**:
+
 - All new fields are optional (backward compatible)
 - Existing queries continue to work
 - Version documentation clearly
 
 ### Risk: Binary Vector Representation
+
 **Mitigation**:
+
 - Document bit string format clearly ("101010")
 - Provide validation examples
 - Show conversion from common formats (hex, bytes)

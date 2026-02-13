@@ -13,6 +13,7 @@ GraphQL CASCADE is a FraiseQL feature that enables automatic client cache update
 ### Selection Filtering
 
 **No CASCADE Requested**:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -25,9 +26,11 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 **Response**: No `cascade` field in response (smaller payload)
 
 **Full CASCADE Requested**:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -44,9 +47,11 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 **Response**: Complete CASCADE data included
 
 **Partial CASCADE Requested**:
+
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
@@ -61,6 +66,7 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
+
 **Response**: Only `metadata` field in CASCADE object
 
 ### Performance Benefits
@@ -111,6 +117,7 @@ The CASCADE implementation uses a three-layer architecture:
 **Purpose**: Unified Rust pipeline that processes PostgreSQL mutation responses into GraphQL-compatible format.
 
 **Key Components**:
+
 - `parser.rs` - Parses JSON responses with format auto-detection
 - `entity_processor.rs` - Handles entity extraction, __typename injection, and CASCADE processing
 - `response_builder.rs` - Builds GraphQL-compliant responses
@@ -122,6 +129,7 @@ The CASCADE implementation uses a three-layer architecture:
 **Purpose**: Orchestrates mutation execution and result parsing.
 
 **Key Features**:
+
 - Derives entity field names from Success type annotations
 - Passes schema information to Rust transformer
 - Attaches CASCADE metadata to Success objects
@@ -131,6 +139,7 @@ The CASCADE implementation uses a three-layer architecture:
 **Purpose**: Applies GraphQL conventions and builds JSON responses.
 
 **Key Features**:
+
 - Validates field mapping against Success type schema
 - Applies camelCase conversion
 - Ensures all expected fields are present in response
@@ -180,6 +189,7 @@ The entity flattener processes the PostgreSQL response:
 4. **Flattening**: Converts nested entity structure to flat field structure
 
 **Before Fix** (Broken):
+
 ```python
 # entity_type = "Post" (from DB)
 # expected_fields = {"post", "message", "cascade"}
@@ -187,6 +197,7 @@ The entity flattener processes the PostgreSQL response:
 ```
 
 **After Fix** (Working):
+
 ```python
 # Case-insensitive check: "post".lower() == "Post".lower()
 # Match found → Skip flattening → Pass to Rust
@@ -195,6 +206,7 @@ The entity flattener processes the PostgreSQL response:
 ### Rust Transformation Layer
 
 The Rust transformer:
+
 1. Receives flattened data and Success type schema
 2. Validates all expected fields are present
 3. Applies GraphQL conventions (camelCase, __typename)
@@ -203,6 +215,7 @@ The Rust transformer:
 ### Python Object Instantiation
 
 Final layer:
+
 1. Parses GraphQL JSON response
 2. Instantiates typed Success/Error objects
 3. Attaches `__cascade__` attribute for CASCADE metadata
@@ -499,13 +512,16 @@ Based on `benchmarks/cascade_performance_benchmark.py`:
 ### Common Issues
 
 #### Missing Entity Fields
+
 **Symptoms**: Entity fields not appearing in GraphQL response
 **Causes**:
+
 - Case sensitivity mismatch in entity type matching
 - Missing fields in PostgreSQL entity structure
 - Incorrect Success type field names
 
 **Debugging**:
+
 ```python
 # Check entity flattener logs
 logger.debug(f"Entity type '{entity_type}' matched field '{field_name}'")
@@ -515,13 +531,16 @@ SELECT jsonb_object_keys(entity) FROM graphql.function_call();
 ```
 
 #### CASCADE Not Attached
+
 **Symptoms**: `cascade` field is null in GraphQL response
 **Causes**:
+
 - `enable_cascade=False` on mutation
 - Missing `_cascade` in PostgreSQL function return
 - CASCADE attachment failure in mutation decorator
 
 **Debugging**:
+
 ```python
 # Check mutation decorator
 assert mutation.enable_cascade is True
@@ -611,18 +630,21 @@ cascade_errors_total = Counter(
 ## Best Practices
 
 ### Database Design
+
 - Use consistent entity view naming (`v_entity_name`)
 - Include all fields clients typically need
 - Index views for performance
 - Validate view data completeness
 
 ### Application Architecture
+
 - Start with simple mutations (create operations)
 - Use feature flags for gradual rollout
 - Implement comprehensive error handling
 - Monitor performance and payload sizes
 
 ### Client Integration
+
 - Leverage automatic cache updates when possible
 - Implement manual updates for complex scenarios
 - Handle CASCADE processing errors gracefully

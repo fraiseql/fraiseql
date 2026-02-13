@@ -20,6 +20,7 @@ cp -r examples/_TEMPLATE examples/my-example
 ### ✅ Tables (Required)
 
 - [ ] **All tables have `pk_<entity> INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY`**
+
   ```sql
   CREATE TABLE tb_post (
       pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- ✅ Required
@@ -28,6 +29,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **All tables have `id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE`**
+
   ```sql
   CREATE TABLE tb_post (
       pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -37,6 +39,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **User-facing tables have `identifier TEXT UNIQUE`** (optional but recommended)
+
   ```sql
   CREATE TABLE tb_post (
       pk_post INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -47,6 +50,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **All foreign keys reference `pk_*` columns (INTEGER)**
+
   ```sql
   CREATE TABLE tb_post (
       -- ✅ Correct: INTEGER FK to pk_user
@@ -59,6 +63,7 @@ cp -r examples/_TEMPLATE examples/my-example
 ### ✅ Views (Required)
 
 - [ ] **All views have direct `id` column for WHERE filtering**
+
   ```sql
   CREATE VIEW v_post AS
   SELECT
@@ -68,6 +73,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **JSONB never contains `pk_*` fields** (security!)
+
   ```sql
   CREATE VIEW v_post AS
   SELECT
@@ -81,6 +87,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **Views include `pk_*` ONLY if other views JOIN to them**
+
   ```sql
   -- If v_comment JOINs to v_post using pk_post, then include it:
   CREATE VIEW v_post AS
@@ -94,6 +101,7 @@ cp -r examples/_TEMPLATE examples/my-example
 ### ✅ Functions (Required)
 
 - [ ] **Mutations return JSONB** (app layer) or simple types (core layer)
+
   ```sql
   -- App layer: JSONB response
   CREATE FUNCTION app.create_post(...) RETURNS JSONB AS $$
@@ -111,6 +119,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **Variables follow naming convention**
+
   ```sql
   CREATE FUNCTION create_post(...) RETURNS JSONB AS $$
   DECLARE
@@ -124,6 +133,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **Mutations call `fn_sync_tv_<entity>()` for projection tables**
+
   ```sql
   CREATE FUNCTION fn_create_post(...) RETURNS JSONB AS $$
   BEGIN
@@ -137,6 +147,7 @@ cp -r examples/_TEMPLATE examples/my-example
 ### ✅ Python Types (Required)
 
 - [ ] **Never expose `pk_*` fields in GraphQL types**
+
   ```python
   @fraiseql.type(sql_source="v_post", jsonb_column="data")
   class Post:
@@ -146,6 +157,7 @@ cp -r examples/_TEMPLATE examples/my-example
   ```
 
 - [ ] **Types match JSONB view structure exactly**
+
   ```python
   # If v_post JSONB has: {'id': ..., 'title': ..., 'author': {...}}
   @fraiseql.type(sql_source="v_post", jsonb_column="data")
@@ -168,6 +180,7 @@ python .phases/verify-examples-compliance/verify.py examples/my-example/
 ```
 
 **Common issues to check:**
+
 - Foreign keys reference `id` instead of `pk_*`
 - Views missing direct `id` column
 - JSONB contains `pk_*` fields
@@ -207,6 +220,7 @@ examples/my-example/
 ## ✅ Success Criteria
 
 Your example is ready when:
+
 - [ ] Verification passes with 0 errors
 - [ ] All checklist items completed
 - [ ] Comprehensive documentation

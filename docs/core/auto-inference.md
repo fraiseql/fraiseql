@@ -5,6 +5,7 @@ FraiseQL automatically infers several parameters to reduce boilerplate and make 
 ## Overview
 
 FraiseQL auto-infers:
+
 1. **`field_name`** - GraphQL field name from function name
 2. **`info`** - GraphQL info parameter from context
 3. **`where`, `order_by`, `limit`, `offset`** - Added automatically to list queries
@@ -27,6 +28,7 @@ async def users(info) -> list[User]:
 ```
 
 **GraphQL Response**:
+
 ```json
 {
   "data": {
@@ -62,6 +64,7 @@ async def get_all_users(info) -> list[User]:
 ```
 
 **When to override:**
+
 - Function name doesn't match desired GraphQL field name
 - Using helper functions that aren't direct GraphQL resolvers
 
@@ -174,6 +177,7 @@ class UserCreated:
 ```
 
 **GraphQL Response**:
+
 ```json
 {
   "data": {
@@ -203,11 +207,13 @@ class UserCreated:
 ### When to Use Auto-Injection
 
 **✅ Use auto-injection for:**
+
 - Standard CRUD operations
 - Simple success/error responses
 - Following GraphQL best practices
 
 **❌ Don't use auto-injection when:**
+
 - You need full control over response structure
 - Building non-standard mutation responses
 
@@ -229,6 +235,7 @@ class Query:
 ```
 
 **FraiseQL equivalent**:
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -252,6 +259,7 @@ class Query(graphene.ObjectType):
 ```
 
 **FraiseQL equivalent**:
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -273,6 +281,7 @@ async def resolve_users(obj, info):
 ```
 
 **FraiseQL equivalent**:
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -299,6 +308,7 @@ async def users(info) -> list[User]:
 ### 1. Trust Auto-Inference
 
 **✅ DO:**
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -307,6 +317,7 @@ async def users(info) -> list[User]:
 ```
 
 **❌ DON'T:**
+
 ```python
 @fraiseql.query
 async def users(info) -> list[User]:
@@ -318,6 +329,7 @@ async def users(info) -> list[User]:
 ### 2. Use Explicit Parameters When Needed
 
 **✅ DO:**
+
 ```python
 @fraiseql.query
 async def users(info, limit: int = 100) -> list[User]:
@@ -331,6 +343,7 @@ async def users(info, limit: int = 100) -> list[User]:
 ### 3. Follow Naming Conventions
 
 **✅ DO:**
+
 ```python
 from fraiseql.types import ID
 
@@ -344,6 +357,7 @@ async def user(info, id: ID) -> User | None:  # Singular for single items
 ```
 
 **❌ DON'T:**
+
 ```python
 @fraiseql.query
 async def get_user_list(info) -> list[User]:  # Non-standard naming
@@ -378,6 +392,7 @@ query {
 ```
 
 Expected response structure:
+
 ```json
 {
   "data": {

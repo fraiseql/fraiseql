@@ -5,24 +5,28 @@
 ### Severity Levels
 
 #### **SEV-1: Critical** 🚨
+
 - **Definition**: Complete system outage, data loss, or security breach
 - **Response Time**: Immediate (within 15 minutes)
 - **Communication**: All stakeholders notified immediately
 - **Escalation**: On-call engineer + management
 
 #### **SEV-2: High** ⚠️
+
 - **Definition**: Major functionality degraded, performance issues affecting users
 - **Response Time**: Within 1 hour
 - **Communication**: Engineering team + product owners
 - **Escalation**: On-call engineer
 
 #### **SEV-3: Medium** 📊
+
 - **Definition**: Minor functionality issues, monitoring alerts
 - **Response Time**: Within 4 hours
 - **Communication**: Engineering team
 - **Escalation**: Next business day if unresolved
 
 #### **SEV-4: Low** ℹ️
+
 - **Definition**: Cosmetic issues, informational alerts
 - **Response Time**: Within 24 hours
 - **Communication**: Internal engineering
@@ -33,6 +37,7 @@
 #### 1. Detection & Triage (0-15 minutes)
 
 **For SEV-1 incidents:**
+
 ```bash
 # Immediately assess system status
 curl -f https://yourdomain.com/health || echo "Application DOWN"
@@ -53,6 +58,7 @@ docker stats --no-stream
 ```
 
 **Initial Assessment Checklist:**
+
 - [ ] Confirm incident scope and impact
 - [ ] Determine severity level
 - [ ] Notify appropriate stakeholders
@@ -62,6 +68,7 @@ docker stats --no-stream
 #### 2. Investigation (15-60 minutes)
 
 **Log Analysis:**
+
 ```bash
 # Check application logs
 docker-compose logs --tail=100 -f fraiseql
@@ -81,6 +88,7 @@ SELECT * FROM pg_stat_activity WHERE state != 'idle';
 ```
 
 **Performance Metrics Check:**
+
 ```bash
 # Check Prometheus metrics
 curl http://localhost:9090/api/v1/query?query=up
@@ -100,6 +108,7 @@ SELECT * FROM pg_stat_user_indexes WHERE idx_scan = 0;
 **Common Containment Actions:**
 
 **For Application Issues:**
+
 ```bash
 # Restart application
 docker-compose restart fraiseql
@@ -113,6 +122,7 @@ docker-compose up -d fraiseql
 ```
 
 **For Database Issues:**
+
 ```bash
 # Check connection pool
 docker-compose exec db psql -U fraiseql -d fraiseql_prod -c "
@@ -128,6 +138,7 @@ docker-compose restart db
 ```
 
 **For Infrastructure Issues:**
+
 ```bash
 # Check disk space
 df -h
@@ -149,6 +160,7 @@ systemctl restart nginx
 **Recovery Procedures:**
 
 **Application Recovery:**
+
 ```bash
 # Verify application health
 curl https://yourdomain.com/health
@@ -161,6 +173,7 @@ npm test -- --grep "smoke"
 ```
 
 **Data Recovery:**
+
 ```bash
 # Restore from backup if needed
 gunzip /opt/fraiseql/backups/fraiseql_backup.sql.gz
@@ -176,6 +189,7 @@ SELECT max(updated_at) FROM your_table;
 #### 5. Post-Incident Review (24-72 hours)
 
 **Incident Review Process:**
+
 1. **Timeline Reconstruction**: Document all events chronologically
 2. **Root Cause Analysis**: Identify underlying causes
 3. **Impact Assessment**: Quantify user/business impact
@@ -183,6 +197,7 @@ SELECT max(updated_at) FROM your_table;
 5. **Documentation Update**: Update runbooks and procedures
 
 **Post-Incident Report Template:**
+
 ```markdown
 # Incident Report: [INC-YYYY-MM-DD-N]
 
@@ -217,6 +232,7 @@ SELECT max(updated_at) FROM your_table;
 ### Daily Maintenance
 
 #### Morning Health Check (9:00 AM)
+
 ```bash
 #!/bin/bash
 # Daily health check script
@@ -255,6 +271,7 @@ echo "✅ Health check completed"
 ```
 
 #### Log Rotation
+
 ```bash
 # Rotate application logs
 docker-compose exec fraiseql logrotate /etc/logrotate.d/fraiseql
@@ -269,6 +286,7 @@ find /var/log -name "*.log.*" -mtime +30 -delete
 ### Weekly Maintenance
 
 #### Security Updates (Monday 2:00 AM)
+
 ```bash
 # Update system packages
 apt update && apt upgrade -y
@@ -284,6 +302,7 @@ trivy image --exit-code 1 --severity HIGH,CRITICAL your-registry/fraiseql:latest
 ```
 
 #### Database Maintenance
+
 ```bash
 # Vacuum and analyze database
 docker-compose exec db psql -U fraiseql -d fraiseql_prod -c "VACUUM ANALYZE;"
@@ -308,6 +327,7 @@ AND indexname NOT IN (
 ```
 
 #### Performance Optimization
+
 ```bash
 # Analyze slow queries
 docker-compose exec db psql -U fraiseql -d fraiseql_prod -c "
@@ -329,11 +349,13 @@ ORDER BY n_dead_tup DESC;
 ### Monthly Maintenance
 
 #### Capacity Planning Review
+
 - Review resource utilization trends
 - Plan for scaling requirements
 - Update infrastructure provisioning
 
 #### Security Audit
+
 ```bash
 # Run comprehensive security scan
 trivy fs --exit-code 1 --severity HIGH,CRITICAL .
@@ -346,6 +368,7 @@ grep " 40[0-9] " /var/log/nginx/access.log | head -20
 ```
 
 #### Backup Verification
+
 ```bash
 # Test backup restoration
 BACKUP_FILE=$(ls -t /opt/fraiseql/backups/*.sql.gz | head -1)
@@ -369,24 +392,28 @@ docker-compose exec db dropdb -U fraiseql fraiseql_test_restore
 ### Key Metrics to Monitor
 
 #### Application Metrics
+
 - Response time (P50, P95, P99)
 - Error rate (4xx, 5xx responses)
 - Throughput (requests per second)
 - Active connections
 
 #### Database Metrics
+
 - Connection pool utilization
 - Query execution time
 - Deadlocks and timeouts
 - Table/index bloat
 
 #### Infrastructure Metrics
+
 - CPU utilization
 - Memory usage
 - Disk I/O and space
 - Network traffic
 
 #### Business Metrics
+
 - User activity
 - API usage patterns
 - Data growth rates
@@ -394,6 +421,7 @@ docker-compose exec db dropdb -U fraiseql fraiseql_test_restore
 ### Alert Configuration
 
 #### Critical Alerts (Immediate Response)
+
 ```
 - Application down (health check fails)
 - Database unreachable
@@ -403,6 +431,7 @@ docker-compose exec db dropdb -U fraiseql fraiseql_test_restore
 ```
 
 #### Warning Alerts (Review Within Hours)
+
 ```
 - High memory usage (>90%)
 - Slow response times (>2s P95)
@@ -411,6 +440,7 @@ docker-compose exec db dropdb -U fraiseql fraiseql_test_restore
 ```
 
 #### Informational Alerts (Review Daily)
+
 ```
 - Performance degradation trends
 - Resource usage spikes
@@ -422,17 +452,20 @@ docker-compose exec db dropdb -U fraiseql fraiseql_test_restore
 ### Backup Strategy
 
 #### Database Backups
+
 - **Frequency**: Daily full backups + hourly incremental
 - **Retention**: 30 days for dailies, 7 days for incrementals
 - **Storage**: Encrypted off-site storage
 - **Testing**: Monthly restoration tests
 
 #### Configuration Backups
+
 - **Frequency**: After every change
 - **Retention**: 90 days
 - **Storage**: Git repository + encrypted backups
 
 #### Application Backups
+
 - **Frequency**: Before deployments
 - **Retention**: 7 days
 - **Storage**: Container registry tags
@@ -440,6 +473,7 @@ docker-compose exec db dropdb -U fraiseql fraiseql_test_restore
 ### Recovery Procedures
 
 #### Complete System Recovery
+
 ```bash
 # 1. Provision new infrastructure
 terraform apply
@@ -465,6 +499,7 @@ curl https://yourdomain.com/health
 ```
 
 #### Database-Only Recovery
+
 ```bash
 # Stop application
 docker-compose stop fraiseql
@@ -485,16 +520,19 @@ docker-compose start fraiseql
 ## Emergency Contacts
 
 ### On-Call Rotation
+
 - **Primary**: [Engineer Name] - [Phone] - [Email]
 - **Secondary**: [Engineer Name] - [Phone] - [Email]
 - **Management**: [Manager Name] - [Phone] - [Email]
 
 ### External Resources
+
 - **Cloud Provider Support**: [Support Contact]
 - **Database Support**: [PostgreSQL Support]
 - **Security Team**: [Security Contact]
 
 ### Escalation Path
+
 1. **Level 1**: On-call engineer
 2. **Level 2**: Engineering manager
 3. **Level 3**: CTO/Executive team

@@ -3,6 +3,7 @@
 **Purpose:** Generic checklist for migrating from any GraphQL framework to FraiseQL
 
 Use this checklist alongside framework-specific guides:
+
 - [From Strawberry](./from-strawberry.md)
 - [From Graphene](./from-graphene.md)
 - [From PostGraphile](./from-postgraphile.md)
@@ -12,6 +13,7 @@ Use this checklist alongside framework-specific guides:
 ## Pre-Migration Assessment
 
 ### Team Readiness
+
 - [ ] Team has Python experience (3.10+ recommended)
 - [ ] Team comfortable with async/await patterns
 - [ ] Team has PostgreSQL database access and expertise
@@ -19,6 +21,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Rollback plan documented
 
 ### Technical Requirements
+
 - [ ] Python 3.10+ installed
 - [ ] PostgreSQL 12+ available
 - [ ] Database backup created
@@ -26,6 +29,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Performance baseline established (current req/s, latency)
 
 ### Architecture Review
+
 - [ ] Current GraphQL schema documented
 - [ ] Custom resolvers identified and catalogued
 - [ ] Database schema reviewed
@@ -37,6 +41,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 1: Database Preparation (1-3 days)
 
 ### Schema Migration
+
 - [ ] Review current table naming conventions
 - [ ] Decide on trinity pattern adoption (tb_/v_/tv_)
 - [ ] Create migration script for table renames (if needed)
@@ -46,6 +51,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Document any schema changes
 
 ### Functions and Procedures
+
 - [ ] Identify all stored procedures/functions
 - [ ] Review function signatures
 - [ ] Rename functions to fn_* pattern (recommended)
@@ -53,6 +59,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Document function parameters and return types
 
 ### Security and Policies
+
 - [ ] Review existing Row-Level Security (RLS) policies
 - [ ] Test RLS policies with different users/tenants
 - [ ] Document session variable requirements
@@ -63,6 +70,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 2: Type Definitions (1-2 days)
 
 ### GraphQL Types
+
 - [ ] List all current GraphQL object types
 - [ ] Convert each type to FraiseQL `@type` decorator
 - [ ] Map types to database views (`sql_source` parameter)
@@ -71,12 +79,14 @@ Use this checklist alongside framework-specific guides:
 - [ ] Test type instantiation
 
 ### Input Types
+
 - [ ] List all input types
 - [ ] Convert to FraiseQL `@input` decorator
 - [ ] Add validation logic (if needed)
 - [ ] Test input parsing
 
 ### Enums and Scalars
+
 - [ ] List all custom enums
 - [ ] Convert to Python Enum classes
 - [ ] Map custom scalars to Python types
@@ -87,6 +97,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 3: Query Migration (2-3 days)
 
 ### Simple Queries
+
 - [ ] List all query fields
 - [ ] Convert each query to `@fraiseql.field` decorator
 - [ ] Use `db.find_one()` for single object queries
@@ -95,6 +106,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Test each query in GraphiQL
 
 ### Filtering and Pagination
+
 - [ ] Implement `where` parameter for filtering
 - [ ] Test filter operators (_eq, _ne, _like, _gt, etc.)
 - [ ] Add `limit` and `offset` for pagination
@@ -102,6 +114,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Document filter syntax for frontend team
 
 ### Relationships
+
 - [ ] Identify all relationship fields
 - [ ] Decide on resolver strategy (explicit vs computed views)
 - [ ] Implement relationship resolvers
@@ -113,12 +126,14 @@ Use this checklist alongside framework-specific guides:
 ## Phase 4: Mutation Migration (2-3 days)
 
 ### Database Functions
+
 - [ ] Create PostgreSQL function for each mutation
 - [ ] Test functions directly with psql
 - [ ] Document function inputs and outputs
 - [ ] Handle errors and edge cases in functions
 
 ### Mutation Classes
+
 - [ ] Create FraiseQL `@mutation` class for each mutation
 - [ ] Map to corresponding PostgreSQL function
 - [ ] Add input validation
@@ -126,6 +141,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Verify return values match schema
 
 ### CASCADE Configuration
+
 - [ ] Identify mutations that benefit from CASCADE
 - [ ] Enable `enable_cascade=True` on appropriate mutations
 - [ ] Test cache invalidation behavior
@@ -136,18 +152,21 @@ Use this checklist alongside framework-specific guides:
 ## Phase 5: Advanced Features (1-2 days)
 
 ### DataLoaders
+
 - [ ] Identify N+1 query patterns
 - [ ] Implement `@dataloader_field` decorators
 - [ ] Test batching behavior
 - [ ] Measure performance improvement
 
 ### Custom Resolvers
+
 - [ ] List all custom field resolvers
 - [ ] Implement as `@fraiseql.field` methods
 - [ ] Test computed fields
 - [ ] Verify performance
 
 ### Subscriptions (if needed)
+
 - [ ] Plan subscription implementation
 - [ ] Set up WebSocket support
 - [ ] Implement subscription resolvers
@@ -158,6 +177,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 6: Configuration and Setup (1 day)
 
 ### Application Setup
+
 - [ ] Install FraiseQL: `pip install fraiseql`
 - [ ] Configure `create_fraiseql_app()`
 - [ ] Set database URL
@@ -167,6 +187,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Set up GraphiQL for development
 
 ### Environment Configuration
+
 - [ ] Set environment variables
 - [ ] Configure database connection pooling
 - [ ] Set up logging
@@ -174,6 +195,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Test configuration in dev environment
 
 ### Security Configuration
+
 - [ ] Configure authentication
 - [ ] Set up authorization rules
 - [ ] Configure tenant ID headers (if multi-tenant)
@@ -185,6 +207,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 7: Testing (2-3 days)
 
 ### Unit Tests
+
 - [ ] Convert resolver unit tests to pytest
 - [ ] Test all queries individually
 - [ ] Test all mutations individually
@@ -192,6 +215,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Achieve >80% code coverage
 
 ### Integration Tests
+
 - [ ] Test complete GraphQL operations
 - [ ] Test authentication flow
 - [ ] Test authorization rules
@@ -199,6 +223,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Test error handling
 
 ### Performance Tests
+
 - [ ] Run load tests with wrk/k6/artillery
 - [ ] Measure query latency (p50, p95, p99)
 - [ ] Measure throughput (req/s)
@@ -206,6 +231,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Identify bottlenecks
 
 ### End-to-End Tests
+
 - [ ] Test with real frontend application
 - [ ] Verify all features work
 - [ ] Test error scenarios
@@ -217,6 +243,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 8: Deployment Preparation (1-2 days)
 
 ### Infrastructure
+
 - [ ] Set up production database
 - [ ] Configure connection pooling
 - [ ] Set up monitoring (Prometheus, Grafana)
@@ -224,6 +251,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Set up distributed tracing (OpenTelemetry)
 
 ### Documentation
+
 - [ ] Update API documentation
 - [ ] Document schema changes
 - [ ] Create runbook for common issues
@@ -231,6 +259,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Train team on new system
 
 ### Deployment Strategy
+
 - [ ] Choose deployment strategy (blue-green, canary, etc.)
 - [ ] Plan database migration execution
 - [ ] Schedule maintenance window (if needed)
@@ -242,6 +271,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 9: Deployment (1 day)
 
 ### Pre-Deployment
+
 - [ ] Database backup created
 - [ ] All tests passing
 - [ ] Code review completed
@@ -249,6 +279,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Team on standby
 
 ### Deployment Steps
+
 - [ ] Run database migrations
 - [ ] Deploy FraiseQL application
 - [ ] Verify health checks pass
@@ -257,6 +288,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Monitor performance metrics
 
 ### Post-Deployment
+
 - [ ] Verify all features working
 - [ ] Monitor for 24 hours
 - [ ] Check logs for errors
@@ -268,6 +300,7 @@ Use this checklist alongside framework-specific guides:
 ## Phase 10: Post-Migration (1 week)
 
 ### Monitoring
+
 - [ ] Set up alerts for errors
 - [ ] Set up alerts for performance degradation
 - [ ] Monitor database query performance
@@ -275,6 +308,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Review logs daily
 
 ### Optimization
+
 - [ ] Identify slow queries
 - [ ] Add database indexes where needed
 - [ ] Optimize expensive resolvers
@@ -282,6 +316,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Review and optimize computed views
 
 ### Documentation
+
 - [ ] Document lessons learned
 - [ ] Update migration guide with gotchas
 - [ ] Create troubleshooting guide
@@ -293,6 +328,7 @@ Use this checklist alongside framework-specific guides:
 ## Success Criteria
 
 ### Performance Metrics
+
 - [ ] Query latency improved 5-10x
 - [ ] Throughput increased 5-10x
 - [ ] Error rate < 0.1%
@@ -300,6 +336,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Zero downtime during migration
 
 ### Functional Requirements
+
 - [ ] All features working
 - [ ] No data loss
 - [ ] Authentication working
@@ -307,6 +344,7 @@ Use this checklist alongside framework-specific guides:
 - [ ] Frontend integration complete
 
 ### Team Satisfaction
+
 - [ ] Team trained on new system
 - [ ] Documentation complete
 - [ ] Runbook created
@@ -318,12 +356,14 @@ Use this checklist alongside framework-specific guides:
 ## Rollback Plan
 
 ### Triggers for Rollback
+
 - Critical bugs affecting >10% of users
 - Data integrity issues
 - Performance degradation >50%
 - Security vulnerabilities
 
 ### Rollback Steps
+
 1. [ ] Switch traffic back to old system
 2. [ ] Restore database if migrations ran
 3. [ ] Notify stakeholders

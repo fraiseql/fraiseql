@@ -10,6 +10,7 @@
 ## Objective
 
 Update GraphQL schema generation to:
+
 1. Generate union types for all mutations (`<Mutation>Result = Success | Error`)
 2. Ensure Success types have non-nullable entity fields
 3. Ensure Error types include `code: Int!` field
@@ -21,11 +22,13 @@ Update GraphQL schema generation to:
 ## Files to Modify
 
 ### Critical Files
+
 1. `src/fraiseql/schema/mutation_schema_generator.py` - Mutation schema generation
 2. `src/fraiseql/schema/types.py` - Type definitions for schema
 3. `src/fraiseql/graphql/schema_builder.py` - GraphQL schema building
 
 ### Supporting Files
+
 4. `src/fraiseql/schema/__init__.py` - Exports
 5. `tests/integration/graphql/mutations/test_schema_generation.py` - Schema tests
 
@@ -951,6 +954,7 @@ class TestSchemaValidator:
 ## Verification Checklist
 
 ### Code Changes
+
 - [ ] `mutation_schema_generator.py` - Add union type generation
 - [ ] `mutation_schema_generator.py` - Validate entity non-nullable
 - [ ] `mutation_schema_generator.py` - Validate code field in Error
@@ -959,6 +963,7 @@ class TestSchemaValidator:
 - [ ] All schema generation code updated
 
 ### Testing
+
 - [ ] New test: `test_generate_union_type`
 - [ ] New test: `test_success_type_entity_non_nullable`
 - [ ] New test: `test_error_type_has_code_field`
@@ -967,6 +972,7 @@ class TestSchemaValidator:
 - [ ] All schema tests pass
 
 ### GraphQL SDL
+
 - [ ] Union types generated correctly
 - [ ] Entity fields are non-nullable
 - [ ] Error types include code field
@@ -977,6 +983,7 @@ class TestSchemaValidator:
 ## Expected SDL Output
 
 **Before (v1.7.x):**
+
 ```graphql
 type CreateMachineSuccess {
   machine: Machine    # Nullable ❌
@@ -995,6 +1002,7 @@ type Mutation {
 ```
 
 **After (v1.8.0):**
+
 ```graphql
 union CreateMachineResult = CreateMachineSuccess | CreateMachineError
 
@@ -1304,6 +1312,7 @@ print("\n🎉 All Phase 3 smoke tests passed!")
 ## Next Steps
 
 Once Phase 3 is complete:
+
 1. **Run smoke tests** - Verify basic functionality immediately
 2. **Validate generated schemas** - Check GraphQL spec compliance
 3. **Test introspection queries** - Ensure schema discovery works
@@ -1314,6 +1323,7 @@ Once Phase 3 is complete:
 **Blocking:** Testing (Phase 4) depends on schema generation working correctly.
 
 **If Issues Arise:**
+
 - Review type conversion examples above
 - Check entity field detection patterns
 - Run smoke tests to isolate problems

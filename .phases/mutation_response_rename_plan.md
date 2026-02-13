@@ -12,12 +12,14 @@
 ## Why This Rename?
 
 ### Problems with `mutation_result_v2`
+
 1. **Version suffix implies iteration** - Suggests there will be v3, v4, etc.
 2. **Not descriptive** - Doesn't convey semantic meaning
 3. **Awkward in documentation** - "The mutation_result_v2 type" sounds unfinished
 4. **Pre-release opportunity** - No external users = perfect time to fix
 
 ### Benefits of `mutation_response`
+
 1. **Semantic clarity** - It's a response from a mutation
 2. **Professional** - Aligns with industry naming (Hasura uses `mutation_response` pattern)
 3. **Future-proof** - Breaking changes handled via migrations, not version suffixes
@@ -28,19 +30,23 @@
 Based on codebase search, `mutation_result_v2` appears in:
 
 ### PostgreSQL Files (5 files)
+
 - `migrations/trinity/005_add_mutation_result_v2.sql` - Type definition + helper functions
 - `examples/mutations_demo/v2_init.sql` - Example functions
 - `examples/mutations_demo/v2_mutation_functions.sql` - Demo functions
 
 ### Rust Files (2 files)
+
 - `fraiseql_rs/src/mutation/mod.rs` - Core mutation handling
 - `fraiseql_rs/src/lib.rs` - Public exports
 
 ### Python Files (2 files)
+
 - `src/fraiseql/mutations/entity_flattener.py` - Result parsing
 - `src/fraiseql/mutations/rust_executor.py` - Rust FFI calls
 
 ### Documentation Files (4 files)
+
 - `docs/mutations/status-strings.md` - Status taxonomy docs
 - `docs/features/sql-function-return-format.md` - Function return format guide
 - `docs/features/mutation-result-reference.md` - API reference
@@ -48,6 +54,7 @@ Based on codebase search, `mutation_result_v2` appears in:
 - `CHANGELOG.md` - Change history
 
 ### Test Files (3 files)
+
 - `tests/fixtures/cascade/conftest.py` - Test fixtures
 - `tests/test_mutations/test_status_taxonomy.py` - Status taxonomy tests
 - `tests/integration/graphql/mutations/test_unified_camel_case.py` - Integration tests
@@ -57,6 +64,7 @@ Based on codebase search, `mutation_result_v2` appears in:
 ### Phase 0: Pre-Implementation Checklist
 
 **Before starting, verify:**
+
 - [ ] No external users (confirmed)
 - [ ] Git working tree is clean
 - [ ] All tests pass
@@ -74,8 +82,10 @@ Based on codebase search, `mutation_result_v2` appears in:
 **File**: `migrations/trinity/005_add_mutation_result_v2.sql`
 
 **Actions**:
+
 1. Rename file to: `migrations/trinity/005_add_mutation_response.sql`
 2. Update migration header:
+
    ```sql
    -- Migration: Add mutation_response type and helper functions
    -- Description: Creates PostgreSQL composite type and helper functions for consistent mutation results
@@ -84,6 +94,7 @@ Based on codebase search, `mutation_result_v2` appears in:
    ```
 
 3. Rename type definition (line ~12):
+
    ```sql
    -- OLD
    CREATE TYPE mutation_result_v2 AS (
@@ -104,6 +115,7 @@ Based on codebase search, `mutation_result_v2` appears in:
    - `mutation_error()` - line ~261: `RETURNS mutation_response`
 
 5. Update all `ROW(...)::<type>` casts:
+
    ```sql
    -- OLD
    )::mutation_result_v2;
@@ -113,6 +125,7 @@ Based on codebase search, `mutation_result_v2` appears in:
    ```
 
 6. Update utility function parameter types (lines 281-319):
+
    ```sql
    -- OLD
    CREATE OR REPLACE FUNCTION mutation_is_success(result mutation_result_v2) RETURNS boolean
@@ -126,6 +139,7 @@ Based on codebase search, `mutation_result_v2` appears in:
    - Update `RETURNS mutation_result_v2` → `RETURNS mutation_response`
 
 **Verification**:
+
 ```bash
 # Check file renamed
 ls -la migrations/trinity/005_add_mutation_response.sql
@@ -141,11 +155,14 @@ grep -c "mutation_response" migrations/trinity/005_add_mutation_response.sql
 #### Task 1.2: Update Example SQL Files
 
 **Files**:
+
 - `examples/mutations_demo/v2_init.sql`
 - `examples/mutations_demo/v2_mutation_functions.sql`
 
 **Actions for each file**:
+
 1. Update file header comments:
+
    ```sql
    -- OLD
    -- Updated init.sql using mutation_result_v2 format
@@ -157,6 +174,7 @@ grep -c "mutation_response" migrations/trinity/005_add_mutation_response.sql
 2. Global find/replace: `mutation_result_v2` → `mutation_response`
 
 3. Update all function return types:
+
    ```sql
    -- OLD
    RETURNS mutation_result_v2 AS $$
@@ -166,6 +184,7 @@ grep -c "mutation_response" migrations/trinity/005_add_mutation_response.sql
    ```
 
 4. Update all type casts:
+
    ```sql
    -- OLD
    )::mutation_result_v2;
@@ -175,6 +194,7 @@ grep -c "mutation_response" migrations/trinity/005_add_mutation_response.sql
    ```
 
 **Verification**:
+
 ```bash
 # Check no v2 references remain
 ! grep -i "mutation_result_v2" examples/mutations_demo/v2_init.sql
@@ -186,6 +206,7 @@ grep -c "mutation_response" examples/mutations_demo/v2_init.sql
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Main migration file renamed and updated
 - [ ] All helper functions return `mutation_response`
 - [ ] All example SQL files updated
@@ -203,7 +224,9 @@ grep -c "mutation_response" examples/mutations_demo/v2_init.sql
 **File**: `fraiseql_rs/src/mutation/mod.rs`
 
 **Actions**:
+
 1. Update module documentation (line ~3):
+
    ```rust
    //! Mutation result transformation module
    //!
@@ -211,6 +234,7 @@ grep -c "mutation_response" examples/mutations_demo/v2_init.sql
    ```
 
 2. Update function documentation (line ~16):
+
    ```rust
    /// Supports TWO formats:
    /// 1. **Simple format**: Just entity JSONB (no status field) - auto-detected
@@ -220,6 +244,7 @@ grep -c "mutation_response" examples/mutations_demo/v2_init.sql
 3. Search for `mutation_result_v2` in comments and update to `mutation_response`
 
 4. Check if there are any string literals that need updating:
+
    ```rust
    // Search for any hardcoded "mutation_result_v2" strings
    // Example: logging, error messages, etc.
@@ -228,6 +253,7 @@ grep -c "mutation_response" examples/mutations_demo/v2_init.sql
 **Note**: The Rust code likely doesn't hardcode the PostgreSQL type name in string literals, since it parses JSON directly. Most changes will be in comments/documentation.
 
 **Verification**:
+
 ```bash
 # Check for any v2 references
 ! grep -i "mutation_result_v2" fraiseql_rs/src/mutation/mod.rs
@@ -241,10 +267,12 @@ grep "mutation_response" fraiseql_rs/src/mutation/mod.rs
 **File**: `fraiseql_rs/src/lib.rs`
 
 **Actions**:
+
 1. Check for any public exports or documentation mentioning `mutation_result_v2`
 2. Update any module-level documentation
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" fraiseql_rs/src/lib.rs
 ```
@@ -252,6 +280,7 @@ grep "mutation_response" fraiseql_rs/src/mutation/mod.rs
 #### Task 2.3: Rebuild Rust Library
 
 **Actions**:
+
 ```bash
 cd fraiseql_rs
 cargo clean
@@ -260,6 +289,7 @@ cargo test
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All Rust documentation updated
 - [ ] No `mutation_result_v2` references in Rust code
 - [ ] Rust builds successfully
@@ -276,7 +306,9 @@ cargo test
 **File**: `src/fraiseql/mutations/entity_flattener.py`
 
 **Actions**:
+
 1. Update docstrings and comments:
+
    ```python
    # OLD
    """Parse mutation_result_v2 format from PostgreSQL."""
@@ -290,6 +322,7 @@ cargo test
 3. Check for string literals (unlikely, but verify)
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" src/fraiseql/mutations/entity_flattener.py
 grep "mutation_response" src/fraiseql/mutations/entity_flattener.py
@@ -300,15 +333,18 @@ grep "mutation_response" src/fraiseql/mutations/entity_flattener.py
 **File**: `src/fraiseql/mutations/rust_executor.py`
 
 **Actions**:
+
 1. Update docstrings mentioning the type format
 2. Update any comments explaining the data structure
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" src/fraiseql/mutations/rust_executor.py
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All Python docstrings updated
 - [ ] No `mutation_result_v2` references in Python code
 - [ ] Python imports still work
@@ -324,11 +360,13 @@ grep "mutation_response" src/fraiseql/mutations/entity_flattener.py
 **File**: `docs/mutations/status-strings.md`
 
 **Actions**:
+
 1. Global find/replace: `mutation_result_v2` → `mutation_response`
 2. Review examples to ensure they make sense with new name
 3. Update any code blocks showing PostgreSQL functions
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" docs/mutations/status-strings.md
 grep -c "mutation_response" docs/mutations/status-strings.md
@@ -339,11 +377,13 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `docs/features/sql-function-return-format.md`
 
 **Actions**:
+
 1. Update all references to the type name
 2. Update diagrams or tables showing the type structure
 3. Update example SQL functions
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" docs/features/sql-function-return-format.md
 ```
@@ -353,11 +393,13 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `docs/features/mutation-result-reference.md`
 
 **Actions**:
+
 1. Update API reference showing type name
 2. Update field descriptions
 3. Update return type examples
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" docs/features/mutation-result-reference.md
 ```
@@ -367,10 +409,12 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `docs/features/graphql-cascade.md`
 
 **Actions**:
+
 1. Update references to mutation response format
 2. Update examples showing cascade data
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" docs/features/graphql-cascade.md
 ```
@@ -380,7 +424,9 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `CHANGELOG.md`
 
 **Actions**:
+
 1. Add new entry:
+
    ```markdown
    ## [Unreleased]
 
@@ -394,6 +440,7 @@ grep -c "mutation_response" docs/mutations/status-strings.md
    ```
 
 **Acceptance Criteria**:
+
 - [ ] All documentation files updated
 - [ ] No `mutation_result_v2` references in docs
 - [ ] CHANGELOG entry added
@@ -410,11 +457,13 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `tests/fixtures/cascade/conftest.py`
 
 **Actions**:
+
 1. Update fixture docstrings
 2. Update any SQL strings creating test functions
 3. Update comments explaining test data format
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" tests/fixtures/cascade/conftest.py
 ```
@@ -424,11 +473,13 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `tests/test_mutations/test_status_taxonomy.py`
 
 **Actions**:
+
 1. Update test docstrings
 2. Update SQL function definitions in test fixtures
 3. Update comments
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" tests/test_mutations/test_status_taxonomy.py
 ```
@@ -438,10 +489,12 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 **File**: `tests/integration/graphql/mutations/test_unified_camel_case.py`
 
 **Actions**:
+
 1. Update test SQL functions
 2. Update test docstrings
 
 **Verification**:
+
 ```bash
 ! grep -i "mutation_result_v2" tests/integration/graphql/mutations/test_unified_camel_case.py
 ```
@@ -449,6 +502,7 @@ grep -c "mutation_response" docs/mutations/status-strings.md
 #### Task 5.4: Run Full Test Suite
 
 **Actions**:
+
 ```bash
 # Run all tests
 uv run pytest tests/ -v
@@ -460,6 +514,7 @@ uv run pytest tests/fixtures/cascade/ -v
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All test files updated
 - [ ] No `mutation_result_v2` references in tests
 - [ ] All tests pass
@@ -474,6 +529,7 @@ uv run pytest tests/fixtures/cascade/ -v
 #### Task 6.1: Global Verification
 
 **Actions**:
+
 ```bash
 # 1. Search for any remaining v2 references
 grep -r "mutation_result_v2" /home/lionel/code/fraiseql/src/
@@ -497,6 +553,7 @@ ls -la migrations/trinity/005_add_mutation_response.sql
 #### Task 6.2: Functional Testing
 
 **Actions**:
+
 ```bash
 # 1. Run full test suite
 uv run pytest tests/ -v --tb=short
@@ -514,6 +571,7 @@ uv run pytest tests/test_mutations/test_status_taxonomy.py -v
 #### Task 6.3: Build and Type Check
 
 **Actions**:
+
 ```bash
 # 1. Python type checking
 uv run mypy src/fraiseql/mutations/
@@ -529,6 +587,7 @@ cd fraiseql_rs && cargo test
 ```
 
 **Acceptance Criteria**:
+
 - [ ] No `mutation_result_v2` references anywhere
 - [ ] At least 50+ `mutation_response` references found
 - [ ] Old migration file deleted
@@ -546,6 +605,7 @@ cd fraiseql_rs && cargo test
 If issues are discovered during implementation:
 
 ### Option 1: Revert Commits
+
 ```bash
 # If committed incrementally
 git log --oneline | head -10  # Find commit before rename
@@ -553,6 +613,7 @@ git revert <commit-hash>
 ```
 
 ### Option 2: Restore Backup Branch
+
 ```bash
 # If rename is complete but problematic
 git checkout backup/before-mutation-response-rename
@@ -562,6 +623,7 @@ git checkout -b refactor/rename-to-mutation-response-v2
 ```
 
 ### Option 3: Cherry-pick Good Changes
+
 ```bash
 # If some phases are good but others need work
 git checkout -b refactor/mutation-response-partial
@@ -640,19 +702,23 @@ git commit -m "test: update mutation_response references in tests
 ## File Checklist
 
 ### PostgreSQL Files
+
 - [ ] `migrations/trinity/005_add_mutation_result_v2.sql` → `005_add_mutation_response.sql`
 - [ ] `examples/mutations_demo/v2_init.sql`
 - [ ] `examples/mutations_demo/v2_mutation_functions.sql`
 
 ### Rust Files
+
 - [ ] `fraiseql_rs/src/mutation/mod.rs`
 - [ ] `fraiseql_rs/src/lib.rs`
 
 ### Python Files
+
 - [ ] `src/fraiseql/mutations/entity_flattener.py`
 - [ ] `src/fraiseql/mutations/rust_executor.py`
 
 ### Documentation Files
+
 - [ ] `docs/mutations/status-strings.md`
 - [ ] `docs/features/sql-function-return-format.md`
 - [ ] `docs/features/mutation-result-reference.md`
@@ -660,11 +726,13 @@ git commit -m "test: update mutation_response references in tests
 - [ ] `CHANGELOG.md`
 
 ### Test Files
+
 - [ ] `tests/fixtures/cascade/conftest.py`
 - [ ] `tests/test_mutations/test_status_taxonomy.py`
 - [ ] `tests/integration/graphql/mutations/test_unified_camel_case.py`
 
 ### Files That Should NOT Change
+
 - [ ] No changes to `src/fraiseql/gql/` (GraphQL schema builders)
 - [ ] No changes to core business logic
 - [ ] No changes to API surface (only internal naming)
@@ -674,6 +742,7 @@ git commit -m "test: update mutation_response references in tests
 ## Success Metrics
 
 ### Technical Metrics
+
 - [ ] Zero `mutation_result_v2` references in codebase
 - [ ] 100% test pass rate
 - [ ] No type checking errors
@@ -681,12 +750,14 @@ git commit -m "test: update mutation_response references in tests
 - [ ] Rust builds without warnings
 
 ### Code Quality Metrics
+
 - [ ] All documentation updated
 - [ ] CHANGELOG entry clear and complete
 - [ ] Git history clean with logical commits
 - [ ] No commented-out code left behind
 
 ### Confidence Metrics
+
 - [ ] Rename completed in < 2 days
 - [ ] No rollbacks needed
 - [ ] Team confident in new naming
@@ -696,6 +767,7 @@ git commit -m "test: update mutation_response references in tests
 ## Timeline Estimate
 
 ### Optimistic (1 day)
+
 - Phase 1: PostgreSQL - 2 hours
 - Phase 2: Rust - 1 hour
 - Phase 3: Python - 1 hour
@@ -705,10 +777,12 @@ git commit -m "test: update mutation_response references in tests
 - **Total**: 8 hours (1 working day)
 
 ### Realistic (1.5 days)
+
 - Add 50% buffer for unexpected issues
 - **Total**: 12 hours (1.5 working days)
 
 ### Pessimistic (2 days)
+
 - Account for test failures, build issues, documentation clarity
 - **Total**: 16 hours (2 working days)
 
@@ -717,6 +791,7 @@ git commit -m "test: update mutation_response references in tests
 ## Open Questions
 
 ### Resolved
+
 - ✅ **Q**: Does `mutation_response` conflict with other libraries?
   **A**: No - Hasura uses per-table namespacing (`article_mutation_response`), no conflict
 
@@ -724,6 +799,7 @@ git commit -m "test: update mutation_response references in tests
   **A**: No - keep the same number (005), just change the filename
 
 ### Pending
+
 - ⚠️ **Q**: Are there any generated files we need to update?
   **A**: Need to check for codegen outputs, protobuf definitions, etc.
 
@@ -735,15 +811,18 @@ git commit -m "test: update mutation_response references in tests
 ## Related Work
 
 ### Before This Rename
+
 - Status taxonomy implementation (completed)
 - Cascade tracking implementation (completed)
 - Entity flattener refactor (completed)
 
 ### After This Rename
+
 - Continue with cascade mandatory tracking plan (if desired)
 - Or proceed with other feature work
 
 ### Blocked By This Rename
+
 - None - this is purely internal cleanup
 
 ---

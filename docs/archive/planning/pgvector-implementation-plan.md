@@ -21,6 +21,7 @@ Add native PostgreSQL pgvector support to FraiseQL, enabling vector similarity s
 **Decision**: Use `cosine_distance`, `l2_distance`, `inner_product` (PostgreSQL native terms)
 
 **Rationale**:
+
 - FraiseQL is a thin, transparent layer over PostgreSQL
 - Existing operators use PostgreSQL terminology (`ancestor_of`, `matches_lquery`, `strictly_left`)
 - Users expect PostgreSQL semantics, not ML abstractions
@@ -39,17 +40,20 @@ class VectorFilter:
 **Decision**: Return raw distances from PostgreSQL, no conversion to similarities
 
 **Rationale**:
+
 - FraiseQL never transforms PostgreSQL return values
 - PostgreSQL pgvector returns distances natively
 - Converting would add abstraction (anti-pattern for FraiseQL)
 - Users can convert in application code if needed
 
 **Distance semantics** (document in VectorFilter docstring):
+
 - `cosine_distance`: 0.0 = identical, 2.0 = opposite
 - `l2_distance`: 0.0 = identical, ∞ = very different
 - `inner_product`: More negative = more similar
 
 **OrderBy behavior**:
+
 ```graphql
 orderBy: { embedding: { cosine_distance: [...] } }  # ASC = most similar first
 ```
@@ -59,6 +63,7 @@ orderBy: { embedding: { cosine_distance: [...] } }  # ASC = most similar first
 **Decision**: No dimension validation in FraiseQL
 
 **Rationale**:
+
 - FraiseQL pattern: minimal validation, trust PostgreSQL
 - Vector dimensions are table-specific (`vector(384)`, `vector(1536)`, etc.)
 - FraiseQL has no knowledge of target column dimensions at filter time
@@ -66,6 +71,7 @@ orderBy: { embedding: { cosine_distance: [...] } }  # ASC = most similar first
 - Avoids maintaining dimension metadata
 
 **Validation approach** (basic type checking only):
+
 ```python
 @staticmethod
 def parse_value(value: list[float]) -> list[float]:
@@ -82,6 +88,7 @@ def parse_value(value: list[float]) -> list[float]:
 **Decision**: No index warnings at runtime
 
 **Rationale**:
+
 - FraiseQL doesn't warn about missing indexes (not its responsibility)
 - PostgreSQL handles query planning and index usage
 - Existing specialized types don't warn (IP GiST, ltree GiST, tsvector GIN)
@@ -95,11 +102,13 @@ def parse_value(value: list[float]) -> list[float]:
 **Decision**: Use field name patterns (same as IP, MAC, ltree, tsvector)
 
 **Rationale**:
+
 - Python type hints alone insufficient (`list[float]` ambiguous)
 - FraiseQL already uses field name patterns extensively
 - Common ML/AI naming conventions exist
 
 **Detection patterns**:
+
 ```python
 # In _detect_field_type_from_name()
 vector_patterns = [
@@ -114,11 +123,13 @@ vector_patterns = [
 ```
 
 **Priority order**:
+
 1. Explicit type hint (if `Vector` type class created)
 2. **Field name patterns** (check before generic value analysis)
 3. Value analysis (`list[float]` defaults to ARRAY if no pattern match)
 
 **Example**:
+
 ```python
 @type(sql_source="v_document")
 class Document:
@@ -138,6 +149,7 @@ class Document:
 ### TDD Cycle 1.1: Add VECTOR FieldType
 
 **RED**: Write failing test for vector field type detection
+
 - Test file: `tests/unit/sql/where/core/test_field_detection.py`
 - Add test cases for:
   - `test_detect_vector_from_field_name_embedding_suffix()` - `embedding`, `text_embedding`
@@ -146,9 +158,11 @@ class Document:
   - `test_vector_field_type_enum_exists()` - VECTOR enum exists
 
 **GREEN**: Implement minimal code
+
 - File: `src/fraiseql/sql/where/core/field_detection.py`
   - Add `VECTOR = "vector"` to `FieldType` enum (after line 32)
   - Add vector pattern detection in `_detect_field_type_from_name()` (before line 437):
+
     ```python
     # Vector embedding patterns - handle both snake_case and camelCase
     vector_patterns = [
@@ -168,14 +182,17 @@ class Document:
     if any(pattern in field_lower for pattern in vector_patterns):
         return FieldType.VECTOR
     ```
+
   - Note: Add BEFORE ARRAY detection to take precedence for `list[float]` with vector names
 
 **REFACTOR**: Clean up detection logic
+
 - Ensure vector detection doesn't conflict with existing ARRAY type
 - Position vector detection to have correct precedence
 - Add comprehensive field name patterns following existing conventions
 
 **QA**: Verify phase completion
+
 - [ ] All unit tests pass
 - [ ] Vector fields detected correctly by name pattern
 - [ ] Regular `list[float]` fields still detected as ARRAY
@@ -190,6 +207,7 @@ class Document:
 ### TDD Cycle 2.1: Vector Distance Operators
 
 **RED**: Write failing tests for vector SQL generation
+
 - Test file: `tests/unit/sql/where/operators/test_vectors.py` (new file)
 - Test cases:
   - `test_cosine_distance_sql()` - generates `column <=> '[0.1,0.2,...]'::vector`
@@ -199,9 +217,11 @@ class Document:
   - `test_vector_null_handling()` - NULL vectors handled correctly
 
 **GREEN**: Implement vector operators
+
 - File: `src/fraiseql/sql/where/operators/vectors.py` (new file)
   - Follow pattern from `network.py` for proper type casting
   - Implement three pgvector operators:
+
     ```python
     """Vector/embedding specific operators for PostgreSQL pgvector.
 
@@ -254,11 +274,13 @@ class Document:
     ```
 
 **REFACTOR**: Optimize SQL generation
+
 - Extract vector literal formatting to helper function
 - Ensure proper psycopg.sql composition
 - Add comprehensive docstrings explaining pgvector operators and distance semantics
 
 **QA**: Verify operator implementation
+
 - [ ] SQL generated matches PostgreSQL pgvector syntax exactly
 - [ ] Vector values properly formatted as PostgreSQL array literals
 - [ ] Type casting to `::vector` applied correctly
@@ -267,6 +289,7 @@ class Document:
 ### TDD Cycle 2.2: Register Vector Operators
 
 **RED**: Write test for operator registration
+
 - Test file: `tests/unit/sql/where/operators/test_operator_map.py`
 - Test cases:
   - `test_vector_operators_registered()` - all three operators in map
@@ -274,8 +297,10 @@ class Document:
   - `test_vector_operator_function_signatures()` - correct signatures
 
 **GREEN**: Register in OPERATOR_MAP
+
 - File: `src/fraiseql/sql/where/operators/__init__.py`
   - Import vectors module (add to imports around line 13-30):
+
     ```python
     from . import (
         arrays,
@@ -297,7 +322,9 @@ class Document:
         vectors,  # ADD THIS
     )
     ```
+
   - Add mappings to OPERATOR_MAP (after line 201):
+
     ```python
     # Vector operators for PostgreSQL pgvector distance operations
     (FieldType.VECTOR, "cosine_distance"): vectors.build_cosine_distance_sql,
@@ -306,10 +333,12 @@ class Document:
     ```
 
 **REFACTOR**: Clean up operator map
+
 - Group vector operators with other specialized PostgreSQL types (near network, ltree)
 - Add clear comments explaining pgvector operators
 
 **QA**: Verify operator registration
+
 - [ ] `get_operator_function()` returns correct builder for vector operators
 - [ ] No conflicts with existing operators
 - [ ] All imports resolve correctly
@@ -323,6 +352,7 @@ class Document:
 ### TDD Cycle 3.1: VectorFilter Type Definition
 
 **RED**: Write failing test for VectorFilter schema
+
 - Test file: `tests/integration/graphql/schema/test_vector_filter.py` (new file)
 - Test cases:
   - `test_vector_filter_in_schema()` - VectorFilter type exists in schema
@@ -331,8 +361,10 @@ class Document:
   - `test_vector_filter_docstring()` - proper GraphQL documentation
 
 **GREEN**: Implement VectorFilter
+
 - File: `src/fraiseql/sql/graphql_where_generator.py`
   - Add `VectorFilter` class (after line 334, following JSONBFilter pattern):
+
     ```python
     @fraise_input
     class VectorFilter:
@@ -360,11 +392,13 @@ class Document:
     ```
 
 **REFACTOR**: Clean up filter definition
+
 - Add comprehensive docstrings explaining pgvector operators and semantics
 - Ensure consistent naming and structure with other filters
 - Document distance return values (not similarities)
 
 **QA**: Verify filter type
+
 - [ ] VectorFilter generates correct GraphQL schema
 - [ ] Operators match pgvector capabilities exactly
 - [ ] Documentation clear about distance semantics
@@ -372,6 +406,7 @@ class Document:
 ### TDD Cycle 3.2: Vector Type Mapping
 
 **RED**: Write test for vector type detection in GraphQL
+
 - Test file: `tests/integration/graphql/schema/test_filter_type_mapping.py`
 - Test cases:
   - `test_embedding_field_maps_to_vector_filter()` - field named `embedding`
@@ -380,8 +415,10 @@ class Document:
   - `test_vector_pattern_precedence()` - vector detection happens before array
 
 **GREEN**: Update type mapping
+
 - File: `src/fraiseql/sql/graphql_where_generator.py`
   - Update `_get_filter_type_for_field()` (around line 370-377, BEFORE list detection):
+
     ```python
     # Check for vector/embedding fields by name pattern (BEFORE list detection)
     # This allows list[float] to map to VectorFilter for embeddings
@@ -411,11 +448,13 @@ class Document:
     ```
 
 **REFACTOR**: Improve type detection
+
 - Ensure vector detection has correct precedence (before generic list detection)
 - Balance between ARRAY and VECTOR type detection using field name heuristics
 - Add comments explaining disambiguation logic
 
 **QA**: Verify type mapping
+
 - [ ] Vector fields (by name pattern) get VectorFilter in schema
 - [ ] Regular list fields still get ArrayFilter
 - [ ] `list[float]` with vector name patterns → VectorFilter
@@ -431,6 +470,7 @@ class Document:
 ### TDD Cycle 4.1: Vector Value Validation
 
 **RED**: Write failing test for vector value handling
+
 - Test file: `tests/unit/types/test_vector_validation.py` (new file)
 - Test cases:
   - `test_vector_accepts_list_of_floats()` - valid vectors pass
@@ -440,13 +480,16 @@ class Document:
   - `test_vector_no_dimension_validation()` - any dimension accepted
 
 **GREEN**: Add basic validation to VectorFilter
+
 - File: `src/fraiseql/sql/graphql_where_generator.py`
   - Add validation in VectorFilter field annotations (if needed by Strawberry)
   - OR rely on Strawberry's `list[float]` type checking (preferred)
   - Optional: Create custom scalar if more control needed
 
 **Alternative approach** (if custom scalar needed):
+
 - File: `src/fraiseql/types/scalars/vector.py` (new file, optional)
+
   ```python
   """Vector scalar type for PostgreSQL pgvector.
 
@@ -479,11 +522,13 @@ class Document:
   ```
 
 **REFACTOR**: Optimize validation
+
 - Minimal validation in FraiseQL (trust PostgreSQL per philosophy)
 - Clear error messages for invalid input (wrong type)
 - Document that dimension validation happens in PostgreSQL
 
 **QA**: Verify value handling
+
 - [ ] Vector values properly serialized to PostgreSQL
 - [ ] Invalid vectors (non-numeric) rejected with clear errors
 - [ ] Dimension mismatches caught by PostgreSQL (not FraiseQL)
@@ -498,6 +543,7 @@ class Document:
 ### TDD Cycle 5.1: Locate ORDER BY Generation Logic
 
 **RED**: Write failing test for ORDER BY vector distance
+
 - Test file: `tests/unit/sql/test_order_by_vector.py` (new file)
 - Test cases:
   - `test_order_by_cosine_distance()` - generates `ORDER BY column <=> '[...]'::vector`
@@ -506,6 +552,7 @@ class Document:
   - `test_order_by_vector_asc_default()` - ASC is default (most similar first)
 
 **GREEN**: Investigate and implement ORDER BY support
+
 - Task: Use Explore agent to find ORDER BY generation code
   - Likely in query builder or schema generation
   - Look for `orderBy` parameter handling
@@ -514,11 +561,13 @@ class Document:
 - Generate SQL: `ORDER BY embedding <=> '[0.1,0.2,...]'::vector ASC`
 
 **REFACTOR**: Clean up ordering logic
+
 - Ensure consistent with other ORDER BY operators
 - Handle ASC/DESC properly (ASC = most similar first for distances)
 - Reuse vector operator SQL builders from Phase 2
 
 **QA**: Verify ordering
+
 - [ ] ORDER BY with vector distance generates correct SQL
 - [ ] Reuses operator builders (DRY principle)
 - [ ] ASC/DESC work correctly
@@ -533,6 +582,7 @@ class Document:
 ### TDD Cycle 6.1: Integration Tests
 
 **RED**: Write failing E2E tests
+
 - Test file: `tests/integration/test_vector_e2e.py` (new file)
 - Test complete flow with real PostgreSQL + pgvector:
   - `test_vector_filter_cosine_distance()` - filter by cosine distance
@@ -543,17 +593,20 @@ class Document:
   - `test_vector_hnsw_index_performance()` - verify index usage (optional)
 
 **GREEN**: Ensure all integration works
+
 - Set up test PostgreSQL database with pgvector extension
 - Create test tables with vector columns and HNSW indexes
 - Fix any issues discovered in E2E testing
 - Verify PostgreSQL view pattern works correctly
 
 **REFACTOR**: Optimize integration
+
 - Performance testing with actual pgvector indexes
 - Ensure Rust pipeline compatibility (if applicable)
 - Clean up test fixtures
 
 **QA**: Verify complete feature
+
 - [ ] E2E tests pass with real PostgreSQL + pgvector
 - [ ] Works with HNSW and IVFFlat indexes
 - [ ] Performance acceptable (index usage verified)
@@ -563,6 +616,7 @@ class Document:
 ### TDD Cycle 6.2: Documentation
 
 **RED**: Documentation checklist
+
 - [ ] Feature guide in `docs/features/pgvector.md`
 - [ ] Example in `docs/examples/semantic-search.md`
 - [ ] Migration guide section
@@ -570,6 +624,7 @@ class Document:
 - [ ] README section mentioning vector support
 
 **GREEN**: Write comprehensive documentation
+
 - File: `docs/features/pgvector.md` (new file)
   - PostgreSQL setup (CREATE EXTENSION vector)
   - Creating vector columns and indexes
@@ -587,12 +642,14 @@ class Document:
 - File: `README.md` - Add vector support to features list
 
 **REFACTOR**: Improve documentation
+
 - Add code examples that users can copy-paste
 - Link to pgvector official documentation
 - Include performance benchmarks (optional)
 - Add troubleshooting section
 
 **QA**: Verify documentation quality
+
 - [ ] Clear PostgreSQL setup instructions
 - [ ] Working code examples tested
 - [ ] Covers common use cases (semantic search, RAG)
@@ -662,16 +719,19 @@ class Document:
 ## Testing Strategy
 
 ### Unit Tests (3 files, ~240 lines)
+
 - Field type detection (VECTOR enum, pattern matching)
 - SQL operator generation (3 distance operators)
 - Value validation (type checking, no dimension checks)
 
 ### Integration Tests (2 files, ~230 lines)
+
 - GraphQL schema generation (VectorFilter type)
 - Type mapping (list[float] → VectorFilter for embeddings)
 - E2E query flow (filter + orderBy + compose with other filters)
 
 ### PostgreSQL Setup for Tests
+
 ```sql
 CREATE EXTENSION vector;
 

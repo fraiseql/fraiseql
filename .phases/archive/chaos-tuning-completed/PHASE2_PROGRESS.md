@@ -23,6 +23,7 @@ Phase 2 is **COMPLETE**. Implemented a comprehensive environment detection and a
 **File**: `tests/chaos/environment.py` (237 lines)
 
 **Features**:
+
 - `HardwareProfile` dataclass with CPU, memory, frequency
 - `EnvironmentInfo` dataclass with platform, CI/CD, container detection
 - `detect_hardware_profile()` - Uses psutil for system metrics
@@ -31,6 +32,7 @@ Phase 2 is **COMPLETE**. Implemented a comprehensive environment detection and a
 - `get_load_multiplier()` - Calculates 0.5x to 4.0x multiplier based on hardware
 
 **Example Output**:
+
 ```
 Environment Type: LOCAL
 Platform:         linux
@@ -47,6 +49,7 @@ Load Multiplier:  4.00x
 ```
 
 **Baseline Configuration**:
+
 - 4 CPUs, 8GB RAM = 1.0x multiplier
 - System with 24 CPUs, 31GB RAM = 4.0x multiplier (maxed out)
 - System with 2 CPUs, 4GB RAM = 0.5x multiplier (minimum)
@@ -56,6 +59,7 @@ Load Multiplier:  4.00x
 **File**: `tests/chaos/adaptive_config.py` (286 lines)
 
 **Features**:
+
 - `ChaosConfig` dataclass with all test parameters
 - Three environment-specific config builders:
   - `create_ci_config()` - Conservative settings, longer timeouts
@@ -65,6 +69,7 @@ Load Multiplier:  4.00x
 - `get_config_for_profile()` - Manual profile selection (low/medium/high)
 
 **Configuration Parameters**:
+
 - Concurrent operations (requests, queries, transactions)
 - Connection pool sizing
 - Timeouts (overall, operation, connection)
@@ -72,6 +77,7 @@ Load Multiplier:  4.00x
 - Cache settings (size, TTL)
 
 **Example Output**:
+
 ```
 ChaosConfig(env=local, concurrent=400, pool=10, multiplier=4.00x)
 
@@ -95,6 +101,7 @@ Configuration:
 ```
 
 **Profile Comparison**:
+
 ```
 LOW    profile:  50 concurrent, 10.0s timeout
 HIGH   profile: 400 concurrent, 1.2s timeout
@@ -118,6 +125,7 @@ HIGH   profile: 400 concurrent, 1.2s timeout
    - Returns `ChaosConfig` object
 
 **Usage Example**:
+
 ```python
 async def test_concurrent_load(chaos_config):
     # Use adaptive concurrent request count
@@ -138,11 +146,13 @@ async def test_with_timeout(chaos_config):
 **File**: `tests/chaos/test_adaptive_config.py` (new, 57 lines)
 
 **Test Suite**:
+
 - `test_environment_info_fixture` - Validates environment detection
 - `test_chaos_config_fixture` - Validates config structure
 - `test_config_scales_with_environment` - Validates adaptive behavior
 
 **Test Results**:
+
 ```
 tests/chaos/test_adaptive_config.py::test_environment_info_fixture PASSED
 tests/chaos/test_adaptive_config.py::test_chaos_config_fixture PASSED
@@ -158,17 +168,20 @@ tests/chaos/test_adaptive_config.py::test_config_scales_with_environment PASSED
 ### CI/CD Environments
 
 **Characteristics**:
+
 - Resource-constrained
 - Shared infrastructure
 - High variability
 
 **Strategy**:
+
 - Lower concurrent operations (50 requests vs 100 local)
 - Longer timeouts (10s vs 5s local)
 - More retry attempts (5 vs 3 local)
 - Smaller cache sizes
 
 **Example Config**:
+
 ```python
 concurrent_requests=int(50 * multiplier)
 timeout_seconds=10.0 / multiplier  # Slower = longer timeout
@@ -178,17 +191,20 @@ retry_attempts=5
 ### Local Development
 
 **Characteristics**:
+
 - High resources available
 - Consistent performance
 - Want to stress test
 
 **Strategy**:
+
 - High concurrent operations (100-400 based on hardware)
 - Strict timeouts (5s base, scales down with faster hardware)
 - Fewer retries (find bugs faster)
 - Large cache sizes
 
 **Example Config**:
+
 ```python
 concurrent_requests=int(100 * multiplier)  # 100-400
 timeout_seconds=5.0 / multiplier  # 1.2s on 4.0x system
@@ -199,17 +215,20 @@ connection_pool_size=10  # FIXED to induce contention
 ### Containerized Environments
 
 **Characteristics**:
+
 - Variable resources
 - Good networking
 - Isolated from host
 
 **Strategy**:
+
 - Moderate concurrent operations (75 requests)
 - Moderate timeouts (7s)
 - Moderate retries (4)
 - Moderate cache sizes
 
 **Example Config**:
+
 ```python
 concurrent_requests=int(75 * multiplier)
 timeout_seconds=7.0 / multiplier
@@ -225,6 +244,7 @@ retry_attempts=4
 **Decision**: Both `environment_info` and `chaos_config` are session-scoped
 
 **Rationale**:
+
 - Environment doesn't change during test run
 - Configuration is expensive to compute (psutil calls)
 - Shared config ensures consistency across all tests
@@ -235,12 +255,14 @@ retry_attempts=4
 **Decision**: Connection pool size is **intentionally small and fixed** (10 connections)
 
 **Rationale**:
+
 - Chaos tests NEED contention to find bugs
 - Large pool = no contention = tests don't find issues
 - Pool size does NOT scale with hardware
 - This is a feature, not a bug!
 
 **From Code**:
+
 ```python
 connection_pool_size=10,  # Fixed to ensure contention
 ```
@@ -250,6 +272,7 @@ connection_pool_size=10,  # Fixed to ensure contention
 **Decision**: Faster hardware → **stricter** timeouts
 
 **Rationale**:
+
 - High-end systems should complete operations faster
 - Strict timeouts catch performance regressions
 - Formula: `timeout_seconds = base / multiplier`
@@ -260,6 +283,7 @@ connection_pool_size=10,  # Fixed to ensure contention
 **Decision**: Multiplier clamped between 0.5x and 4.0x
 
 **Rationale**:
+
 - Prevents extreme values on unusual systems
 - 0.5x floor prevents impossibly low concurrent operations
 - 4.0x ceiling prevents overwhelming even high-end systems
@@ -274,6 +298,7 @@ connection_pool_size=10,  # Fixed to ensure contention
 **Command**: `python tests/chaos/environment.py`
 
 **Validates**:
+
 - ✅ CPU count detection
 - ✅ Memory detection (GB conversion)
 - ✅ CPU frequency detection (with fallback)
@@ -287,6 +312,7 @@ connection_pool_size=10,  # Fixed to ensure contention
 **Command**: `python -m chaos.adaptive_config` (from tests/ directory)
 
 **Validates**:
+
 - ✅ Configuration creation for all environment types
 - ✅ Multiplier application to concurrent operations
 - ✅ Timeout scaling (inverse to hardware)
@@ -298,6 +324,7 @@ connection_pool_size=10,  # Fixed to ensure contention
 **Command**: `pytest tests/chaos/test_adaptive_config.py -v -s`
 
 **Validates**:
+
 - ✅ Fixtures load correctly
 - ✅ Environment info accessible in tests
 - ✅ Chaos config accessible in tests
@@ -316,6 +343,7 @@ When tests run, users see:
 ```
 
 This provides immediate visibility into:
+
 - What environment was detected
 - What hardware profile was assigned
 - What configuration is being used
@@ -392,6 +420,7 @@ Apply adaptive configuration to actual chaos tests:
 ## Metrics
 
 ### Lines of Code
+
 - Environment detection: 237 lines
 - Adaptive configuration: 286 lines
 - Pytest fixtures: ~60 lines (additions)
@@ -399,12 +428,14 @@ Apply adaptive configuration to actual chaos tests:
 - **Total**: ~640 lines
 
 ### Test Coverage
+
 - ✅ 3/3 fixture tests pass (100%)
 - ✅ Environment detection verified manually
 - ✅ Adaptive config verified manually
 - ✅ All three environment types tested
 
 ### Time Investment
+
 - Environment detection module: 45 minutes
 - Adaptive configuration module: 60 minutes
 - Pytest fixture integration: 20 minutes

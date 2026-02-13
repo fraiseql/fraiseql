@@ -6,23 +6,23 @@
 python-version = "3.13"
 
 [rules]
-# Disable noisy rules for framework code with heavy metaprogramming
-unresolved-import = "ignore"           # Rust extension imports
-invalid-assignment = "ignore"          # Optional import fallbacks
-unresolved-attribute = "ignore"        # Dynamic attributes and GraphQL introspection
-unknown-argument = "ignore"            # RBAC dataclass-like dynamic init
-invalid-argument-type = "ignore"       # Framework type coercion patterns
-call-non-callable = "ignore"           # Dynamic callable patterns
-invalid-method-override = "ignore"     # Middleware dispatch overrides
-too-many-positional-arguments = "ignore"  # Decorator argument patterns
-invalid-await = "ignore"               # Union type awaitable patterns
-invalid-return-type = "ignore"         # Descriptor __get__ patterns
-invalid-type-form = "ignore"           # any → Any typo issues (to be fixed)
-possibly-missing-attribute = "ignore"  # GraphQL type introspection
-missing-argument = "ignore"            # Partial function patterns
-invalid-parameter-default = "ignore"   # Default value type patterns
-no-matching-overload = "ignore"        # Overload resolution issues
-deprecated = "ignore"                  # Deprecated usage warnings
-invalid-attribute-access = "ignore"    # Exception attribute access patterns
+call-non-callable = "ignore"  # Dynamic callable patterns
+deprecated = "ignore"  # Deprecated usage warnings
 implicit-concatenated-string-type-annotation = "ignore"  # Multi-line type annotations
-not-iterable = "ignore"                # GraphQL node iteration patterns
+invalid-argument-type = "ignore"  # Framework type coercion patterns
+invalid-assignment = "ignore"  # Optional import fallbacks
+invalid-attribute-access = "ignore"  # Exception attribute access patterns
+invalid-await = "ignore"  # Union type awaitable patterns
+invalid-method-override = "ignore"  # Middleware dispatch overrides
+invalid-parameter-default = "ignore"  # Default value type patterns
+invalid-return-type = "ignore"  # Descriptor __get__ patterns
+invalid-type-form = "ignore"  # any → Any typo issues (to be fixed)
+missing-argument = "ignore"  # Partial function patterns
+no-matching-overload = "ignore"  # Overload resolution issues
+not-iterable = "ignore"  # GraphQL node iteration patterns
+possibly-missing-attribute = "ignore"  # GraphQL type introspection
+too-many-positional-arguments = "ignore"  # Decorator argument patterns
+unknown-argument = "ignore"  # RBAC dataclass-like dynamic init
+unresolved-attribute = "ignore"  # Dynamic attributes and GraphQL introspection
+# Disable noisy rules for framework code with heavy metaprogramming
+unresolved-import = "ignore"  # Rust extension imports

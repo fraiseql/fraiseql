@@ -1,9 +1,11 @@
 # Mutation Response Rename - Phase Overview (v1.8.0)
 
 ## Goal
+
 Rename `mutation_result_v2` to `mutation_response` - direct clean rename with no backward compatibility.
 
 ## Why This Rename?
+
 - **Version suffix is awkward** - Implies there will be v3, v4, etc.
 - **Not descriptive** - Doesn't convey semantic meaning
 - **Professional naming** - Aligns with industry standards (Hasura pattern)
@@ -12,6 +14,7 @@ Rename `mutation_result_v2` to `mutation_response` - direct clean rename with no
 ## Strategy: Direct Rename (v1.8.0)
 
 **Simple approach:**
+
 - Replace `mutation_result_v2` → `mutation_response` everywhere
 - No aliases, no deprecation notices
 - Clean, professional naming from v1.8.0 forward
@@ -19,6 +22,7 @@ Rename `mutation_result_v2` to `mutation_response` - direct clean rename with no
 ## Phase Structure
 
 Each phase has its own detailed file with:
+
 - Specific tasks
 - Line-by-line changes
 - Verification commands
@@ -90,6 +94,7 @@ cat .phases/mutation_response_rename/phase0_pre_implementation.md
 ## Rollback Plan
 
 If issues occur:
+
 1. Return to `backup/before-mutation-response-rename` branch
 2. Or revert specific phase commits
 3. Detailed rollback instructions in main plan

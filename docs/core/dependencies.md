@@ -45,11 +45,13 @@ make && sudo make install
 ```
 
 **What it does**:
+
 - Provides `jsonb_merge_shallow()` function for partial JSONB updates
 - **10-100x faster** than full JSONB rebuilds
 - Essential for FraiseQL's explicit sync pattern
 
 **Usage in FraiseQL**:
+
 ```python
 from fraiseql.ivm import setup_auto_ivm
 
@@ -74,11 +76,13 @@ make && sudo make install
 ```
 
 **What it does**:
+
 - Automatic CASCADE invalidation rules from GraphQL schema
 - When User changes → related Post caches invalidate automatically
 - Zero manual cache invalidation code
 
 **Usage in FraiseQL**:
+
 ```python
 from fraiseql.caching import setup_auto_cascade_rules
 
@@ -106,12 +110,14 @@ pip install git+https://github.com/fraiseql/confiture.git
 ```
 
 **What it does**:
+
 - SQL-based migration management
 - Simple CLI interface
 - Safe rollback support
 - Version tracking
 
 **Usage in FraiseQL**:
+
 ```bash
 # Initialize migrations
 fraiseql migrate init
@@ -127,6 +133,7 @@ fraiseql migrate status
 ```
 
 **Features**:
+
 - Simple SQL files (no complex DSL)
 - Automatic version tracking
 - Safe rollback support
@@ -155,6 +162,7 @@ confiture = { path = "../confiture", editable = true }
 ```
 
 This allows you to:
+
 - Work on confiture and FraiseQL simultaneously
 - Test changes immediately
 - Contribute to both projects

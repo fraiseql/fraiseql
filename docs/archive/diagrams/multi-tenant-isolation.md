@@ -1,6 +1,7 @@
 # Multi-Tenant Data Isolation
 
 ## Overview
+
 FraiseQL implements comprehensive tenant isolation to ensure data security and performance in multi-tenant applications. This diagram shows how tenant context flows through the entire request lifecycle.
 
 ## ASCII Art Diagram
@@ -34,6 +35,7 @@ FraiseQL implements comprehensive tenant isolation to ensure data security and p
 ## Detailed Isolation Flow
 
 ### Authentication & Tenant Identification
+
 ```
 Client Request ──▶ Authentication Middleware
                       │
@@ -46,6 +48,7 @@ Client Request ──▶ Authentication Middleware
 ```
 
 ### Context Propagation
+
 ```
 Tenant ID ──▶ Request Context
                │
@@ -57,6 +60,7 @@ Tenant ID ──▶ Request Context
 ```
 
 ### Database-Level Isolation
+
 ```
 Query Execution ──▶ Row Level Security (RLS)
                      │
@@ -93,7 +97,9 @@ graph TD
 ## Isolation Mechanisms
 
 ### Network-Level Isolation
+
 **API Gateway Configuration:**
+
 ```nginx
 # Route by subdomain
 server {
@@ -114,7 +120,9 @@ location /api/ {
 ```
 
 ### Application-Level Isolation
+
 **Context Management:**
+
 ```python
 from contextvars import ContextVar
 
@@ -142,7 +150,9 @@ class TenantMiddleware:
 ```
 
 ### Database-Level Isolation
+
 **Row Level Security (RLS):**
+
 ```sql
 -- Enable RLS on all tenant tables
 ALTER TABLE tb_user ENABLE ROW LEVEL SECURITY;
@@ -161,6 +171,7 @@ SET app.tenant_id = '550e8400-e29b-41d4-a716-446655440000';
 ```
 
 **Tenant-Scoped Views:**
+
 ```sql
 -- Views automatically inherit RLS
 CREATE VIEW v_user AS
@@ -189,6 +200,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ## Security Layers
 
 ### Defense in Depth
+
 ```
 ┌─────────────────────────────────────┐
 │ 1. Network Isolation (API Gateway)  │
@@ -206,16 +218,19 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ### Threat Mitigation
 
 **Data Leakage Prevention:**
+
 - RLS prevents cross-tenant queries
 - Context validation on all operations
 - Audit logging of tenant access
 
 **Performance Isolation:**
+
 - Per-tenant connection pooling
 - Resource quota enforcement
 - Query execution limits
 
 **Operational Security:**
+
 - Tenant-specific encryption keys
 - Isolated backup/restore
 - Separate monitoring per tenant
@@ -223,6 +238,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ## Implementation Patterns
 
 ### Tenant Context in GraphQL
+
 ```python
 import fraiseql
 
@@ -245,6 +261,7 @@ async def create_user(self, info, input: CreateUserInput) -> User:
 ```
 
 ### Database Schema Design
+
 ```sql
 -- All tables include tenant_id
 CREATE TABLE tb_tenant (
@@ -272,18 +289,21 @@ CREATE POLICY tenant_isolation ON tb_user
 ## Monitoring & Observability
 
 ### Tenant-Specific Metrics
+
 - Query performance per tenant
 - Resource usage tracking
 - Error rates by tenant
 - Data volume metrics
 
 ### Security Monitoring
+
 - Failed authentication attempts
 - RLS policy violations
 - Unusual query patterns
 - Data access anomalies
 
 ### Audit Logging
+
 ```sql
 CREATE TABLE tb_audit (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -320,16 +340,19 @@ CREATE TRIGGER audit_tb_user
 ## Performance Considerations
 
 ### Connection Management
+
 - Connection pooling per tenant
 - Prepared statements caching
 - Query result caching (tenant-scoped)
 
 ### Resource Allocation
+
 - CPU/memory limits per tenant
 - Database connection quotas
 - Rate limiting by tenant
 
 ### Scaling Strategies
+
 - Horizontal scaling by tenant
 - Read replicas with tenant affinity
 - CDN with tenant-specific caching
@@ -337,6 +360,7 @@ CREATE TRIGGER audit_tb_user
 ## Migration Strategies
 
 ### From Single-Tenant
+
 1. Add `tenant_id` columns to existing tables
 2. Create RLS policies
 3. Update application code for context passing
@@ -344,6 +368,7 @@ CREATE TRIGGER audit_tb_user
 5. Enable tenant isolation
 
 ### From Shared Schema
+
 1. Implement tenant context middleware
 2. Add tenant_id to all queries
 3. Create tenant-scoped views
@@ -351,6 +376,7 @@ CREATE TRIGGER audit_tb_user
 5. Enable RLS policies
 
 ### From Separate Databases
+
 1. Implement tenant routing logic
 2. Create unified API layer
 3. Standardize schema across tenants

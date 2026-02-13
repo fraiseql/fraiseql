@@ -44,6 +44,7 @@ Running FraiseQL in production? We'd love to feature your deployment!
 ### What We're Looking For
 
 ✅ **Great Case Studies Include**:
+
 - Specific metrics (not just "fast" but "P95 latency of 65ms")
 - Cost comparisons ($X/month before → $Y/month after)
 - Real challenges faced and solutions found
@@ -51,11 +52,13 @@ Running FraiseQL in production? We'd love to feature your deployment!
 - Timeline showing metrics evolution
 
 ✅ **Any Scale Welcome**:
+
 - MVP/Startup: 100K req/day
 - Growth: 1M-10M req/day
 - Scale: 10M+ req/day
 
 ✅ **Any Use Case**:
+
 - SaaS platforms
 - E-commerce
 - FinTech
@@ -68,6 +71,7 @@ Running FraiseQL in production? We'd love to feature your deployment!
 Download: [`template.md`](./template/)
 
 The template includes sections for:
+
 - Company & infrastructure information
 - Architecture diagram
 - Performance metrics (traffic, latency, cache hit rate)
@@ -90,12 +94,14 @@ The template includes sections for:
 ### Data Requirements
 
 **Minimum Metrics**:
+
 - Request volume (req/day or req/sec)
 - Latency (at least P95)
 - Cache hit rate (if using caching)
 - Monthly cost (before & after if migrating)
 
 **Recommended Metrics**:
+
 - P50, P95, P99, P99.9 latency
 - Database query performance
 - Error rates
@@ -123,6 +129,7 @@ All options are valuable! Even anonymous case studies help potential adopters.
 ## Example Metrics That Help Others
 
 ### Performance Metrics
+
 ```
 ✅ Good: "P95 latency is 65ms with 12.5M req/day"
 ❌ Vague: "Fast performance at scale"
@@ -132,6 +139,7 @@ All options are valuable! Even anonymous case studies help potential adopters.
 ```
 
 ### Cost Analysis
+
 ```
 ✅ Good: "Reduced from $2,760/mo to $1,475/mo (46.5% savings)"
 ❌ Vague: "Saved money compared to old stack"
@@ -141,6 +149,7 @@ All options are valuable! Even anonymous case studies help potential adopters.
 ```
 
 ### Technical Details
+
 ```
 ✅ Good: "Using db.r6g.xlarge with 200 connection pool per pod"
 ❌ Vague: "PostgreSQL on AWS"
@@ -152,6 +161,7 @@ All options are valuable! Even anonymous case studies help potential adopters.
 ## Verification
 
 To maintain credibility, we may:
+
 - Ask for verification of key metrics (screenshots, logs)
 - Request reference contact for potential customers
 - Follow up after 6 months for updated metrics
@@ -161,6 +171,7 @@ All verification is confidential and used only to ensure accuracy.
 ## Updates & Corrections
 
 Found an error or have updated metrics? Email us or open a PR with:
+
 - Case study file path
 - Section to update
 - New/corrected information

@@ -197,6 +197,7 @@ mod tests {
 ```
 
 **Dependencies to add to Cargo.toml**:
+
 ```toml
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -205,6 +206,7 @@ thiserror = "1.0"
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs
 cargo test mutation::types --lib
@@ -213,6 +215,7 @@ cargo test mutation::types --lib
 **Expected output**: All tests pass
 
 **Acceptance Criteria**:
+
 - [ ] File compiles without warnings
 - [ ] All types serialize/deserialize correctly
 - [ ] Status parsing handles all known formats
@@ -420,12 +423,14 @@ mod tests {
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs
 cargo test mutation::parser --lib
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Format detection works for both formats
 - [ ] Parsing handles all field types correctly
 - [ ] CASCADE extracted from both `cascade` and `_cascade`
@@ -464,12 +469,14 @@ pub use parser::parse_mutation_response;
 **Update**: `fraiseql_rs/src/lib.rs`
 
 Add to the file:
+
 ```rust
 // Add to existing lib.rs
 pub mod mutation;
 ```
 
 **Verification**:
+
 ```bash
 cd fraiseql_rs
 cargo build
@@ -477,6 +484,7 @@ cargo test
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Module compiles without warnings
 - [ ] All tests pass
 - [ ] Public API accessible from lib root
@@ -497,6 +505,7 @@ Before moving to Phase 2:
 - [ ] Existing Python tests still pass (no changes made)
 
 **Verification command**:
+
 ```bash
 # In fraiseql_rs/
 cargo test

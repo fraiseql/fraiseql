@@ -38,6 +38,7 @@ GRAFANA_PASSWORD=secret \
 ```
 
 The script will:
+
 - ✅ Create a "FraiseQL" folder in Grafana
 - ✅ Import all 5 dashboards
 - ✅ Configure dashboard settings
@@ -60,6 +61,7 @@ If you prefer to import dashboards manually:
 **File**: `error_monitoring.json`
 
 **Panels**:
+
 - Error rate over time (timeseries)
 - Error distribution by type (pie chart)
 - Top 10 error fingerprints (table)
@@ -69,6 +71,7 @@ If you prefer to import dashboards manually:
 - Users affected by errors (timeseries)
 
 **Key Queries**:
+
 ```sql
 -- Error rate over time
 SELECT
@@ -97,6 +100,7 @@ LIMIT 10;
 ```
 
 **Use Cases**:
+
 - Monitor production error rates
 - Identify frequently occurring errors
 - Track error resolution progress
@@ -109,6 +113,7 @@ LIMIT 10;
 **File**: `performance_metrics.json`
 
 **Panels**:
+
 - Request rate (req/sec) (timeseries)
 - Response time percentiles (P50, P95, P99) (timeseries)
 - Slowest operations table
@@ -119,6 +124,7 @@ LIMIT 10;
 - Average response time (stat)
 
 **Key Queries**:
+
 ```sql
 -- Request rate
 SELECT
@@ -152,6 +158,7 @@ LIMIT 20;
 ```
 
 **Use Cases**:
+
 - Monitor application performance
 - Identify slow operations
 - Track SLA compliance (P95/P99 targets)
@@ -164,6 +171,7 @@ LIMIT 20;
 **File**: `cache_hit_rate.json`
 
 **Panels**:
+
 - Overall cache hit rate (stat)
 - Cache operations over time (hits/misses) (timeseries)
 - Cache hit rate over time (timeseries)
@@ -173,6 +181,7 @@ LIMIT 20;
 - Query cache vs APQ cache comparison (bar gauge)
 
 **Key Queries**:
+
 ```sql
 -- Overall hit rate
 SELECT
@@ -202,6 +211,7 @@ FROM cache_stats;
 ```
 
 **Use Cases**:
+
 - Monitor cache effectiveness
 - Optimize cache strategies
 - Calculate time/cost savings
@@ -214,6 +224,7 @@ FROM cache_stats;
 **File**: `database_pool.json`
 
 **Panels**:
+
 - Active connections (stat)
 - Idle connections (stat)
 - Total connections (stat)
@@ -225,6 +236,7 @@ FROM cache_stats;
 - Pool utilization rate (gauge)
 
 **Key Queries**:
+
 ```sql
 -- Connection pool metrics
 SELECT
@@ -260,6 +272,7 @@ FROM (
 ```
 
 **Use Cases**:
+
 - Monitor connection pool health
 - Detect connection pool exhaustion
 - Optimize pool size configuration
@@ -272,6 +285,7 @@ FROM (
 **File**: `apq_effectiveness.json`
 
 **Panels**:
+
 - APQ hit rate (stat)
 - Total APQ requests (stat)
 - Bandwidth saved (stat)
@@ -284,6 +298,7 @@ FROM (
 - Bandwidth savings over time (timeseries)
 
 **Key Queries**:
+
 ```sql
 -- APQ hit rate
 WITH apq_stats AS (
@@ -329,6 +344,7 @@ LIMIT 20;
 ```
 
 **Use Cases**:
+
 - Monitor APQ adoption and effectiveness
 - Calculate bandwidth savings
 - Identify most-used persisted queries
@@ -418,6 +434,7 @@ GRANT SELECT ON tb_persisted_query TO grafana_readonly;
 ### Test Connection
 
 After configuration, click **Save & Test** to verify:
+
 - ✅ Database connection successful
 - ✅ Can execute queries
 - ✅ PostgreSQL version detected
@@ -441,6 +458,7 @@ After configuration, click **Save & Test** to verify:
    - Verify application is generating data
 
 **Debug query**:
+
 ```sql
 -- Check if data exists
 SELECT
@@ -478,6 +496,7 @@ POSTGRES_PASSWORD=password \
 If dashboard queries are slow (>2 seconds):
 
 1. **Check indexes** (should be created by FraiseQL schema):
+
    ```sql
    -- Verify indexes exist
    SELECT indexname, tablename
@@ -486,6 +505,7 @@ If dashboard queries are slow (>2 seconds):
    ```
 
 2. **Enable query optimization**:
+
    ```sql
    -- Analyze tables for better query plans
    ANALYZE monitoring.errors;
@@ -507,6 +527,7 @@ If dashboard queries are slow (>2 seconds):
 5. Save dashboard
 
 Example custom panel:
+
 ```sql
 -- Custom: Errors by user role
 SELECT
@@ -524,15 +545,18 @@ ORDER BY error_count DESC;
 Set up Grafana alerts for critical metrics:
 
 1. **High Error Rate**:
+
    ```sql
    SELECT COUNT(*) as error_count
    FROM monitoring.errors
    WHERE occurred_at > NOW() - INTERVAL '5 minutes'
      AND resolved_at IS NULL;
    ```
+
    Alert if: `error_count > 100`
 
 2. **Low Cache Hit Rate**:
+
    ```sql
    SELECT
      100.0 * hits / NULLIF(hits + misses, 0) as hit_rate
@@ -544,9 +568,11 @@ Set up Grafana alerts for critical metrics:
      WHERE timestamp > NOW() - INTERVAL '5 minutes'
    ) stats;
    ```
+
    Alert if: `hit_rate < 50`
 
 3. **Pool Exhaustion**:
+
    ```sql
    SELECT
      100.0 * active / NULLIF(total, 0) as utilization
@@ -560,6 +586,7 @@ Set up Grafana alerts for critical metrics:
         ORDER BY timestamp DESC LIMIT 1) as total
    ) pool;
    ```
+
    Alert if: `utilization > 90`
 
 ## Best Practices
@@ -575,11 +602,13 @@ Set up Grafana alerts for critical metrics:
 ## Cost Comparison
 
 **PostgreSQL-native observability** (FraiseQL + Grafana):
+
 - **Cost**: $0 (self-hosted) or ~$50-100/month (managed Grafana)
 - **Data retention**: Unlimited (configurable)
 - **Query flexibility**: Full SQL
 
 **External APM** (Datadog, New Relic, etc.):
+
 - **Cost**: $500-5,000/month
 - **Data retention**: Limited by plan (typically 15-90 days)
 - **Query flexibility**: Limited query language

@@ -35,6 +35,7 @@ This guide helps teams migrate from **Graphene** to **FraiseQL**. Graphene is a 
 ### Why Faster Than Strawberry?
 
 Graphene's verbose syntax actually makes migration easier:
+
 - Clear type definitions → Easy to convert
 - Explicit resolvers → Map directly to FraiseQL patterns
 - Fewer magic features → Less to unlearn
@@ -48,6 +49,7 @@ Graphene's verbose syntax actually makes migration easier:
 Graphene is often used with Django. Here's how to migrate:
 
 **Before (Django ORM + Graphene):**
+
 ```python
 # models.py
 from django.db import models
@@ -65,6 +67,7 @@ class Post(models.Model):
 ```
 
 **After (PostgreSQL + FraiseQL):**
+
 ```sql
 -- Base tables (source of truth)
 CREATE TABLE tb_user (
@@ -106,6 +109,7 @@ JOIN tb_user u ON p.author_id = u.id;
 ```
 
 **Migration Path:**
+
 1. Keep Django models for existing app
 2. Create PostgreSQL views pointing to Django tables
 3. Gradually migrate logic to PostgreSQL functions
@@ -120,6 +124,7 @@ JOIN tb_user u ON p.author_id = u.id;
 ### 2.1 Convert Graphene ObjectTypes
 
 **Before (Graphene):**
+
 ```python
 import graphene
 from graphene_django import DjangoObjectType
@@ -141,6 +146,7 @@ class PostType(DjangoObjectType):
 ```
 
 **After (FraiseQL):**
+
 ```python
 import fraiseql
 from fraiseql.types import ID
@@ -167,7 +173,7 @@ class Post:
         return await db.find_one("v_user", where={"id": self.author_id})
 ```
 
-### Key Changes:
+### Key Changes
 
 1. **`DjangoObjectType`** → **`@fraiseql.type(sql_source="v_user")`**
    - No Meta class needed
@@ -187,6 +193,7 @@ class Post:
 ### 3.1 Simple Queries
 
 **Before (Graphene):**
+
 ```python
 class Query(graphene.ObjectType):
     user = graphene.Field(UserType, id=graphene.ID(required=True))
@@ -200,6 +207,7 @@ class Query(graphene.ObjectType):
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.query
 class Query:
@@ -219,6 +227,7 @@ class Query:
 ### 3.2 Queries with Filtering
 
 **Before (Graphene with django-filter):**
+
 ```python
 from graphene_django.filter import DjangoFilterConnectionField
 
@@ -240,6 +249,7 @@ query {
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.query
 class Query:
@@ -268,6 +278,7 @@ query {
 ```
 
 **FraiseQL Filter Operators:**
+
 - `eq`, `neq` (equals, not equals)
 - `lt`, `lte`, `gt`, `gte` (comparisons)
 - `contains`, `icontains` (substring matching - case-sensitive and case-insensitive)
@@ -285,6 +296,7 @@ See [Filter Operators Reference](../advanced/filter-operators.md) for complete l
 ### 4.1 Simple Mutations
 
 **Before (Graphene):**
+
 ```python
 class CreateUser(graphene.Mutation):
     class Arguments:
@@ -303,6 +315,7 @@ class Mutation(graphene.ObjectType):
 ```
 
 **After (FraiseQL):**
+
 ```python
 @fraiseql.mutation(function="fn_create_user")
 class CreateUser:
@@ -327,6 +340,7 @@ $$ LANGUAGE plpgsql;
 ### 4.2 Complex Mutations with CASCADE
 
 **Before (Graphene + Manual Cache Invalidation):**
+
 ```python
 class CreatePost(graphene.Mutation):
     class Arguments:
@@ -350,6 +364,7 @@ class CreatePost(graphene.Mutation):
 ```
 
 **After (FraiseQL with CASCADE):**
+
 ```python
 @fraiseql.mutation(
     function="fn_create_post",
@@ -380,6 +395,7 @@ $$ LANGUAGE plpgsql;
 ```
 
 **CASCADE Benefits:**
+
 - Automatically returns updated User with new post
 - Client cache automatically invalidated
 - No manual refetch needed
@@ -393,6 +409,7 @@ $$ LANGUAGE plpgsql;
 ### N+1 Query Problem
 
 **Before (Graphene with DataLoader):**
+
 ```python
 from promise import Promise
 from promise.dataloader import DataLoader
@@ -428,6 +445,7 @@ urlpatterns = [
 ```
 
 **After (FraiseQL with Auto DataLoader):**
+
 ```python
 @fraiseql.type(sql_source="v_post")
 class Post:
@@ -454,6 +472,7 @@ class Post:
 ### Application Configuration
 
 **Before (Graphene + Django):**
+
 ```python
 # schema.py
 import graphene
@@ -477,6 +496,7 @@ urlpatterns = [
 ```
 
 **After (FraiseQL):**
+
 ```python
 from fraiseql import create_fraiseql_app
 
@@ -489,6 +509,7 @@ app = create_fraiseql_app(
 ```
 
 **With Django (Hybrid Approach):**
+
 ```python
 # Keep Django for admin, auth, etc.
 # Add FraiseQL for GraphQL API
@@ -520,6 +541,7 @@ urlpatterns = [
 ### Example Test Migration
 
 **Before (Graphene + pytest):**
+
 ```python
 from graphene.test import Client
 
@@ -540,6 +562,7 @@ def test_create_user():
 ```
 
 **After (FraiseQL):**
+
 ```python
 import pytest
 from fraiseql.testing import GraphQLClient
@@ -568,6 +591,7 @@ async def test_create_user(graphql_client: GraphQLClient):
 **Symptom:** `RuntimeWarning: coroutine was never awaited`
 
 **Fix:** All FraiseQL resolvers are async:
+
 ```python
 # ❌ Wrong
 def resolve_user(self, info, id):
@@ -583,6 +607,7 @@ async def user(self, info, id: ID) -> User | None:
 **Symptom:** Trying to use `.objects.filter()` syntax
 
 **Fix:** Use FraiseQL database API:
+
 ```python
 # ❌ Wrong (Django)
 users = User.objects.filter(is_active=True)
@@ -596,6 +621,7 @@ users = await db.find("v_user", where={"is_active": True})
 **Symptom:** `MutationError: Function fn_create_user does not exist`
 
 **Fix:** Create PostgreSQL function before mutation:
+
 ```sql
 CREATE OR REPLACE FUNCTION fn_create_user(...) RETURNS UUID AS $$ ... $$ LANGUAGE plpgsql;
 ```
@@ -605,6 +631,7 @@ CREATE OR REPLACE FUNCTION fn_create_user(...) RETURNS UUID AS $$ ... $$ LANGUAG
 **Symptom:** Mutations require too much nesting
 
 **Fix:** FraiseQL uses flat input structure:
+
 ```graphql
 # ❌ Graphene (verbose)
 mutation {
@@ -643,6 +670,7 @@ mutation {
 - **Database**: Optimized PostgreSQL views
 
 **Real-World Example:**
+
 ```bash
 # Before (Graphene + Django)
 ab -n 1000 -c 10 http://localhost:8000/graphql
@@ -699,6 +727,7 @@ urlpatterns = [
 ```
 
 **Benefits:**
+
 - Keep Django admin interface
 - Keep Django authentication
 - Get FraiseQL performance for API

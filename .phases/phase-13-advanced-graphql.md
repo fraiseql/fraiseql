@@ -11,17 +11,20 @@
 ## Context
 
 **Why This Phase Matters:**
+
 - Complete GraphQL spec compliance for enterprise adoption
 - Performance optimization for high-throughput scenarios
 - Advanced features for complex query patterns
 - Foundation for future GraphQL enhancements
 
 **Dependencies:**
+
 - Phase 9 (Unified Pipeline) ✅ Required
 - Phase 11 (RBAC) ✅ Required
 - Phase 12 (Security) ✅ Required
 
 **Performance Target:**
+
 - Query complexity analysis: <0.05ms
 - Fragment resolution: <0.1ms
 - Variable processing: <0.02ms
@@ -32,6 +35,7 @@
 ## Files to Modify/Create
 
 ### Rust Files (fraiseql_rs/src/graphql/)
+
 - **fragments.rs** (NEW): Fragment cycle detection and resolution
 - **variables.rs** (NEW): Advanced variable processing and validation
 - **complexity.rs** (NEW): Query complexity analysis and cost calculation
@@ -39,6 +43,7 @@
 - **schema.rs** (UPDATE): Schema introspection capabilities
 
 ### Integration Files
+
 - **fraiseql_rs/src/pipeline/unified.rs**: Integrate advanced GraphQL features
 - **fraiseql_rs/src/graphql/mod.rs**: Export new modules
 - **Cargo.toml**: Add any necessary dependencies
@@ -765,6 +770,7 @@ impl GraphQLPipeline {
 ## Verification Commands
 
 ### Build and Test
+
 ```bash
 # Build with advanced features
 cargo build --release --features advanced-graphql
@@ -780,6 +786,7 @@ cargo bench --features advanced-graphql complexity_analysis
 ```
 
 ### Expected Performance
+
 ```
 Fragment Cycle Detection: <0.01ms
 Variable Processing: <0.02ms
@@ -794,6 +801,7 @@ Total Advanced Features Overhead: <0.5ms
 ## Acceptance Criteria
 
 **Functionality:**
+
 - ✅ Fragment cycle detection with clear error messages
 - ✅ Advanced variable processing and type validation
 - ✅ Query complexity analysis with configurable limits
@@ -801,12 +809,14 @@ Total Advanced Features Overhead: <0.5ms
 - ✅ Integration with existing pipeline
 
 **Performance:**
+
 - ✅ Advanced features overhead <0.5ms total
 - ✅ No impact on simple queries
 - ✅ Efficient algorithms (O(n) complexity)
 - ✅ Memory-safe implementations
 
 **Compatibility:**
+
 - ✅ Backwards compatible with existing queries
 - ✅ Optional advanced features (can be disabled)
 - ✅ Graceful degradation on errors
@@ -816,16 +826,19 @@ Total Advanced Features Overhead: <0.5ms
 ## Migration Strategy
 
 **Week 1: Core Features**
+
 - Fragment cycle detection
 - Basic variable validation
 - Complexity analysis foundation
 
 **Week 2: Advanced Processing**
+
 - Full directive parsing
 - Enhanced variable processing
 - Integration testing
 
 **Week 3: Production**
+
 - Performance optimization
 - Monitoring integration
 - Documentation updates
@@ -835,6 +848,7 @@ Total Advanced Features Overhead: <0.5ms
 ## Summary
 
 **Phase 13 completes the GraphQL spec compliance** and advanced features:
+
 - ✅ Fragment cycle detection (prevents infinite loops)
 - ✅ Advanced variable processing (type validation)
 - ✅ Query complexity analysis (DoS protection)
@@ -842,6 +856,7 @@ Total Advanced Features Overhead: <0.5ms
 - ✅ Performance optimization (sub-millisecond overhead)
 
 **Combined with Phases 1-12:**
+
 - Complete GraphQL spec compliance
 - Enterprise-grade security (RBAC + advanced features)
 - 10-100x performance improvement

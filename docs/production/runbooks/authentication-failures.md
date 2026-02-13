@@ -15,6 +15,7 @@ This runbook guides you through diagnosing and resolving authentication failures
 ## 🚨 Symptoms
 
 ### Primary Indicators
+
 - Spike in 401 Unauthorized errors
 - Increase in 403 Forbidden errors
 - Valid users unable to access API
@@ -103,6 +104,7 @@ topk(10,
 ### Step 1: Classify Authentication Failures
 
 **Via Prometheus - Failure Reasons**:
+
 ```promql
 # Group failures by reason
 sum by (failure_reason) (
@@ -111,6 +113,7 @@ sum by (failure_reason) (
 ```
 
 **Via Structured Logs**:
+
 ```bash
 # Count failures by reason
 jq -r 'select(.event == "security.auth_failure") |
@@ -126,6 +129,7 @@ jq -r 'select(.event == "security.auth_failure") |
 ```
 
 **Common Failure Reasons**:
+
 - `invalid_token`: Malformed or tampered token
 - `token_expired`: Valid token but expired
 - `invalid_signature`: Token signature mismatch
@@ -137,6 +141,7 @@ jq -r 'select(.event == "security.auth_failure") |
 ### Step 2: Identify Affected Users
 
 **Via Prometheus**:
+
 ```promql
 # Top users with auth failures
 topk(10,
@@ -150,6 +155,7 @@ topk(10,
 ```
 
 **Via Structured Logs**:
+
 ```bash
 # Failures by user
 jq -r 'select(.event == "security.auth_failure") |
@@ -172,11 +178,13 @@ jq -r 'select(.event == "security.auth_failure") |
 #### A. Token Expiration Issues
 
 **Symptoms**:
+
 - Many `token_expired` failures
 - Concentrated around specific time period
 - Affects multiple users simultaneously
 
 **Check**:
+
 ```bash
 # Count expired tokens
 jq -r 'select(.event == "security.token_expired")' \
@@ -187,6 +195,7 @@ echo $FRAISEQL_TOKEN_LIFETIME_SECONDS
 ```
 
 **Likely Causes**:
+
 - Token lifetime too short
 - Frontend not refreshing tokens
 - Clock skew between services
@@ -194,11 +203,13 @@ echo $FRAISEQL_TOKEN_LIFETIME_SECONDS
 #### B. Token Signature Failures
 
 **Symptoms**:
+
 - Many `invalid_signature` failures
 - Started after deployment or config change
 - All tokens failing validation
 
 **Check**:
+
 ```bash
 # Check JWT signing key
 echo $FRAISEQL_JWT_SECRET | wc -c  # Should be 32+ characters
@@ -211,6 +222,7 @@ git log --since="24 hours ago" --grep="JWT_SECRET" --oneline
 ```
 
 **Likely Causes**:
+
 - JWT secret key mismatch between services
 - Key rotation without grace period
 - Configuration drift across instances
@@ -218,11 +230,13 @@ git log --since="24 hours ago" --grep="JWT_SECRET" --oneline
 #### C. Brute Force Attack
 
 **Symptoms**:
+
 - Same IP trying multiple passwords
 - Failed attempts for many different usernames
 - Rapid succession of failures
 
 **Check**:
+
 ```bash
 # Detect brute force patterns
 jq -r 'select(.event == "security.auth_failure") |
@@ -235,6 +249,7 @@ jq -r 'select(.event == "security.auth_failure") |
 ```
 
 **Likely Causes**:
+
 - Credential stuffing attack
 - Password spraying attack
 - Compromised credential database
@@ -242,11 +257,13 @@ jq -r 'select(.event == "security.auth_failure") |
 #### D. Service Degradation
 
 **Symptoms**:
+
 - All authentication failing suddenly
 - Service health check failing
 - External auth service unreachable
 
 **Check**:
+
 ```bash
 # Check auth service health
 curl -s http://localhost:8000/health | jq .
@@ -259,6 +276,7 @@ psql -c "SELECT 1" postgresql://localhost/fraiseql
 ```
 
 **Likely Causes**:
+
 - Database connectivity issues
 - External OAuth provider down
 - Redis/cache service unavailable
@@ -279,6 +297,7 @@ REFRESH_TOKEN_LIFETIME_SECONDS = 86400  # 24 hours
 ```
 
 **Environment Variable**:
+
 ```bash
 export FRAISEQL_TOKEN_LIFETIME_SECONDS=3600
 export FRAISEQL_REFRESH_TOKEN_LIFETIME_SECONDS=86400
@@ -365,6 +384,7 @@ payload = jwt_manager.decode(token)
 ```
 
 **Rotation Process**:
+
 ```bash
 # Step 1: Add new key as fallback (no restart needed)
 export FRAISEQL_JWT_SECRET_NEW="new-key-here"
@@ -414,6 +434,7 @@ await BlockList.add_ip(
 ```
 
 **Via Firewall**:
+
 ```bash
 # Block at firewall level (more efficient)
 sudo iptables -A INPUT -s 203.0.113.88 -j DROP
@@ -460,6 +481,7 @@ app.add_plugin(captcha)
 #### 1. Check External Dependencies
 
 **OAuth Provider Health**:
+
 ```bash
 # Check OAuth provider status
 curl -s https://status.oauth-provider.com
@@ -469,6 +491,7 @@ curl -s https://oauth.provider.com/.well-known/openid-configuration
 ```
 
 **Database Health**:
+
 ```bash
 # Check database connectivity
 psql -c "SELECT 1" $DATABASE_URL
@@ -478,6 +501,7 @@ curl -s http://localhost:8000/health/detailed | jq .database
 ```
 
 **Cache/Redis Health**:
+
 ```bash
 # Check Redis connectivity
 redis-cli ping
@@ -592,11 +616,13 @@ groups:
 ### Grafana Dashboard Panels
 
 **1. Authentication Failure Rate**:
+
 ```promql
 rate(fraiseql_auth_failures_total[5m])
 ```
 
 **2. Failures by Reason**:
+
 ```promql
 sum by (failure_reason) (
   rate(fraiseql_auth_failures_total[5m])
@@ -604,6 +630,7 @@ sum by (failure_reason) (
 ```
 
 **3. Top Failing Users**:
+
 ```promql
 topk(10,
   sum by (user_id) (fraiseql_auth_failures_total)
@@ -611,6 +638,7 @@ topk(10,
 ```
 
 **4. Top Failing IPs**:
+
 ```promql
 topk(10,
   sum by (ip_address) (fraiseql_auth_failures_total)
@@ -618,6 +646,7 @@ topk(10,
 ```
 
 **5. Auth Success Rate**:
+
 ```promql
 (rate(fraiseql_auth_success_total[5m])
 / (rate(fraiseql_auth_success_total[5m]) + rate(fraiseql_auth_failures_total[5m]))) * 100
