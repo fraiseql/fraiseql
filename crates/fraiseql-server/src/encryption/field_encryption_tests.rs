@@ -181,8 +181,9 @@ mod field_encryption_tests {
     fn test_field_encrypt_api_key() {
         let cipher = test_cipher();
         let api_keys = [
-            "sk_live_4eC39HqLyjWDarjtT1zdp7dc",
-            "pk_test_TYooMQauvdEDq54NiTphI7jx",
+            // NOTE: Using obviously fake test keys to prevent accidental secret exposure
+            "sk_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+            "pk_test_0000000000000000000000000000",
             &"a".repeat(128), // 128-character key
             &"x".repeat(256), // 256-character key
         ];
