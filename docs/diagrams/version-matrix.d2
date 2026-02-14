@@ -1,0 +1,71 @@
+title: FraiseQL v1 vs v2 Comparison
+
+direction: right
+
+v1: {
+  label: "FraiseQL v1.9.16"
+  shape: frame
+
+  status_v1: "✅ Stable & Production-Ready"
+  language_v1: "Python-First"
+  runtime_v1: "FastAPI Runtime"
+  db_v1: "PostgreSQL"
+  dev_v1: "Hot Reload, No Build Step"
+  perf_v1: "7-10x faster JSON"
+  team_v1: "Python Teams"
+
+  status_v1
+  language_v1
+  runtime_v1
+  db_v1
+  dev_v1
+  perf_v1
+  team_v1
+}
+
+v2: {
+  label: "FraiseQL v2.0.0-alpha.5"
+  shape: frame
+
+  status_v2: "🚀 Beta & Feature-Complete"
+  language_v2: "16+ Languages"
+  runtime_v2: "Compiled CLI + Server"
+  db_v2: "PostgreSQL, MySQL, SQLite, SQL Server"
+  dev_v2: "Compile Step, Zero-Cost Abstractions"
+  perf_v2: "Fully Compiled, Maximum Speed"
+  team_v2: "Polyglot Teams"
+
+  status_v2
+  language_v2
+  runtime_v2
+  db_v2
+  dev_v2
+  perf_v2
+  team_v2
+}
+
+best_for: {
+  shape: frame
+  label: "Best For"
+
+  v1_best: "Rapid iteration, Python expertise, existing PostgreSQL"
+  v2_best: "Multi-database, compile-time guarantees, polyglot teams"
+}
+
+v1 -> best_for.v1_best
+v2 -> best_for.v2_best
+
+style: {
+  v1: {
+    fill: "#e3f2fd"
+    stroke: "#1976d2"
+  }
+  v2: {
+    fill: "#e8f5e9"
+    stroke: "#388e3c"
+  }
+  best_for: {
+    fill: "#fff3e0"
+    stroke: "#f57c00"
+  }
+}

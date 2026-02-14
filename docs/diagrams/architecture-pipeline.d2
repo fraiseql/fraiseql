@@ -1,0 +1,85 @@
+title: FraiseQL v2 Compilation Pipeline
+
+direction: right
+
+authoring: {
+  label: "Authoring Layer"
+  shape: frame
+
+  python: "Python"
+  typescript: "TypeScript"
+  go: "Go"
+  rust_sdk: "Rust SDK"
+  others: "16+ Languages"
+
+  python -> compile
+  typescript -> compile
+  go -> compile
+  rust_sdk -> compile
+  others -> compile
+}
+
+compile: {
+  label: "Compilation Layer"
+  shape: frame
+
+  cli: "fraiseql-cli compile"
+  validator: "Schema Validator"
+  optimizer: "SQL Optimizer"
+  codegen: "Code Generator"
+
+  cli -> validator
+  validator -> optimizer
+  optimizer -> codegen
+}
+
+runtime: {
+  label: "Runtime Layer"
+  shape: frame
+
+  server: "fraiseql-server"
+  executor: "Executor"
+  db_adapter: "DB Adapter"
+
+  server -> executor
+  executor -> db_adapter
+}
+
+output: {
+  label: "Output"
+  shape: frame
+  compiled_schema: "schema.compiled.json"
+  config: "fraiseql.toml"
+
+  codegen -> compiled_schema
+  codegen -> config
+}
+
+database: "PostgreSQL\nMySQL\nSQLite\nSQL Server"
+
+compiled_schema -> server
+config -> server
+db_adapter -> database
+
+style: {
+  authoring: {
+    fill: "#e3f2fd"
+    stroke: "#1976d2"
+  }
+  compile: {
+    fill: "#f3e5f5"
+    stroke: "#7b1fa2"
+  }
+  runtime: {
+    fill: "#e8f5e9"
+    stroke: "#388e3c"
+  }
+  output: {
+    fill: "#fff3e0"
+    stroke: "#f57c00"
+  }
+  database: {
+    fill: "#fce4ec"
+    stroke: "#c2185b"
+  }
+}
