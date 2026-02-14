@@ -5,6 +5,69 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.5] - 2026-02-14
+
+### Added
+
+**Root `fraiseql` Umbrella Crate:**
+- Unified crate for simplified imports and centralized API
+- Prelude module for convenient imports (`use fraiseql::prelude::*`)
+- Re-exports all core types and modules from sub-crates
+- Feature bundles: `full` (all features), `minimal` (core only)
+- Examples for minimal, server, and full-featured usage patterns
+- Database-agnostic feature flags pass-through to fraiseql-core
+
+**Documentation:**
+- Migration guide for users transitioning from individual crates (`docs/migration/FROM_INDIVIDUAL_CRATES.md`)
+- Updated root README with root crate as primary installation method
+- Feature equivalence table and backward compatibility guarantees
+
+### Changed
+
+**Version Synchronization:**
+- Workspace version updated from 2.0.0-alpha.3 to 2.0.0-alpha.5
+- All workspace crates synchronized to 2.0.0-alpha.5:
+  - fraiseql-core
+  - fraiseql-error
+  - fraiseql-server
+  - fraiseql-cli
+  - fraiseql-observers
+  - fraiseql-observers-macros
+- Python package (fraiseql-python) updated to 2.0.0-alpha.5
+- fraiseql-arrow updated to 0.2.0 (minor version for API additions)
+- fraiseql-wire updated to 0.1.2 (patch version for stability)
+
+**Dependency Graph:**
+- All inter-crate dependencies updated to reflect new versions
+- Workspace members list extended to include new root crate
+
+### Fixed
+
+- **Version Mismatch**: Resolved inconsistency between git tag (v2.0.0-alpha.4) and workspace version (2.0.0-alpha.3)
+- **crates.io Publish Failure**: Version mismatch resolved, enabling successful publish workflow
+- **Inter-crate Dependencies**: All workspace crates now use consistent versions
+
+### Migration
+
+**For Users:**
+- Recommended migration path: Use `fraiseql` root crate with features instead of individual crates
+- See [Migration Guide](docs/migration/FROM_INDIVIDUAL_CRATES.md) for step-by-step examples
+- Individual crates remain fully supported and unchanged (100% backward compatible)
+
+**For Contributors:**
+- New root crate at `crates/fraiseql/` provides convenient development entry point
+- Feature flags allow testing of optional components in isolation
+- Examples demonstrate common usage patterns
+
+### Verification
+
+✅ All crates compile with `cargo check --all-features`
+✅ Full test suite passing
+✅ Clippy passes with no warnings
+✅ Documentation builds without errors
+✅ Examples compile successfully
+✅ Package dry-run succeeds
+
 ## [2.0.0-alpha.3] - 2026-02-08
 
 ### Fixed

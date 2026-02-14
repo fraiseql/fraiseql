@@ -1,6 +1,6 @@
 # FraiseQL v2
 
-**Version:** 2.0.0-alpha.4
+**Version:** 2.0.0-alpha.5
 **Status:** Alpha release available
 **Date:** February 2026
 
@@ -32,7 +32,7 @@ FraiseQL v2 handles GraphQL query execution for relational databases. It's built
 - No runtime interpretation of schema semantics (they're resolved at build)
 - Authorization rules are metadata, not code
 
-**What's included in v2.0.0-alpha.4:**
+**What's included in v2.0.0-alpha.5:**
 
 **Core GraphQL Engine:**
 
@@ -184,6 +184,52 @@ Additional security features:
 - Configurable via TOML with environment variable overrides for production
 
 See [`docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md`](docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md) for architectural details.
+
+---
+
+## Installation
+
+### For Rust Applications
+
+**Using the root crate (recommended):**
+
+```toml
+[dependencies]
+fraiseql = { version = "2.0.0-alpha.5", features = ["server"] }
+```
+
+**For advanced use cases, use individual crates:**
+
+```toml
+[dependencies]
+fraiseql-core = "2.0.0-alpha.5"
+fraiseql-server = "2.0.0-alpha.5"
+fraiseql-observers = "2.0.0-alpha.5"
+```
+
+See [Migration Guide](docs/migration/FROM_INDIVIDUAL_CRATES.md) for detailed feature equivalence and migration examples.
+
+### For Schema Authoring
+
+Install the appropriate SDK for your language:
+
+- **Python**: `pip install fraiseql==2.0.0-alpha.5`
+- **TypeScript/Node.js**: `npm install fraiseql@2.0.0-alpha.5`
+- **Rust**: See above (Cargo)
+- **Other languages**: See `docs/guides/language-generators.md` for 16+ supported languages
+
+### Installation Features
+
+| Feature | Use Case |
+|---------|----------|
+| `default` (postgres) | PostgreSQL support only (smallest binary) |
+| `mysql`, `sqlite`, `sqlserver` | Additional database backends |
+| `server` | HTTP GraphQL server |
+| `observers` | Reactive business logic system |
+| `arrow` | Apache Arrow Flight integration |
+| `wire` | Streaming JSON for PostgreSQL |
+| `cli` | Compiler CLI tools |
+| `full` | All features enabled |
 
 ---
 
@@ -369,7 +415,7 @@ FraiseQL provides two specialized ways to stream large result sets:
 
 ## Project Status
 
-Current release: **v2.0.0-alpha.4**
+Current release: **v2.0.0-alpha.5**
 
 **Core Features:**
 

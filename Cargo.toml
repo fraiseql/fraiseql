@@ -20,6 +20,7 @@ opt-level = 1
 
 [workspace]
 members = [
+  "crates/fraiseql",        # Root umbrella crate
   "crates/fraiseql-arrow",  # Apache Arrow Flight integration (Phase 9)
   "crates/fraiseql-cli",
   "crates/fraiseql-core",
@@ -49,7 +50,7 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "0.1.1"}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "0.1.2"}
 futures = "0.3"
 # GraphQL parsing
 graphql-parser = "0.4"
@@ -154,4 +155,4 @@ keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.75"  # MSRV
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.5"
