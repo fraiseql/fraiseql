@@ -5,6 +5,24 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.6] - 2026-02-14
+
+### Added
+
+**Release Workflow Enhancements (Phase 2):**
+- New `softprops/action-gh-release@v2` for robust binary uploads with automatic checksums
+- New `verify-release` job for post-publish verification of all packages
+- Workflow summaries with clear status indicators for all publishing jobs
+- Better error tracking and outcome reporting for crates.io and PyPI publishing
+
+### Changed
+
+**Workflow Improvements:**
+- Replaced manual `gh release upload` with maintained community action
+- Enhanced observability with GITHUB_STEP_SUMMARY output
+- More reliable and idempotent binary asset uploads
+- Improved troubleshooting documentation
+
 ## [2.0.0-alpha.5] - 2026-02-14
 
 ### Added
