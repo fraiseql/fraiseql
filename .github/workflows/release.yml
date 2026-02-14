@@ -167,6 +167,14 @@ jobs:
         run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
         continue-on-error: true
 
+      - name: Wait for crates.io indexing
+        run: sleep 30
+
+      # Tier 5: Root crate - depends on all others
+      - name: Publish fraiseql (root crate)
+        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        continue-on-error: true
+
   # Build and publish Python package
   publish-python:
     name: Publish Python Package to PyPI
