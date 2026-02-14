@@ -48,12 +48,14 @@ See [docs.fraiseql.dev](https://docs.fraiseql.dev) for full documentation.
 ## Migration from Individual Crates
 
 Before:
+
 ```rust
 use fraiseql_core::{CompiledSchema, runtime::Executor};
 use fraiseql_server::Server;
 ```
 
 After:
+
 ```rust
 use fraiseql::prelude::*;
 use fraiseql::server::Server;
