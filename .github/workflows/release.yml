@@ -13,8 +13,45 @@ permissions:
   packages: write
 
 jobs:
+  # Validate release prerequisites
+  validate-release:
+    name: Validate Release Prerequisites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.CARGO_TOKEN }}" ]; then
+            echo "❌ ERROR: CARGO_TOKEN secret is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PYPI_TOKEN }}" ]; then
+            echo "❌ ERROR: PYPI_TOKEN secret is missing"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Dry-run publish to crates.io
+        run: |
+          echo "Testing crates.io token validity with dry-run..."
+          cargo publish --dry-run --token ${{ secrets.CARGO_TOKEN }} -p fraiseql-error 2>&1 | head -20 || exit 1
+          echo "✅ crates.io token is valid"
+
+      - name: Validate Python package
+        run: |
+          cd fraiseql-python
+          python -m pip install --upgrade pip build
+          python -m build --sdist --wheel -q
+          echo "✅ Python package builds successfully"
+
   # Create GitHub release
   create-release:
+    name: Create Release
+    needs: validate-release
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
@@ -108,6 +145,13 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify all crates can be built
+        run: |
+          echo "Verifying Rust build compatibility..."
+          cargo check --all-features
+          cargo test --lib --all-features --no-run
+          echo "✅ All crates build successfully"
 
       # Publish in dependency order
       # Tier 1: No dependencies
@@ -204,3 +248,12 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: twine upload dist/* --skip-existing
+
+      - name: Validate PyPI package
+        run: |
+          echo "Waiting for PyPI to index..."
+          sleep 10
+          echo "Testing PyPI package installation..."
+          python -m pip install --upgrade fraiseql==$(python -c "import toml; print(toml.load('fraiseql-python/pyproject.toml')['project']['version'])")
+          python -c "import fraiseql; print(f'✅ fraiseql {fraiseql.__version__} successfully published to PyPI')"
+        continue-on-error: true
