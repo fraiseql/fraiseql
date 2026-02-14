@@ -62,3 +62,37 @@ repos:
         language: system
         pass_filenames: false
         stages: [push]
+
+  # GitHub Actions workflow validation
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.1
+    hooks:
+      - id: actionlint
+        name: actionlint
+        description: Lint GitHub Actions workflow files
+        entry: actionlint
+        language: golang
+        types: [yaml]
+        files: ^\.github/workflows/
+        pass_filenames: true
+
+  # Python package validation
+  - repo: local
+    hooks:
+      - id: python-build-check
+        name: python build check
+        description: Validate Python package builds
+        entry: bash -c 'cd fraiseql-python && python -m build --sdist --wheel -q'
+        language: system
+        files: ^fraiseql-python/
+        pass_filenames: false
+        stages: [push]
+
+      - id: cargo-package-check
+        name: cargo package check
+        description: Verify crates can be packaged for publish
+        entry: bash -c 'for crate in fraiseql fraiseql-core fraiseql-error fraiseql-server fraiseql-cli fraiseql-observers fraiseql-arrow fraiseql-wire fraiseql-observers-macros; do echo "Checking $crate..."; cargo package -p $crate --allow-dirty -q || exit 1; done'
+        language: system
+        files: ^(Cargo.toml|crates/.*/Cargo.toml)
+        pass_filenames: false
+        stages: [push]
