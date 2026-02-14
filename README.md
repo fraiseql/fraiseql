@@ -84,6 +84,7 @@ Result:               10-20x faster query execution
 ## 📋 What's Included
 
 ### Core Engine ✅
+
 - [x] GraphQL execution (queries, mutations, types, interfaces, unions)
 - [x] Automatic WHERE type generation (150+ operators for PostgreSQL)
 - [x] Apollo Federation v2 with SAGA transactions
@@ -92,6 +93,7 @@ Result:               10-20x faster query execution
 - [x] Multi-tenant isolation with per-tenant data scoping
 
 ### Enterprise Security ✅
+
 - [x] Audit logging (file, PostgreSQL, Syslog backends)
 - [x] Rate limiting on auth endpoints
 - [x] Field-level authorization via directives
@@ -102,6 +104,7 @@ Result:               10-20x faster query execution
 - [x] Error sanitization (no implementation details leaked)
 
 ### Data Integration ✅
+
 - [x] Webhooks (Discord, Slack, GitHub, Stripe + custom)
 - [x] Change Data Capture at database layer
 - [x] NATS JetStream messaging
@@ -110,6 +113,7 @@ Result:               10-20x faster query execution
 - [x] Apache Arrow Flight for analytics tools
 
 ### Testing ✅
+
 - [x] 4,773+ tests (unit, integration, E2E, chaos engineering)
 - [x] Zero unsafe code (forbidden at compile time)
 - [x] All Clippy warnings are errors
@@ -122,6 +126,7 @@ Result:               10-20x faster query execution
 ### 1. Create Schema (Pick Your Language)
 
 **Python:**
+
 ```python
 import fraiseql
 
@@ -139,6 +144,7 @@ fraiseql.export_schema("schema.json")
 ```
 
 **TypeScript:**
+
 ```typescript
 import { type, query, export_schema } from "fraiseql";
 
@@ -216,12 +222,14 @@ GraphQL Queries → SQL Execution → JSON/Arrow Response
 ### For Rust Applications
 
 **Using the unified crate (recommended):**
+
 ```toml
 [dependencies]
 fraiseql = { version = "2.0.0-alpha.5", features = ["server"] }
 ```
 
 **For advanced use cases:**
+
 ```toml
 [dependencies]
 fraiseql-core = "2.0.0-alpha.5"
@@ -268,6 +276,7 @@ fraiseql-observers = "2.0.0-alpha.5"
 **Migrating from v1?** Both versions are actively maintained. See [Migration Guide](docs/guides/v1-to-v2-migration.md).
 
 **Using Python?** Both v1 and v2 work great:
+
 - **v1** for rapid iteration, hot reload, existing PostgreSQL projects
 - **v2** for compile-time safety, multi-database support, polyglot teams
 
@@ -276,6 +285,7 @@ fraiseql-observers = "2.0.0-alpha.5"
 ## 📚 Documentation
 
 **Quick Links:**
+
 - 🚀 [Getting Started](docs/guides/getting-started.md) — 5-minute quick start
 - 📖 [Complete Documentation](https://docs.fraiseql.dev) — Comprehensive searchable docs
 - 🛠️ [Language Generators](docs/guides/language-generators.md) — 16+ language SDKs
@@ -285,6 +295,7 @@ fraiseql-observers = "2.0.0-alpha.5"
 - 🎓 [Examples](docs/examples/) — 4+ full-stack applications
 
 **Local Documentation:**
+
 - `docs/internal/.claude/ARCHITECTURE_PRINCIPLES.md` — Architectural patterns
 - `docs/alpha-testing-guide.md` — Alpha testing and feedback
 - `docs/ALPHA_LIMITATIONS.md` — Known limitations and roadmap
@@ -293,7 +304,8 @@ fraiseql-observers = "2.0.0-alpha.5"
 
 ## 🤔 Is FraiseQL v2 Right For You?
 
-### ✅ Perfect If You:
+### ✅ Perfect If You
+
 - Build high-performance APIs with relational databases
 - Need compile-time schema validation
 - Want deterministic query execution (no runtime surprises)
@@ -302,7 +314,8 @@ fraiseql-observers = "2.0.0-alpha.5"
 - Are adopting PostgreSQL, MySQL, SQLite, or SQL Server
 - Need to migrate from v1 to a more powerful engine
 
-### ❌ Consider Alternatives If:
+### ❌ Consider Alternatives If
+
 - You only use a single language (v1 Python might be better)
 - You need real-time, approximate answers (not consistent data)
 - Building your first GraphQL API (use simpler frameworks first)
@@ -325,12 +338,14 @@ fraiseql-observers = "2.0.0-alpha.5"
 ## 🛡️ Security
 
 FraiseQL prevents SQL injection through:
+
 - **Parameterized queries** - All values passed as bind parameters, never interpolated
 - **Schema validation** - All identifiers validated at compile time
 - **Type system** - Rust's type system prevents entire categories of bugs
 - **Zero unsafe code** - Forbidden at compile time
 
 Additional features:
+
 - Audit logging for all mutations
 - Rate limiting on auth endpoints
 - Field-level authorization

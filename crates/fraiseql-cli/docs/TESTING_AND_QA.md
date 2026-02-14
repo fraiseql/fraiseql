@@ -17,6 +17,7 @@ FraiseQL maintains strict quality standards through comprehensive testing at all
 Unit tests validate individual components in isolation.
 
 ### Schema Parsing & Conversion (20 tests)
+
 - Intermediate schema structure validation
 - Field type conversion
 - Nullable field handling
@@ -30,6 +31,7 @@ cargo test schema::converter::tests
 ```
 
 ### Rich Type Generation (20+ tests)
+
 - All 49 types auto-generated correctly
 - Type naming consistency
 - Field generation for each type
@@ -42,12 +44,14 @@ cargo test schema::sql_templates::tests
 ```
 
 ### Operator Definition (40+ tests)
+
 - Standard operators: eq, neq, contains, isnull
 - Type-specific operators (email, coordinates, etc.)
 - Operator field generation
 - Operator metadata validation
 
 ### SQL Template Generation (30+ tests)
+
 - PostgreSQL template correctness
 - MySQL template correctness
 - SQLite template correctness
@@ -55,6 +59,7 @@ cargo test schema::sql_templates::tests
 - Database-specific syntax validation
 
 **Example**:
+
 ```rust
 #[test]
 fn test_email_domain_eq_postgres_template() {
@@ -72,6 +77,7 @@ fn test_email_domain_eq_postgres_template() {
 ```
 
 ### Lookup Data (15+ tests)
+
 - Countries data integrity
 - Currencies data completeness
 - Timezones data validation
@@ -83,6 +89,7 @@ fn test_email_domain_eq_postgres_template() {
 Integration tests validate the complete rich filter compilation pipeline.
 
 ### Pipeline Integration Tests
+
 Location: `tests/integration_rich_filters.rs`
 
 ```bash
@@ -103,6 +110,7 @@ fn test_rich_filter_compilation_pipeline() {
 ```
 
 Validates:
+
 - ✓ EmailAddressWhereInput with 6 fields
 - ✓ CoordinatesWhereInput with geospatial operators
 - ✓ All 4 database templates (postgres, mysql, sqlite, sqlserver)
@@ -111,6 +119,7 @@ Validates:
 #### Test 2: All 49 Rich Types Generate
 
 Verifies count and samples:
+
 - EmailAddress, PhoneNumber, URL
 - VIN, IBAN, CountryCode
 - Coordinates, DateRange, Duration
@@ -119,6 +128,7 @@ Verifies count and samples:
 #### Test 3: WhereInput Fields & Operators
 
 Validates EmailAddressWhereInput:
+
 - Standard operators: eq, neq, contains, isnull
 - Rich operators: domainEq, domainIn, domainEndswith
 - Total fields: 10+ per type
@@ -126,6 +136,7 @@ Validates EmailAddressWhereInput:
 #### Test 4: SQL Templates Coverage
 
 For each type and operator:
+
 - PostgreSQL template present
 - MySQL template present
 - SQLite template present
@@ -137,25 +148,30 @@ Total templates validated: 188 operator-database combinations
 #### Test 5: Lookup Data Integrity
 
 Countries:
+
 - ✓ Minimum 10 countries (actual: 250+)
 - ✓ US has continent, in_eu, in_schengen fields
 - ✓ Structure validation
 
 Currencies:
+
 - ✓ Minimum 5 currencies (actual: 180+)
 - ✓ USD has symbol, decimal_places fields
 
 Timezones:
+
 - ✓ Minimum 5 timezones
 - ✓ Proper structure
 
 Languages:
+
 - ✓ Minimum 5 languages
 - ✓ Proper structure
 
 #### Test 6: Schema Validity
 
 All WhereInput types:
+
 - ✓ Name ends with "WhereInput"
 - ✓ At least 1 field
 - ✓ All fields have name and type
@@ -182,6 +198,7 @@ Target: < 1ms ✓
 ```
 
 **What's tested**:
+
 - Full pipeline: parsing → type generation → template embedding
 - Deterministic output verification
 - Repeatability across iterations
@@ -195,6 +212,7 @@ Target: < 10µs ✓
 ```
 
 **What's tested**:
+
 - Vector iteration and search efficiency
 - Memory access patterns
 - Compiled schema memory layout
@@ -208,6 +226,7 @@ Target: < 10µs ✓
 ```
 
 **What's tested**:
+
 - JSON metadata object traversal
 - Field access performance
 - Metadata structure efficiency
@@ -221,6 +240,7 @@ Target: < 30ns ✓
 ```
 
 **What's tested**:
+
 - Template lookup for all 4 databases
 - Nested object access
 - HashMap performance
@@ -234,6 +254,7 @@ Target: < 100ns ✓
 ```
 
 **What's tested**:
+
 - Country lookup speed
 - Reference data access performance
 - Memory efficiency
@@ -247,6 +268,7 @@ Target: Complete traversal ✓
 ```
 
 **What's tested**:
+
 - Complete metadata traversal
 - All operator enumeration
 - Template counting
@@ -264,6 +286,7 @@ cargo test --test e2e_schema_generation
 ### E2E Test 1: Complete Compilation Pipeline
 
 Verifies:
+
 - ✓ 49 WhereInput types generated
 - ✓ Key types present (Email, Phone, URL, Coordinates, DateRange, Currency)
 - ✓ Full end-to-end compilation succeeds
@@ -271,6 +294,7 @@ Verifies:
 ### E2E Test 2: SQL Templates for All Databases
 
 Verifies:
+
 - ✓ All WhereInput types have metadata
 - ✓ Each operator has all 4 database templates
 - ✓ Total > 100 templates verified
@@ -278,6 +302,7 @@ Verifies:
 ### E2E Test 3: Lookup Data Comprehensive
 
 Verifies:
+
 - ✓ Countries: 10+ entries
 - ✓ Currencies: 5+ entries
 - ✓ Timezones: 5+ entries
@@ -287,16 +312,19 @@ Verifies:
 ### E2E Test 4: All Operators Generated
 
 Verifies EmailAddress operators:
+
 - ✓ Standard: eq, neq, contains
 - ✓ Rich: domainEq, domainIn
 
 Verifies Coordinates operators:
+
 - ✓ Present and valid
 - ✓ Proper field types
 
 ### E2E Test 5: Compilation Deterministic
 
 Verifies:
+
 - ✓ Three compilations produce identical results
 - ✓ Type order consistent
 - ✓ Field counts match
@@ -305,6 +333,7 @@ Verifies:
 ### E2E Test 6: All 49 Types Valid
 
 For each of 49 types:
+
 - ✓ Name ends with "WhereInput"
 - ✓ Has fields
 - ✓ All fields have name and type
@@ -413,12 +442,14 @@ TOTAL:                199 passed / 199 total = 100%
 ### Code Coverage
 
 Current focus areas:
+
 - ✓ Schema converter: 100%
 - ✓ Rich filter generation: 100%
 - ✓ SQL template generation: 100%
 - ✓ Lookup data: 100%
 
 Coverage by module:
+
 ```
 src/schema/                    98%
 ├─ converter.rs              100%
@@ -560,6 +591,7 @@ thread 'test_name' panicked at 'assertion failed: ...'
 ```
 
 Run with backtrace:
+
 ```bash
 RUST_BACKTRACE=1 cargo test test_name -- --nocapture
 ```
@@ -567,6 +599,7 @@ RUST_BACKTRACE=1 cargo test test_name -- --nocapture
 #### 2. "Some tests did not run"
 
 Tests in release build are optimized differently:
+
 ```bash
 cargo test test_name --release
 ```
@@ -574,12 +607,14 @@ cargo test test_name --release
 #### 3. Flaky Tests
 
 Make sure tests aren't relying on:
+
 - ✓ System time
 - ✓ File system state
 - ✓ Environment variables
 - ✓ Random order
 
 Run multiple times:
+
 ```bash
 for i in {1..100}; do cargo test test_name || break; done
 ```
@@ -602,6 +637,7 @@ cargo test --test bench_rich_filters -- --test-threads=1 --nocapture
 ### Analyze Results
 
 Compare against baseline:
+
 ```
 Compilation: 200.53 µs (expected: < 1000 µs) ✓
 Metadata access: 0.70 ns (expected: < 10000 ns) ✓
@@ -609,6 +645,7 @@ Template access: 16.26 ns (expected: < 50 ns) ✓
 ```
 
 If slower:
+
 1. Check if debug build: Use `--release`
 2. Check system load: Close other apps
 3. Profile with: `cargo flamegraph`

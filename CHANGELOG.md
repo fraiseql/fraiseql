@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 **Root `fraiseql` Umbrella Crate:**
+
 - Unified crate for simplified imports and centralized API
 - Prelude module for convenient imports (`use fraiseql::prelude::*`)
 - Re-exports all core types and modules from sub-crates
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Database-agnostic feature flags pass-through to fraiseql-core
 
 **Documentation:**
+
 - Migration guide for users transitioning from individual crates (`docs/migration/FROM_INDIVIDUAL_CRATES.md`)
 - Updated root README with root crate as primary installation method
 - Feature equivalence table and backward compatibility guarantees
@@ -25,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 **Version Synchronization:**
+
 - Workspace version updated from 2.0.0-alpha.3 to 2.0.0-alpha.5
 - All workspace crates synchronized to 2.0.0-alpha.5:
   - fraiseql-core
@@ -38,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fraiseql-wire updated to 0.1.2 (patch version for stability)
 
 **Dependency Graph:**
+
 - All inter-crate dependencies updated to reflect new versions
 - Workspace members list extended to include new root crate
 
@@ -50,11 +54,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Migration
 
 **For Users:**
+
 - Recommended migration path: Use `fraiseql` root crate with features instead of individual crates
 - See [Migration Guide](docs/migration/FROM_INDIVIDUAL_CRATES.md) for step-by-step examples
 - Individual crates remain fully supported and unchanged (100% backward compatible)
 
 **For Contributors:**
+
 - New root crate at `crates/fraiseql/` provides convenient development entry point
 - Feature flags allow testing of optional components in isolation
 - Examples demonstrate common usage patterns
@@ -73,21 +79,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 **Test Suite**:
+
 - Fixed PostgreSQL audit backend concurrent test failures
-  * Resolved duplicate event logging in concurrent scenarios
-  * Enhanced database cleanup and isolation between tests
-  * Fixed bulk logging test assertions
-  * All 27 PostgreSQL audit backend tests now passing
+  - Resolved duplicate event logging in concurrent scenarios
+  - Enhanced database cleanup and isolation between tests
+  - Fixed bulk logging test assertions
+  - All 27 PostgreSQL audit backend tests now passing
 
 **Code Quality**:
+
 - Removed all Clippy pedantic warnings
-  * Split oversized `get_default_rules()` function into 8 focused helpers
-  * Fixed lossless casts (u32 to u64 using `u64::from`)
-  * Optimized parameter passing for `Copy` types
-  * Removed unused imports
-  * Fixed formatting issues across codebase
+  - Split oversized `get_default_rules()` function into 8 focused helpers
+  - Fixed lossless casts (u32 to u64 using `u64::from`)
+  - Optimized parameter passing for `Copy` types
+  - Removed unused imports
+  - Fixed formatting issues across codebase
 
 **Documentation**:
+
 - Updated VERSION_STATUS.md with v2.0.0-alpha.3 status
 - Updated CHANGELOG.md with current changes
 - Verified all version markers in Cargo.toml files
@@ -111,25 +120,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Audit Backend Test Coverage (Complete):**
 
 - PostgreSQL audit backend comprehensive tests (27 tests, 804 lines):
-  * Backend creation and schema validation
-  * Event logging with optional fields
-  * Query operations with filters and pagination
-  * JSONB metadata and state snapshots
-  * Multi-tenancy and tenant isolation
-  * Bulk logging and concurrent operations
-  * Schema idempotency verification
-  * Complex multi-filter queries
-  * Error handling and validation scenarios
+  - Backend creation and schema validation
+  - Event logging with optional fields
+  - Query operations with filters and pagination
+  - JSONB metadata and state snapshots
+  - Multi-tenancy and tenant isolation
+  - Bulk logging and concurrent operations
+  - Schema idempotency verification
+  - Complex multi-filter queries
+  - Error handling and validation scenarios
 
 - Syslog audit backend comprehensive tests (27 tests, 574 lines):
-  * RFC 3164 format validation
-  * Facility and severity mapping
-  * Event logging and complex event handling
-  * Query behavior (always returns empty)
-  * Network operations and timeout handling
-  * Concurrent logging with 20+ concurrent tasks
-  * Builder pattern and trait compliance
-  * E2E integration flows for all statuses
+  - RFC 3164 format validation
+  - Facility and severity mapping
+  - Event logging and complex event handling
+  - Query behavior (always returns empty)
+  - Network operations and timeout handling
+  - Concurrent logging with 20+ concurrent tasks
+  - Builder pattern and trait compliance
+  - E2E integration flows for all statuses
 
 **Arrow Flight Enhancements:**
 

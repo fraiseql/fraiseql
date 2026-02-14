@@ -169,9 +169,11 @@ Total time: ~20-35 minutes (with parallelization)
 ### Workflow Jobs
 
 #### 1. validate-release
+
 **Purpose:** Fail-fast on configuration issues
 
 **Checks:**
+
 - ✅ CARGO_TOKEN secret exists
 - ✅ PYPI_TOKEN secret exists
 - ✅ crates.io token valid (dry-run test)
@@ -180,9 +182,11 @@ Total time: ~20-35 minutes (with parallelization)
 **If fails:** Stops workflow, saves 15+ minutes
 
 #### 2. create-github-release
+
 **Purpose:** Create GitHub release with proper metadata
 
 **Actions:**
+
 - Uses `gh release create` (official GitHub CLI)
 - Sets prerelease flag for alpha/beta versions
 - Posts CHANGELOG excerpt as release notes
@@ -191,9 +195,11 @@ Total time: ~20-35 minutes (with parallelization)
 **If fails:** Non-blocking (packages already published)
 
 #### 3. publish-crates
+
 **Purpose:** Publish all Rust crates to crates.io
 
 **Order of publication:**
+
 1. fraiseql-error (no dependencies)
 2. fraiseql-wire (minimal deps)
 3. fraiseql-core (depends on error)
@@ -207,9 +213,11 @@ Total time: ~20-35 minutes (with parallelization)
 **Waits between publishes:** 30 seconds (for crates.io indexing)
 
 #### 4. publish-python
+
 **Purpose:** Publish Python package to PyPI
 
 **Actions:**
+
 - Build sdist and wheel
 - Upload to PyPI
 - Wait for indexing
@@ -217,9 +225,11 @@ Total time: ~20-35 minutes (with parallelization)
 - Test version string
 
 #### 5. build-binaries
+
 **Purpose:** Build CLI binaries for distribution
 
 **Platforms:**
+
 - Linux x86_64 (AMD64)
 - Linux ARM64 (aarch64)
 - macOS x86_64 (Intel)
@@ -227,23 +237,44 @@ Total time: ~20-35 minutes (with parallelization)
 - Windows x86_64 (MSVC)
 
 **Actions:**
+
 - Cross-compile using Rust targets
 - Strip symbols (Unix)
-- Upload to GitHub release
+- Upload to GitHub release using `softprops/action-gh-release`
+
+**Phase 2 Enhancement:**
+
+- Replaced manual `gh release upload` with `softprops/action-gh-release@v2`
+- Automatic checksums for all binaries
+- Better error handling and retry logic
+- Idempotent uploads (can safely retry)
+- Cleaner, more maintainable YAML
 
 #### 6. verify-release
-**Purpose:** Post-publish verification
+
+**Purpose:** Post-publish verification (NEW in Phase 2)
 
 **Checks:**
-- Rust crates can be imported
-- Python package can be installed
-- Binaries are executable
-- Versions match expected
+
+- Verify fraiseql crate on crates.io
+- Verify fraiseql package on PyPI
+- Count binary assets on GitHub release
+- List uploaded asset names
+
+**Duration:** ~30 seconds
+
+**Benefits:**
+
+- Early detection of publishing failures
+- Clear status in workflow summary
+- Guides troubleshooting if issues found
 
 #### 7. notify
+
 **Purpose:** Send release notifications
 
 **Notifications:**
+
 - (Future) Slack message
 - (Future) GitHub discussion post
 - (Future) Email digest
@@ -310,6 +341,7 @@ gh release upload v$VERSION target/release/fraiseql-cli*
 ### Issue: "CARGO_TOKEN secret is missing"
 
 **Solution:**
+
 1. Go to: https://github.com/fraiseql/fraiseql/settings/secrets/actions
 2. Click "New repository secret"
 3. Name: `CARGO_TOKEN`
@@ -323,6 +355,7 @@ gh secret set CARGO_TOKEN --repo fraiseql/fraiseql -b "YOUR_TOKEN"
 ### Issue: "PYPI_TOKEN secret is missing"
 
 **Solution:**
+
 1. Go to: https://pypi.org/manage/account/
 2. Scroll to "API tokens"
 3. Create token with "Entire account" scope
@@ -338,6 +371,7 @@ gh secret set PYPI_TOKEN --repo fraiseql/fraiseql -b "YOUR_TOKEN"
 **Cause:** GitHub Actions doesn't have permission to create releases
 
 **Solution:**
+
 - Workflow now uses `gh release create` (fixes permission issues)
 - If error persists, check repository permissions:
   1. Settings → Environments
@@ -346,16 +380,28 @@ gh secret set PYPI_TOKEN --repo fraiseql/fraiseql -b "YOUR_TOKEN"
 
 ### Issue: "Binary upload failed"
 
-**Solution:**
-- Check binary exists: `ls target/release/fraiseql-cli*`
-- Manually upload:
-  ```bash
-  gh release upload v2.0.0-alpha.6 target/release/fraiseql-cli-*
-  ```
+**Solution (softprops/action-gh-release):**
+
+- The action now provides better error messages in the workflow log
+- Check that binaries exist: `ls target/release/fraiseql-cli*`
+- Check that the release was already created: `gh release view v2.0.0-alpha.6`
+- Retry the failed build-binaries job directly from GitHub Actions
+
+**Manual Upload (if needed):**
+
+```bash
+gh release upload v2.0.0-alpha.6 \
+  target/x86_64-unknown-linux-gnu/release/fraiseql-cli \
+  target/aarch64-unknown-linux-gnu/release/fraiseql-cli \
+  target/x86_64-pc-windows-msvc/release/fraiseql-cli.exe \
+  target/x86_64-apple-darwin/release/fraiseql-cli \
+  target/aarch64-apple-darwin/release/fraiseql-cli
+```
 
 ### Issue: "crates.io token expired"
 
 **Solution:**
+
 1. Get new token from https://crates.io/me
 2. Update secret: `gh secret set CARGO_TOKEN --repo fraiseql/fraiseql -b "NEW_TOKEN"`
 3. Retag and push: `git tag -a v2.0.0-alpha.6-retry ...`
@@ -363,14 +409,39 @@ gh secret set PYPI_TOKEN --repo fraiseql/fraiseql -b "YOUR_TOKEN"
 ### Issue: "PyPI upload failed but GitHub release succeeded"
 
 **Solution (Non-blocking):**
+
 - GitHub release is already created
 - Manually fix and upload Python package:
+
   ```bash
   cd fraiseql-python
   python -m build
   twine upload dist/*
   ```
+
 - Update release notes to note PyPI delay
+
+### Issue: "Verification job shows missing packages"
+
+**What's happening:**
+
+- PyPI and crates.io have indexing delays (5-15 minutes)
+- The verify-release job reports current status, not final status
+- This is informational, not an error
+
+**Solution:**
+
+- Wait 10-15 minutes and check manually:
+
+  ```bash
+  # Check crates.io
+  curl https://crates.io/api/v1/crates/fraiseql | jq '.crate.newest_version'
+
+  # Check PyPI
+  pip index versions fraiseql
+  ```
+
+- Re-run verification job if needed: `gh run rerun <run-id> --job verify-release`
 
 ---
 
@@ -379,6 +450,7 @@ gh secret set PYPI_TOKEN --repo fraiseql/fraiseql -b "YOUR_TOKEN"
 ### Scenario 1: Pre-Publishing Failure
 
 **If validation fails:**
+
 - Workflow stops automatically
 - No packages published
 - No GitHub release created
@@ -395,6 +467,7 @@ git push origin v2.0.0-alpha.6-retry
 ### Scenario 2: Partial Failure (Some Crates Published)
 
 **If only some crates published to crates.io:**
+
 - Document which crates succeeded
 - Manually publish remaining crates
 - Coordination with downstream users (if any)
@@ -413,15 +486,18 @@ cargo publish -p fraiseql-server --token $CARGO_TOKEN
 
 1. **Document issue:** Create GitHub issue
 2. **Yanked crate (crates.io):**
+
    ```bash
    cargo yank --vers 2.0.0-alpha.6 -p fraiseql
    ```
+
 3. **Deprecate on PyPI:** Manually via https://pypi.org/manage/project/fraiseql/
 4. **Create patch release:** v2.0.0-alpha.7 with fix
 
 ### Scenario 4: GitHub Release Issues
 
 **If release created but binaries wrong:**
+
 - Edit release on GitHub
 - Re-upload corrected binaries
 - Update release notes if needed
@@ -472,11 +548,13 @@ gh release create v2.0.0-alpha.6 --title ... target/release/fraiseql-cli-*
 ## Version Naming Conventions
 
 ### Stable Releases
+
 - Format: `v2.0.0`, `v2.1.0`, `v2.1.1`
 - Workflow: Full validation + binaries
 - Support: Long-term
 
 ### Pre-releases
+
 - Alpha: `v2.0.0-alpha.1` → `v2.0.0-alpha.5`
 - Beta: `v2.1.0-beta.1` → `v2.1.0-beta.3`
 - RC: `v2.1.0-rc.1` → `v2.1.0-rc.2`
@@ -484,6 +562,7 @@ gh release create v2.0.0-alpha.6 --title ... target/release/fraiseql-cli-*
 - Support: Until next stable
 
 ### Release Candidates
+
 - For final testing before stable
 - Only bug fixes after RC
 - No new features
@@ -492,13 +571,22 @@ gh release create v2.0.0-alpha.6 --title ... target/release/fraiseql-cli-*
 
 ## Future Enhancements
 
-### Phase 2 (Soon)
+### Phase 2 (Complete ✅)
+
+- [x] Binary upload with softprops/action-gh-release
+- [x] Post-publish verification job
+- [x] Workflow summaries with clear status
+- [x] Better error tracking and reporting
+
+### Phase 3 (Planned)
+
 - [ ] Slack notifications on release status
 - [ ] GitHub Discussions announcements
 - [ ] Automated rollback capability
 - [ ] Release notes auto-generation
 
-### Phase 3 (Later)
+### Phase 4 (Later)
+
 - [ ] Docker image publishing
 - [ ] Homebrew formula publishing
 - [ ] Windows installer (.msi)

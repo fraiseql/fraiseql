@@ -5,6 +5,7 @@ This guide helps users migrate from importing individual `fraiseql-*` crates to 
 ## Why Migrate?
 
 The root `fraiseql` crate provides:
+
 - Simplified imports (`use fraiseql::prelude::*`)
 - Centralized feature flags
 - Unified documentation
@@ -15,6 +16,7 @@ The root `fraiseql` crate provides:
 ### Basic Server
 
 **Before:**
+
 ```rust
 use fraiseql_core::{CompiledSchema, FraiseQLConfig};
 use fraiseql_server::{Server, ServerConfig};
@@ -27,6 +29,7 @@ let server = Server::new(config, schema, db, None).await?;
 ```
 
 **After:**
+
 ```rust
 use fraiseql::prelude::*;
 use std::sync::Arc;
@@ -40,12 +43,14 @@ let server = Server::new(config, schema, db, None).await?;
 ### With Observers
 
 **Before:**
+
 ```rust
 use fraiseql_observers::{ObserverExecutor, EntityEvent};
 use fraiseql_server::Server;
 ```
 
 **After:**
+
 ```rust
 use fraiseql::prelude::*;
 // Or explicitly:
@@ -69,6 +74,7 @@ use fraiseql::server::Server;
 ### Cargo.toml Changes
 
 **Before:**
+
 ```toml
 [dependencies]
 fraiseql-core = "2.0.0-alpha.5"
@@ -77,6 +83,7 @@ fraiseql-observers = { version = "2.0.0-alpha.5", optional = true }
 ```
 
 **After:**
+
 ```toml
 [dependencies]
 fraiseql = { version = "2.0.0-alpha.5", features = ["server", "observers"] }
@@ -85,6 +92,7 @@ fraiseql = { version = "2.0.0-alpha.5", features = ["server", "observers"] }
 ## Backward Compatibility
 
 Individual `fraiseql-*` crates remain fully supported. You can:
+
 - Continue using individual crates
 - Mix root crate with individual crates
 - Gradually migrate module by module
@@ -124,6 +132,7 @@ fraiseql = { version = "2.0.0-alpha.5", features = ["full"] }
 If migrating from individual crates, you may have used private modules. The root crate re-exports only public APIs.
 
 **Solution:** Check that the module is listed in the public API:
+
 ```rust
 // This won't work (private internal module)
 use fraiseql_core::compiler::internal;
