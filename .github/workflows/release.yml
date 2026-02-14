@@ -48,13 +48,12 @@ jobs:
           python -m build --sdist --wheel -q
           echo "✅ Python package builds successfully"
 
-  # Create GitHub release
-  create-release:
-    name: Create Release
+  # Create GitHub release using gh CLI
+  create-github-release:
+    name: Create GitHub Release
     needs: validate-release
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
@@ -63,21 +62,42 @@ jobs:
         id: get_version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      - name: Create GitHub Release
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          PRERELEASE="false"
+          [[ "$VERSION" =~ alpha|beta|rc ]] && PRERELEASE="true"
+
+          gh release create "$GITHUB_REF" \
+            --title "Release v$VERSION" \
+            --notes "FraiseQL $VERSION
+
+          See [CHANGELOG.md](CHANGELOG.md) for complete list of changes.
+
+          ## Installation
+
+          ### Rust Crates
+          \`\`\`bash
+          cargo add fraiseql@$VERSION
+          \`\`\`
+
+          ### Python Package
+          \`\`\`bash
+          pip install fraiseql==$VERSION
+          \`\`\`
+
+          ### CLI Binaries
+          Download from the Assets section below.
+
+          ---
+          *Automated release created by [Release Workflow](.github/workflows/release.yml)*" \
+            --draft=false \
+            --prerelease=$PRERELEASE
 
   # Build binaries for multiple platforms
   build-binaries:
     name: Build Binary (${{ matrix.os }})
-    needs: create-release
+    needs: create-github-release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -124,20 +144,16 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
+      - name: Upload binary to release
+        run: |
+          gh release upload "$GITHUB_REF" \
+            "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" \
+            --clobber
 
   # Publish to crates.io
   publish-crates:
     name: Publish to crates.io
-    needs: create-release
+    needs: create-github-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -221,7 +237,7 @@ jobs:
   # Build and publish Python package
   publish-python:
     name: Publish Python Package to PyPI
-    needs: create-release
+    needs: create-github-release
     runs-on: ubuntu-latest
 
     steps:
