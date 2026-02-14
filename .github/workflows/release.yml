@@ -52,7 +52,6 @@ jobs:
   create-release:
     name: Create Release
     needs: validate-release
-    name: Create Release
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
