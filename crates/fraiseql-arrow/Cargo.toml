@@ -21,7 +21,7 @@ clickhouse = {version = "0.14", features = ["inserter"], optional = true}
 # Concurrent data structures
 dashmap = "6.1"
 # FraiseQL core (for Executor and query execution)
-fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.5"}
+fraiseql-core = {workspace = true}
 futures = "0.3"
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "9"
@@ -45,8 +45,8 @@ uuid = {version = "1", features = ["v4"]}
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 # Integration test dependencies
-fraiseql-core = {path = "../fraiseql-core"}
-fraiseql-server = {path = "../fraiseql-server", features = ["arrow"]}
+fraiseql-core = {workspace = true}
+fraiseql-server = {workspace = true, features = ["arrow"]}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
 tempfile = "3"
 tokio-stream = "0.1"

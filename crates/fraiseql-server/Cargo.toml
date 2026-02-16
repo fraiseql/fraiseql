@@ -23,12 +23,12 @@ chrono = {version = "0.4", features = ["serde"]}
 dashmap = "5.5"
 dirs = "5"
 # Phase 4: Cache support for API endpoints
-fraiseql-arrow = {path = "../fraiseql-arrow", version = "0.2.0"}
+fraiseql-arrow = {workspace = true}
 # FraiseQL core
-fraiseql-core = {path = "../fraiseql-core", version = "2.0.0-alpha.5", features = ["postgres"]}
-fraiseql-error = {path = "../fraiseql-error", version = "2.0.0-alpha.5"}
+fraiseql-core = {workspace = true, features = ["postgres"]}
+fraiseql-error = {workspace = true}
 # FraiseQL observers (optional)
-fraiseql-observers = {path = "../fraiseql-observers", version = "2.0.0-alpha.5", optional = true}
+fraiseql-observers = {workspace = true, optional = true}
 futures = "0.3"
 # GraphQL AST parsing for secure query validation
 graphql-parser = {workspace = true}

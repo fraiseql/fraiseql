@@ -50,6 +50,13 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
+fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "0.2.0"}
+fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.0-alpha.6"}
+fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.0-alpha.6", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.0.0-alpha.6"}
+fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.0.0-alpha.6"}
+fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.0.0-alpha.6"}
+fraiseql-server = {path = "crates/fraiseql-server", version = "2.0.0-alpha.6"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "0.1.2"}
 futures = "0.3"
 # GraphQL parsing
