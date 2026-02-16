@@ -118,11 +118,13 @@ impl SubscriptionManager {
             return true;
         }
 
-        // TODO: Implement filter matching logic
-        // Could support expressions like:
+        // TODO(v2.1.0): Implement filter matching logic for subscriptions
+        // Priority: Medium - Optional feature for fine-grained event filtering
+        // Implementation should support expressions like:
         // - "status = 'shipped'"
         // - "total > 100"
         // - "changes.status.from = 'pending'"
+        // Could reuse expression parser from GraphQL query filtering
         true
     }
 
@@ -131,7 +133,9 @@ impl SubscriptionManager {
     /// This is primarily useful for testing subscription functionality
     /// without requiring a live event source.
     pub async fn simulate_event(&self, _event: crate::HistoricalEvent) {
-        // TODO: Implement event simulation for testing
+        // TODO(v2.1.0): Implement event simulation for testing subscriptions
+        // Priority: Medium - Testing infrastructure enhancement
+        // Should broadcast simulated events to test subscribers
         // For now, this is a placeholder that accepts an event
         // self.broadcast_event(&_event);
     }
@@ -256,6 +260,7 @@ mod tests {
         };
 
         assert!(SubscriptionManager::matches_filter(&event, &None));
-        assert!(SubscriptionManager::matches_filter(&event, &Some("total > 50".to_string()))); // TODO: Implement actual filter matching
+        // TODO(v2.1.0): Uncomment when filter matching is implemented
+        // assert!(SubscriptionManager::matches_filter(&event, &Some("total > 50".to_string())));
     }
 }

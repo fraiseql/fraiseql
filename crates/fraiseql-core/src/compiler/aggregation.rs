@@ -360,7 +360,9 @@ impl AggregationPlanner {
             match selection {
                 GroupBySelection::Dimension { path, alias } => {
                     // Validate dimension exists in metadata (for now, just accept any path)
-                    // TODO: Check against metadata.dimensions.paths when we add path discovery
+                    // TODO(v2.2.0): Add path discovery validation for dimensions
+                    // Priority: Low - Enhancement for dimension validation
+                    // Check against metadata.dimensions.paths when path discovery is implemented
                     expressions.push(GroupByExpression::JsonbPath {
                         jsonb_column: metadata.dimensions.name.clone(),
                         path:         path.clone(),

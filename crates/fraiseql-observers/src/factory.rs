@@ -128,8 +128,9 @@ impl ExecutorFactory {
             Ok(Arc::new(base_executor))
         }
 
-        // TODO: Action caching is handled inside ObserverExecutor (per-action wrapping)
-        // This would require modifying ObserverExecutor to accept wrapped action executors
+        // NOTE: Action caching is handled inside ObserverExecutor (per-action wrapping)
+        // Enhancement: Could optimize by modifying ObserverExecutor to accept wrapped action executors
+        // Priority: Low - Current approach is clean separation of concerns
     }
 
     /// Build the executor stack without dedup/caching features.

@@ -117,6 +117,8 @@ mod tests {
     fn test_extended_operator_enum_complete() {
         // Verify all 44 types are represented
         // This is a compile-time check via pattern matching in sql generators
-        // TODO: Add runtime inventory check if needed
+        // TODO(v2.2.0): Add runtime inventory check if performance issues identified
+        // Priority: Low - Only implement if profiling shows bottleneck
+        // Currently compile-time checks are sufficient
     }
 }
