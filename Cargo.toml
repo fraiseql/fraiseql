@@ -84,7 +84,7 @@ pyo3-async-runtimes = {version = "0.25", features = ["tokio-runtime"]}
 # Random
 rand = "0.8"
 # Kafka
-rdkafka = {version = "0.36", features = ["tokio"]}
+rdkafka = {version = "0.39", features = ["tokio"]}
 regex = "1.10"
 # HTTP client
 reqwest = {version = "0.12", features = ["json"]}
