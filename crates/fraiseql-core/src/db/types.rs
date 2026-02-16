@@ -5,7 +5,13 @@ use serde::{Deserialize, Serialize};
 use tokio_postgres::types::{IsNull, ToSql, Type};
 
 /// Database types supported by FraiseQL.
+///
+/// # Stability
+///
+/// This enum is marked `#[non_exhaustive]` to allow adding new database types
+/// in future versions without breaking backward compatibility.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DatabaseType {
     /// PostgreSQL database (primary, full feature set).
     PostgreSQL,

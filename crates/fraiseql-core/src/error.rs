@@ -27,7 +27,13 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///
 /// All errors in the core library are converted to this type.
 /// Language bindings convert this to their native error types.
+///
+/// # Stability
+///
+/// This enum is marked `#[non_exhaustive]` to allow adding new error variants
+/// in future minor versions without breaking backward compatibility.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum FraiseQLError {
     // ========================================================================
     // GraphQL Errors

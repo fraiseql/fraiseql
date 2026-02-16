@@ -135,6 +135,7 @@ pub mod filters;
 pub mod observability;
 pub mod security;
 pub mod tenancy;
+pub mod types;
 pub mod utils;
 pub mod validation;
 
