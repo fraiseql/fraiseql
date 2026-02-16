@@ -1,0 +1,35 @@
+# FraiseQL Code Owners
+# These users will be automatically requested for review when PRs touch these paths
+
+# Default owners for everything
+* @fraiseql/core-team
+
+# Core engine (performance-critical)
+/crates/fraiseql-core/ @fraiseql/core-team
+
+# Security-critical components
+/crates/fraiseql-server/src/auth/ @fraiseql/security-team
+/crates/fraiseql-server/src/secrets_manager/ @fraiseql/security-team
+/crates/fraiseql-server/src/encryption/ @fraiseql/security-team
+/crates/fraiseql-core/src/security/ @fraiseql/security-team
+
+# Database adapters
+/crates/fraiseql-core/src/db/ @fraiseql/database-team
+
+# Arrow Flight server
+/crates/fraiseql-arrow/ @fraiseql/core-team
+
+# CLI and tooling
+/crates/fraiseql-cli/ @fraiseql/core-team
+
+# Documentation
+/docs/ @fraiseql/docs-team
+*.md @fraiseql/docs-team
+
+# CI/CD and automation
+/.github/workflows/ @fraiseql/devops-team
+
+# Release configuration
+/Cargo.toml @fraiseql/release-team
+/RELEASING.md @fraiseql/release-team
+/Cargo.lock @fraiseql/release-team
