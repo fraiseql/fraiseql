@@ -76,6 +76,8 @@ once_cell = "1.19"
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 postgres-native-tls = "0.5"
+# Property-based testing
+proptest = "1.4"
 # Python FFI (for fraiseql-python crate)
 pyo3 = {version = "0.25", features = ["extension-module", "experimental-async"]}
 pyo3-async-runtimes = {version = "0.25", features = ["tokio-runtime"]}
