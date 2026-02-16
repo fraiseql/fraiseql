@@ -40,13 +40,13 @@ opt-level = 2
 [registries.crates-io]
 protocol = "sparse"
 
-[term]
-# Colored output
-color = "always"
-verbose = false
-
 # Enable mold linker for faster linking on Linux
 # Provides 3-5x speedup on full rebuilds
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[term]
+# Colored output
+color = "always"
+verbose = false
