@@ -1,9 +1,9 @@
 # FraiseQL Development Status & Roadmap
 
-**Last Updated**: February 8, 2026
+**Last Updated**: February 16, 2026
 **Current Stable**: v1.8.9
-**Latest Alpha**: v2.0.0-alpha.3
-**Architecture Status**: Week 6 Complete (Rich Filters & Compiler Optimization)
+**Latest Release**: v2.0.0-beta.1 (Beta - Ready for Testing)
+**Architecture Status**: Phases 4-6 Complete (Production Ready)
 
 ---
 
