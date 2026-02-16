@@ -161,6 +161,8 @@ async fn test_do_get_with_expired_session_token() {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 
+    ensure_flight_secret();
+
     let service = FraiseQLFlightService::new();
 
     // Create an EXPIRED token
