@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/fraiseql.svg)](https://crates.io/crates/fraiseql)
 [![Test Coverage](https://img.shields.io/badge/tests-4773%2B-brightgreen.svg)](./crates/fraiseql-core/tests/)
+[![Code Coverage](https://codecov.io/gh/fraiseql/fraiseql/branch/dev/graph/badge.svg)](https://codecov.io/gh/fraiseql/fraiseql)
 ![Build](https://github.com/fraiseql/fraiseql/actions/workflows/ci.yml/badge.svg)
 
 **v2.0.0-alpha.5** | **Alpha** | **Compiled GraphQL Engine for Relational Databases**
