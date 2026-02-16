@@ -36,7 +36,7 @@ hex = "0.4"
 # Webhook signature verification
 hmac = "0.12"
 http = "1"
-image = {version = "0.24", features = ["jpeg", "png", "webp"]}
+image = {version = "0.25", features = ["jpeg", "png", "webp"]}
 infer = "0.15"
 # Authentication (JWT, OAuth, OIDC)
 jsonwebtoken = "9.2"
