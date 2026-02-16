@@ -25,7 +25,7 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 walkdir = "2"
 
 [dev-dependencies]
-tempfile = "3.8"
+tempfile = "3.25"
 
 [lints]
 workspace = true

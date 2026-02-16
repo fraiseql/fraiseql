@@ -81,7 +81,7 @@ tracing-opentelemetry = {version = "0.23", optional = true}
 tracing-subscriber = {version = "0.3", features = ["env-filter", "json"]}
 urlencoding = "2.1"
 # UUID generation
-uuid = {version = "1.0", features = ["v4", "serde"]}
+uuid = {version = "1.21", features = ["v4", "serde"]}
 zeroize = "1.8"
 
 [dev-dependencies]
@@ -94,7 +94,7 @@ reqwest = {version = "0.12", features = ["json"]}
 serde_yaml = "0.9"
 # Database testing
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
-tempfile = "3.13"
+tempfile = "3.25"
 # Testing
 tokio-test = "0.4"
 # Utilities for E2E tests
