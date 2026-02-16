@@ -27,7 +27,7 @@ members = [
   "crates/fraiseql-error",
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",  # Procedural macros for automatic instrumentation (Phase 9.2.B)
-  "crates/fraiseql-server",  # HTTP server with runtime, webhooks, files (Phases 1-4B)
+  "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, webhooks, files (Phases 1-4B)
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
 ]
 resolver = "2"
