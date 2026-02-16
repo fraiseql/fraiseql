@@ -125,7 +125,7 @@ pub enum SubscriptionError {
         /// Transport that failed.
         transport: String,
         /// Reason for failure.
-        reason:    String,
+        reason: String,
     },
 }
 
@@ -997,8 +997,8 @@ pub mod protocol {
         pub fn next(id: impl Into<String>, data: serde_json::Value) -> Self {
             Self {
                 message_type: ServerMessageType::Next.as_str().to_string(),
-                id:           Some(id.into()),
-                payload:      Some(serde_json::json!({ "data": data })),
+                id: Some(id.into()),
+                payload: Some(serde_json::json!({ "data": data })),
             }
         }
 
@@ -1007,8 +1007,8 @@ pub mod protocol {
         pub fn error(id: impl Into<String>, errors: Vec<GraphQLError>) -> Self {
             Self {
                 message_type: ServerMessageType::Error.as_str().to_string(),
-                id:           Some(id.into()),
-                payload:      Some(serde_json::to_value(errors).unwrap_or_default()),
+                id: Some(id.into()),
+                payload: Some(serde_json::to_value(errors).unwrap_or_default()),
             }
         }
 
@@ -1017,8 +1017,8 @@ pub mod protocol {
         pub fn complete(id: impl Into<String>) -> Self {
             Self {
                 message_type: ServerMessageType::Complete.as_str().to_string(),
-                id:           Some(id.into()),
-                payload:      None,
+                id: Some(id.into()),
+                payload: None,
             }
         }
 
@@ -1056,9 +1056,9 @@ pub mod protocol {
         #[must_use]
         pub fn new(message: impl Into<String>) -> Self {
             Self {
-                message:    message.into(),
-                locations:  None,
-                path:       None,
+                message: message.into(),
+                locations: None,
+                path: None,
                 extensions: None,
             }
         }
@@ -1070,9 +1070,9 @@ pub mod protocol {
             extensions.insert("code".to_string(), serde_json::json!(code.into()));
 
             Self {
-                message:    message.into(),
-                locations:  None,
-                path:       None,
+                message: message.into(),
+                locations: None,
+                path: None,
                 extensions: Some(extensions),
             }
         }
@@ -1082,7 +1082,7 @@ pub mod protocol {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct ErrorLocation {
         /// Line number (1-indexed).
-        pub line:   u32,
+        pub line: u32,
         /// Column number (1-indexed).
         pub column: u32,
     }
@@ -1091,19 +1091,19 @@ pub mod protocol {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum CloseCode {
         /// Normal closure.
-        Normal               = 1000,
+        Normal = 1000,
         /// Client violated protocol.
-        ProtocolError        = 1002,
+        ProtocolError = 1002,
         /// Internal server error.
-        InternalError        = 1011,
+        InternalError = 1011,
         /// Connection initialization timeout.
         ConnectionInitTimeout = 4408,
         /// Too many initialization requests.
-        TooManyInitRequests  = 4429,
+        TooManyInitRequests = 4429,
         /// Subscriber already exists (duplicate ID).
         SubscriberAlreadyExists = 4409,
         /// Unauthorized.
-        Unauthorized         = 4401,
+        Unauthorized = 4401,
         /// Subscription not found (invalid ID on complete).
         SubscriptionNotFound = 4404,
     }
@@ -1296,12 +1296,12 @@ impl WebhookConfig {
     #[must_use]
     pub fn new(url: impl Into<String>) -> Self {
         Self {
-            url:            url.into(),
-            secret:         None,
-            timeout_ms:     30_000,
-            max_retries:    3,
+            url: url.into(),
+            secret: None,
+            timeout_ms: 30_000,
+            max_retries: 3,
             retry_delay_ms: 1000,
-            headers:        std::collections::HashMap::new(),
+            headers: std::collections::HashMap::new(),
         }
     }
 
@@ -1378,15 +1378,15 @@ impl WebhookPayload {
     #[must_use]
     pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
         Self {
-            event_id:          event.event_id.clone(),
+            event_id: event.event_id.clone(),
             subscription_name: subscription_name.to_string(),
-            entity_type:       event.entity_type.clone(),
-            entity_id:         event.entity_id.clone(),
-            operation:         format!("{:?}", event.operation),
-            data:              event.data.clone(),
-            old_data:          event.old_data.clone(),
-            timestamp:         event.timestamp.to_rfc3339(),
-            sequence_number:   event.sequence_number,
+            entity_type: event.entity_type.clone(),
+            entity_id: event.entity_id.clone(),
+            operation: format!("{:?}", event.operation),
+            data: event.data.clone(),
+            old_data: event.old_data.clone(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
         }
     }
 }
@@ -1586,12 +1586,12 @@ impl KafkaConfig {
     #[must_use]
     pub fn new(brokers: impl Into<String>, default_topic: impl Into<String>) -> Self {
         Self {
-            brokers:       brokers.into(),
+            brokers: brokers.into(),
             default_topic: default_topic.into(),
-            client_id:     "fraiseql".to_string(),
-            acks:          "all".to_string(),
-            timeout_ms:    30_000,
-            compression:   None,
+            client_id: "fraiseql".to_string(),
+            acks: "all".to_string(),
+            timeout_ms: 30_000,
+            compression: None,
         }
     }
 
@@ -1661,15 +1661,15 @@ impl KafkaMessage {
     #[must_use]
     pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
         Self {
-            event_id:          event.event_id.clone(),
+            event_id: event.event_id.clone(),
             subscription_name: subscription_name.to_string(),
-            entity_type:       event.entity_type.clone(),
-            entity_id:         event.entity_id.clone(),
-            operation:         format!("{:?}", event.operation),
-            data:              event.data.clone(),
-            old_data:          event.old_data.clone(),
-            timestamp:         event.timestamp.to_rfc3339(),
-            sequence_number:   event.sequence_number,
+            entity_type: event.entity_type.clone(),
+            entity_id: event.entity_id.clone(),
+            operation: format!("{:?}", event.operation),
+            data: event.data.clone(),
+            old_data: event.old_data.clone(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
         }
     }
 
@@ -1709,7 +1709,7 @@ impl KafkaMessage {
 /// ```
 #[cfg(feature = "kafka")]
 pub struct KafkaAdapter {
-    config:   KafkaConfig,
+    config: KafkaConfig,
     producer: rdkafka::producer::FutureProducer,
 }
 
@@ -1817,7 +1817,7 @@ impl TransportAdapter for KafkaAdapter {
                 );
                 Err(SubscriptionError::DeliveryFailed {
                     transport: "kafka".to_string(),
-                    reason:    kafka_error.to_string(),
+                    reason: kafka_error.to_string(),
                 })
             },
         }
@@ -1997,8 +1997,8 @@ impl TransportManager {
         if self.adapters.is_empty() {
             return Ok(DeliveryResult {
                 successful: 0,
-                failed:     0,
-                errors:     Vec::new(),
+                failed: 0,
+                errors: Vec::new(),
             });
         }
 
@@ -2075,9 +2075,9 @@ pub struct DeliveryResult {
     /// Number of successful deliveries.
     pub successful: usize,
     /// Number of failed deliveries.
-    pub failed:     usize,
+    pub failed: usize,
     /// Errors from failed deliveries (adapter name, error message).
-    pub errors:     Vec<(String, String)>,
+    pub errors: Vec<(String, String)>,
 }
 
 impl DeliveryResult {
@@ -2340,13 +2340,13 @@ mod tests {
     #[test]
     fn test_webhook_payload_from_event() {
         let event = SubscriptionEvent {
-            event_id:        "evt_123".to_string(),
-            entity_type:     "Order".to_string(),
-            entity_id:       "ord_456".to_string(),
-            operation:       SubscriptionOperation::Create,
-            data:            serde_json::json!({"id": "ord_456", "total": 99.99}),
-            old_data:        None,
-            timestamp:       chrono::Utc::now(),
+            event_id: "evt_123".to_string(),
+            entity_type: "Order".to_string(),
+            entity_id: "ord_456".to_string(),
+            operation: SubscriptionOperation::Create,
+            data: serde_json::json!({"id": "ord_456", "total": 99.99}),
+            old_data: None,
+            timestamp: chrono::Utc::now(),
             sequence_number: 42,
         };
 
@@ -2413,13 +2413,13 @@ mod tests {
     #[test]
     fn test_kafka_message_from_event() {
         let event = SubscriptionEvent {
-            event_id:        "evt_789".to_string(),
-            entity_type:     "User".to_string(),
-            entity_id:       "usr_123".to_string(),
-            operation:       SubscriptionOperation::Update,
-            data:            serde_json::json!({"id": "usr_123", "name": "John"}),
-            old_data:        Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
-            timestamp:       chrono::Utc::now(),
+            event_id: "evt_789".to_string(),
+            entity_type: "User".to_string(),
+            entity_id: "usr_123".to_string(),
+            operation: SubscriptionOperation::Update,
+            data: serde_json::json!({"id": "usr_123", "name": "John"}),
+            old_data: Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
+            timestamp: chrono::Utc::now(),
             sequence_number: 100,
         };
 
@@ -2438,13 +2438,13 @@ mod tests {
     #[test]
     fn test_kafka_message_key() {
         let event = SubscriptionEvent {
-            event_id:        "evt_1".to_string(),
-            entity_type:     "Order".to_string(),
-            entity_id:       "ord_partition_key".to_string(),
-            operation:       SubscriptionOperation::Create,
-            data:            serde_json::json!({}),
-            old_data:        None,
-            timestamp:       chrono::Utc::now(),
+            event_id: "evt_1".to_string(),
+            entity_type: "Order".to_string(),
+            entity_id: "ord_partition_key".to_string(),
+            operation: SubscriptionOperation::Create,
+            data: serde_json::json!({}),
+            old_data: None,
+            timestamp: chrono::Utc::now(),
             sequence_number: 1,
         };
 
@@ -2495,8 +2495,8 @@ mod tests {
     fn test_delivery_result_all_succeeded() {
         let result = DeliveryResult {
             successful: 3,
-            failed:     0,
-            errors:     vec![],
+            failed: 0,
+            errors: vec![],
         };
 
         assert!(result.all_succeeded());
@@ -2507,8 +2507,8 @@ mod tests {
     fn test_delivery_result_partial_failure() {
         let result = DeliveryResult {
             successful: 2,
-            failed:     1,
-            errors:     vec![("webhook".to_string(), "Connection refused".to_string())],
+            failed: 1,
+            errors: vec![("webhook".to_string(), "Connection refused".to_string())],
         };
 
         assert!(!result.all_succeeded());
@@ -2519,8 +2519,8 @@ mod tests {
     fn test_delivery_result_all_failed() {
         let result = DeliveryResult {
             successful: 0,
-            failed:     2,
-            errors:     vec![
+            failed: 2,
+            errors: vec![
                 ("webhook".to_string(), "Connection refused".to_string()),
                 ("kafka".to_string(), "Broker unavailable".to_string()),
             ],
@@ -2709,9 +2709,9 @@ mod tests {
         let filter = SubscriptionFilter {
             argument_paths,
             static_filters: vec![StaticFilterCondition {
-                path:     "/status".to_string(),
+                path: "/status".to_string(),
                 operator: FilterOperator::Eq,
-                value:    serde_json::json!("active"),
+                value: serde_json::json!("active"),
             }],
         };
 

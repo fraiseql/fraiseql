@@ -109,9 +109,9 @@ use crate::{
 #[cfg(feature = "caching")]
 pub struct CachedActionExecutor<E: ActionExecutor, C: CacheBackend> {
     /// Inner action executor
-    inner:   E,
+    inner: E,
     /// Cache backend
-    cache:   Arc<C>,
+    cache: Arc<C>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
     metrics: MetricsRegistry,
@@ -173,8 +173,8 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
 
                 return Ok(ActionResult {
                     action_type: cached_result.action_type,
-                    success:     cached_result.success,
-                    message:     cached_result.message,
+                    success: cached_result.success,
+                    message: cached_result.message,
                     duration_ms: cached_result.duration_ms,
                 });
             },
@@ -264,8 +264,8 @@ mod tests {
             self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(ActionResult {
                 action_type: "test".to_string(),
-                success:     true,
-                message:     "Test success".to_string(),
+                success: true,
+                message: "Test success".to_string(),
                 duration_ms: 10.0,
             })
         }
@@ -274,14 +274,14 @@ mod tests {
     // Simple in-memory cache for testing
     #[derive(Clone)]
     struct InMemoryCache {
-        store:       Arc<dashmap::DashMap<String, CachedActionResult>>,
+        store: Arc<dashmap::DashMap<String, CachedActionResult>>,
         ttl_seconds: Arc<std::sync::atomic::AtomicU64>,
     }
 
     impl InMemoryCache {
         fn new() -> Self {
             Self {
-                store:       Arc::new(dashmap::DashMap::new()),
+                store: Arc::new(dashmap::DashMap::new()),
                 ttl_seconds: Arc::new(std::sync::atomic::AtomicU64::new(60)),
             }
         }
@@ -331,12 +331,12 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to:               Some("test@example.com".to_string()),
-            to_template:      None,
-            subject:          Some("Test".to_string()),
+            to: Some("test@example.com".to_string()),
+            to_template: None,
+            subject: Some("Test".to_string()),
             subject_template: None,
-            body_template:    Some("Test body".to_string()),
-            reply_to:         None,
+            body_template: Some("Test body".to_string()),
+            reply_to: None,
         };
 
         let cache_key =
@@ -367,9 +367,9 @@ mod tests {
         );
 
         let action = ActionConfig::Webhook {
-            url:           Some("https://example.com".to_string()),
-            url_env:       None,
-            headers:       std::collections::HashMap::new(),
+            url: Some("https://example.com".to_string()),
+            url_env: None,
+            headers: std::collections::HashMap::new(),
             body_template: Some("{}".to_string()),
         };
 
@@ -400,12 +400,12 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to:               Some("test@example.com".to_string()),
-            to_template:      None,
-            subject:          Some("Test".to_string()),
+            to: Some("test@example.com".to_string()),
+            to_template: None,
+            subject: Some("Test".to_string()),
             subject_template: None,
-            body_template:    Some("Test body".to_string()),
-            reply_to:         None,
+            body_template: Some("Test body".to_string()),
+            reply_to: None,
         };
 
         // First execution - cache miss

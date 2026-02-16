@@ -20,25 +20,25 @@ use crate::error::{ObserverError, Result};
 #[derive(Debug, Clone)]
 pub struct ListenerHealth {
     /// Unique identifier for the listener
-    pub listener_id:     String,
+    pub listener_id: String,
     /// Whether the listener is currently healthy
-    pub is_healthy:      bool,
+    pub is_healthy: bool,
     /// Last processed checkpoint ID
     pub last_checkpoint: i64,
     /// Current state of the listener
-    pub state:           ListenerState,
+    pub state: ListenerState,
     /// Timestamp of last heartbeat
-    pub last_heartbeat:  Instant,
+    pub last_heartbeat: Instant,
 }
 
 /// Handle to a registered listener
 pub struct ListenerHandle {
     /// Unique identifier for the listener
-    pub listener_id:    String,
+    pub listener_id: String,
     /// State machine managing listener lifecycle
-    pub state_machine:  ListenerStateMachine,
+    pub state_machine: ListenerStateMachine,
     /// Current checkpoint (last processed event ID)
-    pub checkpoint:     Arc<AtomicU64>,
+    pub checkpoint: Arc<AtomicU64>,
     /// Last heartbeat timestamp
     pub last_heartbeat: Arc<tokio::sync::Mutex<Instant>>,
 }
@@ -65,9 +65,9 @@ impl MultiListenerCoordinator {
     /// Register a listener
     pub async fn register_listener(&self, listener_id: String) -> Result<()> {
         let handle = Arc::new(ListenerHandle {
-            listener_id:    listener_id.clone(),
-            state_machine:  ListenerStateMachine::new(listener_id.clone()),
-            checkpoint:     Arc::new(AtomicU64::new(0)),
+            listener_id: listener_id.clone(),
+            state_machine: ListenerStateMachine::new(listener_id.clone()),
+            checkpoint: Arc::new(AtomicU64::new(0)),
             last_heartbeat: Arc::new(tokio::sync::Mutex::new(Instant::now())),
         });
 

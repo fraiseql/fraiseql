@@ -94,7 +94,7 @@ mod tests {
         let metadata = FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types:   vec![],
+            types: vec![],
         };
 
         let base_schema = "type Query { test: String }";

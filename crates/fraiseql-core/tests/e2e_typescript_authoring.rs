@@ -43,14 +43,14 @@ fn test_typescript_basic_federation_key() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     assert!(metadata.enabled);
@@ -76,14 +76,14 @@ fn test_typescript_id_scalar_type() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let key_field = &metadata.types[0].keys[0].fields[0];
@@ -107,18 +107,18 @@ fn test_typescript_multiple_key_decorators() {
 
     let mut account_type = FederatedType::new("Account".to_string());
     account_type.keys.push(KeyDirective {
-        fields:     vec!["tenant_id".to_string()],
+        fields: vec!["tenant_id".to_string()],
         resolvable: true,
     });
     account_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![account_type],
+        types: vec![account_type],
     };
 
     assert_eq!(metadata.types[0].keys.len(), 2);
@@ -149,14 +149,14 @@ fn test_typescript_extends_decorator() {
     user_type.is_extends = true;
     user_type.external_fields.push("id".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     assert!(metadata.types[0].is_extends);
@@ -184,7 +184,7 @@ fn test_typescript_external_decorator() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let external = &metadata.types[0].external_fields;
@@ -216,13 +216,13 @@ fn test_typescript_requires_decorator() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -230,7 +230,7 @@ fn test_typescript_requires_decorator() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     let directives = metadata.types[0].get_field_directives("shippingEstimate");
@@ -256,13 +256,13 @@ fn test_typescript_requires_with_complex_field() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingInfo".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["customer".to_string()],
+            path: vec!["customer".to_string()],
             typename: "Customer".to_string(),
         }),
     );
@@ -270,7 +270,7 @@ fn test_typescript_requires_with_complex_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     let directives = metadata.types[0].get_field_directives("shippingInfo");
@@ -298,13 +298,13 @@ fn test_typescript_provides_decorator() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["userId".to_string()],
+            path: vec!["userId".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -312,7 +312,7 @@ fn test_typescript_provides_decorator() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let directives = metadata.types[0].get_field_directives("orders");
@@ -338,7 +338,7 @@ fn test_typescript_entity_resolution_basic() {
     entity_fields.insert("name".to_string(), json!("Bob"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-456"));
@@ -400,20 +400,20 @@ fn test_typescript_cross_subgraph_federation() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
     };
 
     assert_eq!(metadata.types.len(), 2);
@@ -443,7 +443,7 @@ fn test_typescript_federation_query_type() {
     let fed_metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![query_type],
+        types: vec![query_type],
     };
 
     let query = fed_metadata.types.iter().find(|t| t.name == "Query");
@@ -468,15 +468,15 @@ fn test_typescript_shareable_directive() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "id".to_string(),
         FieldFederationDirectives {
-            requires:  vec![],
-            provides:  vec![],
-            external:  false,
+            requires: vec![],
+            provides: vec![],
+            external: false,
             shareable: true,
         },
     );
@@ -484,7 +484,7 @@ fn test_typescript_shareable_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let directives = metadata.types[0].get_field_directives("id");
@@ -539,26 +539,26 @@ fn test_typescript_schema_roundtrip() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["userId".to_string()],
+            path: vec!["userId".to_string()],
             typename: "Order".to_string(),
         }),
     );
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -566,7 +566,7 @@ fn test_typescript_schema_roundtrip() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
     };
 
     // Verify roundtrip

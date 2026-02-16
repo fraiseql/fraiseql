@@ -28,7 +28,7 @@ pub fn find_federation_type<'a>(
         .find(|t| t.name == typename)
         .ok_or_else(|| FraiseQLError::Validation {
             message: format!("Type '{}' not found in federation metadata", typename),
-            path:    None,
+            path: None,
         })
 }
 
@@ -42,7 +42,7 @@ pub fn find_federation_type<'a>(
 pub fn get_key_directive(fed_type: &FederatedType) -> Result<&KeyDirective> {
     fed_type.keys.first().ok_or_else(|| FraiseQLError::Validation {
         message: format!("Type '{}' has no @key directive", fed_type.name),
-        path:    None,
+        path: None,
     })
 }
 
@@ -71,14 +71,14 @@ mod tests {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types:   vec![FederatedType {
-                name:             "User".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+            types: vec![FederatedType {
+                name: "User".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
+                is_extends: false,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],

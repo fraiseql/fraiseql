@@ -32,7 +32,7 @@ use crate::{
 /// the `EventTransport` trait for backward compatibility.
 pub struct PostgresNotifyTransport {
     /// Inner change log listener (wrapped)
-    listener:      Arc<Mutex<ChangeLogListener>>,
+    listener: Arc<Mutex<ChangeLogListener>>,
     /// Poll interval for checking new events
     poll_interval: Duration,
 }
@@ -142,7 +142,7 @@ impl EventTransport for PostgresNotifyTransport {
         drop(listener);
 
         Ok(TransportHealth {
-            status:  HealthStatus::Healthy,
+            status: HealthStatus::Healthy,
             message: Some("PostgreSQL change log listener operational".to_string()),
         })
     }

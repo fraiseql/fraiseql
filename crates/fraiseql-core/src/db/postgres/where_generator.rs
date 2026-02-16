@@ -107,7 +107,7 @@ pub struct PostgresWhereGenerator {
     /// - No concurrent access possible within query execution
     ///
     /// See struct documentation for why this is safe and how to fix if shared.
-    param_counter:   std::cell::Cell<usize>,
+    param_counter: std::cell::Cell<usize>,
     /// Optional indexed columns cache for the current view.
     /// When set, the generator will use indexed columns instead of JSONB extraction
     /// for nested paths that have corresponding indexed columns.
@@ -119,7 +119,7 @@ impl PostgresWhereGenerator {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            param_counter:   std::cell::Cell::new(0),
+            param_counter: std::cell::Cell::new(0),
             indexed_columns: None,
         }
     }
@@ -147,7 +147,7 @@ impl PostgresWhereGenerator {
     #[must_use]
     pub fn with_indexed_columns(indexed_columns: Arc<HashSet<String>>) -> Self {
         Self {
-            param_counter:   std::cell::Cell::new(0),
+            param_counter: std::cell::Cell::new(0),
             indexed_columns: Some(indexed_columns),
         }
     }
@@ -756,9 +756,9 @@ mod tests {
     fn test_simple_equality() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("test@example.com"),
+            value: json!("test@example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -770,9 +770,9 @@ mod tests {
     fn test_icontains() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Icontains,
-            value:    json!("example.com"),
+            value: json!("example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -784,9 +784,9 @@ mod tests {
     fn test_nested_path() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["address".to_string(), "city".to_string()],
+            path: vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("Paris"),
+            value: json!("Paris"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -799,14 +799,14 @@ mod tests {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path:     vec!["age".to_string()],
+                path: vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value:    json!(18),
+                value: json!(18),
             },
             WhereClause::Field {
-                path:     vec!["active".to_string()],
+                path: vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value:    json!(true),
+                value: json!(true),
             },
         ]);
 
@@ -824,14 +824,14 @@ mod tests {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Or(vec![
             WhereClause::Field {
-                path:     vec!["role".to_string()],
+                path: vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value:    json!("admin"),
+                value: json!("admin"),
             },
             WhereClause::Field {
-                path:     vec!["role".to_string()],
+                path: vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value:    json!("moderator"),
+                value: json!("moderator"),
             },
         ]);
 
@@ -844,9 +844,9 @@ mod tests {
     fn test_not_clause() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Not(Box::new(WhereClause::Field {
-            path:     vec!["deleted".to_string()],
+            path: vec!["deleted".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(true),
+            value: json!(true),
         }));
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -859,9 +859,9 @@ mod tests {
     fn test_in_operator() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::In,
-            value:    json!(["active", "pending"]),
+            value: json!(["active", "pending"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -873,9 +873,9 @@ mod tests {
     fn test_is_null() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["deleted_at".to_string()],
+            path: vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value:    json!(true),
+            value: json!(true),
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
@@ -886,9 +886,9 @@ mod tests {
     fn test_array_contains() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["tags".to_string()],
+            path: vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value:    json!(["rust"]),
+            value: json!(["rust"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -902,9 +902,9 @@ mod tests {
     fn test_ltree_ancestor_of() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::AncestorOf,
-            value:    json!("Top.Sciences.Astronomy"),
+            value: json!("Top.Sciences.Astronomy"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -916,9 +916,9 @@ mod tests {
     fn test_ltree_descendant_of() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::DescendantOf,
-            value:    json!("Top.Sciences"),
+            value: json!("Top.Sciences"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -930,9 +930,9 @@ mod tests {
     fn test_ltree_matches_lquery() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::MatchesLquery,
-            value:    json!("Top.*.Ast*"),
+            value: json!("Top.*.Ast*"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -944,9 +944,9 @@ mod tests {
     fn test_ltree_matches_ltxtquery() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::MatchesLtxtquery,
-            value:    json!("Science & !Deprecated"),
+            value: json!("Science & !Deprecated"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -958,9 +958,9 @@ mod tests {
     fn test_ltree_matches_any_lquery() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::MatchesAnyLquery,
-            value:    json!(["Top.*", "Other.*"]),
+            value: json!(["Top.*", "Other.*"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -972,9 +972,9 @@ mod tests {
     fn test_ltree_depth_eq() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::DepthEq,
-            value:    json!(3),
+            value: json!(3),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -986,9 +986,9 @@ mod tests {
     fn test_ltree_depth_gt() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::DepthGt,
-            value:    json!(2),
+            value: json!(2),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1000,9 +1000,9 @@ mod tests {
     fn test_ltree_lca() {
         let gen = PostgresWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["path".to_string()],
+            path: vec!["path".to_string()],
             operator: WhereOperator::Lca,
-            value:    json!(["Org.Engineering.Backend", "Org.Engineering.Frontend"]),
+            value: json!(["Org.Engineering.Backend", "Org.Engineering.Frontend"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1026,9 +1026,9 @@ mod tests {
         let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
 
         let clause = WhereClause::Field {
-            path:     vec!["category".to_string(), "code".to_string()],
+            path: vec!["category".to_string(), "code".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("ELEC"),
+            value: json!("ELEC"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1045,14 +1045,14 @@ mod tests {
         let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
 
         let clause = WhereClause::Field {
-            path:     vec![
+            path: vec![
                 "items".to_string(),
                 "product".to_string(),
                 "category".to_string(),
                 "code".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value:    json!("ELEC"),
+            value: json!("ELEC"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1069,13 +1069,13 @@ mod tests {
         let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
 
         let clause = WhereClause::Field {
-            path:     vec![
+            path: vec![
                 "items".to_string(),
                 "product".to_string(),
                 "name".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value:    json!("Widget"),
+            value: json!("Widget"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1092,9 +1092,9 @@ mod tests {
         let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
 
         let clause = WhereClause::Field {
-            path:     vec!["category".to_string(), "name".to_string()],
+            path: vec!["category".to_string(), "name".to_string()],
             operator: WhereOperator::Icontains,
-            value:    json!("electronics"),
+            value: json!("electronics"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1111,9 +1111,9 @@ mod tests {
         let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
 
         let clause = WhereClause::Field {
-            path:     vec!["order".to_string(), "total".to_string()],
+            path: vec!["order".to_string(), "total".to_string()],
             operator: WhereOperator::Gt,
-            value:    json!(100),
+            value: json!(100),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1129,9 +1129,9 @@ mod tests {
         let gen = PostgresWhereGenerator::with_indexed_columns(Arc::new(indexed));
 
         let clause = WhereClause::Field {
-            path:     vec!["category".to_string(), "code".to_string()],
+            path: vec!["category".to_string(), "code".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("ELEC"),
+            value: json!("ELEC"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -1146,9 +1146,9 @@ mod tests {
         let gen = PostgresWhereGenerator::new();
 
         let clause = WhereClause::Field {
-            path:     vec!["category".to_string(), "code".to_string()],
+            path: vec!["category".to_string(), "code".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("ELEC"),
+            value: json!("ELEC"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();

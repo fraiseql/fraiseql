@@ -24,15 +24,15 @@ pub struct VaultConfig {
     /// Vault server address (e.g., `https://vault.example.com`)
     pub vault_addr: String,
     /// Vault authentication token
-    pub token:      String,
+    pub token: String,
     /// Transit mount path (default: "transit")
     pub mount_path: String,
     /// Optional Vault namespace
-    pub namespace:  Option<String>,
+    pub namespace: Option<String>,
     /// Verify TLS certificates (default: true)
     pub verify_tls: bool,
     /// Request timeout in seconds (default: 30)
-    pub timeout:    u64,
+    pub timeout: u64,
 }
 
 impl VaultConfig {
@@ -408,10 +408,10 @@ impl BaseKmsProvider for VaultKmsProvider {
         // Vault doesn't have explicit rotation policies in transit engine
         // Return disabled by default
         Ok(RotationPolicyInfo {
-            enabled:              false,
+            enabled: false,
             rotation_period_days: 0,
-            last_rotation:        None,
-            next_rotation:        None,
+            last_rotation: None,
+            next_rotation: None,
         })
     }
 }

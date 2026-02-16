@@ -217,18 +217,18 @@ mod integration_tests {
     #[test]
     fn test_webhook_action_validation() {
         let invalid = ActionConfig::Webhook {
-            url:           None,
-            url_env:       None,
-            headers:       std::collections::HashMap::new(),
+            url: None,
+            url_env: None,
+            headers: std::collections::HashMap::new(),
             body_template: None,
         };
 
         assert!(invalid.validate().is_err());
 
         let valid = ActionConfig::Webhook {
-            url:           Some("https://example.com".to_string()),
-            url_env:       None,
-            headers:       std::collections::HashMap::new(),
+            url: Some("https://example.com".to_string()),
+            url_env: None,
+            headers: std::collections::HashMap::new(),
             body_template: Some("{}".to_string()),
         };
 
@@ -264,21 +264,21 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let changelog_entry = listener::ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           Some("user-1".to_string()),
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "acme".to_string(),
+            fk_contact: Some("user-1".to_string()),
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string(), "total": 250.00, "status": "new" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T12:00:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T12:00:00+00:00".to_string(),
         };
 
         // Step 1: Convert to EntityEvent
@@ -306,21 +306,21 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let changelog_entry = listener::ChangeLogEntry {
-            id:                   2,
+            id: 2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           Some("user-2".to_string()),
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "acme".to_string(),
+            fk_contact: Some("user-2".to_string()),
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": { "status": "new", "total": 250.00 },
                 "after": { "status": "shipped", "total": 250.00 }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T13:00:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T13:00:00+00:00".to_string(),
         };
 
         // Step 1: Convert to EntityEvent
@@ -342,21 +342,21 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let changelog_entry = listener::ChangeLogEntry {
-            id:                   3,
+            id: 3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           None,
-            object_type:          "User".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "DELETE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "acme".to_string(),
+            fk_contact: None,
+            object_type: "User".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "DELETE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "d",
                 "before": { "id": entity_id.to_string(), "name": "John Doe", "email": "john@example.com" },
                 "after": null
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T14:00:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T14:00:00+00:00".to_string(),
         };
 
         // Step 1: Convert to EntityEvent
@@ -377,21 +377,21 @@ mod e2e_tests {
         for entity_type in types {
             let entity_id = Uuid::new_v4();
             let entry = listener::ChangeLogEntry {
-                id:                   1,
+                id: 1,
                 pk_entity_change_log: Uuid::new_v4().to_string(),
-                fk_customer_org:      "acme".to_string(),
-                fk_contact:           None,
-                object_type:          entity_type.to_string(),
-                object_id:            entity_id.to_string(),
-                modification_type:    "INSERT".to_string(),
-                change_status:        "success".to_string(),
-                object_data:          json!({
+                fk_customer_org: "acme".to_string(),
+                fk_contact: None,
+                object_type: entity_type.to_string(),
+                object_id: entity_id.to_string(),
+                modification_type: "INSERT".to_string(),
+                change_status: "success".to_string(),
+                object_data: json!({
                     "op": "c",
                     "before": null,
                     "after": { "id": entity_id.to_string() }
                 }),
-                extra_metadata:       None,
-                created_at:           "2026-01-22T15:00:00+00:00".to_string(),
+                extra_metadata: None,
+                created_at: "2026-01-22T15:00:00+00:00".to_string(),
             };
 
             let event = entry.to_entity_event().expect("Failed to convert");
@@ -409,21 +409,21 @@ mod e2e_tests {
 
         for org_id in orgs {
             let entry = listener::ChangeLogEntry {
-                id:                   1,
+                id: 1,
                 pk_entity_change_log: Uuid::new_v4().to_string(),
-                fk_customer_org:      org_id.to_string(),
-                fk_contact:           None,
-                object_type:          "Order".to_string(),
-                object_id:            entity_id.to_string(),
-                modification_type:    "INSERT".to_string(),
-                change_status:        "success".to_string(),
-                object_data:          json!({
+                fk_customer_org: org_id.to_string(),
+                fk_contact: None,
+                object_type: "Order".to_string(),
+                object_id: entity_id.to_string(),
+                modification_type: "INSERT".to_string(),
+                change_status: "success".to_string(),
+                object_data: json!({
                     "op": "c",
                     "before": null,
                     "after": { "id": entity_id.to_string(), "org": org_id }
                 }),
-                extra_metadata:       None,
-                created_at:           "2026-01-22T16:00:00+00:00".to_string(),
+                extra_metadata: None,
+                created_at: "2026-01-22T16:00:00+00:00".to_string(),
             };
 
             let event = entry.to_entity_event().expect("Failed to convert");
@@ -437,15 +437,15 @@ mod e2e_tests {
 
         let entity_id = Uuid::new_v4();
         let entry = listener::ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           None,
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "acme".to_string(),
+            fk_contact: None,
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": {
                     "status": "pending",
@@ -459,8 +459,8 @@ mod e2e_tests {
                     "shipped_at": "2026-01-22T16:30:00Z"
                 }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T16:30:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T16:30:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().expect("Failed to convert");
@@ -491,21 +491,21 @@ mod e2e_tests {
         let timestamp_str = "2026-01-22T14:30:45.123456+00:00";
 
         let entry = listener::ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           None,
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "acme".to_string(),
+            fk_contact: None,
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string() }
             }),
-            extra_metadata:       None,
-            created_at:           timestamp_str.to_string(),
+            extra_metadata: None,
+            created_at: timestamp_str.to_string(),
         };
 
         let event = entry.to_entity_event().expect("Failed to convert");
@@ -519,21 +519,21 @@ mod e2e_tests {
         // Verify error handling for invalid UUID in object_id
 
         let entry = listener::ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "acme".to_string(),
-            fk_contact:           None,
-            object_type:          "Order".to_string(),
-            object_id:            "not-a-uuid".to_string(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "acme".to_string(),
+            fk_contact: None,
+            object_type: "Order".to_string(),
+            object_id: "not-a-uuid".to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": "invalid" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T17:00:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T17:00:00+00:00".to_string(),
         };
 
         let result = entry.to_entity_event();

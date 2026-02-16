@@ -681,7 +681,7 @@ mod tests {
     /// Mock database adapter for testing.
     struct MockAdapter {
         /// Number of times execute_where_query was called.
-        call_count:     std::sync::atomic::AtomicU32,
+        call_count: std::sync::atomic::AtomicU32,
         /// Number of times execute_raw_query was called.
         raw_call_count: std::sync::atomic::AtomicU32,
     }
@@ -689,7 +689,7 @@ mod tests {
     impl MockAdapter {
         fn new() -> Self {
             Self {
-                call_count:     std::sync::atomic::AtomicU32::new(0),
+                call_count: std::sync::atomic::AtomicU32::new(0),
                 raw_call_count: std::sync::atomic::AtomicU32::new(0),
             }
         }
@@ -745,10 +745,10 @@ mod tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  10,
-                idle_connections:   5,
+                total_connections: 10,
+                idle_connections: 5,
                 active_connections: 3,
-                waiting_requests:   0,
+                waiting_requests: 0,
             }
         }
 
@@ -788,15 +788,15 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         let where1 = WhereClause::Field {
-            path:     vec!["id".to_string()],
+            path: vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(1),
+            value: json!(1),
         };
 
         let where2 = WhereClause::Field {
-            path:     vec!["id".to_string()],
+            path: vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(2),
+            value: json!(2),
         };
 
         // Query 1
@@ -869,11 +869,11 @@ mod tests {
         // Adapter with version 1.0.0
         let mock1 = MockAdapter::new();
         let adapter_v1 = CachedDatabaseAdapter {
-            adapter:           mock1,
-            cache:             Arc::clone(&cache),
-            schema_version:    "1.0.0".to_string(),
+            adapter: mock1,
+            cache: Arc::clone(&cache),
+            schema_version: "1.0.0".to_string(),
             fact_table_config: FactTableCacheConfig::default(),
-            version_provider:  Arc::clone(&version_provider),
+            version_provider: Arc::clone(&version_provider),
         };
 
         // Query with v1
@@ -882,11 +882,11 @@ mod tests {
         // Create new adapter with version 2.0.0 (same cache!)
         let mock2 = MockAdapter::new();
         let adapter_v2 = CachedDatabaseAdapter {
-            adapter:           mock2,
-            cache:             Arc::clone(&cache),
-            schema_version:    "2.0.0".to_string(),
+            adapter: mock2,
+            cache: Arc::clone(&cache),
+            schema_version: "2.0.0".to_string(),
             fact_table_config: FactTableCacheConfig::default(),
-            version_provider:  Arc::clone(&version_provider),
+            version_provider: Arc::clone(&version_provider),
         };
 
         // Query with v2 - should miss cache (different schema version)

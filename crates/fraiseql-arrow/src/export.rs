@@ -174,9 +174,9 @@ impl BulkExporter {
 #[derive(Debug, Clone)]
 pub struct BatchStats {
     /// Number of rows
-    pub num_rows:     usize,
+    pub num_rows: usize,
     /// Number of columns
-    pub num_columns:  usize,
+    pub num_columns: usize,
     /// Approximate memory usage in bytes
     pub memory_bytes: usize,
 }

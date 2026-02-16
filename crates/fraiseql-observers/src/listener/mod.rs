@@ -53,8 +53,8 @@ pub struct ListenerConfig {
 
 /// PostgreSQL event listener that receives NOTIFY events
 pub struct EventListener {
-    config:  ListenerConfig,
-    sender:  mpsc::Sender<EntityEvent>,
+    config: ListenerConfig,
+    sender: mpsc::Sender<EntityEvent>,
     running: Arc<AtomicBool>,
 }
 

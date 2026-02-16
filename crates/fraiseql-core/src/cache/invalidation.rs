@@ -221,7 +221,7 @@ impl InvalidationContext {
     ) -> Self {
         Self {
             modified_views: affected_views,
-            reason:         InvalidationReason::SchemaChange {
+            reason: InvalidationReason::SchemaChange {
                 old_version: old_version.to_string(),
                 new_version: new_version.to_string(),
             },

@@ -4,7 +4,7 @@
 //! across all inputs and edge cases.
 
 use proptest::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -191,17 +191,15 @@ fn arb_simple_json_value() -> impl Strategy<Value = Value> {
         |inner| {
             prop_oneof![
                 // JSON arrays
-                prop::collection::vec(inner.clone(), 0..10)
-                    .prop_map(Value::Array),
+                prop::collection::vec(inner.clone(), 0..10).prop_map(Value::Array),
                 // JSON objects
-                prop::collection::hash_map("[a-zA-Z][a-zA-Z0-9_]*", inner, 0..10)
-                    .prop_map(|map| {
-                        let mut obj = serde_json::Map::new();
-                        for (k, v) in map {
-                            obj.insert(k, v);
-                        }
-                        Value::Object(obj)
-                    }),
+                prop::collection::hash_map("[a-zA-Z][a-zA-Z0-9_]*", inner, 0..10).prop_map(|map| {
+                    let mut obj = serde_json::Map::new();
+                    for (k, v) in map {
+                        obj.insert(k, v);
+                    }
+                    Value::Object(obj)
+                }),
             ]
         },
     )
@@ -226,17 +224,15 @@ fn arb_json_value() -> impl Strategy<Value = Value> {
         |inner| {
             prop_oneof![
                 // JSON arrays
-                prop::collection::vec(inner.clone(), 0..10)
-                    .prop_map(Value::Array),
+                prop::collection::vec(inner.clone(), 0..10).prop_map(Value::Array),
                 // JSON objects
-                prop::collection::hash_map("[a-zA-Z][a-zA-Z0-9_]*", inner, 0..10)
-                    .prop_map(|map| {
-                        let mut obj = serde_json::Map::new();
-                        for (k, v) in map {
-                            obj.insert(k, v);
-                        }
-                        Value::Object(obj)
-                    }),
+                prop::collection::hash_map("[a-zA-Z][a-zA-Z0-9_]*", inner, 0..10).prop_map(|map| {
+                    let mut obj = serde_json::Map::new();
+                    for (k, v) in map {
+                        obj.insert(k, v);
+                    }
+                    Value::Object(obj)
+                }),
             ]
         },
     )

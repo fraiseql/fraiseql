@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthStatus {
     /// Overall status (healthy, degraded, unhealthy)
-    pub status:         String,
+    pub status: String,
     /// Unix timestamp
-    pub timestamp:      u64,
+    pub timestamp: u64,
     /// Uptime in seconds
     pub uptime_seconds: u64,
 }
@@ -21,22 +21,22 @@ pub struct HealthStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadinessStatus {
     /// Is ready to serve requests
-    pub ready:              bool,
+    pub ready: bool,
     /// Database connectivity
     pub database_connected: bool,
     /// Cache availability (if enabled)
-    pub cache_available:    bool,
+    pub cache_available: bool,
     /// Reason if not ready
-    pub reason:             Option<String>,
+    pub reason: Option<String>,
 }
 
 /// Liveness status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivenessStatus {
     /// Process is alive
-    pub alive:            bool,
+    pub alive: bool,
     /// Process ID
-    pub pid:              u32,
+    pub pid: u32,
     /// Response time in ms
     pub response_time_ms: u32,
 }
@@ -72,8 +72,8 @@ pub fn readiness_check(database_connected: bool, cache_available: bool) -> Readi
 /// Perform liveness check
 pub fn liveness_check() -> LivenessStatus {
     LivenessStatus {
-        alive:            true,
-        pid:              std::process::id(),
+        alive: true,
+        pid: std::process::id(),
         response_time_ms: 5,
     }
 }

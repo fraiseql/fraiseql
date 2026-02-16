@@ -81,10 +81,10 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   8,
+            total_connections: 10,
+            idle_connections: 8,
             active_connections: 2,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -132,14 +132,14 @@ fn test_resolve_entity_from_postgres_table() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -151,7 +151,7 @@ fn test_resolve_entity_from_postgres_table() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -200,14 +200,14 @@ fn test_resolve_entities_batch_from_postgres() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -226,12 +226,12 @@ fn test_resolve_entities_batch_from_postgres() {
 
     let reps = vec![
         EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep1_keys,
             all_fields: rep1_all,
         },
         EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep2_keys,
             all_fields: rep2_all,
         },
@@ -275,14 +275,14 @@ fn test_resolve_entity_composite_key_from_postgres() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["tenant_id".to_string(), "user_id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["tenant_id".to_string(), "user_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -296,7 +296,7 @@ fn test_resolve_entity_composite_key_from_postgres() {
     rep_all.insert("user_id".to_string(), json!("u1"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -337,14 +337,14 @@ fn test_resolve_entity_with_null_values_from_postgres() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -356,7 +356,7 @@ fn test_resolve_entity_with_null_values_from_postgres() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -406,7 +406,7 @@ fn test_resolve_entity_large_result_set_from_postgres() {
         rep_all.insert("id".to_string(), json!(id));
 
         reps.push(EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         });
@@ -417,14 +417,14 @@ fn test_resolve_entity_large_result_set_from_postgres() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -468,14 +468,14 @@ fn test_where_clause_single_key_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -486,7 +486,7 @@ fn test_where_clause_single_key_field() {
     let mut rep1_all = HashMap::new();
     rep1_all.insert("id".to_string(), json!("123"));
     let rep1 = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep1_keys,
         all_fields: rep1_all,
     };
@@ -496,7 +496,7 @@ fn test_where_clause_single_key_field() {
     let mut rep2_all = HashMap::new();
     rep2_all.insert("id".to_string(), json!("456"));
     let rep2 = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep2_keys,
         all_fields: rep2_all,
     };
@@ -518,14 +518,14 @@ fn test_where_clause_composite_keys() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Order".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["user_id".to_string(), "order_id".to_string()],
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["user_id".to_string(), "order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -538,7 +538,7 @@ fn test_where_clause_composite_keys() {
     rep1_all.insert("user_id".to_string(), json!("user1"));
     rep1_all.insert("order_id".to_string(), json!("order1"));
     let rep1 = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: rep1_keys,
         all_fields: rep1_all,
     };
@@ -560,14 +560,14 @@ fn test_where_clause_string_escaping() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["name".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["name".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -578,7 +578,7 @@ fn test_where_clause_string_escaping() {
     let mut rep_all = HashMap::new();
     rep_all.insert("name".to_string(), json!("O'Brien"));
     let rep = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -600,14 +600,14 @@ fn test_where_clause_sql_injection_prevention() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -618,7 +618,7 @@ fn test_where_clause_sql_injection_prevention() {
     let mut rep_all = HashMap::new();
     rep_all.insert("id".to_string(), json!("'; DROP TABLE users; --"));
     let rep = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -640,14 +640,14 @@ fn test_where_clause_type_coercion() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Order".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["order_id".to_string()],
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -658,7 +658,7 @@ fn test_where_clause_type_coercion() {
     let mut rep_all = HashMap::new();
     rep_all.insert("order_id".to_string(), json!(789));
     let rep = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -685,14 +685,14 @@ fn test_cross_database_postgres_to_mysql() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -704,7 +704,7 @@ fn test_cross_database_postgres_to_mysql() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -741,14 +741,14 @@ fn test_cross_database_postgres_to_sqlserver() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Product".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["product_id".to_string()],
+        types: vec![FederatedType {
+            name: "Product".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["product_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -760,7 +760,7 @@ fn test_cross_database_postgres_to_sqlserver() {
     rep_all.insert("product_id".to_string(), json!("prod123"));
 
     let representation = EntityRepresentation {
-        typename:   "Product".to_string(),
+        typename: "Product".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -801,14 +801,14 @@ fn test_cross_database_type_coercion_numeric() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Order".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["order_id".to_string()],
+        types: vec![FederatedType {
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -820,7 +820,7 @@ fn test_cross_database_type_coercion_numeric() {
     rep_all.insert("order_id".to_string(), json!("order123"));
 
     let representation = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -862,14 +862,14 @@ fn test_cross_database_type_coercion_string() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Customer".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["customer_id".to_string()],
+        types: vec![FederatedType {
+            name: "Customer".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["customer_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -881,7 +881,7 @@ fn test_cross_database_type_coercion_string() {
     rep_all.insert("customer_id".to_string(), json!("cust123"));
 
     let representation = EntityRepresentation {
-        typename:   "Customer".to_string(),
+        typename: "Customer".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -925,14 +925,14 @@ fn test_cross_database_type_coercion_datetime() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Event".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["event_id".to_string()],
+        types: vec![FederatedType {
+            name: "Event".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["event_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -944,7 +944,7 @@ fn test_cross_database_type_coercion_datetime() {
     rep_all.insert("event_id".to_string(), json!("evt123"));
 
     let representation = EntityRepresentation {
-        typename:   "Event".to_string(),
+        typename: "Event".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1000,14 +1000,14 @@ fn test_database_connection_reuse() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1023,7 +1023,7 @@ fn test_database_connection_reuse() {
         rep_all.insert("id".to_string(), json!("user1"));
 
         let representation = EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
@@ -1081,14 +1081,14 @@ fn test_database_connection_retry() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1104,7 +1104,7 @@ fn test_database_connection_retry() {
         rep_all.insert("id".to_string(), json!("user1"));
 
         let representation = EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
@@ -1152,14 +1152,14 @@ fn test_database_query_execution_basic() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1177,12 +1177,12 @@ fn test_database_query_execution_basic() {
 
     let representations = vec![
         EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep1_keys,
             all_fields: rep1_all,
         },
         EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep2_keys,
             all_fields: rep2_all,
         },
@@ -1244,14 +1244,14 @@ fn test_database_parameterized_queries() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1264,7 +1264,7 @@ fn test_database_parameterized_queries() {
     rep_all.insert("id".to_string(), json!("O'Brien"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1473,14 +1473,14 @@ fn test_database_constraint_violation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1495,7 +1495,7 @@ fn test_database_constraint_violation() {
     rep_all.insert("id".to_string(), json!("user1"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1533,14 +1533,14 @@ fn test_single_entity_resolution_latency() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1552,7 +1552,7 @@ fn test_single_entity_resolution_latency() {
     rep_all.insert("id".to_string(), json!("user1"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -1598,7 +1598,7 @@ fn test_batch_100_entities_resolution_latency() {
         rep_all.insert("id".to_string(), json!(id));
 
         reps.push(EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         });
@@ -1610,14 +1610,14 @@ fn test_batch_100_entities_resolution_latency() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1662,14 +1662,14 @@ fn test_concurrent_entity_resolution() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+        types: vec![FederatedType {
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -1691,7 +1691,7 @@ fn test_concurrent_entity_resolution() {
         rep_all.insert("id".to_string(), json!(format!("user{}", i)));
 
         let representation = EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };

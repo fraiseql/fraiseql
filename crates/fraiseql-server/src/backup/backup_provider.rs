@@ -19,10 +19,7 @@ pub enum BackupError {
     /// Storage error
     StorageError { message: String },
     /// Not found
-    NotFound {
-        store:     String,
-        backup_id: String,
-    },
+    NotFound { store: String, backup_id: String },
     /// Timeout
     Timeout { store: String },
 }
@@ -183,13 +180,13 @@ mod tests {
     #[test]
     fn test_backup_info_display() {
         let info = BackupInfo {
-            backup_id:   "backup-123".to_string(),
-            store_name:  "postgres".to_string(),
-            timestamp:   1_000_000,
-            size_bytes:  1024 * 1024,
-            verified:    true,
+            backup_id: "backup-123".to_string(),
+            store_name: "postgres".to_string(),
+            timestamp: 1_000_000,
+            size_bytes: 1024 * 1024,
+            verified: true,
             compression: Some("gzip".to_string()),
-            metadata:    Default::default(),
+            metadata: Default::default(),
         };
 
         assert_eq!(info.size_display(), "1.00 MB");
@@ -199,7 +196,7 @@ mod tests {
     #[test]
     fn test_backup_error_display() {
         let err = BackupError::BackupFailed {
-            store:   "postgres".to_string(),
+            store: "postgres".to_string(),
             message: "Connection timeout".to_string(),
         };
         assert!(err.to_string().contains("postgres"));

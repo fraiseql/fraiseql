@@ -85,7 +85,7 @@ impl WindowQueryParser {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'table' field in window query".to_string(),
-                path:    None,
+                path: None,
             })?
             .to_string();
 
@@ -148,7 +148,7 @@ impl WindowQueryParser {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Missing 'type' in select column".to_string(),
-                    path:    None,
+                    path: None,
                 })?;
 
         let alias = col
@@ -156,7 +156,7 @@ impl WindowQueryParser {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'alias' in select column".to_string(),
-                path:    None,
+                path: None,
             })?
             .to_string();
 
@@ -167,7 +167,7 @@ impl WindowQueryParser {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| FraiseQLError::Validation {
                         message: "Missing 'name' in measure select column".to_string(),
-                        path:    None,
+                        path: None,
                     })?
                     .to_string();
                 Ok(WindowSelectColumn::Measure { name, alias })
@@ -178,7 +178,7 @@ impl WindowQueryParser {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| FraiseQLError::Validation {
                         message: "Missing 'path' in dimension select column".to_string(),
-                        path:    None,
+                        path: None,
                     })?
                     .to_string();
                 Ok(WindowSelectColumn::Dimension { path, alias })
@@ -189,14 +189,14 @@ impl WindowQueryParser {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| FraiseQLError::Validation {
                         message: "Missing 'name' in filter select column".to_string(),
-                        path:    None,
+                        path: None,
                     })?
                     .to_string();
                 Ok(WindowSelectColumn::Filter { name, alias })
             },
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown select column type: {col_type}"),
-                path:    None,
+                path: None,
             }),
         }
     }
@@ -216,7 +216,7 @@ impl WindowQueryParser {
             .get("function")
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'function' in window definition".to_string(),
-                path:    None,
+                path: None,
             })
             .and_then(Self::parse_function_spec)?;
 
@@ -226,7 +226,7 @@ impl WindowQueryParser {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'alias' in window definition".to_string(),
-                path:    None,
+                path: None,
             })?
             .to_string();
 
@@ -263,7 +263,7 @@ impl WindowQueryParser {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Missing 'type' in function spec".to_string(),
-                    path:    None,
+                    path: None,
                 })?;
 
         match func_type {
@@ -275,7 +275,7 @@ impl WindowQueryParser {
                 let n = func.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
                     FraiseQLError::Validation {
                         message: "Missing 'n' in NTILE function".to_string(),
-                        path:    None,
+                        path: None,
                     }
                 })? as u32;
                 Ok(WindowFunctionSpec::Ntile { n })
@@ -317,7 +317,7 @@ impl WindowQueryParser {
                 let n = func.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
                     FraiseQLError::Validation {
                         message: "Missing 'n' in NTH_VALUE function".to_string(),
-                        path:    None,
+                        path: None,
                     }
                 })? as u32;
                 Ok(WindowFunctionSpec::NthValue { field, n })
@@ -360,7 +360,7 @@ impl WindowQueryParser {
 
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown window function type: {func_type}"),
-                path:    None,
+                path: None,
             }),
         }
     }
@@ -370,7 +370,7 @@ impl WindowQueryParser {
         obj.get(field_name).and_then(|v| v.as_str()).map(String::from).ok_or_else(|| {
             FraiseQLError::Validation {
                 message: format!("Missing '{field_name}' in function spec"),
-                path:    None,
+                path: None,
             }
         })
     }
@@ -386,7 +386,7 @@ impl WindowQueryParser {
                 let col_type = item.get("type").and_then(|v| v.as_str()).ok_or_else(|| {
                     FraiseQLError::Validation {
                         message: "Missing 'type' in partitionBy column".to_string(),
-                        path:    None,
+                        path: None,
                     }
                 })?;
 
@@ -397,7 +397,7 @@ impl WindowQueryParser {
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| FraiseQLError::Validation {
                                 message: "Missing 'path' in dimension partition column".to_string(),
-                                path:    None,
+                                path: None,
                             })?
                             .to_string();
                         Ok(PartitionByColumn::Dimension { path })
@@ -408,7 +408,7 @@ impl WindowQueryParser {
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| FraiseQLError::Validation {
                                 message: "Missing 'name' in filter partition column".to_string(),
-                                path:    None,
+                                path: None,
                             })?
                             .to_string();
                         Ok(PartitionByColumn::Filter { name })
@@ -419,14 +419,14 @@ impl WindowQueryParser {
                             .and_then(|v| v.as_str())
                             .ok_or_else(|| FraiseQLError::Validation {
                                 message: "Missing 'name' in measure partition column".to_string(),
-                                path:    None,
+                                path: None,
                             })?
                             .to_string();
                         Ok(PartitionByColumn::Measure { name })
                     },
                     _ => Err(FraiseQLError::Validation {
                         message: format!("Unknown partition column type: {col_type}"),
-                        path:    None,
+                        path: None,
                     }),
                 }
             })
@@ -446,7 +446,7 @@ impl WindowQueryParser {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| FraiseQLError::Validation {
                         message: "Missing 'field' in orderBy".to_string(),
-                        path:    None,
+                        path: None,
                     })?
                     .to_string();
 
@@ -509,7 +509,7 @@ impl WindowQueryParser {
             _ => {
                 return Err(FraiseQLError::Validation {
                     message: "Invalid or missing 'frame_type' in frame".to_string(),
-                    path:    None,
+                    path: None,
                 });
             },
         };
@@ -518,7 +518,7 @@ impl WindowQueryParser {
             .get("start")
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'start' in frame".to_string(),
-                path:    None,
+                path: None,
             })
             .and_then(Self::parse_frame_boundary)?;
 
@@ -526,7 +526,7 @@ impl WindowQueryParser {
             .get("end")
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'end' in frame".to_string(),
-                path:    None,
+                path: None,
             })
             .and_then(Self::parse_frame_boundary)?;
 
@@ -550,7 +550,7 @@ impl WindowQueryParser {
         let boundary_type = boundary.get("type").and_then(|v| v.as_str()).ok_or_else(|| {
             FraiseQLError::Validation {
                 message: "Missing 'type' in frame boundary".to_string(),
-                path:    None,
+                path: None,
             }
         })?;
 
@@ -560,7 +560,7 @@ impl WindowQueryParser {
                 let n = boundary.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
                     FraiseQLError::Validation {
                         message: "Missing 'n' in N PRECEDING boundary".to_string(),
-                        path:    None,
+                        path: None,
                     }
                 })? as u32;
                 Ok(FrameBoundary::NPreceding { n })
@@ -570,7 +570,7 @@ impl WindowQueryParser {
                 let n = boundary.get("n").and_then(|v| v.as_u64()).ok_or_else(|| {
                     FraiseQLError::Validation {
                         message: "Missing 'n' in N FOLLOWING boundary".to_string(),
-                        path:    None,
+                        path: None,
                     }
                 })? as u32;
                 Ok(FrameBoundary::NFollowing { n })
@@ -578,7 +578,7 @@ impl WindowQueryParser {
             "unbounded_following" => Ok(FrameBoundary::UnboundedFollowing),
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown frame boundary type: {boundary_type}"),
-                path:    None,
+                path: None,
             }),
         }
     }
@@ -593,36 +593,36 @@ mod tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![
                 FilterColumn {
-                    name:     "customer_id".to_string(),
+                    name: "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
-                    indexed:  true,
+                    indexed: true,
                 },
                 FilterColumn {
-                    name:     "occurred_at".to_string(),
+                    name: "occurred_at".to_string(),
                     sql_type: SqlType::Timestamp,
-                    indexed:  true,
+                    indexed: true,
                 },
             ],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 

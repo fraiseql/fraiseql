@@ -10,13 +10,13 @@ use crate::auth::{
 /// OIDC Discovery document
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OidcDiscovery {
-    issuer:                 String,
+    issuer: String,
     authorization_endpoint: String,
-    token_endpoint:         String,
-    userinfo_endpoint:      String,
-    jwks_uri:               Option<String>,
+    token_endpoint: String,
+    userinfo_endpoint: String,
+    jwks_uri: Option<String>,
     #[serde(default)]
-    revocation_endpoint:    Option<String>,
+    revocation_endpoint: Option<String>,
 }
 
 /// Generic OIDC provider that works with any OIDC-compliant service
@@ -33,44 +33,44 @@ struct OidcDiscovery {
 /// ).await?;
 /// ```
 pub struct OidcProvider {
-    name:          String,
-    issuer_url:    String,
-    client_id:     String,
+    name: String,
+    issuer_url: String,
+    client_id: String,
     client_secret: String,
-    redirect_uri:  String,
-    discovery:     OidcDiscovery,
-    client:        reqwest::Client,
+    redirect_uri: String,
+    discovery: OidcDiscovery,
+    client: reqwest::Client,
 }
 
 #[derive(Debug, Serialize)]
 struct TokenRequest {
-    grant_type:    String,
-    code:          String,
-    client_id:     String,
+    grant_type: String,
+    code: String,
+    client_id: String,
     client_secret: String,
-    redirect_uri:  String,
+    redirect_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     code_verifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct TokenResponseRaw {
-    access_token:  String,
+    access_token: String,
     #[serde(default)]
     refresh_token: Option<String>,
-    expires_in:    u64,
+    expires_in: u64,
     #[serde(default)]
-    token_type:    Option<String>,
+    token_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct UserInfoRaw {
-    sub:     String,
-    email:   Option<String>,
-    name:    Option<String>,
+    sub: String,
+    email: Option<String>,
+    name: Option<String>,
     picture: Option<String>,
     #[serde(flatten)]
-    extra:   serde_json::Map<String, serde_json::Value>,
+    extra: serde_json::Map<String, serde_json::Value>,
 }
 
 impl OidcProvider {
@@ -152,11 +152,11 @@ impl OAuthProvider for OidcProvider {
 
     async fn exchange_code(&self, code: &str) -> Result<TokenResponse> {
         let request = TokenRequest {
-            grant_type:    "authorization_code".to_string(),
-            code:          code.to_string(),
-            client_id:     self.client_id.clone(),
+            grant_type: "authorization_code".to_string(),
+            code: code.to_string(),
+            client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone(),
-            redirect_uri:  self.redirect_uri.clone(),
+            redirect_uri: self.redirect_uri.clone(),
             code_verifier: None,
         };
 
@@ -176,10 +176,10 @@ impl OAuthProvider for OidcProvider {
             })?;
 
         Ok(TokenResponse {
-            access_token:  response.access_token,
+            access_token: response.access_token,
             refresh_token: response.refresh_token,
-            expires_in:    response.expires_in,
-            token_type:    response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            expires_in: response.expires_in,
+            token_type: response.token_type.unwrap_or_else(|| "Bearer".to_string()),
         })
     }
 
@@ -216,10 +216,10 @@ impl OAuthProvider for OidcProvider {
         }
 
         Ok(UserInfo {
-            id:         response.sub,
-            email:      response.email.unwrap_or_default(),
-            name:       response.name,
-            picture:    response.picture,
+            id: response.sub,
+            email: response.email.unwrap_or_default(),
+            name: response.name,
+            picture: response.picture,
             raw_claims: serde_json::Value::Object(raw_claims),
         })
     }
@@ -248,10 +248,10 @@ impl OAuthProvider for OidcProvider {
             })?;
 
         Ok(TokenResponse {
-            access_token:  response.access_token,
+            access_token: response.access_token,
             refresh_token: response.refresh_token,
-            expires_in:    response.expires_in,
-            token_type:    response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            expires_in: response.expires_in,
+            token_type: response.token_type.unwrap_or_else(|| "Bearer".to_string()),
         })
     }
 
@@ -291,20 +291,20 @@ mod tests {
     #[test]
     fn test_oauth_provider_debug() {
         let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    "https://example.com".to_string(),
-            client_id:     "client_id".to_string(),
+            name: "test".to_string(),
+            issuer_url: "https://example.com".to_string(),
+            client_id: "client_id".to_string(),
             client_secret: "secret".to_string(),
-            redirect_uri:  "http://localhost:8000/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 "https://example.com".to_string(),
+            redirect_uri: "http://localhost:8000/callback".to_string(),
+            discovery: OidcDiscovery {
+                issuer: "https://example.com".to_string(),
                 authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint:         "https://example.com/token".to_string(),
-                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
-                jwks_uri:               None,
-                revocation_endpoint:    None,
+                token_endpoint: "https://example.com/token".to_string(),
+                userinfo_endpoint: "https://example.com/userinfo".to_string(),
+                jwks_uri: None,
+                revocation_endpoint: None,
             },
-            client:        reqwest::Client::new(),
+            client: reqwest::Client::new(),
         };
 
         let debug_str = format!("{:?}", provider);
@@ -315,20 +315,20 @@ mod tests {
     #[test]
     fn test_add_auth_params() {
         let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    "https://example.com".to_string(),
-            client_id:     "my_client".to_string(),
+            name: "test".to_string(),
+            issuer_url: "https://example.com".to_string(),
+            client_id: "my_client".to_string(),
             client_secret: "secret".to_string(),
-            redirect_uri:  "http://localhost:8000/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 "https://example.com".to_string(),
+            redirect_uri: "http://localhost:8000/callback".to_string(),
+            discovery: OidcDiscovery {
+                issuer: "https://example.com".to_string(),
                 authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint:         "https://example.com/token".to_string(),
-                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
-                jwks_uri:               None,
-                revocation_endpoint:    None,
+                token_endpoint: "https://example.com/token".to_string(),
+                userinfo_endpoint: "https://example.com/userinfo".to_string(),
+                jwks_uri: None,
+                revocation_endpoint: None,
             },
-            client:        reqwest::Client::new(),
+            client: reqwest::Client::new(),
         };
 
         let mut url = "https://example.com/auth".to_string();

@@ -15,22 +15,22 @@ use crate::auth::{
 /// Supports both app roles and directory roles.
 #[derive(Debug)]
 pub struct AzureADOAuth {
-    oidc:   OidcProvider,
+    oidc: OidcProvider,
     tenant: String,
 }
 
 /// Azure AD user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct AzureADUser {
-    pub oid:                String,
+    pub oid: String,
     pub preferred_username: Option<String>,
-    pub email:              Option<String>,
-    pub name:               Option<String>,
-    pub given_name:         Option<String>,
-    pub surname:            Option<String>,
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub given_name: Option<String>,
+    pub surname: Option<String>,
     #[serde(rename = "jobTitle")]
-    pub job_title:          Option<String>,
-    pub department:         Option<String>,
+    pub job_title: Option<String>,
+    pub department: Option<String>,
 }
 
 impl AzureADOAuth {

@@ -2,7 +2,7 @@
 //!
 //! Tests query validation and error handling workflows.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Helper to create a schema with a specific type
 fn create_schema_with_type(type_name: &str, fields: Vec<&str>) -> Value {
@@ -40,7 +40,7 @@ fn create_schema_with_type(type_name: &str, fields: Vec<&str>) -> Value {
 fn test_query_with_valid_field_succeeds() {
     let schema = create_schema_with_type("User", vec!["id", "name", "email"]);
 
-    let query_fields = vec!["id", "name"];
+    let query_fields = ["id", "name"];
     let has_all_fields = query_fields.iter().all(|field| {
         schema
             .get("types")
@@ -69,20 +69,13 @@ fn test_query_field_validation_against_schema() {
         .and_then(|t| t.get("fields"))
         .and_then(|f| f.as_array())
         .map(|fields| {
-            fields
-                .iter()
-                .filter_map(|f| f.get("name").and_then(|n| n.as_str()))
-                .collect()
+            fields.iter().filter_map(|f| f.get("name").and_then(|n| n.as_str())).collect()
         })
         .unwrap_or_default();
 
     // Valid fields should be in schema
     for field in valid_fields {
-        assert!(
-            schema_fields.contains(&field),
-            "Valid field {} should be in schema",
-            field
-        );
+        assert!(schema_fields.contains(&field), "Valid field {} should be in schema", field);
     }
 
     // Invalid fields should not be in schema
@@ -172,11 +165,7 @@ fn test_query_root_type_validation() {
     let types: std::collections::HashSet<&str> = schema
         .get("types")
         .and_then(|t| t.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|t| t.get("name").and_then(|n| n.as_str())).collect())
         .unwrap_or_default();
 
     for query in queries {
@@ -186,12 +175,7 @@ fn test_query_root_type_validation() {
             let query_name = query.get("name").and_then(|n| n.as_str());
             if let Some(qname) = query_name {
                 if qname != "invalid" {
-                    assert!(
-                        types.contains(qtype),
-                        "Query {} references type {}",
-                        qname,
-                        qtype
-                    );
+                    assert!(types.contains(qtype), "Query {} references type {}", qname, qtype);
                 }
             }
         }
@@ -252,11 +236,7 @@ fn test_schema_query_coverage() {
     let types: Vec<&str> = schema
         .get("types")
         .and_then(|t| t.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|t| t.get("name").and_then(|n| n.as_str())).collect())
         .unwrap_or_default();
 
     let _queries = schema

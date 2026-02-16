@@ -5,7 +5,7 @@ use serde_json::json;
 #[derive(Debug)]
 struct AnalysisResult {
     schema_file: String,
-    categories:  std::collections::HashMap<String, Vec<String>>,
+    categories: std::collections::HashMap<String, Vec<String>>,
 }
 
 fn analyze_schema(schema_file: &str) -> anyhow::Result<AnalysisResult> {

@@ -73,10 +73,10 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            host:            "0.0.0.0".to_string(),
-            port:            8000,
-            workers:         0,           // Auto-detect
-            max_body_size:   1024 * 1024, // 1MB
+            host: "0.0.0.0".to_string(),
+            port: 8000,
+            workers: 0,                 // Auto-detect
+            max_body_size: 1024 * 1024, // 1MB
             request_logging: true,
         }
     }
@@ -115,13 +115,13 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url:                  String::new(),
-            max_connections:      10,
-            min_connections:      1,
+            url: String::new(),
+            max_connections: 10,
+            min_connections: 1,
             connect_timeout_secs: 10,
-            query_timeout_secs:   30,
-            idle_timeout_secs:    600,
-            ssl_mode:             SslMode::Prefer,
+            query_timeout_secs: 30,
+            idle_timeout_secs: 600,
+            ssl_mode: SslMode::Prefer,
         }
     }
 }
@@ -176,17 +176,17 @@ pub struct CorsConfig {
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            enabled:           true,
-            allowed_origins:   vec![], // Empty = allow all
-            allowed_methods:   vec!["GET".to_string(), "POST".to_string(), "OPTIONS".to_string()],
-            allowed_headers:   vec![
+            enabled: true,
+            allowed_origins: vec![], // Empty = allow all
+            allowed_methods: vec!["GET".to_string(), "POST".to_string(), "OPTIONS".to_string()],
+            allowed_headers: vec![
                 "Content-Type".to_string(),
                 "Authorization".to_string(),
                 "X-Request-ID".to_string(),
             ],
-            expose_headers:    vec![],
+            expose_headers: vec![],
             allow_credentials: false,
-            max_age_secs:      86400, // 24 hours
+            max_age_secs: 86400, // 24 hours
         }
     }
 }
@@ -233,15 +233,15 @@ pub struct AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            enabled:       false,
-            provider:      AuthProvider::None,
-            jwt_secret:    None,
+            enabled: false,
+            provider: AuthProvider::None,
+            jwt_secret: None,
             jwt_algorithm: "HS256".to_string(),
-            domain:        None,
-            audience:      None,
-            client_id:     None,
-            header_name:   "Authorization".to_string(),
-            token_prefix:  "Bearer ".to_string(),
+            domain: None,
+            audience: None,
+            client_id: None,
+            header_name: "Authorization".to_string(),
+            token_prefix: "Bearer ".to_string(),
             exclude_paths: vec!["/health".to_string()],
         }
     }
@@ -294,12 +294,12 @@ pub struct RateLimitConfig {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled:             false,
+            enabled: false,
             requests_per_window: 100,
-            window_secs:         60,
-            key_by:              RateLimitKey::Ip,
-            exclude_paths:       vec!["/health".to_string()],
-            path_limits:         vec![],
+            window_secs: 60,
+            key_by: RateLimitKey::Ip,
+            exclude_paths: vec!["/health".to_string()],
+            path_limits: vec![],
         }
     }
 }
@@ -321,7 +321,7 @@ pub enum RateLimitKey {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathRateLimit {
     /// Path pattern (glob).
-    pub path:                String,
+    pub path: String,
     /// Maximum requests per window for this path.
     pub requests_per_window: u32,
 }
@@ -356,11 +356,11 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            apq_enabled:                true,
-            apq_ttl_secs:               86400, // 24 hours
-            apq_max_entries:            10_000,
-            response_cache_enabled:     false,
-            response_cache_ttl_secs:    60,
+            apq_enabled: true,
+            apq_ttl_secs: 86400, // 24 hours
+            apq_max_entries: 10_000,
+            response_cache_enabled: false,
+            response_cache_ttl_secs: 60,
             response_cache_max_entries: 1_000,
         }
     }
@@ -397,9 +397,9 @@ pub struct CollationConfig {
 impl Default for CollationConfig {
     fn default() -> Self {
         Self {
-            enabled:            true,
-            fallback_locale:    "en-US".to_string(),
-            allowed_locales:    vec![
+            enabled: true,
+            fallback_locale: "en-US".to_string(),
+            allowed_locales: vec![
                 "en-US".into(),
                 "en-GB".into(),
                 "fr-FR".into(),
@@ -410,7 +410,7 @@ impl Default for CollationConfig {
                 "pt-BR".into(),
                 "it-IT".into(),
             ],
-            on_invalid_locale:  InvalidLocaleStrategy::Fallback,
+            on_invalid_locale: InvalidLocaleStrategy::Fallback,
             database_overrides: None,
         }
     }
@@ -462,7 +462,7 @@ pub struct PostgresCollationConfig {
 impl Default for PostgresCollationConfig {
     fn default() -> Self {
         Self {
-            use_icu:  true,
+            use_icu: true,
             provider: "icu".to_string(),
         }
     }
@@ -482,7 +482,7 @@ impl Default for MySqlCollationConfig {
     fn default() -> Self {
         Self {
             charset: "utf8mb4".to_string(),
-            suffix:  "_unicode_ci".to_string(),
+            suffix: "_unicode_ci".to_string(),
         }
     }
 }
@@ -513,7 +513,7 @@ pub struct SqlServerCollationConfig {
 impl Default for SqlServerCollationConfig {
     fn default() -> Self {
         Self {
-            case_insensitive:   true,
+            case_insensitive: true,
             accent_insensitive: true,
         }
     }

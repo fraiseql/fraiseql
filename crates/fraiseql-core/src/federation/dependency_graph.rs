@@ -11,13 +11,13 @@ use crate::federation::types::{FederationMetadata, FieldPathSelection};
 #[derive(Debug, Clone)]
 struct DependencyNode {
     /// Node ID: "TypeName.fieldName"
-    id:       String,
+    id: String,
     /// Type this field belongs to (kept for debugging and error messages)
     #[allow(dead_code)]
     typename: String,
     /// Field name (kept for debugging and error messages)
     #[allow(dead_code)]
-    field:    String,
+    field: String,
     /// Fields this node requires
     requires: Vec<FieldPathSelection>,
 }
@@ -28,7 +28,7 @@ struct DependencyEdge {
     /// Source node (from)
     from: String,
     /// Target node (to)
-    to:   String,
+    to: String,
 }
 
 /// Dependency graph for federation @requires directives
@@ -65,9 +65,9 @@ impl DependencyGraph {
                     nodes.insert(
                         node_id.clone(),
                         DependencyNode {
-                            id:       node_id,
+                            id: node_id,
                             typename: federated_type.name.clone(),
-                            field:    field_name.clone(),
+                            field: field_name.clone(),
                             requires: directives.requires.clone(),
                         },
                     );
@@ -84,7 +84,7 @@ impl DependencyGraph {
 
                 edges.push(DependencyEdge {
                     from: node.id.clone(),
-                    to:   target_id,
+                    to: target_id,
                 });
             }
         }
@@ -228,11 +228,11 @@ mod tests {
     #[test]
     fn test_dependency_node_creation() {
         let node = DependencyNode {
-            id:       "User.orders".to_string(),
+            id: "User.orders".to_string(),
             typename: "User".to_string(),
-            field:    "orders".to_string(),
+            field: "orders".to_string(),
             requires: vec![FieldPathSelection {
-                path:     vec!["email".to_string()],
+                path: vec!["email".to_string()],
                 typename: "User".to_string(),
             }],
         };
@@ -246,7 +246,7 @@ mod tests {
         let metadata = FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types:   vec![],
+            types: vec![],
         };
 
         let graph = DependencyGraph::build(&metadata).unwrap();

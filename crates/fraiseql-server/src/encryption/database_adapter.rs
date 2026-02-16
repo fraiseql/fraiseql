@@ -70,13 +70,13 @@ pub trait EncryptedFieldAdapter: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct EncryptionContext {
     /// User ID performing the operation
-    pub user_id:    String,
+    pub user_id: String,
     /// Field name being encrypted
     pub field_name: String,
     /// Operation type (insert, update, select)
-    pub operation:  String,
+    pub operation: String,
     /// Timestamp of operation
-    pub timestamp:  String,
+    pub timestamp: String,
 }
 
 impl EncryptionContext {
@@ -88,10 +88,10 @@ impl EncryptionContext {
         timestamp: impl Into<String>,
     ) -> Self {
         Self {
-            user_id:    user_id.into(),
+            user_id: user_id.into(),
             field_name: field_name.into(),
-            operation:  operation.into(),
-            timestamp:  timestamp.into(),
+            operation: operation.into(),
+            timestamp: timestamp.into(),
         }
     }
 
@@ -107,7 +107,7 @@ impl EncryptionContext {
 /// Cached encryption cipher for a field
 #[derive(Clone)]
 struct CachedEncryption {
-    cipher:   FieldEncryption,
+    cipher: FieldEncryption,
     /// Key name from Vault - kept for debugging and audit trail
     #[allow(dead_code)]
     key_name: String,
@@ -121,9 +121,9 @@ pub struct DatabaseFieldAdapter {
     /// Secrets manager for fetching encryption keys
     secrets_manager: Arc<SecretsManager>,
     /// Mapping of field names to encryption key names in Vault
-    field_keys:      HashMap<String, String>,
+    field_keys: HashMap<String, String>,
     /// Cached cipher instances per field
-    ciphers:         Arc<RwLock<HashMap<String, CachedEncryption>>>,
+    ciphers: Arc<RwLock<HashMap<String, CachedEncryption>>>,
 }
 
 impl DatabaseFieldAdapter {
@@ -186,7 +186,7 @@ impl DatabaseFieldAdapter {
         cache.insert(
             field_name.to_string(),
             CachedEncryption {
-                cipher:   cipher.clone(),
+                cipher: cipher.clone(),
                 key_name: key_name.clone(),
             },
         );

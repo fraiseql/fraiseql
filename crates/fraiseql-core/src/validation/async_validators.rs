@@ -45,13 +45,13 @@ impl std::fmt::Display for AsyncValidatorProvider {
 #[derive(Debug, Clone)]
 pub struct AsyncValidatorConfig {
     /// The provider to use
-    pub provider:       AsyncValidatorProvider,
+    pub provider: AsyncValidatorProvider,
     /// Timeout duration for the validation operation
-    pub timeout:        Duration,
+    pub timeout: Duration,
     /// Cache TTL in seconds (0 = no caching)
     pub cache_ttl_secs: u64,
     /// Field pattern this validator applies to (e.g., "*.email")
-    pub field_pattern:  String,
+    pub field_pattern: String,
 }
 
 impl AsyncValidatorConfig {
@@ -104,7 +104,7 @@ pub trait AsyncValidator: Send + Sync {
 ///
 /// In production, this would perform actual MX record lookups.
 pub struct MockEmailDomainValidator {
-    config:        AsyncValidatorConfig,
+    config: AsyncValidatorConfig,
     /// List of valid domains (for testing)
     valid_domains: Vec<String>,
 }
@@ -149,7 +149,7 @@ impl AsyncValidator for MockEmailDomainValidator {
                         "Email domain validation failed: {} (domain {} not found)",
                         field, domain
                     ),
-                    path:    Some(field.to_string()),
+                    path: Some(field.to_string()),
                 })
             }
         } else {
@@ -158,7 +158,7 @@ impl AsyncValidator for MockEmailDomainValidator {
                     "Email domain validation failed: {} (invalid email format)",
                     field
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -176,7 +176,7 @@ impl AsyncValidator for MockEmailDomainValidator {
 ///
 /// In production, this would integrate with Twilio or similar service.
 pub struct MockPhoneNumberValidator {
-    config:          AsyncValidatorConfig,
+    config: AsyncValidatorConfig,
     /// List of valid country codes (for testing)
     valid_countries: Vec<String>,
 }
@@ -222,7 +222,7 @@ impl AsyncValidator for MockPhoneNumberValidator {
                     "Phone number validation failed: {} (invalid phone number)",
                     field
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }

@@ -207,7 +207,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     };
                     FraiseQLError::Timeout {
                         timeout_ms: self.config.query_timeout_ms,
-                        query:      Some(query_snippet),
+                        query: Some(query_snippet),
                     }
                 })?
         } else {
@@ -330,8 +330,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             // Return the first error (could aggregate all errors if desired)
             let first_error = &errors[0];
             Err(FraiseQLError::Authorization {
-                message:  first_error.message.clone(),
-                action:   Some("read".to_string()),
+                message: first_error.message.clone(),
+                action: Some("read".to_string()),
                 resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
             })
         }
@@ -461,7 +461,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 };
                 FraiseQLError::Timeout {
                     timeout_ms: self.config.query_timeout_ms,
-                    query:      Some(query_snippet),
+                    query: Some(query_snippet),
                 }
             })?
         } else {
@@ -556,7 +556,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             let security_config: SecurityConfig = serde_json::from_value(security_json.clone())
                 .map_err(|_| FraiseQLError::Validation {
                     message: "Invalid security configuration in compiled schema".to_string(),
-                    path:    Some("schema.security".to_string()),
+                    path: Some("schema.security".to_string()),
                 })?;
 
             // Find the type in the schema
@@ -604,7 +604,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         if security_context.is_expired() {
             return Err(FraiseQLError::Validation {
                 message: "Security token has expired".to_string(),
-                path:    Some("request.authorization".to_string()),
+                path: Some("request.authorization".to_string()),
             });
         }
 
@@ -632,7 +632,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path:    None,
+                    path: None,
                 })?;
 
         // 6. Generate SQL projection hint for requested fields (optimization)
@@ -646,8 +646,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database:                    "postgresql".to_string(),
-                projection_template:         projection_sql,
+                database: "postgresql".to_string(),
+                projection_template: projection_sql,
                 estimated_reduction_percent: 50,
             })
         } else {
@@ -703,7 +703,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
             crate::error::FraiseQLError::Validation {
                 message: "Query has no SQL source".to_string(),
-                path:    None,
+                path: None,
             }
         })?;
 
@@ -719,8 +719,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database:                    "postgresql".to_string(),
-                projection_template:         projection_sql,
+                database: "postgresql".to_string(),
+                projection_template: projection_sql,
                 estimated_reduction_percent: 50,
             })
         } else {
@@ -759,7 +759,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Parse the query to extract the root field name
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message:  e.to_string(),
+            message: e.to_string(),
             location: "query".to_string(),
         })?;
 
@@ -865,7 +865,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let table_name =
             query_name.strip_suffix("_aggregate").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid aggregate query name: {}", query_name),
-                path:    None,
+                path: None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
@@ -874,7 +874,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             FraiseQLError::Validation {
                 message: format!("Fact table '{}' not found in schema", fact_table_name),
-                path:    Some(format!("fact_tables.{}", fact_table_name)),
+                path: Some(format!("fact_tables.{}", fact_table_name)),
             }
         })?;
 
@@ -900,7 +900,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let table_name =
             query_name.strip_suffix("_window").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid window query name: {}", query_name),
-                path:    None,
+                path: None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
@@ -909,7 +909,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             FraiseQLError::Validation {
                 message: format!("Fact table '{}' not found in schema", fact_table_name),
-                path:    Some(format!("fact_tables.{}", fact_table_name)),
+                path: Some(format!("fact_tables.{}", fact_table_name)),
             }
         })?;
 
@@ -937,7 +937,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             "_entities" => self.execute_entities_query(query, variables).await,
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown federation query: {}", query_name),
-                path:    None,
+                path: None,
             }),
         }
     }
@@ -948,7 +948,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fed_metadata =
             self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
-                path:    None,
+                path: None,
             })?;
 
         // Generate SDL with federation directives
@@ -977,7 +977,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fed_metadata =
             self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
-                path:    None,
+                path: None,
             })?;
 
         // Extract representations from variables
@@ -985,7 +985,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             variables.and_then(|v| v.get("representations")).ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: "_entities query requires 'representations' variable".to_string(),
-                    path:    None,
+                    path: None,
                 }
             })?;
 
@@ -994,14 +994,14 @@ impl<A: DatabaseAdapter> Executor<A> {
             crate::federation::parse_representations(representations_value, &fed_metadata)
                 .map_err(|e| FraiseQLError::Validation {
                     message: format!("Failed to parse representations: {}", e),
-                    path:    None,
+                    path: None,
                 })?;
 
         // Validate representations
         crate::federation::validate_representations(&representations, &fed_metadata).map_err(
             |errors| FraiseQLError::Validation {
                 message: format!("Invalid representations: {}", errors.join("; ")),
-                path:    None,
+                path: None,
             },
         )?;
 
@@ -1271,10 +1271,10 @@ mod tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  1,
+                total_connections: 1,
                 active_connections: 0,
-                idle_connections:   1,
-                waiting_requests:   0,
+                idle_connections: 1,
+                waiting_requests: 0,
             }
         }
 
@@ -1290,15 +1290,15 @@ mod tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
+            name: "users".to_string(),
+            return_type: "User".to_string(),
             returns_list: true,
-            nullable:     false,
-            arguments:    Vec::new(),
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams::default(),
-            deprecation:  None,
+            nullable: false,
+            arguments: Vec::new(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
             jsonb_column: "data".to_string(),
         });
         schema
@@ -1353,14 +1353,14 @@ mod tests {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let config = RuntimeConfig {
-            cache_query_plans:    false,
-            max_query_depth:      5,
+            cache_query_plans: false,
+            max_query_depth: 5,
             max_query_complexity: 500,
-            enable_tracing:       true,
-            field_filter:         None,
-            rls_policy:           None,
-            query_timeout_ms:     30_000,
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
+            enable_tracing: true,
+            field_filter: None,
+            rls_policy: None,
+            query_timeout_ms: 30_000,
+            jsonb_optimization: JsonbOptimizationOptions::default(),
         };
 
         let executor = Executor::with_config(schema, adapter, config);
@@ -1569,14 +1569,14 @@ mod tests {
     fn test_jsonb_strategy_in_runtime_config() {
         // Verify that RuntimeConfig includes JSONB optimization options
         let config = RuntimeConfig {
-            cache_query_plans:    false,
-            max_query_depth:      5,
+            cache_query_plans: false,
+            max_query_depth: 5,
             max_query_complexity: 500,
-            enable_tracing:       true,
-            field_filter:         None,
-            rls_policy:           None,
-            query_timeout_ms:     30_000,
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
+            enable_tracing: true,
+            field_filter: None,
+            rls_policy: None,
+            query_timeout_ms: 30_000,
+            jsonb_optimization: JsonbOptimizationOptions::default(),
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -1587,19 +1587,19 @@ mod tests {
     fn test_jsonb_strategy_custom_config() {
         // Verify custom JSONB strategy options in config
         let custom_options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Stream,
+            default_strategy: JsonbStrategy::Stream,
             auto_threshold_percent: 50,
         };
 
         let config = RuntimeConfig {
-            cache_query_plans:    false,
-            max_query_depth:      5,
+            cache_query_plans: false,
+            max_query_depth: 5,
             max_query_complexity: 500,
-            enable_tracing:       true,
-            field_filter:         None,
-            rls_policy:           None,
-            query_timeout_ms:     30_000,
-            jsonb_optimization:   custom_options,
+            enable_tracing: true,
+            field_filter: None,
+            rls_policy: None,
+            query_timeout_ms: 30_000,
+            jsonb_optimization: custom_options,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);

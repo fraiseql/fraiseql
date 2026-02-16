@@ -42,9 +42,6 @@ pub use cross_field::{ComparisonOperator, validate_cross_field_comparison};
 pub use custom_scalar::CustomScalar;
 pub use custom_scalar_registry::CustomScalarRegistry;
 pub use custom_type_registry::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig};
-pub use scalar_validator::{
-    ScalarValidationError, ValidationContext, validate_custom_scalar, validate_custom_scalar_parse_value,
-};
 pub use date_validators::{
     validate_date_range, validate_max_age, validate_max_date, validate_max_days_in_future,
     validate_max_days_in_past, validate_min_age, validate_min_date,
@@ -68,4 +65,8 @@ pub use mutual_exclusivity::{
 pub use rate_limiting::{ValidationRateLimiter, ValidationRateLimitingConfig};
 pub use rich_scalars::{CountryCodeValidator, EmailValidator, PhoneNumberValidator, VinValidator};
 pub use rules::ValidationRule;
+pub use scalar_validator::{
+    ScalarValidationError, ValidationContext, validate_custom_scalar,
+    validate_custom_scalar_parse_value,
+};
 pub use validators::{EnumValidator, LengthValidator, PatternValidator, RangeValidator, Validator};

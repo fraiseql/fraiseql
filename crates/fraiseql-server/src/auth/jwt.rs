@@ -13,15 +13,15 @@ use crate::auth::{
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
     /// Subject (typically user ID)
-    pub sub:   String,
+    pub sub: String,
     /// Issued at (Unix timestamp)
-    pub iat:   u64,
+    pub iat: u64,
     /// Expiration time (Unix timestamp)
-    pub exp:   u64,
+    pub exp: u64,
     /// Issuer
-    pub iss:   String,
+    pub iss: String,
     /// Audience
-    pub aud:   Vec<String>,
+    pub aud: Vec<String>,
     /// Additional custom claims
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -60,7 +60,7 @@ impl Claims {
 /// JWT validator configuration and validation logic
 pub struct JwtValidator {
     validation: Validation,
-    issuer:     String,
+    issuer: String,
 }
 
 impl JwtValidator {
@@ -266,11 +266,11 @@ mod tests {
             .as_secs();
 
         Claims {
-            sub:   "user123".to_string(),
-            iat:   now,
-            exp:   now + 3600, // 1 hour expiry
-            iss:   "https://example.com".to_string(),
-            aud:   vec!["api".to_string()],
+            sub: "user123".to_string(),
+            iat: now,
+            exp: now + 3600, // 1 hour expiry
+            iss: "https://example.com".to_string(),
+            aud: vec!["api".to_string()],
             extra: HashMap::new(),
         }
     }

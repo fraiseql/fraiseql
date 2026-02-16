@@ -20,8 +20,8 @@ use tokio::task::JoinSet;
 
 /// Mock database adapter for concurrent testing
 struct ConcurrentMockDatabase {
-    query_count:   Arc<AtomicUsize>,
-    users_data:    Vec<JsonbValue>,
+    query_count: Arc<AtomicUsize>,
+    users_data: Vec<JsonbValue>,
     products_data: Vec<JsonbValue>,
 }
 
@@ -375,7 +375,7 @@ async fn test_concurrent_error_handling() {
             for i in 0..5 {
                 let error = FraiseQLError::Validation {
                     message: format!("Test error from task {} iteration {}", task_id, i),
-                    path:    Some(format!("query.field{}", i)),
+                    path: Some(format!("query.field{}", i)),
                 };
 
                 let wrapped = ResultProjector::wrap_error(&error);

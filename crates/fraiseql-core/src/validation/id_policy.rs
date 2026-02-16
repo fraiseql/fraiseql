@@ -66,9 +66,9 @@ impl std::fmt::Display for IDPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IDValidationError {
     /// The invalid ID value
-    pub value:   String,
+    pub value: String,
     /// The policy that was violated
-    pub policy:  IDPolicy,
+    pub policy: IDPolicy,
     /// Error message
     pub message: String,
 }
@@ -138,8 +138,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     // UUID must be 36 characters: 8-4-4-4-12
     if id.len() != 36 {
         return Err(IDValidationError {
-            value:   id.to_string(),
-            policy:  IDPolicy::UUID,
+            value: id.to_string(),
+            policy: IDPolicy::UUID,
             message: format!(
                 "ID must be a valid UUID (36 characters), got {} characters",
                 id.len()
@@ -151,8 +151,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     let parts: Vec<&str> = id.split('-').collect();
     if parts.len() != 5 {
         return Err(IDValidationError {
-            value:   id.to_string(),
-            policy:  IDPolicy::UUID,
+            value: id.to_string(),
+            policy: IDPolicy::UUID,
             message: "ID must be a valid UUID with format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
                 .to_string(),
         });
@@ -163,8 +163,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     for (i, (part, &expected_len)) in parts.iter().zip(&expected_lengths).enumerate() {
         if part.len() != expected_len {
             return Err(IDValidationError {
-                value:   id.to_string(),
-                policy:  IDPolicy::UUID,
+                value: id.to_string(),
+                policy: IDPolicy::UUID,
                 message: format!(
                     "UUID segment {} has invalid length: expected {}, got {}",
                     i,
@@ -179,8 +179,8 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
     for (i, part) in parts.iter().enumerate() {
         if !part.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(IDValidationError {
-                value:   id.to_string(),
-                policy:  IDPolicy::UUID,
+                value: id.to_string(),
+                policy: IDPolicy::UUID,
                 message: format!("UUID segment {i} contains non-hexadecimal characters: '{part}'"),
             });
         }
@@ -286,8 +286,8 @@ pub struct NumericIdValidator;
 impl IdValidator for NumericIdValidator {
     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         value.parse::<i64>().map_err(|_| IDValidationError {
-            value:   value.to_string(),
-            policy:  IDPolicy::OPAQUE,
+            value: value.to_string(),
+            policy: IDPolicy::OPAQUE,
             message: format!(
                 "ID must be a valid {} (parseable as 64-bit integer)",
                 self.format_name()
@@ -312,8 +312,8 @@ impl IdValidator for UlidIdValidator {
     fn validate(&self, value: &str) -> Result<(), IDValidationError> {
         if value.len() != 26 {
             return Err(IDValidationError {
-                value:   value.to_string(),
-                policy:  IDPolicy::OPAQUE,
+                value: value.to_string(),
+                policy: IDPolicy::OPAQUE,
                 message: format!(
                     "ID must be a valid {} ({} characters), got {}",
                     self.format_name(),
@@ -329,8 +329,8 @@ impl IdValidator for UlidIdValidator {
                 || (c.is_ascii_uppercase() && c != 'I' && c != 'L' && c != 'O' && c != 'U')
         }) {
             return Err(IDValidationError {
-                value:   value.to_string(),
-                policy:  IDPolicy::OPAQUE,
+                value: value.to_string(),
+                policy: IDPolicy::OPAQUE,
                 message: format!(
                     "ID must be a valid {} (Crockford base32: 0-9, A-Z except I, L, O, U)",
                     self.format_name()
@@ -413,7 +413,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn uuid() -> Self {
         Self {
-            name:      "uuid".to_string(),
+            name: "uuid".to_string(),
             validator: ValidationProfileType::Uuid(UuidIdValidator),
         }
     }
@@ -422,7 +422,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn numeric() -> Self {
         Self {
-            name:      "numeric".to_string(),
+            name: "numeric".to_string(),
             validator: ValidationProfileType::Numeric(NumericIdValidator),
         }
     }
@@ -431,7 +431,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn ulid() -> Self {
         Self {
-            name:      "ulid".to_string(),
+            name: "ulid".to_string(),
             validator: ValidationProfileType::Ulid(UlidIdValidator),
         }
     }
@@ -440,7 +440,7 @@ impl IDValidationProfile {
     #[must_use]
     pub fn opaque() -> Self {
         Self {
-            name:      "opaque".to_string(),
+            name: "opaque".to_string(),
             validator: ValidationProfileType::Opaque(OpaqueIdValidator),
         }
     }

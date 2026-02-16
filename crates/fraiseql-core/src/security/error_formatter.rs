@@ -96,11 +96,11 @@ impl SanitizationConfig {
     pub fn permissive() -> Self {
         Self {
             hide_database_urls: false,
-            hide_sql:           false,
-            hide_paths:         false,
-            hide_ips:           false,
-            hide_emails:        false,
-            hide_credentials:   false,
+            hide_sql: false,
+            hide_paths: false,
+            hide_ips: false,
+            hide_emails: false,
+            hide_credentials: false,
         }
     }
 
@@ -111,11 +111,11 @@ impl SanitizationConfig {
     pub fn standard() -> Self {
         Self {
             hide_database_urls: true,
-            hide_sql:           true,
-            hide_paths:         false,
-            hide_ips:           true,
-            hide_emails:        true,
-            hide_credentials:   true,
+            hide_sql: true,
+            hide_paths: false,
+            hide_ips: true,
+            hide_emails: true,
+            hide_credentials: true,
         }
     }
 
@@ -126,11 +126,11 @@ impl SanitizationConfig {
     pub fn strict() -> Self {
         Self {
             hide_database_urls: true,
-            hide_sql:           true,
-            hide_paths:         true,
-            hide_ips:           true,
-            hide_emails:        true,
-            hide_credentials:   true,
+            hide_sql: true,
+            hide_paths: true,
+            hide_ips: true,
+            hide_emails: true,
+            hide_credentials: true,
         }
     }
 }
@@ -142,7 +142,7 @@ impl SanitizationConfig {
 #[derive(Debug, Clone)]
 pub struct ErrorFormatter {
     detail_level: DetailLevel,
-    config:       SanitizationConfig,
+    config: SanitizationConfig,
 }
 
 impl ErrorFormatter {
@@ -574,7 +574,7 @@ mod tests {
     fn test_query_too_deep_error_production() {
         let formatter = ErrorFormatter::production();
         let error = SecurityError::QueryTooDeep {
-            depth:     20,
+            depth: 20,
             max_depth: 10,
         };
         let formatted = formatter.format_security_error(&error);
@@ -668,11 +668,11 @@ mod tests {
     fn test_custom_sanitization_config() {
         let config = SanitizationConfig {
             hide_database_urls: false,
-            hide_sql:           false,
-            hide_paths:         true,
-            hide_ips:           false,
-            hide_emails:        false,
-            hide_credentials:   false,
+            hide_sql: false,
+            hide_paths: true,
+            hide_ips: false,
+            hide_emails: false,
+            hide_credentials: false,
         };
 
         let formatter = ErrorFormatter::with_config(DetailLevel::Staging, config);

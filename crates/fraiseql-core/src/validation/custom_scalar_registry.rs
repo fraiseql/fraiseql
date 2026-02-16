@@ -3,8 +3,8 @@
 //! This module provides a global registry for managing custom scalar implementations
 //! at runtime, allowing applications to register their own scalar types.
 
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use super::custom_scalar::CustomScalar;
 
@@ -52,15 +52,15 @@ impl CustomScalarRegistry {
     pub fn register(&self, scalar: Arc<dyn CustomScalar>) -> crate::error::Result<()> {
         let name = scalar.name().to_string();
 
-        let mut scalars = self
-            .scalars
-            .write()
-            .map_err(|_| crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry"))?;
+        let mut scalars = self.scalars.write().map_err(|_| {
+            crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry")
+        })?;
 
         if scalars.contains_key(&name) {
-            return Err(crate::error::FraiseQLError::validation(
-                format!("Scalar \"{}\" is already registered", name),
-            ));
+            return Err(crate::error::FraiseQLError::validation(format!(
+                "Scalar \"{}\" is already registered",
+                name
+            )));
         }
 
         scalars.insert(name, scalar);
@@ -71,40 +71,36 @@ impl CustomScalarRegistry {
     ///
     /// Returns `None` if the scalar is not registered.
     pub fn get_scalar(&self, name: &str) -> crate::error::Result<Option<Arc<dyn CustomScalar>>> {
-        let scalars = self
-            .scalars
-            .read()
-            .map_err(|_| crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry"))?;
+        let scalars = self.scalars.read().map_err(|_| {
+            crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry")
+        })?;
 
         Ok(scalars.get(name).cloned())
     }
 
     /// Check if a scalar is registered.
     pub fn has_scalar(&self, name: &str) -> crate::error::Result<bool> {
-        let scalars = self
-            .scalars
-            .read()
-            .map_err(|_| crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry"))?;
+        let scalars = self.scalars.read().map_err(|_| {
+            crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry")
+        })?;
 
         Ok(scalars.contains_key(name))
     }
 
     /// Get all registered scalar names.
     pub fn get_scalar_names(&self) -> crate::error::Result<Vec<String>> {
-        let scalars = self
-            .scalars
-            .read()
-            .map_err(|_| crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry"))?;
+        let scalars = self.scalars.read().map_err(|_| {
+            crate::error::FraiseQLError::internal("Failed to acquire read lock on scalar registry")
+        })?;
 
         Ok(scalars.keys().cloned().collect())
     }
 
     /// Unregister a scalar by name (useful for testing).
     pub fn unregister(&self, name: &str) -> crate::error::Result<()> {
-        let mut scalars = self
-            .scalars
-            .write()
-            .map_err(|_| crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry"))?;
+        let mut scalars = self.scalars.write().map_err(|_| {
+            crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry")
+        })?;
 
         scalars.remove(name);
         Ok(())
@@ -112,10 +108,9 @@ impl CustomScalarRegistry {
 
     /// Clear all registered scalars (useful for testing).
     pub fn clear(&self) -> crate::error::Result<()> {
-        let mut scalars = self
-            .scalars
-            .write()
-            .map_err(|_| crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry"))?;
+        let mut scalars = self.scalars.write().map_err(|_| {
+            crate::error::FraiseQLError::internal("Failed to acquire write lock on scalar registry")
+        })?;
 
         scalars.clear();
         Ok(())
@@ -153,11 +148,17 @@ mod tests {
             Ok(value.clone())
         }
 
-        fn parse_value(&self, value: &serde_json::Value) -> crate::error::Result<serde_json::Value> {
+        fn parse_value(
+            &self,
+            value: &serde_json::Value,
+        ) -> crate::error::Result<serde_json::Value> {
             Ok(value.clone())
         }
 
-        fn parse_literal(&self, ast: &serde_json::Value) -> crate::error::Result<serde_json::Value> {
+        fn parse_literal(
+            &self,
+            ast: &serde_json::Value,
+        ) -> crate::error::Result<serde_json::Value> {
             Ok(ast.clone())
         }
     }

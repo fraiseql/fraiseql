@@ -15,15 +15,15 @@ use crate::output::CommandResult;
 #[derive(Debug, Serialize)]
 pub struct CostResponse {
     /// The GraphQL query being analyzed
-    pub query:            String,
+    pub query: String,
     /// Complexity score based on query depth and breadth
     pub complexity_score: usize,
     /// Estimated execution cost
-    pub estimated_cost:   usize,
+    pub estimated_cost: usize,
     /// Maximum query depth
-    pub depth:            usize,
+    pub depth: usize,
     /// Total number of fields requested
-    pub field_count:      usize,
+    pub field_count: usize,
 }
 
 /// Run cost command (minimal complexity analysis)

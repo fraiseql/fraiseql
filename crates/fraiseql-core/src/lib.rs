@@ -109,6 +109,7 @@
 #![allow(clippy::redundant_closure)] // Sometimes clearer
 #![allow(clippy::suspicious_doc_comments)] // /// vs //! style is intentional
 #![allow(clippy::float_cmp)] // Test assertions with exact float comparison are intentional
+#![allow(clippy::large_stack_arrays)] // Test fixtures sometimes require larger arrays
 
 // Core modules
 pub mod config;

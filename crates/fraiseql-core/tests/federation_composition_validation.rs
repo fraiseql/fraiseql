@@ -57,44 +57,44 @@ mod harness {
 
     #[derive(Debug, Clone)]
     pub struct FieldDef {
-        pub name:       String,
+        pub name: String,
         pub field_type: FieldType,
-        pub required:   bool,
+        pub required: bool,
     }
 
     #[derive(Debug, Clone)]
     pub struct TypeDef {
-        pub name:                String,
-        pub fields:              Vec<FieldDef>,
+        pub name: String,
+        pub fields: Vec<FieldDef>,
         pub requires_directives: Vec<String>,
         pub provides_directives: Vec<String>,
     }
 
     #[derive(Debug, Clone)]
     pub struct SubgraphSchema {
-        pub name:  String,
+        pub name: String,
         pub types: HashMap<String, TypeDef>,
     }
 
     #[derive(Debug, Clone)]
     pub struct MergedTypeDef {
-        pub name:    String,
-        pub fields:  HashMap<String, FieldDef>,
+        pub name: String,
+        pub fields: HashMap<String, FieldDef>,
         pub sources: Vec<String>,
     }
 
     #[derive(Debug, Clone)]
     pub struct ComposedSchema {
-        pub subgraphs:         Vec<SubgraphSchema>,
-        pub merged_types:      HashMap<String, MergedTypeDef>,
+        pub subgraphs: Vec<SubgraphSchema>,
+        pub merged_types: HashMap<String, MergedTypeDef>,
         pub validation_errors: Vec<String>,
     }
 
     #[derive(Debug, Clone)]
     pub struct QueryPlanStep {
         pub subgraph: String,
-        pub query:    String,
-        pub fields:   Vec<String>,
+        pub query: String,
+        pub fields: Vec<String>,
     }
 
     #[derive(Debug, Clone)]
@@ -138,8 +138,8 @@ mod harness {
                             }
                         })
                         .or_insert_with(|| MergedTypeDef {
-                            name:    type_name.clone(),
-                            fields:  type_def
+                            name: type_name.clone(),
+                            fields: type_def
                                 .fields
                                 .iter()
                                 .map(|f| (f.name.clone(), f.clone()))
@@ -357,22 +357,22 @@ mod harness {
         types.insert(
             "User".to_string(),
             TypeDef {
-                name:                "User".to_string(),
-                fields:              vec![
+                name: "User".to_string(),
+                fields: vec![
                     FieldDef {
-                        name:       "id".to_string(),
+                        name: "id".to_string(),
                         field_type: FieldType::ID,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "name".to_string(),
+                        name: "name".to_string(),
                         field_type: FieldType::String,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "email".to_string(),
+                        name: "email".to_string(),
                         field_type: FieldType::String,
-                        required:   false,
+                        required: false,
                     },
                 ],
                 requires_directives: vec![],
@@ -391,22 +391,22 @@ mod harness {
         types.insert(
             "Order".to_string(),
             TypeDef {
-                name:                "Order".to_string(),
-                fields:              vec![
+                name: "Order".to_string(),
+                fields: vec![
                     FieldDef {
-                        name:       "id".to_string(),
+                        name: "id".to_string(),
                         field_type: FieldType::ID,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "userId".to_string(),
+                        name: "userId".to_string(),
                         field_type: FieldType::ID,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "total".to_string(),
+                        name: "total".to_string(),
                         field_type: FieldType::Float,
-                        required:   true,
+                        required: true,
                     },
                 ],
                 requires_directives: vec!["User.id".to_string()],
@@ -425,22 +425,22 @@ mod harness {
         types.insert(
             "Product".to_string(),
             TypeDef {
-                name:                "Product".to_string(),
-                fields:              vec![
+                name: "Product".to_string(),
+                fields: vec![
                     FieldDef {
-                        name:       "id".to_string(),
+                        name: "id".to_string(),
                         field_type: FieldType::ID,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "name".to_string(),
+                        name: "name".to_string(),
                         field_type: FieldType::String,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "price".to_string(),
+                        name: "price".to_string(),
                         field_type: FieldType::Float,
-                        required:   true,
+                        required: true,
                     },
                 ],
                 requires_directives: vec![],
@@ -459,27 +459,27 @@ mod harness {
         types.insert(
             "Payment".to_string(),
             TypeDef {
-                name:                "Payment".to_string(),
-                fields:              vec![
+                name: "Payment".to_string(),
+                fields: vec![
                     FieldDef {
-                        name:       "id".to_string(),
+                        name: "id".to_string(),
                         field_type: FieldType::ID,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "orderId".to_string(),
+                        name: "orderId".to_string(),
                         field_type: FieldType::ID,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "amount".to_string(),
+                        name: "amount".to_string(),
                         field_type: FieldType::Float,
-                        required:   true,
+                        required: true,
                     },
                     FieldDef {
-                        name:       "status".to_string(),
+                        name: "status".to_string(),
                         field_type: FieldType::String,
-                        required:   true,
+                        required: true,
                     },
                 ],
                 requires_directives: vec!["Order.id".to_string()],

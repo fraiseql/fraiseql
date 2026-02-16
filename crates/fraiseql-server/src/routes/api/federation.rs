@@ -27,20 +27,20 @@ pub struct SubgraphsResponse {
 #[derive(Debug, Serialize, Clone)]
 pub struct SubgraphInfo {
     /// Name of the subgraph
-    pub name:     String,
+    pub name: String,
     /// GraphQL endpoint URL for the subgraph
-    pub url:      String,
+    pub url: String,
     /// Entity types managed by this subgraph
     pub entities: Vec<String>,
     /// Health status of the subgraph
-    pub healthy:  bool,
+    pub healthy: bool,
 }
 
 /// Federation graph in various formats.
 #[derive(Debug, Serialize)]
 pub struct GraphResponse {
     /// Format of the graph (json, dot, or mermaid)
-    pub format:  String,
+    pub format: String,
     /// Graph content in the specified format
     pub content: String,
 }
@@ -74,7 +74,7 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }
 
@@ -109,7 +109,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }
 
@@ -199,10 +199,10 @@ mod tests {
     #[test]
     fn test_subgraph_info_creation() {
         let info = SubgraphInfo {
-            name:     "test".to_string(),
-            url:      "http://test.local".to_string(),
+            name: "test".to_string(),
+            url: "http://test.local".to_string(),
             entities: vec!["Entity1".to_string()],
-            healthy:  true,
+            healthy: true,
         };
 
         assert_eq!(info.name, "test");
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn test_graph_response_creation() {
         let response = GraphResponse {
-            format:  "json".to_string(),
+            format: "json".to_string(),
             content: "{}".to_string(),
         };
 

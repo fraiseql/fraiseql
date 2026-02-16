@@ -137,14 +137,14 @@ pub mod postgres {
             // Execute query
             #[derive(sqlx::FromRow)]
             struct EventRow {
-                id:          Uuid,
-                event_type:  String,
+                id: Uuid,
+                event_type: String,
                 entity_type: String,
-                entity_id:   Uuid,
-                timestamp:   DateTime<Utc>,
-                data:        serde_json::Value,
-                user_id:     Option<String>,
-                tenant_id:   Option<String>,
+                entity_id: Uuid,
+                timestamp: DateTime<Utc>,
+                data: serde_json::Value,
+                user_id: Option<String>,
+                tenant_id: Option<String>,
             }
 
             let mut query = sqlx::query_as::<_, EventRow>(&query_str);

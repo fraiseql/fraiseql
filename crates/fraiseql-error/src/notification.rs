@@ -10,7 +10,7 @@ pub enum NotificationError {
 
     #[error("Provider unavailable: {provider}")]
     ProviderUnavailable {
-        provider:    String,
+        provider: String,
         retry_after: Option<Duration>,
     },
 
@@ -25,7 +25,7 @@ pub enum NotificationError {
 
     #[error("Circuit breaker open for provider: {provider}")]
     CircuitOpen {
-        provider:    String,
+        provider: String,
         retry_after: Duration,
     },
 

@@ -84,7 +84,7 @@ fn test_federation_audit_request_deserialization() {
 #[test]
 fn test_federation_audit_response_structure() {
     let response = CategoryAuditResponse {
-        score:  85,
+        score: 85,
         issues: vec![],
     };
     assert_eq!(response.score, 85);
@@ -94,10 +94,10 @@ fn test_federation_audit_response_structure() {
 #[test]
 fn test_federation_audit_with_issue() {
     let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "User entity spread across 3 subgraphs".to_string(),
+        severity: "warning".to_string(),
+        message: "User entity spread across 3 subgraphs".to_string(),
         suggestion: "Consolidate in primary subgraph".to_string(),
-        affected:   Some("User".to_string()),
+        affected: Some("User".to_string()),
     };
     assert_eq!(issue.severity, "warning");
     assert_eq!(issue.affected, Some("User".to_string()));
@@ -126,7 +126,7 @@ fn test_federation_audit_detects_jsonb_fragmentation() {
 #[test]
 fn test_federation_audit_empty_schema() {
     let response = CategoryAuditResponse {
-        score:  100,
+        score: 100,
         issues: vec![],
     };
     // Empty schema with no issues should have perfect score
@@ -174,7 +174,7 @@ fn deep_nesting_schema() -> serde_json::Value {
 #[test]
 fn test_cost_audit_response_structure() {
     let response = CategoryAuditResponse {
-        score:  75,
+        score: 75,
         issues: vec![],
     };
     assert_eq!(response.score, 75);
@@ -183,10 +183,10 @@ fn test_cost_audit_response_structure() {
 #[test]
 fn test_cost_audit_with_complexity_warning() {
     let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "Query can reach 1250 complexity in worst case".to_string(),
+        severity: "critical".to_string(),
+        message: "Query can reach 1250 complexity in worst case".to_string(),
         suggestion: "Add depth limit or paginate nested fields".to_string(),
-        affected:   Some("complexity: 1250".to_string()),
+        affected: Some("complexity: 1250".to_string()),
     };
     assert_eq!(issue.severity, "critical");
     assert!(issue.message.contains("complexity"));
@@ -262,7 +262,7 @@ fn ttl_mismatch_schema() -> serde_json::Value {
 #[test]
 fn test_cache_audit_response_structure() {
     let response = CategoryAuditResponse {
-        score:  90,
+        score: 90,
         issues: vec![],
     };
     assert_eq!(response.score, 90);
@@ -272,10 +272,10 @@ fn test_cache_audit_response_structure() {
 #[test]
 fn test_cache_audit_with_ttl_issue() {
     let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "User cached 5min in users-service, 30min in posts-service".to_string(),
+        severity: "warning".to_string(),
+        message: "User cached 5min in users-service, 30min in posts-service".to_string(),
         suggestion: "Align TTLs for consistent JSONB coherency".to_string(),
-        affected:   Some("User".to_string()),
+        affected: Some("User".to_string()),
     };
     assert_eq!(issue.severity, "warning");
     assert!(issue.message.contains("cached"));
@@ -356,7 +356,7 @@ fn auth_boundary_leak_schema() -> serde_json::Value {
 #[test]
 fn test_auth_audit_response_structure() {
     let response = CategoryAuditResponse {
-        score:  88,
+        score: 88,
         issues: vec![],
     };
     assert_eq!(response.score, 88);
@@ -365,10 +365,10 @@ fn test_auth_audit_response_structure() {
 #[test]
 fn test_auth_audit_with_boundary_issue() {
     let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "User.email exposed to analytics-service without auth scope".to_string(),
+        severity: "critical".to_string(),
+        message: "User.email exposed to analytics-service without auth scope".to_string(),
         suggestion: "Add auth boundary check or restrict field access".to_string(),
-        affected:   Some("User.email".to_string()),
+        affected: Some("User.email".to_string()),
     };
     assert_eq!(issue.severity, "critical");
     assert!(issue.message.contains("auth"));
@@ -433,7 +433,7 @@ fn circular_types_schema() -> serde_json::Value {
 #[test]
 fn test_compilation_audit_response_structure() {
     let response = CategoryAuditResponse {
-        score:  80,
+        score: 80,
         issues: vec![],
     };
     assert_eq!(response.score, 80);
@@ -442,10 +442,10 @@ fn test_compilation_audit_response_structure() {
 #[test]
 fn test_compilation_audit_with_circular_issue() {
     let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "Circular type reference: User -> Post -> User".to_string(),
+        severity: "warning".to_string(),
+        message: "Circular type reference: User -> Post -> User".to_string(),
         suggestion: "Break cycle by making one direction reference-only".to_string(),
-        affected:   Some("User".to_string()),
+        affected: Some("User".to_string()),
     };
     assert_eq!(issue.severity, "warning");
     assert!(issue.message.contains("Circular"));
@@ -530,8 +530,8 @@ fn test_design_audit_severity_counts() {
 
     let counts = SeverityCountResponse {
         critical: 1,
-        warning:  3,
-        info:     5,
+        warning: 3,
+        info: 5,
     };
 
     assert_eq!(counts.critical, 1);
@@ -542,10 +542,10 @@ fn test_design_audit_severity_counts() {
 #[test]
 fn test_design_audit_issue_has_suggestion() {
     let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "Some issue".to_string(),
+        severity: "warning".to_string(),
+        message: "Some issue".to_string(),
         suggestion: "Fix by doing X".to_string(),
-        affected:   None,
+        affected: None,
     };
 
     // Every issue must have a suggestion
@@ -575,10 +575,10 @@ fn test_design_audit_request_with_null_fields() {
 #[test]
 fn test_design_issue_required_fields() {
     let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "Test issue".to_string(),
+        severity: "critical".to_string(),
+        message: "Test issue".to_string(),
         suggestion: "Fix this".to_string(),
-        affected:   None,
+        affected: None,
     };
 
     // Verify all required fields are present
@@ -594,11 +594,11 @@ fn test_design_issue_required_fields() {
 #[test]
 fn test_federation_issue_content() {
     let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "User entity spread across 3 subgraphs prevents efficient JSONB batching"
+        severity: "critical".to_string(),
+        message: "User entity spread across 3 subgraphs prevents efficient JSONB batching"
             .to_string(),
         suggestion: "Move User to primary subgraph, use references elsewhere".to_string(),
-        affected:   Some("User".to_string()),
+        affected: Some("User".to_string()),
     };
 
     // Verify issue has all required fields
@@ -610,10 +610,10 @@ fn test_federation_issue_content() {
 #[test]
 fn test_cost_warning_content() {
     let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "Nested lists create O(n²) compiled JSONB cardinality".to_string(),
+        severity: "warning".to_string(),
+        message: "Nested lists create O(n²) compiled JSONB cardinality".to_string(),
         suggestion: "Add pagination limits or reduce nesting depth".to_string(),
-        affected:   Some("complexity: 1500".to_string()),
+        affected: Some("complexity: 1500".to_string()),
     };
 
     assert!(issue.message.contains("cardinality") || issue.message.contains("complexity"));

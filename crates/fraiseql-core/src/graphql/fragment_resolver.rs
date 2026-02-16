@@ -235,11 +235,11 @@ mod tests {
 
     fn make_field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
         FieldSelection {
-            name:          name.to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: name.to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: nested,
-            directives:    vec![],
+            directives: vec![],
         }
     }
 
@@ -258,11 +258,11 @@ mod tests {
             make_fragment("UserFields", vec![make_field("id", vec![]), make_field("name", vec![])]);
 
         let selections = vec![FieldSelection {
-            name:          "...UserFields".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...UserFields".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[fragment]);
@@ -276,11 +276,11 @@ mod tests {
     #[test]
     fn test_fragment_not_found() {
         let selections = vec![FieldSelection {
-            name:          "...NonexistentFragment".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...NonexistentFragment".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[]);
@@ -299,11 +299,11 @@ mod tests {
             "FragmentB",
             vec![
                 FieldSelection {
-                    name:          "...FragmentA".to_string(),
-                    alias:         None,
-                    arguments:     vec![],
+                    name: "...FragmentA".to_string(),
+                    alias: None,
+                    arguments: vec![],
                     nested_fields: vec![],
-                    directives:    vec![],
+                    directives: vec![],
                 },
                 make_field("name", vec![]),
             ],
@@ -311,11 +311,11 @@ mod tests {
 
         // Query spreads Fragment B
         let selections = vec![FieldSelection {
-            name:          "...FragmentB".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...FragmentB".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[fragment_a, fragment_b]);
@@ -372,19 +372,19 @@ mod tests {
     #[test]
     fn test_merge_conflicting_fields_with_alias() {
         let base = vec![FieldSelection {
-            name:          "user".to_string(),
-            alias:         Some("primaryUser".to_string()),
-            arguments:     vec![],
+            name: "user".to_string(),
+            alias: Some("primaryUser".to_string()),
+            arguments: vec![],
             nested_fields: vec![make_field("id", vec![])],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let additional = vec![FieldSelection {
-            name:          "user".to_string(),
-            alias:         Some("primaryUser".to_string()),
-            arguments:     vec![],
+            name: "user".to_string(),
+            alias: Some("primaryUser".to_string()),
+            arguments: vec![],
             nested_fields: vec![make_field("name", vec![])],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let merged = FragmentResolver::merge_selections(&base, additional);
@@ -401,11 +401,11 @@ mod tests {
             let name = format!("Fragment{i}");
             let next_spread = if i < 11 {
                 FieldSelection {
-                    name:          format!("...Fragment{}", i + 1),
-                    alias:         None,
-                    arguments:     vec![],
+                    name: format!("...Fragment{}", i + 1),
+                    alias: None,
+                    arguments: vec![],
                     nested_fields: vec![],
-                    directives:    vec![],
+                    directives: vec![],
                 }
             } else {
                 make_field("field", vec![])
@@ -420,11 +420,11 @@ mod tests {
         }
 
         let selections = vec![FieldSelection {
-            name:          "...Fragment0".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...Fragment0".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&fragments);
@@ -437,37 +437,37 @@ mod tests {
     fn test_circular_reference_detection() {
         // FragmentA -> FragmentB -> FragmentA (circular)
         let fragment_a = FragmentDefinition {
-            name:             "FragmentA".to_string(),
-            type_condition:   "User".to_string(),
-            selections:       vec![FieldSelection {
-                name:          "...FragmentB".to_string(),
-                alias:         None,
-                arguments:     vec![],
+            name: "FragmentA".to_string(),
+            type_condition: "User".to_string(),
+            selections: vec![FieldSelection {
+                name: "...FragmentB".to_string(),
+                alias: None,
+                arguments: vec![],
                 nested_fields: vec![],
-                directives:    vec![],
+                directives: vec![],
             }],
             fragment_spreads: vec!["FragmentB".to_string()],
         };
 
         let fragment_b = FragmentDefinition {
-            name:             "FragmentB".to_string(),
-            type_condition:   "User".to_string(),
-            selections:       vec![FieldSelection {
-                name:          "...FragmentA".to_string(),
-                alias:         None,
-                arguments:     vec![],
+            name: "FragmentB".to_string(),
+            type_condition: "User".to_string(),
+            selections: vec![FieldSelection {
+                name: "...FragmentA".to_string(),
+                alias: None,
+                arguments: vec![],
                 nested_fields: vec![],
-                directives:    vec![],
+                directives: vec![],
             }],
             fragment_spreads: vec!["FragmentA".to_string()],
         };
 
         let selections = vec![FieldSelection {
-            name:          "...FragmentA".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...FragmentA".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[fragment_a, fragment_b]);

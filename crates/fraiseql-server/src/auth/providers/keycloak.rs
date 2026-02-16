@@ -15,22 +15,22 @@ use crate::auth::{
 /// Supports both realm roles and client roles.
 #[derive(Debug)]
 pub struct KeycloakOAuth {
-    oidc:        OidcProvider,
-    realm:       String,
+    oidc: OidcProvider,
+    realm: String,
     client_name: String,
 }
 
 /// Keycloak token claims structure (partial)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeycloakTokenClaims {
-    pub sub:                String,
+    pub sub: String,
     pub preferred_username: Option<String>,
-    pub email:              Option<String>,
-    pub name:               Option<String>,
-    pub given_name:         Option<String>,
-    pub family_name:        Option<String>,
-    pub realm_access:       Option<RealmAccess>,
-    pub resource_access:    Option<serde_json::Value>,
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub given_name: Option<String>,
+    pub family_name: Option<String>,
+    pub realm_access: Option<RealmAccess>,
+    pub resource_access: Option<serde_json::Value>,
 }
 
 /// Keycloak realm access structure

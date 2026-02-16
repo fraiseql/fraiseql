@@ -107,10 +107,10 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   9,
+            total_connections: 10,
+            idle_connections: 9,
             active_connections: 1,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -134,26 +134,26 @@ fn create_test_metadata() -> FederationMetadata {
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "User".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "User".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
+                is_extends: false,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name:             "Order".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "Order".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
+                is_extends: false,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },

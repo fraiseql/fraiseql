@@ -267,7 +267,7 @@ impl BoolAggregateFunction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregateType {
     /// Type name (e.g., "SalesAggregate")
-    pub name:   String,
+    pub name: String,
     /// Fields in the aggregate result
     pub fields: Vec<AggregateField>,
 }
@@ -276,13 +276,13 @@ pub struct AggregateType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregateField {
     /// Field name
-    pub name:       String,
+    pub name: String,
     /// GraphQL type
     pub field_type: String,
     /// Is nullable
-    pub nullable:   bool,
+    pub nullable: bool,
     /// Field kind
-    pub kind:       AggregateFieldKind,
+    pub kind: AggregateFieldKind,
 }
 
 /// Kind of aggregate field
@@ -293,7 +293,7 @@ pub enum AggregateFieldKind {
     /// Aggregate function on a measure
     MeasureAggregate {
         /// Measure column name
-        measure:  String,
+        measure: String,
         /// Aggregate function
         function: AggregateFunction,
     },
@@ -315,7 +315,7 @@ pub enum AggregateFieldKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroupByInput {
     /// Input type name (e.g., "SalesGroupBy")
-    pub name:   String,
+    pub name: String,
     /// Fields in the GROUP BY input
     pub fields: Vec<GroupByField>,
 }
@@ -350,7 +350,7 @@ pub enum GroupByFieldKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HavingInput {
     /// Input type name (e.g., "SalesHaving")
-    pub name:   String,
+    pub name: String,
     /// Fields in the HAVING input
     pub fields: Vec<HavingField>,
 }
@@ -359,13 +359,13 @@ pub struct HavingInput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HavingField {
     /// Field name (e.g., "revenue_sum_gt")
-    pub name:       String,
+    pub name: String,
     /// Measure column
-    pub measure:    String,
+    pub measure: String,
     /// Aggregate function
-    pub function:   AggregateFunction,
+    pub function: AggregateFunction,
     /// Comparison operator
-    pub operator:   HavingOperator,
+    pub operator: HavingOperator,
     /// GraphQL type for the comparison value
     pub value_type: String,
 }
@@ -465,7 +465,7 @@ impl AggregateTypeGenerator {
         if !table_name.starts_with("tf_") {
             return Err(FraiseQLError::Validation {
                 message: format!("Table '{}' is not a fact table", table_name),
-                path:    None,
+                path: None,
             });
         }
 
@@ -497,10 +497,10 @@ impl AggregateTypeGenerator {
 
         // Add count field (always present)
         fields.push(AggregateField {
-            name:       "count".to_string(),
+            name: "count".to_string(),
             field_type: "Int".to_string(),
-            nullable:   false,
-            kind:       AggregateFieldKind::Count,
+            nullable: false,
+            kind: AggregateFieldKind::Count,
         });
 
         // Add aggregate fields for each measure
@@ -516,15 +516,15 @@ impl AggregateTypeGenerator {
                 }
 
                 fields.push(AggregateField {
-                    name:       format!("{}_{}", measure.name, function.field_name()),
+                    name: format!("{}_{}", measure.name, function.field_name()),
                     field_type: if *function == AggregateFunction::Avg {
                         "Float".to_string()
                     } else {
                         graphql_type.clone()
                     },
-                    nullable:   true,
-                    kind:       AggregateFieldKind::MeasureAggregate {
-                        measure:  measure.name.clone(),
+                    nullable: true,
+                    kind: AggregateFieldKind::MeasureAggregate {
+                        measure: measure.name.clone(),
                         function: *function,
                     },
                 });
@@ -534,11 +534,11 @@ impl AggregateTypeGenerator {
             if include_statistical {
                 for function in AggregateFunction::statistical_functions() {
                     fields.push(AggregateField {
-                        name:       format!("{}_{}", measure.name, function.field_name()),
+                        name: format!("{}_{}", measure.name, function.field_name()),
                         field_type: "Float".to_string(),
-                        nullable:   true,
-                        kind:       AggregateFieldKind::MeasureAggregate {
-                            measure:  measure.name.clone(),
+                        nullable: true,
+                        kind: AggregateFieldKind::MeasureAggregate {
+                            measure: measure.name.clone(),
                             function: *function,
                         },
                     });
@@ -549,10 +549,10 @@ impl AggregateTypeGenerator {
         // Add dimension fields (from JSONB paths)
         for dim_path in &metadata.dimensions.paths {
             fields.push(AggregateField {
-                name:       dim_path.name.clone(),
+                name: dim_path.name.clone(),
                 field_type: Self::dimension_type_to_graphql(&dim_path.data_type),
-                nullable:   true, // Dimension fields are nullable in aggregates
-                kind:       AggregateFieldKind::Dimension {
+                nullable: true, // Dimension fields are nullable in aggregates
+                kind: AggregateFieldKind::Dimension {
                     path: dim_path.json_path.clone(),
                 },
             });
@@ -575,10 +575,10 @@ impl AggregateTypeGenerator {
                     }
 
                     fields.push(AggregateField {
-                        name:       field_name,
+                        name: field_name,
                         field_type: Self::calendar_bucket_to_graphql(&bucket.data_type),
-                        nullable:   true,
-                        kind:       AggregateFieldKind::TemporalBucket {
+                        nullable: true,
+                        kind: AggregateFieldKind::TemporalBucket {
                             column: granularity.column_name.clone(),
                             bucket: bucket.bucket_type,
                         },
@@ -601,11 +601,11 @@ impl AggregateTypeGenerator {
                     ] {
                         let field_name = format!("{}_{}", filter.name, bucket.field_suffix());
                         fields.push(AggregateField {
-                            name:       field_name,
+                            name: field_name,
                             field_type: "String".to_string(), /* DATE_TRUNC returns timestamp as
                                                                * string */
-                            nullable:   true,
-                            kind:       AggregateFieldKind::TemporalBucket {
+                            nullable: true,
+                            kind: AggregateFieldKind::TemporalBucket {
                                 column: filter.name.clone(),
                                 bucket: *bucket,
                             },
@@ -706,10 +706,10 @@ impl AggregateTypeGenerator {
         // Add HAVING fields for count
         for operator in HavingOperator::all() {
             fields.push(HavingField {
-                name:       format!("count_{}", operator.field_suffix()),
-                measure:    String::new(),
-                function:   AggregateFunction::Count,
-                operator:   *operator,
+                name: format!("count_{}", operator.field_suffix()),
+                measure: String::new(),
+                function: AggregateFunction::Count,
+                operator: *operator,
                 value_type: "Int".to_string(),
             });
         }
@@ -728,15 +728,15 @@ impl AggregateTypeGenerator {
 
                 for operator in HavingOperator::all() {
                     fields.push(HavingField {
-                        name:       format!(
+                        name: format!(
                             "{}_{}_{}",
                             measure.name,
                             function.field_name(),
                             operator.field_suffix()
                         ),
-                        measure:    measure.name.clone(),
-                        function:   *function,
-                        operator:   *operator,
+                        measure: measure.name.clone(),
+                        function: *function,
+                        operator: *operator,
                         value_type: if *function == AggregateFunction::Avg {
                             "Float".to_string()
                         } else {
@@ -751,15 +751,15 @@ impl AggregateTypeGenerator {
                 for function in AggregateFunction::statistical_functions() {
                     for operator in HavingOperator::all() {
                         fields.push(HavingField {
-                            name:       format!(
+                            name: format!(
                                 "{}_{}_{}",
                                 measure.name,
                                 function.field_name(),
                                 operator.field_suffix()
                             ),
-                            measure:    measure.name.clone(),
-                            function:   *function,
-                            operator:   *operator,
+                            measure: measure.name.clone(),
+                            function: *function,
+                            operator: *operator,
                             value_type: "Float".to_string(),
                         });
                     }
@@ -815,25 +815,25 @@ mod tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 
@@ -925,34 +925,34 @@ mod tests {
         use crate::compiler::fact_table::DimensionPath;
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
-                        name:      "category".to_string(),
+                        name: "category".to_string(),
                         json_path: "dimensions->>'category'".to_string(),
                         data_type: "string".to_string(),
                     },
                     DimensionPath {
-                        name:      "region".to_string(),
+                        name: "region".to_string(),
                         json_path: "dimensions->>'region'".to_string(),
                         data_type: "string".to_string(),
                     },
                     DimensionPath {
-                        name:      "priority".to_string(),
+                        name: "priority".to_string(),
                         json_path: "dimensions->>'priority'".to_string(),
                         data_type: "integer".to_string(),
                     },
                 ],
             },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 
@@ -1002,36 +1002,36 @@ mod tests {
         use crate::compiler::fact_table::{CalendarBucket, CalendarDimension, CalendarGranularity};
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![CalendarDimension {
+            calendar_dimensions: vec![CalendarDimension {
                 source_column: "occurred_at".to_string(),
                 granularities: vec![CalendarGranularity {
                     column_name: "date_info".to_string(),
-                    buckets:     vec![
+                    buckets: vec![
                         CalendarBucket {
-                            json_key:    "date".to_string(),
+                            json_key: "date".to_string(),
                             bucket_type: TemporalBucket::Day,
-                            data_type:   "date".to_string(),
+                            data_type: "date".to_string(),
                         },
                         CalendarBucket {
-                            json_key:    "month".to_string(),
+                            json_key: "month".to_string(),
                             bucket_type: TemporalBucket::Month,
-                            data_type:   "integer".to_string(),
+                            data_type: "integer".to_string(),
                         },
                         CalendarBucket {
-                            json_key:    "year".to_string(),
+                            json_key: "year".to_string(),
                             bucket_type: TemporalBucket::Year,
-                            data_type:   "integer".to_string(),
+                            data_type: "integer".to_string(),
                         },
                     ],
                 }],
@@ -1083,22 +1083,22 @@ mod tests {
         use crate::compiler::fact_table::FilterColumn;
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![FilterColumn {
-                name:     "occurred_at".to_string(),
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             }],
-            calendar_dimensions:  vec![], // No calendar dimensions
+            calendar_dimensions: vec![], // No calendar dimensions
         }
     }
 
@@ -1171,29 +1171,29 @@ mod tests {
         };
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name:      "category".to_string(),
+                    name: "category".to_string(),
                     json_path: "dimensions->>'category'".to_string(),
                     data_type: "string".to_string(),
                 }],
             },
             denormalized_filters: vec![],
-            calendar_dimensions:  vec![CalendarDimension {
+            calendar_dimensions: vec![CalendarDimension {
                 source_column: "occurred_at".to_string(),
                 granularities: vec![CalendarGranularity {
                     column_name: "date_info".to_string(),
-                    buckets:     vec![CalendarBucket {
-                        json_key:    "month".to_string(),
+                    buckets: vec![CalendarBucket {
+                        json_key: "month".to_string(),
                         bucket_type: TemporalBucket::Month,
-                        data_type:   "integer".to_string(),
+                        data_type: "integer".to_string(),
                     }],
                 }],
             }],

@@ -401,8 +401,8 @@ fn test_field_masking_independent_of_rbac() {
 fn test_graphql_request_with_security_context() {
     // GraphQL request should carry security context through all layers
     let request = GraphQLRequest {
-        query:          "query { user(id: \"123\") { id name email } }".to_string(),
-        variables:      None,
+        query: "query { user(id: \"123\") { id name email } }".to_string(),
+        variables: None,
         operation_name: None,
     };
 

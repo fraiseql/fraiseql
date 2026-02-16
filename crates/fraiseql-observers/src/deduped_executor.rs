@@ -87,12 +87,12 @@ use crate::{
 #[cfg(feature = "dedup")]
 pub struct DedupedObserverExecutor<D: DeduplicationStore> {
     /// Inner executor that performs actual event processing
-    inner:       Arc<ObserverExecutor>,
+    inner: Arc<ObserverExecutor>,
     /// Deduplication store (typically Redis-backed)
     dedup_store: D,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    metrics:     MetricsRegistry,
+    metrics: MetricsRegistry,
 }
 
 #[cfg(feature = "dedup")]
@@ -169,14 +169,14 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 
                 return Ok(ExecutionSummary {
                     successful_actions: 0,
-                    failed_actions:     0,
+                    failed_actions: 0,
                     conditions_skipped: 0,
-                    total_duration_ms:  0.0,
-                    dlq_errors:         0,
-                    errors:             Vec::new(),
-                    duplicate_skipped:  true,
-                    cache_hits:         0,
-                    cache_misses:       0,
+                    total_duration_ms: 0.0,
+                    dlq_errors: 0,
+                    errors: Vec::new(),
+                    duplicate_skipped: true,
+                    cache_hits: 0,
+                    cache_misses: 0,
                 });
             },
             Ok(false) => {
@@ -252,7 +252,7 @@ mod tests {
     // Simple in-memory dedup store for testing
     #[derive(Clone)]
     struct InMemoryDedupStore {
-        store:          Arc<dashmap::DashMap<String, bool>>,
+        store: Arc<dashmap::DashMap<String, bool>>,
         window_seconds: u64,
     }
 

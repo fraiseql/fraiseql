@@ -21,9 +21,8 @@ use serde_json::json;
 fn test_graphql_request_structure_for_mutation_attack() {
     // Demonstrate the structure of a mutation attack attempt
     let mutation_request = GraphQLRequest {
-        query:          "mutation { updateUser(id: \"123\", role: \"admin\") { id role } }"
-            .to_string(),
-        variables:      None,
+        query: "mutation { updateUser(id: \"123\", role: \"admin\") { id role } }".to_string(),
+        variables: None,
         operation_name: Some("UpdateRole".to_string()),
     };
 
@@ -49,8 +48,8 @@ fn test_variable_injection_with_role_parameter() {
     });
 
     let request = GraphQLRequest {
-        query:          query_with_role_var.to_string(),
-        variables:      Some(variables),
+        query: query_with_role_var.to_string(),
+        variables: Some(variables),
         operation_name: Some("SetRole".to_string()),
     };
 

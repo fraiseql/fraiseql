@@ -51,7 +51,7 @@ pub struct JsonbOptimizationOptions {
 impl Default for JsonbOptimizationOptions {
     fn default() -> Self {
         Self {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         }
     }
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_below_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_at_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_above_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn test_choose_strategy_respects_default() {
         let opts = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Stream,
+            default_strategy: JsonbStrategy::Stream,
             auto_threshold_percent: 80,
         };
 

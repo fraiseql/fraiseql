@@ -15,10 +15,10 @@ use crate::error::{ObserverError, Result};
 /// Redis-backed persistent job queue.
 #[derive(Clone)]
 pub struct RedisJobQueue {
-    conn:           ConnectionManager,
-    pending_key:    String,
+    conn: ConnectionManager,
+    pending_key: String,
     processing_key: String,
-    retry_key:      String,
+    retry_key: String,
     deadletter_key: String,
 }
 
@@ -315,24 +315,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -346,24 +346,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -384,40 +384,40 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
         queue.enqueue(&job).await.expect("Failed to enqueue");
 
         let result = JobResult {
-            job_id:        "job-1".to_string(),
-            status:        JobStatus::Success,
+            job_id: "job-1".to_string(),
+            status: JobStatus::Success,
             action_result: ActionResult {
                 action_type: "send_email".to_string(),
-                success:     true,
-                message:     "Email sent".to_string(),
+                success: true,
+                message: "Email sent".to_string(),
                 duration_ms: 100.0,
             },
-            attempts:      1,
-            duration_ms:   100.0,
+            attempts: 1,
+            duration_ms: 100.0,
         };
 
         queue.mark_success("job-1", &result).await.expect("Failed to mark success");
@@ -432,24 +432,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -468,24 +468,24 @@ mod tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 

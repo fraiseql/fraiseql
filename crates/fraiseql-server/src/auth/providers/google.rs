@@ -19,20 +19,20 @@ pub struct GoogleOAuth {
 /// Google user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleUser {
-    pub sub:            String,
-    pub email:          String,
+    pub sub: String,
+    pub email: String,
     pub email_verified: bool,
-    pub name:           Option<String>,
-    pub picture:        Option<String>,
-    pub locale:         Option<String>,
+    pub name: Option<String>,
+    pub picture: Option<String>,
+    pub locale: Option<String>,
 }
 
 /// Google Workspace group
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleWorkspaceGroup {
-    pub id:          String,
-    pub email:       String,
-    pub name:        Option<String>,
+    pub id: String,
+    pub email: String,
+    pub name: Option<String>,
     pub description: Option<String>,
 }
 

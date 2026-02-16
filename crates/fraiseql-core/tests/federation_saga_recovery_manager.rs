@@ -158,11 +158,11 @@ impl BackoffStrategy for FixedDelayStrategy {
 #[derive(Debug, Clone, Copy)]
 pub struct RecoveryConfig {
     /// Maximum number of retry attempts before saga recovery fails
-    pub max_attempts:    u32,
+    pub max_attempts: u32,
     /// Base backoff delay in milliseconds (used for exponential/linear calculation)
     pub base_backoff_ms: u64,
     /// Maximum backoff delay cap in milliseconds (prevents excessive waits)
-    pub max_backoff_ms:  u64,
+    pub max_backoff_ms: u64,
     /// Threshold for cleanup in hours (sagas older than this are deleted)
     pub stale_age_hours: i64,
 }
@@ -170,9 +170,9 @@ pub struct RecoveryConfig {
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            max_attempts:    5,
+            max_attempts: 5,
             base_backoff_ms: 100,
-            max_backoff_ms:  30000,
+            max_backoff_ms: 30000,
             stale_age_hours: 24,
         }
     }
@@ -230,15 +230,15 @@ impl RecoveryStrategy {
 #[derive(Debug, Clone)]
 pub struct RecoveryMetrics {
     /// Total number of sagas successfully recovered
-    pub total_sagas_recovered:    u64,
+    pub total_sagas_recovered: u64,
     /// Total number of recovery retry attempts
-    pub total_recovery_attempts:  u64,
+    pub total_recovery_attempts: u64,
     /// Number of recovery attempts that permanently failed
     pub failed_recovery_attempts: u64,
     /// Number of stale sagas deleted by cleanup
-    pub sagas_cleaned_up:         u64,
+    pub sagas_cleaned_up: u64,
     /// Timestamp of the last recovery operation
-    pub last_recovery_time:       Option<Instant>,
+    pub last_recovery_time: Option<Instant>,
 }
 
 impl Default for RecoveryMetrics {
@@ -246,11 +246,11 @@ impl Default for RecoveryMetrics {
     #[allow(clippy::derivable_impls)]
     fn default() -> Self {
         Self {
-            total_sagas_recovered:    0,
-            total_recovery_attempts:  0,
+            total_sagas_recovered: 0,
+            total_recovery_attempts: 0,
             failed_recovery_attempts: 0,
-            sagas_cleaned_up:         0,
-            last_recovery_time:       None,
+            sagas_cleaned_up: 0,
+            last_recovery_time: None,
         }
     }
 }
@@ -275,9 +275,9 @@ impl Default for RecoveryMetrics {
 /// Safe to share across async tasks via `Arc<SagaRecoveryManager>`. The manager uses
 /// `Arc<Mutex<T>>` internally, so no external synchronization is needed.
 pub struct SagaRecoveryManager {
-    config:           RecoveryConfig,
-    metrics:          Arc<Mutex<RecoveryMetrics>>,
-    strategy:         RecoveryStrategy,
+    config: RecoveryConfig,
+    metrics: Arc<Mutex<RecoveryMetrics>>,
+    strategy: RecoveryStrategy,
     attempt_tracking: Arc<Mutex<std::collections::HashMap<Uuid, u32>>>,
 }
 

@@ -28,7 +28,7 @@ use uuid::Uuid;
 
 /// Test saga scenario builder for E2E testing
 struct TestSagaScenario {
-    step_count:            usize,
+    step_count: usize,
     compensation_strategy: CompensationStrategy,
 }
 

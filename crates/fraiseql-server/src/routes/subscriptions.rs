@@ -124,7 +124,7 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
             // Send close frame with timeout code
             let _ = sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                    code:   CloseCode::ConnectionInitTimeout.code(),
+                    code: CloseCode::ConnectionInitTimeout.code(),
                     reason: CloseCode::ConnectionInitTimeout.reason().into(),
                 })))
                 .await;

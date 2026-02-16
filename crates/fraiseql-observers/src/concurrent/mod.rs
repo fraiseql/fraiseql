@@ -53,7 +53,7 @@ use crate::{
 /// Significantly reduces latency by eliminating sequential waiting.
 #[derive(Clone)]
 pub struct ConcurrentActionExecutor<E: ActionExecutor + Clone> {
-    inner:             E,
+    inner: E,
     action_timeout_ms: u64,
 }
 
@@ -172,8 +172,8 @@ mod tests {
         ) -> Result<ActionResult> {
             Ok(ActionResult {
                 action_type: "test".to_string(),
-                success:     true,
-                message:     "Test success".to_string(),
+                success: true,
+                message: "Test success".to_string(),
                 duration_ms: 10.0,
             })
         }
@@ -206,12 +206,12 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to:               Some("test@example.com".to_string()),
-            to_template:      None,
-            subject:          Some("Test".to_string()),
+            to: Some("test@example.com".to_string()),
+            to_template: None,
+            subject: Some("Test".to_string()),
             subject_template: None,
-            body_template:    Some("Test body".to_string()),
-            reply_to:         None,
+            body_template: Some("Test body".to_string()),
+            reply_to: None,
         };
 
         let results = concurrent.execute_all(&event, &[action]).await;

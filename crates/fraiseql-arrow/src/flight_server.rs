@@ -133,22 +133,22 @@ type ActionTypeStream = Pin<Box<dyn Stream<Item = std::result::Result<ActionType
 /// ```
 pub struct FraiseQLFlightService {
     /// Schema registry for pre-compiled Arrow views (Arc for safe sharing in async contexts)
-    schema_registry:      Arc<SchemaRegistry>,
+    schema_registry: Arc<SchemaRegistry>,
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
-    db_adapter:           Option<Arc<dyn DatabaseAdapter>>,
+    db_adapter: Option<Arc<dyn DatabaseAdapter>>,
     /// Optional query executor for executing GraphQL queries with RLS.
     /// Uses trait object to abstract over generic `Executor<A>` type.
-    executor:             Option<Arc<dyn QueryExecutor>>,
+    executor: Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
-    cache:                Option<Arc<QueryCache>>,
+    cache: Option<Arc<QueryCache>>,
     /// Phase 2: Optional security context for authenticated requests
     /// Stores session information from successful handshake
-    security_context:     Option<SecurityContext>,
+    security_context: Option<SecurityContext>,
     /// OIDC validator for JWT authentication during handshake
-    oidc_validator:       Option<Arc<OidcValidator>>,
+    oidc_validator: Option<Arc<OidcValidator>>,
     /// Optional event storage for historical observer event queries
-    event_storage:        Option<Arc<dyn EventStorage>>,
+    event_storage: Option<Arc<dyn EventStorage>>,
     /// Subscription manager for real-time event streaming
     subscription_manager: Arc<SubscriptionManager>,
 }
@@ -160,9 +160,9 @@ pub struct SecurityContext {
     /// Session token returned from handshake
     pub session_token: String,
     /// User ID extracted from JWT
-    pub user_id:       String,
+    pub user_id: String,
     /// Token expiration time
-    pub expiration:    Option<u64>,
+    pub expiration: Option<u64>,
 }
 
 impl FraiseQLFlightService {
@@ -586,7 +586,7 @@ impl FraiseQLFlightService {
             // Convert to RecordBatches
             let config = crate::convert::ConvertConfig {
                 batch_size: 10_000,
-                max_rows:   None,
+                max_rows: None,
             };
             let converter = crate::convert::RowToArrowConverter::new(arrow_schema.clone(), config);
 
@@ -699,7 +699,7 @@ impl FraiseQLFlightService {
         // 5. Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: limit.unwrap_or(10_000).min(10_000),
-            max_rows:   limit,
+            max_rows: limit,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -827,7 +827,7 @@ impl FraiseQLFlightService {
             // Convert to RecordBatches
             let config = ConvertConfig {
                 batch_size: 10_000,
-                max_rows:   None,
+                max_rows: None,
             };
             let converter = RowToArrowConverter::new(inferred_schema.clone(), config);
 
@@ -1005,7 +1005,7 @@ impl FraiseQLFlightService {
         // Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: 10_000,
-            max_rows:   None,
+            max_rows: None,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -1181,13 +1181,13 @@ impl Default for FraiseQLFlightService {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionTokenClaims {
     /// Subject (user ID)
-    sub:          String,
+    sub: String,
     /// Expiration time (Unix timestamp)
-    exp:          i64,
+    exp: i64,
     /// Issued at (Unix timestamp)
-    iat:          i64,
+    iat: i64,
     /// Scopes from original token
-    scopes:       Vec<String>,
+    scopes: Vec<String>,
     /// Session type marker
     session_type: String,
 }
@@ -1221,10 +1221,10 @@ fn create_session_token(
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub:          user.user_id.clone(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
-        scopes:       user.scopes.clone(),
+        sub: user.user_id.clone(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        scopes: user.scopes.clone(),
         session_type: "flight".to_string(),
     };
 
@@ -1424,7 +1424,7 @@ impl FlightService for FraiseQLFlightService {
         // Create response with session token
         let response = HandshakeResponse {
             protocol_version: 0,
-            payload:          session_token.as_bytes().to_vec().into(),
+            payload: session_token.as_bytes().to_vec().into(),
         };
 
         // Build stream response
@@ -1452,17 +1452,17 @@ impl FlightService for FraiseQLFlightService {
                 // Create Flight descriptor for this view
                 let descriptor = FlightDescriptor {
                     r#type: 1, // PATH
-                    path:   vec![view_name.to_string()],
-                    cmd:    b"".to_vec().into(),
+                    path: vec![view_name.to_string()],
+                    cmd: b"".to_vec().into(),
                 };
 
                 // Create ticket for this view (for client retrieval via GetSchema/DoGet)
                 let _ticket_data = FlightTicket::OptimizedView {
-                    view:     view_name.to_string(),
-                    filter:   None,
+                    view: view_name.to_string(),
+                    filter: None,
                     order_by: None,
-                    limit:    None,
-                    offset:   None,
+                    limit: None,
+                    offset: None,
                 };
 
                 // Build FlightInfo for this view
@@ -1475,13 +1475,13 @@ impl FlightService for FraiseQLFlightService {
                     .into();
 
                 let flight_info = FlightInfo {
-                    schema:            schema_bytes,
+                    schema: schema_bytes,
                     flight_descriptor: Some(descriptor),
-                    endpoint:          vec![],
-                    total_records:     -1, // Unknown until executed
-                    total_bytes:       -1,
-                    ordered:           false,
-                    app_metadata:      vec![].into(),
+                    endpoint: vec![],
+                    total_records: -1, // Unknown until executed
+                    total_bytes: -1,
+                    ordered: false,
+                    app_metadata: vec![].into(),
                 };
 
                 flight_infos.push(Ok(flight_info));
@@ -1870,19 +1870,19 @@ impl FlightService for FraiseQLFlightService {
 
         let actions = vec![
             Ok(ActionType {
-                r#type:      "ClearCache".to_string(),
+                r#type: "ClearCache".to_string(),
                 description: "Clear all cached query results".to_string(),
             }),
             Ok(ActionType {
-                r#type:      "RefreshSchemaRegistry".to_string(),
+                r#type: "RefreshSchemaRegistry".to_string(),
                 description: "Reload schema definitions from database".to_string(),
             }),
             Ok(ActionType {
-                r#type:      "GetSchemaVersions".to_string(),
+                r#type: "GetSchemaVersions".to_string(),
                 description: "Get current schema versions and metadata".to_string(),
             }),
             Ok(ActionType {
-                r#type:      "HealthCheck".to_string(),
+                r#type: "HealthCheck".to_string(),
                 description: "Return service health status".to_string(),
             }),
         ];
@@ -2006,7 +2006,7 @@ impl FlightService for FraiseQLFlightService {
                                                             ExchangeMessage::Response {
                                                                 correlation_id: correlation_id
                                                                     .clone(),
-                                                                result:         Err(format!(
+                                                                result: Err(format!(
                                                                     "Encoding error: {}",
                                                                     e
                                                                 )),
@@ -2027,10 +2027,7 @@ impl FlightService for FraiseQLFlightService {
                                                 warn!("Failed to convert result to Arrow: {}", e);
                                                 let error_response = ExchangeMessage::Response {
                                                     correlation_id: correlation_id.clone(),
-                                                    result:         Err(format!(
-                                                        "Conversion error: {}",
-                                                        e
-                                                    )),
+                                                    result: Err(format!("Conversion error: {}", e)),
                                                 };
                                                 if let Ok(err_bytes) =
                                                     error_response.to_json_bytes()
@@ -2048,10 +2045,7 @@ impl FlightService for FraiseQLFlightService {
                                         warn!("Query execution failed: {}", e);
                                         let error_response = ExchangeMessage::Response {
                                             correlation_id: correlation_id.clone(),
-                                            result:         Err(format!(
-                                                "Query execution failed: {}",
-                                                e
-                                            )),
+                                            result: Err(format!("Query execution failed: {}", e)),
                                         };
                                         if let Ok(err_bytes) = error_response.to_json_bytes() {
                                             let err_data = FlightData {
@@ -2104,9 +2098,7 @@ impl FlightService for FraiseQLFlightService {
                                                                     ExchangeMessage::Response {
                                                                         correlation_id:
                                                                             correlation_id.clone(),
-                                                                        result:         Ok(
-                                                                            success_msg,
-                                                                        ),
+                                                                        result: Ok(success_msg),
                                                                     };
                                                                 if let Ok(resp_bytes) =
                                                                     response.to_json_bytes()
@@ -2127,12 +2119,10 @@ impl FlightService for FraiseQLFlightService {
                                                                     ExchangeMessage::Response {
                                                                         correlation_id:
                                                                             correlation_id.clone(),
-                                                                        result:         Err(
-                                                                            format!(
-                                                                                "Insert failed: {}",
-                                                                                e
-                                                                            ),
-                                                                        ),
+                                                                        result: Err(format!(
+                                                                            "Insert failed: {}",
+                                                                            e
+                                                                        )),
                                                                     };
                                                                 if let Ok(err_bytes) =
                                                                     error_response.to_json_bytes()
@@ -2154,7 +2144,7 @@ impl FlightService for FraiseQLFlightService {
                                                             ExchangeMessage::Response {
                                                                 correlation_id: correlation_id
                                                                     .clone(),
-                                                                result:         Err(format!(
+                                                                result: Err(format!(
                                                                     "Failed to build INSERT: {}",
                                                                     e
                                                                 )),
@@ -2175,7 +2165,7 @@ impl FlightService for FraiseQLFlightService {
                                                 warn!("Failed to decode batch: {}", e);
                                                 let error_response = ExchangeMessage::Response {
                                                     correlation_id: correlation_id.clone(),
-                                                    result:         Err(format!(
+                                                    result: Err(format!(
                                                         "Failed to decode batch: {}",
                                                         e
                                                     )),
@@ -2196,7 +2186,7 @@ impl FlightService for FraiseQLFlightService {
                                         warn!("Database adapter not configured");
                                         let error_response = ExchangeMessage::Response {
                                             correlation_id: correlation_id.clone(),
-                                            result:         Err(
+                                            result: Err(
                                                 "Database adapter not configured".to_string()
                                             ),
                                         };
@@ -2231,7 +2221,7 @@ impl FlightService for FraiseQLFlightService {
                                 let ack_msg = format!("Subscribed to {}", entity_type);
                                 let ack_response = ExchangeMessage::Response {
                                     correlation_id: correlation_id.clone(),
-                                    result:         Ok(ack_msg.into_bytes()),
+                                    result: Ok(ack_msg.into_bytes()),
                                 };
 
                                 if let Ok(ack_bytes) = ack_response.to_json_bytes() {
@@ -2396,13 +2386,13 @@ impl FlightService for FraiseQLFlightService {
 
         // Build FlightInfo response
         let flight_info = FlightInfo {
-            schema:            schema_bytes,
+            schema: schema_bytes,
             flight_descriptor: Some(descriptor),
-            endpoint:          vec![], // Data retrieved via DoGet with same descriptor
-            total_records:     -1,     // Unknown until executed
-            total_bytes:       -1,     // Unknown until executed
-            ordered:           false,
-            app_metadata:      vec![].into(),
+            endpoint: vec![],  // Data retrieved via DoGet with same descriptor
+            total_records: -1, // Unknown until executed
+            total_bytes: -1,   // Unknown until executed
+            ordered: false,
+            app_metadata: vec![].into(),
         };
 
         info!("GetFlightInfo returning schema for ticket");
@@ -3099,8 +3089,8 @@ mod tests {
     fn test_security_context_creation() {
         let context = SecurityContext {
             session_token: "session-12345".to_string(),
-            user_id:       "user-456".to_string(),
-            expiration:    Some(9999999999),
+            user_id: "user-456".to_string(),
+            expiration: Some(9999999999),
         };
 
         assert_eq!(context.session_token, "session-12345");
@@ -3117,8 +3107,8 @@ mod tests {
         // In Phase 2.2b, set security context after successful handshake
         let _context = SecurityContext {
             session_token: "session-abc".to_string(),
-            user_id:       "user-123".to_string(),
-            expiration:    None,
+            user_id: "user-123".to_string(),
+            expiration: None,
         };
 
         // security_context can be set on service after handshake completes
@@ -3136,19 +3126,19 @@ mod tests {
 
         // Create a FlightTicket for an optimized view and encode it
         let ticket = FlightTicket::OptimizedView {
-            view:     "va_orders".to_string(),
-            filter:   None,
+            view: "va_orders".to_string(),
+            filter: None,
             order_by: None,
-            limit:    None,
-            offset:   None,
+            limit: None,
+            offset: None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
         // Create a FlightDescriptor with encoded ticket bytes
         let descriptor = FlightDescriptor {
             r#type: 1, // PATH
-            path:   vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
-            cmd:    Default::default(),
+            path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+            cmd: Default::default(),
         };
 
         let request = Request::new(descriptor);
@@ -3174,19 +3164,19 @@ mod tests {
 
         // Create a FlightTicket for a non-existent view and encode it
         let ticket = FlightTicket::OptimizedView {
-            view:     "nonexistent_view".to_string(),
-            filter:   None,
+            view: "nonexistent_view".to_string(),
+            filter: None,
             order_by: None,
-            limit:    None,
-            offset:   None,
+            limit: None,
+            offset: None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
         // Create a FlightDescriptor with encoded ticket bytes
         let descriptor = FlightDescriptor {
             r#type: 1, // PATH
-            path:   vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
-            cmd:    Default::default(),
+            path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+            cmd: Default::default(),
         };
 
         let request = Request::new(descriptor);
@@ -3241,7 +3231,7 @@ mod tests {
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "HealthCheck".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
 
         // Phase 2.2b: Must include authentication
@@ -3250,10 +3240,10 @@ mod tests {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub:          "test-user".to_string(),
-            exp:          exp.timestamp(),
-            iat:          now.timestamp(),
-            scopes:       vec!["user".to_string()],
+            sub: "test-user".to_string(),
+            exp: exp.timestamp(),
+            iat: now.timestamp(),
+            scopes: vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 
@@ -3295,7 +3285,7 @@ mod tests {
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "UnknownAction".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
 
         // Phase 2.2b: Must include authentication
@@ -3303,10 +3293,10 @@ mod tests {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub:          "test-user".to_string(),
-            exp:          exp.timestamp(),
-            iat:          now.timestamp(),
-            scopes:       vec!["user".to_string()],
+            sub: "test-user".to_string(),
+            exp: exp.timestamp(),
+            iat: now.timestamp(),
+            scopes: vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 

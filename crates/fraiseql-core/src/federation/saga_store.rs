@@ -191,39 +191,39 @@ impl MutationType {
 /// Saga struct
 #[derive(Debug, Clone)]
 pub struct Saga {
-    pub id:           Uuid,
-    pub state:        SagaState,
-    pub created_at:   chrono::DateTime<chrono::Utc>,
+    pub id: Uuid,
+    pub state: SagaState,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub metadata:     Option<Value>,
+    pub metadata: Option<Value>,
 }
 
 /// SagaStep struct
 #[derive(Debug, Clone)]
 pub struct SagaStep {
-    pub id:            Uuid,
-    pub saga_id:       Uuid,
-    pub order:         usize,
-    pub subgraph:      String,
+    pub id: Uuid,
+    pub saga_id: Uuid,
+    pub order: usize,
+    pub subgraph: String,
     pub mutation_type: MutationType,
-    pub typename:      String,
-    pub variables:     Value,
-    pub state:         StepState,
-    pub result:        Option<Value>,
-    pub started_at:    Option<chrono::DateTime<chrono::Utc>>,
-    pub completed_at:  Option<chrono::DateTime<chrono::Utc>>,
+    pub typename: String,
+    pub variables: Value,
+    pub state: StepState,
+    pub result: Option<Value>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// SagaRecovery struct
 #[derive(Debug, Clone)]
 pub struct SagaRecovery {
-    pub id:            Uuid,
-    pub saga_id:       Uuid,
+    pub id: Uuid,
+    pub saga_id: Uuid,
     pub recovery_type: String,
-    pub attempted_at:  chrono::DateTime<chrono::Utc>,
-    pub last_attempt:  Option<chrono::DateTime<chrono::Utc>>,
+    pub attempted_at: chrono::DateTime<chrono::Utc>,
+    pub last_attempt: Option<chrono::DateTime<chrono::Utc>>,
     pub attempt_count: i32,
-    pub last_error:    Option<String>,
+    pub last_error: Option<String>,
 }
 
 /// PostgreSQL-backed Saga Store
@@ -434,31 +434,31 @@ impl PostgresSagaStore {
     /// Map a database row to a Saga struct
     fn map_saga_row(row: &tokio_postgres::Row) -> Saga {
         Saga {
-            id:           row.get(0),
-            state:        SagaState::from_str(row.get::<_, String>(1).as_str())
+            id: row.get(0),
+            state: SagaState::from_str(row.get::<_, String>(1).as_str())
                 .unwrap_or(SagaState::Pending),
-            created_at:   row.get(2),
+            created_at: row.get(2),
             completed_at: row.get(3),
-            metadata:     row.get(4),
+            metadata: row.get(4),
         }
     }
 
     /// Map a database row to a SagaStep struct
     fn map_saga_step_row(row: &tokio_postgres::Row) -> SagaStep {
         SagaStep {
-            id:            row.get(0),
-            saga_id:       row.get(1),
-            order:         row.get::<_, i32>(2) as usize,
-            subgraph:      row.get(3),
+            id: row.get(0),
+            saga_id: row.get(1),
+            order: row.get::<_, i32>(2) as usize,
+            subgraph: row.get(3),
             mutation_type: MutationType::from_str(row.get::<_, String>(4).as_str())
                 .unwrap_or(MutationType::Update),
-            typename:      row.get(5),
-            variables:     row.get(6),
-            state:         StepState::from_str(row.get::<_, String>(7).as_str())
+            typename: row.get(5),
+            variables: row.get(6),
+            state: StepState::from_str(row.get::<_, String>(7).as_str())
                 .unwrap_or(StepState::Pending),
-            result:        row.get(8),
-            started_at:    row.get(9),
-            completed_at:  row.get(10),
+            result: row.get(8),
+            started_at: row.get(9),
+            completed_at: row.get(10),
         }
     }
 

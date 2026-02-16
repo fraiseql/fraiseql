@@ -67,7 +67,7 @@ impl AppState {
         let db_url =
             std::env::var(&config.database.url_env).map_err(|_| RuntimeError::Internal {
                 message: format!("Missing environment variable: {}", config.database.url_env),
-                source:  None,
+                source: None,
             })?;
         let db = PgPool::connect(&db_url).await.map_err(|e| RuntimeError::Database(e))?;
 
@@ -76,7 +76,7 @@ impl AppState {
         for replica in &config.database.replicas {
             let url = std::env::var(&replica.url_env).map_err(|_| RuntimeError::Internal {
                 message: format!("Missing environment variable: {}", replica.url_env),
-                source:  None,
+                source: None,
             })?;
             replicas.push(PgPool::connect(&url).await.map_err(|e| RuntimeError::Database(e))?);
         }
@@ -138,9 +138,9 @@ pub trait RateLimiter: Send + Sync {
 }
 
 pub struct RateLimitResult {
-    pub allowed:   bool,
+    pub allowed: bool,
     pub remaining: u32,
-    pub reset_at:  SystemTime,
+    pub reset_at: SystemTime,
 }
 
 /// Trait for idempotency checking (injectable for testing)

@@ -150,23 +150,23 @@ impl SecretType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     /// Event type (jwt_validation, oauth_callback, etc.)
-    pub event_type:    AuditEventType,
+    pub event_type: AuditEventType,
     /// Type of secret accessed (jwt_token, session_token, etc.)
-    pub secret_type:   SecretType,
+    pub secret_type: SecretType,
     /// Subject (user ID, service account, etc.) - None for anonymous
     /// Max 256 bytes per `bounds::MAX_SUBJECT_LEN`
-    pub subject:       Option<String>,
+    pub subject: Option<String>,
     /// Operation performed (validate, create, revoke, etc.)
     /// Max 50 bytes per `bounds::MAX_OPERATION_LEN`
-    pub operation:     String,
+    pub operation: String,
     /// Whether the operation succeeded
-    pub success:       bool,
+    pub success: bool,
     /// Error message if operation failed (user-safe message)
     /// Max 1 KB per `bounds::MAX_ERROR_MESSAGE_LEN`
     pub error_message: Option<String>,
     /// Additional context
     /// Max 2 KB per `bounds::MAX_CONTEXT_LEN`
-    pub context:       Option<String>,
+    pub context: Option<String>,
 }
 
 /// Audit logger trait - allows different implementations (structured logs, database, syslog, etc.)
@@ -352,13 +352,13 @@ mod tests {
     #[test]
     fn test_audit_entry_creation() {
         let entry = AuditEntry {
-            event_type:    AuditEventType::JwtValidation,
-            secret_type:   SecretType::JwtToken,
-            subject:       Some("user123".to_string()),
-            operation:     "validate".to_string(),
-            success:       true,
+            event_type: AuditEventType::JwtValidation,
+            secret_type: SecretType::JwtToken,
+            subject: Some("user123".to_string()),
+            operation: "validate".to_string(),
+            success: true,
             error_message: None,
-            context:       None,
+            context: None,
         };
 
         assert_eq!(entry.event_type, AuditEventType::JwtValidation);
@@ -480,13 +480,13 @@ mod tests {
         use crate::auth::audit_logger::bounds;
 
         let entry = AuditEntry {
-            event_type:    AuditEventType::JwtValidation,
-            secret_type:   SecretType::JwtToken,
-            subject:       Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
-            operation:     "validate".to_string(),
-            success:       true,
+            event_type: AuditEventType::JwtValidation,
+            secret_type: SecretType::JwtToken,
+            subject: Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
+            operation: "validate".to_string(),
+            success: true,
             error_message: None,
-            context:       None,
+            context: None,
         };
 
         // Verify subject fits within bounds
@@ -555,13 +555,13 @@ mod tests {
 
         // Create a maximum-size entry
         let max_entry = AuditEntry {
-            event_type:    AuditEventType::JwtValidation,
-            secret_type:   SecretType::JwtToken,
-            subject:       Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
-            operation:     "validate".to_string(),
-            success:       false,
+            event_type: AuditEventType::JwtValidation,
+            secret_type: SecretType::JwtToken,
+            subject: Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
+            operation: "validate".to_string(),
+            success: false,
             error_message: Some("e".repeat(bounds::MAX_ERROR_MESSAGE_LEN)),
-            context:       Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
+            context: Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
         };
 
         // Serialize to JSON to estimate size

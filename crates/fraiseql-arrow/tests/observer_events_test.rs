@@ -16,24 +16,24 @@ impl MockEventStorage {
         let now = Utc::now();
         let events = vec![
             HistoricalEvent {
-                id:          Uuid::new_v4(),
-                event_type:  "INSERT".to_string(),
+                id: Uuid::new_v4(),
+                event_type: "INSERT".to_string(),
                 entity_type: "Order".to_string(),
-                entity_id:   Uuid::new_v4(),
-                data:        serde_json::json!({"total": 100.50}),
-                user_id:     Some("user123".to_string()),
-                tenant_id:   Some("tenant1".to_string()),
-                timestamp:   now,
+                entity_id: Uuid::new_v4(),
+                data: serde_json::json!({"total": 100.50}),
+                user_id: Some("user123".to_string()),
+                tenant_id: Some("tenant1".to_string()),
+                timestamp: now,
             },
             HistoricalEvent {
-                id:          Uuid::new_v4(),
-                event_type:  "UPDATE".to_string(),
+                id: Uuid::new_v4(),
+                event_type: "UPDATE".to_string(),
                 entity_type: "Order".to_string(),
-                entity_id:   Uuid::new_v4(),
-                data:        serde_json::json!({"total": 150.00, "status": "shipped"}),
-                user_id:     Some("user456".to_string()),
-                tenant_id:   Some("tenant1".to_string()),
-                timestamp:   now,
+                entity_id: Uuid::new_v4(),
+                data: serde_json::json!({"total": 150.00, "status": "shipped"}),
+                user_id: Some("user456".to_string()),
+                tenant_id: Some("tenant1".to_string()),
+                timestamp: now,
             },
         ];
         Self { events }
@@ -101,14 +101,14 @@ async fn test_event_storage_filter_non_matching_type() {
 #[test]
 fn test_historical_event_serialization() {
     let event = HistoricalEvent {
-        id:          Uuid::new_v4(),
-        event_type:  "INSERT".to_string(),
+        id: Uuid::new_v4(),
+        event_type: "INSERT".to_string(),
         entity_type: "Order".to_string(),
-        entity_id:   Uuid::new_v4(),
-        data:        serde_json::json!({"total": 100.50}),
-        user_id:     Some("user123".to_string()),
-        tenant_id:   Some("tenant1".to_string()),
-        timestamp:   Utc::now(),
+        entity_id: Uuid::new_v4(),
+        data: serde_json::json!({"total": 100.50}),
+        user_id: Some("user123".to_string()),
+        tenant_id: Some("tenant1".to_string()),
+        timestamp: Utc::now(),
     };
 
     // Should serialize to JSON without errors
@@ -120,14 +120,14 @@ fn test_historical_event_serialization() {
 #[test]
 fn test_historical_event_with_nulls() {
     let event = HistoricalEvent {
-        id:          Uuid::new_v4(),
-        event_type:  "DELETE".to_string(),
+        id: Uuid::new_v4(),
+        event_type: "DELETE".to_string(),
         entity_type: "User".to_string(),
-        entity_id:   Uuid::new_v4(),
-        data:        serde_json::json!({"id": "user123"}),
-        user_id:     None,
-        tenant_id:   None,
-        timestamp:   Utc::now(),
+        entity_id: Uuid::new_v4(),
+        data: serde_json::json!({"id": "user123"}),
+        user_id: None,
+        tenant_id: None,
+        timestamp: Utc::now(),
     };
 
     assert_eq!(event.event_type, "DELETE");

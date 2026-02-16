@@ -11,14 +11,14 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// JSONB key name (source).
-    pub source:          String,
+    pub source: String,
     /// Output key name (alias if different from source).
-    pub output:          String,
+    pub output: String,
     /// For nested object fields, the typename to add.
     /// This enables `__typename` to be added recursively to nested objects.
     pub nested_typename: Option<String>,
     /// Nested field mappings (for related objects).
-    pub nested_fields:   Option<Vec<FieldMapping>>,
+    pub nested_fields: Option<Vec<FieldMapping>>,
 }
 
 impl FieldMapping {
@@ -27,10 +27,10 @@ impl FieldMapping {
     pub fn simple(name: impl Into<String>) -> Self {
         let name = name.into();
         Self {
-            source:          name.clone(),
-            output:          name,
+            source: name.clone(),
+            output: name,
             nested_typename: None,
-            nested_fields:   None,
+            nested_fields: None,
         }
     }
 
@@ -38,10 +38,10 @@ impl FieldMapping {
     #[must_use]
     pub fn aliased(source: impl Into<String>, alias: impl Into<String>) -> Self {
         Self {
-            source:          source.into(),
-            output:          alias.into(),
+            source: source.into(),
+            output: alias.into(),
             nested_typename: None,
-            nested_fields:   None,
+            nested_fields: None,
         }
     }
 
@@ -64,10 +64,10 @@ impl FieldMapping {
     ) -> Self {
         let name = name.into();
         Self {
-            source:          name.clone(),
-            output:          name,
+            source: name.clone(),
+            output: name,
             nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            nested_fields: Some(fields),
         }
     }
 
@@ -80,10 +80,10 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         Self {
-            source:          source.into(),
-            output:          alias.into(),
+            source: source.into(),
+            output: alias.into(),
             nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            nested_fields: Some(fields),
         }
     }
 
@@ -106,7 +106,7 @@ impl FieldMapping {
 #[derive(Debug, Clone)]
 pub struct ProjectionMapper {
     /// Fields to project (with optional aliases).
-    pub fields:   Vec<FieldMapping>,
+    pub fields: Vec<FieldMapping>,
     /// Optional `__typename` value to add to each object.
     pub typename: Option<String>,
 }
@@ -116,7 +116,7 @@ impl ProjectionMapper {
     #[must_use]
     pub fn new(fields: Vec<String>) -> Self {
         Self {
-            fields:   fields.into_iter().map(FieldMapping::simple).collect(),
+            fields: fields.into_iter().map(FieldMapping::simple).collect(),
             typename: None,
         }
     }
@@ -487,7 +487,7 @@ mod tests {
     fn test_wrap_error() {
         let error = FraiseQLError::Validation {
             message: "Invalid query".to_string(),
-            path:    None,
+            path: None,
         };
 
         let wrapped = ResultProjector::wrap_error(&error);

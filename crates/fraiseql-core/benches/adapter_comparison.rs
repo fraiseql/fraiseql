@@ -351,9 +351,9 @@ fn bench_postgres_with_where(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1_000)); // Estimate ~1K matches
 
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     group.bench_function(BenchmarkId::new("postgres_adapter", "simple_eq"), |b| {
@@ -393,9 +393,9 @@ fn bench_wire_with_where(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1_000));
 
     let where_clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
 
     group.bench_function(BenchmarkId::new("wire_adapter", "simple_eq"), |b| {

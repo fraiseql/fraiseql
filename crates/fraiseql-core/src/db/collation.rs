@@ -31,7 +31,7 @@ use crate::{
 /// assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("utf8mb4_unicode_ci".to_string()));
 /// ```
 pub struct CollationMapper {
-    config:        CollationConfig,
+    config: CollationConfig,
     database_type: DatabaseType,
 }
 
@@ -186,7 +186,7 @@ impl CollationMapper {
             InvalidLocaleStrategy::DatabaseDefault => Ok(None),
             InvalidLocaleStrategy::Error => Err(FraiseQLError::Validation {
                 message: "Invalid locale: not in allowed list".to_string(),
-                path:    None,
+                path: None,
             }),
         }
     }
@@ -263,10 +263,10 @@ mod tests {
 
     fn test_config() -> CollationConfig {
         CollationConfig {
-            enabled:            true,
-            fallback_locale:    "en-US".to_string(),
-            allowed_locales:    vec!["en-US".into(), "fr-FR".into(), "ja-JP".into()],
-            on_invalid_locale:  InvalidLocaleStrategy::Fallback,
+            enabled: true,
+            fallback_locale: "en-US".to_string(),
+            allowed_locales: vec!["en-US".into(), "fr-FR".into(), "ja-JP".into()],
+            on_invalid_locale: InvalidLocaleStrategy::Fallback,
             database_overrides: None,
         }
     }
@@ -284,12 +284,12 @@ mod tests {
     fn test_postgres_libc_collation() {
         let mut config = test_config();
         config.database_overrides = Some(DatabaseCollationOverrides {
-            postgres:  Some(PostgresCollationConfig {
-                use_icu:  false,
+            postgres: Some(PostgresCollationConfig {
+                use_icu: false,
                 provider: "libc".to_string(),
             }),
-            mysql:     None,
-            sqlite:    None,
+            mysql: None,
+            sqlite: None,
             sqlserver: None,
         });
 
@@ -313,12 +313,12 @@ mod tests {
     fn test_mysql_custom_collation() {
         let mut config = test_config();
         config.database_overrides = Some(DatabaseCollationOverrides {
-            postgres:  None,
-            mysql:     Some(MySqlCollationConfig {
+            postgres: None,
+            mysql: Some(MySqlCollationConfig {
                 charset: "utf8mb4".to_string(),
-                suffix:  "_0900_ai_ci".to_string(),
+                suffix: "_0900_ai_ci".to_string(),
             }),
-            sqlite:    None,
+            sqlite: None,
             sqlserver: None,
         });
 
@@ -339,9 +339,9 @@ mod tests {
     fn test_sqlite_disabled_nocase() {
         let mut config = test_config();
         config.database_overrides = Some(DatabaseCollationOverrides {
-            postgres:  None,
-            mysql:     None,
-            sqlite:    Some(SqliteCollationConfig { use_nocase: false }),
+            postgres: None,
+            mysql: None,
+            sqlite: Some(SqliteCollationConfig { use_nocase: false }),
             sqlserver: None,
         });
 

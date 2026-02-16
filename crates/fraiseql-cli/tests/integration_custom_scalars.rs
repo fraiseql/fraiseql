@@ -44,15 +44,9 @@ fn test_compile_schema_with_single_custom_scalar() {
     assert!(compiled.custom_scalars.exists("Email"));
 
     // Retrieve and verify the scalar definition
-    let scalar = compiled
-        .custom_scalars
-        .get("Email")
-        .expect("Failed to get scalar");
+    let scalar = compiled.custom_scalars.get("Email").expect("Failed to get scalar");
     assert_eq!(scalar.name, "Email");
-    assert_eq!(
-        scalar.description,
-        Some("Valid email address".to_string())
-    );
+    assert_eq!(scalar.description, Some("Valid email address".to_string()));
 }
 
 #[test]
@@ -143,10 +137,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
 
-    let scalar = compiled
-        .custom_scalars
-        .get("Username")
-        .expect("Failed to get scalar");
+    let scalar = compiled.custom_scalars.get("Username").expect("Failed to get scalar");
     assert_eq!(scalar.validation_rules.len(), 2);
 }
 
@@ -180,10 +171,7 @@ fn test_custom_scalar_preserves_all_metadata() {
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
 
-    let scalar = compiled
-        .custom_scalars
-        .get("CustomType")
-        .expect("Failed to get scalar");
+    let scalar = compiled.custom_scalars.get("CustomType").expect("Failed to get scalar");
     assert_eq!(scalar.name, "CustomType");
     assert_eq!(scalar.description, Some("A custom type".to_string()));
     assert_eq!(scalar.specified_by_url, Some(url));
@@ -247,9 +235,6 @@ fn test_custom_scalar_with_no_validation_rules() {
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
 
-    let scalar = compiled
-        .custom_scalars
-        .get("SimpleScalar")
-        .expect("Failed to get scalar");
+    let scalar = compiled.custom_scalars.get("SimpleScalar").expect("Failed to get scalar");
     assert!(scalar.validation_rules.is_empty());
 }

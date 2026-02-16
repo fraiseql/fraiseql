@@ -15,9 +15,9 @@ pub struct CliContext {
     /// Output formatter (JSON/text/quiet mode)
     pub formatter: OutputFormatter,
     /// Enable verbose logging
-    pub verbose:   bool,
+    pub verbose: bool,
     /// Enable debug logging
-    pub debug:     bool,
+    pub debug: bool,
 }
 
 impl CliContext {
@@ -50,7 +50,7 @@ impl CliContext {
 /// Formats command output in different modes
 #[derive(Debug, Clone)]
 pub struct OutputFormatter {
-    json_mode:  bool,
+    json_mode: bool,
     quiet_mode: bool,
 }
 
@@ -296,18 +296,18 @@ pub struct CommandSummary {
 pub fn get_exit_codes() -> Vec<ExitCodeHelp> {
     vec![
         ExitCodeHelp {
-            code:        0,
-            name:        "success".to_string(),
+            code: 0,
+            name: "success".to_string(),
             description: "Command completed successfully".to_string(),
         },
         ExitCodeHelp {
-            code:        1,
-            name:        "error".to_string(),
+            code: 1,
+            name: "error".to_string(),
             description: "Command failed with an error".to_string(),
         },
         ExitCodeHelp {
-            code:        2,
-            name:        "validation_failed".to_string(),
+            code: 2,
+            name: "validation_failed".to_string(),
             description: "Validation failed (schema or input invalid)".to_string(),
         },
     ]
@@ -317,13 +317,13 @@ impl CommandResult {
     /// Create a successful command result with data
     pub fn success(command: &str, data: Value) -> Self {
         Self {
-            status:    "success".to_string(),
-            command:   command.to_string(),
-            data:      Some(data),
-            message:   None,
-            code:      None,
-            errors:    Vec::new(),
-            warnings:  Vec::new(),
+            status: "success".to_string(),
+            command: command.to_string(),
+            data: Some(data),
+            message: None,
+            code: None,
+            errors: Vec::new(),
+            warnings: Vec::new(),
             exit_code: 0,
         }
     }
@@ -345,13 +345,13 @@ impl CommandResult {
     /// Create an error result
     pub fn error(command: &str, message: &str, code: &str) -> Self {
         Self {
-            status:    "error".to_string(),
-            command:   command.to_string(),
-            data:      None,
-            message:   Some(message.to_string()),
-            code:      Some(code.to_string()),
-            errors:    Vec::new(),
-            warnings:  Vec::new(),
+            status: "error".to_string(),
+            command: command.to_string(),
+            data: None,
+            message: Some(message.to_string()),
+            code: Some(code.to_string()),
+            errors: Vec::new(),
+            warnings: Vec::new(),
             exit_code: 1,
         }
     }

@@ -16,7 +16,7 @@ pub trait Validator {
 
 /// Pattern validator using regular expressions.
 pub struct PatternValidator {
-    regex:   Regex,
+    regex: Regex,
     message: String,
 }
 
@@ -57,7 +57,7 @@ impl Validator for PatternValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "pattern", &self.message)
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -112,7 +112,7 @@ impl Validator for LengthValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "length", self.error_message())
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -197,7 +197,7 @@ impl Validator for EnumValidator {
                         format!("Must be one of: {}", allowed)
                     )
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -214,7 +214,7 @@ impl Validator for RequiredValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "required", "Field is required")
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         } else {
             Ok(())

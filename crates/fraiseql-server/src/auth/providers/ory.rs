@@ -25,7 +25,7 @@ use crate::auth::{
 /// ```
 #[derive(Debug)]
 pub struct OryOAuth {
-    oidc:       OidcProvider,
+    oidc: OidcProvider,
     issuer_url: String,
 }
 

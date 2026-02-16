@@ -47,7 +47,11 @@ pub struct ScalarValidationError {
 
 impl ScalarValidationError {
     /// Create a new scalar validation error.
-    pub fn new(scalar_name: impl Into<String>, context: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn new(
+        scalar_name: impl Into<String>,
+        context: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             scalar_name: scalar_name.into(),
             context: context.into(),
@@ -117,39 +121,36 @@ pub fn validate_custom_scalar(
     context: ValidationContext,
 ) -> Result<Value> {
     match context {
-        ValidationContext::Serialize => {
-            scalar.serialize(value).map_err(|e| {
-                FraiseQLError::validation(format!(
-                    "Scalar \"{}\" validation failed in serialize: {}",
-                    scalar.name(),
-                    e
-                ))
-            })
-        }
+        ValidationContext::Serialize => scalar.serialize(value).map_err(|e| {
+            FraiseQLError::validation(format!(
+                "Scalar \"{}\" validation failed in serialize: {}",
+                scalar.name(),
+                e
+            ))
+        }),
 
-        ValidationContext::ParseValue => {
-            scalar.parse_value(value).map_err(|e| {
-                FraiseQLError::validation(format!(
-                    "Scalar \"{}\" validation failed in parseValue: {}",
-                    scalar.name(),
-                    e
-                ))
-            })
-        }
+        ValidationContext::ParseValue => scalar.parse_value(value).map_err(|e| {
+            FraiseQLError::validation(format!(
+                "Scalar \"{}\" validation failed in parseValue: {}",
+                scalar.name(),
+                e
+            ))
+        }),
 
-        ValidationContext::ParseLiteral => {
-            scalar.parse_literal(value).map_err(|e| {
-                FraiseQLError::validation(format!(
-                    "Scalar \"{}\" validation failed in parseLiteral: {}",
-                    scalar.name(),
-                    e
-                ))
-            })
-        }
+        ValidationContext::ParseLiteral => scalar.parse_literal(value).map_err(|e| {
+            FraiseQLError::validation(format!(
+                "Scalar \"{}\" validation failed in parseLiteral: {}",
+                scalar.name(),
+                e
+            ))
+        }),
     }
 }
 
 /// Convenience function that defaults context to ParseValue.
-pub fn validate_custom_scalar_parse_value(scalar: &dyn CustomScalar, value: &Value) -> Result<Value> {
+pub fn validate_custom_scalar_parse_value(
+    scalar: &dyn CustomScalar,
+    value: &Value,
+) -> Result<Value> {
     validate_custom_scalar(scalar, value, ValidationContext::ParseValue)
 }

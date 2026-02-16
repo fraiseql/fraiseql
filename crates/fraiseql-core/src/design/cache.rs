@@ -60,13 +60,13 @@ fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
                     .join(", ");
 
                 audit.cache_issues.push(CacheIssue {
-                    severity:   IssueSeverity::Warning,
-                    message:    format!("TTL inconsistency for {}: {}", entity, ttl_list),
+                    severity: IssueSeverity::Warning,
+                    message: format!("TTL inconsistency for {}: {}", entity, ttl_list),
                     suggestion: format!(
                         "Synchronize cache TTL for {} across all subgraphs to prevent stale data",
                         entity
                     ),
-                    affected:   Some(entity),
+                    affected: Some(entity),
                 });
             }
         }
@@ -92,14 +92,14 @@ fn check_missing_cache_directives(schema: &Value, audit: &mut DesignAudit) {
                             type_def.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                         audit.cache_issues.push(CacheIssue {
-                            severity:   IssueSeverity::Info,
-                            message:    format!(
+                            severity: IssueSeverity::Info,
+                            message: format!(
                                 "Expensive field {}.{} has no cache directive",
                                 type_name, field_name
                             ),
                             suggestion: "Add @cache directive to reduce repeated computation"
                                 .to_string(),
-                            affected:   Some(format!("{}.{}", type_name, field_name)),
+                            affected: Some(format!("{}.{}", type_name, field_name)),
                         });
                     }
                 }

@@ -24,13 +24,13 @@ fn test_provides_field_present_in_result() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -38,7 +38,7 @@ fn test_provides_field_present_in_result() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     // Result contains the promised field
@@ -65,13 +65,13 @@ fn test_provides_field_missing_in_result() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -79,7 +79,7 @@ fn test_provides_field_missing_in_result() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     // Result missing the weight field
@@ -109,18 +109,18 @@ fn test_provides_multiple_fields() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "details".to_string(),
         FieldFederationDirectives::new()
             .add_provides(FieldPathSelection {
-                path:     vec!["weight".to_string()],
+                path: vec!["weight".to_string()],
                 typename: "Order".to_string(),
             })
             .add_provides(FieldPathSelection {
-                path:     vec!["dimensions".to_string()],
+                path: vec!["dimensions".to_string()],
                 typename: "Order".to_string(),
             }),
     );
@@ -128,7 +128,7 @@ fn test_provides_multiple_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     // Missing one of two provided fields
@@ -152,7 +152,7 @@ fn test_provides_no_directives() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     // name field has no @provides directive
@@ -160,7 +160,7 @@ fn test_provides_no_directives() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let result = json!({
@@ -182,13 +182,13 @@ fn test_provides_nested_field_path() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "profile".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["address".to_string(), "city".to_string()],
+            path: vec!["address".to_string(), "city".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -196,7 +196,7 @@ fn test_provides_nested_field_path() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     // Result with nested structure
@@ -226,13 +226,13 @@ fn test_provides_warning_context() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -240,7 +240,7 @@ fn test_provides_warning_context() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     let result = json!({"id": "456"});
@@ -266,7 +266,7 @@ fn test_provides_warning_context() {
 #[derive(Debug, Clone)]
 struct ProvidesValidationResult {
     /// Whether validation passed (always true for @provides as it's informational)
-    pub success:  bool,
+    pub success: bool,
     /// Any warnings about unfulfilled @provides contracts
     pub warnings: Vec<String>,
 }

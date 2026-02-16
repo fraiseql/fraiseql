@@ -41,7 +41,7 @@ async fn test_get_schema_versions_action() {
     use arrow_flight::Action;
     let action = Action {
         r#type: "GetSchemaVersions".to_string(),
-        body:   vec![].into(),
+        body: vec![].into(),
     };
 
     let request = tonic::Request::new(action);

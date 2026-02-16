@@ -31,7 +31,7 @@ use crate::{
 /// Multiple subscribers share the same event stream (broadcast).
 pub struct InMemoryTransport {
     /// Sender for publishing events
-    sender:   Arc<Mutex<mpsc::UnboundedSender<EntityEvent>>>,
+    sender: Arc<Mutex<mpsc::UnboundedSender<EntityEvent>>>,
     /// Receiver for subscribing to events
     receiver: Arc<Mutex<mpsc::UnboundedReceiver<EntityEvent>>>,
 }
@@ -43,7 +43,7 @@ impl InMemoryTransport {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         Self {
-            sender:   Arc::new(Mutex::new(sender)),
+            sender: Arc::new(Mutex::new(sender)),
             receiver: Arc::new(Mutex::new(receiver)),
         }
     }
@@ -59,7 +59,7 @@ impl InMemoryTransport {
         let (sender_unbounded, receiver_unbounded) = mpsc::unbounded_channel();
 
         Self {
-            sender:   Arc::new(Mutex::new(sender_unbounded)),
+            sender: Arc::new(Mutex::new(sender_unbounded)),
             receiver: Arc::new(Mutex::new(receiver_unbounded)),
         }
     }
@@ -111,7 +111,7 @@ impl EventTransport for InMemoryTransport {
     async fn health_check(&self) -> Result<TransportHealth> {
         // In-memory transport is always healthy (no external dependencies)
         Ok(TransportHealth {
-            status:  HealthStatus::Healthy,
+            status: HealthStatus::Healthy,
             message: Some("In-memory transport operational".to_string()),
         })
     }

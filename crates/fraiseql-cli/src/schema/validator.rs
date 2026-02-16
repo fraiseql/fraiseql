@@ -13,11 +13,11 @@ use super::intermediate::IntermediateSchema;
 #[derive(Debug, Clone)]
 pub struct ValidationError {
     /// Error message
-    pub message:    String,
+    pub message: String,
     /// JSON path to the error (e.g., `"queries[0].return_type"`)
-    pub path:       String,
+    pub path: String,
     /// Severity level
-    pub severity:   ErrorSeverity,
+    pub severity: ErrorSeverity,
     /// Suggested fix
     pub suggestion: Option<String>,
 }
@@ -46,9 +46,9 @@ impl SchemaValidator {
         for type_def in &schema.types {
             if type_names.contains(&type_def.name) {
                 report.errors.push(ValidationError {
-                    message:    format!("Duplicate type name: '{}'", type_def.name),
-                    path:       format!("types[{}].name", type_names.len()),
-                    severity:   ErrorSeverity::Error,
+                    message: format!("Duplicate type name: '{}'", type_def.name),
+                    path: format!("types[{}].name", type_names.len()),
+                    severity: ErrorSeverity::Error,
                     suggestion: Some("Type names must be unique".to_string()),
                 });
             }
@@ -70,9 +70,9 @@ impl SchemaValidator {
             // Check for duplicate query names
             if query_names.contains(&query.name) {
                 report.errors.push(ValidationError {
-                    message:    format!("Duplicate query name: '{}'", query.name),
-                    path:       format!("queries[{idx}].name"),
-                    severity:   ErrorSeverity::Error,
+                    message: format!("Duplicate query name: '{}'", query.name),
+                    path: format!("queries[{idx}].name"),
+                    severity: ErrorSeverity::Error,
                     suggestion: Some("Query names must be unique".to_string()),
                 });
             }
@@ -81,12 +81,12 @@ impl SchemaValidator {
             // Validate return type exists
             if !type_names.contains(&query.return_type) {
                 report.errors.push(ValidationError {
-                    message:    format!(
+                    message: format!(
                         "Query '{}' references unknown type '{}'",
                         query.name, query.return_type
                     ),
-                    path:       format!("queries[{idx}].return_type"),
-                    severity:   ErrorSeverity::Error,
+                    path: format!("queries[{idx}].return_type"),
+                    severity: ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
                         Self::suggest_similar_type(&query.return_type, &type_names)
@@ -98,12 +98,12 @@ impl SchemaValidator {
             for (arg_idx, arg) in query.arguments.iter().enumerate() {
                 if !type_names.contains(&arg.arg_type) {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Query '{}' argument '{}' references unknown type '{}'",
                             query.name, arg.name, arg.arg_type
                         ),
-                        path:       format!("queries[{idx}].arguments[{arg_idx}].type"),
-                        severity:   ErrorSeverity::Error,
+                        path: format!("queries[{idx}].arguments[{arg_idx}].type"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(&arg.arg_type, &type_names)
@@ -115,12 +115,9 @@ impl SchemaValidator {
             // Warning for queries without SQL source
             if query.sql_source.is_none() && query.returns_list {
                 report.errors.push(ValidationError {
-                    message:    format!(
-                        "Query '{}' returns a list but has no sql_source",
-                        query.name
-                    ),
-                    path:       format!("queries[{idx}]"),
-                    severity:   ErrorSeverity::Warning,
+                    message: format!("Query '{}' returns a list but has no sql_source", query.name),
+                    path: format!("queries[{idx}]"),
+                    severity: ErrorSeverity::Warning,
                     suggestion: Some("Add sql_source for SQL-backed queries".to_string()),
                 });
             }
@@ -134,9 +131,9 @@ impl SchemaValidator {
             // Check for duplicate mutation names
             if mutation_names.contains(&mutation.name) {
                 report.errors.push(ValidationError {
-                    message:    format!("Duplicate mutation name: '{}'", mutation.name),
-                    path:       format!("mutations[{idx}].name"),
-                    severity:   ErrorSeverity::Error,
+                    message: format!("Duplicate mutation name: '{}'", mutation.name),
+                    path: format!("mutations[{idx}].name"),
+                    severity: ErrorSeverity::Error,
                     suggestion: Some("Mutation names must be unique".to_string()),
                 });
             }
@@ -145,12 +142,12 @@ impl SchemaValidator {
             // Validate return type exists
             if !type_names.contains(&mutation.return_type) {
                 report.errors.push(ValidationError {
-                    message:    format!(
+                    message: format!(
                         "Mutation '{}' references unknown type '{}'",
                         mutation.name, mutation.return_type
                     ),
-                    path:       format!("mutations[{idx}].return_type"),
-                    severity:   ErrorSeverity::Error,
+                    path: format!("mutations[{idx}].return_type"),
+                    severity: ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
                         Self::suggest_similar_type(&mutation.return_type, &type_names)
@@ -162,12 +159,12 @@ impl SchemaValidator {
             for (arg_idx, arg) in mutation.arguments.iter().enumerate() {
                 if !type_names.contains(&arg.arg_type) {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Mutation '{}' argument '{}' references unknown type '{}'",
                             mutation.name, arg.name, arg.arg_type
                         ),
-                        path:       format!("mutations[{idx}].arguments[{arg_idx}].type"),
-                        severity:   ErrorSeverity::Error,
+                        path: format!("mutations[{idx}].arguments[{arg_idx}].type"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(&arg.arg_type, &type_names)
@@ -186,9 +183,9 @@ impl SchemaValidator {
                 // Check for duplicate observer names
                 if observer_names.contains(&observer.name) {
                     report.errors.push(ValidationError {
-                        message:    format!("Duplicate observer name: '{}'", observer.name),
-                        path:       format!("observers[{idx}].name"),
-                        severity:   ErrorSeverity::Error,
+                        message: format!("Duplicate observer name: '{}'", observer.name),
+                        path: format!("observers[{idx}].name"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some("Observer names must be unique".to_string()),
                     });
                 }
@@ -197,12 +194,12 @@ impl SchemaValidator {
                 // Validate entity type exists
                 if !type_names.contains(&observer.entity) {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Observer '{}' references unknown entity '{}'",
                             observer.name, observer.entity
                         ),
-                        path:       format!("observers[{idx}].entity"),
-                        severity:   ErrorSeverity::Error,
+                        path: format!("observers[{idx}].entity"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(&observer.entity, &type_names)
@@ -227,12 +224,12 @@ impl SchemaValidator {
                 // Validate at least one action exists
                 if observer.actions.is_empty() {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Observer '{}' must have at least one action",
                             observer.name
                         ),
-                        path:       format!("observers[{idx}].actions"),
-                        severity:   ErrorSeverity::Error,
+                        path: format!("observers[{idx}].actions"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some("Add a webhook, slack, or email action".to_string()),
                     });
                 }
@@ -245,14 +242,12 @@ impl SchemaValidator {
                             let valid_action_types = ["webhook", "slack", "email"];
                             if !valid_action_types.contains(&action_type) {
                                 report.errors.push(ValidationError {
-                                    message:    format!(
+                                    message: format!(
                                         "Observer '{}' action {} has invalid type '{}'",
                                         observer.name, action_idx, action_type
                                     ),
-                                    path:       format!(
-                                        "observers[{idx}].actions[{action_idx}].type"
-                                    ),
-                                    severity:   ErrorSeverity::Error,
+                                    path: format!("observers[{idx}].actions[{action_idx}].type"),
+                                    severity: ErrorSeverity::Error,
                                     suggestion: Some(
                                         "Valid action types: webhook, slack, email".to_string(),
                                     ),
@@ -320,12 +315,12 @@ impl SchemaValidator {
                             }
                         } else {
                             report.errors.push(ValidationError {
-                                message:    format!(
+                                message: format!(
                                     "Observer '{}' action {} missing 'type' field",
                                     observer.name, action_idx
                                 ),
-                                path:       format!("observers[{idx}].actions[{action_idx}]"),
-                                severity:   ErrorSeverity::Error,
+                                path: format!("observers[{idx}].actions[{action_idx}]"),
+                                severity: ErrorSeverity::Error,
                                 suggestion: Some(
                                     "Add 'type' field (webhook, slack, or email)".to_string(),
                                 ),
@@ -333,12 +328,12 @@ impl SchemaValidator {
                         }
                     } else {
                         report.errors.push(ValidationError {
-                            message:    format!(
+                            message: format!(
                                 "Observer '{}' action {} must be an object",
                                 observer.name, action_idx
                             ),
-                            path:       format!("observers[{idx}].actions[{action_idx}]"),
-                            severity:   ErrorSeverity::Error,
+                            path: format!("observers[{idx}].actions[{action_idx}]"),
+                            severity: ErrorSeverity::Error,
                             suggestion: None,
                         });
                     }
@@ -348,12 +343,12 @@ impl SchemaValidator {
                 let valid_backoff_strategies = ["exponential", "linear", "fixed"];
                 if !valid_backoff_strategies.contains(&observer.retry.backoff_strategy.as_str()) {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Observer '{}' has invalid backoff_strategy '{}'",
                             observer.name, observer.retry.backoff_strategy
                         ),
-                        path:       format!("observers[{idx}].retry.backoff_strategy"),
-                        severity:   ErrorSeverity::Error,
+                        path: format!("observers[{idx}].retry.backoff_strategy"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some(
                             "Valid strategies: exponential, linear, fixed".to_string(),
                         ),
@@ -362,36 +357,36 @@ impl SchemaValidator {
 
                 if observer.retry.max_attempts == 0 {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Observer '{}' has max_attempts=0, actions will never execute",
                             observer.name
                         ),
-                        path:       format!("observers[{idx}].retry.max_attempts"),
-                        severity:   ErrorSeverity::Warning,
+                        path: format!("observers[{idx}].retry.max_attempts"),
+                        severity: ErrorSeverity::Warning,
                         suggestion: Some("Set max_attempts >= 1".to_string()),
                     });
                 }
 
                 if observer.retry.initial_delay_ms == 0 {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Observer '{}' has initial_delay_ms=0, retries will be immediate",
                             observer.name
                         ),
-                        path:       format!("observers[{idx}].retry.initial_delay_ms"),
-                        severity:   ErrorSeverity::Warning,
+                        path: format!("observers[{idx}].retry.initial_delay_ms"),
+                        severity: ErrorSeverity::Warning,
                         suggestion: Some("Consider setting initial_delay_ms > 0".to_string()),
                     });
                 }
 
                 if observer.retry.max_delay_ms < observer.retry.initial_delay_ms {
                     report.errors.push(ValidationError {
-                        message:    format!(
+                        message: format!(
                             "Observer '{}' has max_delay_ms < initial_delay_ms",
                             observer.name
                         ),
-                        path:       format!("observers[{idx}].retry.max_delay_ms"),
-                        severity:   ErrorSeverity::Error,
+                        path: format!("observers[{idx}].retry.max_delay_ms"),
+                        severity: ErrorSeverity::Error,
                         suggestion: Some("max_delay_ms must be >= initial_delay_ms".to_string()),
                     });
                 }
@@ -574,21 +569,21 @@ mod tests {
     #[test]
     fn test_validate_empty_schema() {
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         None,
+            observers: None,
             custom_scalars: None,
         };
 
@@ -599,32 +594,32 @@ mod tests {
     #[test]
     fn test_detect_unknown_return_type() {
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![IntermediateQuery {
-                name:         "users".to_string(),
-                return_type:  "UnknownType".to_string(),
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![IntermediateQuery {
+                name: "users".to_string(),
+                return_type: "UnknownType".to_string(),
                 returns_list: true,
-                nullable:     false,
-                arguments:    vec![],
-                description:  None,
-                sql_source:   Some("users".to_string()),
-                auto_params:  None,
-                deprecated:   None,
+                nullable: false,
+                arguments: vec![],
+                description: None,
+                sql_source: Some("users".to_string()),
+                auto_params: None,
+                deprecated: None,
                 jsonb_column: None,
             }],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         None,
+            observers: None,
             custom_scalars: None,
         };
 
@@ -637,51 +632,51 @@ mod tests {
     #[test]
     fn test_detect_duplicate_query_names() {
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![IntermediateType {
-                name:        "User".to_string(),
-                fields:      vec![],
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "User".to_string(),
+                fields: vec![],
                 description: None,
-                implements:  vec![],
+                implements: vec![],
             }],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![
                 IntermediateQuery {
-                    name:         "users".to_string(),
-                    return_type:  "User".to_string(),
+                    name: "users".to_string(),
+                    return_type: "User".to_string(),
                     returns_list: true,
-                    nullable:     false,
-                    arguments:    vec![],
-                    description:  None,
-                    sql_source:   Some("users".to_string()),
-                    auto_params:  None,
-                    deprecated:   None,
+                    nullable: false,
+                    arguments: vec![],
+                    description: None,
+                    sql_source: Some("users".to_string()),
+                    auto_params: None,
+                    deprecated: None,
                     jsonb_column: None,
                 },
                 IntermediateQuery {
-                    name:         "users".to_string(), // Duplicate!
-                    return_type:  "User".to_string(),
+                    name: "users".to_string(), // Duplicate!
+                    return_type: "User".to_string(),
                     returns_list: true,
-                    nullable:     false,
-                    arguments:    vec![],
-                    description:  None,
-                    sql_source:   Some("users".to_string()),
-                    auto_params:  None,
-                    deprecated:   None,
+                    nullable: false,
+                    arguments: vec![],
+                    description: None,
+                    sql_source: Some("users".to_string()),
+                    auto_params: None,
+                    deprecated: None,
                     jsonb_column: None,
                 },
             ],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         None,
+            observers: None,
             custom_scalars: None,
         };
 
@@ -693,37 +688,37 @@ mod tests {
     #[test]
     fn test_warning_for_query_without_sql_source() {
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![IntermediateType {
-                name:        "User".to_string(),
-                fields:      vec![],
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "User".to_string(),
+                fields: vec![],
                 description: None,
-                implements:  vec![],
+                implements: vec![],
             }],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![IntermediateQuery {
-                name:         "users".to_string(),
-                return_type:  "User".to_string(),
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![IntermediateQuery {
+                name: "users".to_string(),
+                return_type: "User".to_string(),
                 returns_list: true,
-                nullable:     false,
-                arguments:    vec![],
-                description:  None,
-                sql_source:   None, // Missing SQL source
-                auto_params:  None,
-                deprecated:   None,
+                nullable: false,
+                arguments: vec![],
+                description: None,
+                sql_source: None, // Missing SQL source
+                auto_params: None,
+                deprecated: None,
                 jsonb_column: None,
             }],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         None,
+            observers: None,
             custom_scalars: None,
         };
 
@@ -740,39 +735,39 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![IntermediateType {
-                name:        "Order".to_string(),
-                fields:      vec![],
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "Order".to_string(),
+                fields: vec![],
                 description: None,
-                implements:  vec![],
+                implements: vec![],
             }],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         Some(vec![IntermediateObserver {
-                name:      "onOrderCreated".to_string(),
-                entity:    "Order".to_string(),
-                event:     "INSERT".to_string(),
-                actions:   vec![json!({
+            observers: Some(vec![IntermediateObserver {
+                name: "onOrderCreated".to_string(),
+                entity: "Order".to_string(),
+                event: "INSERT".to_string(),
+                actions: vec![json!({
                     "type": "webhook",
                     "url": "https://example.com/orders"
                 })],
                 condition: None,
-                retry:     IntermediateRetryConfig {
-                    max_attempts:     3,
+                retry: IntermediateRetryConfig {
+                    max_attempts: 3,
                     backoff_strategy: "exponential".to_string(),
                     initial_delay_ms: 100,
-                    max_delay_ms:     60000,
+                    max_delay_ms: 60000,
                 },
             }]),
             custom_scalars: None,
@@ -790,31 +785,31 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![],
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         Some(vec![IntermediateObserver {
-                name:      "onOrderCreated".to_string(),
-                entity:    "UnknownEntity".to_string(),
-                event:     "INSERT".to_string(),
-                actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
+            observers: Some(vec![IntermediateObserver {
+                name: "onOrderCreated".to_string(),
+                entity: "UnknownEntity".to_string(),
+                event: "INSERT".to_string(),
+                actions: vec![json!({"type": "webhook", "url": "https://example.com"})],
                 condition: None,
-                retry:     IntermediateRetryConfig {
-                    max_attempts:     3,
+                retry: IntermediateRetryConfig {
+                    max_attempts: 3,
                     backoff_strategy: "exponential".to_string(),
                     initial_delay_ms: 100,
-                    max_delay_ms:     60000,
+                    max_delay_ms: 60000,
                 },
             }]),
             custom_scalars: None,
@@ -832,36 +827,36 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![IntermediateType {
-                name:        "Order".to_string(),
-                fields:      vec![],
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "Order".to_string(),
+                fields: vec![],
                 description: None,
-                implements:  vec![],
+                implements: vec![],
             }],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         Some(vec![IntermediateObserver {
-                name:      "onOrderCreated".to_string(),
-                entity:    "Order".to_string(),
-                event:     "INVALID_EVENT".to_string(),
-                actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
+            observers: Some(vec![IntermediateObserver {
+                name: "onOrderCreated".to_string(),
+                entity: "Order".to_string(),
+                event: "INVALID_EVENT".to_string(),
+                actions: vec![json!({"type": "webhook", "url": "https://example.com"})],
                 condition: None,
-                retry:     IntermediateRetryConfig {
-                    max_attempts:     3,
+                retry: IntermediateRetryConfig {
+                    max_attempts: 3,
                     backoff_strategy: "exponential".to_string(),
                     initial_delay_ms: 100,
-                    max_delay_ms:     60000,
+                    max_delay_ms: 60000,
                 },
             }]),
             custom_scalars: None,
@@ -879,36 +874,36 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![IntermediateType {
-                name:        "Order".to_string(),
-                fields:      vec![],
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "Order".to_string(),
+                fields: vec![],
                 description: None,
-                implements:  vec![],
+                implements: vec![],
             }],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         Some(vec![IntermediateObserver {
-                name:      "onOrderCreated".to_string(),
-                entity:    "Order".to_string(),
-                event:     "INSERT".to_string(),
-                actions:   vec![json!({"type": "invalid_action"})],
+            observers: Some(vec![IntermediateObserver {
+                name: "onOrderCreated".to_string(),
+                entity: "Order".to_string(),
+                event: "INSERT".to_string(),
+                actions: vec![json!({"type": "invalid_action"})],
                 condition: None,
-                retry:     IntermediateRetryConfig {
-                    max_attempts:     3,
+                retry: IntermediateRetryConfig {
+                    max_attempts: 3,
                     backoff_strategy: "exponential".to_string(),
                     initial_delay_ms: 100,
-                    max_delay_ms:     60000,
+                    max_delay_ms: 60000,
                 },
             }]),
             custom_scalars: None,
@@ -926,36 +921,36 @@ mod tests {
         use super::super::intermediate::{IntermediateObserver, IntermediateRetryConfig};
 
         let schema = IntermediateSchema {
-            security:          None,
-            version:           "2.0.0".to_string(),
-            types:             vec![IntermediateType {
-                name:        "Order".to_string(),
-                fields:      vec![],
+            security: None,
+            version: "2.0.0".to_string(),
+            types: vec![IntermediateType {
+                name: "Order".to_string(),
+                fields: vec![],
                 description: None,
-                implements:  vec![],
+                implements: vec![],
             }],
-            enums:             vec![],
-            input_types:       vec![],
-            interfaces:        vec![],
-            unions:            vec![],
-            queries:           vec![],
-            mutations:         vec![],
-            subscriptions:     vec![],
-            fragments:         None,
-            directives:        None,
-            fact_tables:       None,
+            enums: vec![],
+            input_types: vec![],
+            interfaces: vec![],
+            unions: vec![],
+            queries: vec![],
+            mutations: vec![],
+            subscriptions: vec![],
+            fragments: None,
+            directives: None,
+            fact_tables: None,
             aggregate_queries: None,
-            observers:         Some(vec![IntermediateObserver {
-                name:      "onOrderCreated".to_string(),
-                entity:    "Order".to_string(),
-                event:     "INSERT".to_string(),
-                actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
+            observers: Some(vec![IntermediateObserver {
+                name: "onOrderCreated".to_string(),
+                entity: "Order".to_string(),
+                event: "INSERT".to_string(),
+                actions: vec![json!({"type": "webhook", "url": "https://example.com"})],
                 condition: None,
-                retry:     IntermediateRetryConfig {
-                    max_attempts:     3,
+                retry: IntermediateRetryConfig {
+                    max_attempts: 3,
                     backoff_strategy: "invalid_strategy".to_string(),
                     initial_delay_ms: 100,
-                    max_delay_ms:     60000,
+                    max_delay_ms: 60000,
                 },
             }]),
             custom_scalars: None,

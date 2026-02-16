@@ -15,7 +15,7 @@ use sqlx::postgres::PgPoolOptions;
 /// Test database setup and teardown.
 struct TestDb {
     #[allow(dead_code)]
-    pool:          sqlx::PgPool,
+    pool: sqlx::PgPool,
     database_name: String,
 }
 
@@ -50,7 +50,7 @@ impl TestDb {
         Self::create_tables(&test_pool).await?;
 
         Ok(TestDb {
-            pool:          test_pool,
+            pool: test_pool,
             database_name: test_db_name,
         })
     }

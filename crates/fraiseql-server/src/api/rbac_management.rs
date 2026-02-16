@@ -17,44 +17,44 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoleDto {
     /// Unique role identifier
-    pub id:          String,
+    pub id: String,
     /// Human-readable role name
-    pub name:        String,
+    pub name: String,
     /// Optional role description
     pub description: Option<String>,
     /// List of permission IDs assigned to this role
     pub permissions: Vec<String>,
     /// Tenant ID for multi-tenancy
-    pub tenant_id:   Option<String>,
+    pub tenant_id: Option<String>,
     /// Creation timestamp (ISO 8601)
-    pub created_at:  String,
+    pub created_at: String,
     /// Last update timestamp (ISO 8601)
-    pub updated_at:  String,
+    pub updated_at: String,
 }
 
 /// Permission definition for API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionDto {
     /// Unique permission identifier
-    pub id:          String,
+    pub id: String,
     /// Permission resource and action (e.g., "query:read", "mutation:write")
-    pub resource:    String,
-    pub action:      String,
+    pub resource: String,
+    pub action: String,
     /// Optional permission description
     pub description: Option<String>,
     /// Creation timestamp (ISO 8601)
-    pub created_at:  String,
+    pub created_at: String,
 }
 
 /// User-Role association for API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserRoleDto {
     /// User ID
-    pub user_id:     String,
+    pub user_id: String,
     /// Role ID
-    pub role_id:     String,
+    pub role_id: String,
     /// Tenant ID for multi-tenancy
-    pub tenant_id:   Option<String>,
+    pub tenant_id: Option<String>,
     /// Assignment timestamp (ISO 8601)
     pub assigned_at: String,
 }
@@ -63,7 +63,7 @@ pub struct UserRoleDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoleRequest {
     /// Role name
-    pub name:        String,
+    pub name: String,
     /// Optional description
     pub description: Option<String>,
     /// Initial permissions to assign
@@ -74,9 +74,9 @@ pub struct CreateRoleRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePermissionRequest {
     /// Resource name
-    pub resource:    String,
+    pub resource: String,
     /// Action name
-    pub action:      String,
+    pub action: String,
     /// Optional description
     pub description: Option<String>,
 }

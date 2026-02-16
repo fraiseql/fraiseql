@@ -12,7 +12,7 @@ pub struct RedisBackupProvider {
     /// Redis connection URL
     connection_url: String,
     /// Backup directory
-    backup_dir:     String,
+    backup_dir: String,
 }
 
 impl RedisBackupProvider {
@@ -91,7 +91,7 @@ impl BackupProvider for RedisBackupProvider {
 
     async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
         Err(BackupError::NotFound {
-            store:     "redis".to_string(),
+            store: "redis".to_string(),
             backup_id: backup_id.to_string(),
         })
     }
@@ -107,8 +107,8 @@ impl BackupProvider for RedisBackupProvider {
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
         Ok(StorageUsage {
-            total_bytes:             0,
-            backup_count:            0,
+            total_bytes: 0,
+            backup_count: 0,
             oldest_backup_timestamp: None,
             newest_backup_timestamp: None,
         })

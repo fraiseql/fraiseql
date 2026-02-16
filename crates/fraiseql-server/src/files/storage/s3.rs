@@ -17,8 +17,8 @@ use crate::files::{
 };
 
 pub struct S3Storage {
-    client:     Client,
-    bucket:     String,
+    client: Client,
+    bucket: String,
     public_url: Option<String>,
 }
 

@@ -60,14 +60,10 @@
 #![warn(missing_docs)]
 
 // Re-export core types
-pub use fraiseql_core::{
-    CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext,
-};
+pub use fraiseql_core::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
 
 // Re-export error types
-pub use fraiseql_error::{
-    AuthError, ConfigError, FileError, RuntimeError, WebhookError,
-};
+pub use fraiseql_error::{AuthError, ConfigError, FileError, RuntimeError, WebhookError};
 
 // Re-export core modules for namespaced access
 pub use fraiseql_core::{
@@ -107,7 +103,7 @@ pub mod prelude {
     pub use fraiseql_core::db;
 
     // GraphQL parsing
-    pub use fraiseql_core::graphql::{parse_query, ParsedQuery};
+    pub use fraiseql_core::graphql::{ParsedQuery, parse_query};
 
     // Tenancy support
     pub use fraiseql_core::tenancy::TenantContext as Tenant;

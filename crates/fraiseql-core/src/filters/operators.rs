@@ -98,17 +98,13 @@ pub enum ExtendedOperator {
     LongitudeHemisphereEq(String),
 
     /// Coordinates: Distance within radius (km)
-    CoordinatesDistanceWithin {
-        lat:       f64,
-        lng:       f64,
-        radius_km: f64,
-    },
+    CoordinatesDistanceWithin { lat: f64, lng: f64, radius_km: f64 },
     /// Coordinates: Within bounding box
     CoordinatesWithinBoundingBox {
         north: f64,
         south: f64,
-        east:  f64,
-        west:  f64,
+        east: f64,
+        west: f64,
     },
     /// Coordinates: Within polygon (list of lat/lng pairs)
     CoordinatesWithinPolygon(Vec<(f64, f64)>),

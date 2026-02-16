@@ -25,7 +25,7 @@ use super::{lookup_data, sql_templates};
 #[derive(Debug, Clone)]
 pub struct RichFilterConfig {
     /// Enable rich filter compilation
-    pub enabled:              bool,
+    pub enabled: bool,
     /// Validation rules overrides (from fraiseql.toml)
     // Reason: Will be used in future phases for extensible validation configuration
     #[allow(dead_code)]
@@ -35,7 +35,7 @@ pub struct RichFilterConfig {
 impl Default for RichFilterConfig {
     fn default() -> Self {
         Self {
-            enabled:              true,
+            enabled: true,
             validation_overrides: HashMap::new(),
         }
     }
@@ -160,51 +160,51 @@ fn generate_where_input_type(
     // Standard operators (always present)
     let mut fields = vec![
         InputFieldDefinition {
-            name:             "eq".to_string(),
-            field_type:       "String".to_string(),
-            description:      Some("Equals".to_string()),
-            default_value:    None,
-            deprecation:      None,
+            name: "eq".to_string(),
+            field_type: "String".to_string(),
+            description: Some("Equals".to_string()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         },
         InputFieldDefinition {
-            name:             "neq".to_string(),
-            field_type:       "String".to_string(),
-            description:      Some("Not equals".to_string()),
-            default_value:    None,
-            deprecation:      None,
+            name: "neq".to_string(),
+            field_type: "String".to_string(),
+            description: Some("Not equals".to_string()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         },
         InputFieldDefinition {
-            name:             "in".to_string(),
-            field_type:       "[String!]!".to_string(),
-            description:      Some("In list".to_string()),
-            default_value:    None,
-            deprecation:      None,
+            name: "in".to_string(),
+            field_type: "[String!]!".to_string(),
+            description: Some("In list".to_string()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         },
         InputFieldDefinition {
-            name:             "nin".to_string(),
-            field_type:       "[String!]!".to_string(),
-            description:      Some("Not in list".to_string()),
-            default_value:    None,
-            deprecation:      None,
+            name: "nin".to_string(),
+            field_type: "[String!]!".to_string(),
+            description: Some("Not in list".to_string()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         },
         InputFieldDefinition {
-            name:             "contains".to_string(),
-            field_type:       "String".to_string(),
-            description:      Some("Contains substring".to_string()),
-            default_value:    None,
-            deprecation:      None,
+            name: "contains".to_string(),
+            field_type: "String".to_string(),
+            description: Some("Contains substring".to_string()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         },
         InputFieldDefinition {
-            name:             "isnull".to_string(),
-            field_type:       "Boolean".to_string(),
-            description:      Some("Is null".to_string()),
-            default_value:    None,
-            deprecation:      None,
+            name: "isnull".to_string(),
+            field_type: "Boolean".to_string(),
+            description: Some("Is null".to_string()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         },
     ];
@@ -215,11 +215,11 @@ fn generate_where_input_type(
         let graphql_type = operator_param_type_to_graphql_string(op_info.parameter_type);
         operator_names.push(op_info.graphql_name.clone());
         fields.push(InputFieldDefinition {
-            name:             op_info.graphql_name.clone(),
-            field_type:       graphql_type,
-            description:      Some(op_info.description.clone()),
-            default_value:    None,
-            deprecation:      None,
+            name: op_info.graphql_name.clone(),
+            field_type: graphql_type,
+            description: Some(op_info.description.clone()),
+            default_value: None,
+            deprecation: None,
             validation_rules: Vec::new(),
         });
     }

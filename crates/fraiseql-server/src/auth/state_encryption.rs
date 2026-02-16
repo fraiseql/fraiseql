@@ -15,7 +15,7 @@ pub struct EncryptedState {
     /// Ciphertext with authentication tag appended
     pub ciphertext: Vec<u8>,
     /// 96-bit nonce used for encryption
-    pub nonce:      [u8; 12],
+    pub nonce: [u8; 12],
 }
 
 impl EncryptedState {

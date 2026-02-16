@@ -21,7 +21,7 @@ pub struct RateLimitDimension {
     /// Maximum number of errors allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
-    pub window_secs:  u64,
+    pub window_secs: u64,
 }
 
 impl RateLimitDimension {
@@ -79,21 +79,21 @@ impl Default for ValidationRateLimitingConfig {
 #[derive(Debug, Clone)]
 struct RequestRecord {
     /// Number of errors in current window
-    count:        u32,
+    count: u32,
     /// Unix timestamp of window start
     window_start: u64,
 }
 
 /// Single dimension rate limiter
 struct DimensionRateLimiter {
-    records:   Arc<Mutex<HashMap<String, RequestRecord>>>,
+    records: Arc<Mutex<HashMap<String, RequestRecord>>>,
     dimension: RateLimitDimension,
 }
 
 impl DimensionRateLimiter {
     fn new(max_requests: u32, window_secs: u64) -> Self {
         Self {
-            records:   Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(Mutex::new(HashMap::new())),
             dimension: RateLimitDimension {
                 max_requests,
                 window_secs,
@@ -114,7 +114,7 @@ impl DimensionRateLimiter {
         let now = Self::get_timestamp();
 
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
-            count:        0,
+            count: 0,
             window_start: now,
         });
 
@@ -131,7 +131,7 @@ impl DimensionRateLimiter {
         } else {
             // Rate limited
             Err(FraiseQLError::RateLimited {
-                message:          "Rate limit exceeded for validation errors".to_string(),
+                message: "Rate limit exceeded for validation errors".to_string(),
                 retry_after_secs: self.dimension.window_secs,
             })
         }
@@ -146,7 +146,7 @@ impl DimensionRateLimiter {
 impl Clone for DimensionRateLimiter {
     fn clone(&self) -> Self {
         Self {
-            records:   Arc::clone(&self.records),
+            records: Arc::clone(&self.records),
             dimension: self.dimension.clone(),
         }
     }
@@ -159,10 +159,10 @@ impl Clone for DimensionRateLimiter {
 // struct_field_names - Fields represent different error dimensions and the "_errors"
 // suffix is semantically correct for each.
 pub struct ValidationRateLimiter {
-    validation_errors:       DimensionRateLimiter,
-    depth_errors:            DimensionRateLimiter,
-    complexity_errors:       DimensionRateLimiter,
-    malformed_errors:        DimensionRateLimiter,
+    validation_errors: DimensionRateLimiter,
+    depth_errors: DimensionRateLimiter,
+    complexity_errors: DimensionRateLimiter,
+    malformed_errors: DimensionRateLimiter,
     async_validation_errors: DimensionRateLimiter,
 }
 
@@ -170,19 +170,19 @@ impl ValidationRateLimiter {
     /// Create a new validation rate limiter with the given configuration
     pub fn new(config: ValidationRateLimitingConfig) -> Self {
         Self {
-            validation_errors:       DimensionRateLimiter::new(
+            validation_errors: DimensionRateLimiter::new(
                 config.validation_errors_max_requests,
                 config.validation_errors_window_secs,
             ),
-            depth_errors:            DimensionRateLimiter::new(
+            depth_errors: DimensionRateLimiter::new(
                 config.depth_errors_max_requests,
                 config.depth_errors_window_secs,
             ),
-            complexity_errors:       DimensionRateLimiter::new(
+            complexity_errors: DimensionRateLimiter::new(
                 config.complexity_errors_max_requests,
                 config.complexity_errors_window_secs,
             ),
-            malformed_errors:        DimensionRateLimiter::new(
+            malformed_errors: DimensionRateLimiter::new(
                 config.malformed_errors_max_requests,
                 config.malformed_errors_window_secs,
             ),

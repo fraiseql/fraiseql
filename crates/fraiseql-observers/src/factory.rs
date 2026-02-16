@@ -406,25 +406,25 @@ mod tests {
     #[tokio::test]
     async fn test_build_postgres_only_topology() {
         let config = ObserverRuntimeConfig {
-            transport:               TransportConfig {
+            transport: TransportConfig {
                 transport: TransportKind::Postgres,
                 ..Default::default()
             },
-            redis:                   None, // No Redis
-            clickhouse:              None,
-            job_queue:               None,
-            performance:             PerformanceConfig {
+            redis: None, // No Redis
+            clickhouse: None,
+            job_queue: None,
+            performance: PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
                 enable_concurrent: true,
                 ..Default::default()
             },
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            overflow_policy:         crate::config::OverflowPolicy::Drop,
+            observers: HashMap::new(),
+            channel_capacity: 1000,
+            max_concurrency: 50,
+            overflow_policy: crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
+            shutdown_timeout: "30s".to_string(),
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -435,20 +435,20 @@ mod tests {
     #[tokio::test]
     async fn test_build_rejects_dedup_without_redis() {
         let config = ObserverRuntimeConfig {
-            transport:               TransportConfig::default(),
-            redis:                   None, // No Redis but dedup enabled
-            clickhouse:              None,
-            job_queue:               None,
-            performance:             PerformanceConfig {
+            transport: TransportConfig::default(),
+            redis: None, // No Redis but dedup enabled
+            clickhouse: None,
+            job_queue: None,
+            performance: PerformanceConfig {
                 enable_dedup: true, // Invalid!
                 ..Default::default()
             },
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            overflow_policy:         crate::config::OverflowPolicy::Drop,
+            observers: HashMap::new(),
+            channel_capacity: 1000,
+            max_concurrency: 50,
+            overflow_policy: crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
+            shutdown_timeout: "30s".to_string(),
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -492,22 +492,22 @@ mod tests {
     #[tokio::test]
     async fn test_build_with_queue_requires_config() {
         let config = ObserverRuntimeConfig {
-            transport:               TransportConfig::default(),
-            redis:                   None,
-            clickhouse:              None,
-            job_queue:               None, // No job queue config
-            performance:             PerformanceConfig {
+            transport: TransportConfig::default(),
+            redis: None,
+            clickhouse: None,
+            job_queue: None, // No job queue config
+            performance: PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
                 enable_concurrent: true,
                 ..Default::default()
             },
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            overflow_policy:         crate::config::OverflowPolicy::Drop,
+            observers: HashMap::new(),
+            channel_capacity: 1000,
+            max_concurrency: 50,
+            overflow_policy: crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
+            shutdown_timeout: "30s".to_string(),
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());

@@ -42,11 +42,11 @@ pub struct RateLimitConfig {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled:               true,
-            rps_per_ip:            100,  // 100 req/sec per IP
-            rps_per_user:          1000, // 1000 req/sec per user
-            burst_size:            500,  // Allow bursts up to 500 requests
-            cleanup_interval_secs: 300,  // Clean up every 5 minutes
+            enabled: true,
+            rps_per_ip: 100,            // 100 req/sec per IP
+            rps_per_user: 1000,         // 1000 req/sec per user
+            burst_size: 500,            // Allow bursts up to 500 requests
+            cleanup_interval_secs: 300, // Clean up every 5 minutes
         }
     }
 }
@@ -107,9 +107,9 @@ impl TokenBucket {
 
 /// Rate limiter state tracker.
 pub struct RateLimiter {
-    config:       RateLimitConfig,
+    config: RateLimitConfig,
     // IP -> TokenBucket
-    ip_buckets:   Arc<RwLock<HashMap<String, TokenBucket>>>,
+    ip_buckets: Arc<RwLock<HashMap<String, TokenBucket>>>,
     // User ID -> TokenBucket
     user_buckets: Arc<RwLock<HashMap<String, TokenBucket>>>,
 }

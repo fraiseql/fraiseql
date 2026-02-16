@@ -10,7 +10,7 @@ impl RuntimeConfig {
         let path = path.as_ref();
 
         let content = std::fs::read_to_string(path).map_err(|e| ConfigError::ReadError {
-            path:   path.to_path_buf(),
+            path: path.to_path_buf(),
             source: e,
         })?;
 

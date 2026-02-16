@@ -63,7 +63,7 @@ impl ErrorCode {
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorLocation {
     /// Line number (1-indexed).
-    pub line:   usize,
+    pub line: usize,
     /// Column number (1-indexed).
     pub column: usize,
 }
@@ -151,8 +151,8 @@ impl GraphQLError {
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         let request_id = request_id.into();
         let extensions = self.extensions.take().unwrap_or(ErrorExtensions {
-            category:   None,
-            status:     None,
+            category: None,
+            status: None,
             request_id: None,
         });
 
@@ -294,8 +294,8 @@ mod tests {
     #[test]
     fn test_error_extensions() {
         let extensions = ErrorExtensions {
-            category:   Some("VALIDATION".to_string()),
-            status:     Some(400),
+            category: Some("VALIDATION".to_string()),
+            status: Some(400),
             request_id: Some("req-123".to_string()),
         };
 

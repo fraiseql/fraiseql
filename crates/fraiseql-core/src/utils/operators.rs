@@ -41,11 +41,11 @@ pub enum OperatorCategory {
 #[derive(Debug, Clone)]
 pub struct OperatorInfo {
     /// GraphQL operator name (e.g., "eq", "contains")
-    pub name:           &'static str,
+    pub name: &'static str,
     /// SQL operator or function (e.g., "=", "LIKE", "@>")
-    pub sql_op:         &'static str,
+    pub sql_op: &'static str,
     /// Category of operator
-    pub category:       OperatorCategory,
+    pub category: OperatorCategory,
     /// Whether this operator expects an array value
     pub requires_array: bool,
     /// Whether this operator needs special JSONB handling

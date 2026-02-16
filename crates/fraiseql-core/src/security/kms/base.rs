@@ -185,10 +185,10 @@ pub trait BaseKmsProvider: Send + Sync {
             })?;
 
         Ok(RotationPolicy {
-            enabled:              policy.enabled,
+            enabled: policy.enabled,
             rotation_period_days: policy.rotation_period_days,
-            last_rotation:        policy.last_rotation,
-            next_rotation:        policy.next_rotation,
+            last_rotation: policy.last_rotation,
+            next_rotation: policy.next_rotation,
         })
     }
 
@@ -257,17 +257,17 @@ pub trait BaseKmsProvider: Send + Sync {
 /// Key information returned by provider.
 #[derive(Debug, Clone)]
 pub struct KeyInfo {
-    pub alias:      Option<String>,
+    pub alias: Option<String>,
     pub created_at: i64,
 }
 
 /// Rotation policy info returned by provider.
 #[derive(Debug, Clone)]
 pub struct RotationPolicyInfo {
-    pub enabled:              bool,
+    pub enabled: bool,
     pub rotation_period_days: u32,
-    pub last_rotation:        Option<i64>,
-    pub next_rotation:        Option<i64>,
+    pub last_rotation: Option<i64>,
+    pub next_rotation: Option<i64>,
 }
 
 #[cfg(test)]

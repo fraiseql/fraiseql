@@ -23,7 +23,7 @@ impl Default for FederationMetadata {
         Self {
             enabled: false,
             version: "v2".to_string(),
-            types:   Vec::new(),
+            types: Vec::new(),
         }
     }
 }
@@ -258,7 +258,7 @@ pub enum ResolutionStrategy {
     /// Entity is owned by this subgraph, resolve locally
     Local {
         /// View or table name to query
-        view_name:   String,
+        view_name: String,
         /// Columns that form the key
         key_columns: Vec<String>,
     },
@@ -268,7 +268,7 @@ pub enum ResolutionStrategy {
         /// Connection string or identifier
         connection_string: String,
         /// Key columns for WHERE clause
-        key_columns:       Vec<String>,
+        key_columns: Vec<String>,
     },
 
     /// Resolve via HTTP to external subgraph
@@ -344,7 +344,7 @@ impl FederationResolver {
             let key_cols = fed_type.keys.first().map(|k| k.fields.clone()).unwrap_or_default();
 
             ResolutionStrategy::Local {
-                view_name:   format!("{}_federation_view", typename),
+                view_name: format!("{}_federation_view", typename),
                 key_columns: key_cols,
             }
         };

@@ -141,7 +141,7 @@ impl SqlServerAdapter {
             })?;
 
             conn.simple_query("SELECT 1").await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to connect to SQL Server database: {e}"),
+                message: format!("Failed to connect to SQL Server database: {e}"),
                 sql_state: None,
             })?;
         }
@@ -164,11 +164,11 @@ impl SqlServerAdapter {
         // We need to use simple_query for dynamic SQL or build the query differently
         let rows = if params.is_empty() {
             let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("SQL Server query execution failed: {e}"),
+                message: format!("SQL Server query execution failed: {e}"),
                 sql_state: None,
             })?;
             result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to get result set: {e}"),
+                message: format!("Failed to get result set: {e}"),
                 sql_state: None,
             })?
         } else {
@@ -212,11 +212,11 @@ impl SqlServerAdapter {
             }
 
             let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("SQL Server query execution failed: {e}"),
+                message: format!("SQL Server query execution failed: {e}"),
                 sql_state: None,
             })?;
             result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to get result set: {e}"),
+                message: format!("Failed to get result set: {e}"),
                 sql_state: None,
             })?
         };
@@ -351,7 +351,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         })?;
 
         conn.simple_query("SELECT 1").await.map_err(|e| FraiseQLError::Database {
-            message:   format!("SQL Server health check failed: {e}"),
+            message: format!("SQL Server health check failed: {e}"),
             sql_state: None,
         })?;
 
@@ -362,10 +362,10 @@ impl DatabaseAdapter for SqlServerAdapter {
         let state = self.pool.state();
 
         PoolMetrics {
-            total_connections:  state.connections,
-            idle_connections:   state.idle_connections,
+            total_connections: state.connections,
+            idle_connections: state.idle_connections,
             active_connections: state.connections - state.idle_connections,
-            waiting_requests:   0, // bb8 doesn't expose waiting count directly
+            waiting_requests: 0, // bb8 doesn't expose waiting count directly
         }
     }
 
@@ -378,12 +378,12 @@ impl DatabaseAdapter for SqlServerAdapter {
         })?;
 
         let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("SQL Server query execution failed: {e}"),
+            message: format!("SQL Server query execution failed: {e}"),
             sql_state: None,
         })?;
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to get result set: {e}"),
+            message: format!("Failed to get result set: {e}"),
             sql_state: None,
         })?;
 

@@ -45,9 +45,9 @@ fn default_allow_query_hint() -> bool {
 impl Default for JsonbOptimizationConfig {
     fn default() -> Self {
         Self {
-            default_strategy:       default_strategy(),
+            default_strategy: default_strategy(),
             auto_threshold_percent: default_auto_threshold_percent(),
-            allow_query_hint:       default_allow_query_hint(),
+            allow_query_hint: default_allow_query_hint(),
         }
     }
 }
@@ -56,7 +56,7 @@ impl JsonbOptimizationConfig {
     /// Convert to core options for use in runtime
     pub fn to_core_options(&self) -> CoreJsonbOptions {
         CoreJsonbOptions {
-            default_strategy:       self.default_strategy,
+            default_strategy: self.default_strategy,
             auto_threshold_percent: self.auto_threshold_percent,
         }
     }
@@ -82,9 +82,9 @@ mod tests {
     #[test]
     fn test_jsonb_optimization_config_to_core_options() {
         let config = JsonbOptimizationConfig {
-            default_strategy:       JsonbStrategy::Stream,
+            default_strategy: JsonbStrategy::Stream,
             auto_threshold_percent: 75,
-            allow_query_hint:       false,
+            allow_query_hint: false,
         };
 
         let core_opts = config.to_core_options();
@@ -95,9 +95,9 @@ mod tests {
     #[test]
     fn test_jsonb_optimization_config_choose_strategy() {
         let config = JsonbOptimizationConfig {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
-            allow_query_hint:       true,
+            allow_query_hint: true,
         };
 
         // Below threshold

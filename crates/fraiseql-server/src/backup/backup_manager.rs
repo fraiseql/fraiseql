@@ -73,18 +73,18 @@ impl BackupManager {
         let providers = self.providers.read().await;
 
         let provider = providers.get(provider_name).ok_or_else(|| BackupError::BackupFailed {
-            store:   provider_name.to_string(),
+            store: provider_name.to_string(),
             message: "Provider not registered".to_string(),
         })?;
 
         let config = self.configs.get(provider_name).ok_or_else(|| BackupError::BackupFailed {
-            store:   provider_name.to_string(),
+            store: provider_name.to_string(),
             message: "No configuration found".to_string(),
         })?;
 
         if !config.enabled {
             return Err(BackupError::BackupFailed {
-                store:   provider_name.to_string(),
+                store: provider_name.to_string(),
                 message: "Backups disabled".to_string(),
             });
         }
@@ -106,13 +106,13 @@ impl BackupManager {
                 cache.insert(
                     provider_name.to_string(),
                     BackupStatus {
-                        store_name:             provider_name.to_string(),
-                        enabled:                config.enabled,
+                        store_name: provider_name.to_string(),
+                        enabled: config.enabled,
                         last_successful_backup: Some(backup_info.timestamp),
-                        last_backup_size:       Some(backup_info.size_bytes),
-                        available_backups:      1, // Would count in production
-                        last_error:             None,
-                        status:                 "healthy".to_string(),
+                        last_backup_size: Some(backup_info.size_bytes),
+                        available_backups: 1, // Would count in production
+                        last_error: None,
+                        status: "healthy".to_string(),
                     },
                 );
                 Ok(())
@@ -123,13 +123,13 @@ impl BackupManager {
                 cache.insert(
                     provider_name.to_string(),
                     BackupStatus {
-                        store_name:             provider_name.to_string(),
-                        enabled:                config.enabled,
+                        store_name: provider_name.to_string(),
+                        enabled: config.enabled,
                         last_successful_backup: None,
-                        last_backup_size:       None,
-                        available_backups:      0,
-                        last_error:             Some(e.to_string()),
-                        status:                 "error".to_string(),
+                        last_backup_size: None,
+                        available_backups: 0,
+                        last_error: Some(e.to_string()),
+                        status: "error".to_string(),
                     },
                 );
                 Err(e)
@@ -152,12 +152,12 @@ impl BackupManager {
         let providers = self.providers.read().await;
 
         let provider = providers.get(provider_name).ok_or_else(|| BackupError::RestoreFailed {
-            store:   provider_name.to_string(),
+            store: provider_name.to_string(),
             message: "Provider not registered".to_string(),
         })?;
 
         let config = self.configs.get(provider_name).ok_or_else(|| BackupError::RestoreFailed {
-            store:   provider_name.to_string(),
+            store: provider_name.to_string(),
             message: "No configuration found".to_string(),
         })?;
 
@@ -169,7 +169,7 @@ impl BackupManager {
         let providers = self.providers.read().await;
 
         let provider = providers.get(provider_name).ok_or_else(|| BackupError::BackupFailed {
-            store:   provider_name.to_string(),
+            store: provider_name.to_string(),
             message: "Provider not registered".to_string(),
         })?;
 
@@ -200,13 +200,13 @@ mod tests {
 
         async fn backup(&self) -> BackupResult<BackupInfo> {
             Ok(BackupInfo {
-                backup_id:   format!("{}-backup-1", self.name),
-                store_name:  self.name.clone(),
-                timestamp:   1_000_000,
-                size_bytes:  1024 * 1024,
-                verified:    true,
+                backup_id: format!("{}-backup-1", self.name),
+                store_name: self.name.clone(),
+                timestamp: 1_000_000,
+                size_bytes: 1024 * 1024,
+                verified: true,
                 compression: Some("gzip".to_string()),
-                metadata:    Default::default(),
+                metadata: Default::default(),
             })
         }
 
@@ -216,25 +216,25 @@ mod tests {
 
         async fn list_backups(&self) -> BackupResult<Vec<BackupInfo>> {
             Ok(vec![BackupInfo {
-                backup_id:   format!("{}-backup-1", self.name),
-                store_name:  self.name.clone(),
-                timestamp:   1_000_000,
-                size_bytes:  1024 * 1024,
-                verified:    true,
+                backup_id: format!("{}-backup-1", self.name),
+                store_name: self.name.clone(),
+                timestamp: 1_000_000,
+                size_bytes: 1024 * 1024,
+                verified: true,
                 compression: Some("gzip".to_string()),
-                metadata:    Default::default(),
+                metadata: Default::default(),
             }])
         }
 
         async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
             Ok(BackupInfo {
-                backup_id:   backup_id.to_string(),
-                store_name:  self.name.clone(),
-                timestamp:   1_000_000,
-                size_bytes:  1024 * 1024,
-                verified:    true,
+                backup_id: backup_id.to_string(),
+                store_name: self.name.clone(),
+                timestamp: 1_000_000,
+                size_bytes: 1024 * 1024,
+                verified: true,
                 compression: Some("gzip".to_string()),
-                metadata:    Default::default(),
+                metadata: Default::default(),
             })
         }
 
@@ -248,8 +248,8 @@ mod tests {
 
         async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
             Ok(StorageUsage {
-                total_bytes:             1024 * 1024 * 100,
-                backup_count:            7,
+                total_bytes: 1024 * 1024 * 100,
+                backup_count: 7,
                 oldest_backup_timestamp: Some(999_999),
                 newest_backup_timestamp: Some(1_000_000),
             })

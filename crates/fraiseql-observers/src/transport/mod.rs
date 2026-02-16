@@ -104,7 +104,7 @@ pub trait EventTransport: Send + Sync {
     /// Health check (optional, default implementation)
     async fn health_check(&self) -> Result<TransportHealth> {
         Ok(TransportHealth {
-            status:  HealthStatus::Healthy,
+            status: HealthStatus::Healthy,
             message: None,
         })
     }
@@ -136,16 +136,16 @@ pub struct EventFilter {
     /// Filter by entity type (None = all types)
     pub entity_type: Option<String>,
     /// Filter by operation (INSERT/UPDATE/DELETE)
-    pub operation:   Option<String>,
+    pub operation: Option<String>,
     /// Filter by tenant ID
-    pub tenant_id:   Option<String>,
+    pub tenant_id: Option<String>,
 }
 
 /// Transport health status
 #[derive(Debug, Clone)]
 pub struct TransportHealth {
     /// Health status
-    pub status:  HealthStatus,
+    pub status: HealthStatus,
     /// Optional message (for degraded/unhealthy states)
     pub message: Option<String>,
 }

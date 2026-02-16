@@ -166,15 +166,15 @@ fn default_scope_claim() -> String {
 impl Default for OidcConfig {
     fn default() -> Self {
         Self {
-            issuer:               String::new(),
-            audience:             None,
+            issuer: String::new(),
+            audience: None,
             additional_audiences: Vec::new(),
-            jwks_cache_ttl_secs:  default_jwks_cache_ttl(),
-            allowed_algorithms:   default_algorithms(),
-            clock_skew_secs:      default_clock_skew(),
-            jwks_uri:             None,
-            required:             default_required(),
-            scope_claim:          default_scope_claim(),
+            jwks_cache_ttl_secs: default_jwks_cache_ttl(),
+            allowed_algorithms: default_algorithms(),
+            clock_skew_secs: default_clock_skew(),
+            jwks_uri: None,
+            required: default_required(),
+            scope_claim: default_scope_claim(),
         }
     }
 }
@@ -376,9 +376,9 @@ pub struct Jwk {
 /// Cached JWKS with expiration.
 #[derive(Debug)]
 struct CachedJwks {
-    jwks:       Jwks,
+    jwks: Jwks,
     fetched_at: Instant,
-    ttl:        Duration,
+    ttl: Duration,
 }
 
 impl CachedJwks {
@@ -474,10 +474,10 @@ impl Audience {
 /// Validates JWT tokens against an OIDC provider's public keys.
 /// Automatically fetches and caches the JWKS for efficiency.
 pub struct OidcValidator {
-    config:      OidcConfig,
+    config: OidcConfig,
     http_client: reqwest::Client,
-    jwks_cache:  Arc<RwLock<Option<CachedJwks>>>,
-    jwks_uri:    String,
+    jwks_cache: Arc<RwLock<Option<CachedJwks>>>,
+    jwks_uri: String,
 }
 
 impl OidcValidator {
@@ -1096,13 +1096,13 @@ mod tests {
 
         let new_jwks = Jwks {
             keys: vec![Jwk {
-                kty:     "RSA".to_string(),
-                kid:     Some("key1".to_string()),
-                alg:     None,
+                kty: "RSA".to_string(),
+                kid: Some("key1".to_string()),
+                alg: None,
                 key_use: None,
-                n:       None,
-                e:       None,
-                x5c:     vec![],
+                n: None,
+                e: None,
+                x5c: vec![],
             }],
         };
 
@@ -1129,22 +1129,22 @@ mod tests {
         let old_jwks = Jwks {
             keys: vec![
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("old_key_1".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("old_key_1".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("old_key_2".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("old_key_2".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
             ],
         };
@@ -1152,9 +1152,9 @@ mod tests {
         {
             let mut cache = validator.jwks_cache.write();
             *cache = Some(CachedJwks {
-                jwks:       old_jwks,
+                jwks: old_jwks,
                 fetched_at: Instant::now(),
-                ttl:        Duration::from_secs(300),
+                ttl: Duration::from_secs(300),
             });
         }
 
@@ -1162,22 +1162,22 @@ mod tests {
         let new_jwks = Jwks {
             keys: vec![
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("old_key_1".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("old_key_1".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("new_key_1".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("new_key_1".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
             ],
         };
@@ -1205,22 +1205,22 @@ mod tests {
         let old_jwks = Jwks {
             keys: vec![
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("key_1".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("key_1".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("key_2".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("key_2".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
             ],
         };
@@ -1228,9 +1228,9 @@ mod tests {
         {
             let mut cache = validator.jwks_cache.write();
             *cache = Some(CachedJwks {
-                jwks:       old_jwks,
+                jwks: old_jwks,
                 fetched_at: Instant::now(),
-                ttl:        Duration::from_secs(300),
+                ttl: Duration::from_secs(300),
             });
         }
 
@@ -1238,31 +1238,31 @@ mod tests {
         let new_jwks = Jwks {
             keys: vec![
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("key_1".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("key_1".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("key_2".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("key_2".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("new_key".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("new_key".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
             ],
         };
@@ -1289,22 +1289,22 @@ mod tests {
         let jwks = Jwks {
             keys: vec![
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("key1".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("key1".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
                 Jwk {
-                    kty:     "RSA".to_string(),
-                    kid:     Some("key2".to_string()),
-                    alg:     None,
+                    kty: "RSA".to_string(),
+                    kid: Some("key2".to_string()),
+                    alg: None,
                     key_use: None,
-                    n:       None,
-                    e:       None,
-                    x5c:     vec![],
+                    n: None,
+                    e: None,
+                    x5c: vec![],
                 },
             ],
         };
@@ -1334,13 +1334,13 @@ mod tests {
 
         let jwks = Jwks {
             keys: vec![Jwk {
-                kty:     "RSA".to_string(),
-                kid:     None, // No kid
-                alg:     None,
+                kty: "RSA".to_string(),
+                kid: None, // No kid
+                alg: None,
                 key_use: None,
-                n:       None,
-                e:       None,
-                x5c:     vec![],
+                n: None,
+                e: None,
+                x5c: vec![],
             }],
         };
 

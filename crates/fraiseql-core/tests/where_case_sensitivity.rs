@@ -58,9 +58,9 @@ fn test_where_case_insensitive_operators() {
 
     for pattern in patterns {
         let clause = WhereClause::Field {
-            path:     vec!["name".to_string()],
+            path: vec!["name".to_string()],
             operator: WhereOperator::Icontains,
-            value:    json!(pattern),
+            value: json!(pattern),
         };
 
         match clause {
@@ -88,9 +88,9 @@ fn test_where_startswith_case_sensitive() {
 
     for (value, _pattern, _should_match) in test_cases {
         let clause = WhereClause::Field {
-            path:     vec!["name".to_string()],
+            path: vec!["name".to_string()],
             operator: WhereOperator::Startswith,
-            value:    json!(value),
+            value: json!(value),
         };
 
         match clause {
@@ -112,9 +112,9 @@ fn test_where_istartswith_case_insensitive() {
 
     for pattern in patterns {
         let clause = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Istartswith,
-            value:    json!(pattern),
+            value: json!(pattern),
         };
 
         match clause {
@@ -142,9 +142,9 @@ fn test_where_endswith_case_sensitive() {
 
     for (value, _pattern, _should_match) in test_cases {
         let clause = WhereClause::Field {
-            path:     vec!["domain".to_string()],
+            path: vec!["domain".to_string()],
             operator: WhereOperator::Endswith,
-            value:    json!(value),
+            value: json!(value),
         };
 
         match clause {
@@ -174,9 +174,9 @@ fn test_where_iendswith_case_insensitive() {
 
     for pattern in patterns {
         let clause = WhereClause::Field {
-            path:     vec!["url".to_string()],
+            path: vec!["url".to_string()],
             operator: WhereOperator::Iendswith,
-            value:    json!(pattern),
+            value: json!(pattern),
         };
 
         match clause {
@@ -215,15 +215,15 @@ fn test_where_case_operators_distinctions() {
 
         // Both should work with WhereClause
         let clause1 = WhereClause::Field {
-            path:     vec!["text".to_string()],
+            path: vec!["text".to_string()],
             operator: case_sensitive.clone(),
-            value:    json!("test"),
+            value: json!("test"),
         };
 
         let clause2 = WhereClause::Field {
-            path:     vec!["text".to_string()],
+            path: vec!["text".to_string()],
             operator: case_insensitive.clone(),
-            value:    json!("test"),
+            value: json!("test"),
         };
 
         // Both should compile and construct successfully
@@ -257,9 +257,9 @@ fn test_where_case_with_mixed_content() {
 
     for (pattern, operator, _should_match) in test_cases {
         let clause = WhereClause::Field {
-            path:     vec!["id".to_string()],
+            path: vec!["id".to_string()],
             operator: operator.clone(),
-            value:    json!(pattern),
+            value: json!(pattern),
         };
 
         match clause {
@@ -290,15 +290,15 @@ fn test_where_case_with_special_chars() {
     for (upper_pattern, lower_pattern) in patterns {
         // Case-sensitive should see them as different
         let clause_upper = WhereClause::Field {
-            path:     vec!["value".to_string()],
+            path: vec!["value".to_string()],
             operator: WhereOperator::Startswith,
-            value:    json!(upper_pattern),
+            value: json!(upper_pattern),
         };
 
         let clause_lower = WhereClause::Field {
-            path:     vec!["value".to_string()],
+            path: vec!["value".to_string()],
             operator: WhereOperator::Startswith,
-            value:    json!(lower_pattern),
+            value: json!(lower_pattern),
         };
 
         // Different values
@@ -311,15 +311,15 @@ fn test_where_case_with_special_chars() {
 
         // Case-insensitive should treat them as equivalent patterns
         let case_insensitive1 = WhereClause::Field {
-            path:     vec!["value".to_string()],
+            path: vec!["value".to_string()],
             operator: WhereOperator::Istartswith,
-            value:    json!(upper_pattern),
+            value: json!(upper_pattern),
         };
 
         let case_insensitive2 = WhereClause::Field {
-            path:     vec!["value".to_string()],
+            path: vec!["value".to_string()],
             operator: WhereOperator::Istartswith,
-            value:    json!(lower_pattern),
+            value: json!(lower_pattern),
         };
 
         match (case_insensitive1, case_insensitive2) {
@@ -352,15 +352,15 @@ fn test_where_case_unicode_handling() {
     for (pattern1, pattern2) in unicode_tests {
         // Case-sensitive sees them as different (usually)
         let clause1 = WhereClause::Field {
-            path:     vec!["text".to_string()],
+            path: vec!["text".to_string()],
             operator: WhereOperator::Contains,
-            value:    json!(pattern1),
+            value: json!(pattern1),
         };
 
         let clause2 = WhereClause::Field {
-            path:     vec!["text".to_string()],
+            path: vec!["text".to_string()],
             operator: WhereOperator::Contains,
-            value:    json!(pattern2),
+            value: json!(pattern2),
         };
 
         match (clause1, clause2) {

@@ -54,9 +54,7 @@ impl MockDb {
     /// Get a record by key
     pub async fn get(&self, key: &str) -> Result<serde_json::Value, MockDbError> {
         let data = self.data.read().await;
-        data.get(key)
-            .cloned()
-            .ok_or(MockDbError::NotFound)
+        data.get(key).cloned().ok_or(MockDbError::NotFound)
     }
 
     /// Check if a key exists
@@ -92,11 +90,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_db_insert_and_get() {
         let db = MockDb::new();
-        db.insert(
-            "user_1".to_string(),
-            json!({"id": "1", "name": "Alice"}),
-        )
-        .await;
+        db.insert("user_1".to_string(), json!({"id": "1", "name": "Alice"})).await;
 
         let result = db.get("user_1").await;
         assert!(result.is_ok());
@@ -113,8 +107,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_db_exists() {
         let db = MockDb::new();
-        db.insert("key1".to_string(), json!({"value": 1}))
-            .await;
+        db.insert("key1".to_string(), json!({"value": 1})).await;
 
         assert!(db.exists("key1").await);
         assert!(!db.exists("key2").await);

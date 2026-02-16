@@ -172,15 +172,15 @@ mod tests {
     fn create_observer(event_type: &str, entity: &str) -> ObserverDefinition {
         ObserverDefinition {
             event_type: event_type.to_string(),
-            entity:     entity.to_string(),
-            condition:  None,
-            actions:    vec![ActionConfig::Webhook {
-                url:           Some("https://example.com".to_string()),
-                url_env:       None,
-                headers:       HashMap::default(),
+            entity: entity.to_string(),
+            condition: None,
+            actions: vec![ActionConfig::Webhook {
+                url: Some("https://example.com".to_string()),
+                url_env: None,
+                headers: HashMap::default(),
                 body_template: Some("{}".to_string()),
             }],
-            retry:      RetryConfig::default(),
+            retry: RetryConfig::default(),
             on_failure: FailurePolicy::Log,
         }
     }

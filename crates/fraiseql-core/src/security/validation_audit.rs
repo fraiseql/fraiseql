@@ -48,27 +48,27 @@ impl Default for ValidationAuditLoggerConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationAuditEntry {
     /// Timestamp of the validation check
-    pub timestamp:         DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// User ID from authentication context
-    pub user_id:           Option<String>,
+    pub user_id: Option<String>,
     /// Tenant ID for multi-tenancy isolation
-    pub tenant_id:         Option<String>,
+    pub tenant_id: Option<String>,
     /// Client IP address
-    pub ip_address:        String,
+    pub ip_address: String,
     /// GraphQL query or mutation string (may be redacted)
-    pub query_string:      String,
+    pub query_string: String,
     /// Name of the mutation (if applicable)
-    pub mutation_name:     Option<String>,
+    pub mutation_name: Option<String>,
     /// Field name that was validated
-    pub field:             String,
+    pub field: String,
     /// Validation rule that was applied
-    pub validation_rule:   String,
+    pub validation_rule: String,
     /// Whether the validation passed
-    pub valid:             bool,
+    pub valid: bool,
     /// Reason for failure (if applicable)
-    pub failure_reason:    Option<String>,
+    pub failure_reason: Option<String>,
     /// Duration of validation in microseconds
-    pub duration_us:       u64,
+    pub duration_us: u64,
     /// Type of validator executed (e.g., "pattern_validator", "async_validator")
     pub execution_context: String,
 }
@@ -76,7 +76,7 @@ pub struct ValidationAuditEntry {
 /// Validation audit logger for recording validation decisions
 #[derive(Clone)]
 pub struct ValidationAuditLogger {
-    config:  Arc<ValidationAuditLoggerConfig>,
+    config: Arc<ValidationAuditLoggerConfig>,
     entries: Arc<Mutex<Vec<ValidationAuditEntry>>>,
 }
 
@@ -84,7 +84,7 @@ impl ValidationAuditLogger {
     /// Create a new validation audit logger with the given configuration
     pub fn new(config: ValidationAuditLoggerConfig) -> Self {
         Self {
-            config:  Arc::new(config),
+            config: Arc::new(config),
             entries: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -230,17 +230,17 @@ mod tests {
         let logger = ValidationAuditLogger::new(config);
 
         let entry = ValidationAuditEntry {
-            timestamp:         Utc::now(),
-            user_id:           Some("user:1".to_string()),
-            tenant_id:         Some("tenant:1".to_string()),
-            ip_address:        "192.168.1.1".to_string(),
-            query_string:      "{ user { id } }".to_string(),
-            mutation_name:     None,
-            field:             "email".to_string(),
-            validation_rule:   "pattern".to_string(),
-            valid:             false,
-            failure_reason:    Some("Invalid format".to_string()),
-            duration_us:       100,
+            timestamp: Utc::now(),
+            user_id: Some("user:1".to_string()),
+            tenant_id: Some("tenant:1".to_string()),
+            ip_address: "192.168.1.1".to_string(),
+            query_string: "{ user { id } }".to_string(),
+            mutation_name: None,
+            field: "email".to_string(),
+            validation_rule: "pattern".to_string(),
+            valid: false,
+            failure_reason: Some("Invalid format".to_string()),
+            duration_us: 100,
             execution_context: "pattern_validator".to_string(),
         };
 
@@ -254,17 +254,17 @@ mod tests {
         let logger = ValidationAuditLogger::new(config);
 
         let entry1 = ValidationAuditEntry {
-            timestamp:         Utc::now(),
-            user_id:           Some("user:1".to_string()),
-            tenant_id:         None,
-            ip_address:        "192.168.1.1".to_string(),
-            query_string:      String::new(),
-            mutation_name:     None,
-            field:             "field1".to_string(),
-            validation_rule:   "required".to_string(),
-            valid:             false,
-            failure_reason:    None,
-            duration_us:       0,
+            timestamp: Utc::now(),
+            user_id: Some("user:1".to_string()),
+            tenant_id: None,
+            ip_address: "192.168.1.1".to_string(),
+            query_string: String::new(),
+            mutation_name: None,
+            field: "field1".to_string(),
+            validation_rule: "required".to_string(),
+            valid: false,
+            failure_reason: None,
+            duration_us: 0,
             execution_context: "validator".to_string(),
         };
 
@@ -284,17 +284,17 @@ mod tests {
         let logger = ValidationAuditLogger::new(config);
 
         let entry = ValidationAuditEntry {
-            timestamp:         Utc::now(),
-            user_id:           None,
-            tenant_id:         None,
-            ip_address:        "192.168.1.1".to_string(),
-            query_string:      String::new(),
-            mutation_name:     None,
-            field:             "field".to_string(),
-            validation_rule:   "pattern".to_string(),
-            valid:             false,
-            failure_reason:    Some("error".to_string()),
-            duration_us:       0,
+            timestamp: Utc::now(),
+            user_id: None,
+            tenant_id: None,
+            ip_address: "192.168.1.1".to_string(),
+            query_string: String::new(),
+            mutation_name: None,
+            field: "field".to_string(),
+            validation_rule: "pattern".to_string(),
+            valid: false,
+            failure_reason: Some("error".to_string()),
+            duration_us: 0,
             execution_context: "validator".to_string(),
         };
 

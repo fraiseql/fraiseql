@@ -2,7 +2,7 @@
 //!
 //! Tests the end-to-end schema loading and query validation workflow.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Helper to create a minimal compiled schema for testing
 fn create_test_schema(name: &str) -> Value {
@@ -55,16 +55,10 @@ fn test_schema_has_required_fields() {
 fn test_schema_types_have_names() {
     let schema = create_test_schema("Order");
 
-    let types = schema
-        .get("types")
-        .and_then(|t| t.as_array())
-        .expect("types should be array");
+    let types = schema.get("types").and_then(|t| t.as_array()).expect("types should be array");
 
     for type_def in types {
-        assert!(
-            type_def.get("name").is_some(),
-            "Type definition must have name field"
-        );
+        assert!(type_def.get("name").is_some(), "Type definition must have name field");
     }
 }
 
@@ -72,10 +66,7 @@ fn test_schema_types_have_names() {
 fn test_schema_fields_have_required_attributes() {
     let schema = create_test_schema("Customer");
 
-    let types = schema
-        .get("types")
-        .and_then(|t| t.as_array())
-        .expect("types should be array");
+    let types = schema.get("types").and_then(|t| t.as_array()).expect("types should be array");
 
     for type_def in types {
         let fields = type_def
@@ -111,11 +102,7 @@ fn test_multiple_types_in_schema() {
     let type_names: Vec<&str> = schema
         .get("types")
         .and_then(|t| t.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|t| t.get("name").and_then(|n| n.as_str()))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|t| t.get("name").and_then(|n| n.as_str())).collect())
         .unwrap_or_default();
 
     assert_eq!(type_names.len(), 3, "Schema should have 3 types");
@@ -169,14 +156,8 @@ fn test_empty_schema_is_valid() {
     assert!(schema.get("queries").is_some());
 
     // Arrays should be empty but present
-    assert_eq!(
-        schema.get("types").and_then(|t| t.as_array()).map(|a| a.len()),
-        Some(0)
-    );
-    assert_eq!(
-        schema.get("queries").and_then(|q| q.as_array()).map(|a| a.len()),
-        Some(0)
-    );
+    assert_eq!(schema.get("types").and_then(|t| t.as_array()).map(|a| a.len()), Some(0));
+    assert_eq!(schema.get("queries").and_then(|q| q.as_array()).map(|a| a.len()), Some(0));
 }
 
 #[test]
@@ -198,10 +179,7 @@ fn test_schema_version_compatibility() {
         assert_eq!(parts.len(), 3, "Version should be semver (X.Y.Z)");
 
         for part in parts {
-            assert!(
-                part.parse::<u32>().is_ok(),
-                "Version parts should be numbers"
-            );
+            assert!(part.parse::<u32>().is_ok(), "Version parts should be numbers");
         }
     }
 }

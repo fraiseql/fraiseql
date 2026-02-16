@@ -19,7 +19,7 @@ pub struct AuthenticatedUser {
     /// User ID from token claims
     pub user_id: String,
     /// Full JWT claims
-    pub claims:  Claims,
+    pub claims: Claims,
 }
 
 impl AuthenticatedUser {
@@ -48,10 +48,10 @@ impl AuthenticatedUser {
 
 /// Authentication middleware configuration
 pub struct AuthMiddleware {
-    validator:      Arc<JwtValidator>,
+    validator: Arc<JwtValidator>,
     _session_store: Arc<dyn SessionStore>,
-    public_key:     Vec<u8>,
-    _optional:      bool,
+    public_key: Vec<u8>,
+    _optional: bool,
 }
 
 impl AuthMiddleware {
@@ -218,11 +218,11 @@ mod tests {
         use crate::auth::Claims;
 
         let claims = Claims {
-            sub:   "user123".to_string(),
-            iat:   1000,
-            exp:   2000,
-            iss:   "https://example.com".to_string(),
-            aud:   vec!["api".to_string()],
+            sub: "user123".to_string(),
+            iat: 1000,
+            exp: 2000,
+            iss: "https://example.com".to_string(),
+            aud: vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -242,11 +242,11 @@ mod tests {
         use crate::auth::Claims;
 
         let mut claims = Claims {
-            sub:   "user123".to_string(),
-            iat:   1000,
-            exp:   2000,
-            iss:   "https://example.com".to_string(),
-            aud:   vec!["api".to_string()],
+            sub: "user123".to_string(),
+            iat: 1000,
+            exp: 2000,
+            iss: "https://example.com".to_string(),
+            aud: vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -268,11 +268,11 @@ mod tests {
         use crate::auth::Claims;
 
         let mut claims = Claims {
-            sub:   "user123".to_string(),
-            iat:   1000,
-            exp:   2000,
-            iss:   "https://example.com".to_string(),
-            aud:   vec!["api".to_string()],
+            sub: "user123".to_string(),
+            iat: 1000,
+            exp: 2000,
+            iss: "https://example.com".to_string(),
+            aud: vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -298,11 +298,11 @@ mod tests {
         use crate::auth::Claims;
 
         let mut claims = Claims {
-            sub:   "user123".to_string(),
-            iat:   1000,
-            exp:   2000,
-            iss:   "https://example.com".to_string(),
-            aud:   vec!["api".to_string()],
+            sub: "user123".to_string(),
+            iat: 1000,
+            exp: 2000,
+            iss: "https://example.com".to_string(),
+            aud: vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -345,7 +345,7 @@ mod tests {
     fn test_invalid_claim_value_sanitized() {
         // SECURITY: Ensure claim validation rules are not exposed
         let error = AuthError::InvalidClaimValue {
-            claim:  "exp".to_string(),
+            claim: "exp".to_string(),
             reason: "Must match pattern: ^[0-9]{10,}$".to_string(),
         };
         let response = error.into_response();
@@ -499,7 +499,7 @@ mod tests {
                 claim: "test".to_string(),
             },
             AuthError::InvalidClaimValue {
-                claim:  "test".to_string(),
+                claim: "test".to_string(),
                 reason: "test".to_string(),
             },
             AuthError::OAuthError {

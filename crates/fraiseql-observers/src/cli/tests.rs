@@ -96,10 +96,10 @@ mod dlq_command_tests {
         let result = dlq::execute(
             OutputFormat::Text,
             DlqSubcommand::List {
-                limit:    10,
-                offset:   None,
+                limit: 10,
+                offset: None,
                 observer: None,
-                after:    None,
+                after: None,
             },
         )
         .await;
@@ -124,7 +124,7 @@ mod dlq_command_tests {
             OutputFormat::Text,
             DlqSubcommand::Retry {
                 item_id: "dlq-001".to_string(),
-                force:   false,
+                force: false,
             },
         )
         .await;
@@ -137,8 +137,8 @@ mod dlq_command_tests {
             OutputFormat::Json,
             DlqSubcommand::RetryAll {
                 observer: None,
-                after:    None,
-                dry_run:  true,
+                after: None,
+                dry_run: true,
             },
         )
         .await;
@@ -151,7 +151,7 @@ mod dlq_command_tests {
             OutputFormat::Text,
             DlqSubcommand::Remove {
                 item_id: "dlq-001".to_string(),
-                force:   false,
+                force: false,
             },
         )
         .await;
@@ -164,7 +164,7 @@ mod dlq_command_tests {
             OutputFormat::Json,
             DlqSubcommand::Stats {
                 by_observer: true,
-                by_error:    true,
+                by_error: true,
             },
         )
         .await;

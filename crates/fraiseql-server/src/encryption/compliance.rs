@@ -59,19 +59,19 @@ impl std::fmt::Display for ComplianceStatus {
 #[derive(Debug, Clone)]
 pub struct ComplianceConfig {
     /// Framework
-    pub framework:            ComplianceFramework,
+    pub framework: ComplianceFramework,
     /// Enabled for this instance
-    pub enabled:              bool,
+    pub enabled: bool,
     /// Audit log retention days
     pub audit_retention_days: i32,
     /// Encryption required
-    pub encryption_required:  bool,
+    pub encryption_required: bool,
     /// Encryption algorithm
     pub encryption_algorithm: String,
     /// Key rotation required (days, 0 = not required)
-    pub key_rotation_days:    i32,
+    pub key_rotation_days: i32,
     /// Additional settings
-    pub settings:             HashMap<String, String>,
+    pub settings: HashMap<String, String>,
 }
 
 impl ComplianceConfig {
@@ -124,17 +124,17 @@ impl ComplianceConfig {
 #[derive(Debug, Clone)]
 pub struct ComplianceCheckResult {
     /// Framework
-    pub framework:   ComplianceFramework,
+    pub framework: ComplianceFramework,
     /// Requirement name
     pub requirement: String,
     /// Status
-    pub status:      ComplianceStatus,
+    pub status: ComplianceStatus,
     /// Description of requirement
     pub description: String,
     /// Evidence/details
-    pub details:     String,
+    pub details: String,
     /// Last checked
-    pub checked_at:  DateTime<Utc>,
+    pub checked_at: DateTime<Utc>,
 }
 
 impl ComplianceCheckResult {
@@ -318,17 +318,17 @@ impl Default for ComplianceValidator {
 #[derive(Debug, Clone)]
 pub struct ComplianceReport {
     /// Report generation time
-    pub generated_at:        DateTime<Utc>,
+    pub generated_at: DateTime<Utc>,
     /// Framework
-    pub framework:           ComplianceFramework,
+    pub framework: ComplianceFramework,
     /// Overall status
-    pub overall_status:      ComplianceStatus,
+    pub overall_status: ComplianceStatus,
     /// Check results
-    pub results:             Vec<ComplianceCheckResult>,
+    pub results: Vec<ComplianceCheckResult>,
     /// Summary statistics
-    pub compliant_count:     usize,
+    pub compliant_count: usize,
     pub non_compliant_count: usize,
-    pub partial_count:       usize,
+    pub partial_count: usize,
 }
 
 impl ComplianceReport {

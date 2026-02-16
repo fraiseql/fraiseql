@@ -168,7 +168,7 @@ pub enum WindowSelectColumn {
     /// Select a measure column (e.g., "revenue")
     Measure {
         /// Measure name from FactTableMetadata
-        name:  String,
+        name: String,
         /// Result alias
         alias: String,
     },
@@ -176,7 +176,7 @@ pub enum WindowSelectColumn {
     /// Select a dimension from JSONB (e.g., "category")
     Dimension {
         /// Dimension path in JSONB
-        path:  String,
+        path: String,
         /// Result alias
         alias: String,
     },
@@ -184,7 +184,7 @@ pub enum WindowSelectColumn {
     /// Select a denormalized filter column (e.g., "customer_id", "occurred_at")
     Filter {
         /// Filter column name
-        name:  String,
+        name: String,
         /// Result alias
         alias: String,
     },
@@ -258,9 +258,9 @@ pub enum WindowFunctionSpec {
     /// LAG(field, offset, default) - Value from previous row
     Lag {
         /// Measure or dimension name
-        field:   String,
+        field: String,
         /// Row offset (default: 1)
-        offset:  i32,
+        offset: i32,
         /// Default value when no previous row
         default: Option<serde_json::Value>,
     },
@@ -268,9 +268,9 @@ pub enum WindowFunctionSpec {
     /// LEAD(field, offset, default) - Value from next row
     Lead {
         /// Measure or dimension name
-        field:   String,
+        field: String,
         /// Row offset (default: 1)
-        offset:  i32,
+        offset: i32,
         /// Default value when no next row
         default: Option<serde_json::Value>,
     },
@@ -292,7 +292,7 @@ pub enum WindowFunctionSpec {
         /// Measure or dimension name
         field: String,
         /// Position (1-indexed)
-        n:     u32,
+        n: u32,
     },
 
     // =========================================================================
@@ -465,9 +465,9 @@ pub enum WindowFunctionType {
     /// LAG(field, offset, default) - Value from previous row
     Lag {
         /// Field name
-        field:   String,
+        field: String,
         /// Row offset
-        offset:  i32,
+        offset: i32,
         /// Default value
         default: Option<serde_json::Value>,
     },
@@ -475,9 +475,9 @@ pub enum WindowFunctionType {
     /// LEAD(field, offset, default) - Value from next row
     Lead {
         /// Field name
-        field:   String,
+        field: String,
         /// Row offset
-        offset:  i32,
+        offset: i32,
         /// Default value
         default: Option<serde_json::Value>,
     },
@@ -499,7 +499,7 @@ pub enum WindowFunctionType {
         /// Field name
         field: String,
         /// Position
-        n:     u32,
+        n: u32,
     },
 
     // Aggregate as window functions
@@ -706,7 +706,7 @@ impl WindowFunctionPlanner {
                 if let Some(col_str) = col.as_str() {
                     Some(SelectColumn {
                         expression: col_str.to_string(),
-                        alias:      col_str.to_string(),
+                        alias: col_str.to_string(),
                     })
                 } else {
                     None
@@ -1071,13 +1071,13 @@ impl WindowPlanner {
                             "Measure '{}' not found in fact table '{}'",
                             name, metadata.table_name
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 // Measure columns are direct SQL columns
                 Ok(SelectColumn {
                     expression: name.clone(),
-                    alias:      alias.clone(),
+                    alias: alias.clone(),
                 })
             },
             WindowSelectColumn::Dimension { path, alias } => {
@@ -1096,13 +1096,13 @@ impl WindowPlanner {
                             "Filter column '{}' not found in fact table '{}'",
                             name, metadata.table_name
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 // Filter columns are direct SQL columns
                 Ok(SelectColumn {
                     expression: name.clone(),
-                    alias:      alias.clone(),
+                    alias: alias.clone(),
                 })
             },
         }
@@ -1171,8 +1171,8 @@ impl WindowPlanner {
             } => {
                 let sql_field = Self::resolve_field_to_sql(field, metadata)?;
                 Ok(WindowFunctionType::Lag {
-                    field:   sql_field,
-                    offset:  *offset,
+                    field: sql_field,
+                    offset: *offset,
                     default: default.clone(),
                 })
             },
@@ -1183,8 +1183,8 @@ impl WindowPlanner {
             } => {
                 let sql_field = Self::resolve_field_to_sql(field, metadata)?;
                 Ok(WindowFunctionType::Lead {
-                    field:   sql_field,
-                    offset:  *offset,
+                    field: sql_field,
+                    offset: *offset,
                     default: default.clone(),
                 })
             },
@@ -1200,7 +1200,7 @@ impl WindowPlanner {
                 let sql_field = Self::resolve_field_to_sql(field, metadata)?;
                 Ok(WindowFunctionType::NthValue {
                     field: sql_field,
-                    n:     *n,
+                    n: *n,
                 })
             },
 
@@ -1267,7 +1267,7 @@ impl WindowPlanner {
                             "Filter column '{}' not found in fact table '{}'",
                             name, metadata.table_name
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 Ok(name.clone())
@@ -1328,7 +1328,7 @@ impl WindowPlanner {
                     "Measure '{}' not found in fact table '{}'",
                     measure, metadata.table_name
                 ),
-                path:    None,
+                path: None,
             });
         }
         Ok(())
@@ -1342,36 +1342,36 @@ mod tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![
                 FilterColumn {
-                    name:     "customer_id".to_string(),
+                    name: "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
-                    indexed:  true,
+                    indexed: true,
                 },
                 FilterColumn {
-                    name:     "occurred_at".to_string(),
+                    name: "occurred_at".to_string(),
                     sql_type: SqlType::Timestamp,
-                    indexed:  true,
+                    indexed: true,
                 },
             ],
-            calendar_dimensions:  vec![],
+            calendar_dimensions: vec![],
         }
     }
 
@@ -1486,24 +1486,24 @@ mod tests {
 
         let metadata = create_test_metadata();
         let plan = WindowExecutionPlan {
-            table:        "tf_sales".to_string(),
-            select:       vec![],
-            windows:      vec![WindowFunction {
-                function:     WindowFunctionType::RowNumber,
-                alias:        "rank".to_string(),
+            table: "tf_sales".to_string(),
+            select: vec![],
+            windows: vec![WindowFunction {
+                function: WindowFunctionType::RowNumber,
+                alias: "rank".to_string(),
                 partition_by: vec![],
-                order_by:     vec![],
-                frame:        Some(WindowFrame {
+                order_by: vec![],
+                frame: Some(WindowFrame {
                     frame_type: FrameType::Groups,
-                    start:      FrameBoundary::UnboundedPreceding,
-                    end:        FrameBoundary::CurrentRow,
-                    exclusion:  None,
+                    start: FrameBoundary::UnboundedPreceding,
+                    end: FrameBoundary::CurrentRow,
+                    exclusion: None,
                 }),
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         // Should pass for PostgreSQL
@@ -1523,33 +1523,33 @@ mod tests {
     fn test_window_planner_basic_request() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![
+            table_name: "tf_sales".to_string(),
+            select: vec![
                 WindowSelectColumn::Measure {
-                    name:  "revenue".to_string(),
+                    name: "revenue".to_string(),
                     alias: "revenue".to_string(),
                 },
                 WindowSelectColumn::Dimension {
-                    path:  "category".to_string(),
+                    path: "category".to_string(),
                     alias: "category".to_string(),
                 },
             ],
-            windows:      vec![WindowFunctionRequest {
-                function:     WindowFunctionSpec::RowNumber,
-                alias:        "rank".to_string(),
+            windows: vec![WindowFunctionRequest {
+                function: WindowFunctionSpec::RowNumber,
+                alias: "rank".to_string(),
                 partition_by: vec![PartitionByColumn::Dimension {
                     path: "category".to_string(),
                 }],
-                order_by:     vec![WindowOrderBy {
-                    field:     "revenue".to_string(),
+                order_by: vec![WindowOrderBy {
+                    field: "revenue".to_string(),
                     direction: OrderDirection::Desc,
                 }],
-                frame:        None,
+                frame: None,
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        Some(100),
-            offset:       None,
+            order_by: vec![],
+            limit: Some(100),
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1576,32 +1576,32 @@ mod tests {
     fn test_window_planner_running_sum() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![WindowSelectColumn::Measure {
-                name:  "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            select: vec![WindowSelectColumn::Measure {
+                name: "revenue".to_string(),
                 alias: "revenue".to_string(),
             }],
-            windows:      vec![WindowFunctionRequest {
-                function:     WindowFunctionSpec::RunningSum {
+            windows: vec![WindowFunctionRequest {
+                function: WindowFunctionSpec::RunningSum {
                     measure: "revenue".to_string(),
                 },
-                alias:        "running_total".to_string(),
+                alias: "running_total".to_string(),
                 partition_by: vec![],
-                order_by:     vec![WindowOrderBy {
-                    field:     "occurred_at".to_string(),
+                order_by: vec![WindowOrderBy {
+                    field: "occurred_at".to_string(),
                     direction: OrderDirection::Asc,
                 }],
-                frame:        Some(WindowFrame {
+                frame: Some(WindowFrame {
                     frame_type: FrameType::Rows,
-                    start:      FrameBoundary::UnboundedPreceding,
-                    end:        FrameBoundary::CurrentRow,
-                    exclusion:  None,
+                    start: FrameBoundary::UnboundedPreceding,
+                    end: FrameBoundary::CurrentRow,
+                    exclusion: None,
                 }),
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1621,16 +1621,16 @@ mod tests {
     fn test_window_planner_filter_column() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![WindowSelectColumn::Filter {
-                name:  "occurred_at".to_string(),
+            table_name: "tf_sales".to_string(),
+            select: vec![WindowSelectColumn::Filter {
+                name: "occurred_at".to_string(),
                 alias: "date".to_string(),
             }],
-            windows:      vec![],
+            windows: vec![],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1644,16 +1644,16 @@ mod tests {
     fn test_window_planner_invalid_measure() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![WindowSelectColumn::Measure {
-                name:  "nonexistent".to_string(),
+            table_name: "tf_sales".to_string(),
+            select: vec![WindowSelectColumn::Measure {
+                name: "nonexistent".to_string(),
                 alias: "alias".to_string(),
             }],
-            windows:      vec![],
+            windows: vec![],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let result = WindowPlanner::plan(request, metadata);
@@ -1665,16 +1665,16 @@ mod tests {
     fn test_window_planner_invalid_filter() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![WindowSelectColumn::Filter {
-                name:  "nonexistent_filter".to_string(),
+            table_name: "tf_sales".to_string(),
+            select: vec![WindowSelectColumn::Filter {
+                name: "nonexistent_filter".to_string(),
                 alias: "alias".to_string(),
             }],
-            windows:      vec![],
+            windows: vec![],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let result = WindowPlanner::plan(request, metadata);
@@ -1686,26 +1686,26 @@ mod tests {
     fn test_window_planner_lag_function() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![],
-            windows:      vec![WindowFunctionRequest {
-                function:     WindowFunctionSpec::Lag {
-                    field:   "revenue".to_string(),
-                    offset:  1,
+            table_name: "tf_sales".to_string(),
+            select: vec![],
+            windows: vec![WindowFunctionRequest {
+                function: WindowFunctionSpec::Lag {
+                    field: "revenue".to_string(),
+                    offset: 1,
                     default: Some(serde_json::json!(0)),
                 },
-                alias:        "prev_revenue".to_string(),
+                alias: "prev_revenue".to_string(),
                 partition_by: vec![],
-                order_by:     vec![WindowOrderBy {
-                    field:     "occurred_at".to_string(),
+                order_by: vec![WindowOrderBy {
+                    field: "occurred_at".to_string(),
                     direction: OrderDirection::Asc,
                 }],
-                frame:        None,
+                frame: None,
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1728,26 +1728,26 @@ mod tests {
     fn test_window_planner_dimension_field_in_lag() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![],
-            windows:      vec![WindowFunctionRequest {
-                function:     WindowFunctionSpec::Lag {
-                    field:   "category".to_string(), // dimension path
-                    offset:  1,
+            table_name: "tf_sales".to_string(),
+            select: vec![],
+            windows: vec![WindowFunctionRequest {
+                function: WindowFunctionSpec::Lag {
+                    field: "category".to_string(), // dimension path
+                    offset: 1,
                     default: None,
                 },
-                alias:        "prev_category".to_string(),
+                alias: "prev_category".to_string(),
                 partition_by: vec![],
-                order_by:     vec![WindowOrderBy {
-                    field:     "occurred_at".to_string(),
+                order_by: vec![WindowOrderBy {
+                    field: "occurred_at".to_string(),
                     direction: OrderDirection::Asc,
                 }],
-                frame:        None,
+                frame: None,
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1765,21 +1765,21 @@ mod tests {
     fn test_window_planner_partition_by_filter() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![],
-            windows:      vec![WindowFunctionRequest {
-                function:     WindowFunctionSpec::RowNumber,
-                alias:        "rank".to_string(),
+            table_name: "tf_sales".to_string(),
+            select: vec![],
+            windows: vec![WindowFunctionRequest {
+                function: WindowFunctionSpec::RowNumber,
+                alias: "rank".to_string(),
                 partition_by: vec![PartitionByColumn::Filter {
                     name: "customer_id".to_string(),
                 }],
-                order_by:     vec![],
-                frame:        None,
+                order_by: vec![],
+                frame: None,
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1791,22 +1791,22 @@ mod tests {
     fn test_window_planner_final_order_by() {
         let metadata = create_test_metadata();
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![],
-            windows:      vec![],
+            table_name: "tf_sales".to_string(),
+            select: vec![],
+            windows: vec![],
             where_clause: None,
-            order_by:     vec![
+            order_by: vec![
                 WindowOrderBy {
-                    field:     "revenue".to_string(),
+                    field: "revenue".to_string(),
                     direction: OrderDirection::Desc,
                 },
                 WindowOrderBy {
-                    field:     "category".to_string(), // dimension
+                    field: "category".to_string(), // dimension
                     direction: OrderDirection::Asc,
                 },
             ],
-            limit:        None,
-            offset:       None,
+            limit: None,
+            offset: None,
         };
 
         let plan = WindowPlanner::plan(request, metadata).expect("window plan should succeed");
@@ -1821,22 +1821,22 @@ mod tests {
     #[test]
     fn test_window_request_serialization() {
         let request = WindowRequest {
-            table_name:   "tf_sales".to_string(),
-            select:       vec![WindowSelectColumn::Measure {
-                name:  "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            select: vec![WindowSelectColumn::Measure {
+                name: "revenue".to_string(),
                 alias: "revenue".to_string(),
             }],
-            windows:      vec![WindowFunctionRequest {
-                function:     WindowFunctionSpec::RowNumber,
-                alias:        "rank".to_string(),
+            windows: vec![WindowFunctionRequest {
+                function: WindowFunctionSpec::RowNumber,
+                alias: "rank".to_string(),
                 partition_by: vec![],
-                order_by:     vec![],
-                frame:        None,
+                order_by: vec![],
+                frame: None,
             }],
             where_clause: None,
-            order_by:     vec![],
-            limit:        Some(10),
-            offset:       None,
+            order_by: vec![],
+            limit: Some(10),
+            offset: None,
         };
 
         // Should serialize without panic

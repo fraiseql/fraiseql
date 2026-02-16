@@ -168,8 +168,8 @@ fn test_request_validation_integration() {
 
     // Test with valid request
     let valid_request = GraphQLRequest {
-        query:          "{ user { id } }".to_string(),
-        variables:      None,
+        query: "{ user { id } }".to_string(),
+        variables: None,
         operation_name: None,
     };
 
@@ -178,8 +178,8 @@ fn test_request_validation_integration() {
 
     // Test with invalid depth
     let deep_request = GraphQLRequest {
-        query:          "{ a { b { c { d { e { f } } } } } }".to_string(),
-        variables:      None,
+        query: "{ a { b { c { d { e { f } } } } } }".to_string(),
+        variables: None,
         operation_name: None,
     };
 
@@ -208,8 +208,8 @@ fn test_multiple_errors_response() {
 #[test]
 fn test_error_extensions() {
     let extensions = ErrorExtensions {
-        category:   Some("VALIDATION".to_string()),
-        status:     Some(400),
+        category: Some("VALIDATION".to_string()),
+        status: Some(400),
         request_id: Some("req-12345".to_string()),
     };
 
@@ -316,7 +316,7 @@ fn test_minimal_validator() {
 #[test]
 fn test_validation_error_conversion() {
     let error = fraiseql_server::ValidationError::QueryTooDeep {
-        max_depth:    10,
+        max_depth: 10,
         actual_depth: 15,
     };
 
