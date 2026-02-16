@@ -222,6 +222,7 @@ WITH (lists = 1000);  -- sqrt(total_vectors) is good default
 ```
 
 **Performance Benchmarks:**
+
 | Dataset Size | Index Type | QPS (p95 latency) | Recall |
 |--------------|------------|-------------------|--------|
 | 10K vectors | HNSW | ~500 qps (<20ms) | 98% |

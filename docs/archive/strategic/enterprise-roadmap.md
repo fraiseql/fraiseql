@@ -300,23 +300,23 @@ These features are complex, high-risk, or needed only for massive scale.
 
 ### **Quarter 2: Regulatory Compliance**
 
-3. GDPR Compliance Suite (weeks 14-23)
-4. Data Classification (weeks 24-28)
+1. GDPR Compliance Suite (weeks 14-23)
+2. Data Classification (weeks 24-28)
 
 **Outcome**: Full EU market access, automated data governance
 
 ### **Quarter 3: Advanced Security & Scale**
 
-5. ABAC Implementation (weeks 29-40)
-6. Read Replica Management (weeks 41-48)
+1. ABAC Implementation (weeks 29-40)
+2. Read Replica Management (weeks 41-48)
 
 **Outcome**: Complex permission models, horizontal scalability
 
 ### **Quarter 4: Performance & Operations**
 
-7. Field-Level Encryption (weeks 49-56)
-8. Advanced Connection Pooling (weeks 57-61)
-9. Query Result Caching (weeks 62-68)
+1. Field-Level Encryption (weeks 49-56)
+2. Advanced Connection Pooling (weeks 57-61)
+3. Query Result Caching (weeks 62-68)
 
 **Outcome**: Zero-trust data protection, optimized performance
 

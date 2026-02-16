@@ -82,15 +82,15 @@ from tests.fixtures.cascade.conftest import *
 
 ### P2 - Medium Priority
 
-2. **Missing fixture documentation** - Some fixtures lack type hints or detailed docs
+1. **Missing fixture documentation** - Some fixtures lack type hints or detailed docs
    - Recommendation: Add return type hints and param descriptions
 
-3. **No fixture usage tracking** - Unclear which fixtures are used by which tests
+2. **No fixture usage tracking** - Unclear which fixtures are used by which tests
    - Recommendation: Add fixture usage matrix or documentation
 
 ### P3 - Low Priority
 
-4. **No fixture caching for expensive operations** - Some fixtures could benefit from `@lru_cache`
+1. **No fixture caching for expensive operations** - Some fixtures could benefit from `@lru_cache`
    - Recommendation: Profile and add caching where beneficial
 
 ## Recommendations

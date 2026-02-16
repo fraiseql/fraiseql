@@ -32,13 +32,13 @@ Comprehensive benchmark comparing different PostgreSQL methods for generating JS
 
 ### Trinity Table GENERATED Columns (Write Side)
 
-5. **GENERATED with `jsonb_build_object()`**
+1. **GENERATED with `jsonb_build_object()`**
 
    ```sql
    data JSONB GENERATED ALWAYS AS (jsonb_build_object(...)) STORED
    ```
 
-6. **GENERATED with `to_jsonb()`**
+2. **GENERATED with `to_jsonb()`**
 
    ```sql
    data JSONB GENERATED ALWAYS AS (to_jsonb(table_name) - 'data' - 'pk') STORED

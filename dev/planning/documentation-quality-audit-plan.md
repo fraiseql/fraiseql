@@ -170,20 +170,20 @@ Review these critical paths first:
 
 #### Phase 2.2: Advanced Documentation (Priority: MEDIUM)
 
-4. **Advanced Topics** (20 files)
+1. **Advanced Topics** (20 files)
    - `docs/advanced/*.md`
    - Check: appropriate technical depth, accurate code examples
 
-5. **Reference** (15 files)
+2. **Reference** (15 files)
    - `docs/reference/*.md`
    - Check: completeness, accuracy, up-to-date API info
 
 #### Phase 2.3: Supporting Documentation (Priority: LOW)
 
-6. **Features** (10 files)
+1. **Features** (10 files)
    - `docs/features/*.md`
 
-7. **Strategic/Planning** (8 files)
+2. **Strategic/Planning** (8 files)
    - `docs/strategic/*.md`
    - Note: May contain interview references intentionally (planning docs)
 

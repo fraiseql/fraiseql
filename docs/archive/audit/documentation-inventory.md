@@ -190,7 +190,7 @@ This inventory catalogs all documentation files in the FraiseQL project, assessi
    - `examples/todo_xs/` - Has README in subdirectory but not root level
    - `examples/analytics_dashboard/` - Minimal documentation (needs expansion)
 
-2. **Inconsistent README Depth**:
+3. **Inconsistent README Depth**:
    - `blog_simple/README.md`: 580+ lines (excellent detail)
    - `analytics_dashboard/README.md`: Minimal (needs expansion)
    - Standard format needed across all examples

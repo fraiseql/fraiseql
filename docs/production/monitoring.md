@@ -325,6 +325,7 @@ flags = await cache.get("config:feature_flags")
 - No replication overhead
 
 **Benchmarks:**
+
 | Operation | PostgreSQL UNLOGGED | Redis | Regular PostgreSQL |
 |-----------|-------------------|-------|-------------------|
 | SET (write) | 0.3-0.8ms | 0.2-0.5ms | 1-3ms |

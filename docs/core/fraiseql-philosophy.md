@@ -104,6 +104,7 @@ async def get_user(info, id: ID) -> User:
    ```
 
 3. **Context Injection** - Every resolver gets `db` in context:
+
    ```python
 
 import fraiseql

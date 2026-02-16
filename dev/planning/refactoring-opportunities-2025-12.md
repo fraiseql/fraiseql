@@ -204,22 +204,22 @@ Two separate caching modules:
 
 ### Phase 2 (High Value - Week 2-3)
 
-3. **REFACTOR:** `operator_strategies.py` → operator modules (2-3 days)
+1. **REFACTOR:** `operator_strategies.py` → operator modules (2-3 days)
    - Similar process to WHERE refactor
    - Break into 10-12 strategy files
    - Keep all tests passing
 
 ### Phase 3 (Foundation - Week 4-5)
 
-4. **REFACTOR:** `db.py` → database modules (3-4 days)
+1. **REFACTOR:** `db.py` → database modules (3-4 days)
    - Highest risk, plan carefully
    - Incremental approach
    - Extensive integration testing
 
 ### Phase 4 (Polish - Week 6)
 
-5. **REFACTOR:** `mutation_decorator.py` → mutation modules (2-3 days)
-6. **AUDIT:** Caching layer consolidation (1 day)
+1. **REFACTOR:** `mutation_decorator.py` → mutation modules (2-3 days)
+2. **AUDIT:** Caching layer consolidation (1 day)
 
 ---
 

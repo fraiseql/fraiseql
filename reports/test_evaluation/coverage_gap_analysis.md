@@ -92,32 +92,32 @@
 
 ### P1 - High (This Sprint)
 
-3. **Add tests for `cqrs/pagination.py`** - 13% coverage
+1. **Add tests for `cqrs/pagination.py`** - 13% coverage
    - Test cursor-based pagination
    - Test offset pagination
    - Test edge cases (empty results, single page)
 
-4. **Add auth tests** - 20-28% coverage
+2. **Add auth tests** - 20-28% coverage
    - `auth/auth0.py` - Test token validation
    - `auth/token_revocation.py` - Test revocation flows
 
 ### P2 - Medium (Next Sprint)
 
-5. **Add caching tests** - 0% coverage for entire module
+1. **Add caching tests** - 0% coverage for entire module
    - Start with `caching/result_cache.py`
    - Add `caching/cache_key.py` tests
 
-6. **Add FastAPI router tests** - 43% coverage
+2. **Add FastAPI router tests** - 43% coverage
    - Test route handlers
    - Test error responses
 
 ### P3 - Low (Backlog)
 
-7. **CLI tests** - Consider e2e tests for critical CLI commands
+1. **CLI tests** - Consider e2e tests for critical CLI commands
    - `init` command
    - `migrate` command
 
-8. **Enterprise features** - Add tests when features are actively used
+2. **Enterprise features** - Add tests when features are actively used
    - RBAC tests
    - Audit logging tests
 

@@ -32,6 +32,7 @@ By the end of this journey, you'll have:
 - ✅ **Audit & Compliance:** Cryptographic audit trails, immutable event chains
 
 **Security Profiles Available:**
+
 | Profile | Use Case | Key Features |
 |---------|----------|--------------|
 | **STANDARD** | General applications | Basic security, HTTPS enforcement, optional audit logging |

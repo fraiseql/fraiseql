@@ -34,13 +34,13 @@ python app.py
 
 ### Phase 2: Core Concepts (30 minutes)
 
-3. **[Database API](../core/database-api.md)** (Focus: select_from_json_view)
+1. **[Database API](../core/database-api.md)** (Focus: select_from_json_view)
    - Repository pattern
    - QueryOptions for filtering
    - Pagination with PaginationInput
    - Ordering with OrderByInstructions
 
-4. **[Types and Schema](../core/types-and-schema.md)** (Focus: @type decorator)
+2. **[Types and Schema](../core/types-and-schema.md)** (Focus: @type decorator)
    - Python type hints → GraphQL types
    - Optional fields with `| None`
    - Lists with `list[Type]`
@@ -69,7 +69,7 @@ def notes() -> list[Note]:
 
 ### Phase 3: N+1 Prevention (30 minutes)
 
-5. **[Database Patterns](../advanced/database-patterns.md)** (Focus: JSONB Composition)
+1. **[Database Patterns](../advanced/database-patterns.md)** (Focus: JSONB Composition)
    - Composed views prevent N+1 queries
    - jsonb_build_object pattern
    - COALESCE for empty arrays
@@ -102,7 +102,7 @@ FROM tb_user u;
 
 ### Phase 4: Mutations (30 minutes)
 
-6. **[Blog API Tutorial](./blog-api.md)** (Focus: Mutations section)
+1. **[Blog API Tutorial](./blog-api.md)** (Focus: Mutations section)
    - PostgreSQL functions for business logic
    - fn_ naming convention
    - Calling functions from Python
@@ -146,7 +146,7 @@ def create_note(title: str, content: str) -> Note:
 
 ### Phase 5: Complete Example (45 minutes)
 
-7. **[Blog API Tutorial](./blog-api.md)** (Complete walkthrough)
+1. **[Blog API Tutorial](./blog-api.md)** (Complete walkthrough)
    - Users, posts, comments
    - Threaded comments
    - Production patterns

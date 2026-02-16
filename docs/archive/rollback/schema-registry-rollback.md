@@ -54,7 +54,7 @@ app = create_fraiseql_app(
 )
 ```
 
-2. **Restart application:**
+1. **Restart application:**
 
 ```bash
 # For development
@@ -70,7 +70,7 @@ docker-compose restart app
 kubectl rollout restart deployment/fraiseql-app
 ```
 
-3. **Verify rollback:**
+1. **Verify rollback:**
 
 Check logs - you should NOT see:
 
@@ -78,7 +78,7 @@ Check logs - you should NOT see:
 INFO: Initialized schema registry with N types
 ```
 
-4. **Test functionality:**
+1. **Test functionality:**
 
 ```bash
 # Run health check
@@ -123,7 +123,7 @@ pip show fraiseql
 python -c "import fraiseql; print(fraiseql.__version__)"
 ```
 
-2. **Rollback to previous version:**
+1. **Rollback to previous version:**
 
 ```bash
 # Option A: Using pip
@@ -138,7 +138,7 @@ uv pip install fraiseql==<previous-version>
 pip install -r requirements.txt
 ```
 
-3. **Rebuild if using Rust extensions:**
+1. **Rebuild if using Rust extensions:**
 
 ```bash
 # Only needed if you build from source
@@ -146,14 +146,14 @@ cd fraiseql
 uv build
 ```
 
-4. **Restart application:**
+1. **Restart application:**
 
 ```bash
 # Same as Level 1 restart procedure
 sudo systemctl restart fraiseql-app
 ```
 
-5. **Verify rollback:**
+1. **Verify rollback:**
 
 ```bash
 # Check version
@@ -163,7 +163,7 @@ python -c "import fraiseql; print(fraiseql.__version__)"
 # (Check logs - should NOT see schema registry messages)
 ```
 
-6. **Run regression tests:**
+1. **Run regression tests:**
 
 ```bash
 pytest tests/ --tb=short
@@ -198,17 +198,17 @@ import logging
 logging.getLogger("fraiseql").setLevel(logging.DEBUG)
 ```
 
-2. **Create a hotfix branch:**
+1. **Create a hotfix branch:**
 
 ```bash
 git checkout -b hotfix/schema-registry-issue-XXX
 ```
 
-3. **Apply targeted fix**
+1. **Apply targeted fix**
 
 (Specific to the bug - coordinate with maintainers)
 
-4. **Test the fix:**
+1. **Test the fix:**
 
 ```bash
 # Run unit tests
@@ -221,7 +221,7 @@ pytest tests/integration/ -v
 pytest tests/regression/ -v
 ```
 
-5. **Deploy hotfix:**
+1. **Deploy hotfix:**
 
 ```bash
 # Build and install
@@ -232,7 +232,7 @@ pip install dist/*.whl
 pip install git+https://github.com/fraiseql/fraiseql@hotfix/branch
 ```
 
-6. **Monitor closely:**
+1. **Monitor closely:**
 
 ```bash
 # Watch logs for errors

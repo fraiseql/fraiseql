@@ -11,6 +11,7 @@
 ### 1. tests/core/test_field_type_propagation.py
 
 **Quality Score: 4.3/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 2 | Integration test with database dependencies |
@@ -32,6 +33,7 @@
 ### 2. tests/regression/test_v0717_graphql_validation_bypass_regression.py
 
 **Quality Score: 5.0/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 5 | Unit tests with mocked dependencies |
@@ -53,6 +55,7 @@
 ### 3. tests/conftest.py
 
 **Quality Score: 3.8/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 5 | Fixtures provide isolated test environments |
@@ -74,6 +77,7 @@
 ### 4. tests/integration/caching/test_turbo_router.py
 
 **Quality Score: 4.2/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 2 | Integration test with database mocking |
@@ -95,6 +99,7 @@
 ### 5. tests/integration/test_introspection/test_postgres_introspector_integration.py
 
 **Quality Score: 4.0/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 2 | Real database integration testing |
@@ -116,6 +121,7 @@
 ### 6. tests/system/cli/test_init.py
 
 **Quality Score: 4.3/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 3 | System test with file system operations |
@@ -137,6 +143,7 @@
 ### 7. tests/routing/test_entity_routing_system.py
 
 **Quality Score: 4.2/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 2 | Integration test with GraphQL schema |
@@ -158,6 +165,7 @@
 ### 8. tests/monitoring/test_health_check.py
 
 **Quality Score: 4.7/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 5 | Unit tests with mocked health checks |
@@ -179,6 +187,7 @@
 ### 9. tests/fixtures/common/test_graphql_error_serialization.py
 
 **Quality Score: 4.2/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 2 | Integration test with GraphQL execution |
@@ -200,6 +209,7 @@
 ### 10. tests/regression/test_issue_112_nested_jsonb_typename.py
 
 **Quality Score: 4.0/5**
+
 | Criterion | Score | Notes |
 |-----------|-------|-------|
 | Isolation | 2 | Integration test with database and GraphQL |

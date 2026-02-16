@@ -493,13 +493,13 @@ Edit `admin-dashboard/public/index.html` CSS variables:
 </div>
 ```
 
-2. Add navigation button:
+1. Add navigation button:
 
 ```html
 <button class="nav-item" onclick="switchPage('newpage')">📄 New Page</button>
 ```
 
-3. Add load function:
+1. Add load function:
 
 ```javascript
 if (page === 'newpage') loadNewPage();

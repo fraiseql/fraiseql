@@ -211,19 +211,19 @@ def test_pattern_regex():
 
 **Focus**: Specialized PostgreSQL operators
 
-5. **Array Operators** (1 day)
+1. **Array Operators** (1 day)
    - Add 20 tests for array operations
    - Test containment, overlap, indexing
 
-6. **Coordinate Operators** (1 day)
+2. **Coordinate Operators** (1 day)
    - Add 30 tests for spatial operations
    - Test distance, bounding box, within radius
 
-7. **JSONB & Path Operators** (.5 day)
+3. **JSONB & Path Operators** (.5 day)
    - Add 15 tests for nested paths
    - Test deep extraction, type casting
 
-8. **MAC Address Operators** (.5 day)
+4. **MAC Address Operators** (.5 day)
    - Add 15 tests for MAC operations
 
 **Deliverable**: Coverage increases from 70% → 80%, all PostgreSQL features tested
@@ -234,12 +234,12 @@ def test_pattern_regex():
 
 **Focus**: Robustness and production readiness
 
-9. **Edge Cases** (1 day)
+1. **Edge Cases** (1 day)
    - Boundary conditions (empty arrays, NULL, very long strings)
    - Unicode and special characters
    - Large value sets (1000+ items in IN clause)
 
-10. **Integration Tests** (1 day)
+2. **Integration Tests** (1 day)
     - Operator combinations (AND, OR with complex operators)
     - Cross-strategy interactions
     - Performance regression tests
@@ -413,19 +413,19 @@ class TestOperatorEdgeCases:
 
 ### Short Term (Next Sprint)
 
-3. **Add Priority 2 tests** (Array, Coordinate, JSONB, MAC)
+1. **Add Priority 2 tests** (Array, Coordinate, JSONB, MAC)
    - Target: 80% coverage
    - Time: 2-3 days
    - Tests: +80 tests
 
 ### Medium Term (Following Sprint)
 
-4. **Add Priority 3 tests** (Edge cases, integration)
+1. **Add Priority 3 tests** (Edge cases, integration)
    - Target: 90% coverage
    - Time: 2 days
    - Tests: +60 tests
 
-5. **Performance testing**
+2. **Performance testing**
    - Benchmark operator performance
    - Identify optimization opportunities
    - Test with realistic data volumes

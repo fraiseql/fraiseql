@@ -116,6 +116,7 @@ db = PsycopgRepository(
 ```
 
 **Parameters**:
+
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | pool | AsyncConnectionPool | Yes | Connection pool instance |
@@ -138,6 +139,7 @@ async def select_from_json_view(
 ```
 
 **Parameters**:
+
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | tenant_id | UUID | Yes | Tenant identifier for multi-tenant filtering |
@@ -321,6 +323,7 @@ async def fetch_one(
 ```
 
 **Parameters**:
+
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | query | Composed | Yes | Psycopg Composed SQL query |
@@ -362,6 +365,7 @@ async def fetch_all(
 ```
 
 **Parameters**:
+
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | query | Composed | Yes | Psycopg Composed SQL query |
@@ -455,6 +459,7 @@ class QueryOptions:
 ```
 
 **Fields**:
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | aggregations | dict[str, str] | None | None | Aggregation functions (SUM, AVG, COUNT, MIN, MAX) |
@@ -819,6 +824,7 @@ class PaginationInput:
 ```
 
 **Fields**:
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | limit | int | None | None | Maximum number of results (default: 250) |

@@ -17,6 +17,7 @@ This document tracks known security advisories in FraiseQL v2's dependency tree 
 - **Workaround**: Use PostgreSQL (primary recommended database) instead of MySQL
 
 **Rationale**:
+
 - FraiseQL prioritizes PostgreSQL as primary database backend
 - MySQL support is secondary and timing attacks during initial SSL negotiation are low-risk in most deployments
 - No fixed version available upstream; would require sqlx major version update
@@ -69,14 +70,17 @@ This document tracks known security advisories in FraiseQL v2's dependency tree 
 ## Remediation Roadmap
 
 ### Short-term (v2.0.0-beta.1)
+
 - [ ] Update `testcontainers` to latest version
 - [ ] Document MySQL security recommendations in deployment guide
 
 ### Medium-term (v2.0.1)
+
 - [ ] Monitor and update `instant` when `notify` crate provides fix
 - [ ] Update `rustls-pemfile` when rustls ecosystem stabilizes
 
 ### Long-term (v3.0.0+)
+
 - [ ] Consider removing SQL Server support if `tiberius`/`rustls-pemfile` ecosystem remains unstable
 - [ ] Evaluate alternatives to AWS SDK if `lru` soundness remains unresolved
 
@@ -94,6 +98,7 @@ This document tracks known security advisories in FraiseQL v2's dependency tree 
 ### Reporting Security Issues
 
 For security vulnerabilities in FraiseQL itself, please:
+
 1. **DO NOT** open a public GitHub issue
 2. Email security report to: security@fraiseql.dev
 3. Allow 7-10 days for response and coordinated disclosure

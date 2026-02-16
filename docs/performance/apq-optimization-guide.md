@@ -45,8 +45,8 @@ query MyQuery($id: ID!) {
 **Performance Stack:**
 
 - Base GraphQL: 100ms average response
-- + APQ: 20-80ms faster (eliminates parsing)
-- + TurboRouter: Additional 2-3x speedup (bypasses GraphQL entirely)
+- - APQ: 20-80ms faster (eliminates parsing)
+- - TurboRouter: Additional 2-3x speedup (bypasses GraphQL entirely)
 - **Total**: Up to 6-9x faster for registered queries
 
 ### Performance Impact

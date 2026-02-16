@@ -739,14 +739,14 @@ app = create_fraiseql_app(
 )
 ```
 
-2. FraiseQL automatically executes before each database operation:
+1. FraiseQL automatically executes before each database operation:
 
 ```sql
 SET LOCAL app.tenant_id = '<tenant_id_from_context>';
 SET LOCAL app.contact_id = '<contact_id_from_context>';
 ```
 
-3. Your PostgreSQL functions can access these variables:
+1. Your PostgreSQL functions can access these variables:
 
 ```sql
 SELECT current_setting('app.tenant_id')::uuid;

@@ -292,7 +292,7 @@ rule_files:
   - 'prometheus.rules.yml'
 ```
 
-3. Configure AlertManager (`alertmanager.yml`):
+1. Configure AlertManager (`alertmanager.yml`):
 
 ```yaml
 global:

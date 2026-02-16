@@ -189,13 +189,13 @@ if (cascade) {
 psql -f schema.sql
 ```
 
-2. Run the application:
+1. Run the application:
 
 ```bash
 python main.py
 ```
 
-3. Test the mutation:
+1. Test the mutation:
 
 ```graphql
 mutation CreatePost($input: CreatePostInput!) {
