@@ -47,7 +47,7 @@ impl OneOfValidator {
                     present_count,
                     if present_count == 1 { "was" } else { "were" }
                 ),
-                path: Some(field_path.to_string()),
+                path:    Some(field_path.to_string()),
             });
         }
 
@@ -84,7 +84,7 @@ impl AnyOfValidator {
         if !has_any {
             return Err(FraiseQLError::Validation {
                 message: format!("At least one of [{}] must be provided", field_names.join(", ")),
-                path: Some(field_path.to_string()),
+                path:    Some(field_path.to_string()),
             });
         }
 
@@ -138,7 +138,7 @@ impl ConditionalRequiredValidator {
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
-                        path: Some(field_path.to_string()),
+                        path:    Some(field_path.to_string()),
                     });
                 }
             }
@@ -195,7 +195,7 @@ impl RequiredIfAbsentValidator {
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         ),
-                        path: Some(field_path.to_string()),
+                        path:    Some(field_path.to_string()),
                     });
                 }
             }

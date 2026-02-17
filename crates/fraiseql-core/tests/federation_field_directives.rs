@@ -20,13 +20,13 @@ fn test_field_directive_requires_storage() {
     // THEN: @requires should be available and populated
 
     let mut user_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec![],
         // NEW: field_directives will be added in GREEN phase
         field_directives: std::collections::HashMap::new(),
@@ -35,7 +35,7 @@ fn test_field_directive_requires_storage() {
     // Simulate adding a @requires directive to the "orders" field
     let mut orders_directives = FieldFederationDirectives::default();
     orders_directives.requires.push(FieldPathSelection {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         typename: "User".to_string(),
     });
 
@@ -62,13 +62,13 @@ fn test_field_directive_provides_storage() {
     // THEN: @provides should be available and populated
 
     let mut order_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["total".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["total".to_string()],
         shareable_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
@@ -76,7 +76,7 @@ fn test_field_directive_provides_storage() {
     // Simulate adding a @provides directive to the "shippingEstimate" field
     let mut shipping_directives = FieldFederationDirectives::default();
     shipping_directives.provides.push(FieldPathSelection {
-        path: vec!["weight".to_string()],
+        path:     vec!["weight".to_string()],
         typename: "Product".to_string(),
     });
 
@@ -105,13 +105,13 @@ fn test_field_directive_shareable_flag() {
     // THEN: shareable flag should be true
 
     let mut product_type = FederatedType {
-        name: "Product".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Product".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec!["name".to_string()],
         field_directives: std::collections::HashMap::new(),
     };
@@ -140,13 +140,13 @@ fn test_field_directive_external_flag() {
     // THEN: external flag should be true
 
     let mut order_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["total".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["total".to_string()],
         shareable_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
@@ -179,13 +179,13 @@ fn test_field_directive_nested_requires_path() {
     // THEN: Path should be parsed as ["user", "email"]
 
     let mut order_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec![],
+        is_extends:       true,
+        external_fields:  vec![],
         shareable_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
@@ -193,7 +193,7 @@ fn test_field_directive_nested_requires_path() {
     // Simulate adding a @requires directive with nested path
     let mut pricing_directives = FieldFederationDirectives::default();
     pricing_directives.requires.push(FieldPathSelection {
-        path: vec!["user".to_string(), "email".to_string()],
+        path:     vec!["user".to_string(), "email".to_string()],
         typename: "User".to_string(),
     });
 
@@ -223,13 +223,13 @@ fn test_field_directive_multiple_directives_on_field() {
     // THEN: All directives should be stored and accessible
 
     let mut order_type = FederatedType {
-        name: "Order".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "Order".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: vec!["items".to_string()],
+        is_extends:       true,
+        external_fields:  vec!["items".to_string()],
         shareable_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
@@ -237,11 +237,11 @@ fn test_field_directive_multiple_directives_on_field() {
     // Simulate field with @requires + @provides + @shareable
     let mut estimate_directives = FieldFederationDirectives::default();
     estimate_directives.requires.push(FieldPathSelection {
-        path: vec!["items".to_string()],
+        path:     vec!["items".to_string()],
         typename: "Order".to_string(),
     });
     estimate_directives.provides.push(FieldPathSelection {
-        path: vec!["weight".to_string()],
+        path:     vec!["weight".to_string()],
         typename: "Shipment".to_string(),
     });
     estimate_directives.shareable = true;
@@ -272,13 +272,13 @@ fn test_field_directives_multiple_fields() {
     // THEN: Each field's directives should be independent
 
     let mut user_type = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:             "User".to_string(),
+        keys:             vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
+        is_extends:       false,
+        external_fields:  vec![],
         shareable_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
@@ -286,7 +286,7 @@ fn test_field_directives_multiple_fields() {
     // Field 1: orders with @requires
     let mut orders_directives = FieldFederationDirectives::default();
     orders_directives.requires.push(FieldPathSelection {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         typename: "User".to_string(),
     });
     user_type.field_directives.insert("orders".to_string(), orders_directives);

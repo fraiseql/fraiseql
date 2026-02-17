@@ -153,11 +153,11 @@ impl RbacDbBackend {
 
         // In production, this would INSERT into permissions table
         Ok(PermissionDto {
-            id: perm_id.to_string(),
-            resource: resource.to_string(),
-            action: action.to_string(),
+            id:          perm_id.to_string(),
+            resource:    resource.to_string(),
+            action:      action.to_string(),
             description: description.map(String::from),
-            created_at: now,
+            created_at:  now,
         })
     }
 
@@ -181,9 +181,9 @@ impl RbacDbBackend {
 
         // In production, this would INSERT into user_roles table
         Ok(UserRoleDto {
-            user_id: user_id.to_string(),
-            role_id: role_id.to_string(),
-            tenant_id: tenant_uuid.map(|u| u.to_string()),
+            user_id:     user_id.to_string(),
+            role_id:     role_id.to_string(),
+            tenant_id:   tenant_uuid.map(|u| u.to_string()),
             assigned_at: now,
         })
     }

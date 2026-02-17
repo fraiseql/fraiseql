@@ -25,7 +25,7 @@ use crate::auth::{
 /// ```
 #[derive(Debug)]
 pub struct LogtoOAuth {
-    oidc: OidcProvider,
+    oidc:     OidcProvider,
     endpoint: String,
 }
 

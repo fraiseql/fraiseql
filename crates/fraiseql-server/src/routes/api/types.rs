@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 /// Standard API error response.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApiError {
-    pub error: String,
-    pub code: String,
+    pub error:   String,
+    pub code:    String,
     pub details: Option<String>,
 }
 
@@ -21,8 +21,8 @@ impl ApiError {
     /// Create a new API error with error message and code.
     pub fn new(error: impl Into<String>, code: impl Into<String>) -> Self {
         Self {
-            error: error.into(),
-            code: code.into(),
+            error:   error.into(),
+            code:    code.into(),
             details: None,
         }
     }
@@ -83,7 +83,7 @@ impl IntoResponse for ApiError {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
     pub status: String,
-    pub data: T,
+    pub data:   T,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -129,11 +129,11 @@ impl SanitizedConfig {
     /// - API keys and tokens (not included)
     pub fn from_config(config: &crate::config::ServerConfig) -> Self {
         Self {
-            port: config.port,
-            host: config.host.clone(),
-            workers: config.workers,
+            port:        config.port,
+            host:        config.host.clone(),
+            workers:     config.workers,
             tls_enabled: config.tls.is_some(),
-            sanitized: true,
+            sanitized:   true,
         }
     }
 

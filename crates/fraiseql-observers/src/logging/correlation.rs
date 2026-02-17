@@ -103,13 +103,13 @@ pub fn clear_trace_id_context() {
 #[derive(Clone, Debug)]
 pub struct TraceContext {
     /// Trace ID from parent span
-    pub trace_id: String,
+    pub trace_id:       String,
     /// Span ID of current span
-    pub span_id: String,
+    pub span_id:        String,
     /// Parent span ID (if any)
     pub parent_span_id: Option<String>,
     /// Sampling decision (0=not sampled, 1=sampled)
-    pub sampled: bool,
+    pub sampled:        bool,
 }
 
 impl TraceContext {

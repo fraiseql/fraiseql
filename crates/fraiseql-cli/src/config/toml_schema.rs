@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct DomainDiscovery {
     /// Enable automatic domain discovery
-    pub enabled: bool,
+    pub enabled:  bool,
     /// Root directory containing domains
     pub root_dir: String,
 }
@@ -98,9 +98,9 @@ impl DomainDiscovery {
 #[serde(default)]
 pub struct SchemaIncludes {
     /// Glob patterns for type files
-    pub types: Vec<String>,
+    pub types:     Vec<String>,
     /// Glob patterns for query files
-    pub queries: Vec<String>,
+    pub queries:   Vec<String>,
     /// Glob patterns for mutation files
     pub mutations: Vec<String>,
 }
@@ -175,8 +175,8 @@ impl SchemaIncludes {
         mutation_paths.dedup();
 
         Ok(ResolvedIncludes {
-            types: type_paths,
-            queries: query_paths,
+            types:     type_paths,
+            queries:   query_paths,
             mutations: mutation_paths,
         })
     }
@@ -186,9 +186,9 @@ impl SchemaIncludes {
 #[derive(Debug, Clone)]
 pub struct ResolvedIncludes {
     /// Resolved type file paths
-    pub types: Vec<PathBuf>,
+    pub types:     Vec<PathBuf>,
     /// Resolved query file paths
-    pub queries: Vec<PathBuf>,
+    pub queries:   Vec<PathBuf>,
     /// Resolved mutation file paths
     pub mutations: Vec<PathBuf>,
 }
@@ -255,11 +255,11 @@ pub struct TomlSchema {
 #[serde(default)]
 pub struct SchemaMetadata {
     /// Schema name
-    pub name: String,
+    pub name:            String,
     /// Schema version
-    pub version: String,
+    pub version:         String,
     /// Optional schema description
-    pub description: Option<String>,
+    pub description:     Option<String>,
     /// Target database (postgresql, mysql, sqlite, sqlserver)
     pub database_target: String,
 }
@@ -267,9 +267,9 @@ pub struct SchemaMetadata {
 impl Default for SchemaMetadata {
     fn default() -> Self {
         Self {
-            name: "myapp".to_string(),
-            version: "1.0.0".to_string(),
-            description: None,
+            name:            "myapp".to_string(),
+            version:         "1.0.0".to_string(),
+            description:     None,
             database_target: "postgresql".to_string(),
         }
     }
@@ -280,11 +280,11 @@ impl Default for SchemaMetadata {
 #[serde(default)]
 pub struct DatabaseConfig {
     /// Database connection URL
-    pub url: String,
+    pub url:             String,
     /// Connection pool size
-    pub pool_size: u32,
+    pub pool_size:       u32,
     /// SSL mode (disable, allow, prefer, require)
-    pub ssl_mode: String,
+    pub ssl_mode:        String,
     /// Connection timeout in seconds
     pub timeout_seconds: u32,
 }
@@ -292,9 +292,9 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: "postgresql://localhost/mydb".to_string(),
-            pool_size: 10,
-            ssl_mode: "prefer".to_string(),
+            url:             "postgresql://localhost/mydb".to_string(),
+            pool_size:       10,
+            ssl_mode:        "prefer".to_string(),
             timeout_seconds: 30,
         }
     }
@@ -305,19 +305,19 @@ impl Default for DatabaseConfig {
 #[serde(default)]
 pub struct TypeDefinition {
     /// SQL source table or view
-    pub sql_source: String,
+    pub sql_source:  String,
     /// Human-readable type description
     pub description: Option<String>,
     /// Field definitions
-    pub fields: BTreeMap<String, FieldDefinition>,
+    pub fields:      BTreeMap<String, FieldDefinition>,
 }
 
 impl Default for TypeDefinition {
     fn default() -> Self {
         Self {
-            sql_source: "v_entity".to_string(),
+            sql_source:  "v_entity".to_string(),
             description: None,
-            fields: BTreeMap::new(),
+            fields:      BTreeMap::new(),
         }
     }
 }
@@ -327,10 +327,10 @@ impl Default for TypeDefinition {
 pub struct FieldDefinition {
     /// GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)
     #[serde(rename = "type")]
-    pub field_type: String,
+    pub field_type:  String,
     /// Whether field can be null
     #[serde(default)]
-    pub nullable: bool,
+    pub nullable:    bool,
     /// Field description
     pub description: Option<String>,
 }
@@ -340,26 +340,26 @@ pub struct FieldDefinition {
 #[serde(default)]
 pub struct QueryDefinition {
     /// Return type name
-    pub return_type: String,
+    pub return_type:  String,
     /// Whether query returns an array
     #[serde(default)]
     pub return_array: bool,
     /// SQL source for the query
-    pub sql_source: String,
+    pub sql_source:   String,
     /// Query description
-    pub description: Option<String>,
+    pub description:  Option<String>,
     /// Query arguments
-    pub args: Vec<ArgumentDefinition>,
+    pub args:         Vec<ArgumentDefinition>,
 }
 
 impl Default for QueryDefinition {
     fn default() -> Self {
         Self {
-            return_type: "String".to_string(),
+            return_type:  "String".to_string(),
             return_array: false,
-            sql_source: "v_entity".to_string(),
-            description: None,
-            args: vec![],
+            sql_source:   "v_entity".to_string(),
+            description:  None,
+            args:         vec![],
         }
     }
 }
@@ -371,23 +371,23 @@ pub struct MutationDefinition {
     /// Return type name
     pub return_type: String,
     /// SQL function or procedure source
-    pub sql_source: String,
+    pub sql_source:  String,
     /// Operation type (CREATE, UPDATE, DELETE)
-    pub operation: String,
+    pub operation:   String,
     /// Mutation description
     pub description: Option<String>,
     /// Mutation arguments
-    pub args: Vec<ArgumentDefinition>,
+    pub args:        Vec<ArgumentDefinition>,
 }
 
 impl Default for MutationDefinition {
     fn default() -> Self {
         Self {
             return_type: "String".to_string(),
-            sql_source: "fn_operation".to_string(),
-            operation: "CREATE".to_string(),
+            sql_source:  "fn_operation".to_string(),
+            operation:   "CREATE".to_string(),
             description: None,
-            args: vec![],
+            args:        vec![],
         }
     }
 }
@@ -396,15 +396,15 @@ impl Default for MutationDefinition {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ArgumentDefinition {
     /// Argument name
-    pub name: String,
+    pub name:        String,
     /// Argument type
     #[serde(rename = "type")]
-    pub arg_type: String,
+    pub arg_type:    String,
     /// Whether argument is required
     #[serde(default)]
-    pub required: bool,
+    pub required:    bool,
     /// Default value if not provided
-    pub default: Option<serde_json::Value>,
+    pub default:     Option<serde_json::Value>,
     /// Argument description
     pub description: Option<String>,
 }
@@ -415,19 +415,19 @@ pub struct ArgumentDefinition {
 pub struct FederationConfig {
     /// Enable Apollo federation
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:        bool,
     /// Apollo federation version
     pub apollo_version: Option<u32>,
     /// Federated entities
-    pub entities: Vec<FederationEntity>,
+    pub entities:       Vec<FederationEntity>,
 }
 
 impl Default for FederationConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled:        false,
             apollo_version: Some(2),
-            entities: vec![],
+            entities:       vec![],
         }
     }
 }
@@ -436,7 +436,7 @@ impl Default for FederationConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FederationEntity {
     /// Entity name
-    pub name: String,
+    pub name:       String,
     /// Key fields for entity resolution
     pub key_fields: Vec<String>,
 }
@@ -448,23 +448,23 @@ pub struct SecuritySettings {
     /// Default policy to apply if none specified
     pub default_policy: Option<String>,
     /// Custom authorization rules
-    pub rules: Vec<AuthorizationRule>,
+    pub rules:          Vec<AuthorizationRule>,
     /// Authorization policies
-    pub policies: Vec<AuthorizationPolicy>,
+    pub policies:       Vec<AuthorizationPolicy>,
     /// Field-level authorization rules
-    pub field_auth: Vec<FieldAuthRule>,
+    pub field_auth:     Vec<FieldAuthRule>,
     /// Enterprise security configuration
-    pub enterprise: EnterpriseSecurityConfig,
+    pub enterprise:     EnterpriseSecurityConfig,
 }
 
 impl Default for SecuritySettings {
     fn default() -> Self {
         Self {
             default_policy: Some("authenticated".to_string()),
-            rules: vec![],
-            policies: vec![],
-            field_auth: vec![],
-            enterprise: EnterpriseSecurityConfig::default(),
+            rules:          vec![],
+            policies:       vec![],
+            field_auth:     vec![],
+            enterprise:     EnterpriseSecurityConfig::default(),
         }
     }
 }
@@ -473,14 +473,14 @@ impl Default for SecuritySettings {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthorizationRule {
     /// Rule name
-    pub name: String,
+    pub name:              String,
     /// Rule expression or condition
-    pub rule: String,
+    pub rule:              String,
     /// Rule description
-    pub description: Option<String>,
+    pub description:       Option<String>,
     /// Whether rule result can be cached
     #[serde(default)]
-    pub cacheable: bool,
+    pub cacheable:         bool,
     /// Cache time-to-live in seconds
     pub cache_ttl_seconds: Option<u32>,
 }
@@ -489,21 +489,21 @@ pub struct AuthorizationRule {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthorizationPolicy {
     /// Policy name
-    pub name: String,
+    pub name:              String,
     /// Policy type (RBAC, ABAC, CUSTOM, HYBRID)
     #[serde(rename = "type")]
-    pub policy_type: String,
+    pub policy_type:       String,
     /// Optional rule expression
-    pub rule: Option<String>,
+    pub rule:              Option<String>,
     /// Roles this policy applies to
-    pub roles: Vec<String>,
+    pub roles:             Vec<String>,
     /// Combination strategy (ANY, ALL, EXACTLY)
-    pub strategy: Option<String>,
+    pub strategy:          Option<String>,
     /// Attributes for attribute-based access control
     #[serde(default)]
-    pub attributes: Vec<String>,
+    pub attributes:        Vec<String>,
     /// Policy description
-    pub description: Option<String>,
+    pub description:       Option<String>,
     /// Cache time-to-live in seconds
     pub cache_ttl_seconds: Option<u32>,
 }
@@ -512,11 +512,11 @@ pub struct AuthorizationPolicy {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FieldAuthRule {
     /// Type name this rule applies to
-    pub type_name: String,
+    pub type_name:  String,
     /// Field name this rule applies to
     pub field_name: String,
     /// Policy to enforce
-    pub policy: String,
+    pub policy:     String,
 }
 
 /// Enterprise security configuration
@@ -524,40 +524,40 @@ pub struct FieldAuthRule {
 #[serde(default)]
 pub struct EnterpriseSecurityConfig {
     /// Enable rate limiting
-    pub rate_limiting_enabled: bool,
+    pub rate_limiting_enabled:        bool,
     /// Max requests per auth endpoint
-    pub auth_endpoint_max_requests: u32,
+    pub auth_endpoint_max_requests:   u32,
     /// Rate limit window in seconds
     pub auth_endpoint_window_seconds: u64,
     /// Enable audit logging
-    pub audit_logging_enabled: bool,
+    pub audit_logging_enabled:        bool,
     /// Audit log backend service
-    pub audit_log_backend: String,
+    pub audit_log_backend:            String,
     /// Audit log retention in days
-    pub audit_retention_days: u32,
+    pub audit_retention_days:         u32,
     /// Enable error sanitization
-    pub error_sanitization: bool,
+    pub error_sanitization:           bool,
     /// Hide implementation details in errors
-    pub hide_implementation_details: bool,
+    pub hide_implementation_details:  bool,
     /// Enable constant-time token comparison
-    pub constant_time_comparison: bool,
+    pub constant_time_comparison:     bool,
     /// Enable PKCE for OAuth flows
-    pub pkce_enabled: bool,
+    pub pkce_enabled:                 bool,
 }
 
 impl Default for EnterpriseSecurityConfig {
     fn default() -> Self {
         Self {
-            rate_limiting_enabled: true,
-            auth_endpoint_max_requests: 100,
+            rate_limiting_enabled:        true,
+            auth_endpoint_max_requests:   100,
             auth_endpoint_window_seconds: 60,
-            audit_logging_enabled: true,
-            audit_log_backend: "postgresql".to_string(),
-            audit_retention_days: 365,
-            error_sanitization: true,
-            hide_implementation_details: true,
-            constant_time_comparison: true,
-            pkce_enabled: true,
+            audit_logging_enabled:        true,
+            audit_log_backend:            "postgresql".to_string(),
+            audit_retention_days:         365,
+            error_sanitization:           true,
+            hide_implementation_details:  true,
+            constant_time_comparison:     true,
+            pkce_enabled:                 true,
         }
     }
 }
@@ -568,22 +568,22 @@ impl Default for EnterpriseSecurityConfig {
 pub struct ObserversConfig {
     /// Enable observers system
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:   bool,
     /// Backend service (redis, nats, postgresql, mysql, in-memory)
-    pub backend: String,
+    pub backend:   String,
     /// Redis connection URL
     pub redis_url: Option<String>,
     /// Event handlers
-    pub handlers: Vec<EventHandler>,
+    pub handlers:  Vec<EventHandler>,
 }
 
 impl Default for ObserversConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            backend: "redis".to_string(),
+            enabled:   false,
+            backend:   "redis".to_string(),
             redis_url: None,
-            handlers: vec![],
+            handlers:  vec![],
         }
     }
 }
@@ -592,19 +592,19 @@ impl Default for ObserversConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EventHandler {
     /// Handler name
-    pub name: String,
+    pub name:           String,
     /// Event type to handle
-    pub event: String,
+    pub event:          String,
     /// Action to perform (slack, email, sms, webhook, push, etc.)
-    pub action: String,
+    pub action:         String,
     /// Webhook URL for webhook actions
-    pub webhook_url: Option<String>,
+    pub webhook_url:    Option<String>,
     /// Retry strategy
     pub retry_strategy: Option<String>,
     /// Maximum retry attempts
-    pub max_retries: Option<u32>,
+    pub max_retries:    Option<u32>,
     /// Handler description
-    pub description: Option<String>,
+    pub description:    Option<String>,
 }
 
 /// Caching configuration
@@ -613,22 +613,22 @@ pub struct EventHandler {
 pub struct CachingConfig {
     /// Enable caching
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:   bool,
     /// Cache backend (redis, memory, postgresql)
-    pub backend: String,
+    pub backend:   String,
     /// Redis connection URL
     pub redis_url: Option<String>,
     /// Cache invalidation rules
-    pub rules: Vec<CacheRule>,
+    pub rules:     Vec<CacheRule>,
 }
 
 impl Default for CachingConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            backend: "redis".to_string(),
+            enabled:   false,
+            backend:   "redis".to_string(),
             redis_url: None,
-            rules: vec![],
+            rules:     vec![],
         }
     }
 }
@@ -637,9 +637,9 @@ impl Default for CachingConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CacheRule {
     /// Query pattern to cache
-    pub query: String,
+    pub query:                 String,
     /// Time-to-live in seconds
-    pub ttl_seconds: u32,
+    pub ttl_seconds:           u32,
     /// Events that trigger cache invalidation
     pub invalidation_triggers: Vec<String>,
 }
@@ -659,9 +659,9 @@ pub struct AnalyticsConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AnalyticsQuery {
     /// Query name
-    pub name: String,
+    pub name:        String,
     /// SQL source for the query
-    pub sql_source: String,
+    pub sql_source:  String,
     /// Query description
     pub description: Option<String>,
 }
@@ -671,37 +671,37 @@ pub struct AnalyticsQuery {
 #[serde(default)]
 pub struct ObservabilityConfig {
     /// Enable Prometheus metrics
-    pub prometheus_enabled: bool,
+    pub prometheus_enabled:            bool,
     /// Port for Prometheus metrics endpoint
-    pub prometheus_port: u16,
+    pub prometheus_port:               u16,
     /// Enable OpenTelemetry tracing
-    pub otel_enabled: bool,
+    pub otel_enabled:                  bool,
     /// OpenTelemetry exporter type
-    pub otel_exporter: String,
+    pub otel_exporter:                 String,
     /// Jaeger endpoint for trace collection
-    pub otel_jaeger_endpoint: Option<String>,
+    pub otel_jaeger_endpoint:          Option<String>,
     /// Enable health check endpoint
-    pub health_check_enabled: bool,
+    pub health_check_enabled:          bool,
     /// Health check interval in seconds
     pub health_check_interval_seconds: u32,
     /// Log level threshold
-    pub log_level: String,
+    pub log_level:                     String,
     /// Log output format (json, text)
-    pub log_format: String,
+    pub log_format:                    String,
 }
 
 impl Default for ObservabilityConfig {
     fn default() -> Self {
         Self {
-            prometheus_enabled: false,
-            prometheus_port: 9090,
-            otel_enabled: false,
-            otel_exporter: "jaeger".to_string(),
-            otel_jaeger_endpoint: None,
-            health_check_enabled: true,
+            prometheus_enabled:            false,
+            prometheus_port:               9090,
+            otel_enabled:                  false,
+            otel_exporter:                 "jaeger".to_string(),
+            otel_jaeger_endpoint:          None,
+            health_check_enabled:          true,
             health_check_interval_seconds: 30,
-            log_level: "info".to_string(),
-            log_format: "json".to_string(),
+            log_level:                     "info".to_string(),
+            log_format:                    "json".to_string(),
         }
     }
 }

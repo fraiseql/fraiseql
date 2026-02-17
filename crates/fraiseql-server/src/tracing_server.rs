@@ -36,12 +36,12 @@ impl TraceContext {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            trace_id: generate_trace_id(),
-            span_id: generate_span_id(),
+            trace_id:       generate_trace_id(),
+            span_id:        generate_span_id(),
             parent_span_id: None,
-            sampled: 1,
-            trace_flags: 0x01,
-            baggage: HashMap::new(),
+            sampled:        1,
+            trace_flags:    0x01,
+            baggage:        HashMap::new(),
         }
     }
 
@@ -49,12 +49,12 @@ impl TraceContext {
     #[must_use]
     pub fn from_request_id(request_id: RequestId) -> Self {
         Self {
-            trace_id: request_id.to_string(),
-            span_id: generate_span_id(),
+            trace_id:       request_id.to_string(),
+            span_id:        generate_span_id(),
             parent_span_id: None,
-            sampled: 1,
-            trace_flags: 0x01,
-            baggage: HashMap::new(),
+            sampled:        1,
+            trace_flags:    0x01,
+            baggage:        HashMap::new(),
         }
     }
 
@@ -63,12 +63,12 @@ impl TraceContext {
     pub fn child_span(&self) -> Self {
         // Don't modify baggage in child
         Self {
-            trace_id: self.trace_id.clone(),
-            span_id: generate_span_id(),
+            trace_id:       self.trace_id.clone(),
+            span_id:        generate_span_id(),
             parent_span_id: Some(self.span_id.clone()),
-            sampled: self.sampled,
-            trace_flags: self.trace_flags,
-            baggage: self.baggage.clone(),
+            sampled:        self.sampled,
+            trace_flags:    self.trace_flags,
+            baggage:        self.baggage.clone(),
         }
     }
 

@@ -7,14 +7,14 @@ fn test_explain_response_structure() {
     use fraiseql_server::routes::api::query::{ComplexityInfo, ExplainResponse};
 
     let response = ExplainResponse {
-        query: "query { users { id } }".to_string(),
-        sql: Some("SELECT id FROM users".to_string()),
-        complexity: ComplexityInfo {
-            depth: 2,
+        query:          "query { users { id } }".to_string(),
+        sql:            Some("SELECT id FROM users".to_string()),
+        complexity:     ComplexityInfo {
+            depth:       2,
             field_count: 2,
-            score: 40,
+            score:       40,
         },
-        warnings: vec!["depth > 1".to_string()],
+        warnings:       vec!["depth > 1".to_string()],
         estimated_cost: 100,
     };
 
@@ -32,7 +32,7 @@ fn test_validate_response_structure() {
     use fraiseql_server::routes::api::query::ValidateResponse;
 
     let valid_response = ValidateResponse {
-        valid: true,
+        valid:  true,
         errors: vec![],
     };
 
@@ -40,7 +40,7 @@ fn test_validate_response_structure() {
     assert!(valid_response.errors.is_empty());
 
     let invalid_response = ValidateResponse {
-        valid: false,
+        valid:  false,
         errors: vec!["Syntax error at line 1".to_string()],
     };
 
@@ -53,9 +53,9 @@ fn test_stats_response_structure() {
     use fraiseql_server::routes::api::query::StatsResponse;
 
     let stats = StatsResponse {
-        total_queries: 1000,
+        total_queries:      1000,
         successful_queries: 950,
-        failed_queries: 50,
+        failed_queries:     50,
         average_latency_ms: 45.5,
     };
 
@@ -153,14 +153,14 @@ fn test_explain_response_json_serialization() {
     use fraiseql_server::routes::api::query::{ComplexityInfo, ExplainResponse};
 
     let response = ExplainResponse {
-        query: "test".to_string(),
-        sql: Some("SELECT *".to_string()),
-        complexity: ComplexityInfo {
-            depth: 1,
+        query:          "test".to_string(),
+        sql:            Some("SELECT *".to_string()),
+        complexity:     ComplexityInfo {
+            depth:       1,
             field_count: 1,
-            score: 1,
+            score:       1,
         },
-        warnings: vec![],
+        warnings:       vec![],
         estimated_cost: 100,
     };
 
@@ -184,7 +184,7 @@ fn test_validate_response_json_serialization() {
     use fraiseql_server::routes::api::query::ValidateResponse;
 
     let response = ValidateResponse {
-        valid: true,
+        valid:  true,
         errors: vec![],
     };
 
@@ -198,9 +198,9 @@ fn test_stats_response_json_serialization() {
     use fraiseql_server::routes::api::query::StatsResponse;
 
     let response = StatsResponse {
-        total_queries: 100,
+        total_queries:      100,
         successful_queries: 95,
-        failed_queries: 5,
+        failed_queries:     5,
         average_latency_ms: 42.5,
     };
 
@@ -282,14 +282,14 @@ fn test_api_response_wrapper() {
     use fraiseql_server::routes::api::{query::ExplainResponse, types::ApiResponse};
 
     let data = ExplainResponse {
-        query: "test".to_string(),
-        sql: None,
-        complexity: fraiseql_server::routes::api::query::ComplexityInfo {
-            depth: 1,
+        query:          "test".to_string(),
+        sql:            None,
+        complexity:     fraiseql_server::routes::api::query::ComplexityInfo {
+            depth:       1,
             field_count: 1,
-            score: 1,
+            score:       1,
         },
-        warnings: vec![],
+        warnings:       vec![],
         estimated_cost: 100,
     };
 

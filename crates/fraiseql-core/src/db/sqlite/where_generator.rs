@@ -425,9 +425,9 @@ mod tests {
     fn test_simple_equality() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -439,9 +439,9 @@ mod tests {
     fn test_icontains() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("example.com"),
+            value:    json!("example.com"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -453,9 +453,9 @@ mod tests {
     fn test_nested_path() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -468,14 +468,14 @@ mod tests {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
         ]);
 
@@ -491,9 +491,9 @@ mod tests {
     fn test_in_operator() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending"]),
+            value:    json!(["active", "pending"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
@@ -505,9 +505,9 @@ mod tests {
     fn test_is_null() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
@@ -518,9 +518,9 @@ mod tests {
     fn test_array_length() {
         let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::LenGt,
-            value: json!(0),
+            value:    json!(0),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();

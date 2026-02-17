@@ -90,73 +90,73 @@ mod harness {
 
     #[derive(Debug, Clone)]
     pub struct SagaStepDef {
-        pub subgraph: String,
-        pub mutation_type: MutationType,
-        pub typename: String,
-        pub mutation_name: String,
-        pub variables: Value,
-        pub behavior: StepBehavior,
+        pub subgraph:              String,
+        pub mutation_type:         MutationType,
+        pub typename:              String,
+        pub mutation_name:         String,
+        pub variables:             Value,
+        pub behavior:              StepBehavior,
         pub compensation_behavior: CompensationBehavior,
     }
 
     #[derive(Debug, Clone)]
     pub struct StoredSaga {
-        pub id: Uuid,
-        pub state: SagaState,
-        pub steps: Vec<StoredStep>,
-        pub created_at: Instant,
+        pub id:           Uuid,
+        pub state:        SagaState,
+        pub steps:        Vec<StoredStep>,
+        pub created_at:   Instant,
         pub completed_at: Option<Instant>,
     }
 
     #[derive(Debug, Clone)]
     pub struct StoredStep {
-        pub order: usize,
-        pub subgraph: String,
+        pub order:         usize,
+        pub subgraph:      String,
         pub mutation_type: MutationType,
-        pub typename: String,
+        pub typename:      String,
         pub mutation_name: String,
-        pub variables: Value,
-        pub state: StepState,
-        pub result: Option<Value>,
-        pub started_at: Option<Instant>,
-        pub completed_at: Option<Instant>,
+        pub variables:     Value,
+        pub state:         StepState,
+        pub result:        Option<Value>,
+        pub started_at:    Option<Instant>,
+        pub completed_at:  Option<Instant>,
     }
 
     #[derive(Debug, Clone)]
     pub struct CompensationExecution {
-        pub step_order: usize,
+        pub step_order:      usize,
         pub original_result: Option<Value>,
-        pub result: Result<Value, String>,
-        pub timestamp: Instant,
+        pub result:          Result<Value, String>,
+        pub timestamp:       Instant,
     }
 
     #[derive(Debug, Clone)]
     pub struct SagaResult {
-        pub saga_id: Uuid,
-        pub state: SagaState,
-        pub completed_steps: usize,
-        pub total_steps: usize,
-        pub error: Option<String>,
-        pub step_results: Vec<Option<Value>>,
+        pub saga_id:              Uuid,
+        pub state:                SagaState,
+        pub completed_steps:      usize,
+        pub total_steps:          usize,
+        pub error:                Option<String>,
+        pub step_results:         Vec<Option<Value>>,
         pub compensation_results: Vec<CompensationExecution>,
     }
 
     pub struct InMemorySagaStore {
-        sagas: Mutex<HashMap<Uuid, StoredSaga>>,
+        sagas:       Mutex<HashMap<Uuid, StoredSaga>>,
         transitions: Mutex<Vec<(Uuid, StateTransition)>>,
     }
 
     #[derive(Debug, Clone)]
     struct StateTransition {
-        from: SagaState,
-        to: SagaState,
+        from:      SagaState,
+        to:        SagaState,
         timestamp: Instant,
     }
 
     impl InMemorySagaStore {
         pub fn new() -> Self {
             Self {
-                sagas: Mutex::new(HashMap::new()),
+                sagas:       Mutex::new(HashMap::new()),
                 transitions: Mutex::new(Vec::new()),
             }
         }
@@ -184,8 +184,8 @@ mod harness {
             self.transitions.lock().unwrap().push((
                 id,
                 StateTransition {
-                    from: old_state,
-                    to: new_state,
+                    from:      old_state,
+                    to:        new_state,
                     timestamp: Instant::now(),
                 },
             ));
@@ -340,8 +340,8 @@ mod harness {
     }
 
     pub struct SagaOrchestrator {
-        pub store: InMemorySagaStore,
-        pub executor: MockStepExecutor,
+        pub store:       InMemorySagaStore,
+        pub executor:    MockStepExecutor,
         pub compensator: MockStepCompensator,
     }
 
@@ -368,16 +368,16 @@ mod harness {
                 .iter()
                 .enumerate()
                 .map(|(i, def)| StoredStep {
-                    order: i,
-                    subgraph: def.subgraph.clone(),
+                    order:         i,
+                    subgraph:      def.subgraph.clone(),
                     mutation_type: def.mutation_type.clone(),
-                    typename: def.typename.clone(),
+                    typename:      def.typename.clone(),
                     mutation_name: def.mutation_name.clone(),
-                    variables: def.variables.clone(),
-                    state: StepState::Pending,
-                    result: None,
-                    started_at: None,
-                    completed_at: None,
+                    variables:     def.variables.clone(),
+                    state:         StepState::Pending,
+                    result:        None,
+                    started_at:    None,
+                    completed_at:  None,
                 })
                 .collect();
 
@@ -387,10 +387,10 @@ mod harness {
             }
 
             self.store.save_saga(StoredSaga {
-                id: saga_id,
-                state: SagaState::Pending,
-                steps: stored_steps,
-                created_at: Instant::now(),
+                id:           saga_id,
+                state:        SagaState::Pending,
+                steps:        stored_steps,
+                created_at:   Instant::now(),
                 completed_at: None,
             });
 
@@ -456,10 +456,10 @@ mod harness {
                     match self.compensator.compensate(i, original_result) {
                         Ok(_) => {
                             compensation_results.push(CompensationExecution {
-                                step_order: i,
+                                step_order:      i,
                                 original_result: original_result.cloned(),
-                                result: Ok(json!({})),
-                                timestamp: Instant::now(),
+                                result:          Ok(json!({})),
+                                timestamp:       Instant::now(),
                             });
                         },
                         Err(_) => {
@@ -518,12 +518,12 @@ mod harness {
             for i in 0..count {
                 let idx = i % subgraphs.len();
                 self.steps.push(SagaStepDef {
-                    subgraph: subgraphs[idx].to_string(),
-                    mutation_type: MutationType::Create,
-                    typename: typenames[idx].to_string(),
-                    mutation_name: format!("create{}", typenames[idx]),
-                    variables: json!({ "id": format!("id-{i}"), "step": i }),
-                    behavior: StepBehavior::Succeed,
+                    subgraph:              subgraphs[idx].to_string(),
+                    mutation_type:         MutationType::Create,
+                    typename:              typenames[idx].to_string(),
+                    mutation_name:         format!("create{}", typenames[idx]),
+                    variables:             json!({ "id": format!("id-{i}"), "step": i }),
+                    behavior:              StepBehavior::Succeed,
                     compensation_behavior: CompensationBehavior::Succeed,
                 });
             }

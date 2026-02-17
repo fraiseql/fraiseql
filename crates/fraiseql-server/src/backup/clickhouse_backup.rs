@@ -12,7 +12,7 @@ pub struct ClickhouseBackupProvider {
     /// ClickHouse HTTP endpoint
     endpoint_url: String,
     /// Backup directory
-    backup_dir: String,
+    backup_dir:   String,
 }
 
 impl ClickhouseBackupProvider {
@@ -89,7 +89,7 @@ impl BackupProvider for ClickhouseBackupProvider {
 
     async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
         Err(BackupError::NotFound {
-            store: "clickhouse".to_string(),
+            store:     "clickhouse".to_string(),
             backup_id: backup_id.to_string(),
         })
     }
@@ -105,8 +105,8 @@ impl BackupProvider for ClickhouseBackupProvider {
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
         Ok(StorageUsage {
-            total_bytes: 0,
-            backup_count: 0,
+            total_bytes:             0,
+            backup_count:            0,
             oldest_backup_timestamp: None,
             newest_backup_timestamp: None,
         })

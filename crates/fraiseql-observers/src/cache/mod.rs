@@ -156,13 +156,13 @@ pub trait CacheBackendDyn: Send + Sync {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedActionResult {
     /// Type of action that was executed
-    pub action_type: String,
+    pub action_type:    String,
     /// Whether the action succeeded
-    pub success: bool,
+    pub success:        bool,
     /// Status message
-    pub message: String,
+    pub message:        String,
     /// Execution time in milliseconds
-    pub duration_ms: f64,
+    pub duration_ms:    f64,
     /// When this result was cached (Unix timestamp)
     pub cached_at_unix: i64,
 }
@@ -196,15 +196,15 @@ impl CachedActionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheStats {
     /// Total cache requests
-    pub total_requests: u64,
+    pub total_requests:      u64,
     /// Cache hits (result found and returned)
-    pub cache_hits: u64,
+    pub cache_hits:          u64,
     /// Cache misses (result not found, required execution)
-    pub cache_misses: u64,
+    pub cache_misses:        u64,
     /// Cache hit rate (0.0 - 1.0)
-    pub hit_rate: f64,
+    pub hit_rate:            f64,
     /// Average latency for cache hits (ms)
-    pub avg_hit_latency_ms: f64,
+    pub avg_hit_latency_ms:  f64,
     /// Average latency for cache misses (ms)
     pub avg_miss_latency_ms: f64,
 }
@@ -214,11 +214,11 @@ impl CacheStats {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            total_requests: 0,
-            cache_hits: 0,
-            cache_misses: 0,
-            hit_rate: 0.0,
-            avg_hit_latency_ms: 0.0,
+            total_requests:      0,
+            cache_hits:          0,
+            cache_misses:        0,
+            hit_rate:            0.0,
+            avg_hit_latency_ms:  0.0,
             avg_miss_latency_ms: 0.0,
         }
     }

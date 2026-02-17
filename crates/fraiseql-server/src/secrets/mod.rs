@@ -23,9 +23,9 @@ pub use schemas::{
 /// Secret manager combining cached and per-request encryption.
 pub struct SecretManager {
     /// Primary KMS provider
-    provider: Arc<dyn BaseKmsProvider>,
+    provider:       Arc<dyn BaseKmsProvider>,
     /// Cached data key for local encryption
-    cached_key: Arc<RwLock<Option<DataKeyPair>>>,
+    cached_key:     Arc<RwLock<Option<DataKeyPair>>>,
     /// Default key ID for KMS operations
     default_key_id: String,
     /// Context prefix for all encryption operations
@@ -309,7 +309,7 @@ mod tests {
             _key_id: &str,
         ) -> KmsResult<fraiseql_core::security::kms::base::KeyInfo> {
             Ok(fraiseql_core::security::kms::base::KeyInfo {
-                alias: Some("mock-key".to_string()),
+                alias:      Some("mock-key".to_string()),
                 created_at: 1_000_000,
             })
         }
@@ -319,10 +319,10 @@ mod tests {
             _key_id: &str,
         ) -> KmsResult<fraiseql_core::security::kms::base::RotationPolicyInfo> {
             Ok(fraiseql_core::security::kms::base::RotationPolicyInfo {
-                enabled: false,
+                enabled:              false,
                 rotation_period_days: 0,
-                last_rotation: None,
-                next_rotation: None,
+                last_rotation:        None,
+                next_rotation:        None,
             })
         }
     }

@@ -22,11 +22,11 @@ use crate::auth::error::{AuthError, Result};
 #[derive(Debug, Clone)]
 pub struct RateLimitConfig {
     /// Whether rate limiting is enabled for this endpoint
-    pub enabled: bool,
+    pub enabled:      bool,
     /// Maximum number of requests allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
-    pub window_secs: u64,
+    pub window_secs:  u64,
 }
 
 impl RateLimitConfig {
@@ -34,9 +34,9 @@ impl RateLimitConfig {
     /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
     pub fn per_ip_standard() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
-            window_secs: 60,
+            window_secs:  60,
         }
     }
 
@@ -44,9 +44,9 @@ impl RateLimitConfig {
     /// 50 requests per 60 seconds
     pub fn per_ip_strict() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 50,
-            window_secs: 60,
+            window_secs:  60,
         }
     }
 
@@ -54,9 +54,9 @@ impl RateLimitConfig {
     /// 10 requests per 60 seconds
     pub fn per_user_standard() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         }
     }
 
@@ -64,9 +64,9 @@ impl RateLimitConfig {
     /// 5 failed attempts per 3600 seconds (1 hour)
     pub fn failed_login_attempts() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 5,
-            window_secs: 3600,
+            window_secs:  3600,
         }
     }
 }
@@ -75,7 +75,7 @@ impl RateLimitConfig {
 #[derive(Debug, Clone)]
 struct RequestRecord {
     /// Number of requests in current window
-    count: u32,
+    count:        u32,
     /// Unix timestamp of window start
     window_start: u64,
 }
@@ -84,7 +84,7 @@ struct RequestRecord {
 /// Maintains separate rate limits for each key (IP, user ID, etc.)
 pub struct KeyedRateLimiter {
     records: Arc<Mutex<HashMap<String, RequestRecord>>>,
-    config: RateLimitConfig,
+    config:  RateLimitConfig,
 }
 
 impl KeyedRateLimiter {
@@ -180,7 +180,7 @@ impl KeyedRateLimiter {
 
         // Get or create record for this key (first request from this key)
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
-            count: 0,
+            count:        0,
             window_start: now,
         });
 
@@ -233,13 +233,13 @@ impl KeyedRateLimiter {
 /// Global rate limiters for different endpoints
 pub struct RateLimiters {
     /// auth/start: per-IP, 100 req/min
-    pub auth_start: KeyedRateLimiter,
+    pub auth_start:    KeyedRateLimiter,
     /// auth/callback: per-IP, 50 req/min
     pub auth_callback: KeyedRateLimiter,
     /// auth/refresh: per-user, 10 req/min
-    pub auth_refresh: KeyedRateLimiter,
+    pub auth_refresh:  KeyedRateLimiter,
     /// auth/logout: per-user, 20 req/min
-    pub auth_logout: KeyedRateLimiter,
+    pub auth_logout:   KeyedRateLimiter,
     /// Failed login tracking: per-user, 5 attempts/hour
     pub failed_logins: KeyedRateLimiter,
 }
@@ -248,10 +248,10 @@ impl RateLimiters {
     /// Create default rate limiters for all endpoints
     pub fn new() -> Self {
         Self {
-            auth_start: KeyedRateLimiter::new(RateLimitConfig::per_ip_standard()),
+            auth_start:    KeyedRateLimiter::new(RateLimitConfig::per_ip_standard()),
             auth_callback: KeyedRateLimiter::new(RateLimitConfig::per_ip_strict()),
-            auth_refresh: KeyedRateLimiter::new(RateLimitConfig::per_user_standard()),
-            auth_logout: KeyedRateLimiter::new(RateLimitConfig::per_user_standard()),
+            auth_refresh:  KeyedRateLimiter::new(RateLimitConfig::per_user_standard()),
+            auth_logout:   KeyedRateLimiter::new(RateLimitConfig::per_user_standard()),
             failed_logins: KeyedRateLimiter::new(RateLimitConfig::failed_login_attempts()),
         }
     }
@@ -265,10 +265,10 @@ impl RateLimiters {
         failed_cfg: RateLimitConfig,
     ) -> Self {
         Self {
-            auth_start: KeyedRateLimiter::new(start_cfg),
+            auth_start:    KeyedRateLimiter::new(start_cfg),
             auth_callback: KeyedRateLimiter::new(callback_cfg),
-            auth_refresh: KeyedRateLimiter::new(refresh_cfg),
-            auth_logout: KeyedRateLimiter::new(logout_cfg),
+            auth_refresh:  KeyedRateLimiter::new(refresh_cfg),
+            auth_logout:   KeyedRateLimiter::new(logout_cfg),
             failed_logins: KeyedRateLimiter::new(failed_cfg),
         }
     }
@@ -287,9 +287,9 @@ mod tests {
     #[test]
     fn test_rate_limiter_allows_within_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         // Should allow up to max_requests
@@ -302,9 +302,9 @@ mod tests {
     #[test]
     fn test_rate_limiter_rejects_over_limit() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key").ok();
@@ -318,9 +318,9 @@ mod tests {
     #[test]
     fn test_rate_limiter_per_key() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         // Key 1: use allowance
@@ -335,9 +335,9 @@ mod tests {
     #[test]
     fn test_rate_limiter_error_contains_retry_after() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key").ok();
@@ -354,9 +354,9 @@ mod tests {
     #[test]
     fn test_rate_limiter_active_limiters_count() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         assert_eq!(limiter.active_limiters(), 0);
@@ -416,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn test_failed_login_tracking() {
+    fn test_rejected_login_tracking() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig::failed_login_attempts());
 
         let user = "alice@example.com";
@@ -453,9 +453,9 @@ mod tests {
     #[test]
     fn test_clear_limiters() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key").ok();
@@ -474,9 +474,9 @@ mod tests {
         use std::sync::Arc as StdArc;
 
         let limiter = StdArc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
-            window_secs: 60,
+            window_secs:  60,
         }));
 
         let mut handles = vec![];
@@ -503,9 +503,9 @@ mod tests {
     #[test]
     fn test_rate_limiting_many_keys() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         // Simulate 1000 different IPs, each with requests
@@ -545,9 +545,9 @@ mod tests {
     #[test]
     fn test_attack_prevention_scenario() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         let target = "admin@example.com";
@@ -565,9 +565,9 @@ mod tests {
     #[test]
     fn test_rate_limiter_disabled() {
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: false,
+            enabled:      false,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         // Even with max_requests = 1, should allow many requests when disabled
@@ -587,9 +587,9 @@ mod tests {
         use std::{sync::Arc, thread};
 
         let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 50,
-            window_secs: 60,
+            window_secs:  60,
         }));
 
         let key = "shared_key";
@@ -634,9 +634,9 @@ mod tests {
         use std::{sync::Arc, thread};
 
         let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         }));
 
         let mut handles = vec![];
@@ -681,9 +681,9 @@ mod tests {
         // This test verifies that the check-and-update sequence is atomic
         // by ensuring the counter never gets into an inconsistent state
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         let key = "test_key";
@@ -711,9 +711,9 @@ mod tests {
         // Verify that window reset (when window expires) is atomic
         // even under concurrent access
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 3600, // 1 hour - won't expire in test
+            window_secs:  3600, // 1 hour - won't expire in test
         });
 
         let key = "reset_key";
@@ -739,9 +739,9 @@ mod tests {
         // Time-of-Check-Time-of-Use (TOCTOU) race condition test
         // Verifies that checking the limit and updating the counter happen atomically
         let limiter = KeyedRateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1, // Very strict: only 1 request allowed
-            window_secs: 60,
+            window_secs:  60,
         });
 
         let key = "single_key";

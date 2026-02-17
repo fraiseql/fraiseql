@@ -17,20 +17,20 @@ use super::super::{SecretsBackend, SecretsError};
 #[derive(Debug, Clone, serde::Deserialize)]
 #[allow(dead_code)]
 struct VaultResponse {
-    request_id: String,
-    lease_id: String,
+    request_id:     String,
+    lease_id:       String,
     lease_duration: i64,
-    renewable: bool,
-    data: HashMap<String, serde_json::Value>,
+    renewable:      bool,
+    data:           HashMap<String, serde_json::Value>,
 }
 
 /// Lease information tracking
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct LeaseInfo {
-    lease_id: String,
+    lease_id:   String,
     expires_at: chrono::DateTime<Utc>,
-    renewable: bool,
+    renewable:  bool,
 }
 
 /// Cached secret with metadata
@@ -39,10 +39,10 @@ struct LeaseInfo {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct CachedSecret {
-    value: String,
+    value:      String,
     expires_at: chrono::DateTime<Utc>,
-    lease_id: Option<String>,
-    renewable: bool,
+    lease_id:   Option<String>,
+    renewable:  bool,
 }
 
 // Constants for Vault API and caching
@@ -58,7 +58,7 @@ const DEFAULT_MAX_CACHE_ENTRIES: usize = 1000; // Maximum cached secrets
 #[derive(Debug)]
 #[allow(dead_code)]
 struct SecretCache {
-    entries: Arc<RwLock<HashMap<String, CachedSecret>>>,
+    entries:     Arc<RwLock<HashMap<String, CachedSecret>>>,
     max_entries: usize,
 }
 
@@ -181,21 +181,21 @@ impl SecretCache {
 /// ```
 #[derive(Debug)]
 pub struct VaultBackend {
-    addr: String,
-    token: String,
-    namespace: Option<String>,
+    addr:       String,
+    token:      String,
+    namespace:  Option<String>,
     tls_verify: bool,
-    cache: Arc<RwLock<SecretCache>>,
+    cache:      Arc<RwLock<SecretCache>>,
 }
 
 impl Clone for VaultBackend {
     fn clone(&self) -> Self {
         VaultBackend {
-            addr: self.addr.clone(),
-            token: self.token.clone(),
-            namespace: self.namespace.clone(),
+            addr:       self.addr.clone(),
+            token:      self.token.clone(),
+            namespace:  self.namespace.clone(),
             tls_verify: self.tls_verify,
-            cache: Arc::clone(&self.cache),
+            cache:      Arc::clone(&self.cache),
         }
     }
 }
@@ -262,11 +262,11 @@ impl VaultBackend {
     #[must_use]
     pub fn new<S: Into<String>>(addr: S, token: S) -> Self {
         VaultBackend {
-            addr: addr.into(),
-            token: token.into(),
-            namespace: None,
+            addr:       addr.into(),
+            token:      token.into(),
+            namespace:  None,
             tls_verify: true,
-            cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            cache:      Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
         }
     }
 

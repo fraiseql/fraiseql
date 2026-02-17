@@ -5,19 +5,19 @@
 #[derive(Debug, Clone)]
 pub struct ComplexityConfig {
     /// Maximum query depth (nesting level) - default: 15
-    pub max_depth: usize,
+    pub max_depth:  usize,
     /// Maximum field count in a single query - default: 100
     pub max_fields: usize,
     /// Maximum complexity score (depth * field_count) - default: 500
-    pub max_score: usize,
+    pub max_score:  usize,
 }
 
 impl Default for ComplexityConfig {
     fn default() -> Self {
         Self {
-            max_depth: 15,
+            max_depth:  15,
             max_fields: 100,
-            max_score: 500,
+            max_score:  500,
         }
     }
 }
@@ -135,9 +135,9 @@ mod tests {
     #[test]
     fn test_query_too_deep() {
         let config = ComplexityConfig {
-            max_depth: 5,
+            max_depth:  5,
             max_fields: 100,
-            max_score: 500,
+            max_score:  500,
         };
         let analyzer = ComplexityAnalyzer::with_config(config);
 

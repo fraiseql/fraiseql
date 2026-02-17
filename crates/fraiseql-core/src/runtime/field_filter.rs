@@ -78,31 +78,31 @@ mod tests {
 
     fn create_test_field(name: &str, requires_scope: Option<&str>) -> FieldDefinition {
         FieldDefinition {
-            name: name.to_string(),
-            field_type: FieldType::String,
-            nullable: false,
-            default_value: None,
-            description: None,
-            vector_config: None,
-            alias: None,
-            deprecation: None,
+            name:           name.to_string(),
+            field_type:     FieldType::String,
+            nullable:       false,
+            default_value:  None,
+            description:    None,
+            vector_config:  None,
+            alias:          None,
+            deprecation:    None,
             requires_scope: requires_scope.map(|s| s.to_string()),
         }
     }
 
     fn create_test_context(roles: Vec<&str>) -> SecurityContext {
         SecurityContext {
-            user_id: "test-user".to_string(),
-            roles: roles.iter().map(|&r| r.to_string()).collect(),
-            tenant_id: None,
-            scopes: vec![],
-            attributes: std::collections::HashMap::new(),
-            request_id: "test-req".to_string(),
-            ip_address: None,
+            user_id:          "test-user".to_string(),
+            roles:            roles.iter().map(|&r| r.to_string()).collect(),
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::new(),
+            request_id:       "test-req".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         }
     }
 

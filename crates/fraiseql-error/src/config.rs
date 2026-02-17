@@ -7,7 +7,7 @@ pub enum ConfigError {
 
     #[error("Failed to read configuration file {path}: {source}")]
     ReadError {
-        path: PathBuf,
+        path:   PathBuf,
         source: std::io::Error,
     },
 

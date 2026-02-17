@@ -214,7 +214,7 @@ impl CascadeResponseParser {
                             _ => "unknown",
                         }
                     ),
-                    path: Some(format!("cascade.{}", field_name)),
+                    path:    Some(format!("cascade.{}", field_name)),
                 });
             },
         };
@@ -235,14 +235,14 @@ impl CascadeResponseParser {
     fn parse_cascade_entity(&self, entity_obj: &Value) -> Result<EntityKey> {
         let obj = entity_obj.as_object().ok_or_else(|| FraiseQLError::Validation {
             message: "Cascade entity should be object".to_string(),
-            path: Some("cascade.updated[*]".to_string()),
+            path:    Some("cascade.updated[*]".to_string()),
         })?;
 
         // Extract __typename
         let type_name = obj.get("__typename").and_then(Value::as_str).ok_or_else(|| {
             FraiseQLError::Validation {
                 message: "Cascade entity missing __typename field".to_string(),
-                path: Some("cascade.updated[*].__typename".to_string()),
+                path:    Some("cascade.updated[*].__typename".to_string()),
             }
         })?;
 
@@ -250,7 +250,7 @@ impl CascadeResponseParser {
         let entity_id =
             obj.get("id").and_then(Value::as_str).ok_or_else(|| FraiseQLError::Validation {
                 message: "Cascade entity missing id field".to_string(),
-                path: Some("cascade.updated[*].id".to_string()),
+                path:    Some("cascade.updated[*].id".to_string()),
             })?;
 
         EntityKey::new(type_name, entity_id)

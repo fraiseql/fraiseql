@@ -64,8 +64,8 @@ pub enum CompositionError {
     /// agree on the @key for a given type.
     KeyMismatch {
         typename: String,
-        key_a: Vec<String>,
-        key_b: Vec<String>,
+        key_a:    Vec<String>,
+        key_b:    Vec<String>,
     },
 
     /// @shareable field conflict (shareable in one, not in another)
@@ -73,8 +73,8 @@ pub enum CompositionError {
     /// A field is marked @shareable in one subgraph but not in another.
     /// @shareable must be consistent across all subgraphs that define a field.
     ShareableFieldConflict {
-        typename: String,
-        field: String,
+        typename:   String,
+        field:      String,
         subgraph_a: String,
         subgraph_b: String,
     },
@@ -250,8 +250,8 @@ impl CrossSubgraphValidator {
                                 );
                                 errors.push(CompositionError::KeyMismatch {
                                     typename: ftype.name.clone(),
-                                    key_a: primary_key.clone(),
-                                    key_b: key_directive.fields.clone(),
+                                    key_a:    primary_key.clone(),
+                                    key_b:    key_directive.fields.clone(),
                                 });
                             }
                         }
@@ -342,8 +342,8 @@ impl CrossSubgraphValidator {
                             let parts: Vec<&str> = field_key.split('.').collect();
                             if parts.len() == 2 {
                                 errors.push(CompositionError::ShareableFieldConflict {
-                                    typename: parts[0].to_string(),
-                                    field: parts[1].to_string(),
+                                    typename:   parts[0].to_string(),
+                                    field:      parts[1].to_string(),
                                     subgraph_a: sg1.clone(),
                                     subgraph_b: sg2.clone(),
                                 });
@@ -543,7 +543,7 @@ impl ComposedType {
     /// - `ftype`: The initial federated type definition
     pub fn from_federated(ftype: &FederatedType) -> Self {
         Self {
-            name: ftype.name.clone(),
+            name:        ftype.name.clone(),
             definitions: vec![ftype.clone()],
             is_extended: ftype.is_extends,
         }

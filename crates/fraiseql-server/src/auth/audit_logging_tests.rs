@@ -8,13 +8,13 @@ mod audit_logging {
     /// Audit log entry structure
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct AuditLogEntry {
-        pub event_type: String,
-        pub secret_type: String,
-        pub subject: Option<String>,
-        pub operation: String,
-        pub success: bool,
+        pub event_type:    String,
+        pub secret_type:   String,
+        pub subject:       Option<String>,
+        pub operation:     String,
+        pub success:       bool,
         pub error_message: Option<String>,
-        pub timestamp: u64,
+        pub timestamp:     u64,
     }
 
     /// Mock audit logger for testing
@@ -51,13 +51,13 @@ mod audit_logging {
 
         // Simulate JWT validation success
         let entry = AuditLogEntry {
-            event_type: "jwt_validation".to_string(),
-            secret_type: "jwt_token".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "validate".to_string(),
-            success: true,
+            event_type:    "jwt_validation".to_string(),
+            secret_type:   "jwt_token".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "validate".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_890,
+            timestamp:     1_234_567_890,
         };
 
         logger.log_entry(entry);
@@ -76,13 +76,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "jwt_validation".to_string(),
-            secret_type: "jwt_token".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "validate".to_string(),
-            success: false,
+            event_type:    "jwt_validation".to_string(),
+            secret_type:   "jwt_token".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "validate".to_string(),
+            success:       false,
             error_message: Some("Invalid signature".to_string()),
-            timestamp: 1_234_567_890,
+            timestamp:     1_234_567_890,
         };
 
         logger.log_entry(entry);
@@ -123,13 +123,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "oidc_credential_access".to_string(),
-            secret_type: "client_secret".to_string(),
-            subject: Some("service-account".to_string()),
-            operation: "retrieve".to_string(),
-            success: true,
+            event_type:    "oidc_credential_access".to_string(),
+            secret_type:   "client_secret".to_string(),
+            subject:       Some("service-account".to_string()),
+            operation:     "retrieve".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_890,
+            timestamp:     1_234_567_890,
         };
 
         logger.log_entry(entry);
@@ -146,13 +146,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "oidc_token_exchange".to_string(),
-            secret_type: "authorization_code".to_string(),
-            subject: Some("user456".to_string()),
-            operation: "exchange".to_string(),
-            success: true,
+            event_type:    "oidc_token_exchange".to_string(),
+            secret_type:   "authorization_code".to_string(),
+            subject:       Some("user456".to_string()),
+            operation:     "exchange".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_891,
+            timestamp:     1_234_567_891,
         };
 
         logger.log_entry(entry);
@@ -170,13 +170,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "session_token_created".to_string(),
-            secret_type: "session_token".to_string(),
-            subject: Some("user789".to_string()),
-            operation: "create".to_string(),
-            success: true,
+            event_type:    "session_token_created".to_string(),
+            secret_type:   "session_token".to_string(),
+            subject:       Some("user789".to_string()),
+            operation:     "create".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_892,
+            timestamp:     1_234_567_892,
         };
 
         logger.log_entry(entry);
@@ -192,13 +192,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "session_token_validation".to_string(),
-            secret_type: "session_token".to_string(),
-            subject: Some("user789".to_string()),
-            operation: "validate".to_string(),
-            success: true,
+            event_type:    "session_token_validation".to_string(),
+            secret_type:   "session_token".to_string(),
+            subject:       Some("user789".to_string()),
+            operation:     "validate".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_893,
+            timestamp:     1_234_567_893,
         };
 
         logger.log_entry(entry);
@@ -213,13 +213,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "session_token_revoked".to_string(),
-            secret_type: "session_token".to_string(),
-            subject: Some("user789".to_string()),
-            operation: "revoke".to_string(),
-            success: true,
+            event_type:    "session_token_revoked".to_string(),
+            secret_type:   "session_token".to_string(),
+            subject:       Some("user789".to_string()),
+            operation:     "revoke".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_894,
+            timestamp:     1_234_567_894,
         };
 
         logger.log_entry(entry);
@@ -231,18 +231,18 @@ mod audit_logging {
     // ===== FAILED SECRET ACCESS LOGGING TESTS =====
 
     #[test]
-    fn test_failed_jwt_validation_includes_error() {
+    fn test_invalid_jwt_validation_includes_error() {
         // RED: Failed operations must include error details
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "jwt_validation".to_string(),
-            secret_type: "jwt_token".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "validate".to_string(),
-            success: false,
+            event_type:    "jwt_validation".to_string(),
+            secret_type:   "jwt_token".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "validate".to_string(),
+            success:       false,
             error_message: Some("Token expired".to_string()),
-            timestamp: 1_234_567_895,
+            timestamp:     1_234_567_895,
         };
 
         logger.log_entry(entry);
@@ -253,18 +253,18 @@ mod audit_logging {
     }
 
     #[test]
-    fn test_failed_oidc_credential_access_logged() {
+    fn test_denied_oidc_credential_access_logged() {
         // RED: Test should track failed credential access attempts
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "oidc_credential_access".to_string(),
-            secret_type: "client_secret".to_string(),
-            subject: Some("service-account".to_string()),
-            operation: "retrieve".to_string(),
-            success: false,
+            event_type:    "oidc_credential_access".to_string(),
+            secret_type:   "client_secret".to_string(),
+            subject:       Some("service-account".to_string()),
+            operation:     "retrieve".to_string(),
+            success:       false,
             error_message: Some("Unauthorized access".to_string()),
-            timestamp: 1_234_567_896,
+            timestamp:     1_234_567_896,
         };
 
         logger.log_entry(entry);
@@ -283,13 +283,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "jwt_validation".to_string(),
-            secret_type: "jwt_token".to_string(),
-            subject: Some("alice@example.com".to_string()),
-            operation: "validate".to_string(),
-            success: true,
+            event_type:    "jwt_validation".to_string(),
+            secret_type:   "jwt_token".to_string(),
+            subject:       Some("alice@example.com".to_string()),
+            operation:     "validate".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_897,
+            timestamp:     1_234_567_897,
         };
 
         logger.log_entry(entry);
@@ -304,13 +304,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "public_key_fetch".to_string(),
-            secret_type: "public_key".to_string(),
-            subject: None,
-            operation: "retrieve".to_string(),
-            success: true,
+            event_type:    "public_key_fetch".to_string(),
+            secret_type:   "public_key".to_string(),
+            subject:       None,
+            operation:     "retrieve".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_898,
+            timestamp:     1_234_567_898,
         };
 
         logger.log_entry(entry);
@@ -328,33 +328,33 @@ mod audit_logging {
 
         // Simulate OAuth flow: start → callback → token exchange
         let start_entry = AuditLogEntry {
-            event_type: "oauth_start".to_string(),
-            secret_type: "state_token".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "create".to_string(),
-            success: true,
+            event_type:    "oauth_start".to_string(),
+            secret_type:   "state_token".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "create".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1000,
+            timestamp:     1000,
         };
 
         let callback_entry = AuditLogEntry {
-            event_type: "oauth_callback".to_string(),
-            secret_type: "authorization_code".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "verify".to_string(),
-            success: true,
+            event_type:    "oauth_callback".to_string(),
+            secret_type:   "authorization_code".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "verify".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1001,
+            timestamp:     1001,
         };
 
         let exchange_entry = AuditLogEntry {
-            event_type: "token_exchange".to_string(),
-            secret_type: "access_token".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "issue".to_string(),
-            success: true,
+            event_type:    "token_exchange".to_string(),
+            secret_type:   "access_token".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "issue".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1002,
+            timestamp:     1002,
         };
 
         logger.log_entry(start_entry);
@@ -377,13 +377,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "test_event".to_string(),
-            secret_type: "test_secret".to_string(),
-            subject: Some("test_user".to_string()),
-            operation: "test".to_string(),
-            success: true,
+            event_type:    "test_event".to_string(),
+            secret_type:   "test_secret".to_string(),
+            subject:       Some("test_user".to_string()),
+            operation:     "test".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_899,
+            timestamp:     1_234_567_899,
         };
 
         logger.log_entry(entry);
@@ -402,13 +402,13 @@ mod audit_logging {
         let long_error = "a".repeat(1000);
 
         let entry = AuditLogEntry {
-            event_type: "jwt_validation".to_string(),
-            secret_type: "jwt_token".to_string(),
-            subject: Some("user123".to_string()),
-            operation: "validate".to_string(),
-            success: false,
+            event_type:    "jwt_validation".to_string(),
+            secret_type:   "jwt_token".to_string(),
+            subject:       Some("user123".to_string()),
+            operation:     "validate".to_string(),
+            success:       false,
             error_message: Some(long_error.clone()),
-            timestamp: 1_234_567_900,
+            timestamp:     1_234_567_900,
         };
 
         logger.log_entry(entry);
@@ -423,13 +423,13 @@ mod audit_logging {
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
-            event_type: "jwt_validation".to_string(),
-            secret_type: "jwt_token".to_string(),
-            subject: Some("user+test@example.com".to_string()),
-            operation: "validate".to_string(),
-            success: true,
+            event_type:    "jwt_validation".to_string(),
+            secret_type:   "jwt_token".to_string(),
+            subject:       Some("user+test@example.com".to_string()),
+            operation:     "validate".to_string(),
+            success:       true,
             error_message: None,
-            timestamp: 1_234_567_901,
+            timestamp:     1_234_567_901,
         };
 
         logger.log_entry(entry);
@@ -446,17 +446,17 @@ mod audit_logging {
         // Generate 1000 log entries
         for i in 0..1000 {
             let entry = AuditLogEntry {
-                event_type: "test_event".to_string(),
-                secret_type: "test_secret".to_string(),
-                subject: Some(format!("user{}", i)),
-                operation: "test".to_string(),
-                success: i % 2 == 0,
+                event_type:    "test_event".to_string(),
+                secret_type:   "test_secret".to_string(),
+                subject:       Some(format!("user{}", i)),
+                operation:     "test".to_string(),
+                success:       i % 2 == 0,
                 error_message: if i % 2 == 0 {
                     None
                 } else {
                     Some("Test error".to_string())
                 },
-                timestamp: 1000 + i as u64,
+                timestamp:     1000 + i as u64,
             };
 
             logger.log_entry(entry);

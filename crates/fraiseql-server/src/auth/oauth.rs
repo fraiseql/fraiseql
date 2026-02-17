@@ -10,17 +10,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenResponse {
     /// Access token for API calls
-    pub access_token: String,
+    pub access_token:  String,
     /// Refresh token for getting new access tokens
     pub refresh_token: Option<String>,
     /// Token type (typically "Bearer")
-    pub token_type: String,
+    pub token_type:    String,
     /// Seconds until access token expires
-    pub expires_in: u64,
+    pub expires_in:    u64,
     /// ID token (JWT) for OIDC
-    pub id_token: Option<String>,
+    pub id_token:      Option<String>,
     /// Requested scopes
-    pub scope: Option<String>,
+    pub scope:         Option<String>,
 }
 
 impl TokenResponse {
@@ -51,29 +51,29 @@ impl TokenResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdTokenClaims {
     /// Issuer (provider identifier)
-    pub iss: String,
+    pub iss:            String,
     /// Subject (unique user ID)
-    pub sub: String,
+    pub sub:            String,
     /// Audience (should be client_id)
-    pub aud: String,
+    pub aud:            String,
     /// Expiration time (Unix timestamp)
-    pub exp: i64,
+    pub exp:            i64,
     /// Issued at time (Unix timestamp)
-    pub iat: i64,
+    pub iat:            i64,
     /// Authentication time (Unix timestamp)
-    pub auth_time: Option<i64>,
+    pub auth_time:      Option<i64>,
     /// Nonce (for replay protection)
-    pub nonce: Option<String>,
+    pub nonce:          Option<String>,
     /// Email address
-    pub email: Option<String>,
+    pub email:          Option<String>,
     /// Email verified flag
     pub email_verified: Option<bool>,
     /// User name
-    pub name: Option<String>,
+    pub name:           Option<String>,
     /// Profile picture URL
-    pub picture: Option<String>,
+    pub picture:        Option<String>,
     /// Locale
-    pub locale: Option<String>,
+    pub locale:         Option<String>,
 }
 
 impl IdTokenClaims {
@@ -110,17 +110,17 @@ impl IdTokenClaims {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     /// Subject (unique user ID)
-    pub sub: String,
+    pub sub:            String,
     /// Email address
-    pub email: Option<String>,
+    pub email:          Option<String>,
     /// Email verified flag
     pub email_verified: Option<bool>,
     /// User name
-    pub name: Option<String>,
+    pub name:           Option<String>,
     /// Profile picture URL
-    pub picture: Option<String>,
+    pub picture:        Option<String>,
     /// Locale
-    pub locale: Option<String>,
+    pub locale:         Option<String>,
 }
 
 impl UserInfo {
@@ -141,17 +141,17 @@ impl UserInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OIDCProviderConfig {
     /// Provider issuer URL
-    pub issuer: String,
+    pub issuer:                   String,
     /// Authorization endpoint
-    pub authorization_endpoint: String,
+    pub authorization_endpoint:   String,
     /// Token endpoint
-    pub token_endpoint: String,
+    pub token_endpoint:           String,
     /// Userinfo endpoint
-    pub userinfo_endpoint: Option<String>,
+    pub userinfo_endpoint:        Option<String>,
     /// JWKS URI for public keys
-    pub jwks_uri: String,
+    pub jwks_uri:                 String,
     /// Scopes supported by provider
-    pub scopes_supported: Vec<String>,
+    pub scopes_supported:         Vec<String>,
     /// Response types supported
     pub response_types_supported: Vec<String>,
 }
@@ -184,19 +184,19 @@ impl OIDCProviderConfig {
 #[derive(Debug, Clone)]
 pub struct OAuth2Client {
     /// Client ID from provider
-    pub client_id: String,
+    pub client_id:              String,
     /// Client secret from provider
     #[allow(dead_code)]
-    client_secret: String,
+    client_secret:              String,
     /// Authorization endpoint
     pub authorization_endpoint: String,
     /// Token endpoint
     #[allow(dead_code)]
-    token_endpoint: String,
+    token_endpoint:             String,
     /// Scopes to request
-    pub scopes: Vec<String>,
+    pub scopes:                 Vec<String>,
     /// Use PKCE for additional security
-    pub use_pkce: bool,
+    pub use_pkce:               bool,
 }
 
 impl OAuth2Client {
@@ -208,16 +208,16 @@ impl OAuth2Client {
         token_endpoint: impl Into<String>,
     ) -> Self {
         Self {
-            client_id: client_id.into(),
-            client_secret: client_secret.into(),
+            client_id:              client_id.into(),
+            client_secret:          client_secret.into(),
             authorization_endpoint: authorization_endpoint.into(),
-            token_endpoint: token_endpoint.into(),
-            scopes: vec![
+            token_endpoint:         token_endpoint.into(),
+            scopes:                 vec![
                 "openid".to_string(),
                 "profile".to_string(),
                 "email".to_string(),
             ],
-            use_pkce: false,
+            use_pkce:               false,
         }
     }
 
@@ -258,12 +258,12 @@ impl OAuth2Client {
     ) -> Result<TokenResponse, String> {
         // Return mock token for GREEN phase
         Ok(TokenResponse {
-            access_token: format!("access_token_{}", uuid::Uuid::new_v4()),
+            access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
             refresh_token: Some(format!("refresh_token_{}", uuid::Uuid::new_v4())),
-            token_type: "Bearer".to_string(),
-            expires_in: 3600,
-            id_token: Some("mock_id_token".to_string()),
-            scope: Some(self.scopes.join(" ")),
+            token_type:    "Bearer".to_string(),
+            expires_in:    3600,
+            id_token:      Some("mock_id_token".to_string()),
+            scope:         Some(self.scopes.join(" ")),
         })
     }
 
@@ -271,12 +271,12 @@ impl OAuth2Client {
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, String> {
         // Return mock token for GREEN phase
         Ok(TokenResponse {
-            access_token: format!("access_token_{}", uuid::Uuid::new_v4()),
+            access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
             refresh_token: Some(refresh_token.to_string()),
-            token_type: "Bearer".to_string(),
-            expires_in: 3600,
-            id_token: None,
-            scope: Some(self.scopes.join(" ")),
+            token_type:    "Bearer".to_string(),
+            expires_in:    3600,
+            id_token:      None,
+            scope:         Some(self.scopes.join(" ")),
         })
     }
 }
@@ -285,7 +285,7 @@ impl OAuth2Client {
 #[derive(Debug, Clone)]
 pub struct OIDCClient {
     /// Provider configuration
-    pub config: OIDCProviderConfig,
+    pub config:    OIDCProviderConfig,
     /// Client ID
     pub client_id: String,
     /// Client secret
@@ -315,18 +315,18 @@ impl OIDCClient {
     ) -> Result<IdTokenClaims, String> {
         // Return mock claims for GREEN phase
         let claims = IdTokenClaims {
-            iss: self.config.issuer.clone(),
-            sub: "user_123".to_string(),
-            aud: self.client_id.clone(),
-            exp: (Utc::now() + Duration::hours(1)).timestamp(),
-            iat: Utc::now().timestamp(),
-            auth_time: Some(Utc::now().timestamp()),
-            nonce: expected_nonce.map(|s| s.to_string()),
-            email: Some("user@example.com".to_string()),
+            iss:            self.config.issuer.clone(),
+            sub:            "user_123".to_string(),
+            aud:            self.client_id.clone(),
+            exp:            (Utc::now() + Duration::hours(1)).timestamp(),
+            iat:            Utc::now().timestamp(),
+            auth_time:      Some(Utc::now().timestamp()),
+            nonce:          expected_nonce.map(|s| s.to_string()),
+            email:          Some("user@example.com".to_string()),
             email_verified: Some(true),
-            name: Some("Test User".to_string()),
-            picture: None,
-            locale: Some("en-US".to_string()),
+            name:           Some("Test User".to_string()),
+            picture:        None,
+            locale:         Some("en-US".to_string()),
         };
 
         // Verify nonce if provided
@@ -343,12 +343,12 @@ impl OIDCClient {
     pub async fn get_userinfo(&self, _access_token: &str) -> Result<UserInfo, String> {
         // Return mock userinfo for GREEN phase
         Ok(UserInfo {
-            sub: "user_123".to_string(),
-            email: Some("user@example.com".to_string()),
+            sub:            "user_123".to_string(),
+            email:          Some("user@example.com".to_string()),
             email_verified: Some(true),
-            name: Some("Test User".to_string()),
-            picture: None,
-            locale: Some("en-US".to_string()),
+            name:           Some("Test User".to_string()),
+            picture:        None,
+            locale:         Some("en-US".to_string()),
         })
     }
 }
@@ -375,25 +375,25 @@ impl std::fmt::Display for ProviderType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthSession {
     /// Session ID
-    pub id: String,
+    pub id:               String,
     /// User ID (local system)
-    pub user_id: String,
+    pub user_id:          String,
     /// Provider type (oauth2, oidc)
-    pub provider_type: ProviderType,
+    pub provider_type:    ProviderType,
     /// Provider name (Auth0, Google, etc.)
-    pub provider_name: String,
+    pub provider_name:    String,
     /// Provider's user ID (sub claim)
     pub provider_user_id: String,
     /// Access token (encrypted)
-    pub access_token: String,
+    pub access_token:     String,
     /// Refresh token (encrypted), if available
-    pub refresh_token: Option<String>,
+    pub refresh_token:    Option<String>,
     /// When access token expires
-    pub token_expiry: DateTime<Utc>,
+    pub token_expiry:     DateTime<Utc>,
     /// Session creation time
-    pub created_at: DateTime<Utc>,
+    pub created_at:       DateTime<Utc>,
     /// Last time token was refreshed
-    pub last_refreshed: Option<DateTime<Utc>>,
+    pub last_refreshed:   Option<DateTime<Utc>>,
 }
 
 impl OAuthSession {
@@ -467,9 +467,9 @@ pub struct OAuth2ClientConfig {
     /// Authorization endpoint
     pub authorization_endpoint: String,
     /// Token endpoint
-    pub token_endpoint: String,
+    pub token_endpoint:         String,
     /// Use PKCE
-    pub use_pkce: bool,
+    pub use_pkce:               bool,
 }
 
 impl ExternalAuthProvider {
@@ -575,9 +575,9 @@ impl Default for ProviderRegistry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PKCEChallenge {
     /// Random code verifier (43-128 characters)
-    pub code_verifier: String,
+    pub code_verifier:         String,
     /// BASE64URL(SHA256(code_verifier))
-    pub code_challenge: String,
+    pub code_challenge:        String,
     /// Challenge method: "S256" (SHA256)
     pub code_challenge_method: String,
 }
@@ -597,8 +597,8 @@ impl PKCEChallenge {
         let challenge = urlencoding::encode_binary(&digest).to_string();
 
         Self {
-            code_verifier: verifier,
-            code_challenge: challenge,
+            code_verifier:         verifier,
+            code_challenge:        challenge,
             code_challenge_method: "S256".to_string(),
         }
     }
@@ -626,7 +626,7 @@ impl Default for PKCEChallenge {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateParameter {
     /// Random state value
-    pub state: String,
+    pub state:      String,
     /// When state expires
     pub expires_at: DateTime<Utc>,
 }
@@ -635,7 +635,7 @@ impl StateParameter {
     /// Generate new state parameter
     pub fn new() -> Self {
         Self {
-            state: uuid::Uuid::new_v4().to_string(),
+            state:      uuid::Uuid::new_v4().to_string(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
@@ -661,7 +661,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonceParameter {
     /// Random nonce value
-    pub nonce: String,
+    pub nonce:      String,
     /// When nonce expires
     pub expires_at: DateTime<Utc>,
 }
@@ -670,7 +670,7 @@ impl NonceParameter {
     /// Generate new nonce
     pub fn new() -> Self {
         Self {
-            nonce: uuid::Uuid::new_v4().to_string(),
+            nonce:      uuid::Uuid::new_v4().to_string(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
@@ -750,20 +750,20 @@ impl Default for TokenRefreshScheduler {
 #[derive(Debug, Clone)]
 pub struct ProviderFailoverManager {
     /// Primary provider name
-    primary_provider: String,
+    primary_provider:   String,
     /// Fallback providers in priority order
     fallback_providers: Vec<String>,
     /// Providers currently unavailable
-    unavailable: Arc<std::sync::Mutex<Vec<(String, DateTime<Utc>)>>>,
+    unavailable:        Arc<std::sync::Mutex<Vec<(String, DateTime<Utc>)>>>,
 }
 
 impl ProviderFailoverManager {
     /// Create new failover manager
     pub fn new(primary: String, fallbacks: Vec<String>) -> Self {
         Self {
-            primary_provider: primary,
+            primary_provider:   primary,
             fallback_providers: fallbacks,
-            unavailable: Arc::new(std::sync::Mutex::new(Vec::new())),
+            unavailable:        Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 
@@ -811,17 +811,17 @@ pub struct OAuthAuditEvent {
     /// Event type: authorization, token_exchange, token_refresh, logout
     pub event_type: String,
     /// Provider name
-    pub provider: String,
+    pub provider:   String,
     /// User ID (if known)
-    pub user_id: Option<String>,
+    pub user_id:    Option<String>,
     /// Status: success, failed
-    pub status: String,
+    pub status:     String,
     /// Error message (if failed)
-    pub error: Option<String>,
+    pub error:      Option<String>,
     /// Timestamp
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:  DateTime<Utc>,
     /// Additional metadata
-    pub metadata: HashMap<String, String>,
+    pub metadata:   HashMap<String, String>,
 }
 
 impl OAuthAuditEvent {
@@ -833,12 +833,12 @@ impl OAuthAuditEvent {
     ) -> Self {
         Self {
             event_type: event_type.into(),
-            provider: provider.into(),
-            user_id: None,
-            status: status.into(),
-            error: None,
-            timestamp: Utc::now(),
-            metadata: HashMap::new(),
+            provider:   provider.into(),
+            user_id:    None,
+            status:     status.into(),
+            error:      None,
+            timestamp:  Utc::now(),
+            metadata:   HashMap::new(),
         }
     }
 

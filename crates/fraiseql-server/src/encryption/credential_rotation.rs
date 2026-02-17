@@ -42,15 +42,15 @@ impl std::fmt::Display for KeyVersionStatus {
 #[derive(Debug, Clone)]
 pub struct KeyVersionMetadata {
     /// Version identifier
-    pub version: KeyVersion,
+    pub version:           KeyVersion,
     /// When this version was issued
-    pub issued_at: DateTime<Utc>,
+    pub issued_at:         DateTime<Utc>,
     /// When this version expires (TTL)
-    pub expires_at: DateTime<Utc>,
+    pub expires_at:        DateTime<Utc>,
     /// Current status in lifecycle
-    pub status: KeyVersionStatus,
+    pub status:            KeyVersionStatus,
     /// Is this the current version for new encryptions?
-    pub is_current: bool,
+    pub is_current:        bool,
     /// Reason for compromised status (if applicable)
     pub compromise_reason: Option<String>,
 }
@@ -154,23 +154,23 @@ impl std::fmt::Display for RotationSchedule {
 #[derive(Debug, Clone)]
 pub struct RotationConfig {
     /// TTL for each key version (days)
-    pub ttl_days: u32,
+    pub ttl_days:                  u32,
     /// When to trigger refresh (percentage of TTL consumed)
     pub refresh_threshold_percent: u32,
     /// Rotation schedule
-    pub schedule: RotationSchedule,
+    pub schedule:                  RotationSchedule,
     /// Maximum number of historical versions to retain
-    pub max_retained_versions: usize,
+    pub max_retained_versions:     usize,
 }
 
 impl RotationConfig {
     /// Create default rotation config (annual rotation, 80% refresh)
     pub fn new() -> Self {
         Self {
-            ttl_days: 365,
+            ttl_days:                  365,
             refresh_threshold_percent: 80,
-            schedule: RotationSchedule::Manual,
-            max_retained_versions: 10,
+            schedule:                  RotationSchedule::Manual,
+            max_retained_versions:     10,
         }
     }
 
@@ -203,11 +203,11 @@ impl Default for RotationConfig {
 #[derive(Debug, Clone)]
 pub struct RotationMetrics {
     /// Total number of rotations
-    total_rotations: Arc<AtomicU64>,
+    total_rotations:           Arc<AtomicU64>,
     /// Number of failed rotations
-    failed_rotations: Arc<AtomicU64>,
+    failed_rotations:          Arc<AtomicU64>,
     /// Last rotation timestamp
-    last_rotation: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_rotation:             Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Rotation duration (milliseconds)
     last_rotation_duration_ms: Arc<AtomicU64>,
 }
@@ -216,9 +216,9 @@ impl RotationMetrics {
     /// Create new rotation metrics
     pub fn new() -> Self {
         Self {
-            total_rotations: Arc::new(AtomicU64::new(0)),
-            failed_rotations: Arc::new(AtomicU64::new(0)),
-            last_rotation: Arc::new(std::sync::Mutex::new(None)),
+            total_rotations:           Arc::new(AtomicU64::new(0)),
+            failed_rotations:          Arc::new(AtomicU64::new(0)),
+            last_rotation:             Arc::new(std::sync::Mutex::new(None)),
             last_rotation_duration_ms: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -284,20 +284,20 @@ impl Default for RotationMetrics {
 #[derive(Debug, Clone)]
 pub struct VersionedKeyStorage {
     /// Map of version ID to key metadata
-    versions: Arc<std::sync::Mutex<HashMap<KeyVersion, KeyVersionMetadata>>>,
+    versions:        Arc<std::sync::Mutex<HashMap<KeyVersion, KeyVersionMetadata>>>,
     /// Current active version
     current_version: Arc<std::sync::Mutex<KeyVersion>>,
     /// Next version number to assign
-    next_version: Arc<AtomicU64>,
+    next_version:    Arc<AtomicU64>,
 }
 
 impl VersionedKeyStorage {
     /// Create new versioned key storage
     pub fn new() -> Self {
         Self {
-            versions: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            versions:        Arc::new(std::sync::Mutex::new(HashMap::new())),
             current_version: Arc::new(std::sync::Mutex::new(0)),
-            next_version: Arc::new(AtomicU64::new(1)),
+            next_version:    Arc::new(AtomicU64::new(1)),
         }
     }
 
@@ -371,7 +371,7 @@ impl Default for VersionedKeyStorage {
 #[derive(Debug, Clone)]
 pub struct CredentialRotationManager {
     /// Rotation configuration
-    config: Arc<RotationConfig>,
+    config:  Arc<RotationConfig>,
     /// Versioned key storage
     storage: Arc<VersionedKeyStorage>,
     /// Rotation metrics
@@ -382,7 +382,7 @@ impl CredentialRotationManager {
     /// Create new credential rotation manager
     pub fn new(config: RotationConfig) -> Self {
         Self {
-            config: Arc::new(config),
+            config:  Arc::new(config),
             storage: Arc::new(VersionedKeyStorage::new()),
             metrics: Arc::new(RotationMetrics::new()),
         }

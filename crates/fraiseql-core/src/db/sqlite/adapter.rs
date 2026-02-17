@@ -123,7 +123,7 @@ impl SqliteAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to SQLite database: {e}"),
+                message:   format!("Failed to connect to SQLite database: {e}"),
                 sql_state: None,
             })?;
 
@@ -170,7 +170,7 @@ impl SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite query execution failed: {e}"),
+                message:   format!("SQLite query execution failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -288,7 +288,7 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn health_check(&self) -> Result<()> {
         sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("SQLite health check failed: {e}"),
+                message:   format!("SQLite health check failed: {e}"),
                 sql_state: None,
             }
         })?;
@@ -301,10 +301,10 @@ impl DatabaseAdapter for SqliteAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections: size,
-            idle_connections: idle as u32,
+            total_connections:  size,
+            idle_connections:   idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests: 0, // sqlx doesn't expose waiting count
+            waiting_requests:   0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -317,7 +317,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message: format!("SQLite query execution failed: {e}"),
+                    message:   format!("SQLite query execution failed: {e}"),
                     sql_state: None,
                 })?;
 

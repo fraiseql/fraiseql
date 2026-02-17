@@ -181,8 +181,8 @@ fn test_example_request_id_tracing() {
 fn test_example_error_with_extensions() {
     // Example showing how to add custom metadata via extensions
     let extensions = ErrorExtensions {
-        category: Some("DATABASE".to_string()),
-        status: Some(500),
+        category:   Some("DATABASE".to_string()),
+        status:     Some(500),
         request_id: Some("req-db-001".to_string()),
     };
 
@@ -221,49 +221,49 @@ fn test_example_error_chaining() {
 fn test_example_error_code_status_mapping() {
     // Example showing complete status code mapping for reference
     struct ErrorMapping {
-        code: ErrorCode,
+        code:   ErrorCode,
         status: StatusCode,
     }
 
     let mappings = [
         ErrorMapping {
-            code: ErrorCode::ValidationError,
+            code:   ErrorCode::ValidationError,
             status: StatusCode::BAD_REQUEST,
         },
         ErrorMapping {
-            code: ErrorCode::ParseError,
+            code:   ErrorCode::ParseError,
             status: StatusCode::BAD_REQUEST,
         },
         ErrorMapping {
-            code: ErrorCode::RequestError,
+            code:   ErrorCode::RequestError,
             status: StatusCode::BAD_REQUEST,
         },
         ErrorMapping {
-            code: ErrorCode::Unauthenticated,
+            code:   ErrorCode::Unauthenticated,
             status: StatusCode::UNAUTHORIZED,
         },
         ErrorMapping {
-            code: ErrorCode::Forbidden,
+            code:   ErrorCode::Forbidden,
             status: StatusCode::FORBIDDEN,
         },
         ErrorMapping {
-            code: ErrorCode::NotFound,
+            code:   ErrorCode::NotFound,
             status: StatusCode::NOT_FOUND,
         },
         ErrorMapping {
-            code: ErrorCode::Timeout,
+            code:   ErrorCode::Timeout,
             status: StatusCode::REQUEST_TIMEOUT,
         },
         ErrorMapping {
-            code: ErrorCode::RateLimitExceeded,
+            code:   ErrorCode::RateLimitExceeded,
             status: StatusCode::TOO_MANY_REQUESTS,
         },
         ErrorMapping {
-            code: ErrorCode::DatabaseError,
+            code:   ErrorCode::DatabaseError,
             status: StatusCode::INTERNAL_SERVER_ERROR,
         },
         ErrorMapping {
-            code: ErrorCode::InternalServerError,
+            code:   ErrorCode::InternalServerError,
             status: StatusCode::INTERNAL_SERVER_ERROR,
         },
     ];
@@ -520,13 +520,13 @@ fn test_example_batch_query_error_handling() {
     assert_eq!(query3_error.code, ErrorCode::Forbidden);
 
     let ext2 = query2_error.extensions.unwrap_or(ErrorExtensions {
-        category: None,
-        status: None,
+        category:   None,
+        status:     None,
         request_id: Some("req-batch-001".to_string()),
     });
     let ext3 = query3_error.extensions.unwrap_or(ErrorExtensions {
-        category: None,
-        status: None,
+        category:   None,
+        status:     None,
         request_id: Some("req-batch-001".to_string()),
     });
 
@@ -571,8 +571,8 @@ fn test_example_complete_error_context() {
         .with_path(vec!["orders".to_string(), "items".to_string()]) // Field path
         .with_request_id("req-abc-xyz-123") // For correlation
         .with_extensions(ErrorExtensions {
-            category: Some("DATABASE_REPLICA".to_string()),
-            status: Some(503),
+            category:   Some("DATABASE_REPLICA".to_string()),
+            status:     Some(503),
             request_id: Some("req-abc-xyz-123".to_string()),
         });
 

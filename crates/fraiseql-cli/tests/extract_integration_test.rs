@@ -19,10 +19,10 @@ fn roundtrip(lang: Language) -> serde_json::Value {
 
     let config = InitConfig {
         project_name,
-        language:     lang,
-        database:     init::Database::from_str("postgres").unwrap(),
-        size:         ProjectSize::S,
-        no_git:       true,
+        language: lang,
+        database: init::Database::from_str("postgres").unwrap(),
+        size: ProjectSize::S,
+        no_git: true,
     };
     init::run(&config).unwrap();
 
@@ -38,9 +38,7 @@ fn roundtrip(lang: Language) -> serde_json::Value {
         Language::Swift => "swift",
         Language::Scala => "scala",
     };
-    let schema_file = project_dir
-        .join("schema")
-        .join(format!("schema.{ext}"));
+    let schema_file = project_dir.join("schema").join(format!("schema.{ext}"));
     assert!(schema_file.exists(), "Schema file not found: {}", schema_file.display());
 
     let output_path = tmp.path().join("extracted.json");
@@ -62,32 +60,16 @@ fn verify_blog_schema(schema: &serde_json::Value, lang_name: &str) {
     let queries = schema["queries"].as_array().expect("queries should be array");
 
     // Should have 4 types: Author, Post, Comment, Tag
-    assert_eq!(
-        types.len(),
-        4,
-        "{lang_name}: expected 4 types, got {}",
-        types.len()
-    );
-    let type_names: Vec<&str> = types
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
+    assert_eq!(types.len(), 4, "{lang_name}: expected 4 types, got {}", types.len());
+    let type_names: Vec<&str> = types.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(type_names.contains(&"Author"), "{lang_name}: missing Author type");
     assert!(type_names.contains(&"Post"), "{lang_name}: missing Post type");
     assert!(type_names.contains(&"Comment"), "{lang_name}: missing Comment type");
     assert!(type_names.contains(&"Tag"), "{lang_name}: missing Tag type");
 
     // Should have 5 queries: posts, post, authors, author, tags
-    assert_eq!(
-        queries.len(),
-        5,
-        "{lang_name}: expected 5 queries, got {}",
-        queries.len()
-    );
-    let query_names: Vec<&str> = queries
-        .iter()
-        .map(|q| q["name"].as_str().unwrap())
-        .collect();
+    assert_eq!(queries.len(), 5, "{lang_name}: expected 5 queries, got {}", queries.len());
+    let query_names: Vec<&str> = queries.iter().map(|q| q["name"].as_str().unwrap()).collect();
     assert!(query_names.contains(&"posts"), "{lang_name}: missing 'posts' query");
     assert!(query_names.contains(&"post"), "{lang_name}: missing 'post' query");
     assert!(query_names.contains(&"authors"), "{lang_name}: missing 'authors' query");
@@ -105,35 +87,25 @@ fn verify_blog_schema(schema: &serde_json::Value, lang_name: &str) {
 
     // Verify nullable field exists (bio)
     assert!(
-        author_fields
-            .iter()
-            .any(|f| f["name"].as_str().unwrap() == "bio"),
+        author_fields.iter().any(|f| f["name"].as_str().unwrap() == "bio"),
         "{lang_name}: Author should have 'bio' field"
     );
-    let bio = author_fields
-        .iter()
-        .find(|f| f["name"] == "bio")
-        .unwrap();
-    assert_eq!(
-        bio["nullable"],
-        true,
-        "{lang_name}: Author.bio should be nullable"
-    );
+    let bio = author_fields.iter().find(|f| f["name"] == "bio").unwrap();
+    assert_eq!(bio["nullable"], true, "{lang_name}: Author.bio should be nullable");
 
     // Verify version
     assert_eq!(schema["version"], "2.0.0", "{lang_name}: version mismatch");
 
     // Verify posts query returns a list
     let posts = queries.iter().find(|q| q["name"] == "posts").unwrap();
-    assert_eq!(
-        posts["returns_list"],
-        true,
-        "{lang_name}: posts query should return a list"
-    );
+    assert_eq!(posts["returns_list"], true, "{lang_name}: posts query should return a list");
 
     // Verify post query has arguments
     let post = queries.iter().find(|q| q["name"] == "post").unwrap();
-    assert!(!post["returns_list"].as_bool().unwrap_or(false), "{lang_name}: post query should not return a list");
+    assert!(
+        !post["returns_list"].as_bool().unwrap_or(false),
+        "{lang_name}: post query should not return a list"
+    );
 
     // Verify GraphQL type inference on Author fields
     let id_field = author_fields.iter().find(|f| f["name"] == "id").unwrap();
@@ -173,10 +145,7 @@ fn verify_blog_schema(schema: &serde_json::Value, lang_name: &str) {
 
     // Verify post query has sql_source set
     let post_sql = post["sql_source"].as_str();
-    assert!(
-        post_sql.is_some(),
-        "{lang_name}: post query should have sql_source set"
-    );
+    assert!(post_sql.is_some(), "{lang_name}: post query should have sql_source set");
 }
 
 // =============================================================================
@@ -347,11 +316,7 @@ fn test_extract_empty_file() {
 /// Test that extract with nonexistent path fails gracefully.
 #[test]
 fn test_extract_nonexistent_path() {
-    let result = extract::run(
-        &["/nonexistent/path/schema.py".to_string()],
-        None,
-        false,
-        "/tmp/out.json",
-    );
+    let result =
+        extract::run(&["/nonexistent/path/schema.py".to_string()], None, false, "/tmp/out.json");
     assert!(result.is_err());
 }

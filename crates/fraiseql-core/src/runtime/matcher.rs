@@ -80,7 +80,7 @@ impl QueryMatcher {
     ) -> Result<QueryMatch> {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message: e.to_string(),
+            message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
@@ -92,7 +92,7 @@ impl QueryMatcher {
         let resolved_selections = resolver.resolve_spreads(&parsed.selections).map_err(|e| {
             FraiseQLError::Validation {
                 message: e.to_string(),
-                path: Some("fragments".to_string()),
+                path:    Some("fragments".to_string()),
             }
         })?;
 
@@ -101,7 +101,7 @@ impl QueryMatcher {
             DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map).map_err(
                 |e| FraiseQLError::Validation {
                     message: e.to_string(),
-                    path: Some("directives".to_string()),
+                    path:    Some("directives".to_string()),
                 },
             )?;
 
@@ -111,7 +111,7 @@ impl QueryMatcher {
             .find_query(&parsed.root_field)
             .ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Query '{}' not found in schema", parsed.root_field),
-                path: None,
+                path:    None,
             })?
             .clone();
 
@@ -175,15 +175,15 @@ mod tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
+            nullable:     false,
+            arguments:    Vec::new(),
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  crate::schema::AutoParams::default(),
+            deprecation:  None,
             jsonb_column: "data".to_string(),
         });
         schema

@@ -151,7 +151,7 @@ pub struct CompensationStepResult {
     /// Original step number being compensated (1-indexed)
     pub step_number: u32,
     /// Whether compensation succeeded
-    pub success: bool,
+    pub success:     bool,
     /// Confirmation data from compensation mutation if successful
     ///
     /// May contain:
@@ -159,14 +159,14 @@ pub struct CompensationStepResult {
     /// - `rolled_back`: true/false (for update compensations)
     /// - `restored`: true/false (for create compensations)
     /// - `confirmation_id`: ID or reference to rollback operation
-    pub data: Option<serde_json::Value>,
+    pub data:        Option<serde_json::Value>,
     /// Error message if compensation failed
     ///
     /// Includes:
     /// - Error type (network, timeout, mutation failed, etc.)
     /// - Subgraph context
     /// - Suggestion for manual recovery
-    pub error: Option<String>,
+    pub error:       Option<String>,
     /// Execution duration in milliseconds
     ///
     /// Measured from compensation start to completion (or failure)
@@ -201,17 +201,17 @@ pub enum CompensationStatus {
 #[derive(Debug, Clone)]
 pub struct CompensationResult {
     /// Saga ID that was compensated
-    pub saga_id: Uuid,
+    pub saga_id:           Uuid,
     /// Overall compensation status
-    pub status: CompensationStatus,
+    pub status:            CompensationStatus,
     /// Results for each compensated step (in reverse order: N-1..1)
-    pub step_results: Vec<CompensationStepResult>,
+    pub step_results:      Vec<CompensationStepResult>,
     /// Steps that failed compensation (step numbers)
-    pub failed_steps: Vec<u32>,
+    pub failed_steps:      Vec<u32>,
     /// Total compensation duration in milliseconds
     pub total_duration_ms: u64,
     /// Error message if status is CompensationFailed
-    pub error: Option<String>,
+    pub error:             Option<String>,
 }
 
 /// Saga compensation phase executor
@@ -419,9 +419,9 @@ impl SagaCompensator {
                     // Create failure result
                     let failure_result = CompensationStepResult {
                         step_number: step.order as u32,
-                        success: false,
-                        data: None,
-                        error: Some(format!("Compensation failed: {:?}", e)),
+                        success:     false,
+                        data:        None,
+                        error:       Some(format!("Compensation failed: {:?}", e)),
                         duration_ms: 0,
                     };
                     step_results.push(failure_result);
@@ -574,7 +574,7 @@ impl SagaCompensator {
         if saga_step.state != StepState::Completed {
             return Err(crate::federation::saga_store::SagaStoreError::InvalidStateTransition {
                 from: format!("{:?}", saga_step.state),
-                to: "Compensation".to_string(),
+                to:   "Compensation".to_string(),
             });
         }
 

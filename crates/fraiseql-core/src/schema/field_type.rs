@@ -56,8 +56,8 @@ impl VectorConfig {
     #[must_use]
     pub fn openai() -> Self {
         Self {
-            dimensions: 1536,
-            index_type: VectorIndexType::Hnsw,
+            dimensions:      1536,
+            index_type:      VectorIndexType::Hnsw,
             distance_metric: DistanceMetric::Cosine,
         }
     }
@@ -66,8 +66,8 @@ impl VectorConfig {
     #[must_use]
     pub fn openai_small() -> Self {
         Self {
-            dimensions: 512,
-            index_type: VectorIndexType::Hnsw,
+            dimensions:      512,
+            index_type:      VectorIndexType::Hnsw,
             distance_metric: DistanceMetric::Cosine,
         }
     }
@@ -358,14 +358,14 @@ impl FieldDefinition {
     #[must_use]
     pub fn vector(name: impl Into<String>, config: VectorConfig) -> Self {
         Self {
-            name: name.into(),
-            field_type: FieldType::Vector,
-            nullable: false,
-            description: None,
-            default_value: None,
-            vector_config: Some(config),
-            alias: None,
-            deprecation: None,
+            name:           name.into(),
+            field_type:     FieldType::Vector,
+            nullable:       false,
+            description:    None,
+            default_value:  None,
+            vector_config:  Some(config),
+            alias:          None,
+            deprecation:    None,
             requires_scope: None,
         }
     }

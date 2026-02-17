@@ -3,8 +3,10 @@
 //! This module provides a global registry for managing custom scalar implementations
 //! at runtime, allowing applications to register their own scalar types.
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use super::custom_scalar::CustomScalar;
 

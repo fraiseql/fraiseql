@@ -172,7 +172,7 @@ pub async fn cleanup_test_data(pool: &PgPool, test_id: &str) -> Result<(), sqlx:
 /// Mock webhook server with request tracking
 pub struct MockWebhookServer {
     pub server: MockServer,
-    requests: Arc<Mutex<Vec<serde_json::Value>>>,
+    requests:   Arc<Mutex<Vec<serde_json::Value>>>,
 }
 
 impl MockWebhookServer {

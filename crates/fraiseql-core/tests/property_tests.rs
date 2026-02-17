@@ -3,9 +3,10 @@
 //! Uses proptest to verify invariants and properties that should hold
 //! across all inputs and edge cases.
 
+use std::collections::HashMap;
+
 use proptest::prelude::*;
 use serde_json::{Value, json};
-use std::collections::HashMap;
 
 // ============================================================================
 // Property Tests for JSON Serialization

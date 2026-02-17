@@ -87,9 +87,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub fn all() -> Self {
         Self {
-            detect_schema: true,
-            detect_type: true,
-            detect_typename: true,
+            detect_schema:    true,
+            detect_type:      true,
+            detect_typename:  true,
             detect_directive: true,
         }
     }
@@ -98,9 +98,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub fn strict() -> Self {
         Self {
-            detect_schema: true,
-            detect_type: true,
-            detect_typename: false,
+            detect_schema:    true,
+            detect_type:      true,
+            detect_typename:  false,
             detect_directive: true,
         }
     }
@@ -411,9 +411,9 @@ mod tests {
     #[test]
     fn test_custom_config_with_selective_detection() {
         let config = IntrospectionConfig {
-            detect_schema: true,
-            detect_type: false,
-            detect_typename: false,
+            detect_schema:    true,
+            detect_type:      false,
+            detect_typename:  false,
             detect_directive: false,
         };
 

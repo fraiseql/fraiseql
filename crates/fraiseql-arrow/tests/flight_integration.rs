@@ -24,7 +24,7 @@ use sqlx::postgres::PgPoolOptions;
 /// Test database setup and teardown.
 struct TestDb {
     #[allow(dead_code)]
-    pool: sqlx::PgPool,
+    pool:          sqlx::PgPool,
     database_name: String,
 }
 
@@ -66,7 +66,7 @@ impl TestDb {
         Self::create_tables(&test_pool).await?;
 
         Ok(TestDb {
-            pool: test_pool,
+            pool:          test_pool,
             database_name: test_db_name,
         })
     }
@@ -187,22 +187,37 @@ impl Drop for TestDb {
 mod tests {
     use super::*;
 
-    /// Create an appropriate database adapter based on feature flags.
+    /// Test adapter that wraps PostgresAdapter for Arrow Flight integration tests.
+    ///
+    /// Arrow Flight operates on raw SQL (reads, inserts, exports), so it always
+    /// uses PostgreSQL directly regardless of the `wire-backend` feature flag.
+    /// FraiseWire is for the structured JSONB execution path, not bulk Arrow transfer.
+    struct TestFlightAdapter {
+        inner: fraiseql_core::db::postgres::PostgresAdapter,
+    }
+
+    #[async_trait::async_trait]
+    impl fraiseql_arrow::db::DatabaseAdapter for TestFlightAdapter {
+        async fn execute_raw_query(
+            &self,
+            sql: &str,
+        ) -> fraiseql_arrow::db::DatabaseResult<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+        > {
+            use fraiseql_core::db::traits::DatabaseAdapter as _;
+            self.inner
+                .execute_raw_query(sql)
+                .await
+                .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
+        }
+    }
+
+    /// Create a PostgreSQL-backed Arrow Flight adapter for testing.
     async fn create_flight_adapter(
         conn_string: &str,
-    ) -> Result<Arc<fraiseql_server::arrow::FlightDatabaseAdapter>, Box<dyn std::error::Error>>
-    {
-        #[cfg(not(feature = "wire-backend"))]
-        {
-            let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;
-            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter)))
-        }
-
-        #[cfg(feature = "wire-backend")]
-        {
-            let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(conn_string);
-            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter)))
-        }
+    ) -> Result<Arc<TestFlightAdapter>, Box<dyn std::error::Error>> {
+        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;
+        Ok(Arc::new(TestFlightAdapter { inner: pg_adapter }))
     }
 
     /// Test that Flight database adapter can connect and execute queries

@@ -42,26 +42,26 @@ impl std::fmt::Display for RefreshJobStatus {
 #[derive(Debug, Clone)]
 pub struct RefreshConfig {
     /// Enable automatic refresh (default: true)
-    pub enabled: bool,
+    pub enabled:                   bool,
     /// Check interval in hours (default: 24)
-    pub check_interval_hours: u32,
+    pub check_interval_hours:      u32,
     /// TTL consumption threshold to trigger refresh (default: 80)
     pub refresh_threshold_percent: u32,
     /// Quiet hours start (0-23, None = disabled)
-    pub quiet_hours_start: Option<u32>,
+    pub quiet_hours_start:         Option<u32>,
     /// Quiet hours end (0-23)
-    pub quiet_hours_end: Option<u32>,
+    pub quiet_hours_end:           Option<u32>,
 }
 
 impl RefreshConfig {
     /// Create default refresh config (daily check, 80% threshold)
     pub fn new() -> Self {
         Self {
-            enabled: true,
-            check_interval_hours: 24,
+            enabled:                   true,
+            check_interval_hours:      24,
             refresh_threshold_percent: 80,
-            quiet_hours_start: None,
-            quiet_hours_end: None,
+            quiet_hours_start:         None,
+            quiet_hours_end:           None,
         }
     }
 
@@ -103,32 +103,32 @@ impl Default for RefreshConfig {
 #[derive(Debug, Clone)]
 pub struct RefreshTrigger {
     /// Refresh configuration
-    config: Arc<RefreshConfig>,
+    config:                   Arc<RefreshConfig>,
     /// Last refresh check time
-    last_check: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_check:               Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Last refresh completion time
-    last_refresh: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_refresh:             Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
     /// Last refresh duration in milliseconds
     last_refresh_duration_ms: Arc<AtomicU64>,
     /// Total refreshes performed
-    total_refreshes: Arc<AtomicU64>,
+    total_refreshes:          Arc<AtomicU64>,
     /// Failed refreshes count
-    failed_refreshes: Arc<AtomicU64>,
+    failed_refreshes:         Arc<AtomicU64>,
     /// Refresh pending flag
-    refresh_pending: Arc<AtomicBool>,
+    refresh_pending:          Arc<AtomicBool>,
 }
 
 impl RefreshTrigger {
     /// Create new refresh trigger
     pub fn new(config: RefreshConfig) -> Self {
         Self {
-            config: Arc::new(config),
-            last_check: Arc::new(std::sync::Mutex::new(None)),
-            last_refresh: Arc::new(std::sync::Mutex::new(None)),
+            config:                   Arc::new(config),
+            last_check:               Arc::new(std::sync::Mutex::new(None)),
+            last_refresh:             Arc::new(std::sync::Mutex::new(None)),
             last_refresh_duration_ms: Arc::new(AtomicU64::new(0)),
-            total_refreshes: Arc::new(AtomicU64::new(0)),
-            failed_refreshes: Arc::new(AtomicU64::new(0)),
-            refresh_pending: Arc::new(AtomicBool::new(false)),
+            total_refreshes:          Arc::new(AtomicU64::new(0)),
+            failed_refreshes:         Arc::new(AtomicU64::new(0)),
+            refresh_pending:          Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -263,11 +263,11 @@ impl Default for RefreshTrigger {
 #[derive(Debug, Clone)]
 pub struct RefreshJob {
     /// Job status
-    status: Arc<std::sync::Mutex<RefreshJobStatus>>,
+    status:             Arc<std::sync::Mutex<RefreshJobStatus>>,
     /// Job start time
-    start_time: Arc<std::sync::Mutex<Option<Instant>>>,
+    start_time:         Arc<std::sync::Mutex<Option<Instant>>>,
     /// Job last error message
-    last_error: Arc<std::sync::Mutex<Option<String>>>,
+    last_error:         Arc<std::sync::Mutex<Option<String>>>,
     /// Job is shutting down
     shutdown_requested: Arc<AtomicBool>,
 }
@@ -276,9 +276,9 @@ impl RefreshJob {
     /// Create new refresh job
     pub fn new() -> Self {
         Self {
-            status: Arc::new(std::sync::Mutex::new(RefreshJobStatus::Idle)),
-            start_time: Arc::new(std::sync::Mutex::new(None)),
-            last_error: Arc::new(std::sync::Mutex::new(None)),
+            status:             Arc::new(std::sync::Mutex::new(RefreshJobStatus::Idle)),
+            start_time:         Arc::new(std::sync::Mutex::new(None)),
+            last_error:         Arc::new(std::sync::Mutex::new(None)),
             shutdown_requested: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -364,7 +364,7 @@ pub struct RefreshManager {
     /// Refresh trigger
     trigger: Arc<RefreshTrigger>,
     /// Refresh job
-    job: Arc<RefreshJob>,
+    job:     Arc<RefreshJob>,
 }
 
 impl RefreshManager {
@@ -372,7 +372,7 @@ impl RefreshManager {
     pub fn new(config: RefreshConfig) -> Self {
         Self {
             trigger: Arc::new(RefreshTrigger::new(config)),
-            job: Arc::new(RefreshJob::new()),
+            job:     Arc::new(RefreshJob::new()),
         }
     }
 

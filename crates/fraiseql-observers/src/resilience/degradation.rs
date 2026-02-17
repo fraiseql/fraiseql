@@ -37,8 +37,8 @@ impl std::fmt::Display for DegradationLevel {
 #[derive(Clone)]
 pub struct GracefulDegradation {
     circuit_breaker: Arc<CircuitBreaker>,
-    enabled: Arc<AtomicBool>,
-    degraded_mode: Arc<AtomicBool>,
+    enabled:         Arc<AtomicBool>,
+    degraded_mode:   Arc<AtomicBool>,
 }
 
 impl GracefulDegradation {

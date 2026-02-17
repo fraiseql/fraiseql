@@ -28,10 +28,10 @@ where
     E: ActionExecutor,
     P: RetryPolicy,
 {
-    queue: Q,
-    executor: E,
-    worker_id: String,
-    retry_policy: P,
+    queue:          Q,
+    executor:       E,
+    worker_id:      String,
+    retry_policy:   P,
     job_timeout_ms: u64,
 }
 
@@ -178,13 +178,13 @@ where
     E: ActionExecutor,
     P: RetryPolicy,
 {
-    queue: Q,
-    executor: E,
-    retry_policy: P,
-    pool_size: usize,
+    queue:          Q,
+    executor:       E,
+    retry_policy:   P,
+    pool_size:      usize,
     job_timeout_ms: u64,
-    workers: Vec<tokio::task::JoinHandle<Result<()>>>,
-    is_running: Arc<AtomicBool>,
+    workers:        Vec<tokio::task::JoinHandle<Result<()>>>,
+    is_running:     Arc<AtomicBool>,
 }
 
 impl<Q, E, P> JobWorkerPool<Q, E, P>

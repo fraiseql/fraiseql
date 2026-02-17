@@ -60,30 +60,23 @@
 #![warn(missing_docs)]
 
 // Re-export core types
+#[cfg(feature = "arrow")]
+pub use fraiseql_arrow as arrow;
+#[cfg(feature = "cli")]
+pub use fraiseql_cli as cli;
 pub use fraiseql_core::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
-
-// Re-export error types
-pub use fraiseql_error::{AuthError, ConfigError, FileError, RuntimeError, WebhookError};
-
 // Re-export core modules for namespaced access
 pub use fraiseql_core::{
     apq, audit, cache, compiler, db, federation, graphql, runtime, schema, security, tenancy,
     validation,
 };
-
+// Re-export error types
+pub use fraiseql_error::{AuthError, ConfigError, FileError, RuntimeError, WebhookError};
+#[cfg(feature = "observers")]
+pub use fraiseql_observers as observers;
 // Conditional re-exports (feature-gated)
 #[cfg(feature = "server")]
 pub use fraiseql_server as server;
-
-#[cfg(feature = "cli")]
-pub use fraiseql_cli as cli;
-
-#[cfg(feature = "observers")]
-pub use fraiseql_observers as observers;
-
-#[cfg(feature = "arrow")]
-pub use fraiseql_arrow as arrow;
-
 #[cfg(feature = "wire")]
 pub use fraiseql_wire as wire;
 
@@ -94,27 +87,22 @@ pub mod prelude {
     //! Import with: `use fraiseql::prelude::*;`
 
     // Core types
-    pub use crate::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
-
-    // Runtime executor
-    pub use fraiseql_core::runtime::Executor;
-
     // Database access
     pub use fraiseql_core::db;
-
     // GraphQL parsing
     pub use fraiseql_core::graphql::{ParsedQuery, parse_query};
-
+    // Runtime executor
+    pub use fraiseql_core::runtime::Executor;
     // Tenancy support
     pub use fraiseql_core::tenancy::TenantContext as Tenant;
-
-    // Optional: Server components
-    #[cfg(feature = "server")]
-    pub use crate::server::{Server, ServerConfig};
 
     // Optional: Observer system
     #[cfg(feature = "observers")]
     pub use crate::observers::{EntityEvent, EventKind, ObserverExecutor};
+    // Optional: Server components
+    #[cfg(feature = "server")]
+    pub use crate::server::{Server, ServerConfig};
+    pub use crate::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
 }
 
 /// FraiseQL version string

@@ -97,7 +97,7 @@ impl AggregateQueryParser {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'table' field in aggregate query".to_string(),
-                path: None,
+                path:    None,
             })?
             .to_string();
 
@@ -230,7 +230,7 @@ impl AggregateQueryParser {
                     } else {
                         // Priority 3: Regular dimension
                         selections.push(GroupBySelection::Dimension {
-                            path: key.clone(),
+                            path:  key.clone(),
                             alias: key.clone(),
                         });
                     }
@@ -255,7 +255,7 @@ impl AggregateQueryParser {
                                     "Temporal bucketing column '{}' not found in denormalized filters",
                                     key
                                 ),
-                                path: None,
+                                path:    None,
                             });
                         }
 
@@ -294,7 +294,7 @@ impl AggregateQueryParser {
                     return Ok(Some(GroupBySelection::TemporalBucket {
                         column: filter_col.name.clone(),
                         bucket: bucket.1,
-                        alias: key.to_string(),
+                        alias:  key.to_string(),
                     }));
                 }
             }
@@ -330,11 +330,11 @@ impl AggregateQueryParser {
                         Self::find_calendar_bucket(calendar_dim, *bucket_type)
                     {
                         return Ok(Some(GroupBySelection::CalendarDimension {
-                            source_column: calendar_dim.source_column.clone(),
+                            source_column:   calendar_dim.source_column.clone(),
                             calendar_column: gran.column_name.clone(),
-                            json_key: bucket.json_key.clone(),
-                            bucket: bucket.bucket_type,
-                            alias: key.to_string(),
+                            json_key:        bucket.json_key.clone(),
+                            bucket:          bucket.bucket_type,
+                            alias:           key.to_string(),
                         }));
                     }
                 }
@@ -355,11 +355,11 @@ impl AggregateQueryParser {
             if calendar_dim.source_column == column {
                 if let Some((gran, cal_bucket)) = Self::find_calendar_bucket(calendar_dim, bucket) {
                     return Some(GroupBySelection::CalendarDimension {
-                        source_column: calendar_dim.source_column.clone(),
+                        source_column:   calendar_dim.source_column.clone(),
                         calendar_column: gran.column_name.clone(),
-                        json_key: cal_bucket.json_key.clone(),
-                        bucket: cal_bucket.bucket_type,
-                        alias: column.to_string(),
+                        json_key:        cal_bucket.json_key.clone(),
+                        bucket:          cal_bucket.bucket_type,
+                        alias:           column.to_string(),
                     });
                 }
             }
@@ -458,7 +458,7 @@ impl AggregateQueryParser {
                     "COUNT DISTINCT field '{}' not found in dimensions or measures. Available: {:?}",
                     stripped, dimension_paths
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -468,18 +468,18 @@ impl AggregateQueryParser {
             if let Some(stripped) = agg_name.strip_suffix("_bool_and") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field: dimension_path.clone(),
+                        field:    dimension_path.clone(),
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::And,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
             if let Some(stripped) = agg_name.strip_suffix("_bool_or") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field: dimension_path.clone(),
+                        field:    dimension_path.clone(),
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::Or,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -503,9 +503,9 @@ impl AggregateQueryParser {
                 let expected_name = format!("{}{}", measure.name, func.0);
                 if agg_name == expected_name {
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure: measure.name.clone(),
+                        measure:  measure.name.clone(),
                         function: func.1,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -524,9 +524,9 @@ impl AggregateQueryParser {
                 if agg_name == expected_name {
                     // For dimension aggregates, store the path as the "measure"
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure: dimension_path.clone(),
+                        measure:  dimension_path.clone(),
                         function: func.1,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -534,7 +534,7 @@ impl AggregateQueryParser {
 
         Err(FraiseQLError::Validation {
             message: format!("Unknown aggregate selection: {agg_name}"),
-            path: None,
+            path:    None,
         })
     }
 
@@ -575,7 +575,7 @@ impl AggregateQueryParser {
                             message: format!(
                                 "HAVING condition references non-selected aggregate: {agg_name}"
                             ),
-                            path: None,
+                            path:    None,
                         })?
                         .clone();
 
@@ -642,40 +642,40 @@ mod tests {
         use crate::compiler::fact_table::DimensionPath;
 
         FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
-                        name: "category".to_string(),
+                        name:      "category".to_string(),
                         json_path: "data->>'category'".to_string(),
                         data_type: "text".to_string(),
                     },
                     DimensionPath {
-                        name: "product".to_string(),
+                        name:      "product".to_string(),
                         json_path: "data->>'product'".to_string(),
                         data_type: "text".to_string(),
                     },
                 ],
             },
             denormalized_filters: vec![FilterColumn {
-                name: "occurred_at".to_string(),
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         }
     }
 

@@ -75,19 +75,19 @@ impl std::fmt::Display for ErrorCategory {
 #[derive(Debug, Clone)]
 pub struct RecoveryError {
     /// Error category
-    pub category: ErrorCategory,
+    pub category:    ErrorCategory,
     /// Human-readable message
-    pub message: String,
+    pub message:     String,
     /// Recovery strategy recommendation
-    pub strategy: RecoveryStrategy,
+    pub strategy:    RecoveryStrategy,
     /// Recovery suggestion for user
-    pub suggestion: String,
+    pub suggestion:  String,
     /// Timestamp of error
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:   DateTime<Utc>,
     /// Retry count so far
     pub retry_count: u32,
     /// Can retry
-    pub retryable: bool,
+    pub retryable:   bool,
 }
 
 impl RecoveryError {
@@ -164,11 +164,11 @@ impl RecoveryError {
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     /// Maximum number of retries
-    pub max_retries: u32,
+    pub max_retries:        u32,
     /// Initial backoff delay in milliseconds
     pub initial_backoff_ms: u64,
     /// Maximum backoff delay in milliseconds
-    pub max_backoff_ms: u64,
+    pub max_backoff_ms:     u64,
     /// Backoff multiplier for exponential growth
     pub backoff_multiplier: f64,
 }
@@ -177,9 +177,9 @@ impl RetryConfig {
     /// Create new retry config
     pub fn new() -> Self {
         Self {
-            max_retries: 3,
+            max_retries:        3,
             initial_backoff_ms: 100,
-            max_backoff_ms: 5000,
+            max_backoff_ms:     5000,
             backoff_multiplier: 2.0,
         }
     }
@@ -232,13 +232,13 @@ pub struct CircuitBreaker {
     /// Success threshold to close
     success_threshold: u32,
     /// Current failure count
-    failure_count: Arc<AtomicU64>,
+    failure_count:     Arc<AtomicU64>,
     /// Current success count
-    success_count: Arc<AtomicU64>,
+    success_count:     Arc<AtomicU64>,
     /// Circuit state
-    state: Arc<atomic::AtomicUsize>,
+    state:             Arc<atomic::AtomicUsize>,
     /// Last state change time
-    last_change: Arc<std::sync::Mutex<DateTime<Utc>>>,
+    last_change:       Arc<std::sync::Mutex<DateTime<Utc>>>,
 }
 
 mod atomic {
@@ -247,8 +247,8 @@ mod atomic {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     #[repr(usize)]
     pub enum CircuitState {
-        Closed = 0,
-        Open = 1,
+        Closed   = 0,
+        Open     = 1,
         HalfOpen = 2,
     }
 

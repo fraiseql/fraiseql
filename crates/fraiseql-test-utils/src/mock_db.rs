@@ -3,8 +3,8 @@
 //! Provides in-memory mock implementations of database traits for unit testing
 //! without requiring a real database connection.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
 use tokio::sync::RwLock;
 
 /// Mock database error type
@@ -84,8 +84,9 @@ impl Default for MockDb {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_mock_db_insert_and_get() {

@@ -31,8 +31,8 @@ use fraiseql_server::error::{ErrorCode, ErrorExtensions, GraphQLError};
 fn test_database_connection_failure_response() {
     let error = GraphQLError::database("Failed to connect to database: Connection refused")
         .with_extensions(ErrorExtensions {
-            category: Some("DATABASE".to_string()),
-            status: Some(500),
+            category:   Some("DATABASE".to_string()),
+            status:     Some(500),
             request_id: Some("req-12345".to_string()),
         });
 
@@ -286,8 +286,8 @@ fn test_rate_limit_exceeded() {
 #[test]
 fn test_error_response_has_request_id() {
     let extensions = ErrorExtensions {
-        category: None,
-        status: None,
+        category:   None,
+        status:     None,
         request_id: Some("req-unique-12368".to_string()),
     };
 
@@ -316,8 +316,8 @@ fn test_error_response_has_clear_message() {
 #[test]
 fn test_error_response_with_extensions() {
     let extensions = ErrorExtensions {
-        category: Some("VALIDATION".to_string()),
-        status: Some(400),
+        category:   Some("VALIDATION".to_string()),
+        status:     Some(400),
         request_id: Some("req-12371".to_string()),
     };
 
@@ -449,8 +449,8 @@ fn test_error_with_all_metadata() {
         .with_location(1, 1)
         .with_path(vec!["user".to_string(), "profile".to_string()])
         .with_extensions(ErrorExtensions {
-            category: Some("DATABASE".to_string()),
-            status: Some(503),
+            category:   Some("DATABASE".to_string()),
+            status:     Some(503),
             request_id: Some("req-db-001".to_string()),
         });
 

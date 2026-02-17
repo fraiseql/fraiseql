@@ -159,10 +159,10 @@ impl Default for CompilerConfig {
     fn default() -> Self {
         Self {
             database_target: DatabaseTarget::PostgreSQL,
-            optimize_sql: true,
-            strict_mode: false,
-            debug: false,
-            database_url: None,
+            optimize_sql:    true,
+            strict_mode:     false,
+            debug:           false,
+            database_url:    None,
         }
     }
 }
@@ -190,11 +190,11 @@ impl Default for CompilerConfig {
 /// # }
 /// ```
 pub struct Compiler {
-    config: CompilerConfig,
-    parser: SchemaParser,
+    config:    CompilerConfig,
+    parser:    SchemaParser,
     validator: SchemaValidator,
-    lowering: SqlTemplateGenerator,
-    codegen: CodeGenerator,
+    lowering:  SqlTemplateGenerator,
+    codegen:   CodeGenerator,
 }
 
 impl Compiler {
@@ -298,10 +298,10 @@ mod tests {
     fn test_compiler_with_config() {
         let config = CompilerConfig {
             database_target: DatabaseTarget::MySQL,
-            optimize_sql: false,
-            strict_mode: true,
-            debug: true,
-            database_url: None,
+            optimize_sql:    false,
+            strict_mode:     true,
+            debug:           true,
+            database_url:    None,
         };
 
         let compiler = Compiler::with_config(config);

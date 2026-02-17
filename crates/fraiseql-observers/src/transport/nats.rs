@@ -55,15 +55,15 @@ pub struct NatsConfig {
 impl Default for NatsConfig {
     fn default() -> Self {
         Self {
-            url: "nats://localhost:4222".to_string(),
-            stream_name: "fraiseql.entity_changes".to_string(),
-            consumer_name: "observer-default".to_string(),
-            subject_prefix: "entity.change".to_string(),
+            url:                    "nats://localhost:4222".to_string(),
+            stream_name:            "fraiseql.entity_changes".to_string(),
+            consumer_name:          "observer-default".to_string(),
+            subject_prefix:         "entity.change".to_string(),
             max_reconnect_attempts: 5,
-            reconnect_delay_ms: 1000,
-            ack_wait_secs: 30,
+            reconnect_delay_ms:     1000,
+            ack_wait_secs:          30,
             retention_max_messages: 1_000_000,
-            retention_max_bytes: 1_073_741_824, // 1 GB
+            retention_max_bytes:    1_073_741_824, // 1 GB
         }
     }
 }
@@ -106,9 +106,9 @@ impl Default for NatsConfig {
 /// ```
 #[cfg(feature = "nats")]
 pub struct NatsTransport {
-    client: Arc<async_nats::Client>,
+    client:    Arc<async_nats::Client>,
     jetstream: Arc<jetstream::Context>,
-    config: NatsConfig,
+    config:    NatsConfig,
 }
 
 #[cfg(feature = "nats")]
@@ -359,15 +359,15 @@ impl EventTransport for NatsTransport {
         // Check NATS connection status
         match self.client.connection_state() {
             async_nats::connection::State::Connected => Ok(TransportHealth {
-                status: HealthStatus::Healthy,
+                status:  HealthStatus::Healthy,
                 message: None,
             }),
             async_nats::connection::State::Disconnected => Ok(TransportHealth {
-                status: HealthStatus::Unhealthy,
+                status:  HealthStatus::Unhealthy,
                 message: Some("NATS client disconnected".to_string()),
             }),
             _ => Ok(TransportHealth {
-                status: HealthStatus::Degraded,
+                status:  HealthStatus::Degraded,
                 message: Some("NATS client in degraded state".to_string()),
             }),
         }

@@ -28,7 +28,7 @@ use uuid::Uuid;
 
 /// Test saga scenario builder for E2E testing
 struct TestSagaScenario {
-    step_count: usize,
+    step_count:            usize,
     compensation_strategy: CompensationStrategy,
 }
 
@@ -413,7 +413,7 @@ async fn test_last_step_failure_triggers_compensation() {
 }
 
 #[tokio::test]
-async fn test_failed_saga_transitions_to_failed_state() {
+async fn test_aborted_saga_transitions_to_aborted_state() {
     // Given: A saga with 3 steps
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
     let steps = TestSagaScenario::new(3).build_steps();
@@ -480,7 +480,7 @@ async fn test_failure_records_completed_steps_count() {
 // ===========================================================================================
 
 #[tokio::test]
-async fn test_failed_saga_with_automatic_strategy_compensates() {
+async fn test_aborted_saga_with_automatic_strategy_compensates() {
     // Given: A saga with automatic compensation strategy
     let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic);
     let steps = TestSagaScenario::new(4).build_steps();
@@ -670,7 +670,7 @@ async fn test_compensation_duration_metrics_recorded() {
 // ===========================================================================================
 
 #[tokio::test]
-async fn test_failed_saga_with_manual_strategy_transitions_to_manual_compensation_required() {
+async fn test_aborted_saga_with_manual_strategy_transitions_to_manual_compensation_required() {
     // Given: A saga with manual compensation strategy
     let scenario = TestSagaScenario::new(3).with_strategy(CompensationStrategy::Manual);
     let (_, saga_id) = execute_saga_scenario(scenario).await;

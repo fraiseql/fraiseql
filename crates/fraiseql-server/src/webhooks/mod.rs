@@ -42,8 +42,8 @@ pub enum WebhookError {
 
     #[error("Timestamp expired (received: {received}, now: {now}, tolerance: {tolerance}s)")]
     TimestampExpired {
-        received: i64,
-        now: i64,
+        received:  i64,
+        now:       i64,
         tolerance: u64,
     },
 

@@ -3,8 +3,9 @@
 //! Provides newtype wrappers for table, schema, and field names to enable
 //! compile-time type safety and prevent accidental mixing of identifier types.
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use serde::{Deserialize, Serialize};
 
 /// Type-safe table name identifier
 ///

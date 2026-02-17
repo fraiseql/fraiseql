@@ -15,20 +15,20 @@ use crate::auth::{
 /// Supports both Auth0 rules and custom claim mapping.
 #[derive(Debug)]
 pub struct Auth0OAuth {
-    oidc: OidcProvider,
+    oidc:   OidcProvider,
     domain: String,
 }
 
 /// Auth0 user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct Auth0User {
-    pub sub: String,
-    pub email: String,
+    pub sub:            String,
+    pub email:          String,
     pub email_verified: Option<bool>,
-    pub name: Option<String>,
-    pub picture: Option<String>,
-    pub locale: Option<String>,
-    pub nickname: Option<String>,
+    pub name:           Option<String>,
+    pub picture:        Option<String>,
+    pub locale:         Option<String>,
+    pub nickname:       Option<String>,
 }
 
 /// Auth0 roles claim

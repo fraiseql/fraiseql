@@ -41,11 +41,11 @@ use crate::{
 
 /// FraiseQL HTTP Server.
 pub struct Server<A: DatabaseAdapter> {
-    config: ServerConfig,
-    executor: Arc<Executor<A>>,
+    config:               ServerConfig,
+    executor:             Arc<Executor<A>>,
     subscription_manager: Arc<SubscriptionManager>,
-    oidc_validator: Option<Arc<OidcValidator>>,
-    rate_limiter: Option<Arc<RateLimiter>>,
+    oidc_validator:       Option<Arc<OidcValidator>>,
+    rate_limiter:         Option<Arc<RateLimiter>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -114,10 +114,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Initializing rate limiting"
                 );
                 let limiter_config = crate::middleware::RateLimitConfig {
-                    enabled: true,
-                    rps_per_ip: rate_config.rps_per_ip,
-                    rps_per_user: rate_config.rps_per_user,
-                    burst_size: rate_config.burst_size,
+                    enabled:               true,
+                    rps_per_ip:            rate_config.rps_per_ip,
+                    rps_per_user:          rate_config.rps_per_user,
+                    burst_size:            rate_config.burst_size,
                     cleanup_interval_secs: rate_config.cleanup_interval_secs,
                 };
                 Some(Arc::new(RateLimiter::new(limiter_config)))
@@ -210,10 +210,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Initializing rate limiting"
                 );
                 let limiter_config = crate::middleware::RateLimitConfig {
-                    enabled: true,
-                    rps_per_ip: rate_config.rps_per_ip,
-                    rps_per_user: rate_config.rps_per_user,
-                    burst_size: rate_config.burst_size,
+                    enabled:               true,
+                    rps_per_ip:            rate_config.rps_per_ip,
+                    rps_per_user:          rate_config.rps_per_user,
+                    burst_size:            rate_config.burst_size,
                     cleanup_interval_secs: rate_config.cleanup_interval_secs,
                 };
                 Some(Arc::new(RateLimiter::new(limiter_config)))

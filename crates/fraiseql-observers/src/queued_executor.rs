@@ -206,14 +206,14 @@ impl QueuedExecutionSummary {
     pub fn to_execution_summary(&self) -> ExecutionSummary {
         ExecutionSummary {
             successful_actions: self.jobs_queued,
-            failed_actions: self.queueing_errors,
+            failed_actions:     self.queueing_errors,
             conditions_skipped: self.conditions_skipped,
-            total_duration_ms: 0.0,
-            dlq_errors: 0,
-            errors: self.errors.clone(),
-            duplicate_skipped: false,
-            cache_hits: 0,
-            cache_misses: 0,
+            total_duration_ms:  0.0,
+            dlq_errors:         0,
+            errors:             self.errors.clone(),
+            duplicate_skipped:  false,
+            cache_hits:         0,
+            cache_misses:       0,
         }
     }
 }
@@ -233,11 +233,11 @@ mod tests {
     #[test]
     fn test_queued_summary_success() {
         let summary = QueuedExecutionSummary {
-            jobs_queued: 5,
-            queueing_errors: 0,
+            jobs_queued:        5,
+            queueing_errors:    0,
             conditions_skipped: 0,
-            job_ids: vec![],
-            errors: vec![],
+            job_ids:            vec![],
+            errors:             vec![],
         };
         assert!(summary.is_success());
         assert_eq!(summary.total_jobs(), 5);

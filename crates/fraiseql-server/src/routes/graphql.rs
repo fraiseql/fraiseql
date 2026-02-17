@@ -85,13 +85,13 @@ impl IntoResponse for GraphQLResponse {
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor.
-    pub executor: Arc<Executor<A>>,
+    pub executor:             Arc<Executor<A>>,
     /// Metrics collector.
-    pub metrics: Arc<MetricsCollector>,
+    pub metrics:              Arc<MetricsCollector>,
     /// Query result cache (optional).
-    pub cache: Option<Arc<fraiseql_arrow::cache::QueryCache>>,
+    pub cache:                Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
-    pub config: Option<Arc<crate::config::ServerConfig>>,
+    pub config:               Option<Arc<crate::config::ServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
 }
@@ -591,11 +591,11 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config = crate::config::ServerConfig {
-            port: 8080,
-            host: "0.0.0.0".to_string(),
+            port:    8080,
+            host:    "0.0.0.0".to_string(),
             workers: Some(4),
-            tls: None,
-            limits: None,
+            tls:     None,
+            limits:  None,
         };
 
         let sanitized = SanitizedConfig::from_config(&config);
@@ -615,14 +615,14 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config = crate::config::ServerConfig {
-            port: 8080,
-            host: "localhost".to_string(),
+            port:    8080,
+            host:    "localhost".to_string(),
             workers: None,
-            tls: Some(crate::config::TlsConfig {
+            tls:     Some(crate::config::TlsConfig {
                 cert_file: PathBuf::from("/path/to/cert.pem"),
-                key_file: PathBuf::from("/path/to/key.pem"),
+                key_file:  PathBuf::from("/path/to/key.pem"),
             }),
-            limits: None,
+            limits:  None,
         };
 
         let sanitized = SanitizedConfig::from_config(&config);
@@ -640,22 +640,22 @@ mod tests {
         use crate::routes::api::types::SanitizedConfig;
 
         let config1 = crate::config::ServerConfig {
-            port: 8000,
-            host: "127.0.0.1".to_string(),
+            port:    8000,
+            host:    "127.0.0.1".to_string(),
             workers: None,
-            tls: None,
-            limits: None,
+            tls:     None,
+            limits:  None,
         };
 
         let config2 = crate::config::ServerConfig {
-            port: 8000,
-            host: "127.0.0.1".to_string(),
+            port:    8000,
+            host:    "127.0.0.1".to_string(),
             workers: None,
-            tls: Some(crate::config::TlsConfig {
+            tls:     Some(crate::config::TlsConfig {
                 cert_file: std::path::PathBuf::from("secret.cert"),
-                key_file: std::path::PathBuf::from("secret.key"),
+                key_file:  std::path::PathBuf::from("secret.key"),
             }),
-            limits: None,
+            limits:  None,
         };
 
         let san1 = SanitizedConfig::from_config(&config1);
@@ -724,9 +724,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_is_per_ip() {
         let config = RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
-            window_secs: 60,
+            window_secs:  60,
         };
         let limiter = KeyedRateLimiter::new(config);
 
@@ -744,9 +744,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_enforces_limit() {
         let config = RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         };
         let limiter = KeyedRateLimiter::new(config);
 
@@ -758,9 +758,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_disabled() {
         let config = RateLimitConfig {
-            enabled: false,
+            enabled:      false,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         };
         let limiter = KeyedRateLimiter::new(config);
 
@@ -773,9 +773,9 @@ mod tests {
     #[test]
     fn test_graphql_rate_limiter_window_reset() {
         let config = RateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 0, // Immediate window reset for testing
+            window_secs:  0, // Immediate window reset for testing
         };
         let limiter = KeyedRateLimiter::new(config);
 

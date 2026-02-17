@@ -44,7 +44,7 @@ pub enum FraiseQLError {
     #[error("Parse error at {location}: {message}")]
     Parse {
         /// Error message describing the parse failure.
-        message: String,
+        message:  String,
         /// Location in the query where the error occurred.
         location: String,
     },
@@ -57,7 +57,7 @@ pub enum FraiseQLError {
         /// Error message describing the validation failure.
         message: String,
         /// Path to the field with the error (e.g., "user.posts.0.title").
-        path: Option<String>,
+        path:    Option<String>,
     },
 
     /// Unknown field error.
@@ -66,7 +66,7 @@ pub enum FraiseQLError {
     #[error("Unknown field '{field}' on type '{type_name}'")]
     UnknownField {
         /// The field name that was not found.
-        field: String,
+        field:     String,
         /// The type on which the field was queried.
         type_name: String,
     },
@@ -89,7 +89,7 @@ pub enum FraiseQLError {
     #[error("Database error: {message}")]
     Database {
         /// Error message from the database.
-        message: String,
+        message:   String,
         /// SQL state code if available (e.g., "23505" for unique violation).
         sql_state: Option<String>,
     },
@@ -111,7 +111,7 @@ pub enum FraiseQLError {
         /// Timeout duration in milliseconds.
         timeout_ms: u64,
         /// The query that timed out (truncated if too long).
-        query: Option<String>,
+        query:      Option<String>,
     },
 
     /// Query cancellation error.
@@ -123,7 +123,7 @@ pub enum FraiseQLError {
         /// Query identifier for tracking/logging.
         query_id: String,
         /// Reason for cancellation (e.g., "user cancelled", "connection closed").
-        reason: String,
+        reason:   String,
     },
 
     // ========================================================================
@@ -135,9 +135,9 @@ pub enum FraiseQLError {
     #[error("Authorization error: {message}")]
     Authorization {
         /// Error message.
-        message: String,
+        message:  String,
         /// The action that was denied (e.g., "read", "write", "delete").
-        action: Option<String>,
+        action:   Option<String>,
         /// The resource that was being accessed.
         resource: Option<String>,
     },
@@ -157,7 +157,7 @@ pub enum FraiseQLError {
     #[error("Rate limit exceeded: {message}")]
     RateLimited {
         /// Error message.
-        message: String,
+        message:          String,
         /// Number of seconds to wait before retrying.
         retry_after_secs: u64,
     },
@@ -173,7 +173,7 @@ pub enum FraiseQLError {
         /// Type of resource (e.g., "User", "Post").
         resource_type: String,
         /// Identifier that was looked up.
-        identifier: String,
+        identifier:    String,
     },
 
     /// Conflict error.
@@ -209,7 +209,7 @@ pub enum FraiseQLError {
         message: String,
         /// Optional source error for debugging.
         #[source]
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 
@@ -222,7 +222,7 @@ impl FraiseQLError {
     #[must_use]
     pub fn parse(message: impl Into<String>) -> Self {
         Self::Parse {
-            message: message.into(),
+            message:  message.into(),
             location: "unknown".to_string(),
         }
     }
@@ -231,7 +231,7 @@ impl FraiseQLError {
     #[must_use]
     pub fn parse_at(message: impl Into<String>, location: impl Into<String>) -> Self {
         Self::Parse {
-            message: message.into(),
+            message:  message.into(),
             location: location.into(),
         }
     }
@@ -241,7 +241,7 @@ impl FraiseQLError {
     pub fn validation(message: impl Into<String>) -> Self {
         Self::Validation {
             message: message.into(),
-            path: None,
+            path:    None,
         }
     }
 
@@ -250,7 +250,7 @@ impl FraiseQLError {
     pub fn validation_at(message: impl Into<String>, path: impl Into<String>) -> Self {
         Self::Validation {
             message: message.into(),
-            path: Some(path.into()),
+            path:    Some(path.into()),
         }
     }
 
@@ -258,7 +258,7 @@ impl FraiseQLError {
     #[must_use]
     pub fn database(message: impl Into<String>) -> Self {
         Self::Database {
-            message: message.into(),
+            message:   message.into(),
             sql_state: None,
         }
     }
@@ -267,8 +267,8 @@ impl FraiseQLError {
     #[must_use]
     pub fn unauthorized(message: impl Into<String>) -> Self {
         Self::Authorization {
-            message: message.into(),
-            action: None,
+            message:  message.into(),
+            action:   None,
             resource: None,
         }
     }
@@ -278,7 +278,7 @@ impl FraiseQLError {
     pub fn not_found(resource_type: impl Into<String>, identifier: impl Into<String>) -> Self {
         Self::NotFound {
             resource_type: resource_type.into(),
-            identifier: identifier.into(),
+            identifier:    identifier.into(),
         }
     }
 
@@ -295,7 +295,7 @@ impl FraiseQLError {
     pub fn internal(message: impl Into<String>) -> Self {
         Self::Internal {
             message: message.into(),
-            source: None,
+            source:  None,
         }
     }
 
@@ -304,7 +304,7 @@ impl FraiseQLError {
     pub fn cancelled(query_id: impl Into<String>, reason: impl Into<String>) -> Self {
         Self::Cancelled {
             query_id: query_id.into(),
-            reason: reason.into(),
+            reason:   reason.into(),
         }
     }
 
@@ -403,7 +403,7 @@ impl FraiseQLError {
 impl From<serde_json::Error> for FraiseQLError {
     fn from(e: serde_json::Error) -> Self {
         Self::Parse {
-            message: e.to_string(),
+            message:  e.to_string(),
             location: format!("line {}, column {}", e.line(), e.column()),
         }
     }
@@ -413,7 +413,7 @@ impl From<std::io::Error> for FraiseQLError {
     fn from(e: std::io::Error) -> Self {
         Self::Internal {
             message: format!("I/O error: {e}"),
-            source: Some(Box::new(e)),
+            source:  Some(Box::new(e)),
         }
     }
 }
@@ -528,7 +528,7 @@ impl<T, E: Into<FraiseQLError>> ErrorContext<T> for std::result::Result<T, E> {
             let inner = e.into();
             FraiseQLError::Internal {
                 message: format!("{}: {inner}", message.into()),
-                source: None,
+                source:  None,
             }
         })
     }
@@ -542,7 +542,7 @@ impl<T, E: Into<FraiseQLError>> ErrorContext<T> for std::result::Result<T, E> {
             let inner = e.into();
             FraiseQLError::Internal {
                 message: format!("{}: {inner}", f().into()),
-                source: None,
+                source:  None,
             }
         })
     }
@@ -559,11 +559,11 @@ impl<T, E: Into<FraiseQLError>> ErrorContext<T> for std::result::Result<T, E> {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ValidationFieldError {
     /// Path to the field that failed validation (e.g., "user.email", "addresses.0.zipcode").
-    pub field: String,
+    pub field:     String,
     /// Type of validation rule that failed (e.g., "pattern", "required", "range").
     pub rule_type: String,
     /// Human-readable error message explaining what went wrong.
-    pub message: String,
+    pub message:   String,
 }
 
 impl ValidationFieldError {
@@ -575,9 +575,9 @@ impl ValidationFieldError {
         message: impl Into<String>,
     ) -> Self {
         Self {
-            field: field.into(),
+            field:     field.into(),
             rule_type: rule_type.into(),
-            message: message.into(),
+            message:   message.into(),
         }
     }
 }
@@ -632,7 +632,7 @@ mod tests {
         assert!(
             FraiseQLError::Timeout {
                 timeout_ms: 5000,
-                query: None,
+                query:      None,
             }
             .is_retryable()
         );

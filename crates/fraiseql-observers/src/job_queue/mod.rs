@@ -70,13 +70,13 @@ impl JobState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobAttempt {
     /// Attempt number (1-based)
-    pub attempt: u32,
+    pub attempt:    u32,
     /// When this attempt started
     pub started_at: DateTime<Utc>,
     /// Whether this attempt succeeded
-    pub success: bool,
+    pub success:    bool,
     /// Error message if it failed
-    pub error: Option<String>,
+    pub error:      Option<String>,
 }
 
 /// Job to be executed asynchronously
@@ -175,10 +175,10 @@ impl Job {
     pub fn mark_completed(&mut self) {
         self.state = JobState::Completed;
         self.attempts.push(JobAttempt {
-            attempt: self.attempt,
+            attempt:    self.attempt,
             started_at: Utc::now(),
-            success: true,
-            error: None,
+            success:    true,
+            error:      None,
         });
     }
 
@@ -186,10 +186,10 @@ impl Job {
     pub fn mark_failed(&mut self, error: String) {
         self.last_error = Some(error.clone());
         self.attempts.push(JobAttempt {
-            attempt: self.attempt,
+            attempt:    self.attempt,
             started_at: Utc::now(),
-            success: false,
-            error: Some(error),
+            success:    false,
+            error:      Some(error),
         });
 
         if self.can_retry() {
@@ -253,7 +253,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -271,7 +271,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -288,7 +288,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -306,7 +306,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -325,7 +325,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 2, crate::config::BackoffStrategy::Exponential);
@@ -342,7 +342,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -358,7 +358,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -380,7 +380,7 @@ mod tests {
             event_id,
             ActionConfig::Cache {
                 key_pattern: "test:*".to_string(),
-                action: "invalidate".to_string(),
+                action:      "invalidate".to_string(),
             },
             3,
             crate::config::BackoffStrategy::Exponential,
@@ -390,9 +390,9 @@ mod tests {
         let job_webhook = Job::new(
             event_id,
             ActionConfig::Webhook {
-                url: Some("http://example.com".to_string()),
-                url_env: None,
-                headers: Default::default(),
+                url:           Some("http://example.com".to_string()),
+                url_env:       None,
+                headers:       Default::default(),
                 body_template: None,
             },
             3,

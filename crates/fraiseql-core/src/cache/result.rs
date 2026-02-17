@@ -147,12 +147,12 @@ impl QueryResultCache {
             cache: Arc::new(Mutex::new(LruCache::new(max))),
             config,
             metrics: Arc::new(Mutex::new(CacheMetrics {
-                hits: 0,
-                misses: 0,
-                total_cached: 0,
+                hits:          0,
+                misses:        0,
+                total_cached:  0,
                 invalidations: 0,
-                size: 0,
-                memory_bytes: 0,
+                size:          0,
+                memory_bytes:  0,
             })),
         }
     }
@@ -191,7 +191,7 @@ impl QueryResultCache {
 
         let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Cache lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
 
         if let Some(cached) = cache.get_mut(cache_key) {
@@ -270,7 +270,7 @@ impl QueryResultCache {
 
         let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Cache lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
 
         cache.put(cache_key, cached);
@@ -278,7 +278,7 @@ impl QueryResultCache {
         // Update metrics
         let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Metrics lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
         metrics.total_cached += 1;
         metrics.size = cache.len();
@@ -330,7 +330,7 @@ impl QueryResultCache {
 
         let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Cache lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
 
         // Collect keys to remove (can't modify during iteration)
@@ -352,7 +352,7 @@ impl QueryResultCache {
         // Update metrics
         let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Metrics lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
         metrics.invalidations += invalidated_count;
         metrics.size = cache.len();
@@ -385,7 +385,7 @@ impl QueryResultCache {
             .lock()
             .map_err(|e| FraiseQLError::Internal {
                 message: format!("Metrics lock poisoned: {e}"),
-                source: None,
+                source:  None,
             })
             .map(|m| m.clone())
     }
@@ -412,13 +412,13 @@ impl QueryResultCache {
             .lock()
             .map_err(|e| FraiseQLError::Internal {
                 message: format!("Cache lock poisoned: {e}"),
-                source: None,
+                source:  None,
             })?
             .clear();
 
         let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Metrics lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
         metrics.size = 0;
         metrics.memory_bytes = 0;
@@ -431,7 +431,7 @@ impl QueryResultCache {
     fn record_hit(&self) -> Result<()> {
         let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Metrics lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
         metrics.hits += 1;
         Ok(())
@@ -440,7 +440,7 @@ impl QueryResultCache {
     fn record_miss(&self) -> Result<()> {
         let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Metrics lock poisoned: {e}"),
-            source: None,
+            source:  None,
         })?;
         metrics.misses += 1;
         Ok(())
@@ -845,12 +845,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate() {
         let metrics = CacheMetrics {
-            hits: 80,
-            misses: 20,
-            total_cached: 100,
+            hits:          80,
+            misses:        20,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
 
         assert!((metrics.hit_rate() - 0.8).abs() < f64::EPSILON);
@@ -860,12 +860,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate_zero_requests() {
         let metrics = CacheMetrics {
-            hits: 0,
-            misses: 0,
-            total_cached: 0,
+            hits:          0,
+            misses:        0,
+            total_cached:  0,
             invalidations: 0,
-            size: 0,
-            memory_bytes: 0,
+            size:          0,
+            memory_bytes:  0,
         };
 
         assert!((metrics.hit_rate() - 0.0).abs() < f64::EPSILON);
@@ -875,22 +875,22 @@ mod tests {
     #[test]
     fn test_metrics_is_healthy() {
         let good = CacheMetrics {
-            hits: 70,
-            misses: 30,
-            total_cached: 100,
+            hits:          70,
+            misses:        30,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
         assert!(good.is_healthy()); // 70% > 60%
 
         let bad = CacheMetrics {
-            hits: 50,
-            misses: 50,
-            total_cached: 100,
+            hits:          50,
+            misses:        50,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
         assert!(!bad.is_healthy()); // 50% < 60%
     }

@@ -15,7 +15,7 @@ use crate::webhooks::{
 /// the `SignatureVerifier` trait returns `&'static str`. These fields
 /// exist for potential future trait changes.
 pub struct HmacSha256Verifier {
-    _name: String,
+    _name:   String,
     _header: String,
 }
 
@@ -23,7 +23,7 @@ impl HmacSha256Verifier {
     #[must_use]
     pub fn new(name: &str, header: &str) -> Self {
         Self {
-            _name: name.to_string(),
+            _name:   name.to_string(),
             _header: header.to_string(),
         }
     }
@@ -69,7 +69,7 @@ impl SignatureVerifier for HmacSha256Verifier {
 /// the `SignatureVerifier` trait returns `&'static str`. These fields
 /// exist for potential future trait changes.
 pub struct HmacSha1Verifier {
-    _name: String,
+    _name:   String,
     _header: String,
 }
 
@@ -77,7 +77,7 @@ impl HmacSha1Verifier {
     #[must_use]
     pub fn new(name: &str, header: &str) -> Self {
         Self {
-            _name: name.to_string(),
+            _name:   name.to_string(),
             _header: header.to_string(),
         }
     }

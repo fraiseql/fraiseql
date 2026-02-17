@@ -11,7 +11,7 @@ enum GraphFormat {
 
 #[derive(Debug)]
 struct GraphResult {
-    format: GraphFormat,
+    format:  GraphFormat,
     content: String,
 }
 

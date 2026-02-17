@@ -139,7 +139,8 @@ EXAMPLES:
         #[arg(value_name = "INPUT")]
         input: Vec<String>,
 
-        /// Override language detection (python, typescript, rust, java, kotlin, go, csharp, swift, scala)
+        /// Override language detection (python, typescript, rust, java, kotlin, go, csharp, swift,
+        /// scala)
         #[arg(short, long)]
         language: Option<String>,
 
@@ -815,7 +816,7 @@ async fn main() {
                         let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                         let action = commands::migrate::MigrateAction::Up {
                             database_url: url,
-                            dir: mig_dir,
+                            dir:          mig_dir,
                         };
                         commands::migrate::run(&action)
                     },
@@ -848,7 +849,7 @@ async fn main() {
                         let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                         let action = commands::migrate::MigrateAction::Status {
                             database_url: url,
-                            dir: mig_dir,
+                            dir:          mig_dir,
                         };
                         commands::migrate::run(&action)
                     },
@@ -857,19 +858,14 @@ async fn main() {
             },
             MigrateCommands::Create { name, dir } => {
                 let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
-                let action = commands::migrate::MigrateAction::Create {
-                    name,
-                    dir: mig_dir,
-                };
+                let action = commands::migrate::MigrateAction::Create { name, dir: mig_dir };
                 commands::migrate::run(&action)
             },
         },
 
-        Commands::Sbom { format, output } => {
-            match commands::sbom::SbomFormat::from_str(&format) {
-                Ok(fmt) => commands::sbom::run(fmt, output.as_deref()),
-                Err(e) => Err(anyhow::anyhow!(e)),
-            }
+        Commands::Sbom { format, output } => match commands::sbom::SbomFormat::from_str(&format) {
+            Ok(fmt) => commands::sbom::run(fmt, output.as_deref()),
+            Err(e) => Err(anyhow::anyhow!(e)),
         },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,

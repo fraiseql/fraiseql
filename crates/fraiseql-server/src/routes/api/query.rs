@@ -25,13 +25,13 @@ pub struct ExplainRequest {
 #[derive(Debug, Serialize)]
 pub struct ExplainResponse {
     /// Original query that was analyzed
-    pub query: String,
+    pub query:          String,
     /// Generated SQL equivalent (if available)
-    pub sql: Option<String>,
+    pub sql:            Option<String>,
     /// Complexity metrics for the query
-    pub complexity: ComplexityInfo,
+    pub complexity:     ComplexityInfo,
     /// Warning messages for potential issues
-    pub warnings: Vec<String>,
+    pub warnings:       Vec<String>,
     /// Estimated cost to execute the query
     pub estimated_cost: usize,
 }
@@ -40,11 +40,11 @@ pub struct ExplainResponse {
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct ComplexityInfo {
     /// Maximum nesting depth of the query
-    pub depth: usize,
+    pub depth:       usize,
     /// Total number of fields requested
     pub field_count: usize,
     /// Combined complexity score (depth × field_count)
-    pub score: usize,
+    pub score:       usize,
 }
 
 /// Request to validate a query.
@@ -58,7 +58,7 @@ pub struct ValidateRequest {
 #[derive(Debug, Serialize)]
 pub struct ValidateResponse {
     /// Whether the query is syntactically valid
-    pub valid: bool,
+    pub valid:  bool,
     /// List of validation errors (if any)
     pub errors: Vec<String>,
 }
@@ -67,11 +67,11 @@ pub struct ValidateResponse {
 #[derive(Debug, Serialize)]
 pub struct StatsResponse {
     /// Total number of queries executed
-    pub total_queries: usize,
+    pub total_queries:      usize,
     /// Number of successful query executions
     pub successful_queries: usize,
     /// Number of failed query executions
-    pub failed_queries: usize,
+    pub failed_queries:     usize,
     /// Average latency in milliseconds
     pub average_latency_ms: f64,
 }
@@ -113,7 +113,7 @@ pub async fn explain_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -128,8 +128,8 @@ pub async fn validate_handler<A: DatabaseAdapter>(
     if req.query.trim().is_empty() {
         return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: ValidateResponse {
-                valid: false,
+            data:   ValidateResponse {
+                valid:  false,
                 errors: vec!["Query cannot be empty".to_string()],
             },
         }));
@@ -143,7 +143,7 @@ pub async fn validate_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -187,7 +187,7 @@ pub async fn stats_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -365,9 +365,9 @@ mod tests {
     #[test]
     fn test_generate_warnings_deep() {
         let complexity = ComplexityInfo {
-            depth: 15,
+            depth:       15,
             field_count: 5,
-            score: 75,
+            score:       75,
         };
         let warnings = generate_warnings(&complexity);
         assert!(!warnings.is_empty());
@@ -377,9 +377,9 @@ mod tests {
     #[test]
     fn test_generate_warnings_high_score() {
         let complexity = ComplexityInfo {
-            depth: 3,
+            depth:       3,
             field_count: 200,
-            score: 600,
+            score:       600,
         };
         let warnings = generate_warnings(&complexity);
         assert!(!warnings.is_empty());
@@ -389,9 +389,9 @@ mod tests {
     #[test]
     fn test_estimate_cost() {
         let complexity = ComplexityInfo {
-            depth: 2,
+            depth:       2,
             field_count: 3,
-            score: 6,
+            score:       6,
         };
         let cost = estimate_cost(&complexity);
         assert!(cost > 0);
@@ -420,9 +420,9 @@ mod tests {
     fn test_stats_response_structure() {
         // Phase 6.3: Query statistics response structure
         let response = StatsResponse {
-            total_queries: 100,
+            total_queries:      100,
             successful_queries: 95,
-            failed_queries: 5,
+            failed_queries:     5,
             average_latency_ms: 42.5,
         };
 
@@ -436,14 +436,14 @@ mod tests {
     fn test_explain_response_structure() {
         // Phase 6.4: Query explanation response structure
         let response = ExplainResponse {
-            query: "query { users { id } }".to_string(),
-            sql: Some("SELECT id FROM users".to_string()),
-            complexity: ComplexityInfo {
-                depth: 2,
+            query:          "query { users { id } }".to_string(),
+            sql:            Some("SELECT id FROM users".to_string()),
+            complexity:     ComplexityInfo {
+                depth:       2,
                 field_count: 1,
-                score: 2,
+                score:       2,
             },
-            warnings: vec![],
+            warnings:       vec![],
             estimated_cost: 50,
         };
 
@@ -457,9 +457,9 @@ mod tests {
     fn test_complexity_info_score_calculation() {
         // Phase 6.4: Complexity score is calculated correctly
         let complexity = ComplexityInfo {
-            depth: 3,
+            depth:       3,
             field_count: 4,
-            score: 12,
+            score:       12,
         };
 
         assert_eq!(complexity.score, 3 * 4);

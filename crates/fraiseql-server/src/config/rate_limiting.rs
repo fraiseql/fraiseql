@@ -82,10 +82,10 @@ pub struct BackpressureConfig {
 impl Default for BackpressureConfig {
     fn default() -> Self {
         Self {
-            queue_enabled: false,
+            queue_enabled:  false,
             max_queue_size: default_queue_size(),
-            queue_timeout: default_queue_timeout(),
-            load_shed: default_load_shed(),
+            queue_timeout:  default_queue_timeout(),
+            load_shed:      default_load_shed(),
         }
     }
 }

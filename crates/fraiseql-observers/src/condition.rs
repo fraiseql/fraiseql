@@ -34,7 +34,7 @@ pub enum ConditionAst {
         /// Field name or path
         field: String,
         /// Operator: ==, !=, >, <, >=, <=
-        op: String,
+        op:    String,
         /// Value to compare against
         value: String,
     },
@@ -65,14 +65,14 @@ pub enum ConditionAst {
     /// Logical AND
     And {
         /// Left operand
-        left: Box<ConditionAst>,
+        left:  Box<ConditionAst>,
         /// Right operand
         right: Box<ConditionAst>,
     },
     /// Logical OR
     Or {
         /// Left operand
-        left: Box<ConditionAst>,
+        left:  Box<ConditionAst>,
         /// Right operand
         right: Box<ConditionAst>,
     },
@@ -110,7 +110,7 @@ pub struct ConditionParser {
     #[allow(dead_code)]
     comparison_re: Regex,
     #[allow(dead_code)]
-    function_re: Regex,
+    function_re:   Regex,
     #[allow(dead_code)]
     identifier_re: Regex,
 }
@@ -122,7 +122,7 @@ impl ConditionParser {
         Self {
             comparison_re: Regex::new(r"(\w+)\s*(==|!=|>|<|>=|<=)\s*('([^']*)')")
                 .expect("Invalid regex"),
-            function_re: Regex::new(r"(\w+)\s*\(\s*'([^']*)'\s*(?:,\s*'([^']*)'\s*)?\)")
+            function_re:   Regex::new(r"(\w+)\s*\(\s*'([^']*)'\s*(?:,\s*'([^']*)'\s*)?\)")
                 .expect("Invalid regex"),
             identifier_re: Regex::new(r"^[a-zA-Z_]\w*$").expect("Invalid regex"),
         }
@@ -400,7 +400,7 @@ impl ConditionParser {
                 *pos += 1;
                 let right = self.parse_and(tokens, pos)?;
                 left = ConditionAst::Or {
-                    left: Box::new(left),
+                    left:  Box::new(left),
                     right: Box::new(right),
                 };
             } else {
@@ -419,7 +419,7 @@ impl ConditionParser {
                 *pos += 1;
                 let right = self.parse_not(tokens, pos)?;
                 left = ConditionAst::And {
-                    left: Box::new(left),
+                    left:  Box::new(left),
                     right: Box::new(right),
                 };
             } else {
@@ -464,7 +464,7 @@ impl ConditionParser {
             Token::Comparison { field, op, value } => {
                 let ast = ConditionAst::Comparison {
                     field: field.clone(),
-                    op: op.clone(),
+                    op:    op.clone(),
                     value: value.clone(),
                 };
                 *pos += 1;
@@ -593,7 +593,7 @@ impl Default for ConditionParser {
 enum Token {
     Comparison {
         field: String,
-        op: String,
+        op:    String,
         value: String,
     },
     Function {

@@ -360,15 +360,15 @@ mod tests {
         let query = "query { users { id } }";
 
         let where1 = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
 
         let where2 = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("bob@example.com"),
+            value:    json!("bob@example.com"),
         };
 
         let key1 = generate_cache_key(query, &json!({}), Some(&where1), "v1");
@@ -382,15 +382,15 @@ mod tests {
         let query = "query { users { id } }";
 
         let where_eq = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(30),
+            value:    json!(30),
         };
 
         let where_gt = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(30),
+            value:    json!(30),
         };
 
         let key_eq = generate_cache_key(query, &json!({}), Some(&where_eq), "v1");
@@ -404,9 +404,9 @@ mod tests {
         let query = "query { users { id } }";
 
         let where_clause = WhereClause::Field {
-            path: vec!["active".to_string()],
+            path:     vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let key_without = generate_cache_key(query, &json!({}), None, "v1");
@@ -421,14 +421,14 @@ mod tests {
 
         let where_clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
         ]);
 
@@ -492,20 +492,20 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
+            name:         "users".to_string(),
+            return_type:  "User".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams {
-                has_where: true,
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   Some("v_user".to_string()),
+            description:  None,
+            auto_params:  AutoParams {
+                has_where:    true,
                 has_order_by: false,
-                has_limit: true,
-                has_offset: false,
+                has_limit:    true,
+                has_offset:   false,
             },
-            deprecation: None,
+            deprecation:  None,
             jsonb_column: "data".to_string(),
         };
 
@@ -518,20 +518,20 @@ mod tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name: "customQuery".to_string(),
-            return_type: "Custom".to_string(),
+            name:         "customQuery".to_string(),
+            return_type:  "Custom".to_string(),
             returns_list: false,
-            nullable: false,
-            arguments: vec![],
-            sql_source: None, // No SQL source (custom resolver)
-            description: None,
-            auto_params: AutoParams {
-                has_where: false,
+            nullable:     false,
+            arguments:    vec![],
+            sql_source:   None, // No SQL source (custom resolver)
+            description:  None,
+            auto_params:  AutoParams {
+                has_where:    false,
                 has_order_by: false,
-                has_limit: false,
-                has_offset: false,
+                has_limit:    false,
+                has_offset:   false,
             },
-            deprecation: None,
+            deprecation:  None,
             jsonb_column: "data".to_string(),
         };
 

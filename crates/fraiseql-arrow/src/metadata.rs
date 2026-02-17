@@ -39,9 +39,9 @@ use crate::{
 #[derive(Clone)]
 struct VersionedSchema {
     /// The actual Arrow schema
-    schema: Arc<Schema>,
+    schema:     Arc<Schema>,
     /// Monotonically increasing version number
-    version: u64,
+    version:    u64,
     /// When this schema version was created
     created_at: DateTime<Utc>,
 }
@@ -131,7 +131,7 @@ fn infer_schema_from_row(
 /// registry.register("va_orders", new_schema);
 /// ```
 pub struct SchemaRegistry {
-    schemas: DashMap<String, VersionedSchema>,
+    schemas:         DashMap<String, VersionedSchema>,
     version_counter: AtomicU64,
 }
 
@@ -140,7 +140,7 @@ impl SchemaRegistry {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            schemas: DashMap::new(),
+            schemas:         DashMap::new(),
             version_counter: AtomicU64::new(0),
         }
     }
@@ -241,8 +241,8 @@ impl SchemaRegistry {
             // Atomically update with new version
             let new_version = self.version_counter.fetch_add(1, AtomicOrdering::SeqCst);
             let versioned = VersionedSchema {
-                schema: new_schema,
-                version: new_version,
+                schema:     new_schema,
+                version:    new_version,
                 created_at: Utc::now(),
             };
 

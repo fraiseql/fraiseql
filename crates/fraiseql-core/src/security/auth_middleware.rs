@@ -220,12 +220,12 @@ impl AuthConfig {
     #[must_use]
     pub fn permissive() -> Self {
         Self {
-            required: false,
+            required:          false,
             token_expiry_secs: 3600,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -237,12 +237,12 @@ impl AuthConfig {
     #[must_use]
     pub fn standard() -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -254,12 +254,12 @@ impl AuthConfig {
     #[must_use]
     pub fn strict() -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 1800,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -270,12 +270,12 @@ impl AuthConfig {
     #[must_use]
     pub fn with_hs256(secret: &str) -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: Some(SigningKey::hs256(secret)),
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       Some(SigningKey::hs256(secret)),
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -286,12 +286,12 @@ impl AuthConfig {
     #[must_use]
     pub fn with_rs256_pem(pem: &str) -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: Some(SigningKey::rs256_pem(pem)),
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       Some(SigningKey::rs256_pem(pem)),
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -1065,8 +1065,8 @@ mod tests {
     #[test]
     fn test_user_has_scope() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec!["read".to_string(), "write".to_string()],
+            user_id:    "user123".to_string(),
+            scopes:     vec!["read".to_string(), "write".to_string()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -1078,8 +1078,8 @@ mod tests {
     #[test]
     fn test_user_is_not_expired() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:    "user123".to_string(),
+            scopes:     vec![],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -1089,8 +1089,8 @@ mod tests {
     #[test]
     fn test_user_is_expired() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:    "user123".to_string(),
+            scopes:     vec![],
             expires_at: Utc::now() - chrono::Duration::hours(1),
         };
 
@@ -1115,8 +1115,8 @@ mod tests {
     #[test]
     fn test_user_display() {
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:    "user123".to_string(),
+            scopes:     vec![],
             expires_at: Utc::now() + chrono::Duration::hours(1),
         };
 
@@ -1205,9 +1205,9 @@ mod tests {
 
         #[derive(serde::Serialize)]
         struct Claims {
-            sub: String,
-            exp: i64,
-            iat: i64,
+            sub:   String,
+            exp:   i64,
+            iat:   i64,
             #[serde(skip_serializing_if = "Option::is_none")]
             scope: Option<String>,
         }

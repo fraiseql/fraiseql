@@ -42,11 +42,11 @@ impl std::fmt::Display for ListenerState {
 /// State machine for tracking listener lifecycle
 #[derive(Clone)]
 pub struct ListenerStateMachine {
-    current_state: Arc<Mutex<ListenerState>>,
-    state_change_time: Arc<Mutex<Instant>>,
-    listener_id: String,
+    current_state:         Arc<Mutex<ListenerState>>,
+    state_change_time:     Arc<Mutex<Instant>>,
+    listener_id:           String,
     max_recovery_attempts: u32,
-    recovery_attempts: Arc<Mutex<u32>>,
+    recovery_attempts:     Arc<Mutex<u32>>,
 }
 
 impl ListenerStateMachine {

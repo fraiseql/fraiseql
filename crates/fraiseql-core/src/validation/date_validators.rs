@@ -28,29 +28,29 @@ fn parse_date(date_str: &str) -> Result<(u32, u32, u32)> {
     if parts.len() != 3 {
         return Err(FraiseQLError::Validation {
             message: format!("Invalid date format: '{}'. Expected YYYY-MM-DD", date_str),
-            path: None,
+            path:    None,
         });
     }
 
     let year = parts[0].parse::<u32>().map_err(|_| FraiseQLError::Validation {
         message: format!("Invalid year: '{}'", parts[0]),
-        path: None,
+        path:    None,
     })?;
 
     let month = parts[1].parse::<u32>().map_err(|_| FraiseQLError::Validation {
         message: format!("Invalid month: '{}'", parts[1]),
-        path: None,
+        path:    None,
     })?;
 
     let day = parts[2].parse::<u32>().map_err(|_| FraiseQLError::Validation {
         message: format!("Invalid day: '{}'", parts[2]),
-        path: None,
+        path:    None,
     })?;
 
     if !(1..=12).contains(&month) {
         return Err(FraiseQLError::Validation {
             message: format!("Month must be between 1 and 12, got {}", month),
-            path: None,
+            path:    None,
         });
     }
 
@@ -58,7 +58,7 @@ fn parse_date(date_str: &str) -> Result<(u32, u32, u32)> {
     if !(1..=days_in_month).contains(&day) {
         return Err(FraiseQLError::Validation {
             message: format!("Day must be between 1 and {}, got {}", days_in_month, day),
-            path: None,
+            path:    None,
         });
     }
 
@@ -127,7 +127,7 @@ pub fn validate_min_date(date_str: &str, min_date_str: &str) -> Result<()> {
     if compare_dates(date, min_date) < 0 {
         return Err(FraiseQLError::Validation {
             message: format!("Date '{}' must be >= '{}'", date_str, min_date_str),
-            path: None,
+            path:    None,
         });
     }
 
@@ -142,7 +142,7 @@ pub fn validate_max_date(date_str: &str, max_date_str: &str) -> Result<()> {
     if compare_dates(date, max_date) > 0 {
         return Err(FraiseQLError::Validation {
             message: format!("Date '{}' must be <= '{}'", date_str, max_date_str),
-            path: None,
+            path:    None,
         });
     }
 
@@ -170,7 +170,7 @@ pub fn validate_min_age(date_str: &str, min_age: u32) -> Result<()> {
     if age < min_age {
         return Err(FraiseQLError::Validation {
             message: format!("Age must be at least {} years old, got {}", min_age, age),
-            path: None,
+            path:    None,
         });
     }
 
@@ -191,7 +191,7 @@ pub fn validate_max_age(date_str: &str, max_age: u32) -> Result<()> {
     if age > max_age {
         return Err(FraiseQLError::Validation {
             message: format!("Age must be at most {} years old, got {}", max_age, age),
-            path: None,
+            path:    None,
         });
     }
 
@@ -210,7 +210,7 @@ pub fn validate_max_days_in_future(date_str: &str, max_days: i64) -> Result<()> 
                 "Date '{}' cannot be more than {} days in the future",
                 date_str, max_days
             ),
-            path: None,
+            path:    None,
         });
     }
 
@@ -229,7 +229,7 @@ pub fn validate_max_days_in_past(date_str: &str, max_days: i64) -> Result<()> {
                 "Date '{}' cannot be more than {} days in the past",
                 date_str, max_days
             ),
-            path: None,
+            path:    None,
         });
     }
 

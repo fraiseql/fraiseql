@@ -69,10 +69,10 @@ impl DatabaseAdapter for MockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -165,15 +165,15 @@ fn test_validator_rejects_aggregate_type_without_count() {
     let mut ir = AuthoringIR::new();
 
     ir.types.push(IRType {
-        name: "SalesAggregate".to_string(),
-        fields: vec![IRField {
-            name: "revenue_sum".to_string(),
-            field_type: "Float".to_string(),
-            nullable: true,
+        name:        "SalesAggregate".to_string(),
+        fields:      vec![IRField {
+            name:        "revenue_sum".to_string(),
+            field_type:  "Float".to_string(),
+            nullable:    true,
             description: None,
-            sql_column: None,
+            sql_column:  None,
         }],
-        sql_source: None,
+        sql_source:  None,
         description: None,
     });
 
@@ -193,24 +193,24 @@ fn test_validator_accepts_valid_aggregate_type() {
     let mut ir = AuthoringIR::new();
 
     ir.types.push(IRType {
-        name: "SalesAggregate".to_string(),
-        fields: vec![
+        name:        "SalesAggregate".to_string(),
+        fields:      vec![
             IRField {
-                name: "count".to_string(),
-                field_type: "Int!".to_string(),
-                nullable: false,
+                name:        "count".to_string(),
+                field_type:  "Int!".to_string(),
+                nullable:    false,
                 description: None,
-                sql_column: None,
+                sql_column:  None,
             },
             IRField {
-                name: "revenue_sum".to_string(),
-                field_type: "Float".to_string(),
-                nullable: true,
+                name:        "revenue_sum".to_string(),
+                field_type:  "Float".to_string(),
+                nullable:    true,
                 description: None,
-                sql_column: None,
+                sql_column:  None,
             },
         ],
-        sql_source: None,
+        sql_source:  None,
         description: None,
     });
 
@@ -378,15 +378,15 @@ fn create_test_schema() -> CompiledSchema {
     use fraiseql_core::schema::{AutoParams, QueryDefinition};
 
     schema.queries.push(QueryDefinition {
-        name: "users".to_string(),
-        return_type: "User".to_string(),
+        name:         "users".to_string(),
+        return_type:  "User".to_string(),
         returns_list: true,
-        nullable: false,
-        arguments: Vec::new(),
-        sql_source: Some("v_user".to_string()),
-        description: None,
-        auto_params: AutoParams::default(),
-        deprecation: None,
+        nullable:     false,
+        arguments:    Vec::new(),
+        sql_source:   Some("v_user".to_string()),
+        description:  None,
+        auto_params:  AutoParams::default(),
+        deprecation:  None,
         jsonb_column: "data".to_string(),
     });
 
@@ -407,29 +407,29 @@ fn mock_user_results() -> Vec<JsonbValue> {
 /// Create test fact table metadata for WHERE clause tests
 fn create_test_fact_table_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![MeasureColumn {
-            name: "revenue".to_string(),
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![],
         },
         denormalized_filters: vec![
             FilterColumn {
-                name: "customer_id".to_string(),
+                name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed: true,
+                indexed:  true,
             },
             FilterColumn {
-                name: "occurred_at".to_string(),
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             },
         ],
-        calendar_dimensions: vec![],
+        calendar_dimensions:  vec![],
     }
 }
 
@@ -438,9 +438,9 @@ fn create_test_fact_table_metadata() -> FactTableMetadata {
 fn test_where_denormalized_filter() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["customer_id".to_string()],
+        path:     vec!["customer_id".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("550e8400-e29b-41d4-a716-446655440000"),
+        value:    json!("550e8400-e29b-41d4-a716-446655440000"),
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -459,9 +459,9 @@ fn test_where_denormalized_filter() {
 fn test_where_jsonb_dimension() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("electronics"),
+        value:    json!("electronics"),
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -479,14 +479,14 @@ fn test_where_and_operator() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["customer_id".to_string()],
+            path:     vec!["customer_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("550e8400-e29b-41d4-a716-446655440000"),
+            value:    json!("550e8400-e29b-41d4-a716-446655440000"),
         },
         WhereClause::Field {
-            path: vec!["category".to_string()],
+            path:     vec!["category".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("electronics"),
+            value:    json!("electronics"),
         },
     ]);
 
@@ -504,14 +504,14 @@ fn test_where_or_operator() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Or(vec![
         WhereClause::Field {
-            path: vec!["category".to_string()],
+            path:     vec!["category".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("electronics"),
+            value:    json!("electronics"),
         },
         WhereClause::Field {
-            path: vec!["category".to_string()],
+            path:     vec!["category".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("furniture"),
+            value:    json!("furniture"),
         },
     ]);
 
@@ -529,9 +529,9 @@ fn test_where_or_operator() {
 fn test_where_not_operator() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Not(Box::new(WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("electronics"),
+        value:    json!("electronics"),
     }));
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -548,9 +548,9 @@ fn test_where_comparison_operators() {
 
     // Test Gt
     let where_clause = WhereClause::Field {
-        path: vec!["occurred_at".to_string()],
+        path:     vec!["occurred_at".to_string()],
         operator: WhereOperator::Gt,
-        value: json!("2024-01-01"),
+        value:    json!("2024-01-01"),
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
@@ -558,9 +558,9 @@ fn test_where_comparison_operators() {
 
     // Test Lte
     let where_clause = WhereClause::Field {
-        path: vec!["occurred_at".to_string()],
+        path:     vec!["occurred_at".to_string()],
         operator: WhereOperator::Lte,
-        value: json!("2024-12-31"),
+        value:    json!("2024-12-31"),
     };
     let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
     assert!(sql.contains("<="));
@@ -571,9 +571,9 @@ fn test_where_comparison_operators() {
 fn test_where_in_operator() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::In,
-        value: json!(["electronics", "furniture", "clothing"]),
+        value:    json!(["electronics", "furniture", "clothing"]),
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -592,9 +592,9 @@ fn test_where_like_operators() {
 
     // Test Contains (LIKE '%value%')
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Contains,
-        value: json!("electr"),
+        value:    json!("electr"),
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
@@ -603,18 +603,18 @@ fn test_where_like_operators() {
 
     // Test Startswith (LIKE 'value%')
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Startswith,
-        value: json!("electr"),
+        value:    json!("electr"),
     };
     let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
     assert!(sql.contains("'electr%'"));
 
     // Test Endswith (LIKE '%value')
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Endswith,
-        value: json!("onics"),
+        value:    json!("onics"),
     };
     let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
     assert!(sql.contains("'%onics'"));
@@ -625,9 +625,9 @@ fn test_where_like_operators() {
 fn test_where_case_insensitive_postgresql() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Icontains,
-        value: json!("ELECTR"),
+        value:    json!("ELECTR"),
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -643,9 +643,9 @@ fn test_where_case_insensitive_postgresql() {
 fn test_where_case_insensitive_mysql() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Icontains,
-        value: json!("electr"),
+        value:    json!("electr"),
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
@@ -661,9 +661,9 @@ fn test_where_case_insensitive_mysql() {
 fn test_where_is_null_operator() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::IsNull,
-        value: json!(null),
+        value:    json!(null),
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -678,9 +678,9 @@ fn test_where_is_null_operator() {
 fn test_where_multi_database_compatibility() {
     let metadata = create_test_fact_table_metadata();
     let where_clause = WhereClause::Field {
-        path: vec!["category".to_string()],
+        path:     vec!["category".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("electronics"),
+        value:    json!("electronics"),
     };
 
     // PostgreSQL: data->>'category'
@@ -725,20 +725,20 @@ fn test_where_complex_nested() {
     // (customer_id = 'uuid' AND (category = 'electronics' OR category = 'furniture'))
     let where_clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["customer_id".to_string()],
+            path:     vec!["customer_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("550e8400-e29b-41d4-a716-446655440000"),
+            value:    json!("550e8400-e29b-41d4-a716-446655440000"),
         },
         WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["category".to_string()],
+                path:     vec!["category".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("electronics"),
+                value:    json!("electronics"),
             },
             WhereClause::Field {
-                path: vec!["category".to_string()],
+                path:     vec!["category".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("furniture"),
+                value:    json!("furniture"),
             },
         ]),
     ]);

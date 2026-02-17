@@ -34,7 +34,7 @@ pub fn value_to_sql_literal(value: &Value) -> Result<String> {
         Value::Null => Ok("NULL".to_string()),
         _ => Err(FraiseQLError::Validation {
             message: format!("Cannot convert {} to SQL literal", value.type_str()),
-            path: None,
+            path:    None,
         }),
     }
 }
@@ -57,7 +57,7 @@ pub fn value_to_string(value: &Value) -> Result<String> {
         Value::Null => Ok("null".to_string()),
         _ => Err(FraiseQLError::Validation {
             message: format!("Cannot convert {} to string for WHERE clause", value.type_str()),
-            path: None,
+            path:    None,
         }),
     }
 }

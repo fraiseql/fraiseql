@@ -18,17 +18,17 @@ pub struct FailoverEvent {
     /// ID of the listener taking over (new leader)
     pub failover_target_id: String,
     /// Last processed checkpoint for recovery
-    pub checkpoint: i64,
+    pub checkpoint:         i64,
     /// When the failover was triggered
-    pub timestamp: Instant,
+    pub timestamp:          Instant,
 }
 
 /// Manages automatic failover between listeners
 #[derive(Clone)]
 pub struct FailoverManager {
-    coordinator: Arc<MultiListenerCoordinator>,
+    coordinator:              Arc<MultiListenerCoordinator>,
     health_check_interval_ms: u64,
-    failover_threshold_ms: u64,
+    failover_threshold_ms:    u64,
 }
 
 impl FailoverManager {

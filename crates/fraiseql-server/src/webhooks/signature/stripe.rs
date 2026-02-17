@@ -15,7 +15,7 @@ use crate::webhooks::{
 };
 
 pub struct StripeVerifier {
-    clock: Arc<dyn Clock>,
+    clock:     Arc<dyn Clock>,
     tolerance: u64,
 }
 
@@ -23,7 +23,7 @@ impl StripeVerifier {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            clock: Arc::new(SystemClock),
+            clock:     Arc::new(SystemClock),
             tolerance: 300, // 5 minutes
         }
     }

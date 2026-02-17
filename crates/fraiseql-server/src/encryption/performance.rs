@@ -16,13 +16,13 @@ use chrono::{DateTime, Utc};
 #[derive(Debug, Clone)]
 pub struct OperationMetrics {
     /// Operation type (encrypt, decrypt)
-    pub operation: String,
+    pub operation:   String,
     /// Latency in microseconds
-    pub latency_us: u64,
+    pub latency_us:  u64,
     /// Success indicator
-    pub success: bool,
+    pub success:     bool,
     /// Timestamp
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:   DateTime<Utc>,
     /// Field count (for batch operations)
     pub field_count: usize,
 }
@@ -55,13 +55,13 @@ impl OperationMetrics {
 #[derive(Debug, Clone)]
 pub struct EncryptionBatch {
     /// Batch ID
-    pub batch_id: String,
+    pub batch_id:   String,
     /// Fields to encrypt
-    pub fields: Vec<(String, String)>,
+    pub fields:     Vec<(String, String)>,
     /// Batch creation time
     pub created_at: DateTime<Utc>,
     /// Maximum batch size
-    pub max_size: usize,
+    pub max_size:   usize,
 }
 
 impl EncryptionBatch {
@@ -107,15 +107,15 @@ impl EncryptionBatch {
 /// Key cache with LRU eviction
 pub struct KeyCache {
     /// Cached keys
-    cache: HashMap<String, Vec<u8>>,
+    cache:        HashMap<String, Vec<u8>>,
     /// Maximum cache size
-    max_size: usize,
+    max_size:     usize,
     /// Access order for LRU
     access_order: Vec<String>,
     /// Cache hits
-    hits: Arc<AtomicU64>,
+    hits:         Arc<AtomicU64>,
     /// Cache misses
-    misses: Arc<AtomicU64>,
+    misses:       Arc<AtomicU64>,
 }
 
 impl KeyCache {
@@ -204,11 +204,11 @@ impl Default for KeyCache {
 /// Performance metrics collector
 pub struct PerformanceMonitor {
     /// Collected metrics
-    metrics: Vec<OperationMetrics>,
+    metrics:     Vec<OperationMetrics>,
     /// Maximum metrics to retain
     max_metrics: usize,
     /// Performance SLOs
-    slos: HashMap<String, u64>,
+    slos:        HashMap<String, u64>,
 }
 
 impl PerformanceMonitor {

@@ -11,31 +11,31 @@ use fraiseql_core::validation::ValidationRule;
 #[allow(clippy::too_many_lines)]
 fn test_compile_schema_with_single_custom_scalar() {
     let schema = IntermediateSchema {
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
-        custom_scalars: Some(vec![IntermediateScalar {
-            name: "Email".to_string(),
-            description: Some("Valid email address".to_string()),
+        observers:         None,
+        custom_scalars:    Some(vec![IntermediateScalar {
+            name:             "Email".to_string(),
+            description:      Some("Valid email address".to_string()),
             specified_by_url: Some("https://tools.ietf.org/html/rfc5322".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
                 pattern: r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$".to_string(),
                 message: Some("Invalid email format".to_string()),
             }],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         }]),
-        security: None,
+        security:          None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -52,40 +52,40 @@ fn test_compile_schema_with_single_custom_scalar() {
 #[test]
 fn test_compile_schema_with_multiple_custom_scalars() {
     let schema = IntermediateSchema {
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
-        custom_scalars: Some(vec![
+        observers:         None,
+        custom_scalars:    Some(vec![
             IntermediateScalar {
-                name: "Email".to_string(),
-                description: None,
+                name:             "Email".to_string(),
+                description:      None,
                 specified_by_url: None,
                 validation_rules: vec![],
-                base_type: Some("String".to_string()),
+                base_type:        Some("String".to_string()),
             },
             IntermediateScalar {
-                name: "Phone".to_string(),
-                description: None,
+                name:             "Phone".to_string(),
+                description:      None,
                 specified_by_url: None,
                 validation_rules: vec![ValidationRule::Pattern {
                     pattern: r"^\+\d{10,14}$".to_string(),
                     message: Some("Invalid phone format".to_string()),
                 }],
-                base_type: Some("String".to_string()),
+                base_type:        Some("String".to_string()),
             },
         ]),
-        security: None,
+        security:          None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -102,23 +102,23 @@ fn test_compile_schema_with_multiple_custom_scalars() {
 #[test]
 fn test_custom_scalar_with_multiple_validation_rules() {
     let schema = IntermediateSchema {
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
-        custom_scalars: Some(vec![IntermediateScalar {
-            name: "Username".to_string(),
-            description: Some("Valid username".to_string()),
+        observers:         None,
+        custom_scalars:    Some(vec![IntermediateScalar {
+            name:             "Username".to_string(),
+            description:      Some("Valid username".to_string()),
             specified_by_url: None,
             validation_rules: vec![
                 ValidationRule::Length {
@@ -130,9 +130,9 @@ fn test_custom_scalar_with_multiple_validation_rules() {
                     message: Some("Only alphanumeric and underscore allowed".to_string()),
                 },
             ],
-            base_type: Some("String".to_string()),
+            base_type:        Some("String".to_string()),
         }]),
-        security: None,
+        security:          None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -145,28 +145,28 @@ fn test_custom_scalar_with_multiple_validation_rules() {
 fn test_custom_scalar_preserves_all_metadata() {
     let url = "https://example.com/spec".to_string();
     let schema = IntermediateSchema {
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
-        custom_scalars: Some(vec![IntermediateScalar {
-            name: "CustomType".to_string(),
-            description: Some("A custom type".to_string()),
+        observers:         None,
+        custom_scalars:    Some(vec![IntermediateScalar {
+            name:             "CustomType".to_string(),
+            description:      Some("A custom type".to_string()),
             specified_by_url: Some(url.clone()),
             validation_rules: vec![],
-            base_type: Some("Int".to_string()),
+            base_type:        Some("Int".to_string()),
         }]),
-        security: None,
+        security:          None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -181,22 +181,22 @@ fn test_custom_scalar_preserves_all_metadata() {
 #[test]
 fn test_empty_custom_scalars_list() {
     let schema = IntermediateSchema {
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
-        custom_scalars: None, // No custom scalars
-        security: None,
+        observers:         None,
+        custom_scalars:    None, // No custom scalars
+        security:          None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -209,28 +209,28 @@ fn test_empty_custom_scalars_list() {
 #[test]
 fn test_custom_scalar_with_no_validation_rules() {
     let schema = IntermediateSchema {
-        version: "2.0.0".to_string(),
-        types: vec![],
-        enums: vec![],
-        input_types: vec![],
-        interfaces: vec![],
-        unions: vec![],
-        queries: vec![],
-        mutations: vec![],
-        subscriptions: vec![],
-        fragments: None,
-        directives: None,
-        fact_tables: None,
+        version:           "2.0.0".to_string(),
+        types:             vec![],
+        enums:             vec![],
+        input_types:       vec![],
+        interfaces:        vec![],
+        unions:            vec![],
+        queries:           vec![],
+        mutations:         vec![],
+        subscriptions:     vec![],
+        fragments:         None,
+        directives:        None,
+        fact_tables:       None,
         aggregate_queries: None,
-        observers: None,
-        custom_scalars: Some(vec![IntermediateScalar {
-            name: "SimpleScalar".to_string(),
-            description: None,
+        observers:         None,
+        custom_scalars:    Some(vec![IntermediateScalar {
+            name:             "SimpleScalar".to_string(),
+            description:      None,
             specified_by_url: None,
             validation_rules: vec![], // No rules
-            base_type: None,
+            base_type:        None,
         }]),
-        security: None,
+        security:          None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");

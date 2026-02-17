@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone)]
 pub struct SchemaContext {
     /// Type definitions: type_name -> fields
-    pub types: HashMap<String, TypeDef>,
+    pub types:  HashMap<String, TypeDef>,
     /// Field types: (type_name, field_name) -> field_type
     pub fields: HashMap<(String, String), FieldType>,
 }
@@ -22,7 +22,7 @@ pub struct SchemaContext {
 /// Type definition
 #[derive(Debug, Clone)]
 pub struct TypeDef {
-    pub name: String,
+    pub name:   String,
     pub fields: Vec<String>,
 }
 
@@ -59,17 +59,17 @@ impl FieldType {
 /// Compile-time validation result
 #[derive(Debug, Clone)]
 pub struct CompileTimeValidationResult {
-    pub valid: bool,
-    pub errors: Vec<CompileTimeError>,
-    pub warnings: Vec<String>,
+    pub valid:          bool,
+    pub errors:         Vec<CompileTimeError>,
+    pub warnings:       Vec<String>,
     pub sql_constraint: Option<String>,
 }
 
 /// Compile-time validation error
 #[derive(Debug, Clone)]
 pub struct CompileTimeError {
-    pub field: String,
-    pub message: String,
+    pub field:      String,
+    pub message:    String,
     pub suggestion: Option<String>,
 }
 
@@ -101,8 +101,8 @@ impl CompileTimeValidator {
             return CompileTimeValidationResult {
                 valid: false,
                 errors: vec![CompileTimeError {
-                    field: type_name.to_string(),
-                    message: format!("Type '{}' not found in schema", type_name),
+                    field:      type_name.to_string(),
+                    message:    format!("Type '{}' not found in schema", type_name),
                     suggestion: Some("Check that the type is defined".to_string()),
                 }],
                 warnings,
@@ -114,8 +114,8 @@ impl CompileTimeValidator {
         let left_key = (type_name.to_string(), left_field.to_string());
         let Some(left_type) = self.context.fields.get(&left_key) else {
             errors.push(CompileTimeError {
-                field: left_field.to_string(),
-                message: format!("Field '{}' not found in type '{}'", left_field, type_name),
+                field:      left_field.to_string(),
+                message:    format!("Field '{}' not found in type '{}'", left_field, type_name),
                 suggestion: Some(self.suggest_field(type_name, left_field)),
             });
             return CompileTimeValidationResult {
@@ -130,8 +130,8 @@ impl CompileTimeValidator {
         let right_key = (type_name.to_string(), right_field.to_string());
         let Some(right_type) = self.context.fields.get(&right_key) else {
             errors.push(CompileTimeError {
-                field: right_field.to_string(),
-                message: format!("Field '{}' not found in type '{}'", right_field, type_name),
+                field:      right_field.to_string(),
+                message:    format!("Field '{}' not found in type '{}'", right_field, type_name),
                 suggestion: Some(self.suggest_field(type_name, right_field)),
             });
             return CompileTimeValidationResult {
@@ -145,8 +145,8 @@ impl CompileTimeValidator {
         // Check if types are comparable
         if !left_type.is_comparable_with(right_type) {
             errors.push(CompileTimeError {
-                field: format!("{} {} {}", left_field, operator, right_field),
-                message: format!("Cannot compare {:?} with {:?}", left_type, right_type),
+                field:      format!("{} {} {}", left_field, operator, right_field),
+                message:    format!("Cannot compare {:?} with {:?}", left_type, right_type),
                 suggestion: Some(format!("Ensure both fields have comparable types")),
             });
             return CompileTimeValidationResult {
@@ -189,8 +189,8 @@ impl CompileTimeValidator {
             return CompileTimeValidationResult {
                 valid: false,
                 errors: vec![CompileTimeError {
-                    field: type_name.to_string(),
-                    message: format!("Type '{}' not found in schema", type_name),
+                    field:      type_name.to_string(),
+                    message:    format!("Type '{}' not found in schema", type_name),
                     suggestion: None,
                 }],
                 warnings,
@@ -206,8 +206,8 @@ impl CompileTimeValidator {
             let field_key = (type_name.to_string(), field_name.clone());
             if !self.context.fields.contains_key(&field_key) {
                 errors.push(CompileTimeError {
-                    field: field_name.clone(),
-                    message: format!("Field '{}' not found in type '{}'", field_name, type_name),
+                    field:      field_name.clone(),
+                    message:    format!("Field '{}' not found in type '{}'", field_name, type_name),
                     suggestion: Some(self.suggest_field(type_name, &field_name)),
                 });
             }
@@ -381,7 +381,7 @@ mod tests {
         types.insert(
             "User".to_string(),
             TypeDef {
-                name: "User".to_string(),
+                name:   "User".to_string(),
                 fields: vec![
                     "email".to_string(),
                     "age".to_string(),
@@ -400,7 +400,7 @@ mod tests {
         types.insert(
             "DateRange".to_string(),
             TypeDef {
-                name: "DateRange".to_string(),
+                name:   "DateRange".to_string(),
                 fields: vec!["startDate".to_string(), "endDate".to_string()],
             },
         );

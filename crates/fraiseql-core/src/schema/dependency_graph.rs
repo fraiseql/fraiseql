@@ -92,7 +92,7 @@ impl CyclePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeImpact {
     /// Types that would be affected by this change.
-    pub affected_types: HashSet<String>,
+    pub affected_types:   HashSet<String>,
     /// Human-readable descriptions of breaking changes.
     pub breaking_changes: Vec<String>,
 }
@@ -123,11 +123,11 @@ impl ChangeImpact {
 #[derive(Debug, Clone)]
 pub struct SchemaDependencyGraph {
     /// Map of type name to types it depends on (outgoing edges).
-    outgoing: HashMap<String, HashSet<String>>,
+    outgoing:   HashMap<String, HashSet<String>>,
     /// Map of type name to types that depend on it (incoming edges).
-    incoming: HashMap<String, HashSet<String>>,
+    incoming:   HashMap<String, HashSet<String>>,
     /// All type names in the schema.
-    all_types: HashSet<String>,
+    all_types:  HashSet<String>,
     /// Root types that are always considered "used" (Query, Mutation, Subscription).
     root_types: HashSet<String>,
 }
@@ -567,13 +567,16 @@ mod tests {
     /// Helper to create a simple type with the given fields.
     fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         TypeDefinition {
-            name: name.to_string(),
-            sql_source: format!("v_{}", name.to_lowercase()),
-            jsonb_column: "data".to_string(),
-            fields: fields.into_iter().map(|(n, ft)| FieldDefinition::new(n, ft)).collect(),
-            description: None,
+            name:                name.to_string(),
+            sql_source:          format!("v_{}", name.to_lowercase()),
+            jsonb_column:        "data".to_string(),
+            fields:              fields
+                .into_iter()
+                .map(|(n, ft)| FieldDefinition::new(n, ft))
+                .collect(),
+            description:         None,
             sql_projection_hint: None,
-            implements: vec![],
+            implements:          vec![],
         }
     }
 
@@ -674,8 +677,8 @@ mod tests {
                 ],
             )],
             enums: vec![EnumDefinition {
-                name: "UserStatus".to_string(),
-                values: vec![
+                name:        "UserStatus".to_string(),
+                values:      vec![
                     EnumValueDefinition::new("ACTIVE"),
                     EnumValueDefinition::new("INACTIVE"),
                 ],
@@ -972,17 +975,17 @@ mod tests {
     fn test_interface_dependencies() {
         let schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name: "User".to_string(),
-                sql_source: "v_user".to_string(),
-                jsonb_column: "data".to_string(),
-                fields: vec![FieldDefinition::new("id", FieldType::Id)],
-                description: None,
+                name:                "User".to_string(),
+                sql_source:          "v_user".to_string(),
+                jsonb_column:        "data".to_string(),
+                fields:              vec![FieldDefinition::new("id", FieldType::Id)],
+                description:         None,
                 sql_projection_hint: None,
-                implements: vec!["Node".to_string()],
+                implements:          vec!["Node".to_string()],
             }],
             interfaces: vec![InterfaceDefinition {
-                name: "Node".to_string(),
-                fields: vec![FieldDefinition::new("id", FieldType::Id)],
+                name:        "Node".to_string(),
+                fields:      vec![FieldDefinition::new("id", FieldType::Id)],
                 description: None,
             }],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],
@@ -1005,9 +1008,9 @@ mod tests {
                 make_type("Post", vec![("title", FieldType::String)]),
             ],
             unions: vec![UnionDefinition {
-                name: "SearchResult".to_string(),
+                name:         "SearchResult".to_string(),
                 member_types: vec!["User".to_string(), "Post".to_string()],
-                description: None,
+                description:  None,
             }],
             queries: vec![QueryDefinition::new("search", "SearchResult").returning_list()],
             ..Default::default()
@@ -1031,16 +1034,16 @@ mod tests {
             types: vec![make_type("User", vec![("name", FieldType::String)])],
             input_types: vec![
                 InputObjectDefinition {
-                    name: "UserFilter".to_string(),
-                    fields: vec![InputFieldDefinition::new("status", "UserStatus")],
+                    name:        "UserFilter".to_string(),
+                    fields:      vec![InputFieldDefinition::new("status", "UserStatus")],
                     description: None,
-                    metadata: None,
+                    metadata:    None,
                 },
                 InputObjectDefinition {
-                    name: "UserStatus".to_string(),
-                    fields: vec![InputFieldDefinition::new("active", "Boolean")],
+                    name:        "UserStatus".to_string(),
+                    fields:      vec![InputFieldDefinition::new("active", "Boolean")],
                     description: None,
-                    metadata: None,
+                    metadata:    None,
                 },
             ],
             queries: vec![QueryDefinition::new("users", "User").returning_list()],

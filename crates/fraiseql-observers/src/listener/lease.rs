@@ -13,9 +13,9 @@ use crate::error::{ObserverError, Result};
 /// Only one listener can hold a lease at a time.
 #[derive(Clone)]
 pub struct CheckpointLease {
-    listener_id: String,
-    checkpoint_id: i64,
-    lease_holder: Arc<Mutex<Option<String>>>,
+    listener_id:       String,
+    checkpoint_id:     i64,
+    lease_holder:      Arc<Mutex<Option<String>>>,
     lease_acquired_at: Arc<Mutex<Option<Instant>>>,
     lease_duration_ms: u64,
 }

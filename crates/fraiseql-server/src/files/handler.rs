@@ -15,21 +15,21 @@ use crate::files::{
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileResponse {
-    pub id: String,
-    pub name: String,
-    pub filename: String,
+    pub id:                String,
+    pub name:              String,
+    pub filename:          String,
     pub original_filename: Option<String>,
-    pub content_type: String,
-    pub size: u64,
-    pub url: String,
-    pub variants: Option<HashMap<String, String>>,
-    pub metadata: Option<serde_json::Value>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub content_type:      String,
+    pub size:              u64,
+    pub url:               String,
+    pub variants:          Option<HashMap<String, String>>,
+    pub metadata:          Option<serde_json::Value>,
+    pub created_at:        chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SignedUrlResponse {
-    pub url: String,
+    pub url:        String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -67,11 +67,11 @@ impl From<ScanError> for HandlerError {
 
 pub struct FileHandler {
     upload_type: String,
-    config: FileConfig,
-    storage: Arc<dyn StorageBackend>,
-    validator: Arc<dyn FileValidator>,
-    processor: Option<Arc<dyn ImageProcessor>>,
-    scanner: Option<Arc<dyn MalwareScanner>>,
+    config:      FileConfig,
+    storage:     Arc<dyn StorageBackend>,
+    validator:   Arc<dyn FileValidator>,
+    processor:   Option<Arc<dyn ImageProcessor>>,
+    scanner:     Option<Arc<dyn MalwareScanner>>,
 }
 
 impl FileHandler {

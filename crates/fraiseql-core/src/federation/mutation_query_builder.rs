@@ -34,13 +34,13 @@ pub fn build_update_query(
 
     let vars = variables.as_object().ok_or_else(|| FraiseQLError::Validation {
         message: "Variables must be an object".to_string(),
-        path: None,
+        path:    None,
     })?;
 
     // Extract key value
     let key_value = vars.get(key_field).ok_or_else(|| FraiseQLError::Validation {
         message: format!("Key field '{}' missing in variables", key_field),
-        path: None,
+        path:    None,
     })?;
 
     // Build SET clauses
@@ -55,7 +55,7 @@ pub fn build_update_query(
     if set_clauses.is_empty() {
         return Err(FraiseQLError::Validation {
             message: "No fields to update (only key field provided)".to_string(),
-            path: None,
+            path:    None,
         });
     }
 
@@ -85,13 +85,13 @@ pub fn build_insert_query(
 
     let vars = variables.as_object().ok_or_else(|| FraiseQLError::Validation {
         message: "Variables must be an object".to_string(),
-        path: None,
+        path:    None,
     })?;
 
     if vars.is_empty() {
         return Err(FraiseQLError::Validation {
             message: "No fields to insert".to_string(),
-            path: None,
+            path:    None,
         });
     }
 
@@ -102,7 +102,7 @@ pub fn build_insert_query(
             vars.get(*col)
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: format!("Field '{}' missing in variables", col),
-                    path: None,
+                    path:    None,
                 })
                 .and_then(|v| value_to_sql_literal(v))
         })
@@ -134,12 +134,12 @@ pub fn build_delete_query(
 
     let vars = variables.as_object().ok_or_else(|| FraiseQLError::Validation {
         message: "Variables must be an object".to_string(),
-        path: None,
+        path:    None,
     })?;
 
     let key_value = vars.get(key_field).ok_or_else(|| FraiseQLError::Validation {
         message: format!("Key field '{}' missing in variables", key_field),
-        path: None,
+        path:    None,
     })?;
 
     let key_value_str = value_to_sql_literal(key_value)?;

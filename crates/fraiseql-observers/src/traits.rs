@@ -41,9 +41,9 @@ pub struct ActionResult {
     /// Type of action that was executed
     pub action_type: String,
     /// Whether the action succeeded
-    pub success: bool,
+    pub success:     bool,
     /// Status message
-    pub message: String,
+    pub message:     String,
     /// Execution time in milliseconds
     pub duration_ms: f64,
 }
@@ -81,15 +81,15 @@ pub trait DeadLetterQueue: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct DlqItem {
     /// Unique identifier
-    pub id: Uuid,
+    pub id:            Uuid,
     /// The event that failed
-    pub event: EntityEvent,
+    pub event:         EntityEvent,
     /// The action configuration
-    pub action: ActionConfig,
+    pub action:        ActionConfig,
     /// The error message
     pub error_message: String,
     /// Number of retry attempts
-    pub attempts: u32,
+    pub attempts:      u32,
 }
 
 /// Condition evaluator abstraction for testing
@@ -130,8 +130,8 @@ mod tests {
     fn test_action_result_creation() {
         let result = ActionResult {
             action_type: "email".to_string(),
-            success: true,
-            message: "Email sent".to_string(),
+            success:     true,
+            message:     "Email sent".to_string(),
             duration_ms: 125.5,
         };
 
@@ -150,12 +150,12 @@ mod tests {
         );
 
         let action = ActionConfig::Email {
-            to: Some("user@example.com".to_string()),
-            to_template: None,
-            subject: Some("Test".to_string()),
+            to:               Some("user@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Test".to_string()),
             subject_template: None,
-            body_template: Some("Body".to_string()),
-            reply_to: None,
+            body_template:    Some("Body".to_string()),
+            reply_to:         None,
         };
 
         let item = DlqItem {

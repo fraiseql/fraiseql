@@ -13,7 +13,7 @@ pub fn resolve_env_value(value: &str) -> Result<String, EnvError> {
         // Support required with message: ${VAR:?message}
         if let Some((name, message)) = var_name.split_once(":?") {
             return env::var(name).map_err(|_| EnvError::MissingVarWithMessage {
-                name: name.to_string(),
+                name:    name.to_string(),
                 message: message.to_string(),
             });
         }
@@ -52,12 +52,12 @@ pub fn parse_size(s: &str) -> Result<usize, ParseError> {
     };
 
     let num: usize = num_str.trim().parse().map_err(|_| ParseError::InvalidSize {
-        value: s.to_string(),
+        value:  s.to_string(),
         reason: "Invalid number".to_string(),
     })?;
 
     num.checked_mul(multiplier).ok_or_else(|| ParseError::InvalidSize {
-        value: s.to_string(),
+        value:  s.to_string(),
         reason: "Value too large".to_string(),
     })
 }
@@ -78,13 +78,13 @@ pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
         (&s[..s.len() - 1], 24 * 60 * 60 * 1000)
     } else {
         return Err(ParseError::InvalidDuration {
-            value: s,
+            value:  s,
             reason: "Missing unit (ms, s, m, h, d)".to_string(),
         });
     };
 
     let num: u64 = num_str.trim().parse().map_err(|_| ParseError::InvalidDuration {
-        value: s.clone(),
+        value:  s.clone(),
         reason: "Invalid number".to_string(),
     })?;
 

@@ -75,18 +75,18 @@ fn default_public() -> bool {
 impl Default for FileConfig {
     fn default() -> Self {
         Self {
-            path: None,
-            allowed_types: default_allowed_types(),
-            max_size: default_max_size(),
+            path:                 None,
+            allowed_types:        default_allowed_types(),
+            max_size:             default_max_size(),
             validate_magic_bytes: default_validate_magic(),
-            storage: default_storage(),
-            bucket_env: None,
-            public: default_public(),
-            cache: None,
-            url_expiry: None,
-            scan_malware: false,
-            processing: None,
-            on_upload: None,
+            storage:              default_storage(),
+            bucket_env:           None,
+            public:               default_public(),
+            cache:                None,
+            url_expiry:           None,
+            scan_malware:         false,
+            processing:           None,
+            on_upload:            None,
         }
     }
 }
@@ -110,8 +110,8 @@ pub struct ProcessingConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct VariantConfig {
-    pub name: String,
-    pub width: u32,
+    pub name:   String,
+    pub width:  u32,
     pub height: u32,
 
     /// Resize mode: fit, fill, crop

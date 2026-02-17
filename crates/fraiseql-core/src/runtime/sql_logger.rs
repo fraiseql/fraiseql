@@ -94,10 +94,10 @@ impl std::fmt::Display for SqlOperation {
 
 /// Builder for creating SQL query logs.
 pub struct SqlQueryLogBuilder {
-    query_id: String,
-    sql: String,
-    param_count: usize,
-    start: Instant,
+    query_id:          String,
+    sql:               String,
+    param_count:       usize,
+    start:             Instant,
     slow_threshold_us: Option<u64>,
 }
 

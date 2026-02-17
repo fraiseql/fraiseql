@@ -4,9 +4,8 @@
 
 use serde_json::Value;
 
-use crate::error::{FraiseQLError, Result};
-
 use super::custom_scalar::CustomScalar;
+use crate::error::{FraiseQLError, Result};
 
 /// Validation context for custom scalar operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,8 +53,8 @@ impl ScalarValidationError {
     ) -> Self {
         Self {
             scalar_name: scalar_name.into(),
-            context: context.into(),
-            message: message.into(),
+            context:     context.into(),
+            message:     message.into(),
         }
     }
 

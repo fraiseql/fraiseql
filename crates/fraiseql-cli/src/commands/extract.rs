@@ -47,10 +47,7 @@ pub fn run(
     output: &str,
 ) -> Result<()> {
     let override_lang = language_override
-        .map(|s| {
-            s.parse::<Language>()
-                .map_err(|e| anyhow::anyhow!(e))
-        })
+        .map(|s| s.parse::<Language>().map_err(|e| anyhow::anyhow!(e)))
         .transpose()?;
 
     let mut all_types: Vec<IntermediateType> = Vec::new();
@@ -93,10 +90,8 @@ pub fn run(
         ..IntermediateSchema::default()
     };
 
-    let json = serde_json::to_string_pretty(&schema)
-        .context("Failed to serialize schema")?;
-    fs::write(output, &json)
-        .with_context(|| format!("Failed to write {output}"))?;
+    let json = serde_json::to_string_pretty(&schema).context("Failed to serialize schema")?;
+    fs::write(output, &json).with_context(|| format!("Failed to write {output}"))?;
 
     info!("Extracted {} types and {} queries", schema.types.len(), schema.queries.len());
     println!(
@@ -270,11 +265,14 @@ fn extract_nullable(lang: Language, type_str: &str) -> (String, bool) {
     match lang {
         Language::Python => {
             // `str | None` or `int | None`
-            if let Some(base) = trimmed.strip_suffix("| None").or_else(|| trimmed.strip_suffix("|None")) {
+            if let Some(base) =
+                trimmed.strip_suffix("| None").or_else(|| trimmed.strip_suffix("|None"))
+            {
                 return (base.trim().to_string(), true);
             }
             // `Optional[str]`
-            if let Some(inner) = trimmed.strip_prefix("Optional[").and_then(|s| s.strip_suffix(']')) {
+            if let Some(inner) = trimmed.strip_prefix("Optional[").and_then(|s| s.strip_suffix(']'))
+            {
                 return (inner.trim().to_string(), true);
             }
         },
@@ -344,11 +342,9 @@ impl SchemaExtractor for PythonExtractor {
         let mut types = Vec::new();
         let mut queries = Vec::new();
 
-        let type_re =
-            Regex::new(r"@fraiseql\.type\(([^)]*)\)\s*\nclass\s+(\w+)")?;
+        let type_re = Regex::new(r"@fraiseql\.type\(([^)]*)\)\s*\nclass\s+(\w+)")?;
         let field_re = Regex::new(r"^\s+(\w+):\s*(.+?)\s*$")?;
-        let query_re =
-            Regex::new(r"@fraiseql\.query\(([^)]*)\)\s*\ndef\s+(\w+)")?;
+        let query_re = Regex::new(r"@fraiseql\.query\(([^)]*)\)\s*\ndef\s+(\w+)")?;
 
         let lines: Vec<&str> = source.lines().collect();
 
@@ -381,11 +377,11 @@ impl SchemaExtractor for PythonExtractor {
                     let type_str = fcap[2].to_string();
                     let (graphql_type, nullable) = map_type(Language::Python, &type_str);
                     fields.push(IntermediateField {
-                        name:           field_name,
-                        field_type:     graphql_type,
+                        name: field_name,
+                        field_type: graphql_type,
                         nullable,
-                        description:    None,
-                        directives:     None,
+                        description: None,
+                        directives: None,
                         requires_scope: None,
                     });
                 }
@@ -404,13 +400,9 @@ impl SchemaExtractor for PythonExtractor {
         for cap in query_re.captures_iter(source) {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
-            let return_type = params
-                .get("return_type")
-                .cloned()
-                .unwrap_or_default();
-            let returns_list = params
-                .get("return_array")
-                .is_some_and(|v| v == "true" || v == "True");
+            let return_type = params.get("return_type").cloned().unwrap_or_default();
+            let returns_list =
+                params.get("return_array").is_some_and(|v| v == "true" || v == "True");
             let sql_source = params.get("sql_source").cloned();
 
             // Parse function arguments (skip self, *, etc.)
@@ -501,13 +493,8 @@ impl SchemaExtractor for TypeScriptExtractor {
             let after_match = cap.get(0).unwrap().end();
             if let Some(body) = extract_balanced_braces(&source[after_match..]) {
                 let params = parse_ts_query_params(&body);
-                let return_type = params
-                    .get("returnType")
-                    .cloned()
-                    .unwrap_or_default();
-                let returns_list = params
-                    .get("returnArray")
-                    .is_some_and(|v| v == "true");
+                let return_type = params.get("returnType").cloned().unwrap_or_default();
+                let returns_list = params.get("returnArray").is_some_and(|v| v == "true");
                 let sql_source = params.get("sqlSource").cloned();
                 let arguments = extract_ts_query_args(&body);
 
@@ -552,10 +539,9 @@ fn extract_balanced_braces(s: &str) -> Option<String> {
 fn extract_ts_fields(body: &str) -> Vec<IntermediateField> {
     let mut fields = Vec::new();
     // Match: fieldName: { type: "Type", nullable: bool }
-    let field_re = Regex::new(
-        r#"(\w+)\s*:\s*\{\s*type\s*:\s*"(\w+)"\s*,\s*nullable\s*:\s*(true|false)\s*\}"#,
-    )
-    .expect("valid regex");
+    let field_re =
+        Regex::new(r#"(\w+)\s*:\s*\{\s*type\s*:\s*"(\w+)"\s*,\s*nullable\s*:\s*(true|false)\s*\}"#)
+            .expect("valid regex");
 
     for cap in field_re.captures_iter(body) {
         fields.push(IntermediateField {
@@ -573,14 +559,12 @@ fn extract_ts_fields(body: &str) -> Vec<IntermediateField> {
 fn parse_ts_query_params(body: &str) -> HashMap<String, String> {
     let mut params = HashMap::new();
     // returnType: "Type"
-    let str_re =
-        Regex::new(r#"(\w+)\s*:\s*"(\w+)""#).expect("valid regex");
+    let str_re = Regex::new(r#"(\w+)\s*:\s*"(\w+)""#).expect("valid regex");
     for cap in str_re.captures_iter(body) {
         params.insert(cap[1].to_string(), cap[2].to_string());
     }
     // returnArray: true/false
-    let bool_re =
-        Regex::new(r"(\w+)\s*:\s*(true|false)").expect("valid regex");
+    let bool_re = Regex::new(r"(\w+)\s*:\s*(true|false)").expect("valid regex");
     for cap in bool_re.captures_iter(body) {
         params.insert(cap[1].to_string(), cap[2].to_string());
     }
@@ -619,11 +603,9 @@ impl SchemaExtractor for RustExtractor {
         let mut queries = Vec::new();
 
         // #[type_(key = "value")] pub struct Name {
-        let type_re =
-            Regex::new(r"#\[type_\(([^)]*)\)\]\s*pub\s+struct\s+(\w+)\s*\{")?;
+        let type_re = Regex::new(r"#\[type_\(([^)]*)\)\]\s*pub\s+struct\s+(\w+)\s*\{")?;
         // #[query(key = "value")] pub fn name
-        let query_re =
-            Regex::new(r"#\[query\(([^)]*)\)\]\s*pub\s+fn\s+(\w+)")?;
+        let query_re = Regex::new(r"#\[query\(([^)]*)\)\]\s*pub\s+fn\s+(\w+)")?;
         let field_re = Regex::new(r"^\s*pub\s+(\w+)\s*:\s*(.+?)\s*,?\s*$")?;
 
         let lines: Vec<&str> = source.lines().collect();
@@ -644,11 +626,11 @@ impl SchemaExtractor for RustExtractor {
                     let type_str = fcap[2].to_string();
                     let (graphql_type, nullable) = map_type(Language::Rust, &type_str);
                     fields.push(IntermediateField {
-                        name:           field_name,
-                        field_type:     graphql_type,
+                        name: field_name,
+                        field_type: graphql_type,
                         nullable,
-                        description:    None,
-                        directives:     None,
+                        description: None,
+                        directives: None,
                         requires_scope: None,
                     });
                 }
@@ -729,8 +711,7 @@ impl SchemaExtractor for JavaExtractor {
         let mut queries = Vec::new();
 
         // @Type(sqlSource = "v_author") public record Author(...)
-        let type_re =
-            Regex::new(r"@Type\(([^)]*)\)\s*public\s+record\s+(\w+)\s*\(([^)]*)\)")?;
+        let type_re = Regex::new(r"@Type\(([^)]*)\)\s*public\s+record\s+(\w+)\s*\(([^)]*)\)")?;
         // @Query(...) public interface Name — handle nested parens from @Arg(...) and .class
         let query_re =
             Regex::new(r"@Query\(([^)]*(?:\([^)]*\)[^)]*)*)\)\s*public\s+interface\s+(\w+)")?;
@@ -782,10 +763,7 @@ impl SchemaExtractor for JavaExtractor {
 fn extract_java_record_fields(body: &str) -> Vec<IntermediateField> {
     let mut fields = Vec::new();
     // Each line: `Type name,` or `@Nullable Type name,`
-    let field_re = Regex::new(
-        r"(@Nullable\s+)?(\w+)\s+(\w+)\s*[,)]?",
-    )
-    .expect("valid regex");
+    let field_re = Regex::new(r"(@Nullable\s+)?(\w+)\s+(\w+)\s*[,)]?").expect("valid regex");
 
     for cap in field_re.captures_iter(body) {
         let nullable = cap.get(1).is_some();
@@ -795,11 +773,11 @@ fn extract_java_record_fields(body: &str) -> Vec<IntermediateField> {
         let graphql_type = map_primitive_type(type_str);
 
         fields.push(IntermediateField {
-            name:           field_name,
-            field_type:     graphql_type,
+            name: field_name,
+            field_type: graphql_type,
             nullable,
-            description:    None,
-            directives:     None,
+            description: None,
+            directives: None,
             requires_scope: None,
         });
     }
@@ -831,8 +809,7 @@ fn extract_java_query_args(annotation_body: &str) -> Vec<IntermediateArgument> {
 fn derive_query_name(interface_name: &str) -> String {
     // "ById" suffix → singular, without ById
     if let Some(base) = interface_name.strip_suffix("ById") {
-        return to_snake_case(base)
-            .to_lowercase();
+        return to_snake_case(base).to_lowercase();
     }
     // Otherwise just lowercase the whole thing
     to_snake_case(interface_name).to_lowercase()
@@ -850,11 +827,9 @@ impl SchemaExtractor for KotlinExtractor {
         let mut queries = Vec::new();
 
         // @Type(sqlSource = "v_author") data class Author(...)
-        let type_re =
-            Regex::new(r"@Type\(([^)]*)\)\s*data\s+class\s+(\w+)\s*\(([^)]*)\)")?;
+        let type_re = Regex::new(r"@Type\(([^)]*)\)\s*data\s+class\s+(\w+)\s*\(([^)]*)\)")?;
         // @Query(...) fun name(
-        let query_re =
-            Regex::new(r"@Query\(([^)]*)\)\s*fun\s+(\w+)\s*\(")?;
+        let query_re = Regex::new(r"@Query\(([^)]*)\)\s*fun\s+(\w+)\s*\(")?;
 
         for cap in type_re.captures_iter(source) {
             let params = parse_annotation_params(&cap[1]);
@@ -911,11 +886,11 @@ fn extract_kotlin_fields(body: &str) -> Vec<IntermediateField> {
         let (graphql_type, nullable) = map_type(Language::Kotlin, type_str);
 
         fields.push(IntermediateField {
-            name:           field_name,
-            field_type:     graphql_type,
+            name: field_name,
+            field_type: graphql_type,
             nullable,
-            description:    None,
-            directives:     None,
+            description: None,
+            directives: None,
             requires_scope: None,
         });
     }
@@ -960,9 +935,7 @@ impl SchemaExtractor for GoExtractor {
 
         // // @Type(sqlSource = "v_author")
         // type Author struct {
-        let type_re = Regex::new(
-            r"//\s*@Type\(([^)]*)\)\s*\ntype\s+(\w+)\s+struct\s*\{",
-        )?;
+        let type_re = Regex::new(r"//\s*@Type\(([^)]*)\)\s*\ntype\s+(\w+)\s+struct\s*\{")?;
         // fraiseql.RegisterQuery("name", fraiseql.QueryDef{...})
         let query_re = Regex::new(
             r#"RegisterQuery\(\s*"(\w+)"\s*,\s*fraiseql\.QueryDef\{([^}]*(?:\{[^}]*\}[^}]*)*)\}"#,
@@ -1016,10 +989,7 @@ impl SchemaExtractor for GoExtractor {
 fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<IntermediateField> {
     let mut fields = Vec::new();
     // Go struct field: Name Type `fraiseql:"field_name"`
-    let field_re = Regex::new(
-        r#"^\s+(\w+)\s+(\*?\w+)\s+`fraiseql:"(\w+)"`"#,
-    )
-    .expect("valid regex");
+    let field_re = Regex::new(r#"^\s+(\w+)\s+(\*?\w+)\s+`fraiseql:"(\w+)"`"#).expect("valid regex");
 
     for line in lines.iter().skip(start) {
         let trimmed = line.trim();
@@ -1032,11 +1002,11 @@ fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<IntermediateFie
             let (graphql_type, nullable) = map_type(Language::Go, type_str);
 
             fields.push(IntermediateField {
-                name:           tag_name,
-                field_type:     graphql_type,
+                name: tag_name,
+                field_type: graphql_type,
                 nullable,
-                description:    None,
-                directives:     None,
+                description: None,
+                directives: None,
                 requires_scope: None,
             });
         }
@@ -1076,8 +1046,7 @@ impl SchemaExtractor for CSharpExtractor {
         let mut queries = Vec::new();
 
         // [Type(SqlSource = "v_author")] public record Author(...)
-        let type_re =
-            Regex::new(r"\[Type\(([^)]*)\)\]\s*public\s+record\s+(\w+)\s*\(([^)]*)\)")?;
+        let type_re = Regex::new(r"\[Type\(([^)]*)\)\]\s*public\s+record\s+(\w+)\s*\(([^)]*)\)")?;
         // [Query(...)] public static partial class Name — handle nested parens from typeof(...)
         let query_re = Regex::new(
             r"\[Query\(([^)]*(?:\([^)]*\)[^)]*)*)\)\]\s*public\s+static\s+partial\s+class\s+(\w+)",
@@ -1161,11 +1130,11 @@ fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField> {
         let nullable = nullable_marker == "?";
 
         fields.push(IntermediateField {
-            name:           field_name,
-            field_type:     graphql_type,
+            name: field_name,
+            field_type: graphql_type,
             nullable,
-            description:    None,
-            directives:     None,
+            description: None,
+            directives: None,
             requires_scope: None,
         });
     }
@@ -1184,11 +1153,9 @@ impl SchemaExtractor for SwiftExtractor {
         let mut queries = Vec::new();
 
         // @Type(sqlSource: "v_author") struct Author {
-        let type_re =
-            Regex::new(r"@Type\(([^)]*)\)\s*struct\s+(\w+)\s*\{")?;
+        let type_re = Regex::new(r"@Type\(([^)]*)\)\s*struct\s+(\w+)\s*\{")?;
         // @Query(...) func name(
-        let query_re =
-            Regex::new(r"@Query\(([^)]*)\)\s*func\s+(\w+)\s*\(")?;
+        let query_re = Regex::new(r"@Query\(([^)]*)\)\s*func\s+(\w+)\s*\(")?;
         let field_re = Regex::new(r"^\s*let\s+(\w+)\s*:\s*(\w+\??)")?;
 
         let lines: Vec<&str> = source.lines().collect();
@@ -1211,11 +1178,11 @@ impl SchemaExtractor for SwiftExtractor {
                     let (graphql_type, nullable) = map_type(Language::Swift, type_str);
 
                     fields.push(IntermediateField {
-                        name:           field_name,
-                        field_type:     graphql_type,
+                        name: field_name,
+                        field_type: graphql_type,
                         nullable,
-                        description:    None,
-                        directives:     None,
+                        description: None,
+                        directives: None,
                         requires_scope: None,
                     });
                 }
@@ -1294,11 +1261,9 @@ impl SchemaExtractor for ScalaExtractor {
         let mut queries = Vec::new();
 
         // @Type(sqlSource = "v_author") case class Author(...)
-        let type_re =
-            Regex::new(r"@Type\(([^)]*)\)\s*case\s+class\s+(\w+)\s*\(([^)]*)\)")?;
+        let type_re = Regex::new(r"@Type\(([^)]*)\)\s*case\s+class\s+(\w+)\s*\(([^)]*)\)")?;
         // @Query(...) def name(
-        let query_re =
-            Regex::new(r"@Query\(([^)]*)\)\s*def\s+(\w+)")?;
+        let query_re = Regex::new(r"@Query\(([^)]*)\)\s*def\s+(\w+)")?;
 
         for cap in type_re.captures_iter(source) {
             let params = parse_annotation_params(&cap[1]);
@@ -1355,11 +1320,11 @@ fn extract_scala_fields(body: &str) -> Vec<IntermediateField> {
         let (graphql_type, nullable) = map_type(Language::Scala, type_str);
 
         fields.push(IntermediateField {
-            name:           field_name,
-            field_type:     graphql_type,
+            name: field_name,
+            field_type: graphql_type,
             nullable,
-            description:    None,
-            directives:     None,
+            description: None,
+            directives: None,
             requires_scope: None,
         });
     }
@@ -1448,47 +1413,32 @@ mod tests {
     #[test]
     fn test_map_type_python() {
         assert_eq!(map_type(Language::Python, "int"), ("Int".to_string(), false));
-        assert_eq!(
-            map_type(Language::Python, "str | None"),
-            ("String".to_string(), true)
-        );
+        assert_eq!(map_type(Language::Python, "str | None"), ("String".to_string(), true));
         assert_eq!(map_type(Language::Python, "bool"), ("Boolean".to_string(), false));
     }
 
     #[test]
     fn test_map_type_rust() {
         assert_eq!(map_type(Language::Rust, "i32"), ("Int".to_string(), false));
-        assert_eq!(
-            map_type(Language::Rust, "Option<String>"),
-            ("String".to_string(), true)
-        );
+        assert_eq!(map_type(Language::Rust, "Option<String>"), ("String".to_string(), true));
         assert_eq!(map_type(Language::Rust, "bool"), ("Boolean".to_string(), false));
     }
 
     #[test]
     fn test_map_type_kotlin() {
         assert_eq!(map_type(Language::Kotlin, "Int"), ("Int".to_string(), false));
-        assert_eq!(
-            map_type(Language::Kotlin, "String?"),
-            ("String".to_string(), true)
-        );
+        assert_eq!(map_type(Language::Kotlin, "String?"), ("String".to_string(), true));
     }
 
     #[test]
     fn test_map_type_go() {
         assert_eq!(map_type(Language::Go, "int"), ("Int".to_string(), false));
-        assert_eq!(
-            map_type(Language::Go, "*string"),
-            ("String".to_string(), true)
-        );
+        assert_eq!(map_type(Language::Go, "*string"), ("String".to_string(), true));
     }
 
     #[test]
     fn test_map_type_scala() {
-        assert_eq!(
-            map_type(Language::Scala, "Option[String]"),
-            ("String".to_string(), true)
-        );
+        assert_eq!(map_type(Language::Scala, "Option[String]"), ("String".to_string(), true));
         assert_eq!(map_type(Language::Scala, "Int"), ("Int".to_string(), false));
     }
 

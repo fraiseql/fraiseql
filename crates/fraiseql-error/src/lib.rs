@@ -56,7 +56,7 @@ pub enum RuntimeError {
 
     #[error("Service unavailable: {reason}")]
     ServiceUnavailable {
-        reason: String,
+        reason:      String,
         retry_after: Option<u64>,
     },
 
@@ -67,7 +67,7 @@ pub enum RuntimeError {
     Internal {
         message: String,
         #[source]
-        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 

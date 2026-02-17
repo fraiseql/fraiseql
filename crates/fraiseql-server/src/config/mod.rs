@@ -24,7 +24,7 @@ pub use tracing::TracingConfig;
 /// Root configuration structure
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
-    pub server: ServerConfig,
+    pub server:   ServerConfig,
     pub database: DatabaseConfig,
 
     #[serde(default)]
@@ -113,7 +113,7 @@ fn default_host() -> String {
 #[derive(Debug, Clone, Deserialize)]
 pub struct TlsConfig {
     pub cert_file: PathBuf,
-    pub key_file: PathBuf,
+    pub key_file:  PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -204,9 +204,9 @@ impl Default for LifecycleConfig {
     fn default() -> Self {
         Self {
             shutdown_timeout: default_shutdown_timeout(),
-            shutdown_delay: default_shutdown_delay(),
-            health_path: default_health_path(),
-            ready_path: default_ready_path(),
+            shutdown_delay:   default_shutdown_delay(),
+            health_path:      default_health_path(),
+            ready_path:       default_ready_path(),
         }
     }
 }
@@ -227,24 +227,24 @@ fn default_ready_path() -> String {
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebhookConfig {
     pub secret_env: String,
-    pub provider: String,
+    pub provider:   String,
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:       Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileConfig {
-    pub storage: String,
+    pub storage:  String,
     pub max_size: String,
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:     Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AuthConfig {
-    pub jwt: JwtConfig,
+    pub jwt:               JwtConfig,
     #[serde(default)]
-    pub providers: HashMap<String, OAuthProviderConfig>,
+    pub providers:         HashMap<String, OAuthProviderConfig>,
     #[serde(default)]
     pub callback_base_url: Option<String>,
 }
@@ -256,11 +256,11 @@ pub struct JwtConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OAuthProviderConfig {
-    pub provider_type: String,
-    pub client_id_env: String,
+    pub provider_type:     String,
+    pub client_id_env:     String,
     pub client_secret_env: String,
     #[serde(default)]
-    pub issuer_url: Option<String>,
+    pub issuer_url:        Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -270,8 +270,8 @@ pub struct NotificationsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObserverConfig {
-    pub entity: String,
-    pub events: Vec<String>,
+    pub entity:  String,
+    pub events:  Vec<String>,
     pub actions: Vec<ActionConfig>,
 }
 
@@ -280,7 +280,7 @@ pub struct ActionConfig {
     #[serde(rename = "type")]
     pub action_type: String,
     #[serde(default)]
-    pub template: Option<String>,
+    pub template:    Option<String>,
 }
 
 // These types are now defined in their own modules and re-exported above
@@ -294,9 +294,9 @@ pub struct LoggingConfig {
 pub struct StorageConfig {
     pub backend: String,
     #[serde(default)]
-    pub bucket: Option<String>,
+    pub bucket:  Option<String>,
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:    Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

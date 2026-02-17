@@ -4,11 +4,11 @@ use serde_json::json;
 
 #[derive(Debug)]
 struct CostResult {
-    query: String,
+    query:            String,
     complexity_score: usize,
-    estimated_cost: usize,
-    depth: usize,
-    field_count: usize,
+    estimated_cost:   usize,
+    depth:            usize,
+    field_count:      usize,
 }
 
 fn calculate_cost(query: &str) -> anyhow::Result<CostResult> {

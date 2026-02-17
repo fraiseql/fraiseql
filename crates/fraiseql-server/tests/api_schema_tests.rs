@@ -263,7 +263,7 @@ fn test_api_response_wrapper_graphql_schema() {
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: GraphQLSchemaResponse {
+        data:   GraphQLSchemaResponse {
             schema: "type Query { hello: String }".to_string(),
         },
     };
@@ -278,7 +278,7 @@ fn test_api_response_wrapper_json_schema() {
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: JsonSchemaResponse {
+        data:   JsonSchemaResponse {
             schema: serde_json::json!({"types": []}),
         },
     };

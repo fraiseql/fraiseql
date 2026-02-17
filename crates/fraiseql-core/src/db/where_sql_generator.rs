@@ -143,7 +143,7 @@ impl WhereSqlGenerator {
             WhereOperator::IsNull => {
                 return Err(FraiseQLError::Internal {
                     message: "IsNull should be handled separately".to_string(),
-                    source: None,
+                    source:  None,
                 });
             },
             WhereOperator::LenEq
@@ -156,7 +156,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Array length operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
-                    source: None,
+                    source:  None,
                 });
             },
 
@@ -171,7 +171,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Vector operations not supported in fraiseql-wire: {operator:?}"
                     ),
-                    source: None,
+                    source:  None,
                 });
             },
 
@@ -184,7 +184,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Full-text search operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
-                    source: None,
+                    source:  None,
                 });
             },
 
@@ -216,7 +216,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Advanced operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
-                    source: None,
+                    source:  None,
                 });
             },
         })
@@ -262,7 +262,7 @@ impl WhereSqlGenerator {
                 let json_str =
                     serde_json::to_string(value).map_err(|e| FraiseQLError::Internal {
                         message: format!("Failed to serialize JSON for array operator: {e}"),
-                        source: None,
+                        source:  None,
                     })?;
                 let escaped = json_str.replace('\'', "''");
                 Ok(format!("'{}'::jsonb", escaped))
@@ -272,7 +272,7 @@ impl WhereSqlGenerator {
                 message: format!(
                     "Unsupported value type for operator: {value:?} with {operator:?}"
                 ),
-                source: None,
+                source:  None,
             }),
         }
     }
@@ -291,9 +291,9 @@ mod tests {
     #[test]
     fn test_simple_equality() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -303,9 +303,9 @@ mod tests {
     #[test]
     fn test_nested_path() {
         let clause = WhereClause::Field {
-            path: vec!["user".to_string(), "email".to_string()],
+            path:     vec!["user".to_string(), "email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -315,9 +315,9 @@ mod tests {
     #[test]
     fn test_icontains() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("john"),
+            value:    json!("john"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -327,9 +327,9 @@ mod tests {
     #[test]
     fn test_startswith() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!("admin"),
+            value:    json!("admin"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -340,14 +340,14 @@ mod tests {
     fn test_and_clause() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("active"),
+                value:    json!("active"),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(18),
+                value:    json!(18),
             },
         ]);
 
@@ -359,14 +359,14 @@ mod tests {
     fn test_or_clause() {
         let clause = WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["type".to_string()],
+                path:     vec!["type".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("admin"),
+                value:    json!("admin"),
             },
             WhereClause::Field {
-                path: vec!["type".to_string()],
+                path:     vec!["type".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("moderator"),
+                value:    json!("moderator"),
             },
         ]);
 
@@ -377,9 +377,9 @@ mod tests {
     #[test]
     fn test_not_clause() {
         let clause = WhereClause::Not(Box::new(WhereClause::Field {
-            path: vec!["deleted".to_string()],
+            path:     vec!["deleted".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         }));
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -389,9 +389,9 @@ mod tests {
     #[test]
     fn test_is_null() {
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -401,9 +401,9 @@ mod tests {
     #[test]
     fn test_is_not_null() {
         let clause = WhereClause::Field {
-            path: vec!["updated_at".to_string()],
+            path:     vec!["updated_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(false),
+            value:    json!(false),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -413,9 +413,9 @@ mod tests {
     #[test]
     fn test_in_operator() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending", "approved"]),
+            value:    json!(["active", "pending", "approved"]),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -425,9 +425,9 @@ mod tests {
     #[test]
     fn test_sql_injection_prevention() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("'; DROP TABLE users; --"),
+            value:    json!("'; DROP TABLE users; --"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -438,9 +438,9 @@ mod tests {
     #[test]
     fn test_numeric_comparison() {
         let clause = WhereClause::Field {
-            path: vec!["price".to_string()],
+            path:     vec!["price".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(99.99),
+            value:    json!(99.99),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -450,9 +450,9 @@ mod tests {
     #[test]
     fn test_boolean_value() {
         let clause = WhereClause::Field {
-            path: vec!["published".to_string()],
+            path:     vec!["published".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -477,26 +477,26 @@ mod tests {
     fn test_complex_nested_condition() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["type".to_string()],
+                path:     vec!["type".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("article"),
+                value:    json!("article"),
             },
             WhereClause::Or(vec![
                 WhereClause::Field {
-                    path: vec!["status".to_string()],
+                    path:     vec!["status".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("published"),
+                    value:    json!("published"),
                 },
                 WhereClause::And(vec![
                     WhereClause::Field {
-                        path: vec!["status".to_string()],
+                        path:     vec!["status".to_string()],
                         operator: WhereOperator::Eq,
-                        value: json!("draft"),
+                        value:    json!("draft"),
                     },
                     WhereClause::Field {
-                        path: vec!["author".to_string(), "role".to_string()],
+                        path:     vec!["author".to_string(), "role".to_string()],
                         operator: WhereOperator::Eq,
-                        value: json!("admin"),
+                        value:    json!("admin"),
                     },
                 ]),
             ]),
@@ -513,9 +513,9 @@ mod tests {
     fn test_sql_injection_in_field_name_simple() {
         // Test that malicious field names are escaped to prevent SQL injection
         let clause = WhereClause::Field {
-            path: vec!["name'; DROP TABLE users; --".to_string()],
+            path:     vec!["name'; DROP TABLE users; --".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("value"),
+            value:    json!("value"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -533,9 +533,9 @@ mod tests {
     fn test_sql_injection_prevention_in_array_operator() {
         // SECURITY: Ensure JSON injection in array operators is escaped
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(["normal", "'; DROP TABLE users; --"]),
+            value:    json!(["normal", "'; DROP TABLE users; --"]),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -556,12 +556,12 @@ mod tests {
     fn test_sql_injection_in_nested_field_name() {
         // Test that malicious nested field names are also escaped
         let clause = WhereClause::Field {
-            path: vec![
+            path:     vec![
                 "user".to_string(),
                 "role'; DROP TABLE users; --".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value: json!("admin"),
+            value:    json!("admin"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();

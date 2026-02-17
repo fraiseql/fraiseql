@@ -114,18 +114,9 @@ macro_rules! round_trip_test {
             let dir = TempDir::new().unwrap();
             let schema_path = write_schema(&dir);
 
-            let source_path = dir
-                .path()
-                .join(format!("schema.{}", $ext))
-                .to_str()
-                .unwrap()
-                .to_string();
-            let extracted_path = dir
-                .path()
-                .join("extracted.json")
-                .to_str()
-                .unwrap()
-                .to_string();
+            let source_path =
+                dir.path().join(format!("schema.{}", $ext)).to_str().unwrap().to_string();
+            let extracted_path = dir.path().join("extracted.json").to_str().unwrap().to_string();
 
             run_generate(&schema_path, $lang, &source_path);
             assert!(

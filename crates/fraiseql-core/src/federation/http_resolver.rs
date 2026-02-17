@@ -20,9 +20,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct HttpClientConfig {
     /// Request timeout in milliseconds
-    pub timeout_ms: u64,
+    pub timeout_ms:     u64,
     /// Maximum number of retry attempts
-    pub max_retries: u32,
+    pub max_retries:    u32,
     /// Initial delay between retries in milliseconds (exponential backoff)
     pub retry_delay_ms: u64,
 }
@@ -30,8 +30,8 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            timeout_ms: 5000,
-            max_retries: 3,
+            timeout_ms:     5000,
+            max_retries:    3,
             retry_delay_ms: 100,
         }
     }
@@ -46,13 +46,13 @@ pub struct HttpEntityResolver {
 
 #[derive(serde::Serialize)]
 struct GraphQLRequest {
-    query: String,
+    query:     String,
     variables: Value,
 }
 
 #[derive(serde::Deserialize, Debug)]
 struct GraphQLResponse {
-    data: Option<Value>,
+    data:   Option<Value>,
     errors: Option<Vec<GraphQLError>>,
 }
 
@@ -190,7 +190,7 @@ impl HttpEntityResolver {
                 attempts,
                 last_error.unwrap_or_else(|| "unknown error".to_string())
             ),
-            source: None,
+            source:  None,
         })
     }
 
@@ -204,7 +204,7 @@ impl HttpEntityResolver {
             let error_messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
             return Err(crate::error::FraiseQLError::Internal {
                 message: format!("GraphQL errors: {}", error_messages.join("; ")),
-                source: None,
+                source:  None,
             });
         }
 
@@ -224,7 +224,7 @@ impl HttpEntityResolver {
                     representations.len(),
                     entities.len()
                 ),
-                source: None,
+                source:  None,
             });
         }
 
@@ -315,7 +315,7 @@ mod tests {
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
-            data: Some(json!({
+            data:   Some(json!({
                 "_entities": [
                     { "id": "123", "email": "user@example.com" }
                 ]
@@ -337,7 +337,7 @@ mod tests {
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
-            data: None,
+            data:   None,
             errors: Some(vec![GraphQLError {
                 message: "Entity not found".to_string(),
             }]),
@@ -356,7 +356,7 @@ mod tests {
         ];
 
         let response = GraphQLResponse {
-            data: Some(json!({
+            data:   Some(json!({
                 "_entities": [
                     { "id": "123" }
                 ]
@@ -379,8 +379,8 @@ mod tests {
     #[test]
     fn test_config_custom() {
         let config = HttpClientConfig {
-            timeout_ms: 10000,
-            max_retries: 5,
+            timeout_ms:     10000,
+            max_retries:    5,
             retry_delay_ms: 200,
         };
         assert_eq!(config.timeout_ms, 10000);

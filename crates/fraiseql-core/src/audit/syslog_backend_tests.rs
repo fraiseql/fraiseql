@@ -22,8 +22,8 @@ use super::{
 /// Simple mock syslog server for testing
 #[allow(dead_code)]
 struct MockSyslogServer {
-    socket: UdpSocket,
-    port: u16,
+    socket:   UdpSocket,
+    port:     u16,
     messages: Arc<Mutex<Vec<String>>>,
 }
 

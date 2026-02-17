@@ -520,13 +520,13 @@ mod tests {
     #[test]
     fn test_performance_stats_calculations() {
         let stats = PerformanceStats {
-            queries_tracked: 100,
-            slow_queries: 10,
-            cached_queries: 30,
-            db_queries_total: 200,
+            queries_tracked:   100,
+            slow_queries:      10,
+            cached_queries:    30,
+            db_queries_total:  200,
             total_duration_us: 500_000,
-            min_duration_us: 1000,
-            max_duration_us: 50_000,
+            min_duration_us:   1000,
+            max_duration_us:   50_000,
         };
 
         assert!((stats.avg_duration_ms() - 5.0).abs() < f64::EPSILON);
@@ -537,14 +537,14 @@ mod tests {
     #[test]
     fn test_operation_profile_creation() {
         let profile = OperationProfile {
-            operation: "GetUser".to_string(),
-            count: 100,
+            operation:         "GetUser".to_string(),
+            count:             100,
             total_duration_us: 500_000,
-            min_duration_us: 1000,
-            max_duration_us: 50_000,
-            total_db_queries: 200,
-            avg_complexity: 5.5,
-            cache_hit_rate: 0.75,
+            min_duration_us:   1000,
+            max_duration_us:   50_000,
+            total_db_queries:  200,
+            avg_complexity:    5.5,
+            cache_hit_rate:    0.75,
         };
 
         assert!((profile.avg_duration_ms() - 5.0).abs() < f64::EPSILON);

@@ -27,30 +27,95 @@
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    const USER_SCHEMA: &str = r#"{
+      "version": "2.0",
+      "types": [
+        {
+          "name": "User",
+          "description": "A simple user entity with basic profile information.",
+          "fields": [
+            {"name": "id", "type": "Int", "nullable": false},
+            {"name": "name", "type": "String", "nullable": false},
+            {"name": "email", "type": "String", "nullable": false},
+            {"name": "created_at", "type": "DateTime", "nullable": false}
+          ]
+        }
+      ],
+      "queries": [],
+      "mutations": []
+    }"#;
 
-    /// Helper function to get test schema directory
-    fn get_test_schema_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("examples/ddl-generation/test_schemas")
-    }
+    const USER_WITH_POSTS_SCHEMA: &str = r#"{
+      "version": "2.0",
+      "types": [
+        {
+          "name": "User",
+          "description": "A user with related blog posts.",
+          "fields": [
+            {"name": "id", "type": "Int", "nullable": false},
+            {"name": "name", "type": "String", "nullable": false},
+            {"name": "email", "type": "String", "nullable": false},
+            {"name": "posts", "type": "Post", "nullable": true},
+            {"name": "created_at", "type": "DateTime", "nullable": false}
+          ]
+        },
+        {
+          "name": "Post",
+          "description": "A blog post written by a user.",
+          "fields": [
+            {"name": "id", "type": "Int", "nullable": false},
+            {"name": "title", "type": "String", "nullable": false},
+            {"name": "content", "type": "String", "nullable": false},
+            {"name": "author_id", "type": "Int", "nullable": false},
+            {"name": "author", "type": "User", "nullable": true},
+            {"name": "created_at", "type": "DateTime", "nullable": false}
+          ]
+        }
+      ],
+      "queries": [],
+      "mutations": []
+    }"#;
+
+    const ORDERS_SCHEMA: &str = r#"{
+      "version": "2.0",
+      "types": [
+        {
+          "name": "Order",
+          "description": "An e-commerce order with line items.",
+          "fields": [
+            {"name": "id", "type": "Int", "nullable": false},
+            {"name": "order_number", "type": "String", "nullable": false},
+            {"name": "customer_id", "type": "Int", "nullable": false},
+            {"name": "status", "type": "String", "nullable": false},
+            {"name": "total_amount", "type": "Int", "nullable": false},
+            {"name": "items", "type": "LineItem", "nullable": true},
+            {"name": "created_at", "type": "DateTime", "nullable": false},
+            {"name": "updated_at", "type": "DateTime", "nullable": false}
+          ]
+        },
+        {
+          "name": "LineItem",
+          "description": "A line item in an order.",
+          "fields": [
+            {"name": "id", "type": "Int", "nullable": false},
+            {"name": "order_id", "type": "Int", "nullable": false},
+            {"name": "product_id", "type": "Int", "nullable": false},
+            {"name": "quantity", "type": "Int", "nullable": false},
+            {"name": "unit_price", "type": "Int", "nullable": false},
+            {"name": "order", "type": "Order", "nullable": true},
+            {"name": "created_at", "type": "DateTime", "nullable": false}
+          ]
+        }
+      ],
+      "queries": [],
+      "mutations": []
+    }"#;
 
     /// Test 1: Basic view generation for simple entity
     #[test]
     fn test_generate_tv_ddl_basic() {
-        let schema_dir = get_test_schema_dir();
-        let schema_file = schema_dir.join("user.json");
-
-        assert!(schema_file.exists(), "Test schema file should exist");
-
-        // Read and parse schema
-        let schema_content = fs::read_to_string(&schema_file).expect("Failed to read schema file");
         let schema: serde_json::Value =
-            serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
+            serde_json::from_str(USER_SCHEMA).expect("Failed to parse schema JSON");
 
         // Verify schema structure
         assert!(schema.get("types").is_some(), "Schema should have types");
@@ -71,10 +136,9 @@ mod tests {
     /// Test 2: DDL validation for generated views
     #[test]
     fn test_validate_generated_ddl() {
-        let schema_dir = get_test_schema_dir();
-        let schema_file = schema_dir.join("user.json");
-
-        assert!(schema_file.exists(), "Test schema file should exist");
+        // Verify user schema parses
+        let _schema: serde_json::Value =
+            serde_json::from_str(USER_SCHEMA).expect("Failed to parse schema JSON");
 
         // Example DDL that would be generated
         let sample_ddl = r"
@@ -106,10 +170,9 @@ mod tests {
     /// Test 3: Arrow view DDL generation
     #[test]
     fn test_generate_ta_ddl_with_arrow_columns() {
-        let schema_dir = get_test_schema_dir();
-        let schema_file = schema_dir.join("user.json");
-
-        assert!(schema_file.exists(), "Test schema file should exist");
+        // Verify user schema parses
+        let _schema: serde_json::Value =
+            serde_json::from_str(USER_SCHEMA).expect("Failed to parse schema JSON");
 
         // Example Arrow DDL that would be generated
         let sample_arrow_ddl = r"
@@ -140,15 +203,8 @@ mod tests {
     /// Test 4: Multiple views from single schema
     #[test]
     fn test_generate_multiple_views_from_schema() {
-        let schema_dir = get_test_schema_dir();
-        let schema_file = schema_dir.join("user_with_posts.json");
-
-        assert!(schema_file.exists(), "Test schema file should exist");
-
-        // Read schema
-        let schema_content = fs::read_to_string(&schema_file).expect("Failed to read schema file");
         let schema: serde_json::Value =
-            serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
+            serde_json::from_str(USER_WITH_POSTS_SCHEMA).expect("Failed to parse schema JSON");
 
         // Verify multiple types
         let types = schema["types"].as_array().expect("types should be array");
@@ -228,15 +284,8 @@ mod tests {
     /// Test 7: Complex schema with relationships
     #[test]
     fn test_generate_views_with_relationships() {
-        let schema_dir = get_test_schema_dir();
-        let schema_file = schema_dir.join("orders.json");
-
-        assert!(schema_file.exists(), "Test schema file should exist");
-
-        // Read schema
-        let schema_content = fs::read_to_string(&schema_file).expect("Failed to read schema file");
         let schema: serde_json::Value =
-            serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
+            serde_json::from_str(ORDERS_SCHEMA).expect("Failed to parse schema JSON");
 
         // Verify schema is valid
         assert!(schema.get("types").is_some(), "Schema should have types");

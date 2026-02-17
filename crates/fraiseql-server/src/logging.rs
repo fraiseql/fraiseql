@@ -73,11 +73,11 @@ impl RequestContext {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            request_id: RequestId::new(),
-            operation: None,
-            user_id: None,
-            org_id: None,
-            client_ip: None,
+            request_id:  RequestId::new(),
+            operation:   None,
+            user_id:     None,
+            org_id:      None,
+            client_ip:   None,
             api_version: None,
         }
     }
@@ -289,11 +289,11 @@ impl LogMetrics {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            duration_ms: None,
-            complexity: None,
+            duration_ms:     None,
+            complexity:      None,
             items_processed: None,
-            cache_hit: None,
-            db_queries: None,
+            cache_hit:       None,
+            db_queries:      None,
         }
     }
 

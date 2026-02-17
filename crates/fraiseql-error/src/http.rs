@@ -10,15 +10,15 @@ use crate::{AuthError, FileError, RuntimeError, WebhookError};
 /// Error response format (consistent across all endpoints)
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
-    pub error: String,
+    pub error:             String,
     pub error_description: String,
-    pub error_code: String,
+    pub error_code:        String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_uri: Option<String>,
+    pub error_uri:         Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Value>,
+    pub details:           Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry_after: Option<u64>,
+    pub retry_after:       Option<u64>,
 }
 
 impl ErrorResponse {
@@ -29,12 +29,12 @@ impl ErrorResponse {
     ) -> Self {
         let code = code.into();
         Self {
-            error: error.into(),
+            error:             error.into(),
             error_description: description.into(),
-            error_uri: Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
-            error_code: code,
-            details: None,
-            retry_after: None,
+            error_uri:         Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
+            error_code:        code,
+            details:           None,
+            retry_after:       None,
         }
     }
 

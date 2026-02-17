@@ -56,9 +56,9 @@ pub mod mocks {
     /// Mock action executor that records executions
     pub struct MockActionExecutor {
         /// Track executed actions
-        executions: Mutex<Vec<(String, bool)>>,
+        executions:     Mutex<Vec<(String, bool)>>,
         /// Should fail for all actions
-        should_fail: Mutex<bool>,
+        should_fail:    Mutex<bool>,
         /// Failure reason if `should_fail` is true
         failure_reason: Mutex<Option<String>>,
     }
@@ -68,8 +68,8 @@ pub mod mocks {
         #[must_use]
         pub const fn new() -> Self {
             Self {
-                executions: Mutex::new(Vec::new()),
-                should_fail: Mutex::new(false),
+                executions:     Mutex::new(Vec::new()),
+                should_fail:    Mutex::new(false),
                 failure_reason: Mutex::new(None),
             }
         }
@@ -348,11 +348,11 @@ pub mod mocks {
                 },
                 None if expected_id == 0 => {
                     let new_state = crate::checkpoint::CheckpointState {
-                        listener_id: listener_id.to_string(),
+                        listener_id:       listener_id.to_string(),
                         last_processed_id: new_id,
                         last_processed_at: chrono::Utc::now(),
-                        batch_size: 0,
-                        event_count: 0,
+                        batch_size:        0,
+                        event_count:       0,
                     };
                     checkpoints.insert(listener_id.to_string(), new_state);
                     Ok(true)
@@ -415,12 +415,12 @@ pub mod mocks {
             );
 
             let action = ActionConfig::Email {
-                to: Some("user@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("user@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: Some("Body".to_string()),
-                reply_to: None,
+                body_template:    Some("Body".to_string()),
+                reply_to:         None,
             };
 
             let result = executor.execute(&event, &action).await;
@@ -441,12 +441,12 @@ pub mod mocks {
             );
 
             let action = ActionConfig::Email {
-                to: Some("user@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("user@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: Some("Body".to_string()),
-                reply_to: None,
+                body_template:    Some("Body".to_string()),
+                reply_to:         None,
             };
 
             let result = executor.execute(&event, &action).await;
@@ -465,12 +465,12 @@ pub mod mocks {
             );
 
             let action = ActionConfig::Email {
-                to: Some("user@example.com".to_string()),
-                to_template: None,
-                subject: Some("Test".to_string()),
+                to:               Some("user@example.com".to_string()),
+                to_template:      None,
+                subject:          Some("Test".to_string()),
                 subject_template: None,
-                body_template: Some("Body".to_string()),
-                reply_to: None,
+                body_template:    Some("Body".to_string()),
+                reply_to:         None,
             };
 
             let id = dlq.push(event, action, "Error".to_string()).await.unwrap();

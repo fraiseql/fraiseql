@@ -19,30 +19,30 @@ pub struct GitHubOAuth {
 /// GitHub user information with teams
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubUser {
-    pub id: u64,
-    pub login: String,
-    pub email: Option<String>,
-    pub name: Option<String>,
-    pub avatar_url: Option<String>,
-    pub bio: Option<String>,
-    pub company: Option<String>,
-    pub location: Option<String>,
+    pub id:           u64,
+    pub login:        String,
+    pub email:        Option<String>,
+    pub name:         Option<String>,
+    pub avatar_url:   Option<String>,
+    pub bio:          Option<String>,
+    pub company:      Option<String>,
+    pub location:     Option<String>,
     pub public_repos: u32,
 }
 
 /// GitHub team from API response
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubTeam {
-    pub id: u64,
-    pub name: String,
-    pub slug: String,
+    pub id:           u64,
+    pub name:         String,
+    pub slug:         String,
     pub organization: GitHubOrg,
 }
 
 /// GitHub organization
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubOrg {
-    pub id: u64,
+    pub id:    u64,
     pub login: String,
 }
 

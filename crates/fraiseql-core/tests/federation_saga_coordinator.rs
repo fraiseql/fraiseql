@@ -87,9 +87,9 @@ fn test_parse_single_step_saga() {
     // THEN: Should create single step saga
 
     let mutation = MutationInfo {
-        typename: "User".to_string(),
+        typename:  "User".to_string(),
         operation: "create".to_string(),
-        subgraph: "users".to_string(),
+        subgraph:  "users".to_string(),
         variables: json!({"id": "1", "name": "Alice"}),
     };
 
@@ -107,21 +107,21 @@ fn test_parse_multi_step_saga() {
 
     let mutations = vec![
         MutationInfo {
-            typename: "User".to_string(),
+            typename:  "User".to_string(),
             operation: "update".to_string(),
-            subgraph: "users".to_string(),
+            subgraph:  "users".to_string(),
             variables: json!({"id": "1"}),
         },
         MutationInfo {
-            typename: "Order".to_string(),
+            typename:  "Order".to_string(),
             operation: "create".to_string(),
-            subgraph: "orders".to_string(),
+            subgraph:  "orders".to_string(),
             variables: json!({"userId": "1", "items": []}),
         },
         MutationInfo {
-            typename: "Product".to_string(),
+            typename:  "Product".to_string(),
             operation: "update".to_string(),
-            subgraph: "products".to_string(),
+            subgraph:  "products".to_string(),
             variables: json!({"ids": []}),
         },
     ];
@@ -142,15 +142,15 @@ fn test_saga_step_order_preserved() {
 
     let mutations = vec![
         MutationInfo {
-            typename: "Order".to_string(),
+            typename:  "Order".to_string(),
             operation: "create".to_string(),
-            subgraph: "orders".to_string(),
+            subgraph:  "orders".to_string(),
             variables: json!({}),
         },
         MutationInfo {
-            typename: "Product".to_string(),
+            typename:  "Product".to_string(),
             operation: "update".to_string(),
-            subgraph: "products".to_string(),
+            subgraph:  "products".to_string(),
             variables: json!({}),
         },
     ];
@@ -429,15 +429,24 @@ pub enum MutationType {
 
 #[derive(Debug, Clone)]
 pub struct CompensationAction {
-    pub order: usize,
+    pub order:       usize,
     pub action_type: CompensationType,
 }
 
 #[derive(Debug, Clone)]
 pub enum CompensationType {
-    Create { id: String, original_data: Value },
-    Update { id: String, restore_values: Value },
-    Delete { id: String, original_data: Value },
+    Create {
+        id:            String,
+        original_data: Value,
+    },
+    Update {
+        id:             String,
+        restore_values: Value,
+    },
+    Delete {
+        id:            String,
+        original_data: Value,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -451,23 +460,23 @@ impl SagaCoordinator {
 
 #[derive(Debug, Clone)]
 pub struct Saga {
-    pub id: Uuid,
-    pub state: SagaState,
-    pub steps: Vec<SagaStep>,
+    pub id:                 Uuid,
+    pub state:              SagaState,
+    pub steps:              Vec<SagaStep>,
     pub compensation_chain: Vec<CompensationAction>,
-    pub created_at: std::time::Instant,
-    pub completed_at: Option<std::time::Instant>,
+    pub created_at:         std::time::Instant,
+    pub completed_at:       Option<std::time::Instant>,
 }
 
 impl Saga {
     pub fn new() -> Self {
         Saga {
-            id: Uuid::new_v4(),
-            state: SagaState::Pending,
-            steps: Vec::new(),
+            id:                 Uuid::new_v4(),
+            state:              SagaState::Pending,
+            steps:              Vec::new(),
             compensation_chain: Vec::new(),
-            created_at: std::time::Instant::now(),
-            completed_at: None,
+            created_at:         std::time::Instant::now(),
+            completed_at:       None,
         }
     }
 
@@ -494,22 +503,22 @@ impl Default for Saga {
 
 #[derive(Debug, Clone, Default)]
 pub struct SagaStep {
-    pub order: usize,
-    pub subgraph: String,
+    pub order:         usize,
+    pub subgraph:      String,
     pub mutation_type: MutationType,
-    pub typename: String,
-    pub variables: Value,
-    pub state: StepState,
-    pub result: Option<Value>,
-    pub started_at: Option<std::time::Instant>,
-    pub completed_at: Option<std::time::Instant>,
+    pub typename:      String,
+    pub variables:     Value,
+    pub state:         StepState,
+    pub result:        Option<Value>,
+    pub started_at:    Option<std::time::Instant>,
+    pub completed_at:  Option<std::time::Instant>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MutationInfo {
-    pub typename: String,
+    pub typename:  String,
     pub operation: String,
-    pub subgraph: String,
+    pub subgraph:  String,
     pub variables: Value,
 }
 
@@ -741,15 +750,15 @@ fn build_compensation_for_step(step: &SagaStep) -> CompensationAction {
 
     let action_type = match step.mutation_type {
         MutationType::Create => CompensationType::Delete {
-            id: id.clone(),
+            id:            id.clone(),
             original_data: step.variables.clone(),
         },
         MutationType::Update => CompensationType::Update {
-            id: id.clone(),
+            id:             id.clone(),
             restore_values: step.result.as_ref().cloned().unwrap_or_default(),
         },
         MutationType::Delete => CompensationType::Create {
-            id: id.clone(),
+            id:            id.clone(),
             original_data: step.variables.clone(),
         },
     };

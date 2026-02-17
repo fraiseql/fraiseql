@@ -24,7 +24,7 @@ pub struct DirectDatabaseResolver {
     /// Federation metadata for schema validation
     /// Note: metadata will be used in Phase 6D for entity resolution
     #[allow(dead_code)]
-    metadata: FederationMetadata,
+    metadata:           FederationMetadata,
 }
 
 impl DirectDatabaseResolver {
@@ -86,7 +86,7 @@ impl DirectDatabaseResolver {
             self.metadata.types.iter().find(|t| t.name == typename).ok_or_else(|| {
                 crate::error::FraiseQLError::Internal {
                     message: format!("Type {} not in federation metadata", typename),
-                    source: None,
+                    source:  None,
                 }
             })?;
 
@@ -123,9 +123,9 @@ impl DirectDatabaseResolver {
                 .collect();
 
             Ok(WhereClause::Field {
-                path: vec![key_field.clone()],
+                path:     vec![key_field.clone()],
                 operator: WhereOperator::In,
-                value: json!(values),
+                value:    json!(values),
             })
         } else {
             // Composite key: (id, org_id) IN (...)
@@ -143,9 +143,9 @@ impl DirectDatabaseResolver {
                 .collect();
 
             Ok(WhereClause::Field {
-                path: key_fields.to_vec(),
+                path:     key_fields.to_vec(),
                 operator: WhereOperator::In,
-                value: json!(values),
+                value:    json!(values),
             })
         }
     }
@@ -210,14 +210,14 @@ mod tests {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+            types:   vec![FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],
@@ -272,12 +272,12 @@ mod tests {
         // Create representations with single key
         let representations = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user1"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user2"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
@@ -309,7 +309,7 @@ mod tests {
         // Create representations with composite keys
         let representations = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![
                     ("organization_id".to_string(), json!("org1")),
                     ("user_id".to_string(), json!("user1")),
@@ -319,7 +319,7 @@ mod tests {
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![
                     ("organization_id".to_string(), json!("org1")),
                     ("user_id".to_string(), json!("user2")),
@@ -365,12 +365,12 @@ mod tests {
         // Create representations
         let representations = vec![
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user1"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },
             EntityRepresentation {
-                typename: "User".to_string(),
+                typename:   "User".to_string(),
                 key_fields: vec![("id".to_string(), json!("user2"))].into_iter().collect(),
                 all_fields: HashMap::new(),
             },

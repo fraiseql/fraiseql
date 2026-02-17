@@ -45,11 +45,11 @@ impl DocumentationExample {
     /// Create a new documentation example
     fn new(title: &str, source: &str, code: &str) -> Self {
         Self {
-            title: title.to_string(),
-            source: source.to_string(),
-            code: code.to_string(),
+            title:            title.to_string(),
+            source:           source.to_string(),
+            code:             code.to_string(),
             expected_outcome: String::new(),
-            prerequisites: vec![],
+            prerequisites:    vec![],
         }
     }
 
@@ -427,18 +427,18 @@ struct ExampleExecutor {
     /// Examples to execute
     examples: Vec<DocumentationExample>,
     /// Results from execution
-    results: Vec<ExampleExecutionResult>,
+    results:  Vec<ExampleExecutionResult>,
 }
 
 /// Result of executing a single example
 #[derive(Debug, Clone)]
 struct ExampleExecutionResult {
     /// Example title
-    title: String,
+    title:   String,
     /// Whether example executed successfully
     success: bool,
     /// Execution output or error
-    output: String,
+    output:  String,
 }
 
 impl ExampleExecutor {
@@ -446,7 +446,7 @@ impl ExampleExecutor {
     fn new() -> Self {
         Self {
             examples: vec![],
-            results: vec![],
+            results:  vec![],
         }
     }
 
@@ -463,18 +463,18 @@ impl ExampleExecutor {
         for example in &self.examples {
             let result = if let Ok(()) = example.validate_structure() {
                 ExampleExecutionResult {
-                    title: example.title.clone(),
+                    title:   example.title.clone(),
                     success: true,
-                    output: format!(
+                    output:  format!(
                         "Example '{}' executed successfully from {}",
                         example.title, example.source
                     ),
                 }
             } else {
                 ExampleExecutionResult {
-                    title: example.title.clone(),
+                    title:   example.title.clone(),
                     success: false,
-                    output: "Example structure validation failed".to_string(),
+                    output:  "Example structure validation failed".to_string(),
                 }
             };
 

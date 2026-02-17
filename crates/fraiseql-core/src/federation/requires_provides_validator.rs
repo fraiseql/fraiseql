@@ -57,24 +57,24 @@ pub enum DirectiveValidationError {
     ///
     /// The field declared in @requires() was not found on the referenced type.
     RequiresNonexistentField {
-        typename: String,
-        field: String,
+        typename:       String,
+        field:          String,
         required_field: String,
     },
     /// @provides references a field that doesn't exist
     ///
     /// The field declared in @provides() was not found on the return type.
     ProvidesNonexistentField {
-        typename: String,
-        field: String,
+        typename:       String,
+        field:          String,
         provided_field: String,
     },
     /// @requires references a field that isn't available (not external, not local)
     ///
     /// The required field is neither @external nor defined locally on this type.
     RequiresUnavailableField {
-        typename: String,
-        field: String,
+        typename:       String,
+        field:          String,
         required_field: String,
     },
     /// Circular dependency detected in @requires chains
@@ -83,16 +83,16 @@ pub enum DirectiveValidationError {
     /// which would create an infinite dependency.
     CircularDependency {
         typename: String,
-        field: String,
-        cycle: Vec<String>,
+        field:    String,
+        cycle:    Vec<String>,
     },
     /// Field missing at runtime when @requires declares it must be present
     ///
     /// During entity resolution, a field marked with @requires() was not
     /// present in the resolved entity data.
     MissingRequiredField {
-        typename: String,
-        field: String,
+        typename:       String,
+        field:          String,
         required_field: String,
     },
 }
@@ -311,8 +311,8 @@ impl RequiresProvidesValidator {
                 required_field, required_field_path.typename
             );
             return Err(DirectiveValidationError::RequiresNonexistentField {
-                typename: typename.to_string(),
-                field: field_name.to_string(),
+                typename:       typename.to_string(),
+                field:          field_name.to_string(),
                 required_field: required_field.clone(),
             });
         }
@@ -350,8 +350,8 @@ impl RequiresProvidesValidator {
                 provided_field, provided_field_path.typename
             );
             return Err(DirectiveValidationError::ProvidesNonexistentField {
-                typename: typename.to_string(),
-                field: field_name.to_string(),
+                typename:       typename.to_string(),
+                field:          field_name.to_string(),
                 provided_field: provided_field.clone(),
             });
         }
@@ -376,8 +376,8 @@ impl RequiresProvidesValidator {
             debug!("Circular dependency detected: {}", path.join(" -> "));
             return Err(DirectiveValidationError::CircularDependency {
                 typename: typename.to_string(),
-                field: field_name.to_string(),
-                cycle: path,
+                field:    field_name.to_string(),
+                cycle:    path,
             });
         }
 
@@ -506,8 +506,8 @@ impl RequiresProvidesRuntimeValidator {
                     required_field, typename, field_name
                 );
                 errors.push(DirectiveValidationError::MissingRequiredField {
-                    typename: typename.to_string(),
-                    field: field_name.to_string(),
+                    typename:       typename.to_string(),
+                    field:          field_name.to_string(),
                     required_field: required_field.clone(),
                 });
             }
@@ -605,12 +605,12 @@ mod tests {
     #[test]
     fn test_runtime_validator_missing_required_field() {
         let directives = FieldFederationDirectives {
-            requires: vec![FieldPathSelection {
-                path: vec!["weight".to_string()],
+            requires:  vec![FieldPathSelection {
+                path:     vec!["weight".to_string()],
                 typename: "Order".to_string(),
             }],
-            provides: vec![],
-            external: false,
+            provides:  vec![],
+            external:  false,
             shareable: false,
         };
 
@@ -629,12 +629,12 @@ mod tests {
     #[test]
     fn test_runtime_validator_all_required_fields_present() {
         let directives = FieldFederationDirectives {
-            requires: vec![FieldPathSelection {
-                path: vec!["weight".to_string()],
+            requires:  vec![FieldPathSelection {
+                path:     vec!["weight".to_string()],
                 typename: "Order".to_string(),
             }],
-            provides: vec![],
-            external: false,
+            provides:  vec![],
+            external:  false,
             shareable: false,
         };
 
@@ -654,18 +654,18 @@ mod tests {
     #[test]
     fn test_entity_validation_multiple_missing_fields() {
         let directives = FieldFederationDirectives {
-            requires: vec![
+            requires:  vec![
                 FieldPathSelection {
-                    path: vec!["weight".to_string()],
+                    path:     vec!["weight".to_string()],
                     typename: "Order".to_string(),
                 },
                 FieldPathSelection {
-                    path: vec!["shippingAddress".to_string()],
+                    path:     vec!["shippingAddress".to_string()],
                     typename: "Order".to_string(),
                 },
             ],
-            provides: vec![],
-            external: false,
+            provides:  vec![],
+            external:  false,
             shareable: false,
         };
 
@@ -687,18 +687,18 @@ mod tests {
     #[test]
     fn test_entity_validation_partial_fields() {
         let directives = FieldFederationDirectives {
-            requires: vec![
+            requires:  vec![
                 FieldPathSelection {
-                    path: vec!["weight".to_string()],
+                    path:     vec!["weight".to_string()],
                     typename: "Order".to_string(),
                 },
                 FieldPathSelection {
-                    path: vec!["shippingAddress".to_string()],
+                    path:     vec!["shippingAddress".to_string()],
                     typename: "Order".to_string(),
                 },
             ],
-            provides: vec![],
-            external: false,
+            provides:  vec![],
+            external:  false,
             shareable: false,
         };
 
@@ -729,12 +729,12 @@ mod tests {
     #[test]
     fn test_validate_provides_fields_missing() {
         let directives = FieldFederationDirectives {
-            requires: vec![],
-            provides: vec![FieldPathSelection {
-                path: vec!["userId".to_string()],
+            requires:  vec![],
+            provides:  vec![FieldPathSelection {
+                path:     vec!["userId".to_string()],
                 typename: "Order".to_string(),
             }],
-            external: false,
+            external:  false,
             shareable: false,
         };
 
@@ -751,12 +751,12 @@ mod tests {
     #[test]
     fn test_validate_provides_fields_present() {
         let directives = FieldFederationDirectives {
-            requires: vec![],
-            provides: vec![FieldPathSelection {
-                path: vec!["userId".to_string()],
+            requires:  vec![],
+            provides:  vec![FieldPathSelection {
+                path:     vec!["userId".to_string()],
                 typename: "Order".to_string(),
             }],
-            external: false,
+            external:  false,
             shareable: false,
         };
 

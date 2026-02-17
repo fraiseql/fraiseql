@@ -96,22 +96,22 @@ pub struct FactTableDetector;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FactTableMetadata {
     /// Table name (e.g., "tf_sales")
-    pub table_name: String,
+    pub table_name:           String,
     /// Measures (aggregatable numeric columns)
-    pub measures: Vec<MeasureColumn>,
+    pub measures:             Vec<MeasureColumn>,
     /// Dimension column (JSONB)
-    pub dimensions: DimensionColumn,
+    pub dimensions:           DimensionColumn,
     /// Denormalized filter columns
     pub denormalized_filters: Vec<FilterColumn>,
     /// Calendar dimensions for optimized temporal aggregations
-    pub calendar_dimensions: Vec<CalendarDimension>,
+    pub calendar_dimensions:  Vec<CalendarDimension>,
 }
 
 /// A measure column (aggregatable numeric type)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasureColumn {
     /// Column name (e.g., "revenue")
-    pub name: String,
+    pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
     /// Is nullable
@@ -151,7 +151,7 @@ pub enum SqlType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionColumn {
     /// Column name (default: "dimensions" for fact tables)
-    pub name: String,
+    pub name:  String,
     /// Detected dimension paths (optional, extracted from sample data)
     pub paths: Vec<DimensionPath>,
 }
@@ -160,7 +160,7 @@ pub struct DimensionColumn {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionPath {
     /// Path name (e.g., "category")
-    pub name: String,
+    pub name:      String,
     /// JSON path (e.g., "dimensions->>'category'" for PostgreSQL)
     pub json_path: String,
     /// Data type hint
@@ -229,11 +229,11 @@ pub struct CalendarBucket {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilterColumn {
     /// Column name (e.g., "customer_id")
-    pub name: String,
+    pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
     /// Is indexed (for performance)
-    pub indexed: bool,
+    pub indexed:  bool,
 }
 
 /// Aggregation strategy for fact tables
@@ -396,7 +396,7 @@ impl FactTableDetector {
                     "Table '{}' is not a fact table (must start with 'tf_')",
                     table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -405,7 +405,7 @@ impl FactTableDetector {
         if columns.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!("Table '{}' not found or has no columns", table_name),
-                path: None,
+                path:    None,
             });
         }
 
@@ -442,7 +442,7 @@ impl FactTableDetector {
                     // Skip common non-measure columns
                     if name != "id" && !name.ends_with("_id") {
                         measures.push(MeasureColumn {
-                            name: name.clone(),
+                            name:     name.clone(),
                             sql_type: sql_type.clone(),
                             nullable: *is_nullable,
                         });
@@ -451,9 +451,9 @@ impl FactTableDetector {
                     // Check if it's a denormalized filter
                     if name.ends_with("_id") && indexed_set.contains(name.as_str()) {
                         filters.push(FilterColumn {
-                            name: name.clone(),
+                            name:     name.clone(),
                             sql_type: sql_type.clone(),
-                            indexed: true,
+                            indexed:  true,
                         });
                     }
                 },
@@ -490,7 +490,7 @@ impl FactTableDetector {
             table_name: table_name.to_string(),
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "dimensions".to_string(),
+                name:  "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -527,7 +527,7 @@ impl FactTableDetector {
                     "Fact table '{}' must have at least one measure column",
                     metadata.table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -539,7 +539,7 @@ impl FactTableDetector {
                         "Measure column '{}' must be numeric type, found {:?}",
                         measure.name, measure.sql_type
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -551,7 +551,7 @@ impl FactTableDetector {
                     "Fact table '{}' must have a dimension column (JSONB)",
                     metadata.table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -769,98 +769,98 @@ impl FactTableDetector {
         match column_name {
             "date_info" => vec![
                 CalendarBucket {
-                    json_key: "date".to_string(),
+                    json_key:    "date".to_string(),
                     bucket_type: TemporalBucket::Day,
-                    data_type: "date".to_string(),
+                    data_type:   "date".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "week".to_string(),
+                    json_key:    "week".to_string(),
                     bucket_type: TemporalBucket::Week,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "week_info" => vec![
                 CalendarBucket {
-                    json_key: "week".to_string(),
+                    json_key:    "week".to_string(),
                     bucket_type: TemporalBucket::Week,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "month_info" => vec![
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "quarter_info" => vec![
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "semester_info" => vec![
                 CalendarBucket {
-                    json_key: "semester".to_string(),
+                    json_key:    "semester".to_string(),
                     bucket_type: TemporalBucket::Quarter, // Map to Quarter for now
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "year_info" => vec![CalendarBucket {
-                json_key: "year".to_string(),
+                json_key:    "year".to_string(),
                 bucket_type: TemporalBucket::Year,
-                data_type: "integer".to_string(),
+                data_type:   "integer".to_string(),
             }],
             _ => Vec::new(),
         }
@@ -880,7 +880,7 @@ impl FactTableDetector {
                 SqlType::Jsonb | SqlType::Json => {
                     // This is the dimension column
                     dimension_column = Some(DimensionColumn {
-                        name: name.to_string(),
+                        name:  name.to_string(),
                         paths: Vec::new(),
                     });
                 },
@@ -919,7 +919,7 @@ impl FactTableDetector {
             table_name,
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "dimensions".to_string(),
+                name:  "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -1016,18 +1016,18 @@ mod tests {
     #[test]
     fn test_validate_valid_fact_table() {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         assert!(FactTableDetector::validate(&metadata).is_ok());
@@ -1036,14 +1036,14 @@ mod tests {
     #[test]
     fn test_validate_missing_measures() {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let result = FactTableDetector::validate(&metadata);
@@ -1054,18 +1054,18 @@ mod tests {
     #[test]
     fn test_validate_non_numeric_measure() {
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "category".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "category".to_string(),
                 sql_type: SqlType::Text, // Wrong type for measure!
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let result = FactTableDetector::validate(&metadata);
@@ -1585,11 +1585,11 @@ mod tests {
     #[test]
     fn test_fact_table_declaration_basic() {
         let decl = FactTableDeclaration {
-            name: "tf_sales".to_string(),
-            measures: vec!["amount".to_string(), "quantity".to_string()],
-            dimensions: vec!["product_id".to_string(), "region_id".to_string()],
+            name:        "tf_sales".to_string(),
+            measures:    vec!["amount".to_string(), "quantity".to_string()],
+            dimensions:  vec!["product_id".to_string(), "region_id".to_string()],
             primary_key: "id".to_string(),
-            metadata: None,
+            metadata:    None,
         };
 
         assert_eq!(decl.name, "tf_sales");
@@ -1609,11 +1609,11 @@ mod tests {
         };
 
         let decl = FactTableDeclaration {
-            name: "tf_events".to_string(),
-            measures: vec!["count".to_string()],
-            dimensions: vec!["user_id".to_string(), "event_type".to_string()],
+            name:        "tf_events".to_string(),
+            measures:    vec!["count".to_string()],
+            dimensions:  vec!["user_id".to_string(), "event_type".to_string()],
             primary_key: "id".to_string(),
-            metadata: Some(metadata.clone()),
+            metadata:    Some(metadata.clone()),
         };
 
         assert!(decl.metadata.is_some());
@@ -1632,11 +1632,11 @@ mod tests {
         };
 
         let decl = FactTableDeclaration {
-            name: "tf_inventory".to_string(),
-            measures: vec!["quantity_on_hand".to_string()],
-            dimensions: vec!["warehouse_id".to_string()],
+            name:        "tf_inventory".to_string(),
+            measures:    vec!["quantity_on_hand".to_string()],
+            dimensions:  vec!["warehouse_id".to_string()],
             primary_key: "id".to_string(),
-            metadata: Some(metadata.clone()),
+            metadata:    Some(metadata.clone()),
         };
 
         assert_eq!(decl.name, "tf_inventory");
@@ -1672,11 +1672,11 @@ mod tests {
     #[test]
     fn test_fact_table_declaration_json_roundtrip() {
         let original = FactTableDeclaration {
-            name: "tf_orders".to_string(),
-            measures: vec!["amount".to_string()],
-            dimensions: vec!["customer_id".to_string()],
+            name:        "tf_orders".to_string(),
+            measures:    vec!["amount".to_string()],
+            dimensions:  vec!["customer_id".to_string()],
             primary_key: "id".to_string(),
-            metadata: Some(FactTableDeclarationMetadata {
+            metadata:    Some(FactTableDeclarationMetadata {
                 aggregation_strategy: AggregationStrategy::AccumulatingSnapshot,
                 grain: vec!["order_id".to_string()],
                 snapshot_date_column: None,
@@ -1717,18 +1717,18 @@ mod tests {
     fn test_multiple_fact_table_declarations() {
         let declarations = [
             FactTableDeclaration {
-                name: "tf_sales".to_string(),
-                measures: vec!["amount".to_string()],
-                dimensions: vec!["product_id".to_string()],
+                name:        "tf_sales".to_string(),
+                measures:    vec!["amount".to_string()],
+                dimensions:  vec!["product_id".to_string()],
                 primary_key: "id".to_string(),
-                metadata: None,
+                metadata:    None,
             },
             FactTableDeclaration {
-                name: "tf_events".to_string(),
-                measures: vec!["count".to_string()],
-                dimensions: vec!["user_id".to_string()],
+                name:        "tf_events".to_string(),
+                measures:    vec!["count".to_string()],
+                dimensions:  vec!["user_id".to_string()],
                 primary_key: "id".to_string(),
-                metadata: None,
+                metadata:    None,
             },
         ];
 
@@ -1752,16 +1752,16 @@ mod tests {
         };
 
         let decl = FactTableDeclaration {
-            name: "tf_sales_detailed".to_string(),
-            measures: vec!["amount".to_string(), "quantity".to_string()],
-            dimensions: vec![
+            name:        "tf_sales_detailed".to_string(),
+            measures:    vec!["amount".to_string(), "quantity".to_string()],
+            dimensions:  vec![
                 "date_id".to_string(),
                 "product_id".to_string(),
                 "region_id".to_string(),
                 "customer_id".to_string(),
             ],
             primary_key: "id".to_string(),
-            metadata: Some(metadata),
+            metadata:    Some(metadata),
         };
 
         let meta = decl.metadata.unwrap();

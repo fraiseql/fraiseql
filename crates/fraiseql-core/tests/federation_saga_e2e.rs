@@ -85,88 +85,88 @@ mod harness {
 
     #[derive(Debug, Clone)]
     pub struct SagaStepDef {
-        pub subgraph: String,
-        pub mutation_type: MutationType,
-        pub typename: String,
-        pub mutation_name: String,
-        pub variables: Value,
-        pub behavior: StepBehavior,
+        pub subgraph:              String,
+        pub mutation_type:         MutationType,
+        pub typename:              String,
+        pub mutation_name:         String,
+        pub variables:             Value,
+        pub behavior:              StepBehavior,
         pub compensation_behavior: CompensationBehavior,
     }
 
     #[derive(Debug, Clone)]
     pub struct StoredSaga {
-        pub id: Uuid,
-        pub state: SagaState,
-        pub steps: Vec<StoredStep>,
-        pub created_at: Instant,
+        pub id:           Uuid,
+        pub state:        SagaState,
+        pub steps:        Vec<StoredStep>,
+        pub created_at:   Instant,
         pub completed_at: Option<Instant>,
     }
 
     #[derive(Debug, Clone)]
     pub struct StoredStep {
-        pub order: usize,
-        pub subgraph: String,
+        pub order:         usize,
+        pub subgraph:      String,
         pub mutation_type: MutationType,
-        pub typename: String,
+        pub typename:      String,
         pub mutation_name: String,
-        pub variables: Value,
-        pub state: StepState,
-        pub result: Option<Value>,
-        pub started_at: Option<Instant>,
-        pub completed_at: Option<Instant>,
+        pub variables:     Value,
+        pub state:         StepState,
+        pub result:        Option<Value>,
+        pub started_at:    Option<Instant>,
+        pub completed_at:  Option<Instant>,
     }
 
     #[derive(Debug, Clone)]
     pub struct StateTransition {
-        pub from: SagaState,
-        pub to: SagaState,
+        pub from:      SagaState,
+        pub to:        SagaState,
         pub timestamp: Instant,
     }
 
     #[derive(Debug, Clone)]
     pub struct StepExecution {
-        pub step_order: usize,
-        pub subgraph: String,
-        pub mutation_name: String,
-        pub variables: Value,
+        pub step_order:      usize,
+        pub subgraph:        String,
+        pub mutation_name:   String,
+        pub variables:       Value,
         pub previous_result: Option<Value>,
-        pub result: Result<Value, String>,
-        pub started_at: Instant,
-        pub completed_at: Instant,
+        pub result:          Result<Value, String>,
+        pub started_at:      Instant,
+        pub completed_at:    Instant,
     }
 
     #[derive(Debug, Clone)]
     pub struct CompensationExecution {
-        pub step_order: usize,
+        pub step_order:      usize,
         pub original_result: Option<Value>,
-        pub result: Result<Value, String>,
-        pub timestamp: Instant,
+        pub result:          Result<Value, String>,
+        pub timestamp:       Instant,
     }
 
     #[derive(Debug, Clone)]
     pub struct SagaResult {
-        pub saga_id: Uuid,
-        pub state: SagaState,
-        pub completed_steps: usize,
-        pub total_steps: usize,
-        pub error: Option<String>,
-        pub step_results: Vec<Option<Value>>,
+        pub saga_id:              Uuid,
+        pub state:                SagaState,
+        pub completed_steps:      usize,
+        pub total_steps:          usize,
+        pub error:                Option<String>,
+        pub step_results:         Vec<Option<Value>>,
         pub compensation_results: Vec<CompensationExecution>,
     }
 
     #[derive(Debug, Clone)]
     pub struct SagaStatus {
-        pub saga_id: Uuid,
-        pub state: SagaState,
-        pub total_steps: usize,
+        pub saga_id:         Uuid,
+        pub state:           SagaState,
+        pub total_steps:     usize,
         pub completed_steps: usize,
     }
 
     #[derive(Debug)]
     pub struct RecoveryReport {
         pub pending_sagas: Vec<Uuid>,
-        pub stuck_sagas: Vec<Uuid>,
+        pub stuck_sagas:   Vec<Uuid>,
         pub cleaned_count: usize,
     }
 
@@ -175,14 +175,14 @@ mod harness {
     // ========================================================================
 
     pub struct InMemorySagaStore {
-        sagas: Mutex<HashMap<Uuid, StoredSaga>>,
+        sagas:       Mutex<HashMap<Uuid, StoredSaga>>,
         transitions: Mutex<Vec<(Uuid, StateTransition)>>,
     }
 
     impl InMemorySagaStore {
         pub fn new() -> Self {
             Self {
-                sagas: Mutex::new(HashMap::new()),
+                sagas:       Mutex::new(HashMap::new()),
                 transitions: Mutex::new(Vec::new()),
             }
         }
@@ -210,8 +210,8 @@ mod harness {
             self.transitions.lock().unwrap().push((
                 id,
                 StateTransition {
-                    from: old_state,
-                    to: new_state,
+                    from:      old_state,
+                    to:        new_state,
                     timestamp: Instant::now(),
                 },
             ));
@@ -296,14 +296,14 @@ mod harness {
     // ========================================================================
 
     pub struct MockStepExecutor {
-        behaviors: Mutex<HashMap<usize, StepBehavior>>,
+        behaviors:  Mutex<HashMap<usize, StepBehavior>>,
         executions: Mutex<Vec<StepExecution>>,
     }
 
     impl MockStepExecutor {
         pub fn new() -> Self {
             Self {
-                behaviors: Mutex::new(HashMap::new()),
+                behaviors:  Mutex::new(HashMap::new()),
                 executions: Mutex::new(Vec::new()),
             }
         }
@@ -368,14 +368,14 @@ mod harness {
     // ========================================================================
 
     pub struct MockStepCompensator {
-        behaviors: Mutex<HashMap<usize, CompensationBehavior>>,
+        behaviors:     Mutex<HashMap<usize, CompensationBehavior>>,
         compensations: Mutex<Vec<CompensationExecution>>,
     }
 
     impl MockStepCompensator {
         pub fn new() -> Self {
             Self {
-                behaviors: Mutex::new(HashMap::new()),
+                behaviors:     Mutex::new(HashMap::new()),
                 compensations: Mutex::new(Vec::new()),
             }
         }
@@ -452,7 +452,7 @@ mod harness {
 
             RecoveryReport {
                 pending_sagas: pending,
-                stuck_sagas: stuck,
+                stuck_sagas:   stuck,
                 cleaned_count: cleaned,
             }
         }
@@ -463,8 +463,8 @@ mod harness {
     // ========================================================================
 
     pub struct SagaOrchestrator {
-        pub store: InMemorySagaStore,
-        pub executor: MockStepExecutor,
+        pub store:       InMemorySagaStore,
+        pub executor:    MockStepExecutor,
         pub compensator: MockStepCompensator,
     }
 
@@ -492,16 +492,16 @@ mod harness {
                 .iter()
                 .enumerate()
                 .map(|(i, def)| StoredStep {
-                    order: i,
-                    subgraph: def.subgraph.clone(),
+                    order:         i,
+                    subgraph:      def.subgraph.clone(),
                     mutation_type: def.mutation_type.clone(),
-                    typename: def.typename.clone(),
+                    typename:      def.typename.clone(),
                     mutation_name: def.mutation_name.clone(),
-                    variables: def.variables.clone(),
-                    state: StepState::Pending,
-                    result: None,
-                    started_at: None,
-                    completed_at: None,
+                    variables:     def.variables.clone(),
+                    state:         StepState::Pending,
+                    result:        None,
+                    started_at:    None,
+                    completed_at:  None,
                 })
                 .collect();
 
@@ -512,10 +512,10 @@ mod harness {
             }
 
             self.store.save_saga(StoredSaga {
-                id: saga_id,
-                state: SagaState::Pending,
-                steps: stored_steps,
-                created_at: Instant::now(),
+                id:           saga_id,
+                state:        SagaState::Pending,
+                steps:        stored_steps,
+                created_at:   Instant::now(),
                 completed_at: None,
             });
 
@@ -623,10 +623,10 @@ mod harness {
                 let comp_result = self.compensator.compensate(i, original_result);
 
                 compensation_results.push(CompensationExecution {
-                    step_order: i,
+                    step_order:      i,
                     original_result: original_result.cloned(),
-                    result: comp_result.clone(),
-                    timestamp: Instant::now(),
+                    result:          comp_result.clone(),
+                    timestamp:       Instant::now(),
                 });
 
                 if comp_result.is_err() {
@@ -690,12 +690,12 @@ mod harness {
             for i in 0..count {
                 let idx = i % subgraphs.len();
                 self.steps.push(SagaStepDef {
-                    subgraph: subgraphs[idx].to_string(),
-                    mutation_type: MutationType::Create,
-                    typename: typenames[idx].to_string(),
-                    mutation_name: format!("create{}", typenames[idx]),
-                    variables: json!({ "id": format!("id-{i}"), "step": i }),
-                    behavior: StepBehavior::Succeed,
+                    subgraph:              subgraphs[idx].to_string(),
+                    mutation_type:         MutationType::Create,
+                    typename:              typenames[idx].to_string(),
+                    mutation_name:         format!("create{}", typenames[idx]),
+                    variables:             json!({ "id": format!("id-{i}"), "step": i }),
+                    behavior:              StepBehavior::Succeed,
                     compensation_behavior: CompensationBehavior::Succeed,
                 });
             }
@@ -1167,19 +1167,19 @@ fn test_e2e_recovery_detects_pending_sagas() {
 
     let pending_id = Uuid::new_v4();
     store.save_saga(StoredSaga {
-        id: pending_id,
-        state: SagaState::Pending,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           pending_id,
+        state:        SagaState::Pending,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: None,
     });
 
     let completed_id = Uuid::new_v4();
     store.save_saga(StoredSaga {
-        id: completed_id,
-        state: SagaState::Completed,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           completed_id,
+        state:        SagaState::Completed,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: Some(Instant::now()),
     });
 
@@ -1196,10 +1196,10 @@ fn test_e2e_recovery_detects_stuck_executing() {
 
     let stuck_id = Uuid::new_v4();
     store.save_saga(StoredSaga {
-        id: stuck_id,
-        state: SagaState::Executing,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           stuck_id,
+        state:        SagaState::Executing,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: None,
     });
 
@@ -1216,19 +1216,19 @@ fn test_e2e_recovery_cleans_stale_completed() {
 
     for _ in 0..3 {
         store.save_saga(StoredSaga {
-            id: Uuid::new_v4(),
-            state: SagaState::Completed,
-            steps: vec![],
-            created_at: Instant::now(),
+            id:           Uuid::new_v4(),
+            state:        SagaState::Completed,
+            steps:        vec![],
+            created_at:   Instant::now(),
             completed_at: Some(Instant::now()),
         });
     }
 
     store.save_saga(StoredSaga {
-        id: Uuid::new_v4(),
-        state: SagaState::Pending,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           Uuid::new_v4(),
+        state:        SagaState::Pending,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: None,
     });
 
@@ -1254,12 +1254,12 @@ fn test_e2e_multiple_sagas_execute_independently() {
 
     // Saga 1: single step, succeeds
     let saga1_steps = vec![SagaStepDef {
-        subgraph: "users".to_string(),
-        mutation_type: MutationType::Create,
-        typename: "User".to_string(),
-        mutation_name: "createUser".to_string(),
-        variables: json!({"id": "1"}),
-        behavior: StepBehavior::Succeed,
+        subgraph:              "users".to_string(),
+        mutation_type:         MutationType::Create,
+        typename:              "User".to_string(),
+        mutation_name:         "createUser".to_string(),
+        variables:             json!({"id": "1"}),
+        behavior:              StepBehavior::Succeed,
         compensation_behavior: CompensationBehavior::Succeed,
     }];
     let saga1_id = orchestrator.create_saga(saga1_steps).expect("Should create saga 1");
@@ -1275,21 +1275,21 @@ fn test_e2e_multiple_sagas_execute_independently() {
 
     let saga2_steps = vec![
         SagaStepDef {
-            subgraph: "orders".to_string(),
-            mutation_type: MutationType::Create,
-            typename: "Order".to_string(),
-            mutation_name: "createOrder".to_string(),
-            variables: json!({"id": "2"}),
-            behavior: StepBehavior::Succeed,
+            subgraph:              "orders".to_string(),
+            mutation_type:         MutationType::Create,
+            typename:              "Order".to_string(),
+            mutation_name:         "createOrder".to_string(),
+            variables:             json!({"id": "2"}),
+            behavior:              StepBehavior::Succeed,
             compensation_behavior: CompensationBehavior::Succeed,
         },
         SagaStepDef {
-            subgraph: "products".to_string(),
-            mutation_type: MutationType::Update,
-            typename: "Product".to_string(),
-            mutation_name: "updateProduct".to_string(),
-            variables: json!({"id": "3"}),
-            behavior: StepBehavior::Fail("saga2 failure".to_string()),
+            subgraph:              "products".to_string(),
+            mutation_type:         MutationType::Update,
+            typename:              "Product".to_string(),
+            mutation_name:         "updateProduct".to_string(),
+            variables:             json!({"id": "3"}),
+            behavior:              StepBehavior::Fail("saga2 failure".to_string()),
             compensation_behavior: CompensationBehavior::Succeed,
         },
     ];
@@ -1301,12 +1301,12 @@ fn test_e2e_multiple_sagas_execute_independently() {
     orchestrator.executor.set_behavior(0, StepBehavior::Succeed);
 
     let saga3_steps = vec![SagaStepDef {
-        subgraph: "payments".to_string(),
-        mutation_type: MutationType::Create,
-        typename: "Payment".to_string(),
-        mutation_name: "createPayment".to_string(),
-        variables: json!({"id": "4"}),
-        behavior: StepBehavior::Succeed,
+        subgraph:              "payments".to_string(),
+        mutation_type:         MutationType::Create,
+        typename:              "Payment".to_string(),
+        mutation_name:         "createPayment".to_string(),
+        variables:             json!({"id": "4"}),
+        behavior:              StepBehavior::Succeed,
         compensation_behavior: CompensationBehavior::Succeed,
     }];
     let saga3_id = orchestrator.create_saga(saga3_steps).expect("Should create saga 3");
@@ -1356,12 +1356,12 @@ fn test_e2e_saga_isolation_during_compensation() {
     // Saga 1: succeeds
     orchestrator.executor.set_behavior(0, StepBehavior::Succeed);
     let saga1_steps = vec![SagaStepDef {
-        subgraph: "users".to_string(),
-        mutation_type: MutationType::Create,
-        typename: "User".to_string(),
-        mutation_name: "createUser".to_string(),
-        variables: json!({"id": "1"}),
-        behavior: StepBehavior::Succeed,
+        subgraph:              "users".to_string(),
+        mutation_type:         MutationType::Create,
+        typename:              "User".to_string(),
+        mutation_name:         "createUser".to_string(),
+        variables:             json!({"id": "1"}),
+        behavior:              StepBehavior::Succeed,
         compensation_behavior: CompensationBehavior::Succeed,
     }];
     let saga1_id = orchestrator.create_saga(saga1_steps).expect("Should create saga 1");
@@ -1375,21 +1375,21 @@ fn test_e2e_saga_isolation_during_compensation() {
 
     let saga2_steps = vec![
         SagaStepDef {
-            subgraph: "orders".to_string(),
-            mutation_type: MutationType::Create,
-            typename: "Order".to_string(),
-            mutation_name: "createOrder".to_string(),
-            variables: json!({"id": "2"}),
-            behavior: StepBehavior::Succeed,
+            subgraph:              "orders".to_string(),
+            mutation_type:         MutationType::Create,
+            typename:              "Order".to_string(),
+            mutation_name:         "createOrder".to_string(),
+            variables:             json!({"id": "2"}),
+            behavior:              StepBehavior::Succeed,
             compensation_behavior: CompensationBehavior::Succeed,
         },
         SagaStepDef {
-            subgraph: "products".to_string(),
-            mutation_type: MutationType::Update,
-            typename: "Product".to_string(),
-            mutation_name: "updateProduct".to_string(),
-            variables: json!({"id": "3"}),
-            behavior: StepBehavior::Fail("fail".to_string()),
+            subgraph:              "products".to_string(),
+            mutation_type:         MutationType::Update,
+            typename:              "Product".to_string(),
+            mutation_name:         "updateProduct".to_string(),
+            variables:             json!({"id": "3"}),
+            behavior:              StepBehavior::Fail("fail".to_string()),
             compensation_behavior: CompensationBehavior::Succeed,
         },
     ];

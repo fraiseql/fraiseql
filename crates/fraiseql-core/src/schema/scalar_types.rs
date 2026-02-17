@@ -109,7 +109,7 @@ pub const RICH_SCALARS: &[&str] = &[
 /// # Examples
 ///
 /// ```
-/// # use fraiseql_core::schema::scalar_types::is_known_scalar;
+/// # use fraiseql_core::schema::is_known_scalar;
 /// assert!(is_known_scalar("String"));
 /// assert!(is_known_scalar("Email"));
 /// assert!(is_known_scalar("UUID"));

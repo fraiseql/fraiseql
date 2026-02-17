@@ -46,7 +46,7 @@ impl Default for ShutdownConfig {
     fn default() -> Self {
         Self {
             timeout: Duration::from_secs(30),
-            delay: Duration::from_secs(5),
+            delay:   Duration::from_secs(5),
         }
     }
 }

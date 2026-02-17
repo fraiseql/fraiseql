@@ -14,23 +14,23 @@ mod fixtures {
     pub fn create_simple_test_saga() -> TestSagaDefinition {
         TestSagaDefinition {
             saga_id: Uuid::new_v4(),
-            steps: vec![
+            steps:   vec![
                 TestStep {
-                    number: 1,
-                    subgraph: "service-1".to_string(),
-                    mutation: "createEntity".to_string(),
+                    number:      1,
+                    subgraph:    "service-1".to_string(),
+                    mutation:    "createEntity".to_string(),
                     should_fail: false,
                 },
                 TestStep {
-                    number: 2,
-                    subgraph: "service-2".to_string(),
-                    mutation: "updateEntity".to_string(),
+                    number:      2,
+                    subgraph:    "service-2".to_string(),
+                    mutation:    "updateEntity".to_string(),
                     should_fail: false,
                 },
                 TestStep {
-                    number: 3,
-                    subgraph: "service-3".to_string(),
-                    mutation: "confirmEntity".to_string(),
+                    number:      3,
+                    subgraph:    "service-3".to_string(),
+                    mutation:    "confirmEntity".to_string(),
                     should_fail: false,
                 },
             ],
@@ -41,23 +41,23 @@ mod fixtures {
     pub fn create_saga_with_middle_failure() -> TestSagaDefinition {
         TestSagaDefinition {
             saga_id: Uuid::new_v4(),
-            steps: vec![
+            steps:   vec![
                 TestStep {
-                    number: 1,
-                    subgraph: "service-1".to_string(),
-                    mutation: "createEntity".to_string(),
+                    number:      1,
+                    subgraph:    "service-1".to_string(),
+                    mutation:    "createEntity".to_string(),
                     should_fail: false,
                 },
                 TestStep {
-                    number: 2,
-                    subgraph: "service-2".to_string(),
-                    mutation: "updateEntity".to_string(),
+                    number:      2,
+                    subgraph:    "service-2".to_string(),
+                    mutation:    "updateEntity".to_string(),
                     should_fail: true, // This will fail
                 },
                 TestStep {
-                    number: 3,
-                    subgraph: "service-3".to_string(),
-                    mutation: "confirmEntity".to_string(),
+                    number:      3,
+                    subgraph:    "service-3".to_string(),
+                    mutation:    "confirmEntity".to_string(),
                     should_fail: false,
                 },
             ],
@@ -68,17 +68,17 @@ mod fixtures {
     pub fn create_saga_with_first_failure() -> TestSagaDefinition {
         TestSagaDefinition {
             saga_id: Uuid::new_v4(),
-            steps: vec![
+            steps:   vec![
                 TestStep {
-                    number: 1,
-                    subgraph: "service-1".to_string(),
-                    mutation: "createEntity".to_string(),
+                    number:      1,
+                    subgraph:    "service-1".to_string(),
+                    mutation:    "createEntity".to_string(),
                     should_fail: true, // Fails immediately
                 },
                 TestStep {
-                    number: 2,
-                    subgraph: "service-2".to_string(),
-                    mutation: "updateEntity".to_string(),
+                    number:      2,
+                    subgraph:    "service-2".to_string(),
+                    mutation:    "updateEntity".to_string(),
                     should_fail: false,
                 },
             ],
@@ -88,14 +88,14 @@ mod fixtures {
     #[derive(Debug, Clone)]
     pub struct TestSagaDefinition {
         pub saga_id: Uuid,
-        pub steps: Vec<TestStep>,
+        pub steps:   Vec<TestStep>,
     }
 
     #[derive(Debug, Clone)]
     pub struct TestStep {
-        pub number: u32,
-        pub subgraph: String,
-        pub mutation: String,
+        pub number:      u32,
+        pub subgraph:    String,
+        pub mutation:    String,
         pub should_fail: bool,
     }
 }

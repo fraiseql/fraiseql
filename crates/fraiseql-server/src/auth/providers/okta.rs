@@ -15,21 +15,21 @@ use crate::auth::{
 /// Supports Okta custom claims and group-based authorization.
 #[derive(Debug)]
 pub struct OktaOAuth {
-    oidc: OidcProvider,
+    oidc:   OidcProvider,
     domain: String,
 }
 
 /// Okta user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct OktaUser {
-    pub sub: String,
-    pub email: String,
+    pub sub:            String,
+    pub email:          String,
     pub email_verified: Option<bool>,
-    pub name: Option<String>,
-    pub given_name: Option<String>,
-    pub family_name: Option<String>,
-    pub picture: Option<String>,
-    pub locale: Option<String>,
+    pub name:           Option<String>,
+    pub given_name:     Option<String>,
+    pub family_name:    Option<String>,
+    pub picture:        Option<String>,
+    pub locale:         Option<String>,
 }
 
 /// Okta groups claim

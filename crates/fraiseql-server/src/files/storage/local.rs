@@ -66,8 +66,8 @@ impl StorageBackend for LocalStorage {
         })?;
 
         Ok(StorageResult {
-            key: key.to_string(),
-            url: self.public_url(key),
+            key:  key.to_string(),
+            url:  self.public_url(key),
             etag: None,
             size: data.len() as u64,
         })

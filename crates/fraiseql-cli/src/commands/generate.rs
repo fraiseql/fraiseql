@@ -28,8 +28,7 @@ trait SchemaGenerator {
 
 /// Run the generate command.
 pub fn run(input: &str, language: Language, output: Option<&str>) -> Result<()> {
-    let json = fs::read_to_string(input)
-        .with_context(|| format!("Failed to read {input}"))?;
+    let json = fs::read_to_string(input).with_context(|| format!("Failed to read {input}"))?;
     let schema: IntermediateSchema =
         serde_json::from_str(&json).with_context(|| format!("Failed to parse {input}"))?;
 
@@ -40,8 +39,7 @@ pub fn run(input: &str, language: Language, output: Option<&str>) -> Result<()> 
         None => default_output_path(language),
     };
 
-    fs::write(&out_path, &code)
-        .with_context(|| format!("Failed to write {out_path}"))?;
+    fs::write(&out_path, &code).with_context(|| format!("Failed to write {out_path}"))?;
 
     let type_count = schema.types.len();
     let query_count = schema.queries.len();
@@ -296,10 +294,7 @@ fn generate_python_type(out: &mut String, ty: &IntermediateType) {
 }
 
 fn generate_python_query(out: &mut String, query: &IntermediateQuery) {
-    let sql_source = query
-        .sql_source
-        .as_deref()
-        .unwrap_or("v_unknown");
+    let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
     let mut params = vec![format!("return_type={}", query.return_type)];
     if query.returns_list {
         params.push("return_array=True".to_string());
@@ -325,11 +320,7 @@ fn generate_python_query(out: &mut String, query: &IntermediateQuery) {
                 format!("{}: {lang_type}", a.name)
             })
             .collect();
-        out.push_str(&format!(
-            "def {}(*, {}) -> {ret_type}:\n",
-            query.name,
-            args.join(", ")
-        ));
+        out.push_str(&format!("def {}(*, {}) -> {ret_type}:\n", query.name, args.join(", ")));
     }
     out.push_str("    ...\n\n");
 }
@@ -376,10 +367,7 @@ fn generate_ts_enum(out: &mut String, enum_def: &IntermediateEnum) {
 
 fn generate_ts_type(out: &mut String, ty: &IntermediateType) {
     let sql_source = infer_sql_source(&ty.name);
-    out.push_str(&format!(
-        "export const {} = type_(\"{}\", {{\n",
-        ty.name, ty.name
-    ));
+    out.push_str(&format!("export const {} = type_(\"{}\", {{\n", ty.name, ty.name));
     out.push_str(&format!("  sqlSource: \"{sql_source}\",\n"));
     out.push_str("  fields: {\n");
     for field in &ty.fields {
@@ -394,10 +382,7 @@ fn generate_ts_type(out: &mut String, ty: &IntermediateType) {
 
 fn generate_ts_query(out: &mut String, query: &IntermediateQuery) {
     let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
-    out.push_str(&format!(
-        "export const {} = query(\"{}\", {{\n",
-        query.name, query.name
-    ));
+    out.push_str(&format!("export const {} = query(\"{}\", {{\n", query.name, query.name));
     out.push_str(&format!("  returnType: \"{}\",\n", query.return_type));
     out.push_str(&format!(
         "  returnArray: {},\n",
@@ -510,11 +495,7 @@ fn generate_rust_query(out: &mut String, query: &IntermediateQuery) {
                 format!("{}: {lang_type}", a.name)
             })
             .collect();
-        out.push_str(&format!(
-            "pub fn {}({}) -> {ret_type} {{\n",
-            query.name,
-            args.join(", ")
-        ));
+        out.push_str(&format!("pub fn {}({}) -> {ret_type} {{\n", query.name, args.join(", ")));
     }
     out.push_str("    unimplemented!()\n}\n\n");
 }
@@ -570,20 +551,14 @@ fn generate_kotlin_type(out: &mut String, ty: &IntermediateType) {
         } else {
             lang_type
         };
-        out.push_str(&format!(
-            "    val {}: {type_str},\n",
-            to_camel_case(&field.name)
-        ));
+        out.push_str(&format!("    val {}: {type_str},\n", to_camel_case(&field.name)));
     }
     out.push_str(")\n\n");
 }
 
 fn generate_kotlin_query(out: &mut String, query: &IntermediateQuery) {
     let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
-    let mut params = vec![format!(
-        "returnType = {}::class",
-        query.return_type
-    )];
+    let mut params = vec![format!("returnType = {}::class", query.return_type)];
     if query.returns_list {
         params.push("returnArray = true".to_string());
     }
@@ -608,11 +583,7 @@ fn generate_kotlin_query(out: &mut String, query: &IntermediateQuery) {
                 format!("{}: {lang_type}", a.name)
             })
             .collect();
-        out.push_str(&format!(
-            "fun {}({}): {ret_type} = TODO()\n\n",
-            query.name,
-            args.join(", ")
-        ));
+        out.push_str(&format!("fun {}({}): {ret_type} = TODO()\n\n", query.name, args.join(", ")));
     }
 }
 
@@ -668,10 +639,7 @@ fn generate_swift_type(out: &mut String, ty: &IntermediateType) {
         } else {
             lang_type
         };
-        out.push_str(&format!(
-            "    let {}: {type_str}\n",
-            to_camel_case(&field.name)
-        ));
+        out.push_str(&format!("    let {}: {type_str}\n", to_camel_case(&field.name)));
     }
     out.push_str("}\n\n");
 }
@@ -693,10 +661,7 @@ fn generate_swift_query(out: &mut String, query: &IntermediateQuery) {
     };
 
     if query.arguments.is_empty() {
-        out.push_str(&format!(
-            "func {}() -> {ret_type} {{ fatalError() }}\n\n",
-            query.name
-        ));
+        out.push_str(&format!("func {}() -> {ret_type} {{ fatalError() }}\n\n", query.name));
     } else {
         let args: Vec<String> = query
             .arguments
@@ -770,20 +735,14 @@ fn generate_scala_type(out: &mut String, ty: &IntermediateType) {
             lang_type
         };
         let comma = if i + 1 < ty.fields.len() { "," } else { "" };
-        out.push_str(&format!(
-            "  {}: {type_str}{comma}\n",
-            to_camel_case(&field.name)
-        ));
+        out.push_str(&format!("  {}: {type_str}{comma}\n", to_camel_case(&field.name)));
     }
     out.push_str(")\n\n");
 }
 
 fn generate_scala_query(out: &mut String, query: &IntermediateQuery) {
     let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
-    let mut params = vec![format!(
-        "returnType = classOf[{}]",
-        query.return_type
-    )];
+    let mut params = vec![format!("returnType = classOf[{}]", query.return_type)];
     if query.returns_list {
         params.push("returnArray = true".to_string());
     }
@@ -798,10 +757,7 @@ fn generate_scala_query(out: &mut String, query: &IntermediateQuery) {
     };
 
     if query.arguments.is_empty() {
-        out.push_str(&format!(
-            "def {}(): {ret_type} = ???\n\n",
-            query.name
-        ));
+        out.push_str(&format!("def {}(): {ret_type} = ???\n\n", query.name));
     } else {
         let args: Vec<String> = query
             .arguments
@@ -811,11 +767,7 @@ fn generate_scala_query(out: &mut String, query: &IntermediateQuery) {
                 format!("{}: {lang_type}", a.name)
             })
             .collect();
-        out.push_str(&format!(
-            "def {}({}): {ret_type} = ???\n\n",
-            query.name,
-            args.join(", ")
-        ));
+        out.push_str(&format!("def {}({}): {ret_type} = ???\n\n", query.name, args.join(", ")));
     }
 }
 
@@ -868,9 +820,7 @@ fn generate_java_type(out: &mut String, ty: &IntermediateType) {
         let field_name = to_camel_case(&field.name);
         let nullable_prefix = if field.nullable { "@Nullable " } else { "" };
         let comma = if i + 1 < ty.fields.len() { "," } else { "" };
-        out.push_str(&format!(
-            "    {nullable_prefix}{lang_type} {field_name}{comma}\n"
-        ));
+        out.push_str(&format!("    {nullable_prefix}{lang_type} {field_name}{comma}\n"));
     }
     out.push_str(") {}\n\n");
 }
@@ -879,10 +829,7 @@ fn generate_java_query(out: &mut String, query: &IntermediateQuery) {
     let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
     let class_name = derive_class_name(query);
 
-    let mut params = vec![format!(
-        "returnType = {}.class",
-        query.return_type
-    )];
+    let mut params = vec![format!("returnType = {}.class", query.return_type)];
     if query.returns_list {
         params.push("returnArray = true".to_string());
     }
@@ -968,19 +915,14 @@ fn generate_go_type(out: &mut String, ty: &IntermediateType) {
         } else {
             lang_type
         };
-        out.push_str(&format!(
-            "\t{go_name} {type_str} `fraiseql:\"{}\"`\n",
-            field.name
-        ));
+        out.push_str(&format!("\t{go_name} {type_str} `fraiseql:\"{}\"`\n", field.name));
     }
     out.push_str("}\n\n");
 }
 
 fn generate_go_query(out: &mut String, query: &IntermediateQuery) {
     let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
-    let mut fields = vec![
-        format!("ReturnType: \"{}\"", query.return_type),
-    ];
+    let mut fields = vec![format!("ReturnType: \"{}\"", query.return_type)];
     if query.returns_list {
         fields.push("ReturnArray: true".to_string());
     }
@@ -992,10 +934,7 @@ fn generate_go_query(out: &mut String, query: &IntermediateQuery) {
             .iter()
             .map(|a| {
                 let required = if a.nullable { "false" } else { "true" };
-                format!(
-                    "{{Name: \"{}\", Type: \"{}\", Required: {required}}}",
-                    a.name, a.arg_type
-                )
+                format!("{{Name: \"{}\", Type: \"{}\", Required: {required}}}", a.name, a.arg_type)
             })
             .collect();
         fields.push(format!("Args: []fraiseql.Arg{{{}}}", arg_strs.join(", ")));
@@ -1057,9 +996,7 @@ fn generate_csharp_type(out: &mut String, ty: &IntermediateType) {
         let field_name = to_pascal_case(&field.name);
         let nullable_suffix = if field.nullable { "?" } else { "" };
         let comma = if i + 1 < ty.fields.len() { "," } else { "" };
-        out.push_str(&format!(
-            "    {lang_type}{nullable_suffix} {field_name}{comma}\n"
-        ));
+        out.push_str(&format!("    {lang_type}{nullable_suffix} {field_name}{comma}\n"));
     }
     out.push_str(");\n\n");
 }
@@ -1068,10 +1005,7 @@ fn generate_csharp_query(out: &mut String, query: &IntermediateQuery) {
     let sql_source = query.sql_source.as_deref().unwrap_or("v_unknown");
     let class_name = derive_class_name(query);
 
-    let mut params = vec![format!(
-        "ReturnType = typeof({})",
-        query.return_type
-    )];
+    let mut params = vec![format!("ReturnType = typeof({})", query.return_type)];
     if query.returns_list {
         params.push("ReturnArray = true".to_string());
     }
@@ -1178,35 +1112,35 @@ mod tests {
     #[test]
     fn test_derive_class_name() {
         let list_query = IntermediateQuery {
-            name: "authors".to_string(),
-            return_type: "Author".to_string(),
+            name:         "authors".to_string(),
+            return_type:  "Author".to_string(),
             returns_list: true,
-            nullable: false,
-            arguments: vec![],
-            description: None,
-            sql_source: None,
-            auto_params: None,
-            deprecated: None,
+            nullable:     false,
+            arguments:    vec![],
+            description:  None,
+            sql_source:   None,
+            auto_params:  None,
+            deprecated:   None,
             jsonb_column: None,
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
         let single_query = IntermediateQuery {
-            name: "author".to_string(),
-            return_type: "Author".to_string(),
+            name:         "author".to_string(),
+            return_type:  "Author".to_string(),
             returns_list: false,
-            nullable: false,
-            arguments: vec![IntermediateArgument {
-                name: "id".to_string(),
-                arg_type: "ID".to_string(),
-                nullable: false,
-                default: None,
+            nullable:     false,
+            arguments:    vec![IntermediateArgument {
+                name:       "id".to_string(),
+                arg_type:   "ID".to_string(),
+                nullable:   false,
+                default:    None,
                 deprecated: None,
             }],
-            description: None,
-            sql_source: None,
-            auto_params: None,
-            deprecated: None,
+            description:  None,
+            sql_source:   None,
+            auto_params:  None,
+            deprecated:   None,
             jsonb_column: None,
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
@@ -1223,88 +1157,88 @@ mod tests {
         IntermediateSchema {
             version: "2.0.0".to_string(),
             types: vec![IntermediateType {
-                name: "Author".to_string(),
-                fields: vec![
+                name:        "Author".to_string(),
+                fields:      vec![
                     IntermediateField {
-                        name: "pk".to_string(),
-                        field_type: "Int".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "pk".to_string(),
+                        field_type:     "Int".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "id".to_string(),
-                        field_type: "ID".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "id".to_string(),
+                        field_type:     "ID".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "name".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: false,
-                        description: None,
-                        directives: None,
+                        name:           "name".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       false,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                     IntermediateField {
-                        name: "bio".to_string(),
-                        field_type: "String".to_string(),
-                        nullable: true,
-                        description: None,
-                        directives: None,
+                        name:           "bio".to_string(),
+                        field_type:     "String".to_string(),
+                        nullable:       true,
+                        description:    None,
+                        directives:     None,
                         requires_scope: None,
                     },
                 ],
                 description: None,
-                implements: Vec::new(),
+                implements:  Vec::new(),
             }],
             queries: vec![
                 IntermediateQuery {
-                    name: "authors".to_string(),
-                    return_type: "Author".to_string(),
+                    name:         "authors".to_string(),
+                    return_type:  "Author".to_string(),
                     returns_list: true,
-                    nullable: false,
-                    arguments: vec![],
-                    description: None,
-                    sql_source: Some("v_author".to_string()),
-                    auto_params: None,
-                    deprecated: None,
+                    nullable:     false,
+                    arguments:    vec![],
+                    description:  None,
+                    sql_source:   Some("v_author".to_string()),
+                    auto_params:  None,
+                    deprecated:   None,
                     jsonb_column: None,
                 },
                 IntermediateQuery {
-                    name: "author".to_string(),
-                    return_type: "Author".to_string(),
+                    name:         "author".to_string(),
+                    return_type:  "Author".to_string(),
                     returns_list: false,
-                    nullable: false,
-                    arguments: vec![IntermediateArgument {
-                        name: "id".to_string(),
-                        arg_type: "ID".to_string(),
-                        nullable: false,
-                        default: None,
+                    nullable:     false,
+                    arguments:    vec![IntermediateArgument {
+                        name:       "id".to_string(),
+                        arg_type:   "ID".to_string(),
+                        nullable:   false,
+                        default:    None,
                         deprecated: None,
                     }],
-                    description: None,
-                    sql_source: Some("v_author".to_string()),
-                    auto_params: None,
-                    deprecated: None,
+                    description:  None,
+                    sql_source:   Some("v_author".to_string()),
+                    auto_params:  None,
+                    deprecated:   None,
                     jsonb_column: None,
                 },
             ],
             enums: vec![IntermediateEnum {
-                name: "Status".to_string(),
-                values: vec![
+                name:        "Status".to_string(),
+                values:      vec![
                     IntermediateEnumValue {
-                        name: "ACTIVE".to_string(),
+                        name:        "ACTIVE".to_string(),
                         description: None,
-                        deprecated: None,
+                        deprecated:  None,
                     },
                     IntermediateEnumValue {
-                        name: "INACTIVE".to_string(),
+                        name:        "INACTIVE".to_string(),
                         description: None,
-                        deprecated: None,
+                        deprecated:  None,
                     },
                 ],
                 description: None,
@@ -1324,7 +1258,9 @@ mod tests {
         assert!(code.contains("    id: ID"));
         assert!(code.contains("    name: str"));
         assert!(code.contains("    bio: str | None"));
-        assert!(code.contains("@fraiseql.query(return_type=Author, return_array=True, sql_source=\"v_author\")"));
+        assert!(code.contains(
+            "@fraiseql.query(return_type=Author, return_array=True, sql_source=\"v_author\")"
+        ));
         assert!(code.contains("def authors() -> list[Author]:"));
         assert!(code.contains("def author(*, id: ID) -> Author:"));
     }

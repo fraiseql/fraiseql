@@ -33,25 +33,25 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ElasticsearchSinkConfig {
     /// Elasticsearch base URL (e.g., "http://localhost:9200")
-    pub url: String,
+    pub url:                 String,
     /// Index name prefix (default: "fraiseql-events")
-    pub index_prefix: String,
+    pub index_prefix:        String,
     /// Bulk request size threshold (default: 1000)
-    pub bulk_size: usize,
+    pub bulk_size:           usize,
     /// Flush timeout in seconds (default: 5)
     pub flush_interval_secs: u64,
     /// Max retries for bulk requests (default: 3)
-    pub max_retries: usize,
+    pub max_retries:         usize,
 }
 
 impl Default for ElasticsearchSinkConfig {
     fn default() -> Self {
         Self {
-            url: env::var("FRAISEQL_ELASTICSEARCH_URL")
+            url:                 env::var("FRAISEQL_ELASTICSEARCH_URL")
                 .unwrap_or_else(|_| "http://localhost:9200".to_string()),
-            index_prefix: env::var("FRAISEQL_ELASTICSEARCH_INDEX_PREFIX")
+            index_prefix:        env::var("FRAISEQL_ELASTICSEARCH_INDEX_PREFIX")
                 .unwrap_or_else(|_| "fraiseql-events".to_string()),
-            bulk_size: env::var("FRAISEQL_ELASTICSEARCH_BULK_SIZE")
+            bulk_size:           env::var("FRAISEQL_ELASTICSEARCH_BULK_SIZE")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1000),
@@ -59,7 +59,7 @@ impl Default for ElasticsearchSinkConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(5),
-            max_retries: env::var("FRAISEQL_ELASTICSEARCH_MAX_RETRIES")
+            max_retries:         env::var("FRAISEQL_ELASTICSEARCH_MAX_RETRIES")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(3),

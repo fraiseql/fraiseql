@@ -25,11 +25,11 @@ use tokio_postgres::NoTls;
 #[derive(Debug)]
 pub struct ValidationIssue {
     /// Issue type (error or warning)
-    pub severity: IssueSeverity,
+    pub severity:   IssueSeverity,
     /// Fact table name
     pub table_name: String,
     /// Issue description
-    pub message: String,
+    pub message:    String,
 }
 
 /// Issue severity level.
@@ -459,29 +459,29 @@ mod tests {
         });
 
         let actual = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![FilterColumn {
-                name: "customer_id".to_string(),
+                name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let issues = compare_metadata("tf_sales", &declared, &actual);
@@ -502,18 +502,18 @@ mod tests {
         });
 
         let actual = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let issues = compare_metadata("tf_sales", &declared, &actual);

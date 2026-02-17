@@ -18,13 +18,13 @@ mod fixtures {
     #[derive(Debug, Clone)]
     pub struct SagaStepDefinition {
         #[allow(dead_code)]
-        pub id: Uuid,
-        pub number: u32,
-        pub subgraph: String,
-        pub typename: String,
-        pub mutation_name: String,
-        pub variables: serde_json::Value,
-        pub compensation_mutation: String,
+        pub id:                     Uuid,
+        pub number:                 u32,
+        pub subgraph:               String,
+        pub typename:               String,
+        pub mutation_name:          String,
+        pub variables:              serde_json::Value,
+        pub compensation_mutation:  String,
         pub compensation_variables: serde_json::Value,
     }
 

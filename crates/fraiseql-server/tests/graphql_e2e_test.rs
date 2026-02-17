@@ -25,8 +25,8 @@ use serde_json::json;
 #[test]
 fn test_simple_query_structure() {
     let request = GraphQLRequest {
-        query: "{ user { id } }".to_string(),
-        variables: None,
+        query:          "{ user { id } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 
@@ -287,8 +287,8 @@ fn test_validation_pipeline() {
 
     // Step 1: Parse request
     let request = GraphQLRequest {
-        query: "{ users { id name } }".to_string(),
-        variables: Some(json!({"limit": 10})),
+        query:          "{ users { id name } }".to_string(),
+        variables:      Some(json!({"limit": 10})),
         operation_name: None,
     };
 

@@ -30,31 +30,31 @@ use crate::{
 /// Main observer executor engine
 pub struct ObserverExecutor {
     /// Event-to-observer matcher
-    matcher: Arc<EventMatcher>,
+    matcher:          Arc<EventMatcher>,
     /// Condition parser and evaluator
     condition_parser: Arc<ConditionParser>,
     /// Webhook action executor
-    webhook_action: Arc<WebhookAction>,
+    webhook_action:   Arc<WebhookAction>,
     /// Slack action executor
-    slack_action: Arc<SlackAction>,
+    slack_action:     Arc<SlackAction>,
     /// Email action executor
-    email_action: Arc<EmailAction>,
+    email_action:     Arc<EmailAction>,
     /// SMS action executor
-    sms_action: Arc<SmsAction>,
+    sms_action:       Arc<SmsAction>,
     /// Push notification action executor
-    push_action: Arc<PushAction>,
+    push_action:      Arc<PushAction>,
     /// Search index action executor
-    search_action: Arc<SearchAction>,
+    search_action:    Arc<SearchAction>,
     /// Cache action executor
-    cache_action: Arc<CacheAction>,
+    cache_action:     Arc<CacheAction>,
     /// Dead letter queue for failed actions
-    dlq: Arc<dyn DeadLetterQueue>,
+    dlq:              Arc<dyn DeadLetterQueue>,
     /// Optional cache backend for action result caching
     #[cfg(feature = "caching")]
-    cache_backend: Option<Arc<dyn CacheBackendDyn>>,
+    cache_backend:    Option<Arc<dyn CacheBackendDyn>>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    metrics: MetricsRegistry,
+    metrics:          MetricsRegistry,
 }
 
 impl ObserverExecutor {
@@ -276,8 +276,8 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "webhook".to_string(),
-                        success: true,
-                        message: format!("HTTP {}", response.status_code),
+                        success:     true,
+                        message:     format!("HTTP {}", response.status_code),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
@@ -308,8 +308,8 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "slack".to_string(),
-                        success: true,
-                        message: format!("HTTP {}", response.status_code),
+                        success:     true,
+                        message:     format!("HTTP {}", response.status_code),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
@@ -338,8 +338,8 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "email".to_string(),
-                        success: response.success,
-                        message: response.message_id.unwrap_or_else(|| "queued".to_string()),
+                        success:     response.success,
+                        message:     response.message_id.unwrap_or_else(|| "queued".to_string()),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
@@ -358,8 +358,8 @@ impl ObserverExecutor {
                 {
                     Ok(response) => Ok(ActionResult {
                         action_type: "sms".to_string(),
-                        success: response.success,
-                        message: response.message_id.unwrap_or_else(|| "sent".to_string()),
+                        success:     response.success,
+                        message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
@@ -385,8 +385,8 @@ impl ObserverExecutor {
                 match self.push_action.execute(token.clone(), title.clone(), body.clone()) {
                     Ok(response) => Ok(ActionResult {
                         action_type: "push".to_string(),
-                        success: response.success,
-                        message: response.notification_id.unwrap_or_else(|| "sent".to_string()),
+                        success:     response.success,
+                        message:     response.notification_id.unwrap_or_else(|| "sent".to_string()),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),
@@ -396,8 +396,8 @@ impl ObserverExecutor {
                 match self.search_action.execute(index.clone(), id_template.as_deref(), event) {
                     Ok(response) => Ok(ActionResult {
                         action_type: "search".to_string(),
-                        success: response.success,
-                        message: if response.indexed {
+                        success:     response.success,
+                        message:     if response.indexed {
                             "indexed".to_string()
                         } else {
                             "not_indexed".to_string()
@@ -413,8 +413,8 @@ impl ObserverExecutor {
             } => match self.cache_action.execute(key_pattern.clone(), action) {
                 Ok(response) => Ok(ActionResult {
                     action_type: "cache".to_string(),
-                    success: response.success,
-                    message: format!("affected: {}", response.keys_affected),
+                    success:     response.success,
+                    message:     format!("affected: {}", response.keys_affected),
                     duration_ms: response.duration_ms,
                 }),
                 Err(e) => Err(e),
@@ -769,8 +769,8 @@ impl ObserverExecutor {
 
                 return Some(ActionResult {
                     action_type: cached.action_type,
-                    success: cached.success,
-                    message: cached.message,
+                    success:     cached.success,
+                    message:     cached.message,
                     duration_ms: cached.duration_ms,
                 });
             }
@@ -805,21 +805,21 @@ pub struct ExecutionSummary {
     /// Number of successful action executions
     pub successful_actions: usize,
     /// Number of failed action executions
-    pub failed_actions: usize,
+    pub failed_actions:     usize,
     /// Number of observers skipped due to condition
     pub conditions_skipped: usize,
     /// Total execution time in milliseconds
-    pub total_duration_ms: f64,
+    pub total_duration_ms:  f64,
     /// DLQ push errors
-    pub dlq_errors: usize,
+    pub dlq_errors:         usize,
     /// Other errors encountered
-    pub errors: Vec<String>,
+    pub errors:             Vec<String>,
     /// Whether this event was skipped due to deduplication
-    pub duplicate_skipped: bool,
+    pub duplicate_skipped:  bool,
     /// Number of cache hits during action execution
-    pub cache_hits: usize,
+    pub cache_hits:         usize,
     /// Number of cache misses during action execution
-    pub cache_misses: usize,
+    pub cache_misses:       usize,
 }
 
 impl ExecutionSummary {
@@ -869,9 +869,9 @@ mod tests {
     fn test_backoff_exponential() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -886,9 +886,9 @@ mod tests {
     fn test_backoff_linear() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Linear,
         };
 
@@ -903,9 +903,9 @@ mod tests {
     fn test_backoff_fixed() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Fixed,
         };
 
@@ -920,9 +920,9 @@ mod tests {
     fn test_backoff_exponential_cap() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 10,
+            max_attempts:     10,
             initial_delay_ms: 100,
-            max_delay_ms: 1000,
+            max_delay_ms:     1000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -934,14 +934,14 @@ mod tests {
     fn test_execution_summary_success() {
         let summary = ExecutionSummary {
             successful_actions: 5,
-            failed_actions: 0,
+            failed_actions:     0,
             conditions_skipped: 0,
-            total_duration_ms: 50.0,
-            dlq_errors: 0,
-            errors: vec![],
-            duplicate_skipped: false,
-            cache_hits: 0,
-            cache_misses: 0,
+            total_duration_ms:  50.0,
+            dlq_errors:         0,
+            errors:             vec![],
+            duplicate_skipped:  false,
+            cache_hits:         0,
+            cache_misses:       0,
         };
 
         assert!(summary.is_success());
@@ -952,14 +952,14 @@ mod tests {
     fn test_execution_summary_failure() {
         let summary = ExecutionSummary {
             successful_actions: 3,
-            failed_actions: 1,
+            failed_actions:     1,
             conditions_skipped: 1,
-            total_duration_ms: 75.0,
-            dlq_errors: 0,
-            errors: vec![],
-            duplicate_skipped: false,
-            cache_hits: 0,
-            cache_misses: 0,
+            total_duration_ms:  75.0,
+            dlq_errors:         0,
+            errors:             vec![],
+            duplicate_skipped:  false,
+            cache_hits:         0,
+            cache_misses:       0,
         };
 
         assert!(!summary.is_success());
@@ -1071,9 +1071,9 @@ mod tests {
     fn test_exponential_backoff_calculation() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 5,
+            max_attempts:     5,
             initial_delay_ms: 100,
-            max_delay_ms: 5000,
+            max_delay_ms:     5000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
@@ -1096,9 +1096,9 @@ mod tests {
     fn test_exponential_backoff_cap() {
         let executor = create_test_executor();
         let config = RetryConfig {
-            max_attempts: 10,
+            max_attempts:     10,
             initial_delay_ms: 100,
-            max_delay_ms: 1000,
+            max_delay_ms:     1000,
             backoff_strategy: BackoffStrategy::Exponential,
         };
 
