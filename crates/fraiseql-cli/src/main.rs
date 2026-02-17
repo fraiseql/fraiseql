@@ -125,6 +125,33 @@ EXAMPLES:
         database: Option<String>,
     },
 
+    /// Extract schema from annotated source files
+    ///
+    /// Parses FraiseQL annotations in any supported language and generates schema.json.
+    /// No language runtime required — pure text processing.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql extract schema/schema.py
+    fraiseql extract schema/ --recursive
+    fraiseql extract schema.rs --language rust -o schema.json")]
+    Extract {
+        /// Source file(s) or directory to extract from
+        #[arg(value_name = "INPUT")]
+        input: Vec<String>,
+
+        /// Override language detection (python, typescript, rust, java, kotlin, go, csharp, swift, scala)
+        #[arg(short, long)]
+        language: Option<String>,
+
+        /// Recursively scan directories
+        #[arg(short, long)]
+        recursive: bool,
+
+        /// Output file path
+        #[arg(short, long, default_value = "schema.json")]
+        output: String,
+    },
+
     /// Explain query execution plan and complexity
     ///
     /// Shows GraphQL query execution plan, SQL, and complexity analysis.
@@ -338,6 +365,93 @@ EXAMPLES:
         command: IntrospectCommands,
     },
 
+    /// Generate authoring-language source from schema.json
+    ///
+    /// The inverse of `fraiseql extract`: reads a schema.json and produces annotated
+    /// source code in any of the 9 supported authoring languages.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql generate schema.json --language python
+    fraiseql generate schema.json --language rust -o schema.rs
+    fraiseql generate schema.json --language typescript")]
+    Generate {
+        /// Path to schema.json
+        #[arg(value_name = "INPUT")]
+        input: String,
+
+        /// Target language (python, typescript, rust, java, kotlin, go, csharp, swift, scala)
+        #[arg(short, long)]
+        language: String,
+
+        /// Output file path (default: schema.<ext> based on language)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+
+    /// Initialize a new FraiseQL project
+    ///
+    /// Creates project directory with fraiseql.toml, schema.json,
+    /// database DDL structure, and authoring skeleton.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql init my-app
+    fraiseql init my-app --language typescript --database postgres
+    fraiseql init my-app --size xs --no-git")]
+    Init {
+        /// Project name (used as directory name)
+        #[arg(value_name = "PROJECT_NAME")]
+        project_name: String,
+
+        /// Authoring language (python, typescript, rust, java, kotlin, go, csharp, swift, scala)
+        #[arg(short, long, default_value = "python")]
+        language: String,
+
+        /// Target database (postgres, mysql, sqlite, sqlserver)
+        #[arg(long, default_value = "postgres")]
+        database: String,
+
+        /// Project size: xs (single file), s (flat dirs), m (per-entity dirs)
+        #[arg(long, default_value = "s")]
+        size: String,
+
+        /// Skip git init
+        #[arg(long)]
+        no_git: bool,
+    },
+
+    /// Run database migrations
+    ///
+    /// Wraps confiture for a unified migration experience.
+    /// Reads database URL from --database, fraiseql.toml, or DATABASE_URL env var.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql migrate up --database postgres://localhost/mydb
+    fraiseql migrate down --steps 1
+    fraiseql migrate status
+    fraiseql migrate create add_posts_table")]
+    Migrate {
+        #[command(subcommand)]
+        command: MigrateCommands,
+    },
+
+    /// Generate Software Bill of Materials
+    ///
+    /// Parses Cargo.lock and fraiseql.toml to produce a compliance-ready SBOM.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql sbom
+    fraiseql sbom --format spdx
+    fraiseql sbom --format cyclonedx --output sbom.json")]
+    Sbom {
+        /// Output format (cyclonedx, spdx)
+        #[arg(short, long, default_value = "cyclonedx")]
+        format: String,
+
+        /// Output file path (default: stdout)
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<String>,
+    },
+
     /// Development server with hot-reload
     #[command(hide = true)] // Hide until implemented
     Serve {
@@ -393,6 +507,57 @@ enum IntrospectCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum MigrateCommands {
+    /// Apply pending migrations
+    Up {
+        /// Database connection URL
+        #[arg(short, long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+    },
+
+    /// Roll back migrations
+    Down {
+        /// Database connection URL
+        #[arg(short, long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+
+        /// Number of migrations to roll back
+        #[arg(long, default_value = "1")]
+        steps: u32,
+    },
+
+    /// Show migration status
+    Status {
+        /// Database connection URL
+        #[arg(short, long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+    },
+
+    /// Create a new migration file
+    Create {
+        /// Migration name
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     // Handle AI-agent introspection flags before clap parsing
@@ -432,6 +597,13 @@ async fn main() {
             )
             .await
         },
+
+        Commands::Extract {
+            input,
+            language,
+            recursive,
+            output,
+        } => commands::extract::run(&input, language.as_deref(), recursive, &output),
 
         Commands::Explain { query } => match commands::explain::run(&query) {
             Ok(result) => {
@@ -598,6 +770,106 @@ async fn main() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
+        },
+
+        Commands::Generate {
+            input,
+            language,
+            output,
+        } => match commands::init::Language::from_str(&language) {
+            Ok(lang) => commands::generate::run(&input, lang, output.as_deref()),
+            Err(e) => Err(anyhow::anyhow!(e)),
+        },
+
+        Commands::Init {
+            project_name,
+            language,
+            database,
+            size,
+            no_git,
+        } => {
+            match (
+                commands::init::Language::from_str(&language),
+                commands::init::Database::from_str(&database),
+                commands::init::ProjectSize::from_str(&size),
+            ) {
+                (Ok(lang), Ok(db), Ok(sz)) => {
+                    let config = commands::init::InitConfig {
+                        project_name,
+                        language: lang,
+                        database: db,
+                        size: sz,
+                        no_git,
+                    };
+                    commands::init::run(&config)
+                },
+                (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => Err(anyhow::anyhow!(e)),
+            }
+        },
+
+        Commands::Migrate { command } => match command {
+            MigrateCommands::Up { database, dir } => {
+                let db_url = commands::migrate::resolve_database_url(database.as_deref());
+                match db_url {
+                    Ok(url) => {
+                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                        let action = commands::migrate::MigrateAction::Up {
+                            database_url: url,
+                            dir: mig_dir,
+                        };
+                        commands::migrate::run(&action)
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            MigrateCommands::Down {
+                database,
+                dir,
+                steps,
+            } => {
+                let db_url = commands::migrate::resolve_database_url(database.as_deref());
+                match db_url {
+                    Ok(url) => {
+                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                        let action = commands::migrate::MigrateAction::Down {
+                            database_url: url,
+                            dir: mig_dir,
+                            steps,
+                        };
+                        commands::migrate::run(&action)
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            MigrateCommands::Status { database, dir } => {
+                let db_url = commands::migrate::resolve_database_url(database.as_deref());
+                match db_url {
+                    Ok(url) => {
+                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                        let action = commands::migrate::MigrateAction::Status {
+                            database_url: url,
+                            dir: mig_dir,
+                        };
+                        commands::migrate::run(&action)
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            MigrateCommands::Create { name, dir } => {
+                let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                let action = commands::migrate::MigrateAction::Create {
+                    name,
+                    dir: mig_dir,
+                };
+                commands::migrate::run(&action)
+            },
+        },
+
+        Commands::Sbom { format, output } => {
+            match commands::sbom::SbomFormat::from_str(&format) {
+                Ok(fmt) => commands::sbom::run(fmt, output.as_deref()),
+                Err(e) => Err(anyhow::anyhow!(e)),
+            }
         },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,

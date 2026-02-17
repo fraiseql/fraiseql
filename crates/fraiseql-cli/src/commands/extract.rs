@@ -195,8 +195,9 @@ fn dispatch_extractor(lang: Language, source: &str) -> Result<ExtractedSchema> {
 fn parse_annotation_params(s: &str) -> HashMap<String, String> {
     let mut params = HashMap::new();
     // Match key = "value", key: "value", key = true, key = false, key = ClassName
+    // Also matches typeof(X) for C# and classOf[X] for Scala
     let re = Regex::new(
-        r#"(\w+)\s*[=:]\s*(?:"([^"]*)"|'([^']*)'|(true|false)|(\w[\w.<>\[\]:]*(?:::class|\.class|\.self)?))"#,
+        r#"(\w+)\s*[=:]\s*(?:"([^"]*)"|'([^']*)'|(true|false)|(\w[\w.<>\[\]:]*(?:::class|\.class|\.self)?(?:\([^)]*\))?))"#,
     )
     .expect("valid regex");
 
