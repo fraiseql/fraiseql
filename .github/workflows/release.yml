@@ -26,10 +26,6 @@ jobs:
             echo "❌ CARGO_TOKEN missing" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          if [ -z "${{ secrets.PYPI_TOKEN }}" ]; then
-            echo "❌ PYPI_TOKEN missing" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
           echo "✅ All required secrets configured" >> $GITHUB_STEP_SUMMARY
 
       - uses: actions/checkout@v4
@@ -42,13 +38,6 @@ jobs:
           echo "Testing crates.io token validity with dry-run..."
           cargo publish --dry-run --token ${{ secrets.CARGO_TOKEN }} -p fraiseql-error 2>&1 | head -20 || exit 1
           echo "✅ crates.io token is valid"
-
-      - name: Validate Python package
-        run: |
-          cd fraiseql-python
-          python -m pip install --upgrade pip build
-          python -m build --sdist --wheel -q
-          echo "✅ Python package builds successfully"
 
   # Create GitHub release using gh CLI
   create-github-release:
@@ -83,11 +72,6 @@ jobs:
           ### Rust Crates
           \`\`\`bash
           cargo add fraiseql@$VERSION
-          \`\`\`
-
-          ### Python Package
-          \`\`\`bash
-          pip install fraiseql==$VERSION
           \`\`\`
 
           ### CLI Binaries
@@ -328,7 +312,7 @@ jobs:
   # Verify all packages published correctly
   verify-release:
     name: Verify Published Packages
-    needs: [create-github-release, publish-crates, publish-python, build-binaries]
+    needs: [create-github-release, publish-crates, build-binaries]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -351,19 +335,6 @@ jobs:
             echo "✅ fraiseql v$VERSION on crates.io" >> $GITHUB_STEP_SUMMARY
           else
             echo "⏳ fraiseql v$VERSION (crates.io indexing in progress)" >> $GITHUB_STEP_SUMMARY
-          fi
-        continue-on-error: true
-
-      - name: Check PyPI package
-        id: verify-pypi
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-
-          # Check if version exists on PyPI
-          if curl -s "https://pypi.org/pypi/fraiseql/$VERSION/json" 2>/dev/null | jq -e '.info.version' >/dev/null 2>&1; then
-            echo "✅ fraiseql v$VERSION on PyPI" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⏳ fraiseql v$VERSION (PyPI indexing in progress)" >> $GITHUB_STEP_SUMMARY
           fi
         continue-on-error: true
 
