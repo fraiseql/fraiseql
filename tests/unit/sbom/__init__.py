@@ -1,1 +1,0 @@
-"""SBOM unit tests."""

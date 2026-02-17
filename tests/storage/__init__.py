@@ -1,1 +1,0 @@
-"""Storage tests package."""
