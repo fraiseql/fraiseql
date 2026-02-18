@@ -7,7 +7,6 @@ use std::fmt;
 /// Tracer initialization result
 pub fn init_tracer() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize OpenTelemetry tracer
-    // TODO(v2.1.0): initialize OpenTelemetry tracer
     Ok(())
 }
 

@@ -71,7 +71,7 @@ pub struct SyslogAuditBackend {
     host:     String,
     /// Syslog server port (default 514)
     #[allow(dead_code)] // Reason: will be used once UDP sending is implemented
-    port:     u16,
+    port: u16,
     /// Application hostname to report in syslog messages
     hostname: String,
     /// Application name to report in syslog messages
@@ -80,7 +80,7 @@ pub struct SyslogAuditBackend {
     facility: SyslogFacility,
     /// Timeout for socket operations
     #[allow(dead_code)] // Reason: will be used once UDP sending is implemented
-    timeout:  Duration,
+    timeout: Duration,
 }
 
 impl SyslogAuditBackend {

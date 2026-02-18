@@ -4,7 +4,6 @@
 //! - Validate composed schema structure
 //! - Handle 2+ subgraph compositions
 //! - Test resolution strategy selection
-//!
 
 use std::collections::HashMap;
 

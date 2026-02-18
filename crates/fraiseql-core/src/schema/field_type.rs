@@ -228,6 +228,7 @@ impl DistanceMetric {
 ///     alias: None,
 ///     deprecation: None,
 ///     requires_scope: None,
+///     encryption: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -286,10 +287,49 @@ pub struct FieldDefinition {
     ///     alias: None,
     ///     deprecation: None,
     ///     requires_scope: Some("read:Employee.salary".to_string()),
+    ///     encryption: None,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_scope: Option<String>,
+
+    /// Encryption configuration for this field.
+    ///
+    /// When set, the field's value is transparently encrypted before being
+    /// stored in the database and decrypted when read back. Encryption
+    /// uses the key referenced by `key_reference` (fetched from the secrets
+    /// manager) with the specified algorithm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encryption: Option<FieldEncryptionConfig>,
+}
+
+/// Encryption configuration for a field in the compiled schema.
+///
+/// Specifies how a field should be encrypted at rest. The key is fetched
+/// from the configured secrets backend (Vault, environment, or file) using
+/// the `key_reference` path.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::FieldEncryptionConfig;
+///
+/// let config = FieldEncryptionConfig {
+///     key_reference: "keys/user-email".to_string(),
+///     algorithm: "AES-256-GCM".to_string(),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldEncryptionConfig {
+    /// Path or name for fetching the encryption key from the secrets backend.
+    pub key_reference: String,
+    /// Encryption algorithm identifier.
+    #[serde(default = "default_encryption_algorithm")]
+    pub algorithm:     String,
+}
+
+fn default_encryption_algorithm() -> String {
+    "AES-256-GCM".to_string()
 }
 
 /// Deprecation information for a field or type.
@@ -327,6 +367,7 @@ impl FieldDefinition {
             alias: None,
             deprecation: None,
             requires_scope: None,
+            encryption: None,
         }
     }
 
@@ -343,6 +384,7 @@ impl FieldDefinition {
             alias: None,
             deprecation: None,
             requires_scope: None,
+            encryption: None,
         }
     }
 
@@ -367,6 +409,7 @@ impl FieldDefinition {
             alias:          None,
             deprecation:    None,
             requires_scope: None,
+            encryption:     None,
         }
     }
 
@@ -486,6 +529,19 @@ impl FieldDefinition {
     #[must_use]
     pub fn deprecation_reason(&self) -> Option<&str> {
         self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
+    }
+
+    /// Add encryption configuration to this field.
+    #[must_use]
+    pub fn with_encryption(mut self, config: FieldEncryptionConfig) -> Self {
+        self.encryption = Some(config);
+        self
+    }
+
+    /// Check if this field is encrypted.
+    #[must_use]
+    pub fn is_encrypted(&self) -> bool {
+        self.encryption.is_some()
     }
 }
 
@@ -1031,5 +1087,62 @@ mod tests {
         assert_eq!(FieldType::parse("INT", &known_types), FieldType::Int);
         assert_eq!(FieldType::parse("integer", &known_types), FieldType::Int);
         assert_eq!(FieldType::parse("INTEGER", &known_types), FieldType::Int);
+    }
+
+    #[test]
+    fn test_field_encryption_config_deserialization() {
+        let json = r#"{
+            "name": "email",
+            "field_type": "String",
+            "encryption": {
+                "key_reference": "keys/email",
+                "algorithm": "AES-256-GCM"
+            }
+        }"#;
+        let field: FieldDefinition = serde_json::from_str(json).unwrap();
+        assert!(field.encryption.is_some());
+        let enc = field.encryption.unwrap();
+        assert_eq!(enc.key_reference, "keys/email");
+        assert_eq!(enc.algorithm, "AES-256-GCM");
+    }
+
+    #[test]
+    fn test_field_without_encryption() {
+        let json = r#"{"name": "id", "field_type": "Int"}"#;
+        let field: FieldDefinition = serde_json::from_str(json).unwrap();
+        assert!(field.encryption.is_none());
+        assert!(!field.is_encrypted());
+    }
+
+    #[test]
+    fn test_field_encryption_default_algorithm() {
+        let json = r#"{"key_reference": "keys/ssn"}"#;
+        let config: FieldEncryptionConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.algorithm, "AES-256-GCM");
+    }
+
+    #[test]
+    fn test_field_with_encryption_builder() {
+        let field = FieldDefinition::new("email", FieldType::String).with_encryption(
+            FieldEncryptionConfig {
+                key_reference: "keys/email".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
+            },
+        );
+        assert!(field.is_encrypted());
+        assert_eq!(field.encryption.unwrap().key_reference, "keys/email");
+    }
+
+    #[test]
+    fn test_field_encryption_roundtrip_serialization() {
+        let field = FieldDefinition::new("email", FieldType::String).with_encryption(
+            FieldEncryptionConfig {
+                key_reference: "keys/email".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
+            },
+        );
+        let json = serde_json::to_string(&field).unwrap();
+        let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(field, deserialized);
     }
 }

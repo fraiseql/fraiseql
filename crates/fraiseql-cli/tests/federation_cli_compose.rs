@@ -5,7 +5,6 @@
 //! - Conflict resolution strategies
 //! - Error reporting with helpful suggestions
 //! - Output validation
-//!
 
 use std::{collections::HashMap, fmt::Write};
 

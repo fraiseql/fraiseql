@@ -1539,6 +1539,7 @@ mod tests {
                         reason: Some("Use 'sku' instead".to_string()),
                     }),
                     requires_scope: None,
+                    encryption:     None,
                 },
                 FieldDefinition::new("sku", FieldType::String),
             ],

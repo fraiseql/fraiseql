@@ -3,7 +3,6 @@
 //! - Warning (not error) if @provides contract is broken
 //! - @provides is a hint about what fields the resolver provides
 //! - Validation across both database and HTTP resolvers
-//!
 
 use fraiseql_core::federation::types::{
     FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection, KeyDirective,

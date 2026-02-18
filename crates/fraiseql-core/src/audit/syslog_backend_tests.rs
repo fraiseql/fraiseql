@@ -3,6 +3,7 @@
 //! Comprehensive tests for syslog-based audit logging with RFC 3164 format,
 //! facility/severity mapping, and UDP network operations.
 
+// Reason: test module — helpers and parsers used selectively across test cases
 #![allow(dead_code)]
 
 use std::{net::UdpSocket, sync::Arc};
@@ -20,6 +21,7 @@ use super::{
 // ============================================================================
 
 /// Simple mock syslog server for testing
+// Reason: test helper struct for mock syslog server
 #[allow(dead_code)]
 struct MockSyslogServer {
     socket:   UdpSocket,
@@ -28,6 +30,7 @@ struct MockSyslogServer {
 }
 
 impl MockSyslogServer {
+    // Reason: test helper constructor for mock syslog server
     #[allow(dead_code)]
     /// Create a new mock syslog server on an OS-assigned port
     fn new() -> std::io::Result<Self> {
@@ -82,6 +85,7 @@ impl MockSyslogServer {
 // ============================================================================
 
 /// Parse RFC 3164 syslog priority
+// Reason: test helper for parsing syslog priority values
 #[allow(dead_code)]
 fn parse_priority(message: &str) -> Option<u8> {
     if !message.starts_with('<') {
@@ -103,6 +107,7 @@ fn extract_severity(priority: u8) -> u8 {
 }
 
 /// Parse JSON from syslog message
+// Reason: test helper for extracting JSON payloads from syslog messages
 #[allow(dead_code)]
 fn extract_json_from_syslog(message: &str) -> Option<serde_json::Value> {
     // RFC 3164 format: <PRI>TIMESTAMP HOSTNAME TAG[PID]: MESSAGE
@@ -114,6 +119,7 @@ fn extract_json_from_syslog(message: &str) -> Option<serde_json::Value> {
 }
 
 /// Verify RFC 3164 format
+// Reason: test helper for validating syslog message format
 #[allow(dead_code)]
 fn verify_rfc3164_format(message: &str) -> bool {
     // Should start with <priority>

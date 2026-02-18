@@ -1,7 +1,7 @@
 //! Custom type registry for runtime scalar type management.
 //!
 //! This module provides a thread-safe registry for managing custom scalar types
-//! defined in GraphQL schemas. The registry uses Arc<RwLock<HashMap>> for
+//! defined in GraphQL schemas. The registry uses `Arc<RwLock<HashMap>>` for
 //! concurrent read access with exclusive write access.
 //!
 //! # Architecture
@@ -96,7 +96,7 @@ impl CustomTypeDef {
 
 /// Thread-safe registry for custom scalar type definitions.
 ///
-/// Uses Arc<RwLock<HashMap>> pattern for:
+/// Uses `Arc<RwLock<HashMap>>` pattern for:
 /// - Multiple concurrent readers (queries validating input)
 /// - Single writer (schema compilation)
 /// - Lock-free reads on common path (type lookup)

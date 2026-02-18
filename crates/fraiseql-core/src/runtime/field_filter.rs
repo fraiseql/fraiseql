@@ -87,6 +87,7 @@ mod tests {
             alias:          None,
             deprecation:    None,
             requires_scope: requires_scope.map(|s| s.to_string()),
+            encryption:     None,
         }
     }
 

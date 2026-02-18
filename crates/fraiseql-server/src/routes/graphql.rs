@@ -94,6 +94,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
     /// Secrets manager (optional, configured via `[fraiseql.secrets]`).
     pub secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
+    /// Field encryption service for transparent encrypt/decrypt of marked fields.
+    pub field_encryption:     Option<Arc<crate::encryption::middleware::FieldEncryptionService>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -109,6 +111,7 @@ impl<A: DatabaseAdapter> AppState<A> {
                 RateLimitConfig::per_ip_standard(),
             )),
             secrets_manager: None,
+            field_encryption: None,
         }
     }
 
@@ -124,6 +127,7 @@ impl<A: DatabaseAdapter> AppState<A> {
                 RateLimitConfig::per_ip_standard(),
             )),
             secrets_manager: None,
+            field_encryption: None,
         }
     }
 
@@ -142,6 +146,7 @@ impl<A: DatabaseAdapter> AppState<A> {
                 RateLimitConfig::per_ip_standard(),
             )),
             secrets_manager: None,
+            field_encryption: None,
         }
     }
 
@@ -161,6 +166,7 @@ impl<A: DatabaseAdapter> AppState<A> {
                 RateLimitConfig::per_ip_standard(),
             )),
             secrets_manager: None,
+            field_encryption: None,
         }
     }
 
@@ -460,7 +466,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    let response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
+    let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,
             response_length = result.len(),
@@ -470,6 +476,18 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             "Failed to process response: {e}"
         )))
     })?;
+
+    // Decrypt encrypted fields if field encryption is configured
+    if let Some(ref encryption) = state.field_encryption {
+        if encryption.has_encrypted_fields() {
+            encryption.decrypt_response(&mut response_json).await.map_err(|e| {
+                error!(error = %e, "Field decryption failed");
+                ErrorResponse::from_error(GraphQLError::internal(
+                    "Field decryption failed".to_string(),
+                ))
+            })?;
+        }
+    }
 
     Ok(GraphQLResponse {
         body: response_json,

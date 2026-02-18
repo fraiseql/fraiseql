@@ -3,7 +3,6 @@
 //! - Error messages when required fields missing
 //! - Query augmentation to include required fields in _entities query
 //! - Both single and batch entity resolution
-//!
 
 use fraiseql_core::federation::types::{
     EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,

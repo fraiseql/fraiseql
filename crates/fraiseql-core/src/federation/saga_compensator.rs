@@ -585,7 +585,6 @@ impl SagaCompensator {
         let _compensation_variables = self.build_compensation_variables(original_result_data);
 
         // 3-4. Execute compensation mutation via MutationExecutor (placeholder)
-        // TODO(v2.1.0): call MutationExecutor for real compensating mutation
         // For now, simulate successful compensation
         let compensation_result_data = serde_json::json!({
             "deleted": true,

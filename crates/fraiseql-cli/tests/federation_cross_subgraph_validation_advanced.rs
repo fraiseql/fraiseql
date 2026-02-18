@@ -5,7 +5,6 @@
 //! - Federation version compatibility
 //! - Field consistency validation
 //! - Circular type references
-//!
 
 use std::collections::HashSet;
 

@@ -14,7 +14,7 @@ required-features = ["bench-with-tokio-postgres"]
 
 [[bench]]
 harness = false
-name = "phase6_validation"
+name = "lazy_pause_resume"
 required-features = ["bench-with-postgres"]
 
 [dependencies]

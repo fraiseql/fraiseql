@@ -47,6 +47,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "name".to_string(),
@@ -58,6 +59,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                encryption:     None,
             },
             // Protected fields
             FieldDefinition {
@@ -70,6 +72,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()),
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "phone".to_string(),
@@ -81,6 +84,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.phone".to_string()),
+                encryption:     None,
             },
             // Admin-only fields
             FieldDefinition {
@@ -93,6 +97,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "ssn".to_string(),
@@ -104,6 +109,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                encryption:     None,
             },
         ],
         description:         Some("User type with field-level scopes".to_string()),

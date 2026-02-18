@@ -625,4 +625,3 @@ struct TraceparentHeader {
     parent_span_id: String,
     _trace_flags:   String,
 }
-

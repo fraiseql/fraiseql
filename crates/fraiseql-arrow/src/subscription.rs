@@ -306,10 +306,7 @@ mod tests {
     #[test]
     fn test_matches_filter_empty_string() {
         let event = make_event(serde_json::json!({"status": "shipped"}));
-        assert!(SubscriptionManager::matches_filter(
-            &event,
-            &Some(String::new())
-        ));
+        assert!(SubscriptionManager::matches_filter(&event, &Some(String::new())));
     }
 
     #[test]
@@ -346,14 +343,14 @@ mod tests {
 
     fn make_event(data: serde_json::Value) -> HistoricalEvent {
         HistoricalEvent {
-            id:          Uuid::new_v4(),
-            event_type:  "INSERT".to_string(),
+            id: Uuid::new_v4(),
+            event_type: "INSERT".to_string(),
             entity_type: "Order".to_string(),
-            entity_id:   Uuid::new_v4(),
+            entity_id: Uuid::new_v4(),
             data,
-            user_id:     None,
-            tenant_id:   None,
-            timestamp:   Utc::now(),
+            user_id: None,
+            tenant_id: None,
+            timestamp: Utc::now(),
         }
     }
 }

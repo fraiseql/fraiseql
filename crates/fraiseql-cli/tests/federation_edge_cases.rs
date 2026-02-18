@@ -6,7 +6,6 @@
 //! - YAML configuration parsing edge cases
 //! - Federation version compatibility mismatches
 //! - Real-world error conditions
-//!
 
 // ============================================================================
 // Test: Directive Conflict Scenarios

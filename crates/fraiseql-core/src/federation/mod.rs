@@ -50,8 +50,7 @@ pub mod tracing;
 pub mod types;
 
 pub use composition_validator::{
-    ComposedSchema, ComposedType, CompositionError, CompositionValidator,
-    CrossSubgraphValidator,
+    ComposedSchema, ComposedType, CompositionError, CompositionValidator, CrossSubgraphValidator,
 };
 pub use connection_manager::*;
 pub use database_resolver::*;

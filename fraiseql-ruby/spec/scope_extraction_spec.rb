@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'json'
 
-# Phase 18 Cycle 13: Field-Level RBAC for Ruby SDK
+# Field-Level RBAC for Ruby SDK
 #
 # Tests that field scopes are properly extracted from field configuration,
 # stored in field registry, and exported to JSON for compiler consumption.

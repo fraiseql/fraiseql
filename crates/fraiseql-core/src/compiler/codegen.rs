@@ -228,6 +228,7 @@ impl CodeGenerator {
                     alias: None,          // Aliases come from query, not schema
                     deprecation: None,    // Note: IR fields don't have deprecation yet
                     requires_scope: None, // Note: IR fields don't have scope requirements yet
+                    encryption: None,
                 }
             })
             .collect()

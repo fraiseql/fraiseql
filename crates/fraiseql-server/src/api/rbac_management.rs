@@ -185,12 +185,25 @@ async fn get_role(
 /// Update role
 /// PUT /api/roles/{role_id}
 async fn update_role(
-    State(_state): State<Arc<RbacManagementState>>,
-    Path(_role_id): Path<String>,
-    Json(_payload): Json<CreateRoleRequest>,
+    State(state): State<Arc<RbacManagementState>>,
+    Path(role_id): Path<String>,
+    Json(payload): Json<CreateRoleRequest>,
 ) -> impl IntoResponse {
-    // Would need update_role() method in backend
-    Json(serde_json::json!({"updated": true}))
+    match state
+        .db
+        .update_role(&role_id, &payload.name, payload.description.as_deref(), payload.permissions)
+        .await
+    {
+        Ok(role) => {
+            (StatusCode::OK, Json(serde_json::to_value(role).unwrap_or_default())).into_response()
+        },
+        Err(db_backend::RbacDbError::RoleNotFound) => {
+            (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "role_not_found"})))
+                .into_response()
+        },
+        Err(_) => (StatusCode::CONFLICT, Json(serde_json::json!({"error": "update_failed"})))
+            .into_response(),
+    }
 }
 
 /// Delete role
@@ -200,7 +213,8 @@ async fn delete_role(
     Path(role_id): Path<String>,
 ) -> impl IntoResponse {
     match state.db.delete_role(&role_id).await {
-        Ok(_) => StatusCode::NO_CONTENT,
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(db_backend::RbacDbError::RoleNotFound) => StatusCode::NOT_FOUND,
         Err(_) => StatusCode::CONFLICT,
     }
 }
@@ -231,30 +245,43 @@ async fn create_permission(
 
 /// List all permissions
 /// GET /api/permissions
-async fn list_permissions(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Placeholder for now
-    Json(Vec::<PermissionDto>::new())
+async fn list_permissions(State(state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
+    match state.db.list_permissions().await {
+        Ok(perms) => Json(perms),
+        Err(_) => Json(Vec::<PermissionDto>::new()),
+    }
 }
 
 /// Get permission details
 /// GET /api/permissions/{permission_id}
 async fn get_permission(
-    State(_state): State<Arc<RbacManagementState>>,
-    Path(_permission_id): Path<String>,
+    State(state): State<Arc<RbacManagementState>>,
+    Path(permission_id): Path<String>,
 ) -> impl IntoResponse {
-    (
-        StatusCode::NOT_FOUND,
-        Json(serde_json::json!({"error": "permission_not_found"})),
-    )
+    match state.db.get_permission(&permission_id).await {
+        Ok(perm) => {
+            (StatusCode::OK, Json(serde_json::to_value(perm).unwrap_or_default())).into_response()
+        },
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "permission_not_found"})),
+        )
+            .into_response(),
+    }
 }
 
 /// Delete permission
 /// DELETE /api/permissions/{permission_id}
 async fn delete_permission(
-    State(_state): State<Arc<RbacManagementState>>,
-    Path(_permission_id): Path<String>,
+    State(state): State<Arc<RbacManagementState>>,
+    Path(permission_id): Path<String>,
 ) -> impl IntoResponse {
-    StatusCode::NO_CONTENT
+    match state.db.delete_permission(&permission_id).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(db_backend::RbacDbError::PermissionInUse) => StatusCode::CONFLICT,
+        Err(db_backend::RbacDbError::PermissionNotFound) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
 }
 
 // =============================================================================
@@ -280,10 +307,19 @@ async fn assign_role(
 }
 
 /// List user-role assignments
-/// GET /api/user-roles
-async fn list_user_roles(State(_state): State<Arc<RbacManagementState>>) -> impl IntoResponse {
-    // Placeholder for now
-    Json(Vec::<UserRoleDto>::new())
+/// GET /api/user-roles?user_id=...
+async fn list_user_roles(
+    State(state): State<Arc<RbacManagementState>>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let user_id = params.get("user_id").map(String::as_str).unwrap_or("");
+    if user_id.is_empty() {
+        return Json(Vec::<UserRoleDto>::new());
+    }
+    match state.db.list_user_roles(user_id).await {
+        Ok(assignments) => Json(assignments),
+        Err(_) => Json(Vec::<UserRoleDto>::new()),
+    }
 }
 
 /// Revoke a role from a user

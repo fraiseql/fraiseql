@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from '@jest/globals';
 import { Schema } from '../src/schema';
 
 /**
- * Phase 18 Cycle 14: Field-Level RBAC for Node.js SDK
+ * Field-Level RBAC for Node.js SDK
  *
  * Tests that field scopes are properly extracted from field configuration,
  * stored in field registry, and exported to JSON for compiler consumption.

@@ -89,7 +89,7 @@ impl AdmissionController {
 /// RAII guard that holds an admission permit
 pub struct AdmissionPermit<'a> {
     _permit:     tokio::sync::OwnedSemaphorePermit,
-    _controller: usize, // Pointer to controller (for lifetime hack)
+    _controller: usize, // Reason: ties permit lifetime to controller via PhantomData
     _phantom:    std::marker::PhantomData<&'a ()>,
 }
 

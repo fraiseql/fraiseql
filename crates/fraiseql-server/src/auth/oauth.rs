@@ -1,10 +1,12 @@
 //! OAuth2 and OIDC authentication support with JWT validation,
 //! provider discovery, and automatic user provisioning.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration as StdDuration};
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+
+use super::jwks::JwksCache;
 
 /// OAuth2 token response from provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,29 +182,27 @@ impl OIDCProviderConfig {
     }
 }
 
-/// OAuth2 client for authorization code flow
+/// OAuth2 client for authorization code flow.
 #[derive(Debug, Clone)]
 pub struct OAuth2Client {
-    /// Client ID from provider
+    /// Client ID from provider.
     pub client_id:              String,
-    /// Client secret from provider
-    // Reason: used by token exchange (not yet implemented)
-    #[allow(dead_code)]
+    /// Client secret from provider.
     client_secret:              String,
-    /// Authorization endpoint
+    /// Authorization endpoint.
     pub authorization_endpoint: String,
-    /// Token endpoint
-    // Reason: used by token exchange (not yet implemented)
-    #[allow(dead_code)]
+    /// Token endpoint.
     token_endpoint:             String,
-    /// Scopes to request
+    /// Scopes to request.
     pub scopes:                 Vec<String>,
-    /// Use PKCE for additional security
+    /// Use PKCE for additional security.
     pub use_pkce:               bool,
+    /// HTTP client for token requests.
+    http_client:                reqwest::Client,
 }
 
 impl OAuth2Client {
-    /// Create new OAuth2 client
+    /// Create new OAuth2 client.
     pub fn new(
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
@@ -220,22 +220,23 @@ impl OAuth2Client {
                 "email".to_string(),
             ],
             use_pkce:               false,
+            http_client:            reqwest::Client::new(),
         }
     }
 
-    /// Set scopes for request
+    /// Set scopes for request.
     pub fn with_scopes(mut self, scopes: Vec<String>) -> Self {
         self.scopes = scopes;
         self
     }
 
-    /// Enable PKCE protection
+    /// Enable PKCE protection.
     pub fn with_pkce(mut self, enabled: bool) -> Self {
         self.use_pkce = enabled;
         self
     }
 
-    /// Generate authorization URL
+    /// Generate authorization URL.
     pub fn authorization_url(&self, redirect_uri: &str) -> Result<String, String> {
         let state = uuid::Uuid::new_v4().to_string();
         let scope = self.scopes.join(" ");
@@ -252,107 +253,184 @@ impl OAuth2Client {
         Ok(url)
     }
 
-    /// Exchange authorization code for tokens
-    pub async fn exchange_code(
-        &self,
-        _code: &str,
-        _redirect_uri: &str,
-    ) -> Result<TokenResponse, String> {
-        // TODO(v2.1.0): implement real token exchange via HTTP
-        Ok(TokenResponse {
-            access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
-            refresh_token: Some(format!("refresh_token_{}", uuid::Uuid::new_v4())),
-            token_type:    "Bearer".to_string(),
-            expires_in:    3600,
-            id_token:      Some("mock_id_token".to_string()),
-            scope:         Some(self.scopes.join(" ")),
-        })
+    /// Post a form request to the token endpoint and parse the response.
+    async fn post_token_request(&self, params: &[(&str, &str)]) -> Result<TokenResponse, String> {
+        let response = self
+            .http_client
+            .post(&self.token_endpoint)
+            .form(params)
+            .send()
+            .await
+            .map_err(|e| format!("Token request failed: {e}"))?;
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("Token endpoint returned error: {body}"));
+        }
+
+        response
+            .json::<TokenResponse>()
+            .await
+            .map_err(|e| format!("Failed to parse token response: {e}"))
     }
 
-    /// Refresh access token
+    /// Exchange authorization code for tokens.
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<TokenResponse, String> {
+        let params = [
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("client_id", self.client_id.as_str()),
+            ("client_secret", self.client_secret.as_str()),
+            ("redirect_uri", redirect_uri),
+        ];
+        self.post_token_request(&params).await
+    }
+
+    /// Refresh access token using a refresh token.
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, String> {
-        // TODO(v2.1.0): implement real token refresh via HTTP
-        Ok(TokenResponse {
-            access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
-            refresh_token: Some(refresh_token.to_string()),
-            token_type:    "Bearer".to_string(),
-            expires_in:    3600,
-            id_token:      None,
-            scope:         Some(self.scopes.join(" ")),
-        })
+        let params = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("client_id", self.client_id.as_str()),
+            ("client_secret", self.client_secret.as_str()),
+        ];
+        self.post_token_request(&params).await
     }
 }
 
-/// OIDC client for OpenID Connect flow
-#[derive(Debug, Clone)]
+/// OIDC client for OpenID Connect flow.
+#[derive(Debug)]
 pub struct OIDCClient {
-    /// Provider configuration
-    pub config:    OIDCProviderConfig,
-    /// Client ID
-    pub client_id: String,
-    /// Client secret
-    // Reason: used by token exchange (not yet implemented)
+    /// Provider configuration.
+    pub config:     OIDCProviderConfig,
+    /// Client ID.
+    pub client_id:  String,
+    /// Client secret — retained for token revocation and introspection endpoints.
+    // Reason: needed for token revocation and introspection
     #[allow(dead_code)]
-    client_secret: String,
+    client_secret:  String,
+    /// JWKS key cache for ID token signature verification.
+    pub jwks_cache: Arc<JwksCache>,
+    /// HTTP client for userinfo requests.
+    http_client:    reqwest::Client,
 }
 
 impl OIDCClient {
-    /// Create new OIDC client
+    /// Create new OIDC client with JWKS caching.
+    ///
+    /// The JWKS cache TTL defaults to 1 hour.
     pub fn new(
         config: OIDCProviderConfig,
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
     ) -> Self {
+        let jwks_cache = Arc::new(JwksCache::new(&config.jwks_uri, StdDuration::from_secs(3600)));
         Self {
             config,
             client_id: client_id.into(),
             client_secret: client_secret.into(),
+            jwks_cache,
+            http_client: reqwest::Client::new(),
         }
     }
 
-    /// Verify ID token claims
-    pub fn verify_id_token(
+    /// Create OIDC client with a pre-built JWKS cache (for testing).
+    pub fn with_jwks_cache(
+        config: OIDCProviderConfig,
+        client_id: impl Into<String>,
+        client_secret: impl Into<String>,
+        jwks_cache: Arc<JwksCache>,
+    ) -> Self {
+        Self {
+            config,
+            client_id: client_id.into(),
+            client_secret: client_secret.into(),
+            jwks_cache,
+            http_client: reqwest::Client::new(),
+        }
+    }
+
+    /// Verify an ID token's JWT signature and claims.
+    ///
+    /// Decodes the JWT header to extract the `kid`, fetches the matching public
+    /// key from the JWKS cache, then validates signature, issuer, audience, and
+    /// required claims. Optionally checks the nonce for replay protection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token is malformed, the signature is invalid,
+    /// claims validation fails, or the nonce doesn't match.
+    pub async fn verify_id_token(
         &self,
-        _id_token: &str,
+        id_token: &str,
         expected_nonce: Option<&str>,
     ) -> Result<IdTokenClaims, String> {
-        // TODO(v2.1.0): implement real ID token verification
-        let claims = IdTokenClaims {
-            iss:            self.config.issuer.clone(),
-            sub:            "user_123".to_string(),
-            aud:            self.client_id.clone(),
-            exp:            (Utc::now() + Duration::hours(1)).timestamp(),
-            iat:            Utc::now().timestamp(),
-            auth_time:      Some(Utc::now().timestamp()),
-            nonce:          expected_nonce.map(|s| s.to_string()),
-            email:          Some("user@example.com".to_string()),
-            email_verified: Some(true),
-            name:           Some("Test User".to_string()),
-            picture:        None,
-            locale:         Some("en-US".to_string()),
-        };
+        // 1. Decode header to get kid
+        let header = jsonwebtoken::decode_header(id_token)
+            .map_err(|e| format!("Invalid JWT header: {e}"))?;
+        let kid = header.kid.ok_or("JWT missing 'kid' in header")?;
 
-        // Verify nonce if provided
+        // 2. Get key from JWKS cache
+        let key = self
+            .jwks_cache
+            .get_key(&kid)
+            .await
+            .map_err(|e| format!("JWKS fetch error: {e}"))?
+            .ok_or_else(|| format!("No key found for kid '{kid}'"))?;
+
+        // 3. Build validation criteria
+        let mut validation = jsonwebtoken::Validation::new(header.alg);
+        validation.set_issuer(&[&self.config.issuer]);
+        validation.set_audience(&[&self.client_id]);
+        validation.set_required_spec_claims(&["exp", "iat", "iss", "aud", "sub"]);
+
+        // 4. Decode and validate
+        let token_data = jsonwebtoken::decode::<IdTokenClaims>(id_token, &key, &validation)
+            .map_err(|e| format!("ID token validation failed: {e}"))?;
+
+        // 5. Verify nonce if provided
         if let Some(expected) = expected_nonce {
-            if claims.nonce.as_deref() != Some(expected) {
+            if token_data.claims.nonce.as_deref() != Some(expected) {
                 return Err("Nonce mismatch".to_string());
             }
         }
 
-        Ok(claims)
+        Ok(token_data.claims)
     }
 
-    /// Get userinfo from provider
-    pub async fn get_userinfo(&self, _access_token: &str) -> Result<UserInfo, String> {
-        // TODO(v2.1.0): implement real userinfo fetch via HTTP
-        Ok(UserInfo {
-            sub:            "user_123".to_string(),
-            email:          Some("user@example.com".to_string()),
-            email_verified: Some(true),
-            name:           Some("Test User".to_string()),
-            picture:        None,
-            locale:         Some("en-US".to_string()),
-        })
+    /// Fetch user information from the provider's userinfo endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no userinfo endpoint is configured, the HTTP request
+    /// fails, or the response cannot be parsed.
+    pub async fn get_userinfo(&self, access_token: &str) -> Result<UserInfo, String> {
+        let endpoint = self
+            .config
+            .userinfo_endpoint
+            .as_ref()
+            .ok_or("No userinfo endpoint configured for this provider")?;
+
+        let response = self
+            .http_client
+            .get(endpoint)
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|e| format!("Userinfo request failed: {e}"))?;
+
+        if !response.status().is_success() {
+            return Err(format!("Userinfo endpoint returned {}", response.status()));
+        }
+
+        response
+            .json::<UserInfo>()
+            .await
+            .map_err(|e| format!("Failed to parse userinfo response: {e}"))
     }
 }
 
@@ -746,6 +824,106 @@ impl TokenRefreshScheduler {
 impl Default for TokenRefreshScheduler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Callback trait for the token refresh worker to perform provider-specific
+/// token refresh and session updates.
+#[async_trait::async_trait]
+pub trait TokenRefresher: Send + Sync {
+    /// Refresh the token for the given session ID.
+    ///
+    /// Should look up the session, call the appropriate OAuth2 provider's
+    /// `refresh_token()`, update the stored session, and return the new expiry.
+    /// Returns `None` if the session no longer exists or has no refresh token.
+    async fn refresh_session(&self, session_id: &str) -> Result<Option<DateTime<Utc>>, String>;
+}
+
+/// Background worker that polls the `TokenRefreshScheduler` and refreshes
+/// expiring OAuth tokens.
+pub struct TokenRefreshWorker {
+    scheduler:     Arc<TokenRefreshScheduler>,
+    refresher:     Arc<dyn TokenRefresher>,
+    cancel_rx:     tokio::sync::watch::Receiver<bool>,
+    poll_interval: StdDuration,
+}
+
+impl TokenRefreshWorker {
+    /// Create a new token refresh worker.
+    ///
+    /// Returns the worker and a sender to trigger cancellation (send `true` to
+    /// stop).
+    pub fn new(
+        scheduler: Arc<TokenRefreshScheduler>,
+        refresher: Arc<dyn TokenRefresher>,
+        poll_interval: StdDuration,
+    ) -> (Self, tokio::sync::watch::Sender<bool>) {
+        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        (
+            Self {
+                scheduler,
+                refresher,
+                cancel_rx,
+                poll_interval,
+            },
+            cancel_tx,
+        )
+    }
+
+    /// Run the refresh loop until cancelled.
+    pub async fn run(mut self) {
+        tracing::info!(
+            interval_secs = self.poll_interval.as_secs(),
+            "Token refresh worker started"
+        );
+        loop {
+            tokio::select! {
+                result = self.cancel_rx.changed() => {
+                    if result.is_err() || *self.cancel_rx.borrow() {
+                        tracing::info!("Token refresh worker stopped");
+                        break;
+                    }
+                },
+                () = tokio::time::sleep(self.poll_interval) => {
+                    self.process_due_refreshes().await;
+                }
+            }
+        }
+    }
+
+    async fn process_due_refreshes(&self) {
+        while let Ok(Some(session_id)) = self.scheduler.get_next_refresh() {
+            match self.refresher.refresh_session(&session_id).await {
+                Ok(Some(new_expiry)) => {
+                    // Re-schedule at 80% of the remaining time
+                    let remaining = new_expiry - Utc::now();
+                    let next_refresh_secs = (remaining.num_seconds() as f64 * 0.8) as i64;
+                    let next_refresh = Utc::now() + Duration::seconds(next_refresh_secs);
+                    if let Err(e) =
+                        self.scheduler.schedule_refresh(session_id.clone(), next_refresh)
+                    {
+                        tracing::warn!(
+                            session_id = %session_id,
+                            error = %e,
+                            "Failed to re-schedule token refresh"
+                        );
+                    }
+                },
+                Ok(None) => {
+                    tracing::debug!(
+                        session_id = %session_id,
+                        "Session no longer exists, skipping refresh"
+                    );
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = %e,
+                        "Token refresh failed"
+                    );
+                },
+            }
+        }
     }
 }
 
@@ -1153,5 +1331,290 @@ mod tests {
         let event = OAuthAuditEvent::new("authorization", "auth0", "success")
             .with_metadata("ip_address".to_string(), "192.168.1.1".to_string());
         assert_eq!(event.metadata.get("ip_address"), Some(&"192.168.1.1".to_string()));
+    }
+
+    // --- OAuth2Client HTTP tests ---
+
+    fn mock_oauth2_client(token_endpoint: &str) -> OAuth2Client {
+        OAuth2Client::new(
+            "test_client",
+            "test_secret",
+            "https://example.com/authorize",
+            token_endpoint,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_exchange_code_sends_correct_request() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{body_string_contains, method},
+        };
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=authorization_code"))
+            .and(body_string_contains("code=auth_code_123"))
+            .and(body_string_contains("client_id=test_client"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "at_real",
+                "refresh_token": "rt_real",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "id_token": "ey.header.payload",
+                "scope": "openid email"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = mock_oauth2_client(&format!("{}/token", mock_server.uri()));
+        let response = client
+            .exchange_code("auth_code_123", "http://localhost/callback")
+            .await
+            .unwrap();
+        assert_eq!(response.access_token, "at_real");
+        assert_eq!(response.refresh_token, Some("rt_real".to_string()));
+        assert_eq!(response.expires_in, 3600);
+        assert_eq!(response.id_token, Some("ey.header.payload".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_exchange_code_handles_error_response() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant",
+                "error_description": "Code expired"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = mock_oauth2_client(&format!("{}/token", mock_server.uri()));
+        let result = client.exchange_code("expired_code", "http://localhost/callback").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("error"));
+    }
+
+    #[tokio::test]
+    async fn test_refresh_token_sends_correct_request() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{body_string_contains, method},
+        };
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(body_string_contains("grant_type=refresh_token"))
+            .and(body_string_contains("refresh_token=rt_abc"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "new_at",
+                "refresh_token": "new_rt",
+                "token_type": "Bearer",
+                "expires_in": 3600
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = mock_oauth2_client(&format!("{}/token", mock_server.uri()));
+        let response = client.refresh_token("rt_abc").await.unwrap();
+        assert_eq!(response.access_token, "new_at");
+        assert_eq!(response.refresh_token, Some("new_rt".to_string()));
+    }
+
+    // --- OIDCClient tests ---
+
+    fn test_oidc_config() -> OIDCProviderConfig {
+        OIDCProviderConfig::new(
+            "https://example.com".to_string(),
+            "https://example.com/authorize".to_string(),
+            "https://example.com/token".to_string(),
+            "https://example.com/.well-known/jwks.json".to_string(),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_get_userinfo_success() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{header, method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .and(header("Authorization", "Bearer access_token_xyz"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sub": "user_789",
+                "email": "real@example.com",
+                "email_verified": true,
+                "name": "Real User",
+                "picture": "https://example.com/photo.jpg",
+                "locale": "fr-FR"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let mut config = test_oidc_config();
+        config.userinfo_endpoint = Some(format!("{}/userinfo", mock_server.uri()));
+
+        let client = OIDCClient::new(config, "client_id", "secret");
+        let user = client.get_userinfo("access_token_xyz").await.unwrap();
+        assert_eq!(user.sub, "user_789");
+        assert_eq!(user.email, Some("real@example.com".to_string()));
+        assert_eq!(user.name, Some("Real User".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_get_userinfo_no_endpoint() {
+        let mut config = test_oidc_config();
+        config.userinfo_endpoint = None;
+
+        let client = OIDCClient::new(config, "client_id", "secret");
+        let result = client.get_userinfo("token").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No userinfo endpoint"));
+    }
+
+    #[tokio::test]
+    async fn test_get_userinfo_server_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let mut config = test_oidc_config();
+        config.userinfo_endpoint = Some(format!("{}/userinfo", mock_server.uri()));
+
+        let client = OIDCClient::new(config, "client_id", "secret");
+        let result = client.get_userinfo("token").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("500"));
+    }
+
+    #[tokio::test]
+    async fn test_verify_id_token_rejects_missing_kid() {
+        let config = test_oidc_config();
+        let client = OIDCClient::new(config, "client_id", "secret");
+
+        // A JWT without a kid in the header
+        let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
+        let claims = IdTokenClaims::new(
+            "https://example.com".into(),
+            "user_1".into(),
+            "client_id".into(),
+            (Utc::now() + Duration::hours(1)).timestamp(),
+            Utc::now().timestamp(),
+        );
+        let token = jsonwebtoken::encode(
+            &header,
+            &claims,
+            &jsonwebtoken::EncodingKey::from_secret(b"test-secret"),
+        )
+        .unwrap();
+
+        let result = client.verify_id_token(&token, None).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("kid"));
+    }
+
+    // --- TokenRefreshWorker tests ---
+
+    #[tokio::test]
+    async fn test_token_refresh_worker_processes_due_refresh() {
+        struct MockRefresher {
+            call_count: std::sync::atomic::AtomicU32,
+        }
+
+        #[async_trait::async_trait]
+        impl TokenRefresher for MockRefresher {
+            async fn refresh_session(
+                &self,
+                _session_id: &str,
+            ) -> Result<Option<DateTime<Utc>>, String> {
+                self.call_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Ok(Some(Utc::now() + Duration::hours(1)))
+            }
+        }
+
+        let scheduler = Arc::new(TokenRefreshScheduler::new());
+        scheduler
+            .schedule_refresh("session_1".to_string(), Utc::now() - Duration::seconds(1))
+            .unwrap();
+
+        let refresher = Arc::new(MockRefresher {
+            call_count: std::sync::atomic::AtomicU32::new(0),
+        });
+
+        let (worker, cancel_tx) =
+            TokenRefreshWorker::new(scheduler, refresher.clone(), StdDuration::from_millis(50));
+
+        let handle = tokio::spawn(worker.run());
+
+        // Wait for worker to process the due refresh
+        tokio::time::sleep(StdDuration::from_millis(200)).await;
+        let _ = cancel_tx.send(true);
+        handle.await.unwrap();
+
+        assert!(refresher.call_count.load(std::sync::atomic::Ordering::Relaxed) >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_token_refresh_worker_handles_missing_session() {
+        struct NoSessionRefresher;
+
+        #[async_trait::async_trait]
+        impl TokenRefresher for NoSessionRefresher {
+            async fn refresh_session(
+                &self,
+                _session_id: &str,
+            ) -> Result<Option<DateTime<Utc>>, String> {
+                Ok(None) // Session doesn't exist
+            }
+        }
+
+        let scheduler = Arc::new(TokenRefreshScheduler::new());
+        scheduler
+            .schedule_refresh("missing_session".to_string(), Utc::now() - Duration::seconds(1))
+            .unwrap();
+
+        let refresher = Arc::new(NoSessionRefresher);
+        let (worker, cancel_tx) =
+            TokenRefreshWorker::new(scheduler, refresher, StdDuration::from_millis(50));
+
+        let handle = tokio::spawn(worker.run());
+        tokio::time::sleep(StdDuration::from_millis(200)).await;
+        let _ = cancel_tx.send(true);
+        handle.await.unwrap();
+        // No panic = success
+    }
+
+    #[tokio::test]
+    async fn test_token_refresh_worker_cancellation() {
+        struct NeverCalledRefresher;
+
+        #[async_trait::async_trait]
+        impl TokenRefresher for NeverCalledRefresher {
+            async fn refresh_session(
+                &self,
+                _session_id: &str,
+            ) -> Result<Option<DateTime<Utc>>, String> {
+                panic!("Should not be called");
+            }
+        }
+
+        let scheduler = Arc::new(TokenRefreshScheduler::new());
+        let refresher = Arc::new(NeverCalledRefresher);
+        let (worker, cancel_tx) =
+            TokenRefreshWorker::new(scheduler, refresher, StdDuration::from_secs(3600));
+
+        let handle = tokio::spawn(worker.run());
+        // Cancel immediately
+        let _ = cancel_tx.send(true);
+        handle.await.unwrap();
     }
 }

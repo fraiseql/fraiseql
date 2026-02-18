@@ -104,8 +104,7 @@ impl fmt::Display for ConditionAst {
 }
 
 /// Condition parser and evaluator
-pub struct ConditionParser {
-}
+pub struct ConditionParser {}
 
 impl ConditionParser {
     /// Create a new condition parser

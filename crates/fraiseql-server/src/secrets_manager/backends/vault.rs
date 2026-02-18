@@ -64,12 +64,7 @@ impl SecretCache {
     }
 
     /// Store secret in cache with expiry
-    async fn set(
-        &self,
-        key: String,
-        secret: String,
-        expires_at: chrono::DateTime<Utc>,
-    ) {
+    async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
 
         // Simple LRU: if at capacity, clear oldest 10% of entries
@@ -181,9 +176,7 @@ impl SecretsBackend for VaultBackend {
 
         // Store in cache
         let cache = self.cache.read().await;
-        cache
-            .set(name.to_string(), secret_str.clone(), cache_expiry)
-            .await;
+        cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
 
         Ok((secret_str, expiry))
     }
@@ -232,12 +225,17 @@ impl VaultBackend {
     /// # Errors
     ///
     /// Returns `SecretsError::ConnectionError` if login fails.
-    pub async fn with_approle(addr: &str, role_id: &str, secret_id: &str) -> Result<Self, SecretsError> {
+    pub async fn with_approle(
+        addr: &str,
+        role_id: &str,
+        secret_id: &str,
+    ) -> Result<Self, SecretsError> {
         let client = reqwest::Client::builder()
             .build()
             .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))?;
 
-        let login_url = format!("{}/{}/auth/approle/login", addr.trim_end_matches('/'), VAULT_API_VERSION);
+        let login_url =
+            format!("{}/{}/auth/approle/login", addr.trim_end_matches('/'), VAULT_API_VERSION);
         let body = serde_json::json!({
             "role_id": role_id,
             "secret_id": secret_id,
@@ -251,11 +249,15 @@ impl VaultBackend {
             .map_err(|e| SecretsError::ConnectionError(format!("AppRole login failed: {e}")))?
             .json()
             .await
-            .map_err(|e| SecretsError::ConnectionError(format!("AppRole response parse error: {e}")))?;
+            .map_err(|e| {
+                SecretsError::ConnectionError(format!("AppRole response parse error: {e}"))
+            })?;
 
         let token = response["auth"]["client_token"]
             .as_str()
-            .ok_or_else(|| SecretsError::ConnectionError("No client_token in AppRole response".into()))?
+            .ok_or_else(|| {
+                SecretsError::ConnectionError("No client_token in AppRole response".into())
+            })?
             .to_string();
 
         Ok(Self::new(addr, &token))
@@ -388,9 +390,8 @@ impl VaultBackend {
                 },
             }
         }
-        Err(last_error.unwrap_or_else(|| {
-            SecretsError::ConnectionError("Max retries exceeded".into())
-        }))
+        Err(last_error
+            .unwrap_or_else(|| SecretsError::ConnectionError("Max retries exceeded".into())))
     }
 
     /// Build Vault API URL for a secret path

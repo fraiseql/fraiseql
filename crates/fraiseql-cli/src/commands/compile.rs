@@ -313,6 +313,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        encryption:     None,
                     },
                     FieldDefinition {
                         name:           "name".to_string(),
@@ -324,6 +325,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        encryption:     None,
                     },
                 ],
                 description:         Some("User type".to_string()),

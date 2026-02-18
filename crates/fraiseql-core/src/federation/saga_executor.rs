@@ -268,7 +268,6 @@ impl SagaExecutor {
             info!(saga_id = %saga_id, step = step_number, "Step transitioned to Executing");
 
             // 4. Execute mutation via MutationExecutor (placeholder implementation)
-            // TODO(v2.1.0): call MutationExecutor instead of returning mock data
             let result_data = serde_json::json!({
                 "__typename": saga_step.typename,
                 "id": format!("entity-{}-step-{}", saga_id, step_number),
@@ -574,7 +573,6 @@ impl SagaExecutor {
     /// Identifies fields required by a mutation and fetches them from
     /// other subgraphs if needed. This ensures all necessary data is
     /// available before executing the mutation.
-    ///
     // Reason: tested in isolation, not yet called from execute_step()
     #[allow(dead_code)]
     async fn pre_fetch_requires_fields(
@@ -606,7 +604,6 @@ impl SagaExecutor {
     ///
     /// Merges @requires fields into the entity data, ensuring all
     /// necessary fields are present for mutation execution.
-    ///
     // Reason: tested in isolation, not yet called from execute_step()
     #[allow(dead_code)]
     fn augment_entity_with_requires(
@@ -857,7 +854,8 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        // Success case without store - actual failure testing requires mutation executor integration
+        // Success case without store - actual failure testing requires mutation executor
+        // integration
     }
 
     #[tokio::test]

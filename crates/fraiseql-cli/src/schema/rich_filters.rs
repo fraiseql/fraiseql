@@ -28,9 +28,7 @@ pub struct RichFilterConfig {
 
 impl Default for RichFilterConfig {
     fn default() -> Self {
-        Self {
-            enabled: true,
-        }
+        Self { enabled: true }
     }
 }
 

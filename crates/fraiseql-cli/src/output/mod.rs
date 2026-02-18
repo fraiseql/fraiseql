@@ -119,7 +119,6 @@ pub struct CommandResult {
     /// Warnings that occurred during execution
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
-
 }
 
 // ============================================================================
@@ -274,13 +273,13 @@ impl CommandResult {
     /// Create a successful command result with data
     pub fn success(command: &str, data: Value) -> Self {
         Self {
-            status:    "success".to_string(),
-            command:   command.to_string(),
-            data:      Some(data),
-            message:   None,
-            code:      None,
-            errors:    Vec::new(),
-            warnings:  Vec::new(),
+            status:   "success".to_string(),
+            command:  command.to_string(),
+            data:     Some(data),
+            message:  None,
+            code:     None,
+            errors:   Vec::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -300,16 +299,15 @@ impl CommandResult {
     /// Create an error result
     pub fn error(command: &str, message: &str, code: &str) -> Self {
         Self {
-            status:    "error".to_string(),
-            command:   command.to_string(),
-            data:      None,
-            message:   Some(message.to_string()),
-            code:      Some(code.to_string()),
-            errors:    Vec::new(),
-            warnings:  Vec::new(),
+            status:   "error".to_string(),
+            command:  command.to_string(),
+            data:     None,
+            message:  Some(message.to_string()),
+            code:     Some(code.to_string()),
+            errors:   Vec::new(),
+            warnings: Vec::new(),
         }
     }
-
 }
 
 #[cfg(test)]
@@ -457,5 +455,4 @@ mod tests {
             serde_json::from_str(&output).expect("Should be valid JSON");
         assert_eq!(parsed["status"], "success");
     }
-
 }

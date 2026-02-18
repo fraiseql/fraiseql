@@ -120,7 +120,6 @@ impl ConstantTimeOps {
         // Use 512-byte fixed length for JWT comparison (typical JWT size)
         Self::compare_padded(expected.as_bytes(), actual.as_bytes(), 512)
     }
-
 }
 
 #[cfg(test)]
@@ -350,5 +349,4 @@ mod tests {
         assert!(!result);
         // Comparison time is independent of length difference
     }
-
 }

@@ -3,7 +3,6 @@
 //! - Error messages when required fields missing
 //! - Query augmentation to include required fields
 //! - Both database and HTTP resolvers
-//!
 
 use fraiseql_core::federation::types::{
     EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,

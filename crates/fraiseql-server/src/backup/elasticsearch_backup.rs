@@ -7,7 +7,6 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// Elasticsearch backup provider.
 ///
 /// Uses Elasticsearch snapshot/restore API.
-// TODO(v2.1.0): wire into BackupManager
 // Reason: implemented but not yet registered in BackupManager
 #[allow(dead_code)]
 pub struct ElasticsearchBackupProvider {

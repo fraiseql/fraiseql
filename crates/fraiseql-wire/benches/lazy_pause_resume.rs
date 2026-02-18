@@ -6,7 +6,7 @@
 //! This benchmark validates that lazy initialization of pause/resume
 //! infrastructure reduces startup overhead by ~5-8ms per query.
 //!
-//! Run with: cargo bench --bench phase6_validation --features bench-with-postgres
+//! Run with: cargo bench --bench lazy_pause_resume --features bench-with-postgres
 //!
 //! Expected results:
 //! - Small result sets (1K-50K rows): Improved by 5-8ms per iteration

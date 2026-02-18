@@ -1,6 +1,6 @@
 //! Elo expression-based validation rules.
 //!
-//! This module integrates Elo (https://elo-lang.org/), an expression language by Bernard Lambeau,
+//! This module integrates Elo (<https://elo-lang.org/>), an expression language by Bernard Lambeau,
 //! as a validation framework, enabling concise, portable validation rules that can be compiled to
 //! multiple targets (Rust, JavaScript, SQL).
 
@@ -34,9 +34,7 @@ pub struct EloValidationResult {
 impl EloExpressionEvaluator {
     /// Create a new ELO expression evaluator.
     pub fn new(expression: String) -> Self {
-        Self {
-            expression,
-        }
+        Self { expression }
     }
 
     /// Evaluate the ELO expression against a JSON object.

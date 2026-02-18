@@ -893,9 +893,7 @@ impl FraiseQLFlightService {
         // Build response as vector of FlightData messages
         let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
 
-        // TODO(v2.2.0): Optimize event serialization with Arrow format
-        // Priority: Low - Current JSON implementation works, performance enhancement for future
-        // For now, return events as JSON (proper Arrow conversion in future)
+        // Return events as JSON
         let json_data = serde_json::json!(events);
         let json_str = json_data.to_string();
 

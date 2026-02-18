@@ -302,6 +302,7 @@ impl SchemaConverter {
             alias: None,
             deprecation,
             requires_scope: intermediate.requires_scope,
+            encryption: None,
         })
     }
 

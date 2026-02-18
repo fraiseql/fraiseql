@@ -175,9 +175,10 @@ impl RowToArrowConverter {
             DataType::Int32 => {
                 let b = downcast_builder::<Int32Builder>(builder, "Int32Builder", "Int32")?;
                 match value {
-                    Some(Value::Int(i)) => b.append_value(i32::try_from(*i).map_err(|_| {
-                        ArrowError::InvalidArgumentError("Int overflow".into())
-                    })?),
+                    Some(Value::Int(i)) => b
+                        .append_value(i32::try_from(*i).map_err(|_| {
+                            ArrowError::InvalidArgumentError("Int overflow".into())
+                        })?),
                     None => b.append_null(),
                     _ => return Err(ArrowError::InvalidArgumentError("Expected int value".into())),
                 }
@@ -195,8 +196,7 @@ impl RowToArrowConverter {
                 }
             },
             DataType::Float64 => {
-                let b =
-                    downcast_builder::<Float64Builder>(builder, "Float64Builder", "Float64")?;
+                let b = downcast_builder::<Float64Builder>(builder, "Float64Builder", "Float64")?;
                 match value {
                     Some(Value::Float(f)) => b.append_value(*f),
                     None => b.append_null(),
@@ -208,8 +208,7 @@ impl RowToArrowConverter {
                 }
             },
             DataType::Boolean => {
-                let b =
-                    downcast_builder::<BooleanBuilder>(builder, "BooleanBuilder", "Boolean")?;
+                let b = downcast_builder::<BooleanBuilder>(builder, "BooleanBuilder", "Boolean")?;
                 match value {
                     Some(Value::Bool(b_val)) => b.append_value(*b_val),
                     None => b.append_null(),
@@ -260,14 +259,9 @@ fn downcast_builder<'a, T: ArrayBuilder + 'static>(
     expected_type: &str,
     field_type: &str,
 ) -> Result<&'a mut T, ArrowError> {
-    builder
-        .as_any_mut()
-        .downcast_mut::<T>()
-        .ok_or_else(|| {
-            ArrowError::InvalidArgumentError(format!(
-                "Expected {expected_type} for {field_type} field"
-            ))
-        })
+    builder.as_any_mut().downcast_mut::<T>().ok_or_else(|| {
+        ArrowError::InvalidArgumentError(format!("Expected {expected_type} for {field_type} field"))
+    })
 }
 
 /// Create an array builder for a given Arrow data type.

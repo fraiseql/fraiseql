@@ -450,6 +450,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        encryption:     None,
                     })
                     .collect(),
                 description:         None,
@@ -494,6 +495,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        encryption:     None,
                     })
                     .collect(),
                 description:         None,
@@ -548,6 +550,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        encryption:     None,
                     })
                     .collect(),
                 description:         None,

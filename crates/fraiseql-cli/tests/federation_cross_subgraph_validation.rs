@@ -3,7 +3,6 @@
 //! - @external field ownership: Exactly one subgraph owns each @external field
 //! - @shareable conflicts: Incompatible @shareable declarations
 //! - Type consistency: Field types match across subgraphs
-//!
 
 use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 

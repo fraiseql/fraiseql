@@ -273,7 +273,6 @@ fn test_field_cannot_have_both_scope_and_scopes() {
     // For now, we test that validation would catch this
     assert!(field.requires_scope.is_some());
     assert!(field.requires_scopes.is_some());
-    // TODO(v2.1.0): validate mutually exclusive requires_scope/requires_scopes
 }
 
 #[test]

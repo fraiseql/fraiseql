@@ -5,7 +5,6 @@
 //! - Large-scale composition handling
 //! - Incremental composition support
 //! - Performance validation
-//!
 
 use std::fmt::Write;
 

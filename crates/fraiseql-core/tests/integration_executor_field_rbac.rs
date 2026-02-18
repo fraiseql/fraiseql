@@ -37,6 +37,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "title".to_string(),
@@ -48,6 +49,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                encryption:     None,
             },
             // Protected fields
             FieldDefinition {
@@ -60,6 +62,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:Post.content".to_string()),
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "draft".to_string(),
@@ -71,6 +74,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("write:Post.draft".to_string()),
+                encryption:     None,
             },
             // Admin-only fields
             FieldDefinition {
@@ -83,6 +87,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                encryption:     None,
             },
         ],
         description:         Some("Post type with field-level scopes".to_string()),
@@ -287,7 +292,7 @@ fn test_executor_runtime_config_with_field_filter() {
         max_query_depth:      10,
         max_query_complexity: 1000,
         enable_tracing:       false,
-        field_filter:         None, // TODO(v2.1.0): implement field-level RBAC enforcement
+        field_filter:         None,
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),

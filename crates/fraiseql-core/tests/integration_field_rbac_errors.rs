@@ -39,6 +39,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "publicInfo".to_string(),
@@ -50,6 +51,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "email".to_string(),
@@ -61,6 +63,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()),
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "phone".to_string(),
@@ -72,6 +75,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.phone".to_string()),
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "ssn".to_string(),
@@ -83,6 +87,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "bankAccount".to_string(),
@@ -94,6 +99,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                encryption:     None,
             },
         ],
         description:         Some("User with mixed access levels".to_string()),

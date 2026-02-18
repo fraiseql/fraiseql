@@ -5,7 +5,6 @@
 //! - Directive merging strategies
 //! - Schema validation post-composition
 //! - Complex directive combinations
-//!
 
 use std::collections::HashMap;
 

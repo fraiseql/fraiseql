@@ -23,6 +23,7 @@ pub mod dashboard;
 pub mod database_adapter;
 pub mod error_recovery;
 pub mod mapper;
+pub mod middleware;
 pub mod performance;
 pub mod query_builder;
 pub mod refresh_trigger;

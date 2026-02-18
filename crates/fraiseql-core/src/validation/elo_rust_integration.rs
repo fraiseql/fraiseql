@@ -3,7 +3,7 @@
 //! Provides infrastructure for compiling Elo expressions to Rust validators,
 //! caching compiled validators, and executing them with <1µs latency targets.
 //!
-//! Elo is an expression language by Bernard Lambeau: https://elo-lang.org/
+//! Elo is an expression language by Bernard Lambeau: <https://elo-lang.org/>
 
 use std::{collections::HashMap, sync::Arc};
 

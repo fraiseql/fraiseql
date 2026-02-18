@@ -27,6 +27,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None, // Public field
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "name".to_string(),
@@ -38,6 +39,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None, // Public field
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "email".to_string(),
@@ -49,6 +51,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
+                encryption:     None,
             },
             FieldDefinition {
                 name:           "password_hash".to_string(),
@@ -60,6 +63,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
+                encryption:     None,
             },
         ],
         description:         None,
