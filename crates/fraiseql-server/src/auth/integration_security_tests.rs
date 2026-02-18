@@ -444,14 +444,11 @@ mod integration_security {
 
     // ===== Mock implementations for test scenarios =====
 
-    struct OAuthFlowScenario {
-        // Test implementation details
-    }
+    struct OAuthFlowScenario;
 
-    #[allow(dead_code)]
     impl OAuthFlowScenario {
         fn new() -> Self {
-            Self {}
+            Self
         }
 
         fn auth_start(&self, _ip: &str, _user: &str) -> Result<(), String> {
@@ -490,10 +487,6 @@ mod integration_security {
             "invalid.jwt.token".to_string()
         }
 
-        fn use_token(&self, _token: &str) -> Result<(), String> {
-            Ok(())
-        }
-
         fn get_session_token(&self) -> String {
             "session_token_abc".to_string()
         }
@@ -504,10 +497,6 @@ mod integration_security {
 
         fn corrupt_refresh_token(&self, token: &str) -> String {
             format!("{}X", token)
-        }
-
-        fn refresh_token(&self, _token: &str) -> Result<(), String> {
-            Ok(())
         }
 
         fn auth_refresh(&self, _user: &str) -> Result<(), String> {
@@ -549,8 +538,6 @@ mod integration_security {
         fn get_rate_limit_status(&self, _ip: &str, _endpoint: &str) -> String {
             "allowed".to_string()
         }
-
-        fn reset_flow(&self) {}
 
         fn has_per_user_limit(&self) -> bool {
             true

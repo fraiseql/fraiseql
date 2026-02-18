@@ -359,26 +359,6 @@ fn types_compatible(declared: &str, actual: &str) -> bool {
     false
 }
 
-/// Validate metadata structure (basic validation)
-#[allow(dead_code)]
-pub fn validate_metadata_match(
-    declared: &serde_json::Value,
-    _actual_metadata: &serde_json::Value,
-) -> std::result::Result<(), String> {
-    let obj = declared.as_object().ok_or_else(|| "Metadata must be an object".to_string())?;
-
-    // Check required fields exist
-    if !obj.contains_key("measures") {
-        return Err("Missing 'measures' field".to_string());
-    }
-
-    if !obj.contains_key("dimensions") {
-        return Err("Missing 'dimensions' field".to_string());
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use fraiseql_core::compiler::fact_table::{
@@ -401,27 +381,6 @@ mod tests {
             "Table exists but not declared".to_string(),
         );
         assert_eq!(issue.severity, IssueSeverity::Warning);
-    }
-
-    #[test]
-    fn test_validate_metadata_match() {
-        let metadata = serde_json::json!({
-            "measures": [],
-            "dimensions": {"name": "data"}
-        });
-
-        let result = validate_metadata_match(&metadata, &metadata);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_validate_metadata_match_missing_measures() {
-        let metadata = serde_json::json!({
-            "dimensions": {"name": "data"}
-        });
-
-        let result = validate_metadata_match(&metadata, &metadata);
-        assert!(result.is_err());
     }
 
     #[test]

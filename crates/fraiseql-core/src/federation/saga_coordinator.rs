@@ -550,7 +550,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_coordinator_with_executor() {
-        // Phase 9.1: Coordinator wiring - executor can be set
         let coordinator =
             SagaCoordinator::new(CompensationStrategy::Automatic).with_executor(Arc::new(()));
 
@@ -559,7 +558,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_coordinator_with_compensator() {
-        // Phase 9.1: Coordinator wiring - compensator can be set
         let coordinator =
             SagaCoordinator::new(CompensationStrategy::Automatic).with_compensator(Arc::new(()));
 
@@ -568,7 +566,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_coordinator_with_both_executor_and_compensator() {
-        // Phase 9.1: Coordinator wiring - both executor and compensator configured
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -578,7 +575,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_coordinator_wiring_with_manual_strategy() {
-        // Phase 9.1: Coordinator wiring - works with Manual compensation strategy
         let coordinator = SagaCoordinator::new(CompensationStrategy::Manual)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -588,7 +584,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_saga_coordinator_full_workflow_single_step() {
-        // Phase 9.3: Full saga workflow - single step saga
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -616,7 +611,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_saga_coordinator_full_workflow_multiple_steps() {
-        // Phase 9.3: Full saga workflow - multi-step saga
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -664,7 +658,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_saga_coordinator_get_status() {
-        // Phase 9.3: Get saga status during execution
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -679,7 +672,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_saga_coordinator_cancel_saga() {
-        // Phase 9.3: Cancel an in-flight saga
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -695,7 +687,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_saga_coordinator_get_result() {
-        // Phase 9.3: Get final result of completed saga
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));
@@ -708,7 +699,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_saga_coordinator_list_in_flight() {
-        // Phase 9.3: List all in-flight sagas
         let coordinator = SagaCoordinator::new(CompensationStrategy::Automatic)
             .with_executor(Arc::new(()))
             .with_compensator(Arc::new(()));

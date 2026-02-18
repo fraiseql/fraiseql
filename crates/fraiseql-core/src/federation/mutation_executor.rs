@@ -48,7 +48,6 @@ fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
 #[derive(Clone)]
 pub struct FederationMutationExecutor<A: DatabaseAdapter> {
     /// Database adapter for executing mutations
-    #[allow(dead_code)]
     adapter:  Arc<A>,
     /// Federation metadata
     metadata: FederationMetadata,
@@ -125,8 +124,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// Execute a mutation on an extended (non-owned) entity.
     ///
     /// Extended mutations are propagated to the authoritative subgraph that owns the entity.
-    /// In Phase 6A, this returns a properly-structured response. Full implementation
-    /// will add HTTP client support for actual remote subgraph communication.
+    /// Currently returns a mock response. Remote subgraph communication via HTTP is not yet implemented.
     ///
     /// # Arguments
     ///

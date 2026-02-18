@@ -1,4 +1,4 @@
-//! Extended composition tests for complex federation scenarios:
+//! Advanced composition scenario tests
 //! - 4+ subgraph composition with shared types
 //! - Field-level conflict detection and resolution
 //! - @requires/@provides directive preservation
@@ -6,7 +6,6 @@
 //! - Schema validation post-composition
 //! - Complex directive combinations
 //!
-//! RED PHASE: These tests validate advanced composition scenarios
 
 use std::collections::HashMap;
 

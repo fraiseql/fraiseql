@@ -112,10 +112,6 @@ pub struct EventBridge {
 
     /// Sender for entity events (used to send events to bridge)
     sender: mpsc::Sender<EntityEvent>,
-
-    /// Configuration (stored for potential future use)
-    #[allow(dead_code)]
-    config: EventBridgeConfig,
 }
 
 impl EventBridge {
@@ -128,7 +124,6 @@ impl EventBridge {
             manager,
             receiver,
             sender,
-            config,
         }
     }
 

@@ -1,4 +1,3 @@
-// Phase 12.2: Vault Backend Integration
 //! Backend for HashiCorp Vault integration with dynamic secrets,
 //! lease management, and encryption support
 //!
@@ -8,13 +7,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use tokio::sync::RwLock;
 
 use super::super::{SecretsBackend, SecretsError};
 
 /// Vault API response structure for secrets
 #[derive(Debug, Clone, serde::Deserialize)]
+// Reason: fields populated by serde deserialization; only `data` accessed directly
 #[allow(dead_code)]
 struct VaultResponse {
     request_id:     String,
@@ -24,45 +24,25 @@ struct VaultResponse {
     data:           HashMap<String, serde_json::Value>,
 }
 
-/// Lease information tracking
+/// Cached secret with expiry metadata.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct LeaseInfo {
-    lease_id:   String,
-    expires_at: chrono::DateTime<Utc>,
-    renewable:  bool,
-}
-
-/// Cached secret with metadata
-///
-/// Used for Phase 12.2+ advanced features: lease tracking and renewal
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct CachedSecret {
     value:      String,
     expires_at: chrono::DateTime<Utc>,
-    lease_id:   Option<String>,
-    renewable:  bool,
 }
 
 // Constants for Vault API and caching
 const VAULT_API_VERSION: &str = "v1";
 const CACHE_TTL_PERCENTAGE: f64 = 0.8; // Cache for 80% of credential TTL
-#[allow(dead_code)]
-const RENEWAL_THRESHOLD_PERCENT: f64 = 0.8; // Renew when 80% expired
 const DEFAULT_MAX_CACHE_ENTRIES: usize = 1000; // Maximum cached secrets
 
-/// Secret cache with TTL management and LRU eviction
-///
-/// Used for Phase 12.2+ advanced features: credential caching with automatic renewal
+/// Secret cache with TTL management and LRU eviction for credential caching.
 #[derive(Debug)]
-#[allow(dead_code)]
 struct SecretCache {
     entries:     Arc<RwLock<HashMap<String, CachedSecret>>>,
     max_entries: usize,
 }
 
-#[allow(dead_code)]
 impl SecretCache {
     /// Create new secret cache with specified max entries
     fn new(max_entries: usize) -> Self {
@@ -70,17 +50,6 @@ impl SecretCache {
             entries: Arc::new(RwLock::new(HashMap::new())),
             max_entries,
         }
-    }
-
-    /// Get cached secret if still valid
-    async fn get(&self, key: &str) -> Option<String> {
-        let entries = self.entries.read().await;
-        if let Some(cached) = entries.get(key) {
-            if cached.expires_at > Utc::now() {
-                return Some(cached.value.clone());
-            }
-        }
-        None
     }
 
     /// Get cached secret with expiry information
@@ -100,8 +69,6 @@ impl SecretCache {
         key: String,
         secret: String,
         expires_at: chrono::DateTime<Utc>,
-        lease_id: Option<String>,
-        renewable: bool,
     ) {
         let mut entries = self.entries.write().await;
 
@@ -120,31 +87,8 @@ impl SecretCache {
             CachedSecret {
                 value: secret,
                 expires_at,
-                lease_id,
-                renewable,
             },
         );
-    }
-
-    /// Invalidate cached secret
-    async fn invalidate(&self, key: &str) {
-        self.entries.write().await.remove(key);
-    }
-
-    /// Check if secret should be renewed based on expiry
-    async fn should_renew(&self, key: &str) -> bool {
-        let entries = self.entries.read().await;
-        if let Some(cached) = entries.get(key) {
-            let time_remaining = cached.expires_at - Utc::now();
-            let total_lifetime = cached.expires_at
-                - (cached.expires_at - Duration::try_seconds(3600).unwrap_or_default());
-            if total_lifetime.num_seconds() > 0 {
-                let percent_remaining =
-                    time_remaining.num_seconds() as f64 / total_lifetime.num_seconds() as f64;
-                return percent_remaining < (1.0 - RENEWAL_THRESHOLD_PERCENT);
-            }
-        }
-        false
     }
 }
 
@@ -228,7 +172,9 @@ impl SecretsBackend for VaultBackend {
         // Calculate expiry: now + lease_duration
         let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
         let cache_expiry = Utc::now()
-            + Duration::seconds((response.lease_duration as f64 * CACHE_TTL_PERCENTAGE) as i64);
+            + chrono::Duration::seconds(
+                (response.lease_duration as f64 * CACHE_TTL_PERCENTAGE) as i64,
+            );
 
         // Extract secret from response data
         let secret_str = Self::extract_secret_from_response(&response, name)?;
@@ -236,13 +182,7 @@ impl SecretsBackend for VaultBackend {
         // Store in cache
         let cache = self.cache.read().await;
         cache
-            .set(
-                name.to_string(),
-                secret_str.clone(),
-                cache_expiry,
-                Some(response.lease_id.clone()),
-                response.renewable,
-            )
+            .set(name.to_string(), secret_str.clone(), cache_expiry)
             .await;
 
         Ok((secret_str, expiry))
@@ -384,7 +324,6 @@ impl VaultBackend {
     }
 
     /// Build HTTP request to Vault with standard headers
-    #[allow(dead_code)]
     fn build_vault_request(
         &self,
         client: &reqwest::Client,

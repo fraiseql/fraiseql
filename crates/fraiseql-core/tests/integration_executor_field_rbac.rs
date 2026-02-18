@@ -287,7 +287,7 @@ fn test_executor_runtime_config_with_field_filter() {
         max_query_depth:      10,
         max_query_complexity: 1000,
         enable_tracing:       false,
-        field_filter:         None, // Not yet implemented - will be GREEN phase
+        field_filter:         None, // TODO(v2.1.0): implement field-level RBAC enforcement
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),

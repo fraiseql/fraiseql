@@ -1,4 +1,4 @@
-//! End-to-End GraphQL Features Tests (GREEN Phase)
+//! End-to-End GraphQL Features Tests
 //!
 //! Tests complete GraphQL functionality against live database:
 //! 1. Query execution (simple, nested, with variables)
@@ -105,12 +105,11 @@ impl GraphQLResponse {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Query Execution (RED phase)
+// Query Execution
 // ============================================================================
 
 /// Test 1: Simple field query execution
 #[test]
-#[ignore]
 fn test_simple_field_query_structure() {
     let query = GraphQLQuery::new("{ users { id name } }");
 
@@ -125,7 +124,7 @@ fn test_simple_field_query_structure() {
     assert!(query.query_string.contains("id"));
     assert!(query.query_string.contains("name"));
 
-    // GREEN Phase: Execute against test data
+    // Execute against test data
     let executor = TestGraphQLExecutor::new();
     let result = executor.execute(&query.query_string);
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
@@ -142,7 +141,6 @@ fn test_simple_field_query_structure() {
 
 /// Test 2: Query with variables structure
 #[test]
-#[ignore]
 fn test_query_with_variables_structure() {
     let query =
         GraphQLQuery::new("query GetUser($userId: ID!) { user(id: $userId) { id name email } }")
@@ -155,7 +153,6 @@ fn test_query_with_variables_structure() {
 
 /// Test 3: Nested relationship query structure
 #[test]
-#[ignore]
 fn test_nested_relationship_query_structure() {
     let query = GraphQLQuery::new("{ users { id name posts { id title content } } }");
 
@@ -168,7 +165,6 @@ fn test_nested_relationship_query_structure() {
 
 /// Test 4: Query with aliases structure
 #[test]
-#[ignore]
 fn test_query_with_aliases_structure() {
     let query = GraphQLQuery::new("{ users { userId: id userName: name userEmail: email } }");
 
@@ -179,7 +175,6 @@ fn test_query_with_aliases_structure() {
 
 /// Test 5: Multiple root fields structure
 #[test]
-#[ignore]
 fn test_multiple_root_fields_structure() {
     let query = GraphQLQuery::new("{ users { id } posts { id } comments { id } }");
 
@@ -192,12 +187,11 @@ fn test_multiple_root_fields_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Mutations (RED phase)
+// Mutations
 // ============================================================================
 
 /// Test 6: CREATE mutation structure
 #[test]
-#[ignore]
 fn test_create_mutation_structure() {
     let query = GraphQLQuery::new(
         "mutation CreateUser { createUser(input: {name: \"John\", email: \"john@example.com\"}) { id name email } }",
@@ -211,7 +205,6 @@ fn test_create_mutation_structure() {
 
 /// Test 7: UPDATE mutation structure
 #[test]
-#[ignore]
 fn test_update_mutation_structure() {
     let query = GraphQLQuery::new(
         "mutation UpdateUser { updateUser(id: \"user_123\", input: {name: \"Jane\"}) { id name } }",
@@ -224,7 +217,6 @@ fn test_update_mutation_structure() {
 
 /// Test 8: DELETE mutation structure
 #[test]
-#[ignore]
 fn test_delete_mutation_structure() {
     let query = GraphQLQuery::new(
         "mutation DeleteUser { deleteUser(id: \"user_123\") { success message } }",
@@ -237,7 +229,6 @@ fn test_delete_mutation_structure() {
 
 /// Test 9: Batch mutation structure
 #[test]
-#[ignore]
 fn test_batch_mutation_structure() {
     let query = GraphQLQuery::new(
         "mutation { createUser1: createUser(input: {name: \"User1\"}) { id } createUser2: createUser(input: {name: \"User2\"}) { id } }",
@@ -249,12 +240,11 @@ fn test_batch_mutation_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Relationships & Joins (RED phase)
+// Relationships & Joins
 // ============================================================================
 
 /// Test 10: One-to-many relationship structure
 #[test]
-#[ignore]
 fn test_one_to_many_relationship_structure() {
     let query = GraphQLQuery::new("{ users { id name posts { id title } } }");
 
@@ -264,7 +254,7 @@ fn test_one_to_many_relationship_structure() {
     assert!(query.query_string.contains("users"));
     assert!(query.query_string.contains("posts"));
 
-    // GREEN Phase: Execute against test data
+    // Execute against test data
     let executor = TestGraphQLExecutor::new();
     let result = executor.execute(&query.query_string);
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
@@ -282,7 +272,6 @@ fn test_one_to_many_relationship_structure() {
 
 /// Test 11: Deep nested query (3 levels) structure
 #[test]
-#[ignore]
 fn test_deep_nested_query_structure() {
     let query =
         GraphQLQuery::new("{ users { id name posts { id title comments { id content } } } }");
@@ -296,7 +285,6 @@ fn test_deep_nested_query_structure() {
 
 /// Test 12: Field projection on relationship structure
 #[test]
-#[ignore]
 fn test_field_projection_structure() {
     let query = GraphQLQuery::new("{ users { id posts { id } } }");
 
@@ -308,12 +296,11 @@ fn test_field_projection_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Aggregations (RED phase)
+// Aggregations
 // ============================================================================
 
 /// Test 13: COUNT aggregation structure
 #[test]
-#[ignore]
 fn test_count_aggregation_structure() {
     let query = GraphQLQuery::new("{ usersCount: count(type: \"User\") }");
 
@@ -323,7 +310,6 @@ fn test_count_aggregation_structure() {
 
 /// Test 14: SUM aggregation structure
 #[test]
-#[ignore]
 fn test_sum_aggregation_structure() {
     let query = GraphQLQuery::new("{ totalAmount: sum(field: \"amount\", type: \"Order\") }");
 
@@ -333,7 +319,6 @@ fn test_sum_aggregation_structure() {
 
 /// Test 15: AVG aggregation structure
 #[test]
-#[ignore]
 fn test_avg_aggregation_structure() {
     let query = GraphQLQuery::new("{ avgAmount: avg(field: \"amount\", type: \"Order\") }");
 
@@ -343,7 +328,6 @@ fn test_avg_aggregation_structure() {
 
 /// Test 16: GROUP BY aggregation structure
 #[test]
-#[ignore]
 fn test_group_by_aggregation_structure() {
     let query = GraphQLQuery::new(
         "{ ordersByStatus: groupBy(type: \"Order\", groupBy: \"status\") { status count } }",
@@ -354,12 +338,11 @@ fn test_group_by_aggregation_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Filtering & Sorting (RED phase)
+// Filtering & Sorting
 // ============================================================================
 
 /// Test 17: WHERE filter structure
 #[test]
-#[ignore]
 fn test_where_filter_structure() {
     let query = GraphQLQuery::new("{ users(where: {status: {eq: \"active\"}}) { id name } }");
 
@@ -370,7 +353,6 @@ fn test_where_filter_structure() {
 
 /// Test 18: ORDER BY ascending structure
 #[test]
-#[ignore]
 fn test_order_by_ascending_structure() {
     let query =
         GraphQLQuery::new("{ users(orderBy: {field: \"name\", direction: \"ASC\"}) { id name } }");
@@ -382,7 +364,6 @@ fn test_order_by_ascending_structure() {
 
 /// Test 19: ORDER BY descending structure
 #[test]
-#[ignore]
 fn test_order_by_descending_structure() {
     let query = GraphQLQuery::new(
         "{ users(orderBy: {field: \"createdAt\", direction: \"DESC\"}) { id name createdAt } }",
@@ -394,7 +375,6 @@ fn test_order_by_descending_structure() {
 
 /// Test 20: Multiple filter conditions structure
 #[test]
-#[ignore]
 fn test_multiple_filters_structure() {
     let query = GraphQLQuery::new(
         "{ users(where: {AND: [{status: {eq: \"active\"}}, {role: {eq: \"admin\"}}]}) { id name } }",
@@ -406,7 +386,6 @@ fn test_multiple_filters_structure() {
 
 /// Test 21: Filter on relationships structure
 #[test]
-#[ignore]
 fn test_filter_on_relationships_structure() {
     let query = GraphQLQuery::new(
         "{ users { id name posts(where: {published: {eq: true}}) { id title } } }",
@@ -420,18 +399,17 @@ fn test_filter_on_relationships_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Pagination (RED phase)
+// Pagination
 // ============================================================================
 
 /// Test 22: LIMIT and OFFSET pagination structure
 #[test]
-#[ignore]
 fn test_limit_offset_pagination_structure() {
     let query = GraphQLQuery::new("{ users { id name } }");
 
     assert!(query.validate().is_ok());
 
-    // GREEN Phase: Execute basic users query (pagination tested through data limits)
+    // Execute basic users query (pagination tested through data limits)
     let executor = TestGraphQLExecutor::new();
     let result = executor.execute("{ users { id name } }");
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
@@ -447,7 +425,6 @@ fn test_limit_offset_pagination_structure() {
 
 /// Test 23: Cursor-based pagination structure
 #[test]
-#[ignore]
 fn test_cursor_pagination_structure() {
     let query = GraphQLQuery::new(
         "{ users(first: 10, after: \"cursor_abc\") { edges { cursor node { id name } } pageInfo { hasNextPage endCursor } } }",
@@ -459,12 +436,11 @@ fn test_cursor_pagination_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Subscriptions (RED phase)
+// Subscriptions
 // ============================================================================
 
 /// Test 24: Subscribe to CREATE events structure
 #[test]
-#[ignore]
 fn test_subscribe_to_create_events_structure() {
     let query = GraphQLQuery::new("subscription OnUserCreated { userCreated { id name email } }");
 
@@ -475,7 +451,6 @@ fn test_subscribe_to_create_events_structure() {
 
 /// Test 25: Subscribe to UPDATE events structure
 #[test]
-#[ignore]
 fn test_subscribe_to_update_events_structure() {
     let query = GraphQLQuery::new("subscription OnUserUpdated { userUpdated { id name email } }");
 
@@ -486,7 +461,6 @@ fn test_subscribe_to_update_events_structure() {
 
 /// Test 26: Multiple concurrent subscriptions structure
 #[test]
-#[ignore]
 fn test_multiple_concurrent_subscriptions_structure() {
     let query1 = GraphQLQuery::new("subscription { userCreated { id } }");
     let query2 = GraphQLQuery::new("subscription { postCreated { id } }");
@@ -501,7 +475,6 @@ fn test_multiple_concurrent_subscriptions_structure() {
 
 /// Test 27: Subscription filtering structure
 #[test]
-#[ignore]
 fn test_subscription_filtering_structure() {
     let query = GraphQLQuery::new(
         "subscription OnOrderCreated { orderCreated(where: {status: {eq: \"pending\"}}) { id status } }",
@@ -512,12 +485,11 @@ fn test_subscription_filtering_structure() {
 }
 
 // ============================================================================
-// Cycle 2 Tests: Error Handling (RED phase)
+// Error Handling
 // ============================================================================
 
 /// Test 28: Query validation error structure
 #[test]
-#[ignore]
 fn test_query_validation_error_structure() {
     let query = GraphQLQuery::new("{ users { id nonExistentField } }");
 
@@ -530,7 +502,6 @@ fn test_query_validation_error_structure() {
 
 /// Test 29: Not found error structure
 #[test]
-#[ignore]
 fn test_not_found_error_structure() {
     let query = GraphQLQuery::new("{ user(id: \"nonexistent\") { id name } }");
 
@@ -542,7 +513,6 @@ fn test_not_found_error_structure() {
 
 /// Test 30: Type mismatch error structure
 #[test]
-#[ignore]
 fn test_type_mismatch_error_structure() {
     let query = GraphQLQuery::new("{ user(id: 12345) { id name } }");
 
@@ -554,7 +524,6 @@ fn test_type_mismatch_error_structure() {
 
 /// Test 31: Authorization error structure
 #[test]
-#[ignore]
 fn test_authorization_error_structure() {
     let query = GraphQLQuery::new("{ adminUsers { id name } }");
 
@@ -566,7 +535,6 @@ fn test_authorization_error_structure() {
 
 /// Test 32: Invalid mutation input structure
 #[test]
-#[ignore]
 fn test_invalid_mutation_input_structure() {
     let query = GraphQLQuery::new("mutation { createUser(input: {name: \"\"}) { id } }");
 
@@ -577,24 +545,6 @@ fn test_invalid_mutation_input_structure() {
 }
 
 // ============================================================================
-// Summary
+// Summary: 32 tests covering queries, mutations, relationships, aggregations,
+// filtering, sorting, pagination, subscriptions, and error handling.
 // ============================================================================
-
-// Total: 32 E2E feature tests (RED phase)
-// These tests verify GraphQL query structure and syntax
-// In GREEN phase, these tests will execute against a live database
-//
-// Coverage:
-// - Query Execution: 5 tests ✓
-// - Mutations: 4 tests ✓
-// - Relationships: 3 tests ✓
-// - Aggregations: 4 tests ✓
-// - Filtering & Sorting: 5 tests ✓
-// - Pagination: 2 tests ✓
-// - Subscriptions: 4 tests ✓
-// - Error Handling: 5 tests ✓
-//
-// Total: 32 tests ✓
-//
-// Phase: RED - All tests pass (verify query structure)
-// Next phase (GREEN): Implement actual GraphQL execution

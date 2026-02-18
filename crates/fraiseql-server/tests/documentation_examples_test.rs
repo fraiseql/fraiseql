@@ -1,4 +1,4 @@
-//! Documentation Examples Validation Tests (GREEN Phase)
+//! Documentation Examples Validation Tests
 //!
 //! Validates that examples in documentation work as documented:
 //! 1. Foundation documentation quickstart
@@ -84,7 +84,7 @@ impl DocumentationExample {
 }
 
 // ============================================================================
-// Cycle 5 Tests: Foundation Documentation (RED phase)
+// Foundation Documentation
 // ============================================================================
 
 /// Test 1: Foundation quickstart example
@@ -187,7 +187,7 @@ mutation {
 }
 
 // ============================================================================
-// Cycle 5 Tests: Core Guides (RED phase)
+// Core Guides
 // ============================================================================
 
 /// Test 4: Subscription guide example
@@ -277,7 +277,7 @@ fn test_aggregation_guide_example() {
 }
 
 // ============================================================================
-// Cycle 5 Tests: API Documentation (RED phase)
+// API Documentation
 // ============================================================================
 
 /// Test 7: API endpoint example
@@ -337,7 +337,7 @@ try {
 }
 
 // ============================================================================
-// Cycle 5 Tests: Real-world Scenarios (RED phase)
+// Real-world Scenarios
 // ============================================================================
 
 /// Test 9: Order service example
@@ -418,7 +418,7 @@ subscription OrderInventorySync {
 }
 
 // ============================================================================
-// GREEN Phase Tests: Example Execution
+// Example Execution
 // ============================================================================
 
 /// Example Executor for validating documentation examples
@@ -491,7 +491,7 @@ impl ExampleExecutor {
     }
 }
 
-/// GREEN Phase Test 1: Execute foundation quickstart example
+/// Execute foundation quickstart example
 #[test]
 fn test_execute_foundation_quickstart() {
     let example = DocumentationExample::new(
@@ -510,7 +510,7 @@ fn test_execute_foundation_quickstart() {
     assert!(results[0].output.contains("successfully"));
 }
 
-/// GREEN Phase Test 2: Execute multiple examples
+/// Execute multiple examples
 #[test]
 fn test_execute_multiple_examples() {
     let ex1 = DocumentationExample::new("Example 1", "docs/ex1.md", "query { users { id } }")
@@ -537,7 +537,7 @@ fn test_execute_multiple_examples() {
     assert!(results.iter().all(|r| r.success));
 }
 
-/// GREEN Phase Test 3: Example with prerequisites
+/// Example with prerequisites
 #[test]
 fn test_example_with_prerequisites() {
     let example = DocumentationExample::new(
@@ -554,7 +554,7 @@ fn test_example_with_prerequisites() {
     assert!(example.validate_structure().is_ok());
 }
 
-/// GREEN Phase Test 4: Example validation and execution reporting
+/// Example validation and execution reporting
 #[test]
 fn test_example_execution_reporting() {
     let examples = vec![
@@ -599,24 +599,6 @@ fn test_example_execution_reporting() {
 }
 
 // ============================================================================
-// Summary
+// Summary: 14 tests covering foundation docs, core guides, API docs,
+// real-world scenarios, and example execution validation.
 // ============================================================================
-
-// Total: 10 Documentation Example Tests (RED phase) + 4 GREEN phase tests
-//
-// RED Phase Coverage:
-// - Foundation Documentation: 3 tests ✓
-// - Core Guides: 3 tests ✓
-// - API Documentation: 2 tests ✓
-// - Real-world Scenarios: 2 tests ✓
-//
-// GREEN Phase Coverage:
-// - Foundation Quickstart Execution: 1 test ✓
-// - Multiple Example Execution: 1 test ✓
-// - Example with Prerequisites: 1 test ✓
-// - Execution Reporting: 1 test ✓
-//
-// Total: 14 tests ✓ (10 RED + 4 GREEN)
-//
-// Phase: GREEN - Tests execute examples against test system
-// Status: Ready for REFACTOR phase

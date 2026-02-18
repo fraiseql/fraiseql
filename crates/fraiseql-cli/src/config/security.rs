@@ -99,30 +99,6 @@ impl ErrorSanitizationConfig {
     }
 }
 
-/// Rate limiting per endpoint
-///
-/// Reason: Included for forward compatibility with per-endpoint rate limiting.
-/// Currently unused but provided for API completeness in security configuration.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RateLimitingPerEndpoint {
-    /// Maximum requests per window
-    pub max_requests: u32,
-    /// Time window in seconds
-    pub window_secs:  u64,
-}
-
-#[allow(dead_code)]
-impl RateLimitingPerEndpoint {
-    /// Convert to JSON representation for schema
-    pub fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "maxRequests": self.max_requests,
-            "windowSecs": self.window_secs,
-        })
-    }
-}
-
 /// Rate limiting configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -324,19 +300,6 @@ pub struct RoleDefinitionConfig {
     pub scopes:      Vec<String>,
 }
 
-impl RoleDefinitionConfig {
-    /// Convert to core RoleDefinition for schema compilation
-    /// Used in runtime field filtering (Cycle 5)
-    #[allow(dead_code)]
-    pub fn to_core_role_definition(&self) -> fraiseql_core::schema::RoleDefinition {
-        fraiseql_core::schema::RoleDefinition {
-            name:        self.name.clone(),
-            description: self.description.clone(),
-            scopes:      self.scopes.clone(),
-        }
-    }
-}
-
 /// Complete security configuration from fraiseql.toml
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -382,20 +345,6 @@ impl SecurityConfig {
         }
 
         Ok(())
-    }
-
-    /// Find a role definition by name
-    /// Used in runtime field filtering (Cycle 5)
-    #[allow(dead_code)]
-    pub fn find_role(&self, name: &str) -> Option<&RoleDefinitionConfig> {
-        self.role_definitions.iter().find(|r| r.name == name)
-    }
-
-    /// Get all scopes for a role
-    /// Used in runtime field filtering (Cycle 5)
-    #[allow(dead_code)]
-    pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
-        self.find_role(role_name).map(|role| role.scopes.clone()).unwrap_or_default()
     }
 
     /// Convert to JSON representation for schema.json

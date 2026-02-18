@@ -1,4 +1,3 @@
-// Phase 12.3: Field-Level Encryption
 //! Encryption for sensitive database fields using AES-256-GCM
 //!
 //! Provides transparent encryption/decryption for:
@@ -17,21 +16,6 @@ use rand::Rng;
 
 use crate::secrets_manager::SecretsError;
 
-mod audit_logging_tests;
-mod compliance_tests;
-mod dashboard_tests;
-mod database_adapter_tests;
-mod error_recovery_tests;
-mod field_encryption_tests;
-mod mapper_integration_tests;
-mod performance_tests;
-mod query_builder_integration_tests;
-mod refresh_tests;
-mod rotation_api_tests;
-mod rotation_tests;
-mod schema_detection_tests;
-mod transaction_integration_tests;
-
 pub mod audit_logging;
 pub mod compliance;
 pub mod credential_rotation;
@@ -47,8 +31,6 @@ pub mod schema;
 pub mod transaction;
 
 const NONCE_SIZE: usize = 12; // 96 bits for GCM
-#[allow(dead_code)]
-const TAG_SIZE: usize = 16; // 128 bits authentication tag
 const KEY_SIZE: usize = 32; // 256 bits for AES-256
 
 /// Cipher for field-level encryption using AES-256-GCM
@@ -105,7 +87,6 @@ impl FieldEncryption {
     ///
     /// Uses cryptographically secure random number generation to ensure
     /// each encryption produces a unique nonce, preventing pattern analysis.
-    #[allow(dead_code)]
     fn generate_nonce() -> [u8; NONCE_SIZE] {
         let mut nonce_bytes = [0u8; NONCE_SIZE];
         rand::thread_rng().fill(&mut nonce_bytes);
@@ -119,7 +100,6 @@ impl FieldEncryption {
     ///
     /// # Returns
     /// Tuple of (nonce, ciphertext) or error if too short
-    #[allow(dead_code)]
     fn extract_nonce_and_ciphertext(
         encrypted: &[u8],
     ) -> Result<([u8; NONCE_SIZE], &[u8]), SecretsError> {
@@ -141,7 +121,6 @@ impl FieldEncryption {
     /// Convert bytes to UTF-8 string with context
     ///
     /// Provides clear error messages on encoding failures for debugging
-    #[allow(dead_code)]
     fn bytes_to_utf8(bytes: Vec<u8>, context: &str) -> Result<String, SecretsError> {
         String::from_utf8(bytes).map_err(|e| {
             SecretsError::EncryptionError(format!("Invalid UTF-8 in {}: {}", context, e))

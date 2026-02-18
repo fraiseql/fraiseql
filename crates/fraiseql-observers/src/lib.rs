@@ -246,7 +246,7 @@ mod integration_tests {
 
 #[cfg(test)]
 mod e2e_tests {
-    //! End-to-end integration tests (Subphase 7.5)
+    //! End-to-end integration tests
     //!
     //! These tests verify the full workflow:
     //! Change Log Entry → `EntityEvent` → Observer Matching → Action Execution

@@ -51,7 +51,7 @@ pub mod types;
 
 pub use composition_validator::{
     ComposedSchema, ComposedType, CompositionError, CompositionValidator,
-    ConflictResolutionStrategy, CrossSubgraphValidator,
+    CrossSubgraphValidator,
 };
 pub use connection_manager::*;
 pub use database_resolver::*;

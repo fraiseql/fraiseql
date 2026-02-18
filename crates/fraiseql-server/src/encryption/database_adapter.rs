@@ -107,10 +107,7 @@ impl EncryptionContext {
 /// Cached encryption cipher for a field
 #[derive(Clone)]
 struct CachedEncryption {
-    cipher:   FieldEncryption,
-    /// Key name from Vault - kept for debugging and audit trail
-    #[allow(dead_code)]
-    key_name: String,
+    cipher: FieldEncryption,
 }
 
 /// Basic implementation of EncryptedFieldAdapter
@@ -186,8 +183,7 @@ impl DatabaseFieldAdapter {
         cache.insert(
             field_name.to_string(),
             CachedEncryption {
-                cipher:   cipher.clone(),
-                key_name: key_name.clone(),
+                cipher: cipher.clone(),
             },
         );
 
@@ -341,42 +337,4 @@ mod tests {
         assert!(aad.contains("ts:2024-01-02T12:00:00Z"));
     }
 
-    #[tokio::test]
-    #[ignore = "Requires SecretsManager setup"]
-    async fn test_adapter_get_cipher_caching() {
-        // When cipher accessed multiple times for same field
-        // Should return cached instance on subsequent calls
-    }
-
-    #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
-    async fn test_adapter_multiple_keys() {
-        // When adapter configured with multiple fields and keys
-        // Each field should use its own encryption key
-        // Keys sourced from SecretsManager
-    }
-
-    #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
-    async fn test_adapter_cache_invalidation() {
-        // When cache invalidated (e.g., after key rotation)
-        // Next access should fetch fresh key from SecretsManager
-        // Old cached ciphers discarded
-    }
-
-    #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
-    async fn test_adapter_missing_key_error() {
-        // When field not registered in adapter
-        // encrypt_value should return NotFound error
-        // Should indicate which key missing
-    }
-
-    #[tokio::test]
-    #[ignore = "Incomplete test: needs actual implementation"]
-    async fn test_adapter_is_encrypted_check() {
-        // When checking if field is encrypted
-        // Should return true for registered fields
-        // Should return false for unregistered fields
-    }
 }

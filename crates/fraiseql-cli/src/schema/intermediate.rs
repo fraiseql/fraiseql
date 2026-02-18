@@ -65,7 +65,7 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers: Option<Vec<IntermediateObserver>>,
 
-    /// Custom scalar type definitions (Phase 5: SDK Support)
+    /// Custom scalar type definitions
     ///
     /// Defines custom GraphQL scalar types with validation rules.
     /// Custom scalars can be defined in Python, TypeScript, Java, Go, and Rust SDKs,
@@ -216,7 +216,7 @@ pub struct IntermediateDeprecation {
 }
 
 // =============================================================================
-// Custom Scalar Definitions (Phase 5: SDK Support)
+// Custom Scalar Definitions
 // =============================================================================
 
 /// Custom scalar type definition in intermediate format.

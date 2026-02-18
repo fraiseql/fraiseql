@@ -232,7 +232,7 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
 
-    /// Custom scalar type registry (Phase 5: Compiler Integration).
+    /// Custom scalar type registry.
     ///
     /// Contains definitions for custom scalar types defined in the schema.
     /// Built during code generation from IRScalar definitions.

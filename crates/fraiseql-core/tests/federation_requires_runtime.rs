@@ -1,10 +1,9 @@
-//! Tests for validating @requires directives at runtime during entity resolution:
+//! @requires runtime enforcement tests
 //! - Required fields present in entity representations
 //! - Error messages when required fields missing
 //! - Query augmentation to include required fields
 //! - Both database and HTTP resolvers
 //!
-//! RED PHASE: These tests are expected to FAIL until runtime enforcement is implemented
 
 use fraiseql_core::federation::types::{
     EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,

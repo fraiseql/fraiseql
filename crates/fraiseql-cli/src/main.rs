@@ -648,24 +648,18 @@ async fn main() {
 
         Commands::Lint {
             schema,
-            federation,
-            cost,
-            cache,
-            auth,
-            compilation,
+            federation: _,
+            cost: _,
+            cache: _,
+            auth: _,
+            compilation: _,
             fail_on_critical,
             fail_on_warning,
-            verbose,
+            verbose: _,
         } => {
             let opts = commands::lint::LintOptions {
-                federation,
-                cost,
-                cache,
-                auth,
-                compilation,
                 fail_on_critical,
                 fail_on_warning,
-                verbose,
             };
             match commands::lint::run(&schema, opts) {
                 Ok(result) => {

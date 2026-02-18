@@ -159,7 +159,7 @@ async fn test_do_get_ta_orders_returns_data() {
         .await
         .expect("Failed to connect to Flight server");
 
-    // Phase 2.2b: Create session token for authentication
+    // Create session token for authentication
     let session_token = create_test_session_token();
 
     // Create ticket for ta_orders with limit
@@ -219,7 +219,7 @@ async fn test_do_get_ta_users_returns_data() {
         .await
         .expect("Failed to connect to Flight server");
 
-    // Phase 2.2b: Create session token for authentication
+    // Create session token for authentication
     let session_token = create_test_session_token();
 
     // Create ticket for ta_users with limit

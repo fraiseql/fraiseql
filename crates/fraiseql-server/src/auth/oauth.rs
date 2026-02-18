@@ -186,11 +186,13 @@ pub struct OAuth2Client {
     /// Client ID from provider
     pub client_id:              String,
     /// Client secret from provider
+    // Reason: used by token exchange (not yet implemented)
     #[allow(dead_code)]
     client_secret:              String,
     /// Authorization endpoint
     pub authorization_endpoint: String,
     /// Token endpoint
+    // Reason: used by token exchange (not yet implemented)
     #[allow(dead_code)]
     token_endpoint:             String,
     /// Scopes to request
@@ -256,7 +258,7 @@ impl OAuth2Client {
         _code: &str,
         _redirect_uri: &str,
     ) -> Result<TokenResponse, String> {
-        // Return mock token for GREEN phase
+        // TODO(v2.1.0): implement real token exchange via HTTP
         Ok(TokenResponse {
             access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
             refresh_token: Some(format!("refresh_token_{}", uuid::Uuid::new_v4())),
@@ -269,7 +271,7 @@ impl OAuth2Client {
 
     /// Refresh access token
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenResponse, String> {
-        // Return mock token for GREEN phase
+        // TODO(v2.1.0): implement real token refresh via HTTP
         Ok(TokenResponse {
             access_token:  format!("access_token_{}", uuid::Uuid::new_v4()),
             refresh_token: Some(refresh_token.to_string()),
@@ -289,6 +291,7 @@ pub struct OIDCClient {
     /// Client ID
     pub client_id: String,
     /// Client secret
+    // Reason: used by token exchange (not yet implemented)
     #[allow(dead_code)]
     client_secret: String,
 }
@@ -313,7 +316,7 @@ impl OIDCClient {
         _id_token: &str,
         expected_nonce: Option<&str>,
     ) -> Result<IdTokenClaims, String> {
-        // Return mock claims for GREEN phase
+        // TODO(v2.1.0): implement real ID token verification
         let claims = IdTokenClaims {
             iss:            self.config.issuer.clone(),
             sub:            "user_123".to_string(),
@@ -341,7 +344,7 @@ impl OIDCClient {
 
     /// Get userinfo from provider
     pub async fn get_userinfo(&self, _access_token: &str) -> Result<UserInfo, String> {
-        // Return mock userinfo for GREEN phase
+        // TODO(v2.1.0): implement real userinfo fetch via HTTP
         Ok(UserInfo {
             sub:            "user_123".to_string(),
             email:          Some("user@example.com".to_string()),

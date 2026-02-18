@@ -110,7 +110,7 @@ impl RowToArrowConverter {
         }
 
         let num_columns = self.schema.fields().len();
-        let mut column_builders = self.create_builders(num_columns);
+        let mut column_builders = self.create_builders(num_columns)?;
 
         // Populate builders row by row
         for row in rows {
@@ -136,7 +136,14 @@ impl RowToArrowConverter {
     }
 
     /// Create array builders for each column in the schema.
-    fn create_builders(&self, num_columns: usize) -> Vec<Box<dyn ArrayBuilder>> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `ArrowError::InvalidArgumentError` if any column has an unsupported data type.
+    fn create_builders(
+        &self,
+        num_columns: usize,
+    ) -> Result<Vec<Box<dyn ArrayBuilder>>, ArrowError> {
         (0..num_columns)
             .map(|i| {
                 let field = self.schema.field(i);
@@ -265,25 +272,29 @@ impl RowToArrowConverter {
 
 /// Create an array builder for a given Arrow data type.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the data type is not supported. This is intentional as it indicates
-/// a schema generation bug rather than a runtime issue.
-fn create_builder_for_type(data_type: &DataType, capacity: usize) -> Box<dyn ArrayBuilder> {
+/// Returns `ArrowError::InvalidArgumentError` if the data type is not supported.
+fn create_builder_for_type(
+    data_type: &DataType,
+    capacity: usize,
+) -> Result<Box<dyn ArrayBuilder>, ArrowError> {
     match data_type {
         DataType::Utf8 => {
             // Estimate 50 bytes per string on average
-            Box::new(StringBuilder::with_capacity(capacity, capacity * 50))
+            Ok(Box::new(StringBuilder::with_capacity(capacity, capacity * 50)))
         },
-        DataType::Int32 => Box::new(Int32Builder::with_capacity(capacity)),
-        DataType::Int64 => Box::new(Int64Builder::with_capacity(capacity)),
-        DataType::Float64 => Box::new(Float64Builder::with_capacity(capacity)),
-        DataType::Boolean => Box::new(BooleanBuilder::with_capacity(capacity)),
-        DataType::Timestamp(TimeUnit::Nanosecond, tz) => Box::new(
+        DataType::Int32 => Ok(Box::new(Int32Builder::with_capacity(capacity))),
+        DataType::Int64 => Ok(Box::new(Int64Builder::with_capacity(capacity))),
+        DataType::Float64 => Ok(Box::new(Float64Builder::with_capacity(capacity))),
+        DataType::Boolean => Ok(Box::new(BooleanBuilder::with_capacity(capacity))),
+        DataType::Timestamp(TimeUnit::Nanosecond, tz) => Ok(Box::new(
             TimestampNanosecondBuilder::with_capacity(capacity).with_timezone_opt(tz.clone()),
-        ),
-        DataType::Date32 => Box::new(Date32Builder::with_capacity(capacity)),
-        _ => panic!("Unsupported data type in create_builder_for_type: {data_type:?}"),
+        )),
+        DataType::Date32 => Ok(Box::new(Date32Builder::with_capacity(capacity))),
+        _ => Err(ArrowError::InvalidArgumentError(format!(
+            "Unsupported data type: {data_type:?}"
+        ))),
     }
 }
 

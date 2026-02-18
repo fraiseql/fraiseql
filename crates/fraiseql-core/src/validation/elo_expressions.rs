@@ -20,17 +20,6 @@ use crate::error::{FraiseQLError, Result};
 pub struct EloExpressionEvaluator {
     /// The ELO expression to evaluate
     expression: String,
-    /// Compiled expression cache (for optimization)
-    #[allow(dead_code)]
-    compiled:   Option<CompiledExpression>,
-}
-
-/// Compiled ELO expression (internal representation)
-#[derive(Debug, Clone)]
-struct CompiledExpression {
-    // Placeholder for actual compiled form
-    // This would be a proper AST in full implementation
-    _tokens: Vec<String>,
 }
 
 /// Validation result from ELO expression evaluation
@@ -47,7 +36,6 @@ impl EloExpressionEvaluator {
     pub fn new(expression: String) -> Self {
         Self {
             expression,
-            compiled: None,
         }
     }
 

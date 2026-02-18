@@ -409,8 +409,6 @@ impl ApiErrorResponse {
     }
 }
 
-// ========== REFACTOR ENHANCEMENTS ==========
-
 /// Configuration preset type
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -770,8 +768,6 @@ mod tests {
             .with_code("VAULT_UNAVAILABLE");
         assert!(error.code.is_some());
     }
-
-    // ========== REFACTOR ENHANCEMENT TESTS ==========
 
     #[test]
     fn test_config_preset_hipaa() {

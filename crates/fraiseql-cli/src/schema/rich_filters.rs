@@ -11,13 +11,11 @@
 //! 5. Embed validation rules
 //! 6. Add to compiled schema
 
-use std::collections::HashMap;
-
 use fraiseql_core::{
     filters::{ParameterType, get_operators_for_type},
     schema::CompiledSchema,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 
 use super::{lookup_data, sql_templates};
 
@@ -25,18 +23,13 @@ use super::{lookup_data, sql_templates};
 #[derive(Debug, Clone)]
 pub struct RichFilterConfig {
     /// Enable rich filter compilation
-    pub enabled:              bool,
-    /// Validation rules overrides (from fraiseql.toml)
-    // Reason: Will be used in future phases for extensible validation configuration
-    #[allow(dead_code)]
-    pub validation_overrides: HashMap<String, Value>,
+    pub enabled: bool,
 }
 
 impl Default for RichFilterConfig {
     fn default() -> Self {
         Self {
-            enabled:              true,
-            validation_overrides: HashMap::new(),
+            enabled: true,
         }
     }
 }

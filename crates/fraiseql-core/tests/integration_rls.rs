@@ -13,7 +13,6 @@ use fraiseql_core::{
 
 /// Test that non-admin users are filtered by RLS policy
 ///
-/// This is a RED phase test that verifies the desired behavior:
 /// - Admin users bypass RLS (see all records)
 /// - Non-admin users see only their own records (author_id == user_id)
 #[test]

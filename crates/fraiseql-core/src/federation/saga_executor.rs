@@ -221,9 +221,6 @@ impl SagaExecutor {
             "Step execution started"
         );
 
-        // Phase 7.1 Implementation: Single Step Execution
-        // Execute a single mutation step with proper state management
-
         // 1. Validate step exists in saga (if store is available)
         if let Some(store) = &self.store {
             // Load saga to verify it exists
@@ -271,7 +268,7 @@ impl SagaExecutor {
             info!(saga_id = %saga_id, step = step_number, "Step transitioned to Executing");
 
             // 4. Execute mutation via MutationExecutor (placeholder implementation)
-            // In full Phase 7.1b implementation, this would call the actual mutation executor
+            // TODO(v2.1.0): call MutationExecutor instead of returning mock data
             let result_data = serde_json::json!({
                 "__typename": saga_step.typename,
                 "id": format!("entity-{}-step-{}", saga_id, step_number),
@@ -357,7 +354,6 @@ impl SagaExecutor {
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<Vec<StepExecutionResult>> {
         info!(saga_id = %saga_id, "Saga forward phase started");
 
-        // Phase 7.2 Implementation: Multi-step sequential execution
         // Execute all steps in order, stopping on first failure
 
         // If no store available, return empty results (for testing)
@@ -494,7 +490,6 @@ impl SagaExecutor {
     ///
     /// Current execution state including completed steps
     pub async fn get_execution_state(&self, saga_id: Uuid) -> SagaStoreResult<ExecutionState> {
-        // Phase 7.3 Implementation: Execution state tracking
         // Load saga and steps from store to build current execution state
 
         // If no store available, return minimal state
@@ -573,24 +568,14 @@ impl SagaExecutor {
     /// - Step is in Pending state
     /// - All @requires fields are available
     /// - Previous steps completed successfully
-    #[allow(dead_code)]
-    async fn validate_step_executable(
-        &self,
-        _saga_id: Uuid,
-        _step_number: u32,
-    ) -> SagaStoreResult<bool> {
-        // Placeholder: Add validation in GREEN phase
-
-        Ok(true)
-    }
-
+    ///
     /// Fetch any @requires fields before step execution
     ///
     /// Identifies fields required by a mutation and fetches them from
     /// other subgraphs if needed. This ensures all necessary data is
     /// available before executing the mutation.
     ///
-    /// Phase 9.2: @requires field pre-fetching
+    // Reason: tested in isolation, not yet called from execute_step()
     #[allow(dead_code)]
     async fn pre_fetch_requires_fields(
         &self,
@@ -622,7 +607,7 @@ impl SagaExecutor {
     /// Merges @requires fields into the entity data, ensuring all
     /// necessary fields are present for mutation execution.
     ///
-    /// Phase 9.2: Entity data augmentation with @requires fields
+    // Reason: tested in isolation, not yet called from execute_step()
     #[allow(dead_code)]
     fn augment_entity_with_requires(
         &self,
@@ -862,9 +847,8 @@ mod tests {
     #[tokio::test]
     async fn test_step_failure_detected() {
         // Verify that step failure is detected and captured
-        // Without a store, all steps return success, so we can't test actual failure
-        // This test documents the expected behavior for Phase 7.4b when
-        // real mutation executor integration happens
+        // Tests limited scenario without a backing store. Full failure testing
+        // requires mutation executor integration.
         let executor = SagaExecutor::new();
         let saga_id = Uuid::new_v4();
 
@@ -873,7 +857,7 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        // Success case without store - actual failure testing happens in Phase 7.4b
+        // Success case without store - actual failure testing requires mutation executor integration
     }
 
     #[tokio::test]
@@ -894,7 +878,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_pre_fetch_requires_fields() {
-        // Phase 9.2: @requires field fetching
         let executor = SagaExecutor::new();
         let saga_id = Uuid::new_v4();
 
@@ -907,7 +890,6 @@ mod tests {
 
     #[test]
     fn test_augment_entity_with_requires() {
-        // Phase 9.2: Entity augmentation with @requires fields
         let executor = SagaExecutor::new();
 
         let entity = serde_json::json!({
@@ -931,7 +913,6 @@ mod tests {
 
     #[test]
     fn test_augment_entity_preserves_original_fields() {
-        // Phase 9.2: Augmentation preserves original entity data
         let executor = SagaExecutor::new();
 
         let entity = serde_json::json!({
@@ -952,7 +933,6 @@ mod tests {
 
     #[test]
     fn test_augment_entity_overwrites_conflicting_fields() {
-        // Phase 9.2: @requires fields overwrite if there's a conflict
         let executor = SagaExecutor::new();
 
         let entity = serde_json::json!({
@@ -972,7 +952,6 @@ mod tests {
 
     #[test]
     fn test_augment_entity_with_empty_requires() {
-        // Phase 9.2: Augmentation works with no @requires fields
         let executor = SagaExecutor::new();
 
         let entity = serde_json::json!({

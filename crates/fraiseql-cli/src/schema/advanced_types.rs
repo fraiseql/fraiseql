@@ -211,19 +211,3 @@
 //! - Time zone aware date operations
 //! - Route distance calculation (requires routing library)
 
-/// Marker type for documentation. This module documents advanced type
-/// operators but doesn't export any functions (implementation is in sql_templates.rs).
-// Reason: This is a documentation marker type that exists to organize module-level docs
-#[allow(dead_code)]
-pub struct AdvancedTypesDocumentation;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_documentation_exists() {
-        // This test ensures the documentation module compiles
-        let _ = AdvancedTypesDocumentation;
-    }
-}

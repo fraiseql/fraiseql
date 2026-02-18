@@ -15,24 +15,11 @@ use crate::output::CommandResult;
 
 /// Lint command options
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct LintOptions {
-    /// Only show federation audit
-    pub federation:       bool,
-    /// Only show cost audit
-    pub cost:             bool,
-    /// Only show cache audit
-    pub cache:            bool,
-    /// Only show auth audit
-    pub auth:             bool,
-    /// Only show compilation audit
-    pub compilation:      bool,
     /// Exit with error if any critical issues found
     pub fail_on_critical: bool,
     /// Exit with error if any warning or critical issues found
     pub fail_on_warning:  bool,
-    /// Show detailed issue descriptions
-    pub verbose:          bool,
 }
 
 /// Lint output response
@@ -180,14 +167,8 @@ mod tests {
 
     fn default_opts() -> LintOptions {
         LintOptions {
-            federation:       false,
-            cost:             false,
-            cache:            false,
-            auth:             false,
-            compilation:      false,
             fail_on_critical: false,
             fail_on_warning:  false,
-            verbose:          false,
         }
     }
 

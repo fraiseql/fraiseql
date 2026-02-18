@@ -7,6 +7,8 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// ClickHouse backup provider.
 ///
 /// Creates backups using ClickHouse's native backup mechanism.
+// TODO(v2.1.0): wire into BackupManager
+// Reason: implemented but not yet registered in BackupManager
 #[allow(dead_code)]
 pub struct ClickhouseBackupProvider {
     /// ClickHouse HTTP endpoint

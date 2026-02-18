@@ -38,9 +38,7 @@
 
 use std::sync::Arc;
 
-#[cfg(feature = "caching")]
-use crate::cache::redis::RedisCacheBackend;
-#[cfg(any(feature = "dedup", feature = "caching"))]
+#[cfg(feature = "dedup")]
 use crate::config::RedisConfig;
 #[cfg(feature = "dedup")]
 use crate::dedup::redis::RedisDeduplicationStore;
@@ -168,27 +166,6 @@ impl ExecutorFactory {
             })?;
 
         Ok(RedisDeduplicationStore::new(conn, redis_config.dedup_window_secs))
-    }
-
-    /// Build Redis cache backend from config
-    #[cfg(feature = "caching")]
-    #[allow(dead_code)] // Reason: prepared for cache integration in upcoming phase
-    async fn build_cache_backend(redis_config: &RedisConfig) -> Result<RedisCacheBackend> {
-        use redis::aio::ConnectionManager;
-
-        // Create Redis client and connection manager
-        let client = redis::Client::open(redis_config.url.as_str()).map_err(|e| {
-            ObserverError::InvalidConfig {
-                message: format!("Failed to create Redis client: {e}"),
-            }
-        })?;
-
-        let conn =
-            ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
-                message: format!("Failed to connect to Redis: {e}"),
-            })?;
-
-        Ok(RedisCacheBackend::new(conn, redis_config.cache_ttl_secs))
     }
 
     /// Build Redis job queue from config

@@ -1,11 +1,10 @@
-//! Tests for building and validating composed supergraph schemas from multiple subgraphs:
+//! Composition validation tests
 //! - Merge types from multiple subgraphs
 //! - Detect field type conflicts
 //! - Validate composed schema structure
 //! - Handle 2+ subgraph compositions
 //! - Test resolution strategy selection
 //!
-//! RED PHASE: These tests validate composition functionality
 
 use std::collections::HashMap;
 

@@ -1,10 +1,9 @@
-//! Tests for validating federation schemas across multiple subgraphs:
+//! Cross-subgraph consistency validation tests
 //! - @key consistency: Each @key must be unique within its type
 //! - @external field ownership: Exactly one subgraph owns each @external field
 //! - @shareable conflicts: Incompatible @shareable declarations
 //! - Type consistency: Field types match across subgraphs
 //!
-//! RED PHASE: These tests validate cross-subgraph consistency
 
 use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 

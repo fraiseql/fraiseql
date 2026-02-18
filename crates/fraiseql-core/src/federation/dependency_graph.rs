@@ -12,12 +12,6 @@ use crate::federation::types::{FederationMetadata, FieldPathSelection};
 struct DependencyNode {
     /// Node ID: "TypeName.fieldName"
     id:       String,
-    /// Type this field belongs to (kept for debugging and error messages)
-    #[allow(dead_code)]
-    typename: String,
-    /// Field name (kept for debugging and error messages)
-    #[allow(dead_code)]
-    field:    String,
     /// Fields this node requires
     requires: Vec<FieldPathSelection>,
 }
@@ -66,8 +60,6 @@ impl DependencyGraph {
                         node_id.clone(),
                         DependencyNode {
                             id:       node_id,
-                            typename: federated_type.name.clone(),
-                            field:    field_name.clone(),
                             requires: directives.requires.clone(),
                         },
                     );
@@ -229,8 +221,6 @@ mod tests {
     fn test_dependency_node_creation() {
         let node = DependencyNode {
             id:       "User.orders".to_string(),
-            typename: "User".to_string(),
-            field:    "orders".to_string(),
             requires: vec![FieldPathSelection {
                 path:     vec!["email".to_string()],
                 typename: "User".to_string(),

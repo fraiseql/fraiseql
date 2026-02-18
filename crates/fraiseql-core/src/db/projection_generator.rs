@@ -365,15 +365,6 @@ impl Default for SqliteProjectionGenerator {
     }
 }
 
-/// SQL Server SQL projection generator.
-///
-/// SQL Server uses `JSON_QUERY()` and `JSON_MODIFY()` for JSON manipulation.
-/// Placeholder for future implementation.
-#[allow(dead_code)]
-pub struct SqlServerProjectionGenerator {
-    json_column: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

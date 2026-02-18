@@ -1,10 +1,9 @@
-//! Tests for @provides directive validation at runtime:
+//! @provides contract enforcement tests
 //! - @provides fields should be present in resolver results
 //! - Warning (not error) if @provides contract is broken
 //! - @provides is a hint about what fields the resolver provides
 //! - Validation across both database and HTTP resolvers
 //!
-//! RED PHASE: These tests validate @provides contract enforcement
 
 use fraiseql_core::federation::types::{
     FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection, KeyDirective,

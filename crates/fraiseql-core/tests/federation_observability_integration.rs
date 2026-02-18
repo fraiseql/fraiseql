@@ -626,36 +626,3 @@ struct TraceparentHeader {
     _trace_flags:   String,
 }
 
-/// Summary test: Phase 7 End-to-End Integration
-#[test]
-fn test_phase_7_integration_complete() {
-    println!("\n=== PHASE 7: END-TO-END INTEGRATION TESTING ===\n");
-
-    println!("Federation Observability System:");
-    println!("  ✓ Query execution with full observability");
-    println!("  ✓ Distributed tracing with W3C Trace Context");
-    println!("  ✓ Metrics collection (13 federation metrics)");
-    println!("  ✓ Structured logging with trace correlation");
-    println!("  ✓ Multi-hop federation support");
-    println!("  ✓ Mutation execution with observability");
-
-    println!("\nValidation Coverage:");
-    println!("  ✓ Complete observability - Query, entity resolution, subgraph calls");
-    println!("  ✓ Trace propagation - W3C format, parent-child hierarchy");
-    println!("  ✓ Metrics accuracy - Counters and histograms");
-    println!("  ✓ Logging correlation - Trace IDs in all logs");
-    println!("  ✓ Error handling - No observability breakage");
-    println!("  ✓ Performance - Zero observable overhead");
-
-    println!("\nPhases Summary:");
-    println!("  Phase 1: APQ & Distributed Tracing           ✅");
-    println!("  Phase 2: Health Checks & Connection Pooling  ✅");
-    println!("  Phase 3: Metrics Collection                  ✅");
-    println!("  Phase 4: Structured Logging                  ✅");
-    println!("  Phase 5: Performance Validation              ✅");
-    println!("  Phase 6: Dashboards & Monitoring             ✅");
-    println!("  Phase 7: End-to-End Integration Testing      ✅");
-
-    println!("\n=== ALL PHASES COMPLETE ===\n");
-    println!("Federation Observability System Status: 🟢 PRODUCTION READY\n");
-}

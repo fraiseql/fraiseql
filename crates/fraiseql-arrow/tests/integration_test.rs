@@ -121,7 +121,7 @@ async fn test_do_get_returns_empty_stream() {
         .await
         .expect("Failed to connect to Flight server");
 
-    // Phase 2.2b: Create a session token for authentication
+    // Create a session token for authentication
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 
@@ -189,7 +189,7 @@ async fn test_invalid_ticket_returns_error() {
         .await
         .expect("Failed to connect to Flight server");
 
-    // Phase 2.2b: Create a session token for authentication
+    // Create a session token for authentication
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 

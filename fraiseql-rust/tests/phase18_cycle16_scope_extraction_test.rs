@@ -1,6 +1,6 @@
-/// Phase 18 Cycle 16: Rust SDK - Field Scope Extraction & Validation
+/// Field scope extraction and validation tests
 ///
-/// RED phase tests for field-level RBAC scope extraction.
+/// Tests for field-level RBAC scope extraction.
 /// Tests cover:
 /// - Field struct creation and properties
 /// - Single scope requirements (requires_scope)
@@ -273,7 +273,7 @@ fn test_field_cannot_have_both_scope_and_scopes() {
     // For now, we test that validation would catch this
     assert!(field.requires_scope.is_some());
     assert!(field.requires_scopes.is_some());
-    // In GREEN phase, add validation to prevent this
+    // TODO(v2.1.0): validate mutually exclusive requires_scope/requires_scopes
 }
 
 #[test]

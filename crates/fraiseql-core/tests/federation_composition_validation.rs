@@ -544,7 +544,7 @@ mod harness {
     }
 
     // ========================================================================
-    // Scenario Builders (REFACTOR PHASE)
+    // Scenario Builders
     // ========================================================================
 
     /// Build a common 2-subgraph scenario: users + orders

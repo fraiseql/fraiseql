@@ -181,7 +181,7 @@ pub struct IntrospectionField {
     pub deprecation_reason: Option<String>,
 }
 
-/// Validation rule for input field in introspection format (Phase 4).
+/// Validation rule for input field in introspection format.
 ///
 /// Converts internal ValidationRule enums to introspection-friendly format
 /// that clients can query and use for UI generation, form validation, etc.
@@ -261,7 +261,7 @@ pub struct IntrospectionInputValue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecation_reason: Option<String>,
 
-    /// Validation rules for this input value (Phase 4).
+    /// Validation rules for this input value.
     #[serde(default)]
     pub validation_rules: Vec<IntrospectionValidationRule>,
 }

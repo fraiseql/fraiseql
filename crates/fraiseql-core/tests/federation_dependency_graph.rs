@@ -1,7 +1,4 @@
-//! Tests for building dependency graphs from @requires directives and detecting
-//! circular dependencies.
-//!
-//! RED PHASE: These tests are expected to FAIL until DependencyGraph is implemented
+//! Dependency graph resolution tests
 
 use fraiseql_core::federation::{
     DependencyGraph,

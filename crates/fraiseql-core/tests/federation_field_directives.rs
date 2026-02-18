@@ -1,8 +1,4 @@
-//! These tests define the expected behavior for storing and accessing
-//! field-level federation directives (@requires, @provides, @shareable).
-//!
-//! RED PHASE: These tests are expected to FAIL until FieldFederationDirectives
-//! struct and field_directives HashMap are added to FederatedType.
+//! Field federation directive tests
 
 use fraiseql_core::federation::types::{
     FederatedType, FieldFederationDirectives, FieldPathSelection, KeyDirective,
@@ -28,7 +24,6 @@ fn test_field_directive_requires_storage() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
-        // NEW: field_directives will be added in GREEN phase
         field_directives: std::collections::HashMap::new(),
     };
 

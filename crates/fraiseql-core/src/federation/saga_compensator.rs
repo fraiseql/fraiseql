@@ -309,8 +309,7 @@ impl SagaCompensator {
         let start_time = Instant::now();
         info!(saga_id = %saga_id, "Saga compensation started");
 
-        // Phase 8.1-8.3 Implementation: LIFO compensation with resilience
-        // Execute compensation steps in strict reverse order (N-1..1),
+        // Execute compensation steps in strict reverse order (LIFO),
         // continuing even if individual steps fail
 
         // If no store available, return empty results (for testing)
@@ -530,8 +529,6 @@ impl SagaCompensator {
             "Step compensation started"
         );
 
-        // Phase 8.2 Implementation: Single step compensation with state management
-
         // If no store available, return success for testing
         if self.store.is_none() {
             let duration_ms = start_time.elapsed().as_millis() as u64;
@@ -588,7 +585,7 @@ impl SagaCompensator {
         let _compensation_variables = self.build_compensation_variables(original_result_data);
 
         // 3-4. Execute compensation mutation via MutationExecutor (placeholder)
-        // In Phase 8.2b, this would call the actual mutation executor
+        // TODO(v2.1.0): call MutationExecutor for real compensating mutation
         // For now, simulate successful compensation
         let compensation_result_data = serde_json::json!({
             "deleted": true,
@@ -665,7 +662,6 @@ impl SagaCompensator {
     ) -> SagaStoreResult<Option<CompensationResult>> {
         debug!(saga_id = %saga_id, "Compensation status queried");
 
-        // Phase 8.4 Implementation: Compensation status tracking
         // Load saga and steps to build compensation status
 
         // If no store available, return None
@@ -750,19 +746,12 @@ impl SagaCompensator {
     /// - Saga is in Failed state
     /// - Has completed steps to compensate
     /// - Is not already being compensated
-    #[allow(dead_code)]
-    async fn validate_compensable(&self, _saga_id: Uuid) -> SagaStoreResult<bool> {
-        // Placeholder: Add validation in GREEN phase
-
-        Ok(true)
-    }
-
+    ///
     /// Build compensation mutation variables from forward step result
     fn build_compensation_variables(
         &self,
         original_result_data: &serde_json::Value,
     ) -> serde_json::Value {
-        // Phase 8.2 Implementation: Build compensation variables from forward result
         // Extract the key fields (ID, etc.) needed to identify what to compensate
 
         let mut compensation_vars = serde_json::json!({});

@@ -1,4 +1,4 @@
-//! Tests for the `fraiseql compose` CLI command:
+//! CLI composition functionality tests
 //! - Compose multiple subgraph schemas into supergraph
 //! - CLI argument parsing (--subgraph, --output)
 //! - Configuration file support (fraiseql.yml)
@@ -6,7 +6,6 @@
 //! - Error reporting with helpful suggestions
 //! - Output validation
 //!
-//! RED PHASE: These tests validate CLI composition functionality
 
 use std::{collections::HashMap, fmt::Write};
 

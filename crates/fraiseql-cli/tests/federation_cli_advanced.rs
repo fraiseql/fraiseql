@@ -1,4 +1,4 @@
-//! Extended CLI tests for production-ready composition:
+//! Advanced CLI feature tests
 //! - YAML configuration file parsing
 //! - Output format options (JSON, GraphQL SDL)
 //! - Validation error reporting with suggestions
@@ -6,7 +6,6 @@
 //! - Incremental composition support
 //! - Performance validation
 //!
-//! RED PHASE: These tests validate advanced CLI features
 
 use std::fmt::Write;
 

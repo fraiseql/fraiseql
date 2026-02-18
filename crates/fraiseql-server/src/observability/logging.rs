@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Initialize structured logging
 pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing-subscriber with JSON formatting
-    // In GREEN phase, this is a no-op
+    // TODO(v2.1.0): initialize tracing-subscriber with JSON formatting
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-//! Federation Saga Validation Tests (GREEN Phase)
+//! Federation Saga Validation Tests
 //!
 //! Tests saga orchestration across multiple services/databases:
 //! 1. Multi-step saga execution (happy path and failures)
@@ -280,7 +280,7 @@ impl SagaExecution {
 }
 
 // ============================================================================
-// Cycle 3 Tests: Saga Execution (RED phase)
+// Saga Execution Tests
 // ============================================================================
 
 /// Test 1: Two-step saga success (happy path)
@@ -355,7 +355,7 @@ fn test_saga_partial_success() {
 }
 
 // ============================================================================
-// Cycle 3 Tests: Compensation & Rollback (RED phase)
+// Compensation & Rollback Tests
 // ============================================================================
 
 /// Test 3: Saga compensation in LIFO order
@@ -415,7 +415,7 @@ fn test_saga_deadletter_queue() {
 }
 
 // ============================================================================
-// Cycle 3 Tests: Saga Orchestration (RED phase)
+// Saga Orchestration Tests
 // ============================================================================
 
 /// Test 5: Observer notification on saga completion
@@ -460,7 +460,7 @@ fn test_saga_tracing_context() {
 }
 
 // ============================================================================
-// Cycle 3 Tests: Advanced Scenarios (RED phase)
+// Advanced Scenarios
 // ============================================================================
 
 /// Test 7: Concurrent saga execution
@@ -531,10 +531,10 @@ fn test_saga_idempotency() {
 }
 
 // ============================================================================
-// GREEN Phase Tests: Saga Execution
+// Saga Execution (Async)
 // ============================================================================
 
-/// GREEN Phase Test 1: Execute two-step saga forward phase
+/// Execute two-step saga forward phase
 #[tokio::test]
 async fn test_saga_forward_phase_execution() {
     let mut executor = TestSagaExecutor::new();
@@ -562,7 +562,7 @@ async fn test_saga_forward_phase_execution() {
     assert_eq!(results[1].step_number, 2);
 }
 
-/// GREEN Phase Test 2: Verify LIFO compensation order
+/// Verify LIFO compensation order
 #[tokio::test]
 async fn test_saga_lifo_compensation_order() {
     let executor = TestSagaExecutor::new();
@@ -590,7 +590,7 @@ async fn test_saga_lifo_compensation_order() {
     }
 }
 
-/// GREEN Phase Test 3: Verify multi-step saga with correct step execution
+/// Verify multi-step saga with correct step execution
 #[tokio::test]
 async fn test_multi_step_saga_execution() {
     let mut executor = TestSagaExecutor::new();
@@ -626,38 +626,6 @@ async fn test_multi_step_saga_execution() {
 }
 
 // ============================================================================
-// Summary
+// Summary: 11 tests covering saga execution, compensation, orchestration,
+// and advanced scenarios (concurrent execution, idempotency).
 // ============================================================================
-
-// Total: 8 Federation Saga Tests (RED phase) + 3 GREEN phase tests
-//
-// RED Phase Coverage:
-// - Saga Execution: 2 tests ✓
-//   - Two-step success (happy path)
-//   - Partial success (one step fails)
-//
-// - Compensation & Rollback: 2 tests ✓
-//   - LIFO compensation order
-//   - Deadletter queue for failures
-//
-// - Saga Orchestration: 2 tests ✓
-//   - Observer notification
-//   - Trace context propagation
-//
-// - Advanced Scenarios: 2 tests ✓
-//   - Concurrent execution
-//   - Idempotency guarantees
-//
-// GREEN Phase Coverage:
-// - Forward Phase Execution: 1 test ✓
-//   - Multi-step saga execution
-//
-// - LIFO Compensation: 1 test ✓
-//   - Compensation order verification
-//
-// - Multi-Step Orchestration: 1 test ✓
-//   - Complex saga with 3 steps
-//
-// Total: 11 tests ✓ (8 RED + 3 GREEN)
-//
-// Phase: Transitioning to GREEN - Tests execute sagas with test executor

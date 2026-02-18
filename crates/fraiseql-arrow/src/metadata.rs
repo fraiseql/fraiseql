@@ -3,14 +3,14 @@
 //! This module handles pre-compiled Arrow schema metadata for optimized views.
 //! Schemas are stored in memory (future: PostgreSQL metadata table).
 //!
-//! # Schema Versioning (Phase 4)
+//! # Schema Versioning
 //!
 //! Schemas are versioned for safe runtime updates without disrupting running queries.
 //! Each schema update increments the version counter (atomic, monotonically increasing).
 //! Old queries keep references to old schema versions via Arc<Schema> (Copy-on-Write).
 //! New queries automatically use new schema versions after reload.
 //!
-//! # Schema Preloading (Phase 5.1)
+//! # Schema Preloading
 //!
 //! For production deployments, schemas can be preloaded from the database at startup
 //! using `preload_all_schemas()`. This reduces first-query latency by discovering and
@@ -93,7 +93,7 @@ fn infer_schema_from_row(
 /// Schemas are registered at runtime with automatic versioning.
 /// Provides safe schema reload without disrupting running queries (Copy-on-Write via Arc).
 ///
-/// # Versioning (Phase 4)
+/// # Versioning
 ///
 /// Each schema update increments the version counter atomically:
 /// - Version numbers are monotonically increasing
@@ -395,8 +395,6 @@ impl SchemaRegistry {
     /// This method queries the database to discover all va_* (view-backed) and ta_* (table-backed)
     /// schemas and registers them in the schema registry. This reduces first-query latency by
     /// having schemas available immediately upon server startup.
-    ///
-    /// # Phase 5.1 Optimization
     ///
     /// Schema preloading is a performance optimization that:
     /// - Discovers views dynamically instead of hardcoding them

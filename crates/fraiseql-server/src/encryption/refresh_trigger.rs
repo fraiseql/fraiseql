@@ -439,8 +439,6 @@ impl RefreshManager {
         self.job.request_shutdown();
     }
 
-    // ========== REFACTOR ENHANCEMENTS ==========
-
     /// Get time since last check
     pub fn time_since_last_check(&self) -> Option<std::time::Duration> {
         self.trigger

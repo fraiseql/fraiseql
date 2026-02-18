@@ -1,4 +1,4 @@
-//! RED Phase: Tests for field-level RBAC via TOML configuration.
+//! Tests for field-level RBAC via TOML configuration.
 //!
 //! These tests verify that TOML configuration can define role definitions
 //! and scope mappings, which are then compiled into schema.compiled.json
@@ -365,7 +365,7 @@ scopes = ["read:User.*", "write:Post.content"]
     }
 }
 
-// GREEN Phase: Role Definition struct tests
+// Role Definition struct tests
 
 #[test]
 fn test_role_definition_struct() {

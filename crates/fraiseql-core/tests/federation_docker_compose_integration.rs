@@ -118,7 +118,7 @@ async fn setup_federation_tests() -> Result<(), Box<dyn std::error::Error>> {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // Run with: cargo test -- --ignored
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_users_subgraph_health() {
     if let Err(e) = wait_for_service(USERS_SUBGRAPH_URL, 30).await {
         panic!("Users subgraph health check failed: {}", e);
@@ -126,7 +126,7 @@ async fn test_users_subgraph_health() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_orders_subgraph_health() {
     if let Err(e) = wait_for_service(ORDERS_SUBGRAPH_URL, 30).await {
         panic!("Orders subgraph health check failed: {}", e);
@@ -134,7 +134,7 @@ async fn test_orders_subgraph_health() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_products_subgraph_health() {
     if let Err(e) = wait_for_service(PRODUCTS_SUBGRAPH_URL, 30).await {
         panic!("Products subgraph health check failed: {}", e);
@@ -142,7 +142,7 @@ async fn test_products_subgraph_health() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_health() {
     if let Err(e) = wait_for_service(APOLLO_GATEWAY_URL, 30).await {
         panic!("Apollo Router health check failed: {}", e);
@@ -150,7 +150,7 @@ async fn test_apollo_router_health() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_schema_composition_sdl() {
     // Wait for gateway to be ready
     wait_for_service(APOLLO_GATEWAY_URL, 30).await.expect("Gateway should be ready");
@@ -182,7 +182,7 @@ async fn test_apollo_router_schema_composition_sdl() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_users_subgraph_query() {
     let response = graphql_query(USERS_SUBGRAPH_URL, "query { users { id identifier } }")
         .await
@@ -210,7 +210,7 @@ async fn test_users_subgraph_query() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_orders_subgraph_query() {
     let response = graphql_query(ORDERS_SUBGRAPH_URL, "query { orders { id status total } }")
         .await
@@ -232,7 +232,7 @@ async fn test_orders_subgraph_query() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_products_subgraph_query() {
     let response = graphql_query(PRODUCTS_SUBGRAPH_URL, "query { products { id name price } }")
         .await
@@ -258,7 +258,7 @@ async fn test_products_subgraph_query() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_simple_query() {
     let response = graphql_query(APOLLO_GATEWAY_URL, "query { users { id identifier } }")
         .await
@@ -280,7 +280,7 @@ async fn test_gateway_simple_query() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_two_subgraph_federation() {
     // Query users with their orders (2-hop federation: gateway -> users -> orders)
     let query = r#"
@@ -325,7 +325,7 @@ async fn test_gateway_two_subgraph_federation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_three_subgraph_federation() {
     // Query users with their orders and order products (3-hop federation)
     let query = r#"
@@ -368,7 +368,7 @@ async fn test_gateway_three_subgraph_federation() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_setup_validation() {
     // Validate that 2-subgraph setup is working
     if let Err(e) = setup_federation_tests().await {
@@ -377,7 +377,7 @@ async fn test_two_subgraph_setup_validation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_direct_subgraph_queries() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -425,7 +425,7 @@ async fn test_two_subgraph_direct_subgraph_queries() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_http_federation_from_orders() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -479,7 +479,7 @@ async fn test_two_subgraph_http_federation_from_orders() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_federation_through_gateway() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -536,7 +536,7 @@ async fn test_two_subgraph_federation_through_gateway() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_entity_resolution_consistency() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -592,7 +592,7 @@ async fn test_two_subgraph_entity_resolution_consistency() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_data_consistency() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -647,7 +647,7 @@ async fn test_two_subgraph_data_consistency() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_two_subgraph_federation_performance() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -705,7 +705,7 @@ async fn test_two_subgraph_federation_performance() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_user_entity_resolution() {
     // Query users to get IDs
     let users_response = graphql_query(USERS_SUBGRAPH_URL, "query { users(limit: 1) { id } }")
@@ -747,7 +747,7 @@ async fn test_user_entity_resolution() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_invalid_query_error_handling() {
     let response = graphql_query(APOLLO_GATEWAY_URL, "query { invalidField { subfield } }")
         .await
@@ -769,7 +769,7 @@ async fn test_gateway_invalid_query_error_handling() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_query_performance() {
     let start = std::time::Instant::now();
 
@@ -839,7 +839,7 @@ mod setup {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_user_from_authoritative_subgraph() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -879,7 +879,7 @@ async fn test_extended_mutation_user_from_authoritative_subgraph() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_update_user_from_extended_subgraph() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -940,7 +940,7 @@ async fn test_extended_mutation_update_user_from_extended_subgraph() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_create_order_with_user_reference() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1008,7 +1008,7 @@ async fn test_extended_mutation_create_order_with_user_reference() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_error_handling() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1048,7 +1048,7 @@ async fn test_extended_mutation_error_handling() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_data_consistency_after_mutation() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1122,7 +1122,7 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_through_gateway() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1174,7 +1174,7 @@ async fn test_extended_mutation_through_gateway() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_extended_mutation_performance() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1222,7 +1222,7 @@ async fn test_extended_mutation_performance() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_setup_validation() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1244,7 +1244,7 @@ async fn test_composite_key_setup_validation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_single_field_federation() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1284,7 +1284,7 @@ async fn test_composite_key_single_field_federation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_multi_field_resolution() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1329,7 +1329,7 @@ async fn test_composite_key_multi_field_resolution() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_tenant_isolation_with_composite_keys() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1364,7 +1364,7 @@ async fn test_tenant_isolation_with_composite_keys() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_entity_batch_resolution() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1403,7 +1403,7 @@ async fn test_composite_key_entity_batch_resolution() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_mutation_with_isolation() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1465,7 +1465,7 @@ async fn test_composite_key_mutation_with_isolation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_federation_across_boundaries() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1531,7 +1531,7 @@ async fn test_composite_key_federation_across_boundaries() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_gateway_resolution() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1591,7 +1591,7 @@ async fn test_composite_key_gateway_resolution() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_composite_key_performance() {
     setup_federation_tests().await.expect("Setup should succeed");
 
@@ -1663,7 +1663,7 @@ async fn setup_three_subgraph_tests() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_setup_validation() {
     println!("\n--- Test: 3-subgraph setup validation ---");
 
@@ -1687,7 +1687,7 @@ async fn test_three_subgraph_setup_validation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_direct_queries() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -1721,7 +1721,7 @@ async fn test_three_subgraph_direct_queries() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_order_with_products() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -1758,7 +1758,7 @@ async fn test_three_subgraph_order_with_products() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_federation_users_orders_products() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -1819,7 +1819,7 @@ async fn test_three_subgraph_federation_users_orders_products() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_entity_resolution_chain() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -1893,7 +1893,7 @@ async fn test_three_subgraph_entity_resolution_chain() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_cross_boundary_federation() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -1927,7 +1927,7 @@ async fn test_three_subgraph_cross_boundary_federation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_mutation_propagation() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -1956,7 +1956,7 @@ async fn test_three_subgraph_mutation_propagation() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_batch_entity_resolution() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2004,7 +2004,7 @@ async fn test_three_subgraph_batch_entity_resolution() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_gateway_composition() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2060,7 +2060,7 @@ async fn test_three_subgraph_gateway_composition() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_three_subgraph_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2123,7 +2123,7 @@ async fn test_three_subgraph_performance() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_discovers_subgraphs() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2178,7 +2178,7 @@ async fn test_apollo_router_discovers_subgraphs() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_schema_composition() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2237,7 +2237,7 @@ async fn test_apollo_router_schema_composition() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_sdl_completeness() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2294,7 +2294,7 @@ async fn test_apollo_router_sdl_completeness() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_federation_directives() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2345,7 +2345,7 @@ async fn test_apollo_router_federation_directives() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_query_routing() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2419,7 +2419,7 @@ async fn test_apollo_router_query_routing() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_apollo_router_error_handling() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2497,7 +2497,7 @@ async fn test_apollo_router_error_handling() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_query_performance_baseline() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2563,7 +2563,7 @@ async fn test_federation_query_performance_baseline() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_repeated_query_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2619,7 +2619,7 @@ async fn test_federation_repeated_query_performance() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_batch_vs_sequential_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2695,7 +2695,7 @@ async fn test_federation_batch_vs_sequential_performance() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_large_result_set_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2764,7 +2764,7 @@ async fn test_federation_large_result_set_performance() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_query_complexity_scaling() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2831,7 +2831,7 @@ async fn test_federation_query_complexity_scaling() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_concurrent_query_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2877,7 +2877,7 @@ async fn test_federation_concurrent_query_performance() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_mutation_impact_on_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 
@@ -2924,7 +2924,7 @@ async fn test_federation_mutation_impact_on_performance() {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_federation_different_query_patterns_performance() {
     setup_three_subgraph_tests().await.expect("Setup should succeed");
 

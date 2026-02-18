@@ -215,7 +215,7 @@ fn validate_uuid_format(id: &str) -> Result<(), IDValidationError> {
 /// # Errors
 ///
 /// Returns `IDValidationError` if any ID fails validation.
-#[allow(dead_code)]
+#[allow(dead_code)] // Reason: public API intended for external consumers; no in-crate callers yet
 pub fn validate_ids(ids: &[&str], policy: IDPolicy) -> Result<(), IDValidationError> {
     for id in ids {
         validate_id(id, policy)?;

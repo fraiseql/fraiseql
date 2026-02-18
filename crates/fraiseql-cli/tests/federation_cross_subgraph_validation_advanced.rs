@@ -1,4 +1,4 @@
-//! Extended validation tests for complex federation scenarios:
+//! Advanced cross-subgraph consistency tests
 //! - Complex type hierarchies (4+ subgraphs, nested types)
 //! - Shareable field consistency and conflicts
 //! - Multiple external fields with dependencies
@@ -6,7 +6,6 @@
 //! - Field consistency validation
 //! - Circular type references
 //!
-//! RED PHASE: These tests validate advanced cross-subgraph consistency
 
 use std::collections::HashSet;
 

@@ -465,8 +465,6 @@ impl CredentialRotationManager {
         self.storage.get_all_versions()
     }
 
-    // ========== REFACTOR ENHANCEMENTS ==========
-
     /// Check if any version needs attention (expiring or expired)
     pub fn has_versions_needing_attention(&self) -> Result<bool, String> {
         let history = self.get_version_history()?;

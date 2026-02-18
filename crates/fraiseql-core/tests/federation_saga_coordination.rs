@@ -153,7 +153,7 @@ fn test_saga_executor_creation() {
     // When: Coordinator is instantiated
     // Then: It should be created successfully
 
-    // Placeholder: Full implementation in GREEN phase
+    // Placeholder
 }
 
 #[test]
@@ -166,7 +166,7 @@ fn test_execute_single_step_saga() {
     // Then: Step should execute successfully
     // And: Saga should transition to Completed state
 
-    // Placeholder: Full implementation in GREEN phase
+    // Placeholder
     assert_eq!(steps.len(), 1);
 }
 
@@ -232,7 +232,7 @@ fn test_saga_fails_on_first_step_failure() {
     // And: Steps 2 and 3 should NOT execute
 
     assert_eq!(steps.len(), 3);
-    // Placeholder: Execution logic in GREEN phase
+    // Placeholder: Execution logic
 }
 
 #[test]
@@ -246,7 +246,7 @@ fn test_saga_fails_on_middle_step_failure() {
     // And: Step 1 should remain Completed
 
     assert_eq!(steps[1].mutation_name, "reserveInventory");
-    // Placeholder: Execution logic in GREEN phase
+    // Placeholder: Execution logic
 }
 
 #[test]
@@ -260,7 +260,7 @@ fn test_saga_fails_on_last_step_failure() {
     // And: Compensation should be triggered
 
     assert_eq!(steps[2].mutation_name, "recordPayment");
-    // Placeholder: Execution logic in GREEN phase
+    // Placeholder: Execution logic
 }
 
 #[test]
@@ -292,7 +292,7 @@ fn test_saga_partial_failure_state_tracking() {
     //   - Step 3: Pending (not executed)
 
     assert!(steps.len() >= 3);
-    // Placeholder: State tracking in GREEN phase
+    // Placeholder: State tracking
 }
 
 // ===========================================================================================
@@ -377,7 +377,7 @@ fn test_all_compensations_execute_even_if_one_fails() {
     // And: Saga should record which compensations failed
     // And: Saga state should be CompensationFailed (not Compensated)
 
-    // Placeholder: Compensation resilience in GREEN phase
+    // Placeholder: Compensation resilience
     assert!(steps.len() >= 3);
 }
 
@@ -387,7 +387,7 @@ fn test_compensation_phase_transitions() {
     // When: Compensation phase begins
     // Then: Saga transitions: Failed → Compensating → Compensated
 
-    // Placeholder: State machine in GREEN phase
+    // Placeholder: State machine
 }
 
 // ===========================================================================================
@@ -403,7 +403,7 @@ fn test_saga_state_persisted_to_store() {
     // Then: Saga state should be persisted
     // And: Each step state should be persisted
 
-    // Placeholder: Store integration in GREEN phase
+    // Placeholder: Store integration
 }
 
 #[test]
@@ -416,7 +416,7 @@ fn test_saga_recovered_from_interrupted_execution() {
     // And: Completed steps should not re-execute
     // And: Next pending step should execute
 
-    // Placeholder: Recovery logic in GREEN phase
+    // Placeholder: Recovery logic
 }
 
 #[test]
@@ -428,7 +428,7 @@ fn test_saga_recovered_from_interrupted_compensation() {
     // Then: Compensation should resume from last uncompensated step
     // And: Already-compensated steps should not re-compensate
 
-    // Placeholder: Recovery logic in GREEN phase
+    // Placeholder: Recovery logic
 }
 
 #[test]
@@ -441,7 +441,7 @@ fn test_each_step_persists_result_data() {
     // Then: Result data should be persisted
     // And: Result should be queryable by step ID
 
-    // Placeholder: Result persistence in GREEN phase
+    // Placeholder: Result persistence
     assert_eq!(step.number, 1);
 }
 
@@ -457,7 +457,7 @@ fn test_saga_metadata_persisted() {
     // Then: Metadata should be persisted as JSON
     // And: Metadata should be retrievable
 
-    // Placeholder: Metadata handling in GREEN phase
+    // Placeholder: Metadata handling
     assert_eq!(metadata.len(), 2);
 }
 
@@ -471,7 +471,7 @@ fn test_saga_timestamps_recorded() {
     // And: completed_at should be recorded at finish
     // And: Each step should have start and completion times
 
-    // Placeholder: Timestamp recording in GREEN phase
+    // Placeholder: Timestamp recording
 }
 
 // ===========================================================================================
@@ -487,7 +487,7 @@ fn test_automatic_compensation_strategy() {
     // Then: Compensation should execute automatically without waiting
     // And: All previously completed steps should be compensated
 
-    // Placeholder: Strategy in GREEN phase
+    // Placeholder: Strategy
 }
 
 #[test]
@@ -500,7 +500,7 @@ fn test_manual_compensation_strategy() {
     // And: Compensation should NOT execute automatically
     // And: External system should trigger compensation
 
-    // Placeholder: Strategy in GREEN phase
+    // Placeholder: Strategy
 }
 
 #[test]
@@ -513,7 +513,7 @@ fn test_compensation_strategy_per_saga() {
     // Then: Saga 1 (automatic) should compensate automatically
     // And: Saga 2 (manual) should wait for manual trigger
 
-    // Placeholder: Per-saga strategy in GREEN phase
+    // Placeholder: Per-saga strategy
     assert!(saga_auto_id != saga_manual_id);
 }
 
@@ -574,7 +574,7 @@ fn test_saga_handles_timeout_in_subgraph() {
     // And: Step 1 should be compensated
     // And: Timeout error should be included in saga result
 
-    // Placeholder: Timeout handling in GREEN phase
+    // Placeholder: Timeout handling
     assert_eq!(steps[1].subgraph, "inventory-service");
 }
 
@@ -588,7 +588,7 @@ fn test_saga_detects_network_partition() {
     // And: Should fail saga and trigger compensation
     // And: Should log partition detection for operations team
 
-    // Placeholder: Partition detection in GREEN phase
+    // Placeholder: Partition detection
 }
 
 #[test]
@@ -601,7 +601,7 @@ fn test_saga_distinguishes_failure_types() {
     //   - NetworkFailure (subgraph unreachable)
     //   - CompensationFailure (compensation step failed)
 
-    // Placeholder: Failure categorization in GREEN phase
+    // Placeholder: Failure categorization
 }
 
 // ===========================================================================================
@@ -615,7 +615,7 @@ fn test_saga_creation_fails_with_empty_steps() {
     // Then: Should return error
     // And: Error should indicate "saga must have at least one step"
 
-    // Placeholder: Validation in GREEN phase
+    // Placeholder: Validation
 }
 
 #[test]
@@ -625,7 +625,7 @@ fn test_saga_creation_validates_step_order() {
     // Then: Should reorder steps to correct sequence
     // Or: Should return error indicating invalid ordering
 
-    // Placeholder: Order validation in GREEN phase
+    // Placeholder: Order validation
 }
 
 #[test]
@@ -635,7 +635,7 @@ fn test_saga_handles_duplicate_step_ids() {
     // Then: Should generate new unique IDs for duplicate steps
     // Or: Should return error indicating duplicate IDs
 
-    // Placeholder: ID validation in GREEN phase
+    // Placeholder: ID validation
 }
 
 #[test]
@@ -646,7 +646,7 @@ fn test_saga_validates_subgraph_exists() {
     // And: Saga state should be Failed
     // And: No compensation should be triggered (no steps executed)
 
-    // Placeholder: Subgraph validation in GREEN phase
+    // Placeholder: Subgraph validation
 }
 
 #[test]
@@ -656,7 +656,7 @@ fn test_saga_validates_mutation_exists() {
     // Then: Should fail with "Mutation not found" error
     // And: Saga state should be Failed
 
-    // Placeholder: Mutation validation in GREEN phase
+    // Placeholder: Mutation validation
 }
 
 #[test]
@@ -669,7 +669,7 @@ fn test_saga_handles_idempotent_execution() {
     // And: Should return existing saga state
     // And: Should NOT re-execute steps
 
-    // Placeholder: Idempotency in GREEN phase
+    // Placeholder: Idempotency
 }
 
 #[test]
@@ -681,7 +681,7 @@ fn test_compensation_idempotency() {
     // Then: Compensation should be idempotent
     // And: Re-executing should produce same result
 
-    // Placeholder: Compensation idempotency in GREEN phase
+    // Placeholder: Compensation idempotency
 }
 
 // ===========================================================================================
@@ -697,7 +697,7 @@ fn test_saga_coordinator_create() {
     // Then: Should return SagaId
     // And: Saga should be in Pending state
 
-    // Placeholder: API in GREEN phase
+    // Placeholder: API
     assert!(steps.len() == 3);
 }
 
@@ -710,7 +710,7 @@ fn test_saga_coordinator_execute() {
     // Then: Saga should transition to Executing state
     // And: Steps should execute sequentially
 
-    // Placeholder: API in GREEN phase
+    // Placeholder: API
 }
 
 #[test]
@@ -726,7 +726,7 @@ fn test_saga_coordinator_get_status() {
     //   - Started at timestamp
     //   - Progress percentage
 
-    // Placeholder: API in GREEN phase
+    // Placeholder: API
 }
 
 #[test]
@@ -740,7 +740,7 @@ fn test_saga_coordinator_cancel() {
     // And: Compensation should begin
     // And: Saga should transition to Failed (due to cancellation)
 
-    // Placeholder: API in GREEN phase
+    // Placeholder: API
 }
 
 #[test]
@@ -755,7 +755,7 @@ fn test_saga_coordinator_get_result() {
     //   - Execution duration
     //   - Any errors
 
-    // Placeholder: API in GREEN phase
+    // Placeholder: API
 }
 
 #[test]
@@ -767,7 +767,7 @@ fn test_saga_coordinator_list_in_flight() {
     //   - Can filter by state or subgraph
     //   - Can order by start time
 
-    // Placeholder: API in GREEN phase
+    // Placeholder: API
 }
 
 // ===========================================================================================
@@ -783,7 +783,7 @@ fn test_saga_logs_execution_start() {
     //   - Step count
     //   - Target subgraphs
 
-    // Placeholder: Logging in GREEN phase
+    // Placeholder: Logging
 }
 
 #[test]
@@ -796,7 +796,7 @@ fn test_saga_logs_step_execution() {
     //   - Subgraph
     //   - Mutation name
 
-    // Placeholder: Logging in GREEN phase
+    // Placeholder: Logging
 }
 
 #[test]
@@ -810,7 +810,7 @@ fn test_saga_logs_failure_with_context() {
     //   - Completed step count
     //   - Whether compensation is triggered
 
-    // Placeholder: Logging in GREEN phase
+    // Placeholder: Logging
 }
 
 #[test]
@@ -822,7 +822,7 @@ fn test_saga_logs_compensation_start() {
     //   - Number of steps to compensate
     //   - Reason for compensation
 
-    // Placeholder: Logging in GREEN phase
+    // Placeholder: Logging
 }
 
 #[test]
@@ -835,5 +835,5 @@ fn test_saga_exports_metrics() {
     //   - federation_saga_steps_executed_total
     //   - federation_saga_compensations_total
 
-    // Placeholder: Metrics in GREEN phase
+    // Placeholder: Metrics
 }

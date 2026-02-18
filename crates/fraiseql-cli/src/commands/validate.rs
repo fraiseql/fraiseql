@@ -83,16 +83,6 @@ pub struct TypeAnalysis {
     pub transitive_dependencies: Vec<String>,
 }
 
-/// Run the validate command (legacy interface)
-///
-/// This is just a wrapper around compile with check=true
-#[allow(dead_code)]
-pub async fn run(input: &str) -> Result<()> {
-    // Validate is just compile --check (no database validation)
-    super::compile::run(input, None, None, Vec::new(), Vec::new(), Vec::new(), "unused", true, None)
-        .await
-}
-
 /// Run validation with options and return structured result
 pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandResult> {
     // Load and parse schema
@@ -180,7 +170,6 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
             code: Some("VALIDATION_FAILED".to_string()),
             errors,
             warnings,
-            exit_code: 2,
         })
     } else if !warnings.is_empty() {
         Ok(CommandResult::success_with_warnings("validate", data, warnings))

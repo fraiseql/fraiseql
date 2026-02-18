@@ -6,7 +6,6 @@
 //! - Failure detection and compensation triggering
 //! - State machine transitions
 //!
-//! REFACTOR PHASE: Code is tested, improving design and documentation
 //!
 //! ## Architecture
 //!
@@ -661,7 +660,7 @@ fn create_test_saga_slow_step() -> Saga {
 
 /// Execute saga synchronously and update state machine
 ///
-/// Minimal implementation for GREEN phase:
+/// Minimal implementation:
 /// 1. Validates all subgraph names are valid
 /// 2. Checks if any steps are in Failed state
 /// 3. Transitions saga to Completed or Compensating based on failures

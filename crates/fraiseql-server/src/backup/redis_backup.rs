@@ -7,6 +7,8 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// Redis backup provider.
 ///
 /// Creates backups using BGSAVE (RDB) or BGREWRITEAOF (AOF).
+// TODO(v2.1.0): wire into BackupManager
+// Reason: implemented but not yet registered in BackupManager
 #[allow(dead_code)]
 pub struct RedisBackupProvider {
     /// Redis connection URL

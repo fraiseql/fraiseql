@@ -8,45 +8,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-/// Context for command execution - holds formatter and logging options
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct CliContext {
-    /// Output formatter (JSON/text/quiet mode)
-    pub formatter: OutputFormatter,
-    /// Enable verbose logging
-    pub verbose:   bool,
-    /// Enable debug logging
-    pub debug:     bool,
-}
-
-impl CliContext {
-    /// Create a new CLI context
-    #[allow(
-        dead_code,
-        clippy::too_many_arguments,
-        clippy::fn_params_excessive_bools,
-        clippy::missing_const_for_fn
-    )]
-    pub fn new(json_mode: bool, quiet_mode: bool, verbose: bool, debug: bool) -> Self {
-        Self {
-            formatter: OutputFormatter::new(json_mode, quiet_mode),
-            verbose,
-            debug,
-        }
-    }
-
-    /// Print a result and return the exit code
-    #[allow(dead_code)]
-    pub fn print_result(&self, result: &CommandResult) -> i32 {
-        let output = self.formatter.format(result);
-        if !output.is_empty() {
-            println!("{output}");
-        }
-        result.exit_code
-    }
-}
-
 /// Formats command output in different modes
 #[derive(Debug, Clone)]
 pub struct OutputFormatter {
@@ -159,10 +120,6 @@ pub struct CommandResult {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
 
-    /// Exit code for the process: 0=success, 1=error, 2=validation-failed
-    #[serde(skip)]
-    #[allow(dead_code)]
-    pub exit_code: i32,
 }
 
 // ============================================================================
@@ -324,7 +281,6 @@ impl CommandResult {
             code:      None,
             errors:    Vec::new(),
             warnings:  Vec::new(),
-            exit_code: 0,
         }
     }
 
@@ -338,7 +294,6 @@ impl CommandResult {
             code: None,
             errors: Vec::new(),
             warnings,
-            exit_code: 0,
         }
     }
 
@@ -352,30 +307,9 @@ impl CommandResult {
             code:      Some(code.to_string()),
             errors:    Vec::new(),
             warnings:  Vec::new(),
-            exit_code: 1,
         }
     }
 
-    /// Create a validation failure result
-    #[allow(dead_code)]
-    pub fn validation_failed(command: &str, errors: Vec<String>) -> Self {
-        Self {
-            status: "validation-failed".to_string(),
-            command: command.to_string(),
-            data: None,
-            message: None,
-            code: None,
-            errors,
-            warnings: Vec::new(),
-            exit_code: 2,
-        }
-    }
-
-    /// Create an error result from an anyhow::Error
-    #[allow(dead_code)]
-    pub fn from_error(command: &str, error: anyhow::Error) -> Self {
-        Self::error(command, &error.to_string(), "INTERNAL_ERROR")
-    }
 }
 
 #[cfg(test)]
@@ -440,27 +374,6 @@ mod tests {
         assert_eq!(parsed["status"], "error");
         assert_eq!(parsed["command"], "compile");
         assert_eq!(parsed["code"], "PARSE_ERROR");
-    }
-
-    #[test]
-    fn test_output_formatter_validation_failure() {
-        let formatter = OutputFormatter::new(true, false);
-
-        let result = CommandResult::validation_failed(
-            "validate",
-            vec![
-                "Invalid type: User".to_string(),
-                "Missing field: id".to_string(),
-            ],
-        );
-
-        let output = formatter.format(&result);
-
-        let parsed: serde_json::Value =
-            serde_json::from_str(&output).expect("Output must be valid JSON");
-        assert_eq!(parsed["status"], "validation-failed");
-        assert!(parsed["errors"].is_array());
-        assert_eq!(parsed["errors"].as_array().unwrap().len(), 2);
     }
 
     #[test]
@@ -545,34 +458,4 @@ mod tests {
         assert_eq!(parsed["status"], "success");
     }
 
-    #[test]
-    fn test_command_result_from_anyhow_error() {
-        let error = anyhow::anyhow!("Database connection failed");
-        let result = CommandResult::from_error("serve", error);
-
-        assert_eq!(result.status, "error");
-        assert_eq!(result.command, "serve");
-    }
-
-    #[test]
-    fn test_validation_failed_exit_code() {
-        let result = CommandResult::validation_failed("validate", vec!["Error 1".to_string()]);
-
-        // Validation failures should have a specific exit code
-        assert_eq!(result.exit_code, 2);
-    }
-
-    #[test]
-    fn test_error_exit_code() {
-        let result = CommandResult::error("compile", "Failed", "FAILED");
-
-        assert_eq!(result.exit_code, 1);
-    }
-
-    #[test]
-    fn test_success_exit_code() {
-        let result = CommandResult::success("compile", json!({}));
-
-        assert_eq!(result.exit_code, 0);
-    }
 }

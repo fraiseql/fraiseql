@@ -3,7 +3,7 @@
 //! This module provides the core gRPC service that handles Flight RPC calls,
 //! enabling high-performance columnar data transfer for GraphQL queries.
 //!
-//! # Authentication (Phase 2.2b)
+//! # Authentication
 //!
 //! **Authenticated Query Execution**:
 //! - `handshake()` validates JWT tokens and returns 5-minute HMAC-SHA256 session tokens
@@ -142,8 +142,8 @@ pub struct FraiseQLFlightService {
     executor:             Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
     cache:                Option<Arc<QueryCache>>,
-    /// Phase 2: Optional security context for authenticated requests
-    /// Stores session information from successful handshake
+    /// Optional security context for authenticated requests.
+    /// Stores session information from successful handshake.
     security_context:     Option<SecurityContext>,
     /// OIDC validator for JWT authentication during handshake
     oidc_validator:       Option<Arc<OidcValidator>>,
@@ -153,8 +153,8 @@ pub struct FraiseQLFlightService {
     subscription_manager: Arc<SubscriptionManager>,
 }
 
-/// Phase 2: Security context for authenticated Flight requests
-/// Stores session information from JWT validation during handshake
+/// Security context for authenticated Flight requests.
+/// Stores session information from JWT validation during handshake.
 #[derive(Debug, Clone)]
 pub struct SecurityContext {
     /// Session token returned from handshake
@@ -308,7 +308,7 @@ impl FraiseQLFlightService {
         }
     }
 
-    /// Pre-load schemas from database at startup (Phase 5.1 optimization).
+    /// Pre-load schemas from database at startup.
     ///
     /// For production deployments, call this method after creating the service to pre-load
     /// all va_* and ta_* view schemas from the database. This reduces first-query latency
@@ -331,7 +331,7 @@ impl FraiseQLFlightService {
     ///     let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create adapter");
     ///     let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
     ///
-    ///     // Pre-load schemas from database at startup (Phase 5.1)
+    ///     // Pre-load schemas from database at startup
     ///     let preloaded = service.schema_registry().preload_all_schemas(&**db_adapter).await?;
     ///     eprintln!("Preloaded {} schemas from database", preloaded);
     ///
@@ -427,7 +427,7 @@ impl FraiseQLFlightService {
         &self.subscription_manager
     }
 
-    /// Phase 2.2: Check if service has authenticated security context
+    /// Check if service has authenticated security context.
     ///
     /// Returns true if handshake was successful and security context is set.
     /// Subsequent Flight RPC calls require valid authentication.
@@ -436,7 +436,7 @@ impl FraiseQLFlightService {
         self.security_context.is_some()
     }
 
-    /// Phase 2.2: Get security context if authenticated
+    /// Get security context if authenticated.
     ///
     /// Returns the current security context if authentication succeeded.
     /// Contains session token, user ID, and expiration information.
@@ -445,7 +445,7 @@ impl FraiseQLFlightService {
         self.security_context.as_ref()
     }
 
-    /// Phase 2.2: Set security context after successful authentication
+    /// Set security context after successful authentication.
     ///
     /// Called internally after handshake succeeds to establish authenticated session.
     /// In production, this would be called after JWT validation succeeds.
@@ -470,14 +470,7 @@ impl FraiseQLFlightService {
     ///
     /// Converts GraphQL query results to Arrow Flight format for efficient columnar transfer.
     ///
-    /// # Phase 2.3 Implementation
-    ///
-    /// - **Phase 1.2a**: ✅ Basic Arrow Flight streaming (placeholder data)
-    /// - **Phase 1.3**: 🟡 Executor Integration Ready (circular dependency solved)
-    /// - **Phase 2.3**: 🟡 SecurityContext passed to executor (RLS filtering)
-    /// - **Phase 1.3b**: 🔴 Real execution pending (requires fraiseql-server integration)
-    ///
-    /// # Phase 2.3 Integration
+    /// # Security Integration
     ///
     /// SecurityContext flows through the executor for row-level security (RLS):
     ///
@@ -511,7 +504,7 @@ impl FraiseQLFlightService {
             query
         );
 
-        // Phase 2.3b: Execute query with RLS filtering via executor
+        // Execute query with RLS filtering via executor
         if let Some(executor) = self.executor() {
             // Call executor.execute_with_security() to get JSON result with RLS applied
             let json_result = executor
@@ -625,8 +618,6 @@ impl FraiseQLFlightService {
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     /// Results are cached if caching is enabled.
     ///
-    /// # Phase 2.3 Integration
-    ///
     /// SecurityContext is passed through for RLS filtering at the executor level.
     /// When executor is configured, RLS policies determine what rows the user can access.
     ///
@@ -641,12 +632,11 @@ impl FraiseQLFlightService {
     ///
     /// # Implementation Status
     ///
-    /// Currently functional with full Phase 5 optimizations:
-    /// - ✅ Phase 5.1: Pre-load and cache pre-compiled Arrow schemas from metadata
-    /// - ✅ Schema optimization with registry
-    /// - ✅ Database adapter for real data execution (fallback to placeholder if not configured)
-    /// - ✅ RLS filtering via SecurityContext (passed to executor when configured)
-    /// - ⏳ Phase 5.2: Zero-copy row-to-Arrow conversion (deferred to v2.1)
+    /// Currently functional with optimizations:
+    /// - Pre-load and cache pre-compiled Arrow schemas from metadata
+    /// - Schema optimization with registry
+    /// - Database adapter for real data execution (fallback to placeholder if not configured)
+    /// - RLS filtering via SecurityContext (passed to executor when configured)
     async fn execute_optimized_view(
         &self,
         view: &str,
@@ -754,8 +744,6 @@ impl FraiseQLFlightService {
     /// Efficiently executes multiple queries in sequence and returns combined Arrow results.
     /// Improves throughput by 20-30% compared to individual requests.
     /// Results are cached if caching is enabled, improving throughput further for repeated batches.
-    ///
-    /// # Phase 2.3 Integration
     ///
     /// SecurityContext is passed through for RLS filtering.
     /// When executor is configured, each query respects RLS policies.
@@ -1067,7 +1055,7 @@ impl FraiseQLFlightService {
         Box::pin(stream)
     }
 
-    /// Handle RefreshSchemaRegistry action (Phase 4).
+    /// Handle `RefreshSchemaRegistry` action.
     ///
     /// Admin-only action that safely reloads schema definitions from the database
     /// without disrupting running queries (Copy-on-Write via Arc<Schema>).
@@ -1110,7 +1098,7 @@ impl FraiseQLFlightService {
         Box::pin(stream)
     }
 
-    /// Handle GetSchemaVersions action (Phase 4).
+    /// Handle `GetSchemaVersions` action.
     ///
     /// Returns information about all registered schemas and their versions.
     /// Useful for debugging schema reload issues.
@@ -1344,7 +1332,7 @@ impl FlightService for FraiseQLFlightService {
     type ListActionsStream = ActionTypeStream;
     type ListFlightsStream = FlightInfoStream;
 
-    /// Phase 2.1: Handshake for JWT authentication
+    /// Handshake for JWT authentication.
     ///
     /// Extracts JWT token from client request and validates it.
     /// Returns a session token on success for authenticated Flight requests.
@@ -1371,7 +1359,7 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::HandshakeStream>, Status> {
         info!("Handshake called - JWT authentication");
 
-        // Phase 2.1 Implementation: Extract and validate JWT from request
+        // Extract and validate JWT from request
 
         // Get the first handshake request which contains the JWT
         let handshake_request = match request.get_mut().message().await {
@@ -1548,13 +1536,13 @@ impl FlightService for FraiseQLFlightService {
 
     /// Fetch data stream (main data retrieval method).
     ///
-    /// Phase 2.2b: Requires authenticated session token from handshake.
+    /// Requires authenticated session token from handshake.
     /// All queries require valid session tokens and pass security context to executor for RLS.
     async fn do_get(
         &self,
         request: Request<Ticket>,
     ) -> std::result::Result<Response<Self::DoGetStream>, Status> {
-        // Phase 2.2b: Validate session token from metadata
+        // Validate session token from metadata
         let session_token = extract_session_token(&request)?;
         let authenticated_user = validate_session_token(&session_token)?;
 
@@ -1571,7 +1559,7 @@ impl FlightService for FraiseQLFlightService {
 
         info!("DoGet called (authenticated): {:?}", ticket);
 
-        // Phase 2.3: Create security context for RLS filtering
+        // Create security context for RLS filtering
         let security_context = fraiseql_core::security::SecurityContext::from_user(
             authenticated_user,
             uuid::Uuid::new_v4().to_string(),
@@ -1579,7 +1567,7 @@ impl FlightService for FraiseQLFlightService {
 
         match ticket {
             FlightTicket::GraphQLQuery { query, variables } => {
-                // Phase 2.3: Pass security_context to execute_graphql_query for RLS
+                // Pass security_context to execute_graphql_query for RLS
                 let stream =
                     self.execute_graphql_query(&query, variables, &security_context).await?;
                 Ok(Response::new(Box::pin(stream)))
@@ -1591,7 +1579,7 @@ impl FlightService for FraiseQLFlightService {
                 limit,
                 offset,
             } => {
-                // Phase 2.3: Pass security_context to execute_optimized_view for RLS
+                // Pass security_context to execute_optimized_view for RLS
                 let stream = self
                     .execute_optimized_view(
                         &view,
@@ -1617,7 +1605,7 @@ impl FlightService for FraiseQLFlightService {
                 format,
             } => self.execute_bulk_export(&table, filter, limit, format, &security_context).await,
             FlightTicket::BatchedQueries { queries } => {
-                // Phase 2.3: Pass security_context for batched query execution with RLS
+                // Pass security_context for batched query execution with RLS
                 let stream = self.execute_batched_queries(queries, &security_context).await?;
                 Ok(Response::new(Box::pin(stream)))
             },
@@ -1626,13 +1614,13 @@ impl FlightService for FraiseQLFlightService {
 
     /// Upload data stream (for client-to-server data transfer).
     ///
-    /// Phase 2.2b: Requires authenticated session token from handshake.
-    /// Authenticated data uploads with RLS checks (implementation deferred to Phase 2.3+).
+    /// Requires authenticated session token from handshake.
+    /// Authenticated data uploads with RLS checks.
     async fn do_put(
         &self,
         request: Request<Streaming<FlightData>>,
     ) -> std::result::Result<Response<Self::DoPutStream>, Status> {
-        // Phase 2.2b: Validate session token for data uploads
+        // Validate session token for data uploads
         let session_token = extract_session_token(&request)?;
         let authenticated_user = validate_session_token(&session_token)?;
 
@@ -1793,7 +1781,7 @@ impl FlightService for FraiseQLFlightService {
 
     /// Execute an action (RPC method for operations beyond data transfer).
     ///
-    /// Phase 2.2b: Requires authenticated session token from handshake.
+    /// Requires authenticated session token from handshake.
     /// Admin operations require appropriate scopes.
     ///
     /// Supported actions:
@@ -1805,7 +1793,7 @@ impl FlightService for FraiseQLFlightService {
         &self,
         request: Request<Action>,
     ) -> std::result::Result<Response<Self::DoActionStream>, Status> {
-        // Phase 2.2b: Validate session token for admin operations
+        // Validate session token for admin operations
         let session_token = extract_session_token(&request)?;
         let authenticated_user = validate_session_token(&session_token)?;
 
@@ -1861,7 +1849,7 @@ impl FlightService for FraiseQLFlightService {
 
     /// List available actions.
     ///
-    /// Phase 3.2 Implementation: List Flight Actions for admin operations
+    /// Returns the list of supported Flight actions for admin operations.
     async fn list_actions(
         &self,
         _request: Request<Empty>,
@@ -2311,8 +2299,7 @@ impl FlightService for FraiseQLFlightService {
     /// Get flight info for a descriptor (metadata about available data).
     ///
     /// This method provides metadata about what data is available without
-    /// actually fetching it. Will be implemented in future versions+.
-    /// Phase 3.1: Get schema and metadata for a dataset
+    /// actually fetching it.
     ///
     /// Returns FlightInfo containing schema and endpoint information for a specified
     /// dataset (view, query, or observer events).
@@ -2342,8 +2329,6 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<FlightInfo>, Status> {
         let descriptor = request.into_inner();
         info!("GetFlightInfo called: {:?}", descriptor);
-
-        // Phase 3.1 Implementation: Get schema and metadata for dataset
 
         // Extract path from descriptor
         if descriptor.path.is_empty() {
@@ -3060,20 +3045,7 @@ mod tests {
         assert!(service.has_executor());
     }
 
-    /// Phase 2.1: Documents handshake behavior for JWT validation
-    #[test]
-    fn test_handshake_jwt_validation_planned() {
-        // Phase 2.1 will implement JWT validation in handshake()
-        // This test documents the expected behavior:
-        // 1. Extract JWT from HandshakeRequest.payload
-        // 2. Validate JWT using JwtValidator
-        // 3. Return HandshakeResponse with session token on success
-        // 4. Return error on validation failure
-        let _test_note = "Handshake JWT validation to be implemented in GREEN phase";
-        assert!(!_test_note.is_empty());
-    }
-
-    /// Phase 2.1: JWT extraction from Bearer format
+    /// JWT extraction from Bearer format.
     #[test]
     fn test_jwt_extraction_from_bearer_format() {
         // Helper for extracting JWT from "Bearer <token>" format (used in handshake)
@@ -3094,7 +3066,7 @@ mod tests {
         assert_eq!(token, None);
     }
 
-    /// Phase 2.2: Tests SecurityContext creation and validation
+    /// Tests `SecurityContext` creation and validation.
     #[test]
     fn test_security_context_creation() {
         let context = SecurityContext {
@@ -3108,13 +3080,13 @@ mod tests {
         assert!(context.expiration.is_some());
     }
 
-    /// Phase 2.2: Tests that security context can be set on service
+    /// Tests that security context can be set on service.
     #[test]
     fn test_service_with_security_context() {
         let service = FraiseQLFlightService::new();
         assert!(service.security_context.is_none());
 
-        // In Phase 2.2b, set security context after successful handshake
+        // Set security context after successful handshake
         let _context = SecurityContext {
             session_token: "session-abc".to_string(),
             user_id:       "user-123".to_string(),
@@ -3122,10 +3094,9 @@ mod tests {
         };
 
         // security_context can be set on service after handshake completes
-        // (will be done in GREEN phase implementation)
     }
 
-    /// Phase 3.1: Tests that get_flight_info returns schema for views
+    /// Tests that `get_flight_info` returns schema for views.
     #[tokio::test]
     async fn test_get_flight_info_for_optimized_view() {
         use tonic::Request;
@@ -3154,7 +3125,7 @@ mod tests {
         let request = Request::new(descriptor);
         let result = service.get_flight_info(request).await;
 
-        // Phase 3.1 should return FlightInfo with schema
+        // Should return FlightInfo with schema
         assert!(result.is_ok(), "get_flight_info should succeed for valid view");
         let response = result.unwrap();
         let flight_info = response.into_inner();
@@ -3163,7 +3134,7 @@ mod tests {
         assert!(!flight_info.schema.is_empty(), "Schema should not be empty");
     }
 
-    /// Phase 3.1: Tests that get_flight_info returns error for invalid view
+    /// Tests that `get_flight_info` returns error for invalid view.
     #[tokio::test]
     async fn test_get_flight_info_invalid_view() {
         use tonic::Request;
@@ -3196,7 +3167,7 @@ mod tests {
         assert!(result.is_err(), "get_flight_info should fail for non-existent view");
     }
 
-    /// Phase 3.2: Tests that list_actions returns available actions
+    /// Tests that `list_actions` returns available actions.
     #[tokio::test]
     async fn test_list_actions_returns_action_types() {
         use arrow_flight::flight_service_server::FlightService;
@@ -3229,8 +3200,7 @@ mod tests {
         assert!(action_names.contains(&"HealthCheck"), "Should have HealthCheck action");
     }
 
-    /// Phase 2.2b: Tests that do_action requires authentication
-    /// Phase 3.2: Tests that do_action executes HealthCheck action with authentication
+    /// Tests that `do_action` requires authentication and executes HealthCheck action.
     #[tokio::test]
     async fn test_do_action_health_check() {
         use arrow_flight::flight_service_server::FlightService;
@@ -3244,7 +3214,6 @@ mod tests {
             body:   vec![].into(),
         };
 
-        // Phase 2.2b: Must include authentication
         // Create a test user and session token
         let now = Utc::now();
         let exp = now + chrono::Duration::minutes(5);
@@ -3284,7 +3253,7 @@ mod tests {
         }
     }
 
-    /// Phase 3.2: Tests that do_action returns error for unknown action
+    /// Tests that `do_action` returns error for unknown action.
     #[tokio::test]
     async fn test_do_action_unknown_action() {
         use arrow_flight::flight_service_server::FlightService;
@@ -3298,7 +3267,7 @@ mod tests {
             body:   vec![].into(),
         };
 
-        // Phase 2.2b: Must include authentication
+        // Must include authentication
         let now = Utc::now();
         let exp = now + chrono::Duration::minutes(5);
 

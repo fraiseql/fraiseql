@@ -548,10 +548,6 @@ impl<T, E: Into<FraiseQLError>> ErrorContext<T> for std::result::Result<T, E> {
     }
 }
 
-// ============================================================================
-// Validation Field Error (Phase 1, Cycle 1)
-// ============================================================================
-
 /// A validation error for a specific field in an input object.
 ///
 /// Used to report validation failures with field-level granularity,
@@ -659,7 +655,6 @@ mod tests {
         assert!(err.to_string().contains("failed to load config"));
     }
 
-    // Phase 1, Cycle 1: Enhanced Validation Error Types
     #[test]
     fn test_validation_field_error_creation() {
         let field_err = ValidationFieldError::new("user.email", "pattern", "Invalid email format");

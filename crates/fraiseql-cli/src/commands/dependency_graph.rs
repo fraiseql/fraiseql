@@ -201,7 +201,6 @@ pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
             code: Some("CIRCULAR_DEPENDENCY".to_string()),
             errors,
             warnings,
-            exit_code: 2,
         });
     }
 

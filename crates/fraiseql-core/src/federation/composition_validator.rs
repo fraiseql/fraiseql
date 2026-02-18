@@ -16,7 +16,7 @@
 //!     ("orders".to_string(), orders_metadata),
 //! ];
 //!
-//! let validator = CompositionValidator::new(ConflictResolutionStrategy::Error);
+//! let validator = CompositionValidator::new();
 //! let composed = validator.validate_composition(subgraphs)?;
 //! ```
 //!
@@ -31,7 +31,7 @@
 //!
 //! 2. **Schema Composition** (CompositionValidator)
 //!    - Merges type definitions from all subgraphs
-//!    - Applies conflict resolution strategy
+//!    - Errors on type conflicts (safest default)
 //!    - Produces final supergraph schema
 
 use std::collections::HashMap;
@@ -392,23 +392,19 @@ pub enum ConflictResolutionStrategy {
 /// Validates cross-subgraph consistency and produces a composed supergraph schema
 /// that combines all federated types and directives from input subgraphs.
 #[derive(Debug)]
-pub struct CompositionValidator {
-    #[allow(dead_code)]
-    strategy: ConflictResolutionStrategy,
-}
+pub struct CompositionValidator;
 
 impl CompositionValidator {
-    /// Create a new composition validator with specified conflict resolution strategy
+    /// Create a new composition validator
     ///
-    /// # Arguments
-    /// - `strategy`: Determines how to handle conflicts when composing subgraphs
+    /// Type conflicts always produce errors (safest default).
     ///
     /// # Example
     /// ```ignore
-    /// let validator = CompositionValidator::new(ConflictResolutionStrategy::Error);
+    /// let validator = CompositionValidator::new();
     /// ```
-    pub fn new(strategy: ConflictResolutionStrategy) -> Self {
-        Self { strategy }
+    pub fn new() -> Self {
+        Self
     }
 
     /// Validate and compose multiple subgraphs into a supergraph
@@ -430,7 +426,7 @@ impl CompositionValidator {
     ///     ("orders".to_string(), orders_metadata),
     /// ];
     ///
-    /// let validator = CompositionValidator::new(ConflictResolutionStrategy::Error);
+    /// let validator = CompositionValidator::new();
     /// let composed = validator.validate_composition(subgraphs)?;
     /// ```
     pub fn validate_composition(
@@ -482,6 +478,12 @@ impl CompositionValidator {
 
         composed.types = type_definitions.values().cloned().collect();
         Ok(composed)
+    }
+}
+
+impl Default for CompositionValidator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -566,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_composition_validator_creation() {
-        let _validator = CompositionValidator::new(ConflictResolutionStrategy::Error);
+        let _validator = CompositionValidator::new();
     }
 
     #[test]

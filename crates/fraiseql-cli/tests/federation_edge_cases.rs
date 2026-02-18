@@ -1,4 +1,4 @@
-//! Comprehensive edge case testing for production-grade federation:
+//! Federation edge case tests
 //! - Directive conflict scenarios (@requires/@provides/@key/@shareable interactions)
 //! - Conflicting @key definitions across subgraphs
 //! - Deep type extension chains (10+ levels)
@@ -7,7 +7,6 @@
 //! - Federation version compatibility mismatches
 //! - Real-world error conditions
 //!
-//! REFACTOR PHASE: All 18 tests passing, adding comprehensive documentation
 
 // ============================================================================
 // Test: Directive Conflict Scenarios

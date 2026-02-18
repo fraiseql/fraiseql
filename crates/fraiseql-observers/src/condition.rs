@@ -18,7 +18,6 @@
 
 use std::fmt;
 
-use regex::Regex;
 use serde_json::Value;
 
 use crate::{
@@ -106,26 +105,13 @@ impl fmt::Display for ConditionAst {
 
 /// Condition parser and evaluator
 pub struct ConditionParser {
-    // Regex patterns for tokenization (marked for future advanced parsing)
-    #[allow(dead_code)]
-    comparison_re: Regex,
-    #[allow(dead_code)]
-    function_re:   Regex,
-    #[allow(dead_code)]
-    identifier_re: Regex,
 }
 
 impl ConditionParser {
     /// Create a new condition parser
     #[must_use]
-    pub fn new() -> Self {
-        Self {
-            comparison_re: Regex::new(r"(\w+)\s*(==|!=|>|<|>=|<=)\s*('([^']*)')")
-                .expect("Invalid regex"),
-            function_re:   Regex::new(r"(\w+)\s*\(\s*'([^']*)'\s*(?:,\s*'([^']*)'\s*)?\)")
-                .expect("Invalid regex"),
-            identifier_re: Regex::new(r"^[a-zA-Z_]\w*$").expect("Invalid regex"),
-        }
+    pub const fn new() -> Self {
+        Self {}
     }
 
     /// Parse a condition string into an AST

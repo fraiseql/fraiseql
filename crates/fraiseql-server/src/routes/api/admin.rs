@@ -73,8 +73,6 @@ pub struct AdminConfigResponse {
 /// When applied, the schema is atomically swapped without stopping execution.
 ///
 /// Requires admin token authentication.
-///
-/// Phase 6.2: Schema reload with validation
 pub async fn reload_schema_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Json(req): Json<ReloadSchemaRequest>,
@@ -127,8 +125,6 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
 }
 
 /// Cache statistics response.
-///
-/// Phase 5.4: Cache metrics exposure
 #[derive(Debug, Serialize)]
 pub struct CacheStatsResponse {
     /// Number of entries currently in cache
@@ -149,8 +145,6 @@ pub struct CacheStatsResponse {
 /// - **pattern**: Clear entries matching a glob pattern
 ///
 /// Requires admin token authentication.
-///
-/// Phase 5.1-5.3: Cache clearing implementation
 pub async fn cache_clear_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Json(req): Json<CacheClearRequest>,
@@ -158,7 +152,6 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
     // Validate scope and required parameters
     match req.scope.as_str() {
         "all" => {
-            // Phase 5.1: Clear all cache entries
             if let Some(cache) = state.cache() {
                 let entries_before = cache.len();
                 cache.clear();
@@ -182,7 +175,6 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 ));
             }
 
-            // Phase 5.2: Clear entries for this entity type
             if let Some(cache) = state.cache() {
                 let entity_type = req.entity_type.as_ref().unwrap();
                 // Convert entity type to view name pattern (e.g., User → v_user)
@@ -211,7 +203,6 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 ));
             }
 
-            // Phase 5.3: Clear entries matching pattern
             if let Some(cache) = state.cache() {
                 let pattern = req.pattern.as_ref().unwrap();
                 let entries_cleared = cache.invalidate_pattern(pattern);
@@ -240,8 +231,6 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 /// Returns current cache metrics including entry count, enabled status, and TTL.
 ///
 /// Requires admin token authentication.
-///
-/// Phase 5.4: Cache metrics exposure
 pub async fn cache_stats_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<CacheStatsResponse>>, ApiError> {
@@ -277,8 +266,6 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 /// but excludes API keys, passwords, and other sensitive data.
 ///
 /// Requires admin token authentication.
-///
-/// Phase 6.1: Configuration access with secret redaction
 pub async fn config_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<AdminConfigResponse>>, ApiError> {
@@ -431,7 +418,6 @@ mod tests {
 
     #[test]
     fn test_admin_config_response_sanitization_excludes_paths() {
-        // Phase 6.1: Configuration structure validates no paths are exposed
         let response = AdminConfigResponse {
             version: "2.0.0".to_string(),
             config:  {
@@ -453,7 +439,6 @@ mod tests {
 
     #[test]
     fn test_admin_config_response_includes_limits() {
-        // Phase 6.1: Configuration includes operational limits
         let response = AdminConfigResponse {
             version: "2.0.0".to_string(),
             config:  {
@@ -472,7 +457,6 @@ mod tests {
 
     #[test]
     fn test_cache_stats_response_structure() {
-        // Phase 5.4: Cache statistics structure
         let response = CacheStatsResponse {
             entries_count: 100,
             cache_enabled: true,
@@ -488,7 +472,6 @@ mod tests {
 
     #[test]
     fn test_reload_schema_request_validates_path() {
-        // Phase 6.2: Schema reload request validation
         let request = ReloadSchemaRequest {
             schema_path:   "/path/to/schema.json".to_string(),
             validate_only: false,
@@ -499,7 +482,6 @@ mod tests {
 
     #[test]
     fn test_reload_schema_request_validate_only_flag() {
-        // Phase 6.2: Schema reload can run in validation-only mode
         let request = ReloadSchemaRequest {
             schema_path:   "/path/to/schema.json".to_string(),
             validate_only: true,
@@ -510,7 +492,6 @@ mod tests {
 
     #[test]
     fn test_reload_schema_response_indicates_success() {
-        // Phase 6.2: Schema reload response structure
         let response = ReloadSchemaResponse {
             success: true,
             message: "Schema reloaded".to_string(),

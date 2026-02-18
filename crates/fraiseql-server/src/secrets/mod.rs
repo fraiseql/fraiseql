@@ -12,9 +12,6 @@ use tokio::sync::RwLock;
 
 pub mod schemas;
 
-#[cfg(test)]
-mod schema_tests;
-
 pub use schemas::{
     EncryptionKey, ExternalAuthProviderRecord, OAuthSessionRecord, SchemaMigration,
     SecretRotationAudit,

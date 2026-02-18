@@ -120,7 +120,7 @@ fn test_unsubscribe_connection_removes_all() {
     let manager = SubscriptionManager::new(schema);
 
     // This test verifies that unsubscribe_connection works
-    // In GREEN phase, we'll verify this with actual subscriptions
+    // TODO(v2.1.0): verify with actual subscriptions
     manager.unsubscribe_connection("conn_123");
 
     assert_eq!(manager.connection_count(), 0);

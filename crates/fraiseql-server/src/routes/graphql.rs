@@ -80,8 +80,6 @@ impl IntoResponse for GraphQLResponse {
 }
 
 /// Server state containing executor and configuration.
-///
-/// Phase 4: Extended with cache and config for API endpoints
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor.
@@ -126,8 +124,6 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Create new application state with cache.
-    ///
-    /// Phase 4.1: Add cache support for query result caching
     #[must_use]
     pub fn with_cache(
         executor: Arc<Executor<A>>,
@@ -145,8 +141,6 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Create new application state with cache and config.
-    ///
-    /// Phase 4.1-4.2: Add cache and config support for API endpoints
     #[must_use]
     pub fn with_cache_and_config(
         executor: Arc<Executor<A>>,
@@ -175,8 +169,6 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get sanitized configuration for safe API exposure.
-    ///
-    /// Phase 4.2: Returns configuration with sensitive data redacted
     pub fn sanitized_config(&self) -> Option<crate::routes::api::types::SanitizedConfig> {
         self.config
             .as_ref()
@@ -538,10 +530,6 @@ mod tests {
         assert_eq!(params.operation_name, Some("TestOp".to_string()));
     }
 
-    // Phase 4.1: Tests for AppState with cache and config
-    // Note: These are structural tests that document Phase 4.1 requirements
-    // Full integration tests require actual executor setup
-
     #[test]
     fn test_appstate_has_cache_field() {
         // Documents: AppState must have cache field
@@ -584,7 +572,6 @@ mod tests {
         assert!(!_note.is_empty());
     }
 
-    // Phase 4.2: Tests for Configuration Access with Sanitization
     #[test]
     fn test_sanitized_config_from_server_config() {
         // SanitizedConfig should extract non-sensitive fields
@@ -670,7 +657,6 @@ mod tests {
         assert!(san2.tls_enabled);
     }
 
-    // Phase 4.3: Tests for Schema Access Pattern
     #[test]
     fn test_appstate_executor_provides_access_to_schema() {
         // Documents: AppState should provide access to schema through executor

@@ -1,19 +1,5 @@
 // Constant-time comparison utilities
 // Prevents timing attacks on token validation
-//
-// ## Integration Points
-//
-// This module provides utilities for constant-time token comparison to prevent
-// timing attacks. Key integration points:
-//
-// 1. **JWT Validation**: Already handled by `jsonwebtoken` crate (uses `subtle` internally)
-// 2. **Session Token Comparison**: Use `compare_session_token()` or `compare_hmac()` when comparing
-//    session token hashes in session_postgres.rs
-// 3. **CSRF State Validation**: Use `compare_state_token()` in state_store retrieve()
-// 4. **PKCE Verifier**: Use `compare_pkce_verifier()` in auth_callback()
-// 5. **Refresh Token Hashes**: Use `compare_refresh_token()` or `compare_hmac()`
-//
-// See constant_time_refactor_notes.md for detailed integration guide.
 
 use subtle::ConstantTimeEq;
 
@@ -135,71 +121,6 @@ impl ConstantTimeOps {
         Self::compare_padded(expected.as_bytes(), actual.as_bytes(), 512)
     }
 
-    /// Compare JWT tokens in constant time
-    /// Handles the common case of JWT with header.payload.signature format
-    pub fn compare_jwt(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare session tokens in constant time
-    /// Handles session_id:signature format
-    pub fn compare_session_token(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare CSRF tokens in constant time
-    pub fn compare_csrf_token(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare HMAC signatures in constant time
-    /// Used for verifying webhook signatures and other HMAC-based authenticity
-    pub fn compare_hmac(expected: &[u8], actual: &[u8]) -> bool {
-        Self::compare(expected, actual)
-    }
-
-    /// Compare refresh tokens in constant time
-    pub fn compare_refresh_token(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare authorization codes in constant time (used in OAuth flows)
-    pub fn compare_auth_code(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare PKCE code verifier in constant time
-    pub fn compare_pkce_verifier(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare state tokens in constant time (CSRF protection in OAuth)
-    pub fn compare_state_token(expected: &str, actual: &str) -> bool {
-        Self::compare_str(expected, actual)
-    }
-
-    /// Compare database-stored token hashes in constant time
-    ///
-    /// Database hashes are typically fixed-length (32-64 bytes for SHA256/512).
-    /// This comparison is safe against timing attacks even with different DB backend latencies.
-    pub fn compare_hash(expected: &[u8], actual: &[u8]) -> bool {
-        Self::compare(expected, actual)
-    }
-
-    /// Compare two tokens and return detailed results (for testing/validation)
-    ///
-    /// Returns: (is_equal, timing_safe)
-    /// This is useful for test cases that need to verify both correctness and constant-time
-    /// behavior.
-    ///
-    /// # Security Note
-    /// This function is only for testing/analysis. Production code should use
-    /// the specific comparison functions (compare, compare_str, compare_padded, etc.)
-    pub fn compare_with_details(expected: &[u8], actual: &[u8]) -> (bool, bool) {
-        let is_equal = Self::compare(expected, actual);
-        let timing_safe = true; // All our compare functions use constant-time operations
-        (is_equal, timing_safe)
-    }
 }
 
 #[cfg(test)]
@@ -259,76 +180,6 @@ mod tests {
 
         let shorter = b"abcdefgh";
         assert!(!ConstantTimeOps::compare_len_safe(expected, shorter));
-    }
-
-    #[test]
-    fn test_jwt_comparison() {
-        let jwt1 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
-        let jwt2 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
-        assert!(ConstantTimeOps::compare_jwt(jwt1, jwt2));
-
-        let different = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature999";
-        assert!(!ConstantTimeOps::compare_jwt(jwt1, different));
-    }
-
-    #[test]
-    fn test_session_token_comparison() {
-        let token1 = "sess_abc123:hmac_sig_xyz";
-        let token2 = "sess_abc123:hmac_sig_xyz";
-        assert!(ConstantTimeOps::compare_session_token(token1, token2));
-
-        let different = "sess_abc123:hmac_sig_abc";
-        assert!(!ConstantTimeOps::compare_session_token(token1, different));
-    }
-
-    #[test]
-    fn test_csrf_token_comparison() {
-        let token1 = "csrf_token_xyz123abc";
-        let token2 = "csrf_token_xyz123abc";
-        assert!(ConstantTimeOps::compare_csrf_token(token1, token2));
-
-        let different = "csrf_token_abc123xyz";
-        assert!(!ConstantTimeOps::compare_csrf_token(token1, different));
-    }
-
-    #[test]
-    fn test_hmac_comparison() {
-        let sig1 = b"\x48\x6d\x61\x63\x5f\x73\x69\x67\x6e\x61\x74\x75\x72\x65";
-        let sig2 = b"\x48\x6d\x61\x63\x5f\x73\x69\x67\x6e\x61\x74\x75\x72\x65";
-        assert!(ConstantTimeOps::compare_hmac(sig1, sig2));
-
-        let different = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-        assert!(!ConstantTimeOps::compare_hmac(sig1, different));
-    }
-
-    #[test]
-    fn test_refresh_token_comparison() {
-        let token1 = "refresh_token_long_value_xyz";
-        let token2 = "refresh_token_long_value_xyz";
-        assert!(ConstantTimeOps::compare_refresh_token(token1, token2));
-
-        let different = "refresh_token_long_value_abc";
-        assert!(!ConstantTimeOps::compare_refresh_token(token1, different));
-    }
-
-    #[test]
-    fn test_auth_code_comparison() {
-        let code1 = "auth_code_xyz_123_abc";
-        let code2 = "auth_code_xyz_123_abc";
-        assert!(ConstantTimeOps::compare_auth_code(code1, code2));
-
-        let different = "auth_code_xyz_123_xyz";
-        assert!(!ConstantTimeOps::compare_auth_code(code1, different));
-    }
-
-    #[test]
-    fn test_state_token_comparison() {
-        let state1 = "state_token_xyz123abc";
-        let state2 = "state_token_xyz123abc";
-        assert!(ConstantTimeOps::compare_state_token(state1, state2));
-
-        let different = "state_token_abc123xyz";
-        assert!(!ConstantTimeOps::compare_state_token(state1, different));
     }
 
     #[test]
@@ -463,39 +314,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compare_hash_sha256() {
-        // SHA256 hashes are 32 bytes
-        let hash1 = b"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf8\x9f\x6f\xb3\x69\x16\x09\xae";
-        let hash2 = b"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf8\x9f\x6f\xb3\x69\x16\x09\xae";
-        assert!(ConstantTimeOps::compare_hash(hash1, hash2));
-    }
-
-    #[test]
-    fn test_compare_hash_different() {
-        let hash1 = b"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf8\x9f\x6f\xb3\x69\x16\x09\xae";
-        let hash2 = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-        assert!(!ConstantTimeOps::compare_hash(hash1, hash2));
-    }
-
-    #[test]
-    fn test_compare_with_details() {
-        let token1 = b"test_token_123";
-        let token2 = b"test_token_123";
-        let (is_equal, timing_safe) = ConstantTimeOps::compare_with_details(token1, token2);
-        assert!(is_equal);
-        assert!(timing_safe);
-    }
-
-    #[test]
-    fn test_compare_with_details_different() {
-        let token1 = b"test_token_123";
-        let token2 = b"test_token_456";
-        let (is_equal, timing_safe) = ConstantTimeOps::compare_with_details(token1, token2);
-        assert!(!is_equal);
-        assert!(timing_safe); // Still timing safe even on mismatches
-    }
-
-    #[test]
     fn test_timing_attack_prevention_early_difference() {
         // First byte different - timing attack would be fast on this
         let token1 = b"XXXXXXX_correct_token";
@@ -516,14 +334,6 @@ mod tests {
     }
 
     #[test]
-    fn test_pkce_verifier_comparison_edge_case() {
-        // PKCE verifiers are 43-128 characters
-        let verifier1 = "a".repeat(128);
-        let verifier2 = "a".repeat(128);
-        assert!(ConstantTimeOps::compare_pkce_verifier(&verifier1, &verifier2));
-    }
-
-    #[test]
     fn test_jwt_constant_padding() {
         // Test that padded JWT comparison handles typical JWT sizes
         let short_jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.abc";
@@ -541,11 +351,4 @@ mod tests {
         // Comparison time is independent of length difference
     }
 
-    #[test]
-    fn test_database_hash_comparison_realistic() {
-        // Simulate real database hash comparisons
-        let stored_hash = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // SHA256 of empty string
-        let provided_hash = b"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-        assert!(ConstantTimeOps::compare_hash(stored_hash, provided_hash));
-    }
 }

@@ -1,4 +1,4 @@
-//! Integration tests for Arrow Flight schema refresh functionality (Phase 4).
+//! Integration tests for Arrow Flight schema refresh functionality.
 //!
 //! Tests the RefreshSchemaRegistry and GetSchemaVersions actions which allow
 //! safe runtime schema reloading without disrupting running queries.

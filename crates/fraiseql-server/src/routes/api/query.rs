@@ -83,8 +83,6 @@ pub struct StatsResponse {
 /// - Complexity metrics (depth, field count, score)
 /// - Warnings for potential performance issues
 /// - Estimated cost to execute
-///
-/// Phase 6.4: Query explanation with SQL generation and complexity metrics
 pub async fn explain_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<ExplainRequest>,
@@ -158,8 +156,6 @@ pub async fn validate_handler<A: DatabaseAdapter>(
 /// - Total queries executed
 /// - Successful vs failed counts
 /// - Average latency across all executions
-///
-/// Phase 6.3: Query statistics aggregation
 pub async fn stats_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {
@@ -418,7 +414,6 @@ mod tests {
 
     #[test]
     fn test_stats_response_structure() {
-        // Phase 6.3: Query statistics response structure
         let response = StatsResponse {
             total_queries:      100,
             successful_queries: 95,
@@ -434,7 +429,6 @@ mod tests {
 
     #[test]
     fn test_explain_response_structure() {
-        // Phase 6.4: Query explanation response structure
         let response = ExplainResponse {
             query:          "query { users { id } }".to_string(),
             sql:            Some("SELECT id FROM users".to_string()),
@@ -455,7 +449,6 @@ mod tests {
 
     #[test]
     fn test_complexity_info_score_calculation() {
-        // Phase 6.4: Complexity score is calculated correctly
         let complexity = ComplexityInfo {
             depth:       3,
             field_count: 4,

@@ -1,4 +1,4 @@
-//! HTTP mutation transport tests for Phase 6D
+//! HTTP mutation transport tests
 //!
 //! Tests for executing extended mutations via HTTP to remote subgraphs.
 

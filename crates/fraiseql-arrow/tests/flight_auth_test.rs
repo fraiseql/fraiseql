@@ -1,4 +1,4 @@
-//! Integration tests for Arrow Flight authenticated query execution (Phase 2.2b).
+//! Integration tests for Arrow Flight authenticated query execution.
 //!
 //! These tests verify that all RPC methods require valid session tokens
 //! from the handshake phase, and that scope-based access control works.
@@ -81,7 +81,7 @@ fn test_service_oidc_validator_setter() {
     assert!(!service.is_authenticated());
 }
 
-/// Phase 2.2b: Test do_get requires authorization header
+/// Test `do_get` requires authorization header.
 #[tokio::test]
 async fn test_do_get_without_authorization_header() {
     let service = FraiseQLFlightService::new();
@@ -117,7 +117,7 @@ async fn test_do_get_without_authorization_header() {
     }
 }
 
-/// Phase 2.2b: Test do_get rejects invalid session token
+/// Test `do_get` rejects invalid session token.
 #[tokio::test]
 async fn test_do_get_with_invalid_session_token() {
     let service = FraiseQLFlightService::new();
@@ -155,7 +155,7 @@ async fn test_do_get_with_invalid_session_token() {
     }
 }
 
-/// Phase 2.2b: Test do_get rejects expired session token
+/// Test `do_get` rejects expired session token.
 #[tokio::test]
 async fn test_do_get_with_expired_session_token() {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
@@ -226,7 +226,7 @@ async fn test_do_get_with_expired_session_token() {
     }
 }
 
-/// Phase 2.2b: Test do_get accepts valid session token
+/// Test `do_get` accepts valid session token.
 #[tokio::test]
 async fn test_authenticated_do_get_with_valid_session_token() {
     let service = FraiseQLFlightService::new();
@@ -272,7 +272,7 @@ async fn test_authenticated_do_get_with_valid_session_token() {
     }
 }
 
-/// Phase 2.2b: Test do_action HealthCheck requires auth
+/// Test `do_action` HealthCheck requires auth.
 #[tokio::test]
 async fn test_do_action_health_check_without_auth() {
     let service = FraiseQLFlightService::new();
@@ -294,7 +294,7 @@ async fn test_do_action_health_check_without_auth() {
     }
 }
 
-/// Phase 2.2b: Test do_action HealthCheck succeeds with valid token
+/// Test `do_action` HealthCheck succeeds with valid token.
 #[tokio::test]
 async fn test_do_action_health_check_with_valid_token() {
     let service = FraiseQLFlightService::new();
@@ -320,7 +320,7 @@ async fn test_do_action_health_check_with_valid_token() {
     }
 }
 
-/// Phase 2.2b: Test ClearCache requires admin scope
+/// Test ClearCache requires admin scope.
 #[tokio::test]
 async fn test_do_action_clear_cache_without_admin_scope() {
     let service = FraiseQLFlightService::new();
@@ -350,7 +350,7 @@ async fn test_do_action_clear_cache_without_admin_scope() {
     }
 }
 
-/// Phase 2.2b: Test ClearCache succeeds with admin scope
+/// Test ClearCache succeeds with admin scope.
 #[tokio::test]
 async fn test_do_action_clear_cache_with_admin_scope() {
     let service = FraiseQLFlightService::new();
@@ -376,7 +376,7 @@ async fn test_do_action_clear_cache_with_admin_scope() {
     }
 }
 
-/// Phase 2.2b: Test RefreshSchemaRegistry requires admin scope
+/// Test `RefreshSchemaRegistry` requires admin scope.
 #[tokio::test]
 async fn test_do_action_refresh_schema_registry_without_admin_scope() {
     let service = FraiseQLFlightService::new();
@@ -405,7 +405,7 @@ async fn test_do_action_refresh_schema_registry_without_admin_scope() {
     }
 }
 
-/// Phase 2.2b: Test RefreshSchemaRegistry succeeds with admin scope
+/// Test `RefreshSchemaRegistry` succeeds with admin scope.
 #[tokio::test]
 async fn test_do_action_refresh_schema_registry_with_admin_scope() {
     let service = FraiseQLFlightService::new();
@@ -431,7 +431,7 @@ async fn test_do_action_refresh_schema_registry_with_admin_scope() {
     }
 }
 
-/// Phase 2.3: Test SecurityContext flows through to query execution methods
+/// Test `SecurityContext` flows through to query execution methods.
 #[tokio::test]
 async fn test_security_context_created_for_authenticated_query() {
     use arrow_flight::flight_service_server::FlightService;
@@ -469,7 +469,7 @@ async fn test_security_context_created_for_authenticated_query() {
     );
 }
 
-/// Phase 2.3: Test SecurityContext contains user identity and scopes
+/// Test `SecurityContext` contains user identity and scopes.
 #[tokio::test]
 async fn test_security_context_has_user_info() {
     // Create a security context from authenticated user
@@ -487,7 +487,7 @@ async fn test_security_context_has_user_info() {
     assert!(context.scopes.contains(&"admin".to_string()));
 }
 
-/// Phase 2.3: Test different users are authenticated separately
+/// Test different users are authenticated separately.
 #[tokio::test]
 async fn test_multiple_users_have_separate_contexts() {
     use arrow_flight::flight_service_server::FlightService;
@@ -539,12 +539,12 @@ async fn test_multiple_users_have_separate_contexts() {
     }
 }
 
-/// Phase 2.3: Test that RLS policy would be evaluated with security context
-/// (when executor is integrated in fraiseql-server)
+/// Test that RLS policy would be evaluated with security context
+/// (when executor is integrated in fraiseql-server).
 #[test]
 fn test_rls_policy_evaluation_architecture() {
     // This test documents the RLS policy evaluation flow
-    // In Phase 2.3 integration (at fraiseql-server level):
+    // At the fraiseql-server level:
     //
     // 1. Client authenticates via Flight handshake -> session token
     // 2. Client calls do_get with session token

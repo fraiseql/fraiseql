@@ -98,8 +98,6 @@ impl<T: Serialize> ApiResponse<T> {
 
 /// Sanitized server configuration for API exposure.
 ///
-/// Phase 4.2: Configuration access with secret redaction
-///
 /// Removes sensitive fields like database URLs, API keys, and tokens
 /// while preserving operational settings for client consumption.
 #[derive(Debug, Serialize, Deserialize, Clone)]

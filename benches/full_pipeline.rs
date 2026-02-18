@@ -1,4 +1,4 @@
-//! Benchmarks for unified Rust pipeline (Phase 9).
+//! Benchmarks for unified Rust pipeline.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use serde_json::Value as JsonValue;
