@@ -9,7 +9,7 @@ use prost::bytes::Bytes;
 use serde_json::json;
 use std::io::Cursor;
 use tokio::sync::mpsc;
-use tonic::transport::Uri;
+use tonic::transport::{Endpoint, Uri};
 use tracing::{error, info};
 
 /// FraiseQL Flight client
@@ -71,7 +71,8 @@ impl FraiseQLFlightClient {
 
     /// Fetch data from server
     async fn fetch_data(&self, ticket: Ticket) -> Result<Vec<RecordBatch>, Box<dyn std::error::Error>> {
-        let mut client = FlightServiceClient::connect(self.uri.clone()).await?;
+        let channel = Endpoint::from(self.uri.clone()).connect().await?;
+        let mut client = FlightServiceClient::new(channel);
 
         info!("Requesting data from FraiseQL Flight server");
 

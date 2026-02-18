@@ -38,7 +38,7 @@ serde_json = "1"
 # Cryptography for SCRAM authentication
 sha2 = "0.10"  # HMAC-SHA256 for SCRAM
 # Error handling
-thiserror = "1"
+thiserror = "2"
 # Async runtime
 tokio = {version = "1", features = ["full"]}
 tokio-rustls = "0.26"
@@ -81,6 +81,6 @@ keywords = ["postgres", "postgresql", "json", "streaming", "async"]
 license = "MIT OR Apache-2.0"
 name = "fraiseql-wire"
 readme = "README.md"
-repository = "https://github.com/fraiseql/fraiseql-wire"
-rust-version = "1.75"
-version = "0.1.2"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true

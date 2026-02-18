@@ -7,7 +7,7 @@ use arrow_flight::{
     Criteria, FlightDescriptor, Ticket, flight_service_client::FlightServiceClient,
 };
 use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
-use tonic::transport::Server;
+use tonic::transport::{Endpoint, Server};
 
 /// Start a test Flight server on a random available port.
 ///
@@ -39,9 +39,12 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 async fn test_server_starts_and_accepts_connections() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr.clone())
+    let channel = Endpoint::from_shared(addr.clone())
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Test ListFlights (should succeed even if empty)
     let request = tonic::Request::new(Criteria {
@@ -55,9 +58,12 @@ async fn test_server_starts_and_accepts_connections() {
 async fn test_get_schema_for_observer_events() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create ticket for observer events
     let ticket = FlightTicket::ObserverEvents {
@@ -90,9 +96,12 @@ async fn test_get_schema_for_observer_events() {
 async fn test_get_schema_for_graphql_query() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create ticket for GraphQL query
     let ticket = FlightTicket::GraphQLQuery {
@@ -117,9 +126,12 @@ async fn test_get_schema_for_graphql_query() {
 async fn test_do_get_returns_empty_stream() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create a session token for authentication
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
@@ -185,9 +197,12 @@ async fn test_do_get_returns_empty_stream() {
 async fn test_invalid_ticket_returns_error() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create a session token for authentication
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
@@ -245,9 +260,12 @@ async fn test_invalid_ticket_returns_error() {
 async fn test_bulk_export_ticket_not_implemented() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create bulk export ticket (not implemented )
     let ticket = FlightTicket::BulkExport {

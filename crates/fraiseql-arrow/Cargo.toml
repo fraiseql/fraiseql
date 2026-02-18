@@ -8,9 +8,9 @@ name = "arrow_vs_json_serialization"
 
 [dependencies]
 # Arrow ecosystem (with CSV and Parquet support)
-arrow = {version = "53", features = ["csv", "json"]}
-arrow-flight = "53"
-arrow-schema = "53"
+arrow = {version = "57", features = ["csv", "json"]}
+arrow-flight = "57"
+arrow-schema = "57"
 # Async utilities
 async-stream = "0.3"
 async-trait = "0.1"
@@ -25,8 +25,8 @@ fraiseql-core = {workspace = true}
 futures = "0.3"
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "9"
-parquet = "53"
-prost = "0.13"
+parquet = "57"
+prost = "0.14"
 # Serialization
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
@@ -36,7 +36,7 @@ thiserror = "2"
 tokio = {version = "1", features = ["full"]}
 tokio-stream = "0.1"
 # gRPC framework
-tonic = "0.12"
+tonic = "0.14"
 # Logging
 tracing = "0.1"
 # UUID generation (used in handshake for session tokens)
@@ -66,7 +66,7 @@ path = "src/lib.rs"
 [package]
 authors = ["FraiseQL Contributors"]
 description = "Apache Arrow Flight integration for FraiseQL"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+license.workspace = true
 name = "fraiseql-arrow"
-version = "0.2.0"
+version.workspace = true

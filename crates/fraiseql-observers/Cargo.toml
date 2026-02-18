@@ -1,5 +1,5 @@
 [dependencies]
-arrow = {version = "53", optional = true}
+arrow = {version = "57", optional = true}
 # NATS Dependencies
 async-nats = {version = "0.40", optional = true}
 async-trait = "0.1"
@@ -9,7 +9,7 @@ bb8-tiberius = {version = "0.15", optional = true}
 chrono = {version = "0.4", features = ["serde"]}
 clap = {version = "4.5", features = ["derive"]}
 colored = "2.1"
-dashmap = "5.5"
+dashmap = "6.1"
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
 # Observer Macros Dependencies

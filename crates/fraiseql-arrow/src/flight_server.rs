@@ -2420,13 +2420,17 @@ impl FlightService for FraiseQLFlightService {
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)]
 fn record_batch_to_flight_data(batch: &RecordBatch) -> std::result::Result<FlightData, Status> {
+    use arrow::ipc::writer::CompressionContext;
+
     let options = IpcWriteOptions::default();
     let data_gen = IpcDataGenerator::default();
     let mut dict_tracker = DictionaryTracker::new(false);
+    let mut compression = CompressionContext::default();
 
-    let (_, encoded_data) = data_gen
-        .encoded_batch(batch, &mut dict_tracker, &options)
-        .map_err(|e| Status::internal(format!("Failed to encode RecordBatch: {e}")))?;
+    let (_, encoded_data) =
+        data_gen
+            .encode(batch, &mut dict_tracker, &options, &mut compression)
+            .map_err(|e| Status::internal(format!("Failed to encode RecordBatch: {e}")))?;
 
     Ok(FlightData {
         data_header: encoded_data.ipc_message.into(),

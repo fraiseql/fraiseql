@@ -9,7 +9,7 @@
 use arrow::ipc::root_as_message;
 use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServiceClient};
 use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
-use tonic::transport::Server;
+use tonic::transport::{Endpoint, Server};
 
 /// Create a session token for authenticated testing
 fn create_test_session_token() -> String {
@@ -75,9 +75,12 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 async fn test_get_schema_for_ta_orders() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create ticket for ta_orders optimized view
     let ticket = FlightTicket::OptimizedView {
@@ -117,9 +120,12 @@ async fn test_get_schema_for_ta_orders() {
 async fn test_get_schema_for_ta_users() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create ticket for ta_users optimized view
     let ticket = FlightTicket::OptimizedView {
@@ -155,9 +161,12 @@ async fn test_get_schema_for_ta_users() {
 async fn test_do_get_ta_orders_returns_data() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create session token for authentication
     let session_token = create_test_session_token();
@@ -215,9 +224,12 @@ async fn test_do_get_ta_orders_returns_data() {
 async fn test_do_get_ta_users_returns_data() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Create session token for authentication
     let session_token = create_test_session_token();

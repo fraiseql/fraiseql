@@ -5,7 +5,7 @@
 
 use arrow_flight::flight_service_client::FlightServiceClient;
 use fraiseql_arrow::flight_server::FraiseQLFlightService;
-use tonic::transport::Server;
+use tonic::transport::{Endpoint, Server};
 
 /// Start a test Flight server on a random available port.
 ///
@@ -33,9 +33,12 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 async fn test_get_schema_versions_action() {
     let addr = start_test_server().await.unwrap();
 
-    let mut client = FlightServiceClient::connect(addr)
+    let channel = Endpoint::from_shared(addr)
+        .expect("Invalid endpoint")
+        .connect()
         .await
         .expect("Failed to connect to Flight server");
+    let mut client = FlightServiceClient::new(channel);
 
     // Call GetSchemaVersions action
     use arrow_flight::Action;

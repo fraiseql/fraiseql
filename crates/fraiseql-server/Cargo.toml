@@ -20,7 +20,7 @@ bytes = "1"
 chacha20poly1305 = "0.10"
 # Date/time handling
 chrono = {version = "0.4", features = ["serde"]}
-dashmap = "5.5"
+dashmap = "6.1"
 dirs = "5"
 fraiseql-arrow = {workspace = true}
 # FraiseQL core
@@ -71,7 +71,7 @@ tokio-rustls = "0.25"
 # Config and paths
 toml = "0.8"
 # Arrow Flight server (optional)
-tonic = {version = "0.12", optional = true}
+tonic = {version = "0.14", optional = true}
 tower = {version = "0.5", features = ["full"]}
 tower-http = {version = "0.6", features = ["trace", "cors", "compression-full", "limit", "timeout", "request-id"]}
 # Tracing

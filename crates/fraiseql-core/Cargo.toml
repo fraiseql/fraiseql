@@ -22,8 +22,8 @@ anyhow = {workspace = true}
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
 # to avoid circular dependency. fraiseql-arrow provides the Flight server
 # and concrete Arrow conversion implementations.
-arrow = {version = "53", optional = true}
-arrow-array = {version = "53", optional = true}
+arrow = {version = "57", optional = true}
+arrow-array = {version = "57", optional = true}
 base64 = {workspace = true}
 bb8 = {version = "0.8", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
