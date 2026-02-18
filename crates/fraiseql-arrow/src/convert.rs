@@ -161,13 +161,10 @@ impl RowToArrowConverter {
     ) -> Result<(), ArrowError> {
         match data_type {
             DataType::Utf8 => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<StringBuilder>()
-                    .expect("Builder type mismatch");
+                let b = downcast_builder::<StringBuilder>(builder, "StringBuilder", "Utf8")?;
                 match value {
-                    Some(Value::String(s)) => builder.append_value(s),
-                    None => builder.append_null(),
+                    Some(Value::String(s)) => b.append_value(s),
+                    None => b.append_null(),
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected string value".into(),
@@ -176,27 +173,20 @@ impl RowToArrowConverter {
                 }
             },
             DataType::Int32 => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<Int32Builder>()
-                    .expect("Builder type mismatch");
+                let b = downcast_builder::<Int32Builder>(builder, "Int32Builder", "Int32")?;
                 match value {
-                    Some(Value::Int(i)) => builder
-                        .append_value(i32::try_from(*i).map_err(|_| {
-                            ArrowError::InvalidArgumentError("Int overflow".into())
-                        })?),
-                    None => builder.append_null(),
+                    Some(Value::Int(i)) => b.append_value(i32::try_from(*i).map_err(|_| {
+                        ArrowError::InvalidArgumentError("Int overflow".into())
+                    })?),
+                    None => b.append_null(),
                     _ => return Err(ArrowError::InvalidArgumentError("Expected int value".into())),
                 }
             },
             DataType::Int64 => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<Int64Builder>()
-                    .expect("Builder type mismatch");
+                let b = downcast_builder::<Int64Builder>(builder, "Int64Builder", "Int64")?;
                 match value {
-                    Some(Value::Int(i)) => builder.append_value(*i),
-                    None => builder.append_null(),
+                    Some(Value::Int(i)) => b.append_value(*i),
+                    None => b.append_null(),
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected int64 value".into(),
@@ -205,13 +195,11 @@ impl RowToArrowConverter {
                 }
             },
             DataType::Float64 => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<Float64Builder>()
-                    .expect("Builder type mismatch");
+                let b =
+                    downcast_builder::<Float64Builder>(builder, "Float64Builder", "Float64")?;
                 match value {
-                    Some(Value::Float(f)) => builder.append_value(*f),
-                    None => builder.append_null(),
+                    Some(Value::Float(f)) => b.append_value(*f),
+                    None => b.append_null(),
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected float value".into(),
@@ -220,26 +208,25 @@ impl RowToArrowConverter {
                 }
             },
             DataType::Boolean => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<BooleanBuilder>()
-                    .expect("Builder type mismatch");
+                let b =
+                    downcast_builder::<BooleanBuilder>(builder, "BooleanBuilder", "Boolean")?;
                 match value {
-                    Some(Value::Bool(b)) => builder.append_value(*b),
-                    None => builder.append_null(),
+                    Some(Value::Bool(b_val)) => b.append_value(*b_val),
+                    None => b.append_null(),
                     _ => {
                         return Err(ArrowError::InvalidArgumentError("Expected bool value".into()));
                     },
                 }
             },
             DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<TimestampNanosecondBuilder>()
-                    .expect("Builder type mismatch");
+                let b = downcast_builder::<TimestampNanosecondBuilder>(
+                    builder,
+                    "TimestampNanosecondBuilder",
+                    "Timestamp(Nanosecond)",
+                )?;
                 match value {
-                    Some(Value::Timestamp(nanos)) => builder.append_value(*nanos),
-                    None => builder.append_null(),
+                    Some(Value::Timestamp(nanos)) => b.append_value(*nanos),
+                    None => b.append_null(),
                     _ => {
                         return Err(ArrowError::InvalidArgumentError(
                             "Expected timestamp value".into(),
@@ -248,13 +235,10 @@ impl RowToArrowConverter {
                 }
             },
             DataType::Date32 => {
-                let builder = builder
-                    .as_any_mut()
-                    .downcast_mut::<Date32Builder>()
-                    .expect("Builder type mismatch");
+                let b = downcast_builder::<Date32Builder>(builder, "Date32Builder", "Date32")?;
                 match value {
-                    Some(Value::Date(days)) => builder.append_value(*days),
-                    None => builder.append_null(),
+                    Some(Value::Date(days)) => b.append_value(*days),
+                    None => b.append_null(),
                     _ => {
                         return Err(ArrowError::InvalidArgumentError("Expected date value".into()));
                     },
@@ -268,6 +252,22 @@ impl RowToArrowConverter {
         }
         Ok(())
     }
+}
+
+/// Downcast a boxed `ArrayBuilder` to a concrete type, returning `ArrowError` on mismatch.
+fn downcast_builder<'a, T: ArrayBuilder + 'static>(
+    builder: &'a mut Box<dyn ArrayBuilder>,
+    expected_type: &str,
+    field_type: &str,
+) -> Result<&'a mut T, ArrowError> {
+    builder
+        .as_any_mut()
+        .downcast_mut::<T>()
+        .ok_or_else(|| {
+            ArrowError::InvalidArgumentError(format!(
+                "Expected {expected_type} for {field_type} field"
+            ))
+        })
 }
 
 /// Create an array builder for a given Arrow data type.
@@ -458,5 +458,21 @@ mod tests {
 
         assert_eq!(config.batch_size, 5_000);
         assert_eq!(config.max_rows, Some(100_000));
+    }
+
+    #[test]
+    fn test_downcast_builder_rejects_mismatched_type() {
+        let mut builder: Box<dyn ArrayBuilder> = Box::new(StringBuilder::new());
+        let result = downcast_builder::<Int32Builder>(&mut builder, "Int32Builder", "Int32");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Expected Int32Builder"));
+    }
+
+    #[test]
+    fn test_downcast_builder_accepts_correct_type() {
+        let mut builder: Box<dyn ArrayBuilder> = Box::new(StringBuilder::new());
+        let result = downcast_builder::<StringBuilder>(&mut builder, "StringBuilder", "Utf8");
+        assert!(result.is_ok());
     }
 }

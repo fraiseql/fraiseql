@@ -107,37 +107,44 @@ impl SubscriptionManager {
         }
     }
 
-    /// Check if an event matches a filter.
+    /// Check if an event matches a filter expression.
     ///
-    /// For now, this is a simple implementation that accepts all events
-    /// if no filter is specified. In future phases, this could support
-    /// more sophisticated filter expressions.
-    fn matches_filter(_event: &crate::HistoricalEvent, filter: &Option<String>) -> bool {
-        // If no filter specified, accept all events
-        if filter.is_none() {
+    /// Supports equality (`field = 'value'`) and inequality (`field != 'value'`)
+    /// operators against the event's JSON data. Returns `true` if no filter is
+    /// specified or the filter matches. Returns `false` for missing fields or
+    /// unparseable filters.
+    fn matches_filter(event: &crate::HistoricalEvent, filter: &Option<String>) -> bool {
+        let Some(filter_str) = filter.as_deref() else {
+            return true;
+        };
+
+        let filter_str = filter_str.trim();
+        if filter_str.is_empty() {
             return true;
         }
 
-        // TODO(v2.1.0): Implement filter matching logic for subscriptions
-        // Priority: Medium - Optional feature for fine-grained event filtering
-        // Implementation should support expressions like:
-        // - "status = 'shipped'"
-        // - "total > 100"
-        // - "changes.status.from = 'pending'"
-        // Could reuse expression parser from GraphQL query filtering
-        true
+        // Try != first (longer operator)
+        if let Some((field, expected)) = filter_str.split_once(" != ") {
+            let expected = expected.trim().trim_matches('\'');
+            return event.data.get(field.trim()).and_then(|v| v.as_str()) != Some(expected);
+        }
+
+        // Then try =
+        if let Some((field, expected)) = filter_str.split_once(" = ") {
+            let expected = expected.trim().trim_matches('\'');
+            return event.data.get(field.trim()).and_then(|v| v.as_str()) == Some(expected);
+        }
+
+        // Unparseable filter — reject
+        false
     }
 
-    /// Simulate sending an event to all subscribers (for testing).
+    /// Broadcast a simulated event to all matching subscribers.
     ///
-    /// This is primarily useful for testing subscription functionality
-    /// without requiring a live event source.
-    pub async fn simulate_event(&self, _event: crate::HistoricalEvent) {
-        // TODO(v2.1.0): Implement event simulation for testing subscriptions
-        // Priority: Medium - Testing infrastructure enhancement
-        // Should broadcast simulated events to test subscribers
-        // For now, this is a placeholder that accepts an event
-        // self.broadcast_event(&_event);
+    /// Useful for testing subscription functionality without requiring
+    /// a live event source.
+    pub fn simulate_event(&self, event: crate::HistoricalEvent) {
+        self.broadcast_event(&event);
     }
 
     /// Get reference to event storage if available.
@@ -248,19 +255,105 @@ mod tests {
 
     #[test]
     fn test_matches_filter_no_filter() {
-        let event = HistoricalEvent {
+        let event = make_event(serde_json::json!({"status": "shipped"}));
+        assert!(SubscriptionManager::matches_filter(&event, &None));
+    }
+
+    #[test]
+    fn test_matches_filter_equality() {
+        let event = make_event(serde_json::json!({"status": "shipped", "region": "us-east"}));
+        assert!(SubscriptionManager::matches_filter(
+            &event,
+            &Some("status = 'shipped'".to_string())
+        ));
+        assert!(!SubscriptionManager::matches_filter(
+            &event,
+            &Some("status = 'pending'".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_matches_filter_inequality() {
+        let event = make_event(serde_json::json!({"status": "shipped"}));
+        assert!(SubscriptionManager::matches_filter(
+            &event,
+            &Some("status != 'pending'".to_string())
+        ));
+        assert!(!SubscriptionManager::matches_filter(
+            &event,
+            &Some("status != 'shipped'".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_matches_filter_missing_field() {
+        let event = make_event(serde_json::json!({"status": "shipped"}));
+        assert!(!SubscriptionManager::matches_filter(
+            &event,
+            &Some("missing_field = 'value'".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_matches_filter_unparseable() {
+        let event = make_event(serde_json::json!({"status": "shipped"}));
+        assert!(!SubscriptionManager::matches_filter(
+            &event,
+            &Some("garbage filter".to_string())
+        ));
+    }
+
+    #[test]
+    fn test_matches_filter_empty_string() {
+        let event = make_event(serde_json::json!({"status": "shipped"}));
+        assert!(SubscriptionManager::matches_filter(
+            &event,
+            &Some(String::new())
+        ));
+    }
+
+    #[test]
+    fn test_simulate_event_broadcasts() {
+        let manager = SubscriptionManager::new();
+        let mut rx = manager.subscribe("sub-1".to_string(), "Order".to_string(), None);
+
+        let event = make_event(serde_json::json!({"total": 100}));
+        manager.simulate_event(event);
+
+        assert!(rx.try_recv().ok().is_some());
+    }
+
+    #[test]
+    fn test_broadcast_with_filter() {
+        let manager = SubscriptionManager::new();
+        let mut rx_match = manager.subscribe(
+            "sub-1".to_string(),
+            "Order".to_string(),
+            Some("status = 'shipped'".to_string()),
+        );
+        let mut rx_no_match = manager.subscribe(
+            "sub-2".to_string(),
+            "Order".to_string(),
+            Some("status = 'pending'".to_string()),
+        );
+
+        let event = make_event(serde_json::json!({"status": "shipped"}));
+        manager.broadcast_event(&event);
+
+        assert!(rx_match.try_recv().ok().is_some());
+        assert!(rx_no_match.try_recv().ok().is_none());
+    }
+
+    fn make_event(data: serde_json::Value) -> HistoricalEvent {
+        HistoricalEvent {
             id:          Uuid::new_v4(),
             event_type:  "INSERT".to_string(),
             entity_type: "Order".to_string(),
             entity_id:   Uuid::new_v4(),
-            data:        serde_json::json!({"total": 100}),
+            data,
             user_id:     None,
             tenant_id:   None,
             timestamp:   Utc::now(),
-        };
-
-        assert!(SubscriptionManager::matches_filter(&event, &None));
-        // TODO(v2.1.0): Uncomment when filter matching is implemented
-        // assert!(SubscriptionManager::matches_filter(&event, &Some("total > 50".to_string())));
+        }
     }
 }

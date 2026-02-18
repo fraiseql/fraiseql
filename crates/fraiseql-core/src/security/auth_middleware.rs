@@ -433,12 +433,12 @@ struct JwtClaims {
 
     /// Issued at timestamp (captured but not used directly)
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
     iat: Option<i64>,
 
     /// Not before timestamp (captured but not used directly)
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
     nbf: Option<i64>,
 
     /// Scope claim (space-separated string)
@@ -455,12 +455,12 @@ struct JwtClaims {
 
     /// Audience claim (validated by jsonwebtoken, captured for logging)
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
     aud: Option<serde_json::Value>,
 
     /// Issuer claim (validated by jsonwebtoken, captured for logging)
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
     iss: Option<String>,
 }
 
