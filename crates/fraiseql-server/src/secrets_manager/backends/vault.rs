@@ -1,7 +1,7 @@
 //! Backend for HashiCorp Vault integration with dynamic secrets,
-//! lease management, and encryption support
+//! lease management, and encryption support.
 //!
-//! Implements the SecretsBackend trait for HashiCorp Vault,
+//! Implements the `SecretsBackend` trait for HashiCorp Vault,
 //! providing dynamic database credentials, TTL management, and encryption.
 
 use std::{collections::HashMap, sync::Arc};
@@ -217,14 +217,51 @@ impl VaultBackend {
         self
     }
 
-    /// Set TLS certificate verification
+    /// Set TLS certificate verification.
     #[must_use]
     pub fn with_tls_verify(mut self, verify: bool) -> Self {
         self.tls_verify = verify;
         self
     }
 
-    /// Get Vault server address
+    /// Create a `VaultBackend` by authenticating via AppRole.
+    ///
+    /// Posts to `/v1/auth/approle/login` with the given `role_id` and `secret_id`,
+    /// then uses the returned client token for subsequent requests.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ConnectionError` if login fails.
+    pub async fn with_approle(addr: &str, role_id: &str, secret_id: &str) -> Result<Self, SecretsError> {
+        let client = reqwest::Client::builder()
+            .build()
+            .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))?;
+
+        let login_url = format!("{}/{}/auth/approle/login", addr.trim_end_matches('/'), VAULT_API_VERSION);
+        let body = serde_json::json!({
+            "role_id": role_id,
+            "secret_id": secret_id,
+        });
+
+        let response: serde_json::Value = client
+            .post(&login_url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| SecretsError::ConnectionError(format!("AppRole login failed: {e}")))?
+            .json()
+            .await
+            .map_err(|e| SecretsError::ConnectionError(format!("AppRole response parse error: {e}")))?;
+
+        let token = response["auth"]["client_token"]
+            .as_str()
+            .ok_or_else(|| SecretsError::ConnectionError("No client_token in AppRole response".into()))?
+            .to_string();
+
+        Ok(Self::new(addr, &token))
+    }
+
+    /// Get Vault server address.
     #[must_use]
     pub fn addr(&self) -> &str {
         &self.addr
@@ -275,47 +312,85 @@ impl VaultBackend {
         }
     }
 
-    /// Fetch secret from Vault HTTP API
+    /// Fetch secret from Vault HTTP API with retry on transient errors.
+    ///
+    /// Retries up to 3 times with exponential backoff (100ms, 200ms, 400ms)
+    /// on 503 (Service Unavailable), 429 (Too Many Requests), or connection errors.
+    /// Non-retryable errors (403, 404) fail immediately.
     async fn fetch_secret(&self, name: &str) -> Result<VaultResponse, SecretsError> {
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(!self.tls_verify)
             .build()
             .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {}", e))
+                SecretsError::BackendError(format!("Failed to create HTTP client: {e}"))
             })?;
 
         let url = self.build_vault_url(name);
+        let delays = [
+            std::time::Duration::from_millis(100),
+            std::time::Duration::from_millis(200),
+            std::time::Duration::from_millis(400),
+        ];
 
-        // Build request headers with X-Vault-Token
-        let response = client
-            .get(&url)
-            .header("X-Vault-Token", self.token.clone())
-            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
-            .send()
-            .await
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Vault HTTP request failed for {}: {}", name, e))
-            })?;
-
-        match response.status() {
-            reqwest::StatusCode::OK => response.json::<VaultResponse>().await.map_err(|e| {
-                SecretsError::BackendError(format!(
-                    "Failed to parse Vault response for {}: {}",
-                    name, e
-                ))
-            }),
-            reqwest::StatusCode::NOT_FOUND => {
-                Err(SecretsError::NotFound(format!("Secret not found in Vault: {}", name)))
-            },
-            reqwest::StatusCode::FORBIDDEN => Err(SecretsError::BackendError(format!(
-                "Permission denied accessing Vault secret: {}",
-                name
-            ))),
-            status => Err(SecretsError::BackendError(format!(
-                "Vault request failed with status {} for {}",
-                status, name
-            ))),
+        let mut last_error = None;
+        for (attempt, delay) in delays.iter().enumerate() {
+            match client
+                .get(&url)
+                .header("X-Vault-Token", &self.token)
+                .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    match response.status() {
+                        reqwest::StatusCode::OK => {
+                            return response.json::<VaultResponse>().await.map_err(|e| {
+                                SecretsError::BackendError(format!(
+                                    "Failed to parse Vault response for {name}: {e}"
+                                ))
+                            });
+                        },
+                        // Retryable statuses
+                        reqwest::StatusCode::SERVICE_UNAVAILABLE
+                        | reqwest::StatusCode::TOO_MANY_REQUESTS => {
+                            last_error = Some(SecretsError::BackendError(format!(
+                                "Vault returned {} (attempt {}/3)",
+                                response.status(),
+                                attempt + 1
+                            )));
+                            tokio::time::sleep(*delay).await;
+                        },
+                        // Non-retryable statuses
+                        reqwest::StatusCode::NOT_FOUND => {
+                            return Err(SecretsError::NotFound(format!(
+                                "Secret not found in Vault: {name}"
+                            )));
+                        },
+                        reqwest::StatusCode::FORBIDDEN => {
+                            return Err(SecretsError::BackendError(format!(
+                                "Permission denied accessing Vault secret: {name}"
+                            )));
+                        },
+                        status => {
+                            return Err(SecretsError::BackendError(format!(
+                                "Vault request failed with status {status} for {name}"
+                            )));
+                        },
+                    }
+                },
+                Err(e) => {
+                    // Connection errors are retryable
+                    last_error = Some(SecretsError::ConnectionError(format!(
+                        "Vault connection error (attempt {}/3): {e}",
+                        attempt + 1
+                    )));
+                    tokio::time::sleep(*delay).await;
+                },
+            }
         }
+        Err(last_error.unwrap_or_else(|| {
+            SecretsError::ConnectionError("Max retries exceeded".into())
+        }))
     }
 
     /// Build Vault API URL for a secret path

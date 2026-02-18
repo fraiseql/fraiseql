@@ -92,6 +92,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub config:               Option<Arc<crate::config::ServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
+    /// Secrets manager (optional, configured via `[fraiseql.secrets]`).
+    pub secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -106,6 +108,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
                 RateLimitConfig::per_ip_standard(),
             )),
+            secrets_manager: None,
         }
     }
 
@@ -120,6 +123,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
                 RateLimitConfig::per_ip_standard(),
             )),
+            secrets_manager: None,
         }
     }
 
@@ -137,6 +141,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
                 RateLimitConfig::per_ip_standard(),
             )),
+            secrets_manager: None,
         }
     }
 
@@ -155,6 +160,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
                 RateLimitConfig::per_ip_standard(),
             )),
+            secrets_manager: None,
         }
     }
 
