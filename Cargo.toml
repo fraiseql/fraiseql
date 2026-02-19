@@ -19,6 +19,7 @@ strip = true
 opt-level = 1
 
 [workspace]
+exclude = ["fraiseql_rs"]
 members = [
   "crates/fraiseql-arrow",  # Apache Arrow Flight integration (Phase 9)
   "crates/fraiseql-cli",
