@@ -1,7 +1,7 @@
 """Configuration for FraiseQL FastAPI integration."""
 
 import logging
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, PostgresDsn, ValidationInfo, field_validator
@@ -12,7 +12,7 @@ from fraiseql.mutations.error_config import MutationErrorConfig
 logger = logging.getLogger(__name__)
 
 
-class IntrospectionPolicy(str, Enum):
+class IntrospectionPolicy(StrEnum):
     """Policy for GraphQL schema introspection access control.
 
     - DISABLED: No introspection allowed for anyone
@@ -35,7 +35,7 @@ class IntrospectionPolicy(str, Enum):
         return False
 
 
-class APQMode(str, Enum):
+class APQMode(StrEnum):
     """Mode for Automatic Persisted Queries (APQ) handling.
 
     - OPTIONAL: Accept both persisted query hashes and full queries (default)

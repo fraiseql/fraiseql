@@ -9,7 +9,7 @@ import inspect
 import json
 import time
 import types
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Any, Callable, Optional, Self, TypeVar, cast
 
 import structlog
 from graphql import GraphQLResolveInfo
@@ -337,7 +337,7 @@ class QueryDebugger:
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
 
-    async def __aenter__(self) -> "QueryDebugger":
+    async def __aenter__(self) -> Self:
         self.start_time = time.perf_counter()
         # Known limitation: Query execution hooking not yet implemented
         # GitHub issue: Hook into query execution to capture queries for debugging
