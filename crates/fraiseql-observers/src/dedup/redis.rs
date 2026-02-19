@@ -64,7 +64,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
             .arg(&key)
             .arg(self.window_seconds as i64)
             .arg("1")
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -81,7 +81,7 @@ impl DeduplicationStore for RedisDeduplicationStore {
     async fn remove(&self, event_key: &str) -> Result<()> {
         let key = Self::dedup_key(event_key);
 
-        redis::cmd("DEL").arg(&key).query_async::<_, ()>(&mut self.conn.clone()).await?;
+        redis::cmd("DEL").arg(&key).query_async::<()>(&mut self.conn.clone()).await?;
 
         Ok(())
     }

@@ -132,13 +132,13 @@ impl DeadLetterQueueManager {
             .arg(Self::dlq_key())
             .arg(0) // Remove all occurrences
             .arg(Self::dlq_member(job_id))
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         // Remove job data
         redis::cmd("DEL")
             .arg(Self::job_key(job_id))
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
@@ -164,7 +164,7 @@ impl DeadLetterQueueManager {
                 if let Ok(job_id) = Uuid::parse_str(job_id_str) {
                     redis::cmd("DEL")
                         .arg(Self::job_key(job_id))
-                        .query_async::<_, ()>(&mut self.conn.clone())
+                        .query_async::<()>(&mut self.conn.clone())
                         .await?;
                 }
             }
@@ -173,7 +173,7 @@ impl DeadLetterQueueManager {
         // Clear the DLQ list
         redis::cmd("DEL")
             .arg(Self::dlq_key())
-            .query_async::<_, ()>(&mut self.conn.clone())
+            .query_async::<()>(&mut self.conn.clone())
             .await?;
 
         Ok(())
