@@ -34,3 +34,18 @@ doc = false
 name = "sql_codegen"
 path = "fuzz_targets/sql_codegen.rs"
 doc = false
+
+[[bin]]
+name = "schema_compile"
+path = "fuzz_targets/schema_compile.rs"
+doc = false
+
+[[bin]]
+name = "toml_config"
+path = "fuzz_targets/toml_config.rs"
+doc = false
+
+[[bin]]
+name = "query_variables"
+path = "fuzz_targets/query_variables.rs"
+doc = false

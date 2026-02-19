@@ -1,0 +1,73 @@
+name: Fuzz Testing
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Weekly, Sunday 3am UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  fuzz-core:
+    name: Fuzz fraiseql-core (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - graphql_parser
+          - schema_deser
+          - sql_codegen
+          - schema_compile
+          - toml_config
+          - query_variables
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzer (1 hour)
+        run: |
+          cd crates/fraiseql-core
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            fuzz/seed_corpus/${{ matrix.target }} \
+            -- -max_total_time=3600 \
+               -max_len=65536 \
+               -rss_limit_mb=2048
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-core-${{ matrix.target }}
+          path: crates/fraiseql-core/fuzz/artifacts/${{ matrix.target }}/
+
+  fuzz-wire:
+    name: Fuzz fraiseql-wire (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - protocol_decode
+          - scram_parse
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzer (1 hour)
+        run: |
+          cd crates/fraiseql-wire
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            fuzz/seed_corpus/${{ matrix.target }} \
+            -- -max_total_time=3600 \
+               -max_len=65536 \
+               -rss_limit_mb=2048
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-wire-${{ matrix.target }}
+          path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/

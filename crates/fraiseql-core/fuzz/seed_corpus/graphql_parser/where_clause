@@ -1,0 +1,1 @@
+{ users(where: { age: { gt: 18 } }) { id name } }

@@ -1,0 +1,1 @@
+{"types":[],"enums":[],"input_types":[],"interfaces":[],"unions":[],"queries":[],"mutations":[],"subscriptions":[],"directives":[],"fact_tables":{},"observers":[],"security":{"role_definitions":[{"name":"admin","permissions":["*"]}]}}

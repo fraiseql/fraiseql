@@ -1,0 +1,20 @@
+[server]
+host = "0.0.0.0"
+port = 4000
+workers = 4
+
+[database]
+url = "postgres://localhost/test"
+
+[cors]
+allowed_origins = ["http://localhost:3000"]
+
+[auth]
+provider = "jwt"
+secret = "test-secret"
+
+[rate_limit]
+requests_per_minute = 100
+
+[cache]
+apq_enabled = true

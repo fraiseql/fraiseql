@@ -1,0 +1,1 @@
+query { users { ...UserFields } } fragment UserFields on User { id name email }

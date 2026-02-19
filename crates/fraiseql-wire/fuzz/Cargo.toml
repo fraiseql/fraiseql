@@ -21,3 +21,8 @@ members = ["."]
 name = "protocol_decode"
 path = "fuzz_targets/protocol_decode.rs"
 doc = false
+
+[[bin]]
+name = "scram_parse"
+path = "fuzz_targets/scram_parse.rs"
+doc = false

@@ -1,0 +1,1 @@
+{"And":[{"Field":{"path":["active"],"operator":"Eq","value":true}},{"Field":{"path":["age"],"operator":"Gte","value":18}}]}

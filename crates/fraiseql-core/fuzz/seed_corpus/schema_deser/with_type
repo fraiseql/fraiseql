@@ -1,0 +1,1 @@
+{"types":[{"name":"User","table":"users","fields":[{"name":"id","field_type":"ID","nullable":false},{"name":"name","field_type":"String","nullable":false},{"name":"email","field_type":"String","nullable":true}]}],"enums":[],"input_types":[],"interfaces":[],"unions":[],"queries":[],"mutations":[],"subscriptions":[],"directives":[],"fact_tables":{},"observers":[]}

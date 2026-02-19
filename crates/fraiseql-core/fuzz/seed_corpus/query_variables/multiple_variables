@@ -1,0 +1,1 @@
+query Search($query: String!, $offset: Int!, $limit: Int!, $sortBy: String) { search(query: $query, offset: $offset, limit: $limit, sortBy: $sortBy) { id title } }

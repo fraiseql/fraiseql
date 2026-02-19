@@ -1,0 +1,1 @@
+{"Or":[{"Field":{"path":["status"],"operator":"Eq","value":"active"}},{"Field":{"path":["status"],"operator":"Eq","value":"pending"}}]}

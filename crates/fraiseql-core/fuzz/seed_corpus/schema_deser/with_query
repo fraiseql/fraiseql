@@ -1,0 +1,1 @@
+{"types":[{"name":"User","table":"users","fields":[{"name":"id","field_type":"ID","nullable":false}]}],"enums":[],"input_types":[],"interfaces":[],"unions":[],"queries":[{"name":"users","return_type":"User","list":true}],"mutations":[],"subscriptions":[],"directives":[],"fact_tables":{},"observers":[]}

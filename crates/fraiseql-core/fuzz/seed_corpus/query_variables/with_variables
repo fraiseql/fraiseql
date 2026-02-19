@@ -1,0 +1,1 @@
+query GetUser($id: ID!, $limit: Int) { user(id: $id) { id name friends(limit: $limit) { id } } }
