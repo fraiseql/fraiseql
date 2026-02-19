@@ -139,7 +139,11 @@ impl FileHandler {
         // Process image if applicable
         let (variants, processed_data) = if self.is_image(content_type) {
             if let Some(processor) = &self.processor {
-                let processing_config = self.config.processing.as_ref().unwrap();
+                let processing_config = self
+                    .config
+                    .processing
+                    .as_ref()
+                    .expect("processing config must be set when processor is present");
                 let processed = processor.process(&data, processing_config).await?;
 
                 let mut variant_urls = HashMap::new();

@@ -906,8 +906,14 @@ fn handle_introspection_flags() -> Option<i32> {
         let cmd = Cli::command();
         let version = env!("CARGO_PKG_VERSION");
         let help = introspection::extract_cli_help(&cmd, version);
-        let result = output::CommandResult::success("help", serde_json::to_value(&help).unwrap());
-        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        let result = output::CommandResult::success(
+            "help",
+            serde_json::to_value(&help).expect("CliHelp is always serializable"),
+        );
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
+        );
         return Some(0);
     }
 
@@ -917,9 +923,12 @@ fn handle_introspection_flags() -> Option<i32> {
         let commands = introspection::list_commands(&cmd);
         let result = output::CommandResult::success(
             "list-commands",
-            serde_json::to_value(&commands).unwrap(),
+            serde_json::to_value(&commands).expect("command list is always serializable"),
         );
-        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
+        );
         return Some(0);
     }
 
@@ -933,16 +942,22 @@ fn handle_introspection_flags() -> Option<i32> {
             &format!("Missing command name. Available: {available}"),
             "MISSING_ARGUMENT",
         );
-        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
+        );
         return Some(1);
     };
 
     if let Some(schema) = output_schemas::get_output_schema(cmd_name) {
         let result = output::CommandResult::success(
             "show-output-schema",
-            serde_json::to_value(&schema).unwrap(),
+            serde_json::to_value(&schema).expect("output schema is always serializable"),
         );
-        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
+        );
         return Some(0);
     }
 
@@ -951,6 +966,9 @@ fn handle_introspection_flags() -> Option<i32> {
         &format!("Unknown command: {cmd_name}. Available: {available}"),
         "UNKNOWN_COMMAND",
     );
-    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
+    );
     Some(1)
 }

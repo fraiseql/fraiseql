@@ -202,7 +202,10 @@ fn is_valid_field_name(name: &str) -> bool {
     }
 
     // First character must be alphabetic or underscore
-    let first = name.chars().next().unwrap();
+    let first = name
+        .chars()
+        .next()
+        .expect("empty name already returned false above");
     if !first.is_alphabetic() && first != '_' {
         return false;
     }

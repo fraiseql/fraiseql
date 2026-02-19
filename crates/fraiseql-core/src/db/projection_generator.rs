@@ -43,7 +43,11 @@ fn to_snake_case(name: &str) -> String {
     for (i, ch) in name.chars().enumerate() {
         if ch.is_uppercase() && i > 0 {
             result.push('_');
-            result.push(ch.to_lowercase().next().unwrap());
+            result.push(
+                ch.to_lowercase()
+                    .next()
+                    .expect("char::to_lowercase always yields at least one char"),
+            );
         } else {
             result.push(ch);
         }

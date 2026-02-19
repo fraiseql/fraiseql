@@ -50,7 +50,7 @@ impl LuhnValidator {
 
         // Process digits from right to left
         for ch in value.chars().rev() {
-            let digit = ch.to_digit(10).unwrap() as usize;
+            let digit = ch.to_digit(10).expect("pre-filtered to numeric chars only") as usize;
 
             let processed = if is_second {
                 let doubled = digit * 2;

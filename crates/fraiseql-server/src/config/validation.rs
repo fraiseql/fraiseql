@@ -34,7 +34,7 @@ impl ValidationResult {
         if self.errors.is_empty() {
             Ok(self.warnings)
         } else if self.errors.len() == 1 {
-            Err(self.errors.into_iter().next().unwrap())
+            Err(self.errors.into_iter().next().expect("errors.len() == 1 confirmed above"))
         } else {
             Err(ConfigError::MultipleErrors {
                 errors: self.errors,

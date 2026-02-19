@@ -87,7 +87,7 @@ impl ConnectionInfo {
         let rest = s
             .strip_prefix("postgres://")
             .or_else(|| s.strip_prefix("postgresql://"))
-            .unwrap();
+            .expect("prefix check above guarantees one of these prefixes is present");
 
         // Check if Unix socket (starts with / or no host)
         if rest.starts_with('/') || rest.starts_with("///") {
