@@ -26,7 +26,18 @@ pub fn decode_message(data: &mut BytesMut) -> io::Result<(BackendMessage, usize)
     }
 
     let tag = data[0];
-    let len = i32::from_be_bytes([data[1], data[2], data[3], data[4]]) as usize;
+    let len_i32 = i32::from_be_bytes([data[1], data[2], data[3], data[4]]);
+
+    // PostgreSQL message length includes the 4 length bytes but not the tag byte.
+    // Minimum valid length is 4 (just the length field itself).
+    if len_i32 < 4 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "message length too small",
+        ));
+    }
+
+    let len = len_i32 as usize;
 
     if data.len() < len + 1 {
         return Err(io::Error::new(
@@ -153,7 +164,14 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
     if data.len() < 2 {
         return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field count"));
     }
-    let field_count = i16::from_be_bytes([data[0], data[1]]) as usize;
+    let field_count_i16 = i16::from_be_bytes([data[0], data[1]]);
+    if field_count_i16 < 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "negative field count",
+        ));
+    }
+    let field_count = field_count_i16 as usize;
     let mut fields = Vec::with_capacity(field_count);
     let mut offset = 2;
 
@@ -171,6 +189,11 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
 
         let field = if field_len == -1 {
             None
+        } else if field_len < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "negative field length",
+            ));
         } else {
             let len = field_len as usize;
             if offset + len > data.len() {
@@ -274,7 +297,14 @@ fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
     if data.len() < 2 {
         return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "field count"));
     }
-    let field_count = i16::from_be_bytes([data[0], data[1]]) as usize;
+    let field_count_i16 = i16::from_be_bytes([data[0], data[1]]);
+    if field_count_i16 < 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "negative field count",
+        ));
+    }
+    let field_count = field_count_i16 as usize;
     let mut fields = Vec::with_capacity(field_count);
     let mut offset = 2;
 
