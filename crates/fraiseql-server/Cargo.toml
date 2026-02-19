@@ -87,6 +87,7 @@ zeroize = "1.8"
 # Performance testing
 criterion = {version = "0.5", features = ["async_tokio"]}
 futures = "0.3"
+temp-env = {workspace = true}
 # HTTP testing
 reqwest = {version = "0.12", features = ["json"]}
 # YAML parsing for deployment tests

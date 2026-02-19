@@ -96,6 +96,7 @@ sha2 = "0.10"
 # SQL toolkit (MySQL feature gated behind per-crate optional flags)
 sqlx = {version = "0.8", features = ["runtime-tokio", "json"]}
 # Testing utilities
+temp-env = {version = "0.3", features = ["async_closure"]}
 tempfile = "3.8"
 # Error handling
 thiserror = "2.0"

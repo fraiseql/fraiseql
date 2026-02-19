@@ -27,12 +27,12 @@ impl QueryExecutor for DummyExecutor {
     }
 }
 
-/// Ensure FLIGHT_SESSION_SECRET is set for all tests in this module.
-/// Returns the secret value for use in token creation.
-fn ensure_flight_secret() -> String {
-    let secret = "test-flight-session-secret-for-unit-tests-only";
-    std::env::set_var("FLIGHT_SESSION_SECRET", secret);
-    secret.to_string()
+/// The secret value used for Flight session tokens in tests.
+const TEST_FLIGHT_SECRET: &str = "test-flight-session-secret-for-unit-tests-only";
+
+/// Returns the env vars needed for Flight session tests.
+fn flight_secret_vars() -> [(&'static str, Option<&'static str>); 1] {
+    [("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))]
 }
 
 /// Tests service initialization without database adapter
@@ -255,90 +255,92 @@ async fn test_list_actions_returns_action_types() {
 /// Tests that `do_action` requires authentication and executes HealthCheck action.
 #[tokio::test]
 async fn test_do_action_health_check() {
-    let secret = ensure_flight_secret();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
+        let action = Action {
+            r#type: "HealthCheck".to_string(),
+            body:   vec![].into(),
+        };
 
-    let service = FraiseQLFlightService::new();
-    let action = Action {
-        r#type: "HealthCheck".to_string(),
-        body:   vec![].into(),
-    };
+        // Create a test user and session token
+        let now = Utc::now();
+        let exp = now + chrono::Duration::minutes(5);
 
-    // Create a test user and session token
-    let now = Utc::now();
-    let exp = now + chrono::Duration::minutes(5);
+        let claims = SessionTokenClaims {
+            sub:          "test-user".to_string(),
+            exp:          exp.timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
+            session_type: "flight".to_string(),
+        };
 
-    let claims = SessionTokenClaims {
-        sub:          "test-user".to_string(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
-        scopes:       vec!["user".to_string()],
-        session_type: "flight".to_string(),
-    };
+        let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
+        let header = Header::new(Algorithm::HS256);
 
-    let key = EncodingKey::from_secret(secret.as_bytes());
-    let header = Header::new(Algorithm::HS256);
+        let session_token = encode(&header, &claims, &key).expect("Failed to encode token");
 
-    let session_token = encode(&header, &claims, &key).expect("Failed to encode token");
+        let mut request = Request::new(action);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token)
+                .parse()
+                .expect("Failed to insert auth header"),
+        );
 
-    let mut request = Request::new(action);
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token)
-            .parse()
-            .expect("Failed to insert auth header"),
-    );
+        let result = service.do_action(request).await;
 
-    let result = service.do_action(request).await;
+        assert!(result.is_ok(), "HealthCheck action should succeed");
+        let response = result.unwrap();
+        let mut stream = response.into_inner();
 
-    assert!(result.is_ok(), "HealthCheck action should succeed");
-    let response = result.unwrap();
-    let mut stream = response.into_inner();
-
-    // Should return at least one result
-    if let Some(Ok(_result)) = stream.next().await {
-        // Success - action returned result
-    } else {
-        panic!("HealthCheck should return a result");
-    }
+        // Should return at least one result
+        if let Some(Ok(_result)) = stream.next().await {
+            // Success - action returned result
+        } else {
+            panic!("HealthCheck should return a result");
+        }
+    })
+    .await;
 }
 
 /// Tests that `do_action` returns error for unknown action.
 #[tokio::test]
 async fn test_do_action_unknown_action() {
-    let secret = ensure_flight_secret();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
+        let action = Action {
+            r#type: "UnknownAction".to_string(),
+            body:   vec![].into(),
+        };
 
-    let service = FraiseQLFlightService::new();
-    let action = Action {
-        r#type: "UnknownAction".to_string(),
-        body:   vec![].into(),
-    };
+        // Must include authentication
+        let now = Utc::now();
+        let exp = now + chrono::Duration::minutes(5);
 
-    // Must include authentication
-    let now = Utc::now();
-    let exp = now + chrono::Duration::minutes(5);
+        let claims = SessionTokenClaims {
+            sub:          "test-user".to_string(),
+            exp:          exp.timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
+            session_type: "flight".to_string(),
+        };
 
-    let claims = SessionTokenClaims {
-        sub:          "test-user".to_string(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
-        scopes:       vec!["user".to_string()],
-        session_type: "flight".to_string(),
-    };
+        let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
+        let header = Header::new(Algorithm::HS256);
 
-    let key = EncodingKey::from_secret(secret.as_bytes());
-    let header = Header::new(Algorithm::HS256);
+        let session_token = encode(&header, &claims, &key).expect("Failed to encode token");
 
-    let session_token = encode(&header, &claims, &key).expect("Failed to encode token");
+        let mut request = Request::new(action);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token)
+                .parse()
+                .expect("Failed to insert auth header"),
+        );
 
-    let mut request = Request::new(action);
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token)
-            .parse()
-            .expect("Failed to insert auth header"),
-    );
+        let result = service.do_action(request).await;
 
-    let result = service.do_action(request).await;
-
-    assert!(result.is_err(), "Unknown action should return error");
+        assert!(result.is_err(), "Unknown action should return error");
+    })
+    .await;
 }

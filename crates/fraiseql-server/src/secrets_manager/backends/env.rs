@@ -80,11 +80,13 @@ mod tests {
     /// Test EnvBackend reads from environment
     #[tokio::test]
     async fn test_env_backend_get_secret() {
-        std::env::set_var("TEST_SECRET_KEY", "test_value_123");
-        let backend = EnvBackend::new();
+        temp_env::async_with_vars([("TEST_SECRET_KEY", Some("test_value_123"))], async {
+            let backend = EnvBackend::new();
 
-        let secret = backend.get_secret("TEST_SECRET_KEY").await.unwrap();
-        assert_eq!(secret, "test_value_123");
+            let secret = backend.get_secret("TEST_SECRET_KEY").await.unwrap();
+            assert_eq!(secret, "test_value_123");
+        })
+        .await;
     }
 
     /// Test EnvBackend returns error for missing variable
@@ -103,12 +105,14 @@ mod tests {
     /// Test EnvBackend with_expiry returns future date
     #[tokio::test]
     async fn test_env_backend_with_expiry() {
-        std::env::set_var("EXPIRY_TEST_KEY", "value");
-        let backend = EnvBackend::new();
+        temp_env::async_with_vars([("EXPIRY_TEST_KEY", Some("value"))], async {
+            let backend = EnvBackend::new();
 
-        let (secret, expiry) = backend.get_secret_with_expiry("EXPIRY_TEST_KEY").await.unwrap();
-        assert_eq!(secret, "value");
-        assert!(expiry > Utc::now(), "Expiry should be in future");
+            let (secret, expiry) = backend.get_secret_with_expiry("EXPIRY_TEST_KEY").await.unwrap();
+            assert_eq!(secret, "value");
+            assert!(expiry > Utc::now(), "Expiry should be in future");
+        })
+        .await;
     }
 
     /// Test EnvBackend rotate returns error
@@ -127,35 +131,43 @@ mod tests {
     /// Test empty environment variable
     #[tokio::test]
     async fn test_env_backend_empty_value() {
-        std::env::set_var("EMPTY_VAR", "");
-        let backend = EnvBackend::new();
+        temp_env::async_with_vars([("EMPTY_VAR", Some(""))], async {
+            let backend = EnvBackend::new();
 
-        let secret = backend.get_secret("EMPTY_VAR").await.unwrap();
-        assert_eq!(secret, "");
+            let secret = backend.get_secret("EMPTY_VAR").await.unwrap();
+            assert_eq!(secret, "");
+        })
+        .await;
     }
 
     /// Test special characters in environment variable values
     #[tokio::test]
     async fn test_env_backend_special_chars() {
         let special_value = "p@$$w0rd!#$%^&*()";
-        std::env::set_var("SPECIAL_VAR", special_value);
-        let backend = EnvBackend::new();
+        temp_env::async_with_vars([("SPECIAL_VAR", Some(special_value))], async {
+            let backend = EnvBackend::new();
 
-        let secret = backend.get_secret("SPECIAL_VAR").await.unwrap();
-        assert_eq!(secret, special_value);
+            let secret = backend.get_secret("SPECIAL_VAR").await.unwrap();
+            assert_eq!(secret, "p@$$w0rd!#$%^&*()");
+        })
+        .await;
     }
 
     /// Test multiple environment variables
     #[tokio::test]
     async fn test_env_backend_multiple_vars() {
-        std::env::set_var("VAR1", "value1");
-        std::env::set_var("VAR2", "value2");
-        let backend = EnvBackend::new();
+        temp_env::async_with_vars(
+            [("VAR1", Some("value1")), ("VAR2", Some("value2"))],
+            async {
+                let backend = EnvBackend::new();
 
-        let s1 = backend.get_secret("VAR1").await.unwrap();
-        let s2 = backend.get_secret("VAR2").await.unwrap();
+                let s1 = backend.get_secret("VAR1").await.unwrap();
+                let s2 = backend.get_secret("VAR2").await.unwrap();
 
-        assert_eq!(s1, "value1");
-        assert_eq!(s2, "value2");
+                assert_eq!(s1, "value1");
+                assert_eq!(s2, "value2");
+            },
+        )
+        .await;
     }
 }

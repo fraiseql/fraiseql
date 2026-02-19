@@ -1126,6 +1126,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "backon"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cffb0e931875b666fc4fcb20fee52e9bbd1ef836fd9e9e04ec21555f9f85f7ef"
+dependencies = [
+ "fastrand",
+]
+
+[[package]]
 name = "base16ct"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2462,6 +2471,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "temp-env",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -2486,6 +2496,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "temp-env",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -2520,11 +2531,9 @@ dependencies = [
  "hmac",
  "itertools 0.13.0",
  "jsonwebtoken",
- "lazy_static",
  "linked-hash-map",
  "lru 0.16.3",
  "native-tls",
- "once_cell",
  "parking_lot",
  "postgres-native-tls",
  "proptest",
@@ -2537,6 +2546,7 @@ dependencies = [
  "serial_test",
  "sha2",
  "sqlx",
+ "temp-env",
  "tempfile",
  "thiserror 2.0.18",
  "tiberius",
@@ -2655,6 +2665,7 @@ dependencies = [
  "sha2",
  "sqlx",
  "subtle",
+ "temp-env",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -5201,24 +5212,24 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.25.4"
+version = "0.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0d7a6955c7511f60f3ba9e86c6d02b3c3f144f8c24b288d1f4e18074ab8bbec"
+checksum = "e37ec3fd44bea2ec947ba6cc7634d7999a6590aca7c35827c250bc0de502bda6"
 dependencies = [
  "arc-swap",
- "async-trait",
+ "backon",
  "bytes",
  "combine",
- "futures",
+ "futures-channel",
  "futures-util",
  "itoa",
+ "num-bigint",
  "percent-encoding",
  "pin-project-lite",
  "ryu",
  "sha1_smol",
  "socket2 0.5.10",
  "tokio",
- "tokio-retry",
  "tokio-util",
  "url",
 ]
@@ -6401,6 +6412,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "temp-env"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
+dependencies = [
+ "futures",
+ "parking_lot",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6700,17 +6721,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "whoami 2.1.1",
-]
-
-[[package]]
-name = "tokio-retry"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f57eb36ecbe0fc510036adff84824dd3c24bb781e21bfa67b69d556aa85214f"
-dependencies = [
- "pin-project",
- "rand 0.8.5",
- "tokio",
 ]
 
 [[package]]

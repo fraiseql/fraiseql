@@ -20,17 +20,18 @@ fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
 
 const TEST_FLIGHT_SECRET: &str = "flight-test-session-secret-for-integration-tests";
 
-/// Ensure FLIGHT_SESSION_SECRET env var is set for tests.
-fn ensure_flight_secret() {
-    std::env::set_var("FLIGHT_SESSION_SECRET", TEST_FLIGHT_SECRET);
+/// Returns the env vars needed for Flight session tests.
+fn flight_secret_vars() -> [(&'static str, Option<&'static str>); 1] {
+    [("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))]
 }
 
 /// Create a session token for a test user (mimics handshake).
+///
+/// Must be called within a `temp_env::with_vars` or `temp_env::async_with_vars` block
+/// that sets `FLIGHT_SESSION_SECRET`.
 fn create_test_session_token(user: &AuthenticatedUser) -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
-
-    ensure_flight_secret();
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestSessionTokenClaims {
@@ -52,9 +53,7 @@ fn create_test_session_token(user: &AuthenticatedUser) -> String {
         session_type: "flight".to_string(),
     };
 
-    let secret = TEST_FLIGHT_SECRET.to_string();
-
-    let key = EncodingKey::from_secret(secret.as_bytes());
+    let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
     let header = Header::new(Algorithm::HS256);
 
     encode(&header, &claims, &key).expect("Failed to create test session token")
@@ -161,115 +160,116 @@ async fn test_do_get_with_expired_session_token() {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
 
-    ensure_flight_secret();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let service = FraiseQLFlightService::new();
+        // Create an EXPIRED token
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct ExpiredTokenClaims {
+            sub:          String,
+            exp:          i64,
+            iat:          i64,
+            scopes:       Vec<String>,
+            session_type: String,
+        }
 
-    // Create an EXPIRED token
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    struct ExpiredTokenClaims {
-        sub:          String,
-        exp:          i64,
-        iat:          i64,
-        scopes:       Vec<String>,
-        session_type: String,
-    }
+        let now = chrono::Utc::now();
+        let exp = now - chrono::Duration::minutes(5); // EXPIRED 5 minutes ago
 
-    let now = chrono::Utc::now();
-    let exp = now - chrono::Duration::minutes(5); // EXPIRED 5 minutes ago
+        let claims = ExpiredTokenClaims {
+            sub:          "user-1".to_string(),
+            exp:          exp.timestamp(),
+            iat:          (now - chrono::Duration::hours(1)).timestamp(),
+            scopes:       vec!["user".to_string()],
+            session_type: "flight".to_string(),
+        };
 
-    let claims = ExpiredTokenClaims {
-        sub:          "user-1".to_string(),
-        exp:          exp.timestamp(),
-        iat:          (now - chrono::Duration::hours(1)).timestamp(),
-        scopes:       vec!["user".to_string()],
-        session_type: "flight".to_string(),
-    };
+        let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
+        let header = Header::new(Algorithm::HS256);
+        let expired_token = encode(&header, &claims, &key).expect("Failed to encode expired token");
 
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
+        // Create a valid ticket
+        let ticket = FlightTicket::OptimizedView {
+            view:     "va_orders".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    None,
+            offset:   None,
+        };
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
-    let key = EncodingKey::from_secret(secret.as_bytes());
-    let header = Header::new(Algorithm::HS256);
-    let expired_token = encode(&header, &claims, &key).expect("Failed to encode expired token");
+        // Create request with expired token
+        let ticket_proto = Ticket {
+            ticket: ticket_bytes.into(),
+        };
+        let mut request = Request::new(ticket_proto);
 
-    // Create a valid ticket
-    let ticket = FlightTicket::OptimizedView {
-        view:     "va_orders".to_string(),
-        filter:   None,
-        order_by: None,
-        limit:    None,
-        offset:   None,
-    };
-    let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", expired_token).parse().expect("Failed to insert header"),
+        );
 
-    // Create request with expired token
-    let ticket_proto = Ticket {
-        ticket: ticket_bytes.into(),
-    };
-    let mut request = Request::new(ticket_proto);
+        // Should fail with unauthenticated error mentioning expiration
+        let result = service.do_get(request).await;
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", expired_token).parse().expect("Failed to insert header"),
-    );
-
-    // Should fail with unauthenticated error mentioning expiration
-    let result = service.do_get(request).await;
-
-    match result {
-        Err(status) => {
-            assert_eq!(status.code(), tonic::Code::Unauthenticated);
-            assert!(status.message().contains("expired"), "Error should mention token expiration");
-        },
-        Ok(_) => panic!("do_get should fail with expired token"),
-    }
+        match result {
+            Err(status) => {
+                assert_eq!(status.code(), tonic::Code::Unauthenticated);
+                assert!(status.message().contains("expired"), "Error should mention token expiration");
+            },
+            Ok(_) => panic!("do_get should fail with expired token"),
+        }
+    })
+    .await;
 }
 
 /// Test `do_get` accepts valid session token.
 #[tokio::test]
 async fn test_authenticated_do_get_with_valid_session_token() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    // Create a valid test user and session token
-    let user = create_test_user("user-123", vec!["user", "read"]);
-    let session_token = create_test_session_token(&user);
+        // Create a valid test user and session token
+        let user = create_test_user("user-123", vec!["user", "read"]);
+        let session_token = create_test_session_token(&user);
 
-    // Create a GraphQL query ticket (simpler schema without timestamp conversion issues)
-    let ticket = FlightTicket::GraphQLQuery {
-        query:     "query { users { id name } }".to_string(),
-        variables: None,
-    };
-    let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
+        // Create a GraphQL query ticket (simpler schema without timestamp conversion issues)
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     "query { users { id name } }".to_string(),
+            variables: None,
+        };
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
-    // Create request with valid session token
-    let ticket_proto = Ticket {
-        ticket: ticket_bytes.into(),
-    };
-    let mut request = Request::new(ticket_proto);
+        // Create request with valid session token
+        let ticket_proto = Ticket {
+            ticket: ticket_bytes.into(),
+        };
+        let mut request = Request::new(ticket_proto);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    // Should succeed (authentication passes; actual query execution happens after)
-    let result = service.do_get(request).await;
+        // Should succeed (authentication passes; actual query execution happens after)
+        let result = service.do_get(request).await;
 
-    // Even if query execution has issues, authentication should succeed
-    // We're testing authentication validation, not query execution
-    match result {
-        Ok(_) => {
-            // Best case: query executes successfully
-        },
-        Err(e) if e.code() != tonic::Code::Unauthenticated => {
-            // Acceptable: query failed for other reasons (schema conversion, etc)
-            // but authentication validation passed
-        },
-        Err(e) => {
-            panic!("do_get should pass authentication validation. Got: {}", e.message());
-        },
-    }
+        // Even if query execution has issues, authentication should succeed
+        // We're testing authentication validation, not query execution
+        match result {
+            Ok(_) => {
+                // Best case: query executes successfully
+            },
+            Err(e) if e.code() != tonic::Code::Unauthenticated => {
+                // Acceptable: query failed for other reasons (schema conversion, etc)
+                // but authentication validation passed
+            },
+            Err(e) => {
+                panic!("do_get should pass authentication validation. Got: {}", e.message());
+            },
+        }
+    })
+    .await;
 }
 
 /// Test `do_action` HealthCheck requires auth.
@@ -297,138 +297,153 @@ async fn test_do_action_health_check_without_auth() {
 /// Test `do_action` HealthCheck succeeds with valid token.
 #[tokio::test]
 async fn test_do_action_health_check_with_valid_token() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let user = create_test_user("user-123", vec!["user"]);
-    let session_token = create_test_session_token(&user);
+        let user = create_test_user("user-123", vec!["user"]);
+        let session_token = create_test_session_token(&user);
 
-    let action = Action {
-        r#type: "HealthCheck".to_string(),
-        body:   vec![].into(),
-    };
-    let mut request = Request::new(action);
+        let action = Action {
+            r#type: "HealthCheck".to_string(),
+            body:   vec![].into(),
+        };
+        let mut request = Request::new(action);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    let result = service.do_action(request).await;
+        let result = service.do_action(request).await;
 
-    if let Err(e) = &result {
-        panic!("HealthCheck should succeed with valid token. Error: {}", e);
-    }
+        if let Err(e) = &result {
+            panic!("HealthCheck should succeed with valid token. Error: {}", e);
+        }
+    })
+    .await;
 }
 
 /// Test ClearCache requires admin scope.
 #[tokio::test]
 async fn test_do_action_clear_cache_without_admin_scope() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let user = create_test_user("user-123", vec!["user", "read"]); // NO "admin" scope
-    let session_token = create_test_session_token(&user);
+        let user = create_test_user("user-123", vec!["user", "read"]); // NO "admin" scope
+        let session_token = create_test_session_token(&user);
 
-    let action = Action {
-        r#type: "ClearCache".to_string(),
-        body:   vec![].into(),
-    };
-    let mut request = Request::new(action);
+        let action = Action {
+            r#type: "ClearCache".to_string(),
+            body:   vec![].into(),
+        };
+        let mut request = Request::new(action);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    let result = service.do_action(request).await;
+        let result = service.do_action(request).await;
 
-    match result {
-        Err(status) => {
-            assert_eq!(status.code(), tonic::Code::PermissionDenied);
-            assert!(status.message().contains("admin"), "Error should mention admin scope");
-        },
-        Ok(_) => panic!("ClearCache should fail without admin scope"),
-    }
+        match result {
+            Err(status) => {
+                assert_eq!(status.code(), tonic::Code::PermissionDenied);
+                assert!(status.message().contains("admin"), "Error should mention admin scope");
+            },
+            Ok(_) => panic!("ClearCache should fail without admin scope"),
+        }
+    })
+    .await;
 }
 
 /// Test ClearCache succeeds with admin scope.
 #[tokio::test]
 async fn test_do_action_clear_cache_with_admin_scope() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let user = create_test_user("user-123", vec!["user", "admin"]); // Has "admin" scope
-    let session_token = create_test_session_token(&user);
+        let user = create_test_user("user-123", vec!["user", "admin"]); // Has "admin" scope
+        let session_token = create_test_session_token(&user);
 
-    let action = Action {
-        r#type: "ClearCache".to_string(),
-        body:   vec![].into(),
-    };
-    let mut request = Request::new(action);
+        let action = Action {
+            r#type: "ClearCache".to_string(),
+            body:   vec![].into(),
+        };
+        let mut request = Request::new(action);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    let result = service.do_action(request).await;
+        let result = service.do_action(request).await;
 
-    if let Err(e) = &result {
-        panic!("ClearCache should succeed with admin scope. Error: {}", e);
-    }
+        if let Err(e) = &result {
+            panic!("ClearCache should succeed with admin scope. Error: {}", e);
+        }
+    })
+    .await;
 }
 
 /// Test `RefreshSchemaRegistry` requires admin scope.
 #[tokio::test]
 async fn test_do_action_refresh_schema_registry_without_admin_scope() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let user = create_test_user("user-123", vec!["user"]); // NO "admin" scope
-    let session_token = create_test_session_token(&user);
+        let user = create_test_user("user-123", vec!["user"]); // NO "admin" scope
+        let session_token = create_test_session_token(&user);
 
-    let action = Action {
-        r#type: "RefreshSchemaRegistry".to_string(),
-        body:   vec![].into(),
-    };
-    let mut request = Request::new(action);
+        let action = Action {
+            r#type: "RefreshSchemaRegistry".to_string(),
+            body:   vec![].into(),
+        };
+        let mut request = Request::new(action);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    let result = service.do_action(request).await;
+        let result = service.do_action(request).await;
 
-    match result {
-        Err(status) => {
-            assert_eq!(status.code(), tonic::Code::PermissionDenied);
-        },
-        Ok(_) => panic!("RefreshSchemaRegistry should fail without admin scope"),
-    }
+        match result {
+            Err(status) => {
+                assert_eq!(status.code(), tonic::Code::PermissionDenied);
+            },
+            Ok(_) => panic!("RefreshSchemaRegistry should fail without admin scope"),
+        }
+    })
+    .await;
 }
 
 /// Test `RefreshSchemaRegistry` succeeds with admin scope.
 #[tokio::test]
 async fn test_do_action_refresh_schema_registry_with_admin_scope() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let user = create_test_user("user-123", vec!["admin"]); // Has "admin" scope
-    let session_token = create_test_session_token(&user);
+        let user = create_test_user("user-123", vec!["admin"]); // Has "admin" scope
+        let session_token = create_test_session_token(&user);
 
-    let action = Action {
-        r#type: "RefreshSchemaRegistry".to_string(),
-        body:   vec![].into(),
-    };
-    let mut request = Request::new(action);
+        let action = Action {
+            r#type: "RefreshSchemaRegistry".to_string(),
+            body:   vec![].into(),
+        };
+        let mut request = Request::new(action);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    let result = service.do_action(request).await;
+        let result = service.do_action(request).await;
 
-    if let Err(e) = &result {
-        panic!("RefreshSchemaRegistry should succeed with admin scope. Error: {}", e);
-    }
+        if let Err(e) = &result {
+            panic!("RefreshSchemaRegistry should succeed with admin scope. Error: {}", e);
+        }
+    })
+    .await;
 }
 
 /// Test `SecurityContext` flows through to query execution methods.
@@ -436,37 +451,40 @@ async fn test_do_action_refresh_schema_registry_with_admin_scope() {
 async fn test_security_context_created_for_authenticated_query() {
     use arrow_flight::flight_service_server::FlightService;
 
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    let user = create_test_user("user-789", vec!["user", "read"]);
-    let session_token = create_test_session_token(&user);
+        let user = create_test_user("user-789", vec!["user", "read"]);
+        let session_token = create_test_session_token(&user);
 
-    // Create a GraphQL query ticket
-    let ticket = FlightTicket::GraphQLQuery {
-        query:     "query { users { id } }".to_string(),
-        variables: None,
-    };
-    let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
+        // Create a GraphQL query ticket
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     "query { users { id } }".to_string(),
+            variables: None,
+        };
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
-    // Create request with authentication
-    let ticket_proto = Ticket {
-        ticket: ticket_bytes.into(),
-    };
-    let mut request = Request::new(ticket_proto);
+        // Create request with authentication
+        let ticket_proto = Ticket {
+            ticket: ticket_bytes.into(),
+        };
+        let mut request = Request::new(ticket_proto);
 
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
-    );
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token).parse().expect("Failed to insert header"),
+        );
 
-    // Execute do_get - should successfully create and use SecurityContext
-    let result = service.do_get(request).await;
+        // Execute do_get - should successfully create and use SecurityContext
+        let result = service.do_get(request).await;
 
-    // Should succeed - the security context should be created and passed through
-    assert!(
-        result.is_ok(),
-        "do_get should succeed with authenticated user and security context"
-    );
+        // Should succeed - the security context should be created and passed through
+        assert!(
+            result.is_ok(),
+            "do_get should succeed with authenticated user and security context"
+        );
+    })
+    .await;
 }
 
 /// Test `SecurityContext` contains user identity and scopes.
@@ -492,51 +510,54 @@ async fn test_security_context_has_user_info() {
 async fn test_multiple_users_have_separate_contexts() {
     use arrow_flight::flight_service_server::FlightService;
 
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    // User 1: Regular user
-    let user1 = create_test_user("user-1", vec!["user"]);
-    let token1 = create_test_session_token(&user1);
+        // User 1: Regular user
+        let user1 = create_test_user("user-1", vec!["user"]);
+        let token1 = create_test_session_token(&user1);
 
-    // User 2: Admin user
-    let user2 = create_test_user("user-2", vec!["admin"]);
-    let token2 = create_test_session_token(&user2);
+        // User 2: Admin user
+        let user2 = create_test_user("user-2", vec!["admin"]);
+        let token2 = create_test_session_token(&user2);
 
-    let ticket = FlightTicket::GraphQLQuery {
-        query:     "query { users { id } }".to_string(),
-        variables: None,
-    };
-    let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
-
-    // Request 1: User 1 query
-    {
-        let ticket_proto = Ticket {
-            ticket: ticket_bytes.clone().into(),
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     "query { users { id } }".to_string(),
+            variables: None,
         };
-        let mut request = Request::new(ticket_proto);
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", token1).parse().expect("Failed to insert header"),
-        );
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
-        let result = service.do_get(request).await;
-        assert!(result.is_ok(), "User 1 should be authenticated");
-    }
+        // Request 1: User 1 query
+        {
+            let ticket_proto = Ticket {
+                ticket: ticket_bytes.clone().into(),
+            };
+            let mut request = Request::new(ticket_proto);
+            request.metadata_mut().insert(
+                "authorization",
+                format!("Bearer {}", token1).parse().expect("Failed to insert header"),
+            );
 
-    // Request 2: User 2 query
-    {
-        let ticket_proto = Ticket {
-            ticket: ticket_bytes.into(),
-        };
-        let mut request = Request::new(ticket_proto);
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", token2).parse().expect("Failed to insert header"),
-        );
+            let result = service.do_get(request).await;
+            assert!(result.is_ok(), "User 1 should be authenticated");
+        }
 
-        let result = service.do_get(request).await;
-        assert!(result.is_ok(), "User 2 should be authenticated");
-    }
+        // Request 2: User 2 query
+        {
+            let ticket_proto = Ticket {
+                ticket: ticket_bytes.into(),
+            };
+            let mut request = Request::new(ticket_proto);
+            request.metadata_mut().insert(
+                "authorization",
+                format!("Bearer {}", token2).parse().expect("Failed to insert header"),
+            );
+
+            let result = service.do_get(request).await;
+            assert!(result.is_ok(), "User 2 should be authenticated");
+        }
+    })
+    .await;
 }
 
 /// Test that RLS policy would be evaluated with security context

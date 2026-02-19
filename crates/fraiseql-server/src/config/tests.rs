@@ -10,22 +10,22 @@ use crate::config::{
 
 #[test]
 fn test_parse_minimal_config() {
-    let toml = r#"
-        [server]
-        port = 4000
+    temp_env::with_vars([("DATABASE_URL", Some("postgres://localhost/test"))], || {
+        let toml = r#"
+            [server]
+            port = 4000
 
-        [database]
-        url_env = "DATABASE_URL"
-    "#;
+            [database]
+            url_env = "DATABASE_URL"
+        "#;
 
-    std::env::set_var("DATABASE_URL", "postgres://localhost/test");
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
 
-    let config: RuntimeConfig = toml::from_str(toml).unwrap();
-
-    assert_eq!(config.server.port, 4000);
-    assert_eq!(config.server.host, "127.0.0.1");
-    assert_eq!(config.database.url_env, "DATABASE_URL");
-    assert_eq!(config.database.pool_size, 10);
+        assert_eq!(config.server.port, 4000);
+        assert_eq!(config.server.host, "127.0.0.1");
+        assert_eq!(config.database.url_env, "DATABASE_URL");
+        assert_eq!(config.database.pool_size, 10);
+    });
 }
 
 #[test]
@@ -59,60 +59,62 @@ fn test_parse_duration_invalid() {
 
 #[test]
 fn test_env_resolution_with_default() {
-    std::env::remove_var("NONEXISTENT_VAR");
-    let result = resolve_env_value("${NONEXISTENT_VAR:-default_value}").unwrap();
-    assert_eq!(result, "default_value");
+    temp_env::with_vars([("NONEXISTENT_VAR", None::<&str>)], || {
+        let result = resolve_env_value("${NONEXISTENT_VAR:-default_value}").unwrap();
+        assert_eq!(result, "default_value");
+    });
 }
 
 #[test]
 fn test_env_resolution_without_default() {
-    std::env::set_var("EXISTING_VAR", "actual_value");
-    let result = resolve_env_value("${EXISTING_VAR:-default}").unwrap();
-    assert_eq!(result, "actual_value");
+    temp_env::with_vars([("EXISTING_VAR", Some("actual_value"))], || {
+        let result = resolve_env_value("${EXISTING_VAR:-default}").unwrap();
+        assert_eq!(result, "actual_value");
+    });
 }
 
 #[test]
 fn test_validation_missing_env_var() {
-    let toml = r#"
-        [server]
-        port = 4000
+    temp_env::with_vars([("NONEXISTENT_DB_URL", None::<&str>)], || {
+        let toml = r#"
+            [server]
+            port = 4000
 
-        [database]
-        url_env = "NONEXISTENT_DB_URL"
-    "#;
+            [database]
+            url_env = "NONEXISTENT_DB_URL"
+        "#;
 
-    std::env::remove_var("NONEXISTENT_DB_URL");
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
+        let result = ConfigValidator::new(&config).validate();
 
-    let config: RuntimeConfig = toml::from_str(toml).unwrap();
-    let result = ConfigValidator::new(&config).validate();
-
-    assert!(!result.is_ok());
-    assert!(result.errors.iter().any(|e| matches!(e, ConfigError::MissingEnvVar { .. })));
+        assert!(!result.is_ok());
+        assert!(result.errors.iter().any(|e| matches!(e, ConfigError::MissingEnvVar { .. })));
+    });
 }
 
 #[test]
 fn test_validation_cross_field() {
-    let toml = r#"
-        [server]
-        port = 4000
+    temp_env::with_vars([("DATABASE_URL", Some("postgres://localhost/test"))], || {
+        let toml = r#"
+            [server]
+            port = 4000
 
-        [database]
-        url_env = "DATABASE_URL"
+            [database]
+            url_env = "DATABASE_URL"
 
-        [observers.test]
-        entity = "users"
-        events = ["insert"]
+            [observers.test]
+            entity = "users"
+            events = ["insert"]
 
-        [[observers.test.actions]]
-        type = "email"
-        template = "welcome"
-    "#;
+            [[observers.test.actions]]
+            type = "email"
+            template = "welcome"
+        "#;
 
-    std::env::set_var("DATABASE_URL", "postgres://localhost/test");
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
+        let result = ConfigValidator::new(&config).validate();
 
-    let config: RuntimeConfig = toml::from_str(toml).unwrap();
-    let result = ConfigValidator::new(&config).validate();
-
-    // Should fail because email action requires notifications config
-    assert!(!result.is_ok());
+        // Should fail because email action requires notifications config
+        assert!(!result.is_ok());
+    });
 }

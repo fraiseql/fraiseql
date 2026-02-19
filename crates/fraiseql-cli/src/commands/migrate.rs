@@ -243,15 +243,14 @@ mod tests {
     fn test_resolve_database_url_no_source() {
         let _guard = GLOBAL_STATE_LOCK.lock().unwrap();
 
-        // Clear env var to ensure it's not set
-        std::env::remove_var("DATABASE_URL");
-
         let tmp = tempfile::tempdir().unwrap();
         let original = std::env::current_dir().unwrap();
         std::env::set_current_dir(tmp.path()).unwrap();
 
-        let result = resolve_database_url(None);
-        assert!(result.is_err());
+        temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
+            let result = resolve_database_url(None);
+            assert!(result.is_err());
+        });
 
         std::env::set_current_dir(original).unwrap();
     }
@@ -264,10 +263,10 @@ mod tests {
         let original = std::env::current_dir().unwrap();
         std::env::set_current_dir(tmp.path()).unwrap();
 
-        std::env::set_var("DATABASE_URL", "postgres://env/test");
-        let url = resolve_database_url(None).unwrap();
-        assert_eq!(url, "postgres://env/test");
-        std::env::remove_var("DATABASE_URL");
+        temp_env::with_vars([("DATABASE_URL", Some("postgres://env/test"))], || {
+            let url = resolve_database_url(None).unwrap();
+            assert_eq!(url, "postgres://env/test");
+        });
 
         std::env::set_current_dir(original).unwrap();
     }

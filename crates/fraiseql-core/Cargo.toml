@@ -75,6 +75,7 @@ deadpool-postgres.workspace = true
 criterion = {version = "0.5", features = ["async_tokio"]}
 proptest = {workspace = true}
 serial_test = "3"
+temp-env = {workspace = true}
 tempfile = {workspace = true}
 tokio-test = "0.4"
 

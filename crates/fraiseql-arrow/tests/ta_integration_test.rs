@@ -11,7 +11,11 @@ use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServic
 use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
 use tonic::transport::{Endpoint, Server};
 
-/// Create a session token for authenticated testing
+const TEST_FLIGHT_SECRET: &str = "flight-test-session-secret-for-integration-tests";
+
+/// Create a session token for authenticated testing.
+///
+/// Must be called within a `temp_env::async_with_vars` block that sets `FLIGHT_SESSION_SECRET`.
 fn create_test_session_token() -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use serde::{Deserialize, Serialize};
@@ -36,10 +40,7 @@ fn create_test_session_token() -> String {
         session_type: "flight".to_string(),
     };
 
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .unwrap_or_else(|_| "flight-session-default-secret".to_string());
-
-    let key = EncodingKey::from_secret(secret.as_bytes());
+    let key = EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes());
     let header = Header::new(Algorithm::HS256);
 
     encode(&header, &claims, &key).expect("Failed to encode token")
@@ -48,9 +49,9 @@ fn create_test_session_token() -> String {
 /// Start a test Flight server on a random available port.
 ///
 /// Returns the server address (e.g., "http://127.0.0.1:12345").
+///
+/// Must be called within a `temp_env::async_with_vars` block that sets `FLIGHT_SESSION_SECRET`.
 async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
-    // Ensure FLIGHT_SESSION_SECRET is available for token validation
-    std::env::set_var("FLIGHT_SESSION_SECRET", "flight-test-session-secret-for-integration-tests");
     let service = FraiseQLFlightService::new();
 
     // Use port 0 to get a random available port
@@ -73,206 +74,218 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_get_schema_for_ta_orders() {
-    let addr = start_test_server().await.unwrap();
+    temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
+        let addr = start_test_server().await.unwrap();
 
-    let channel = Endpoint::from_shared(addr)
-        .expect("Invalid endpoint")
-        .connect()
-        .await
-        .expect("Failed to connect to Flight server");
-    let mut client = FlightServiceClient::new(channel);
+        let channel = Endpoint::from_shared(addr)
+            .expect("Invalid endpoint")
+            .connect()
+            .await
+            .expect("Failed to connect to Flight server");
+        let mut client = FlightServiceClient::new(channel);
 
-    // Create ticket for ta_orders optimized view
-    let ticket = FlightTicket::OptimizedView {
-        view:     "ta_orders".to_string(),
-        filter:   None,
-        order_by: None,
-        limit:    None,
-        offset:   None,
-    };
+        // Create ticket for ta_orders optimized view
+        let ticket = FlightTicket::OptimizedView {
+            view:     "ta_orders".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    None,
+            offset:   None,
+        };
 
-    let ticket_bytes = ticket.encode().unwrap();
-    let ticket_path = String::from_utf8(ticket_bytes).unwrap();
+        let ticket_bytes = ticket.encode().unwrap();
+        let ticket_path = String::from_utf8(ticket_bytes).unwrap();
 
-    // Request schema
-    let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
-    let request = tonic::Request::new(descriptor);
+        // Request schema
+        let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
+        let request = tonic::Request::new(descriptor);
 
-    let response = client.get_schema(request).await.expect("GetSchema failed for ta_orders");
-    let schema_result = response.into_inner();
+        let response = client.get_schema(request).await.expect("GetSchema failed for ta_orders");
+        let schema_result = response.into_inner();
 
-    // Verify we got schema bytes back
-    assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_orders");
+        // Verify we got schema bytes back
+        assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_orders");
 
-    // Decode and verify schema structure
-    let schema =
-        root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_orders");
-    assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
+        // Decode and verify schema structure
+        let schema =
+            root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_orders");
+        assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
 
-    // Verify schema fields match ta_orders definition
-    if schema.header_type() == arrow::ipc::MessageHeader::Schema {
-        // Schema decoding successful - detailed field verification could be added
-        println!("✅ ta_orders schema successfully retrieved and decoded");
-    }
+        // Verify schema fields match ta_orders definition
+        if schema.header_type() == arrow::ipc::MessageHeader::Schema {
+            // Schema decoding successful - detailed field verification could be added
+            println!("ta_orders schema successfully retrieved and decoded");
+        }
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_get_schema_for_ta_users() {
-    let addr = start_test_server().await.unwrap();
+    temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
+        let addr = start_test_server().await.unwrap();
 
-    let channel = Endpoint::from_shared(addr)
-        .expect("Invalid endpoint")
-        .connect()
-        .await
-        .expect("Failed to connect to Flight server");
-    let mut client = FlightServiceClient::new(channel);
+        let channel = Endpoint::from_shared(addr)
+            .expect("Invalid endpoint")
+            .connect()
+            .await
+            .expect("Failed to connect to Flight server");
+        let mut client = FlightServiceClient::new(channel);
 
-    // Create ticket for ta_users optimized view
-    let ticket = FlightTicket::OptimizedView {
-        view:     "ta_users".to_string(),
-        filter:   None,
-        order_by: None,
-        limit:    None,
-        offset:   None,
-    };
+        // Create ticket for ta_users optimized view
+        let ticket = FlightTicket::OptimizedView {
+            view:     "ta_users".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    None,
+            offset:   None,
+        };
 
-    let ticket_bytes = ticket.encode().unwrap();
-    let ticket_path = String::from_utf8(ticket_bytes).unwrap();
+        let ticket_bytes = ticket.encode().unwrap();
+        let ticket_path = String::from_utf8(ticket_bytes).unwrap();
 
-    // Request schema
-    let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
-    let request = tonic::Request::new(descriptor);
+        // Request schema
+        let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
+        let request = tonic::Request::new(descriptor);
 
-    let response = client.get_schema(request).await.expect("GetSchema failed for ta_users");
-    let schema_result = response.into_inner();
+        let response = client.get_schema(request).await.expect("GetSchema failed for ta_users");
+        let schema_result = response.into_inner();
 
-    // Verify we got schema bytes back
-    assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_users");
+        // Verify we got schema bytes back
+        assert!(!schema_result.schema.is_empty(), "Schema should not be empty for ta_users");
 
-    // Decode and verify schema structure
-    let schema =
-        root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_users");
-    assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
+        // Decode and verify schema structure
+        let schema =
+            root_as_message(&schema_result.schema).expect("Failed to decode schema for ta_users");
+        assert!(schema.header_type() == arrow::ipc::MessageHeader::Schema);
 
-    println!("✅ ta_users schema successfully retrieved and decoded");
+        println!("ta_users schema successfully retrieved and decoded");
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_do_get_ta_orders_returns_data() {
-    let addr = start_test_server().await.unwrap();
+    temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
+        let addr = start_test_server().await.unwrap();
 
-    let channel = Endpoint::from_shared(addr)
-        .expect("Invalid endpoint")
-        .connect()
-        .await
-        .expect("Failed to connect to Flight server");
-    let mut client = FlightServiceClient::new(channel);
+        let channel = Endpoint::from_shared(addr)
+            .expect("Invalid endpoint")
+            .connect()
+            .await
+            .expect("Failed to connect to Flight server");
+        let mut client = FlightServiceClient::new(channel);
 
-    // Create session token for authentication
-    let session_token = create_test_session_token();
+        // Create session token for authentication
+        let session_token = create_test_session_token();
 
-    // Create ticket for ta_orders with limit
-    let ticket = FlightTicket::OptimizedView {
-        view:     "ta_orders".to_string(),
-        filter:   None,
-        order_by: None,
-        limit:    Some(5),
-        offset:   None,
-    };
+        // Create ticket for ta_orders with limit
+        let ticket = FlightTicket::OptimizedView {
+            view:     "ta_orders".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    Some(5),
+            offset:   None,
+        };
 
-    let ticket_bytes = ticket.encode().unwrap();
-    let ticket_request = Ticket {
-        ticket: ticket_bytes.into(),
-    };
+        let ticket_bytes = ticket.encode().unwrap();
+        let ticket_request = Ticket {
+            ticket: ticket_bytes.into(),
+        };
 
-    let mut request = tonic::Request::new(ticket_request);
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token)
-            .parse()
-            .expect("Failed to insert auth header"),
-    );
+        let mut request = tonic::Request::new(ticket_request);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token)
+                .parse()
+                .expect("Failed to insert auth header"),
+        );
 
-    let response = client.do_get(request).await.expect("DoGet failed for ta_orders");
+        let response = client.do_get(request).await.expect("DoGet failed for ta_orders");
 
-    // Collect the stream - should have schema + batches
-    let mut stream = response.into_inner();
-    let mut message_count = 0;
-    let mut batch_count = 0;
+        // Collect the stream - should have schema + batches
+        let mut stream = response.into_inner();
+        let mut message_count = 0;
+        let mut batch_count = 0;
 
-    while let Ok(Some(_flight_data)) = stream.message().await {
-        message_count += 1;
-        // First message is schema, subsequent messages are data batches
-        if message_count > 1 {
-            batch_count += 1;
+        while let Ok(Some(_flight_data)) = stream.message().await {
+            message_count += 1;
+            // First message is schema, subsequent messages are data batches
+            if message_count > 1 {
+                batch_count += 1;
+            }
         }
-    }
 
-    // Should have at least schema + 1 data batch
-    assert!(
-        message_count > 1,
-        "Expected schema + data batches, got {} messages",
-        message_count
-    );
-    println!(
-        "✅ ta_orders DoGet returned {} messages ({} batches)",
-        message_count, batch_count
-    );
+        // Should have at least schema + 1 data batch
+        assert!(
+            message_count > 1,
+            "Expected schema + data batches, got {} messages",
+            message_count
+        );
+        println!(
+            "ta_orders DoGet returned {} messages ({} batches)",
+            message_count, batch_count
+        );
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn test_do_get_ta_users_returns_data() {
-    let addr = start_test_server().await.unwrap();
+    temp_env::async_with_vars([("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))], async {
+        let addr = start_test_server().await.unwrap();
 
-    let channel = Endpoint::from_shared(addr)
-        .expect("Invalid endpoint")
-        .connect()
-        .await
-        .expect("Failed to connect to Flight server");
-    let mut client = FlightServiceClient::new(channel);
+        let channel = Endpoint::from_shared(addr)
+            .expect("Invalid endpoint")
+            .connect()
+            .await
+            .expect("Failed to connect to Flight server");
+        let mut client = FlightServiceClient::new(channel);
 
-    // Create session token for authentication
-    let session_token = create_test_session_token();
+        // Create session token for authentication
+        let session_token = create_test_session_token();
 
-    // Create ticket for ta_users with limit
-    let ticket = FlightTicket::OptimizedView {
-        view:     "ta_users".to_string(),
-        filter:   None,
-        order_by: None,
-        limit:    Some(10),
-        offset:   None,
-    };
+        // Create ticket for ta_users with limit
+        let ticket = FlightTicket::OptimizedView {
+            view:     "ta_users".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    Some(10),
+            offset:   None,
+        };
 
-    let ticket_bytes = ticket.encode().unwrap();
-    let ticket_request = Ticket {
-        ticket: ticket_bytes.into(),
-    };
+        let ticket_bytes = ticket.encode().unwrap();
+        let ticket_request = Ticket {
+            ticket: ticket_bytes.into(),
+        };
 
-    let mut request = tonic::Request::new(ticket_request);
-    request.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {}", session_token)
-            .parse()
-            .expect("Failed to insert auth header"),
-    );
+        let mut request = tonic::Request::new(ticket_request);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", session_token)
+                .parse()
+                .expect("Failed to insert auth header"),
+        );
 
-    let response = client.do_get(request).await.expect("DoGet failed for ta_users");
+        let response = client.do_get(request).await.expect("DoGet failed for ta_users");
 
-    // Collect the stream - should have schema + batches
-    let mut stream = response.into_inner();
-    let mut message_count = 0;
+        // Collect the stream - should have schema + batches
+        let mut stream = response.into_inner();
+        let mut message_count = 0;
 
-    while let Ok(Some(_flight_data)) = stream.message().await {
-        message_count += 1;
-    }
+        while let Ok(Some(_flight_data)) = stream.message().await {
+            message_count += 1;
+        }
 
-    // Should have at least schema + 1 data batch
-    assert!(
-        message_count > 1,
-        "Expected schema + data batches, got {} messages",
-        message_count
-    );
-    println!("✅ ta_users DoGet returned {} messages", message_count);
+        // Should have at least schema + 1 data batch
+        assert!(
+            message_count > 1,
+            "Expected schema + data batches, got {} messages",
+            message_count
+        );
+        println!("ta_users DoGet returned {} messages", message_count);
+    })
+    .await;
 }
 
 #[tokio::test]

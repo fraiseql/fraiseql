@@ -1049,10 +1049,13 @@ response_cache_enabled = true
 
     #[test]
     fn test_env_var_expansion() {
-        std::env::set_var("TEST_DB_URL", "postgresql://user:pass@host/db");
-        std::env::set_var("TEST_JWT_SECRET", "super-secret");
-
-        let toml = r#"
+        temp_env::with_vars(
+            [
+                ("TEST_DB_URL", Some("postgresql://user:pass@host/db")),
+                ("TEST_JWT_SECRET", Some("super-secret")),
+            ],
+            || {
+                let toml = r#"
 [database]
 url = "${TEST_DB_URL}"
 
@@ -1061,13 +1064,12 @@ enabled = true
 provider = "jwt"
 jwt_secret = "${TEST_JWT_SECRET}"
 "#;
-        let config = FraiseQLConfig::from_toml(toml).unwrap();
+                let config = FraiseQLConfig::from_toml(toml).unwrap();
 
-        assert_eq!(config.database.url, "postgresql://user:pass@host/db");
-        assert_eq!(config.auth.jwt_secret, Some("super-secret".to_string()));
-
-        std::env::remove_var("TEST_DB_URL");
-        std::env::remove_var("TEST_JWT_SECRET");
+                assert_eq!(config.database.url, "postgresql://user:pass@host/db");
+                assert_eq!(config.auth.jwt_secret, Some("super-secret".to_string()));
+            },
+        );
     }
 
     #[test]

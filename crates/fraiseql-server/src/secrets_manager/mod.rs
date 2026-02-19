@@ -269,9 +269,11 @@ mod tests {
     async fn test_create_secrets_manager_env_backend() {
         // Use a unique env var to avoid test interference
         let key = "FRAISEQL_TEST_SM_SECRET_FACTORY";
-        std::env::set_var(key, "env_value");
-        let manager = create_secrets_manager(SecretsBackendConfig::Env).await.unwrap();
-        let value = manager.get_secret(key).await.unwrap();
-        assert_eq!(value, "env_value");
+        temp_env::async_with_vars([(key, Some("env_value"))], async {
+            let manager = create_secrets_manager(SecretsBackendConfig::Env).await.unwrap();
+            let value = manager.get_secret(key).await.unwrap();
+            assert_eq!(value, "env_value");
+        })
+        .await;
     }
 }

@@ -46,6 +46,7 @@ uuid = {version = "1", features = ["v4"]}
 criterion = {version = "0.5", features = ["async_tokio"]}
 # Integration test dependencies
 fraiseql-core = {workspace = true}
+temp-env = {workspace = true}
 fraiseql-server = {workspace = true, features = ["arrow"]}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
 tempfile = "3"
