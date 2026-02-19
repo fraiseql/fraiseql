@@ -57,6 +57,7 @@ use std::fmt;
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use crate::security::errors::{Result, SecurityError};
 
@@ -73,13 +74,13 @@ pub enum SigningKey {
     ///
     /// Use for internal services where the same secret is shared
     /// between token issuer and validator.
-    Hs256(Vec<u8>),
+    Hs256(Zeroizing<Vec<u8>>),
 
     /// HMAC-SHA384 symmetric key.
-    Hs384(Vec<u8>),
+    Hs384(Zeroizing<Vec<u8>>),
 
     /// HMAC-SHA512 symmetric key.
-    Hs512(Vec<u8>),
+    Hs512(Zeroizing<Vec<u8>>),
 
     /// RSA public key in PEM format (RS256 algorithm).
     ///
@@ -108,13 +109,13 @@ impl SigningKey {
     /// Create an HS256 signing key from a secret string.
     #[must_use]
     pub fn hs256(secret: &str) -> Self {
-        Self::Hs256(secret.as_bytes().to_vec())
+        Self::Hs256(Zeroizing::new(secret.as_bytes().to_vec()))
     }
 
     /// Create an HS256 signing key from raw bytes.
     #[must_use]
     pub fn hs256_bytes(secret: &[u8]) -> Self {
-        Self::Hs256(secret.to_vec())
+        Self::Hs256(Zeroizing::new(secret.to_vec()))
     }
 
     /// Create an RS256 signing key from PEM-encoded public key.
@@ -1392,10 +1393,10 @@ mod tests {
         let hs256 = SigningKey::hs256("secret");
         assert!(matches!(hs256.algorithm(), Algorithm::HS256));
 
-        let hs384 = SigningKey::Hs384(b"secret".to_vec());
+        let hs384 = SigningKey::Hs384(Zeroizing::new(b"secret".to_vec()));
         assert!(matches!(hs384.algorithm(), Algorithm::HS384));
 
-        let hs512 = SigningKey::Hs512(b"secret".to_vec());
+        let hs512 = SigningKey::Hs512(Zeroizing::new(b"secret".to_vec()));
         assert!(matches!(hs512.algorithm(), Algorithm::HS512));
 
         let rs256_pem = SigningKey::rs256_pem("fake-pem");

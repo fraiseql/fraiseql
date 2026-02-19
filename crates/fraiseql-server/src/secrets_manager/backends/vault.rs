@@ -9,6 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
 use chrono::Utc;
 use tokio::sync::RwLock;
+use zeroize::Zeroizing;
 
 use super::super::{SecretsBackend, SecretsError};
 
@@ -121,7 +122,7 @@ impl SecretCache {
 #[derive(Debug)]
 pub struct VaultBackend {
     addr:       String,
-    token:      String,
+    token:      Zeroizing<String>,
     namespace:  Option<String>,
     tls_verify: bool,
     cache:      Arc<RwLock<SecretCache>>,
@@ -131,7 +132,7 @@ impl Clone for VaultBackend {
     fn clone(&self) -> Self {
         VaultBackend {
             addr:       self.addr.clone(),
-            token:      self.token.clone(),
+            token:      Zeroizing::new((*self.token).clone()),
             namespace:  self.namespace.clone(),
             tls_verify: self.tls_verify,
             cache:      Arc::clone(&self.cache),
@@ -196,7 +197,7 @@ impl VaultBackend {
     pub fn new<S: Into<String>>(addr: S, token: S) -> Self {
         VaultBackend {
             addr:       addr.into(),
-            token:      token.into(),
+            token:      Zeroizing::new(token.into()),
             namespace:  None,
             tls_verify: true,
             cache:      Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
@@ -338,7 +339,7 @@ impl VaultBackend {
         for (attempt, delay) in delays.iter().enumerate() {
             match client
                 .get(&url)
-                .header("X-Vault-Token", &self.token)
+                .header("X-Vault-Token", &*self.token)
                 .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
                 .send()
                 .await
@@ -407,7 +408,7 @@ impl VaultBackend {
     ) -> reqwest::RequestBuilder {
         client
             .post(&url)
-            .header("X-Vault-Token", self.token.clone())
+            .header("X-Vault-Token", (*self.token).clone())
             .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
     }
 

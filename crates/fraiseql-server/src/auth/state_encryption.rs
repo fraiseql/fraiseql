@@ -6,6 +6,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
 };
 use rand::RngCore;
+use zeroize::Zeroizing;
 
 use crate::auth::{AuthError, error::Result};
 
@@ -152,10 +153,10 @@ impl StateEncryption {
 }
 
 /// Generate a cryptographically random encryption key
-pub fn generate_state_encryption_key() -> [u8; 32] {
+pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
     let mut key = [0u8; 32];
     rand::rngs::OsRng.fill_bytes(&mut key);
-    key
+    Zeroizing::new(key)
 }
 
 #[cfg(test)]

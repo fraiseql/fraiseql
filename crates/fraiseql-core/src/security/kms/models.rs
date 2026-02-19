@@ -6,6 +6,7 @@
 use std::{collections::HashMap, fmt};
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 /// Intended use of the key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,7 +134,7 @@ impl EncryptedData {
 #[derive(Debug, Clone)]
 pub struct DataKeyPair {
     /// Use immediately, never persist
-    pub plaintext_key: Vec<u8>,
+    pub plaintext_key: Zeroizing<Vec<u8>>,
     /// Persist alongside encrypted data
     pub encrypted_key: EncryptedData,
     /// Master key used for wrapping
@@ -148,7 +149,7 @@ impl DataKeyPair {
         key_reference: KeyReference,
     ) -> Self {
         Self {
-            plaintext_key,
+            plaintext_key: Zeroizing::new(plaintext_key),
             encrypted_key,
             key_reference,
         }
