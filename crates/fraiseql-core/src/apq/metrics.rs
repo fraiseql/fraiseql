@@ -84,7 +84,8 @@ impl ApqMetrics {
             0.0
         } else {
             // Small precision loss is acceptable for metrics percentages
-            #[allow(clippy::cast_precision_loss)] // Reason: APQ hit/miss counters won't exceed f64 mantissa (2^53)
+            #[allow(clippy::cast_precision_loss)]
+            // Reason: APQ hit/miss counters won't exceed f64 mantissa (2^53)
             {
                 hits as f64 / (hits + misses) as f64
             }

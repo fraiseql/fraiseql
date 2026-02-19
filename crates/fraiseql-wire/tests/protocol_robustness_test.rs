@@ -144,7 +144,7 @@ fn test_error_sqlstate_parsing() {
     buf.put_u8(b'E');
     let body: Vec<u8> = vec![
         b'S', b'E', b'R', b'R', b'O', b'R', 0, // severity "ERROR"
-        b'C', b'2', b'3', b'5', b'0', b'5', 0,  // SQLSTATE "23505"
+        b'C', b'2', b'3', b'5', b'0', b'5', 0, // SQLSTATE "23505"
         b'M', b'u', b'n', b'i', b'q', b'u', b'e', 0, // message "unique"
         0, // terminator
     ];
@@ -168,8 +168,8 @@ fn test_error_position_marker() {
     buf.put_u8(b'E');
     let body: Vec<u8> = vec![
         b'M', b'e', b'r', b'r', 0, // message "err"
-        b'P', b'9', 0,              // position "9"
-        0,                           // terminator
+        b'P', b'9', 0, // position "9"
+        0, // terminator
     ];
     let len = (body.len() + 4) as i32;
     buf.put_i32(len);
@@ -221,7 +221,10 @@ fn test_error_detail_field() {
 
     let (msg, _) = decode_message(&mut buf).unwrap();
     if let BackendMessage::ErrorResponse(fields) = msg {
-        assert_eq!(fields.detail.as_deref(), Some("Key (id)=(5) already exists."));
+        assert_eq!(
+            fields.detail.as_deref(),
+            Some("Key (id)=(5) already exists.")
+        );
     } else {
         panic!("Expected ErrorResponse");
     }
@@ -232,12 +235,12 @@ fn test_multi_field_error_response() {
     let mut buf = BytesMut::new();
     buf.put_u8(b'E');
     let body: Vec<u8> = vec![
-        b'S', b'E', b'R', b'R', b'O', b'R', 0,               // severity
-        b'C', b'4', b'2', b'P', b'0', b'1', 0,               // SQLSTATE
+        b'S', b'E', b'R', b'R', b'O', b'R', 0, // severity
+        b'C', b'4', b'2', b'P', b'0', b'1', 0, // SQLSTATE
         b'M', b'r', b'e', b'l', b'a', b't', b'i', b'o', b'n', 0, // message
-        b'P', b'1', b'5', 0,                                   // position
-        b'D', b'd', b'e', b't', 0,                             // detail
-        b'H', b'h', b'n', b't', 0,                             // hint
+        b'P', b'1', b'5', 0, // position
+        b'D', b'd', b'e', b't', 0, // detail
+        b'H', b'h', b'n', b't', 0, // hint
         0, // terminator
     ];
     let len = (body.len() + 4) as i32;
@@ -267,7 +270,7 @@ fn test_notice_response_handling() {
     buf.put_u8(b'N'); // Notice (not Error)
     let body: Vec<u8> = vec![
         b'S', b'W', b'A', b'R', b'N', b'I', b'N', b'G', 0, // severity "WARNING"
-        b'M', b'c', b'o', b'l', 0,                            // message "col"
+        b'M', b'c', b'o', b'l', 0, // message "col"
         0, // terminator
     ];
     let len = (body.len() + 4) as i32;
@@ -288,8 +291,8 @@ fn test_parameter_status_updates() {
     let mut buf = BytesMut::new();
     buf.put_u8(b'S'); // ParameterStatus
     let body: Vec<u8> = vec![
-        b'c', b'l', b'i', b'e', b'n', b't', b'_', b'e', b'n', b'c', b'o', b'd', b'i', b'n',
-        b'g', 0, // name "client_encoding"
+        b'c', b'l', b'i', b'e', b'n', b't', b'_', b'e', b'n', b'c', b'o', b'd', b'i', b'n', b'g',
+        0, // name "client_encoding"
         b'U', b'T', b'F', b'8', 0, // value "UTF8"
     ];
     let len = (body.len() + 4) as i32;
@@ -380,7 +383,10 @@ fn test_empty_result_set_messages() {
     buf.put_u8(b'I');
 
     let (msg, _) = decode_message(&mut buf).unwrap();
-    assert!(matches!(msg, BackendMessage::ReadyForQuery { status: b'I' }));
+    assert!(matches!(
+        msg,
+        BackendMessage::ReadyForQuery { status: b'I' }
+    ));
 }
 
 #[test]
@@ -431,7 +437,7 @@ fn test_row_description_parsing() {
 
     let mut body = BytesMut::new();
     body.put_i16(1); // 1 field
-    // Field: name "id" + null + 18 bytes of descriptor
+                     // Field: name "id" + null + 18 bytes of descriptor
     body.extend_from_slice(b"id\0");
     body.put_i32(0); // table_oid
     body.put_i16(0); // column_attr

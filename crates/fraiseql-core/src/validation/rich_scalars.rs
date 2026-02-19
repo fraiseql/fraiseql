@@ -15,19 +15,16 @@ static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 // International phone: +1-999-999-9999 or +999999999999, etc.
-static PHONE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\+?[1-9]\d{1,14}$").expect("phone regex is valid")
-});
+static PHONE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+?[1-9]\d{1,14}$").expect("phone regex is valid"));
 
 // VIN: 17 alphanumeric characters (no I, O, Q)
-static VIN_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[A-HJ-NPR-Z0-9]{17}$").expect("VIN regex is valid")
-});
+static VIN_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-HJ-NPR-Z0-9]{17}$").expect("VIN regex is valid"));
 
 // Country code: ISO 3166-1 alpha-2 (2 letters)
-static COUNTRY_CODE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[A-Z]{2}$").expect("country code regex is valid")
-});
+static COUNTRY_CODE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Z]{2}$").expect("country code regex is valid"));
 
 /// Email address validator.
 pub struct EmailValidator;

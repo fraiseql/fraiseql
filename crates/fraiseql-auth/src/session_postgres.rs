@@ -256,16 +256,16 @@ mod tests {
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         let secret = b"fraiseql_session_user123";
-        let token1 = crate::jwt::generate_hs256_token(&claims, secret)
-            .expect("Failed to generate token");
+        let token1 =
+            crate::jwt::generate_hs256_token(&claims, secret).expect("Failed to generate token");
 
         // Update JTI for second token
         claims
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
-        let token2 = crate::jwt::generate_hs256_token(&claims, secret)
-            .expect("Failed to generate token");
+        let token2 =
+            crate::jwt::generate_hs256_token(&claims, secret).expect("Failed to generate token");
 
         // Tokens should be different (different JTI)
         assert_ne!(token1, token2);

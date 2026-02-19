@@ -112,8 +112,7 @@ pub use fraiseql_auth as auth;
 pub mod secrets;
 
 // Secrets management and encryption (extracted to fraiseql-secrets crate)
-pub use fraiseql_secrets::secrets_manager;
-pub use fraiseql_secrets::encryption;
+pub use fraiseql_secrets::{encryption, secrets_manager};
 
 // Backup and disaster recovery
 pub mod backup;

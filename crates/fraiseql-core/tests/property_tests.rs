@@ -3,13 +3,12 @@
 //! Uses proptest to verify invariants and properties that should hold
 //! across all inputs and edge cases.
 
+use fraiseql_core::{
+    schema::{CompiledSchema, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition},
+    security::ErrorFormatter,
+};
 use proptest::prelude::*;
 use serde_json::{Value, json};
-
-use fraiseql_core::schema::{
-    CompiledSchema, TypeDefinition, QueryDefinition, RoleDefinition, SecurityConfig,
-};
-use fraiseql_core::security::ErrorFormatter;
 
 // ============================================================================
 // Property Tests for JSON Serialization

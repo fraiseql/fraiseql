@@ -4,12 +4,9 @@
 //! in the developer portal. The signature is sent in the X-Signature-Ed25519
 //! header, with the timestamp in X-Signature-Timestamp.
 
-use ed25519_dalek::{Signature, VerifyingKey, Verifier};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
-use crate::{
-    signature::SignatureError,
-    traits::SignatureVerifier,
-};
+use crate::{signature::SignatureError, traits::SignatureVerifier};
 
 pub struct DiscordVerifier;
 

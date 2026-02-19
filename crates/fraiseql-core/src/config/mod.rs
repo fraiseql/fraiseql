@@ -814,8 +814,9 @@ fn expand_env_vars(content: &str) -> String {
     use std::sync::LazyLock;
 
     // The regex pattern is a compile-time constant and is guaranteed to be valid
-    static ENV_VAR_REGEX: LazyLock<regex::Regex> =
-        LazyLock::new(|| regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("env var regex is valid"));
+    static ENV_VAR_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("env var regex is valid")
+    });
 
     let mut result = content.to_string();
 

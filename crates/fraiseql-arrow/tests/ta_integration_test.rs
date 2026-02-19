@@ -222,10 +222,7 @@ async fn test_do_get_ta_orders_returns_data() {
             "Expected schema + data batches, got {} messages",
             message_count
         );
-        println!(
-            "ta_orders DoGet returned {} messages ({} batches)",
-            message_count, batch_count
-        );
+        println!("ta_orders DoGet returned {} messages ({} batches)", message_count, batch_count);
     })
     .await;
 }

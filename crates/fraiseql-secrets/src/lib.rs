@@ -43,7 +43,7 @@ pub mod secrets_manager;
 pub use encryption::FieldEncryption;
 pub use secrets_manager::{
     LeaseRenewalTask, SecretsBackendConfig, SecretsError, SecretsManager, VaultAuth,
+    backends::{EnvBackend, FileBackend, VaultBackend},
     create_secrets_manager,
+    types::{Secret, SecretsBackend},
 };
-pub use secrets_manager::backends::{EnvBackend, FileBackend, VaultBackend};
-pub use secrets_manager::types::{Secret, SecretsBackend};

@@ -18,7 +18,6 @@
 #![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used
 #![allow(clippy::cast_possible_wrap)] // Reason: values are within i64 range by design
 #![allow(clippy::redundant_clone)] // Reason: explicit clone at API boundaries for clarity
-//!
 //! - **15+ provider support**: Stripe, GitHub, Shopify, and more
 //! - **Signature verification**: Constant-time comparison for security
 //! - **Idempotency**: Prevent duplicate event processing

@@ -156,18 +156,15 @@ mod tests {
     /// Test multiple environment variables
     #[tokio::test]
     async fn test_env_backend_multiple_vars() {
-        temp_env::async_with_vars(
-            [("VAR1", Some("value1")), ("VAR2", Some("value2"))],
-            async {
-                let backend = EnvBackend::new();
+        temp_env::async_with_vars([("VAR1", Some("value1")), ("VAR2", Some("value2"))], async {
+            let backend = EnvBackend::new();
 
-                let s1 = backend.get_secret("VAR1").await.unwrap();
-                let s2 = backend.get_secret("VAR2").await.unwrap();
+            let s1 = backend.get_secret("VAR1").await.unwrap();
+            let s2 = backend.get_secret("VAR2").await.unwrap();
 
-                assert_eq!(s1, "value1");
-                assert_eq!(s2, "value2");
-            },
-        )
+            assert_eq!(s1, "value1");
+            assert_eq!(s2, "value2");
+        })
         .await;
     }
 }

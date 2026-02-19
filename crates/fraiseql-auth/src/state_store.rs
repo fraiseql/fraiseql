@@ -125,10 +125,8 @@ impl StateStore for InMemoryStateStore {
     }
 
     async fn retrieve(&self, state: &str) -> Result<(String, u64)> {
-        let (_key, value) = self
-            .states
-            .remove(state)
-            .ok_or_else(|| crate::error::AuthError::InvalidState)?;
+        let (_key, value) =
+            self.states.remove(state).ok_or_else(|| crate::error::AuthError::InvalidState)?;
         Ok(value)
     }
 }
@@ -155,11 +153,10 @@ impl RedisStateStore {
     /// let store = RedisStateStore::new("redis://localhost:6379").await?;
     /// ```
     pub async fn new(redis_url: &str) -> Result<Self> {
-        let client = redis::Client::open(redis_url).map_err(|e| {
-            crate::error::AuthError::ConfigError {
+        let client =
+            redis::Client::open(redis_url).map_err(|e| crate::error::AuthError::ConfigError {
                 message: e.to_string(),
-            }
-        })?;
+            })?;
 
         let connection_manager = client.get_connection_manager().await.map_err(|e| {
             crate::error::AuthError::ConfigError {
@@ -219,10 +216,9 @@ impl StateStore for RedisStateStore {
         let provider = provider.ok_or(crate::error::AuthError::InvalidState)?;
 
         // Delete the state to prevent replay
-        let _: () =
-            conn.del(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
-                message: e.to_string(),
-            })?;
+        let _: () = conn.del(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
+            message: e.to_string(),
+        })?;
 
         // Return current time as expiry (it was already validated by Redis TTL)
         let expiry_secs = std::time::SystemTime::now()

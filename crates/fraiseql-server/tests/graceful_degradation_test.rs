@@ -15,9 +15,11 @@
 #![cfg(test)]
 
 use axum::http::StatusCode;
-use fraiseql_server::error::{ErrorCode, ErrorExtensions, GraphQLError};
-use fraiseql_server::operational::health::{health_check, liveness_check, readiness_check};
-use fraiseql_server::routes::health::{DatabaseStatus, HealthResponse};
+use fraiseql_server::{
+    error::{ErrorCode, ErrorExtensions, GraphQLError},
+    operational::health::{health_check, liveness_check, readiness_check},
+    routes::health::{DatabaseStatus, HealthResponse},
+};
 
 // ============================================================================
 // Database Down: Health Endpoint Behavior
@@ -184,15 +186,13 @@ fn test_database_error_sanitized() {
 /// Query errors during database outage must return appropriate status codes.
 #[test]
 fn test_query_during_outage_returns_503_error() {
-    let error = GraphQLError::new(
-        "Service temporarily unavailable",
-        ErrorCode::InternalServerError,
-    )
-    .with_extensions(ErrorExtensions {
-        category:   Some("DATABASE".to_string()),
-        status:     Some(503),
-        request_id: Some("req-002".to_string()),
-    });
+    let error =
+        GraphQLError::new("Service temporarily unavailable", ErrorCode::InternalServerError)
+            .with_extensions(ErrorExtensions {
+                category:   Some("DATABASE".to_string()),
+                status:     Some(503),
+                request_id: Some("req-002".to_string()),
+            });
 
     assert_eq!(error.code, ErrorCode::InternalServerError);
     assert_eq!(error.code.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
