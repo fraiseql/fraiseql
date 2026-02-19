@@ -1,62 +1,77 @@
-# Quick test compose - without FraiseQL Server (requires Rust build)
-# Tests: PostgreSQL + Tutorial + Dashboard
-
-version: '3.9'
+# Integration test databases for fraiseql-core adapter tests
+#
+# Usage:
+#   docker compose -f docker/docker-compose.test.yml up -d
+#   cargo test --features test-postgres -p fraiseql-core -- db::postgres
+#   cargo test --features test-mysql    -p fraiseql-core -- db::mysql
+#   cargo test --features test-sqlserver -p fraiseql-core -- db::sqlserver
+#   docker compose -f docker/docker-compose.test.yml down -v
 
 services:
-  postgres-blog:
+  postgres-test:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: blog_fraiseql
-      POSTGRES_USER: fraiseql
-      POSTGRES_PASSWORD: fraiseql_dev
+      POSTGRES_DB: test_fraiseql
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
     ports:
-      - "5556:5432"
+      - "5433:5432"
     volumes:
-      - postgres-test-data:/var/lib/postgresql/data
+      - ./init/postgres-test.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fraiseql -d blog_fraiseql"]
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
       interval: 5s
       timeout: 3s
       retries: 5
-    networks:
-      - fraiseql-test
 
-  tutorial:
-    image: fraiseql-tutorial-test:latest
-    container_name: fraiseql-tutorial-test
-    ports:
-      - "3001:3001"
+  mysql-test:
+    image: mysql:8.0
     environment:
-      NODE_ENV: production
-      FRAISEQL_API_URL: http://localhost:8000
-      TUTORIAL_PORT: 3001
-    networks:
-      - fraiseql-test
-    depends_on:
-      postgres-blog:
-        condition: service_healthy
-
-  admin-dashboard:
-    image: fraiseql-dashboard-test:latest
-    container_name: fraiseql-dashboard-test
+      MYSQL_DATABASE: test_fraiseql
+      MYSQL_USER: fraiseql_test
+      MYSQL_PASSWORD: fraiseql_test_password
+      MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - "3002:3002"
+      - "3307:3306"
+    volumes:
+      - ./init/mysql-test.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "fraiseql_test", "-pfraiseql_test_password"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sqlserver-test:
+    image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
-      NODE_ENV: production
-      FRAISEQL_API_URL: http://localhost:8000
-      ADMIN_PORT: 3002
-    networks:
-      - fraiseql-test
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
+      MSSQL_PID: Developer
+    ports:
+      - "1434:1433"
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'FraiseQL_Test1234' -C -Q 'SELECT 1' -b"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # One-shot container that waits for SQL Server to be healthy, then seeds data
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
     depends_on:
-      postgres-blog:
+      sqlserver-test:
         condition: service_healthy
-
-networks:
-  fraiseql-test:
-    name: fraiseql-test
-    driver: bridge
-
-volumes:
-  postgres-test-data:
-    name: fraiseql-test-data
+    volumes:
+      - ./init/sqlserver-test.sql:/init.sql:ro
+    entrypoint: [
+      "/opt/mssql-tools18/bin/sqlcmd",
+      "-S", "sqlserver-test",
+      "-U", "sa",
+      "-P", "FraiseQL_Test1234",
+      "-C",
+      "-i", "/init.sql"
+    ]
