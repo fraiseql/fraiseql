@@ -5,6 +5,46 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.2] - 2026-02-19
+
+### Added
+
+- Docker Compose test infrastructure for integration tests
+- Fuzz targets for GraphQL parser, wire protocol, schema deserialization
+- Property-based tests for protocol encoding round-trips
+- k6 load testing infrastructure (5 scenarios: queries, mutations, mixed workload, auth, APQ cache)
+- 12 operational runbooks covering deployment, database failure, high latency, memory pressure,
+  authentication, rate limiting, connection pool exhaustion, Vault, Redis, certificates,
+  schema migration, and incident response
+- SLA/SLO documentation with availability targets, latency percentiles, and recovery metrics
+- 8 Architecture Decision Records (ADRs) documenting key technical choices
+- Graceful degradation test suite (16 tests)
+- Value proposition document (`docs/VALUE_PROPOSITION.md`)
+- Prioritized roadmap (`ROADMAP.md`)
+
+### Changed
+
+- Extracted `fraiseql-auth` crate (38 modules) from fraiseql-server
+- Extracted `fraiseql-webhooks` crate (19 modules) from fraiseql-server
+- Extracted `fraiseql-secrets` crate (21 modules) from fraiseql-server
+- Deprecated 10 thin SDKs; retained 6 (Python, TypeScript, Java, Go, PHP, Rust)
+- Redis crate upgraded 0.25 -> 0.28
+- Migrated lazy_static/once_cell to std::sync::LazyLock
+- Replaced std::env::set_var in tests with temp_env crate
+- README rewritten to lead with value proposition
+
+### Fixed
+
+- Wire protocol decoder hardened against malformed messages
+- Clippy pedantic allows justified with `// Reason:` comments
+
+### Security
+
+- Zeroizing wrapper for sensitive key material
+- Constant-time comparison via `subtle` crate verified
+- OsRng for all cryptographic nonce generation
+- No internal details leaked in error responses (verified by tests)
+
 ## [2.0.0-beta.1] - 2026-02-16
 
 ### Added
