@@ -111,10 +111,9 @@ pub use fraiseql_auth as auth;
 // Secrets management
 pub mod secrets;
 
-pub mod secrets_manager;
-
-// Field-level encryption for sensitive database fields
-pub mod encryption;
+// Secrets management and encryption (extracted to fraiseql-secrets crate)
+pub use fraiseql_secrets::secrets_manager;
+pub use fraiseql_secrets::encryption;
 
 // Backup and disaster recovery
 pub mod backup;

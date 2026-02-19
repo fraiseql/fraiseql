@@ -28,6 +28,7 @@ members = [
   "crates/fraiseql-error",
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",
+  "crates/fraiseql-secrets",
   "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, files
   "crates/fraiseql-webhooks",
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
@@ -54,6 +55,7 @@ deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.0.0-beta.2"}
 fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.0.0-beta.2"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.0.0-beta.2"}
 fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.0.0-beta.2"}
 fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.0-beta.2"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.0-beta.2", default-features = false}
