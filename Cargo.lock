@@ -2587,6 +2587,8 @@ dependencies = [
  "sqlx",
  "temp-env",
  "tempfile",
+ "testcontainers",
+ "testcontainers-modules",
  "thiserror 2.0.18",
  "tiberius",
  "tokio",

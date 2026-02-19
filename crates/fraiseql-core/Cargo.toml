@@ -79,6 +79,8 @@ proptest = {workspace = true}
 serial_test = "3"
 temp-env = {workspace = true}
 tempfile = {workspace = true}
+testcontainers = "0.26"
+testcontainers-modules = {version = "0.14", features = ["postgres"]}
 tokio-test = "0.4"
 
 [features]
