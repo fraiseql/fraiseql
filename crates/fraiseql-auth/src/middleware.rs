@@ -7,7 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{
+use crate::{
     error::{AuthError, Result},
     jwt::{Claims, JwtValidator},
     session::SessionStore,
@@ -215,7 +215,7 @@ mod tests {
     fn test_authenticated_user_clone() {
         use std::collections::HashMap;
 
-        use crate::auth::Claims;
+        use crate::Claims;
 
         let claims = Claims {
             sub:   "user123".to_string(),
@@ -239,7 +239,7 @@ mod tests {
     fn test_has_role_single_string() {
         use std::collections::HashMap;
 
-        use crate::auth::Claims;
+        use crate::Claims;
 
         let mut claims = Claims {
             sub:   "user123".to_string(),
@@ -265,7 +265,7 @@ mod tests {
     fn test_has_role_array() {
         use std::collections::HashMap;
 
-        use crate::auth::Claims;
+        use crate::Claims;
 
         let mut claims = Claims {
             sub:   "user123".to_string(),
@@ -295,7 +295,7 @@ mod tests {
     fn test_get_custom_claim() {
         use std::collections::HashMap;
 
-        use crate::auth::Claims;
+        use crate::Claims;
 
         let mut claims = Claims {
             sub:   "user123".to_string(),

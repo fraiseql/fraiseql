@@ -3,7 +3,7 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod rate_limiting_tests {
-    use crate::auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
+    use crate::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
 
     #[test]
     fn test_rate_limit_allows_requests_within_limit() {
@@ -63,7 +63,7 @@ mod rate_limiting_tests {
         let result = limiter.check("key");
 
         match result {
-            Err(crate::auth::error::AuthError::RateLimited { retry_after_secs }) => {
+            Err(crate::error::AuthError::RateLimited { retry_after_secs }) => {
                 assert_eq!(retry_after_secs, 60);
             },
             _ => panic!("Expected RateLimited error"),

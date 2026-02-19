@@ -24,6 +24,8 @@ dashmap = "6.1"
 dirs = "5"
 ed25519-dalek = {version = "2", features = ["std"]}
 fraiseql-arrow = {workspace = true}
+# Authentication
+fraiseql-auth = {workspace = true}
 # FraiseQL core
 fraiseql-core = {workspace = true, features = ["postgres"]}
 fraiseql-error = {workspace = true}

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{
+use crate::{
     audit_logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
 };

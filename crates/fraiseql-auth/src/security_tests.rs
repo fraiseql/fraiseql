@@ -9,7 +9,7 @@ mod security_tests {
     /// Generates multiple tokens and verifies no collisions and high entropy.
     #[test]
     fn test_csrf_token_uniqueness_and_entropy() {
-        use crate::auth::handlers::generate_secure_state;
+        use crate::handlers::generate_secure_state;
 
         let mut tokens = HashSet::new();
         let iterations = 100;
@@ -49,7 +49,7 @@ mod security_tests {
     /// OsRng should be used for cryptographic randomness, not thread_rng.
     #[test]
     fn test_csrf_state_is_cryptographically_random() {
-        use crate::auth::handlers::generate_secure_state;
+        use crate::handlers::generate_secure_state;
 
         // Generate multiple states
         let states: Vec<String> = (0..50).map(|_| generate_secure_state()).collect();
@@ -74,7 +74,7 @@ mod security_tests {
     fn test_jwt_expiration_enforcement() {
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        use crate::auth::jwt::Claims;
+        use crate::jwt::Claims;
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -111,7 +111,7 @@ mod security_tests {
     fn test_jwt_audience_validation_support() {
         use jsonwebtoken::Algorithm;
 
-        use crate::auth::jwt::JwtValidator;
+        use crate::jwt::JwtValidator;
 
         // Create validator without audiences (backward compat)
         let validator = JwtValidator::new("https://issuer.example.com", Algorithm::HS256)
@@ -130,7 +130,7 @@ mod security_tests {
     fn test_jwt_invalid_issuer_rejection() {
         use jsonwebtoken::Algorithm;
 
-        use crate::auth::jwt::JwtValidator;
+        use crate::jwt::JwtValidator;
 
         // Empty issuer should fail
         let result = JwtValidator::new("", Algorithm::HS256);
@@ -141,7 +141,7 @@ mod security_tests {
     /// Test that CSRF token format is consistent and URL-safe.
     #[test]
     fn test_csrf_token_url_safe_format() {
-        use crate::auth::handlers::generate_secure_state;
+        use crate::handlers::generate_secure_state;
 
         let tokens: Vec<String> = (0..20).map(|_| generate_secure_state()).collect();
 
@@ -183,7 +183,7 @@ mod security_tests {
     /// Verifies the implementation uses OsRng for cryptographic randomness.
     #[test]
     fn test_randomness_quality() {
-        use crate::auth::handlers::generate_secure_state;
+        use crate::handlers::generate_secure_state;
 
         // Generate states with different byte patterns
         let states: Vec<String> = (0..10).map(|_| generate_secure_state()).collect();

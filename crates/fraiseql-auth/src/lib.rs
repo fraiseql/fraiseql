@@ -1,5 +1,32 @@
-// Authentication module
-// Handles JWT validation, OAuth/OIDC flows, session management, and authorization
+//! Authentication, authorization, and session management for FraiseQL.
+//!
+//! Handles JWT validation, OAuth/OIDC flows, session management, and authorization.
+
+#![forbid(unsafe_code)]
+#![allow(missing_docs)] // Reason: migrated from fraiseql-server; docs are a separate effort
+#![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style
+#![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain
+#![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting
+#![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design
+#![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
+#![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn
+#![allow(clippy::similar_names)] // Reason: domain terms are conventional pairs
+#![allow(clippy::unused_self)] // Reason: trait implementations require &self
+#![allow(clippy::unnecessary_wraps)] // Reason: handler signatures must return Result
+#![allow(clippy::too_many_lines)] // Reason: OAuth/OIDC flows are inherently verbose
+#![allow(clippy::struct_excessive_bools)] // Reason: config structs use bools for feature flags
+#![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
+#![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
+#![allow(clippy::return_self_not_must_use)] // Reason: builder pattern compatibility
+#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
+#![allow(clippy::items_after_statements)] // Reason: helper structs near point of use in tests
+#![allow(clippy::cast_possible_truncation)] // Reason: intentional casts for metrics
+#![allow(clippy::cast_sign_loss)] // Reason: timestamp values are positive
+#![allow(clippy::uninlined_format_args)] // Reason: named variables improve readability
+#![allow(clippy::redundant_closure_for_method_calls)] // Reason: explicit closures clarify intent
+#![allow(clippy::single_match_else)] // Reason: match with else clearer for variant extraction
+#![allow(clippy::manual_let_else)] // Reason: match with early return clearer for multi-line extraction
+#![allow(clippy::redundant_closure)] // Reason: explicit closures clarify argument transformation
 
 pub mod audit_logger;
 pub mod constant_time;

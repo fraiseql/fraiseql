@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::auth::{
+use crate::{
     error::Result,
     oidc_provider::OidcProvider,
     provider::{OAuthProvider, TokenResponse, UserInfo},

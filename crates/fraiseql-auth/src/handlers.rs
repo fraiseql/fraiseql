@@ -9,7 +9,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{
+use crate::{
     audit_logger::{AuditEventType, SecretType, get_audit_logger},
     error::{AuthError, Result},
     provider::OAuthProvider,
@@ -274,7 +274,7 @@ pub async fn auth_refresh(
     Json(req): Json<AuthRefreshRequest>,
 ) -> Result<Json<AuthRefreshResponse>> {
     // Validate refresh token exists in session store
-    use crate::auth::session::hash_token;
+    use crate::session::hash_token;
     let token_hash = hash_token(&req.refresh_token);
     let session = state.session_store.get_session(&token_hash).await?;
 
@@ -331,7 +331,7 @@ pub async fn auth_logout(
     let client_ip = addr.ip().to_string();
 
     if let Some(refresh_token) = req.refresh_token {
-        use crate::auth::session::hash_token;
+        use crate::session::hash_token;
         let token_hash = hash_token(&refresh_token);
 
         // Get session to extract user ID for per-user rate limiting

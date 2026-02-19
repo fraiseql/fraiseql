@@ -8,7 +8,7 @@ use chacha20poly1305::{
 use rand::RngCore;
 use zeroize::Zeroizing;
 
-use crate::auth::{AuthError, error::Result};
+use crate::{AuthError, error::Result};
 
 /// Encrypted state container with nonce
 #[derive(Debug, Clone)]

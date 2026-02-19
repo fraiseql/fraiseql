@@ -16,7 +16,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::auth::error::{AuthError, Result};
+use crate::error::{AuthError, Result};
 
 /// Rate limit configuration for an endpoint
 #[derive(Debug, Clone)]

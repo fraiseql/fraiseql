@@ -22,6 +22,7 @@ opt-level = 1
 members = [
   "crates/fraiseql",  # Root umbrella crate
   "crates/fraiseql-arrow",
+  "crates/fraiseql-auth",
   "crates/fraiseql-cli",
   "crates/fraiseql-core",
   "crates/fraiseql-error",
@@ -51,6 +52,7 @@ deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.0.0-beta.2"}
+fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.0.0-beta.2"}
 fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.0-beta.2"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.0-beta.2", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.0.0-beta.2"}

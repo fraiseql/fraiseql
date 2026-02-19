@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 #[cfg(test)]
-use crate::auth::error::AuthError;
-use crate::auth::error::Result;
+use crate::error::AuthError;
+use crate::error::Result;
 
 /// Session data stored in the backend
 #[derive(Debug, Clone, Serialize, Deserialize)]

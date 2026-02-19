@@ -7,7 +7,7 @@ use serde_json::Value as JsonValue;
 use tracing::{debug, info, warn};
 
 use super::security_config::SecurityConfigFromSchema;
-use crate::auth::{AuthError, error::Result};
+use crate::{AuthError, error::Result};
 
 /// Maximum size for schema JSON to prevent DOS attacks
 /// 10 MB should be more than sufficient for any realistic schema

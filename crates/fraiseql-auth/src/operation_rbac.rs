@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{AuthError, error::Result, middleware::AuthenticatedUser};
+use crate::{AuthError, error::Result, middleware::AuthenticatedUser};
 
 /// Permission for a specific GraphQL operation/mutation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -316,7 +316,7 @@ impl RBACPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::jwt::Claims;
+    use crate::jwt::Claims;
 
     fn create_test_user(role: &str) -> AuthenticatedUser {
         let mut extra = std::collections::HashMap::new();

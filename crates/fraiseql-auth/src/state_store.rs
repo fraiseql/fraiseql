@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use dashmap::DashMap;
 
-use crate::auth::error::Result;
+use crate::error::Result;
 
 /// StateStore trait - implement this for different storage backends
 ///
@@ -115,7 +115,7 @@ impl StateStore for InMemoryStateStore {
         // SECURITY: Clean up expired states before inserting new one
         if self.cleanup_expired() {
             // Still over capacity after cleanup - reject to prevent memory exhaustion
-            return Err(crate::auth::error::AuthError::ConfigError {
+            return Err(crate::error::AuthError::ConfigError {
                 message: "State store at capacity, cannot store new state".to_string(),
             });
         }
@@ -128,7 +128,7 @@ impl StateStore for InMemoryStateStore {
         let (_key, value) = self
             .states
             .remove(state)
-            .ok_or_else(|| crate::auth::error::AuthError::InvalidState)?;
+            .ok_or_else(|| crate::error::AuthError::InvalidState)?;
         Ok(value)
     }
 }
@@ -156,13 +156,13 @@ impl RedisStateStore {
     /// ```
     pub async fn new(redis_url: &str) -> Result<Self> {
         let client = redis::Client::open(redis_url).map_err(|e| {
-            crate::auth::error::AuthError::ConfigError {
+            crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             }
         })?;
 
         let connection_manager = client.get_connection_manager().await.map_err(|e| {
-            crate::auth::error::AuthError::ConfigError {
+            crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             }
         })?;
@@ -196,7 +196,7 @@ impl StateStore for RedisStateStore {
 
         let mut conn = self.client.clone();
         let _: () = conn.set_ex(&key, &provider, ttl).await.map_err(|e| {
-            crate::auth::error::AuthError::ConfigError {
+            crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             }
         })?;
@@ -212,15 +212,15 @@ impl StateStore for RedisStateStore {
 
         // Get the value and delete it atomically
         let provider: Option<String> =
-            conn.get(&key).await.map_err(|e| crate::auth::error::AuthError::ConfigError {
+            conn.get(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             })?;
 
-        let provider = provider.ok_or(crate::auth::error::AuthError::InvalidState)?;
+        let provider = provider.ok_or(crate::error::AuthError::InvalidState)?;
 
         // Delete the state to prevent replay
         let _: () =
-            conn.del(&key).await.map_err(|e| crate::auth::error::AuthError::ConfigError {
+            conn.del(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             })?;
 

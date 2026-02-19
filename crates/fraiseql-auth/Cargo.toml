@@ -1,0 +1,47 @@
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+axum = {version = "0.8", features = ["macros"]}
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+chrono = {version = "0.4", features = ["serde"]}
+dashmap = "6.1"
+hex = "0.4"
+http = "1"
+jsonwebtoken = "9.2"
+rand = "0.8"
+# Redis for distributed rate limiting (optional)
+redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+reqwest = {version = "0.12", features = ["json"]}
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+sha2 = "0.10"
+sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
+subtle = "2.5"
+thiserror = "2.0"
+tokio = {version = "1.45", features = ["full"]}
+tower = {version = "0.5"}
+tracing = "0.1"
+urlencoding = "2.1"
+uuid = {version = "1.0", features = ["v4", "serde"]}
+zeroize = "1.8"
+
+[dev-dependencies]
+temp-env = {workspace = true}
+tokio-test = "0.4"
+wiremock = "0.6"
+
+[features]
+default = []
+redis-rate-limiting = ["redis"]
+
+[lints]
+workspace = true
+
+[package]
+name = "fraiseql-auth"
+description = "Authentication, authorization, and session management for FraiseQL"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+version.workspace = true

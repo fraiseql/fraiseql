@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod constant_time_comparison {
-    use crate::auth::constant_time::ConstantTimeOps;
+    use crate::constant_time::ConstantTimeOps;
 
     // ===== BASIC CONSTANT-TIME COMPARISON TESTS =====
 

@@ -415,7 +415,7 @@ mod tests {
     // Vulnerability #15: Audit logger bounds documentation tests
     #[test]
     fn test_bounds_constants_are_reasonable() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         // Subject length should accommodate typical user IDs
         let max_subject = bounds::MAX_SUBJECT_LEN;
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_bounds_constants_match_documentation() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         // Verify documented bounds match constants
         assert_eq!(bounds::MAX_SUBJECT_LEN, 256, "Subject length bound mismatch");
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_memory_per_entry_constant_is_reasonable() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         // Memory per entry should be sensible
         let bytes_per_entry = bounds::BYTES_PER_ENTRY;
@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_audit_entry_field_sizes_within_bounds() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         let entry = AuditEntry {
             event_type:    AuditEventType::JwtValidation,
@@ -495,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_error_message_bound_accommodates_typical_errors() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         // Typical security errors should fit
         let error_messages = vec![
@@ -518,7 +518,7 @@ mod tests {
 
     #[test]
     fn test_operation_bound_covers_all_audit_operations() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         // All documented operation names should fit
         let operations = vec![
@@ -551,7 +551,7 @@ mod tests {
 
     #[test]
     fn test_audit_entry_sizes_reasonable_for_serialization() {
-        use crate::auth::audit_logger::bounds;
+        use crate::audit_logger::bounds;
 
         // Create a maximum-size entry
         let max_entry = AuditEntry {

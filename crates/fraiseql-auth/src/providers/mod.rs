@@ -20,7 +20,7 @@ pub use logto::LogtoOAuth;
 pub use okta::OktaOAuth;
 pub use ory::OryOAuth;
 
-use crate::auth::{error::Result, provider::OAuthProvider};
+use crate::{error::Result, provider::OAuthProvider};
 
 /// Factory for creating OAuth providers from configuration
 ///
@@ -42,14 +42,14 @@ pub async fn create_provider(
 ) -> Result<Box<dyn OAuthProvider>> {
     match provider_type {
         "auth0" => {
-            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
                 message: "Auth0 provider requires config with auth0_domain".to_string(),
             })?;
 
             let auth0_domain = config
                 .get("auth0_domain")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing auth0_domain in config".to_string(),
                 })?
                 .to_string();
@@ -67,7 +67,7 @@ pub async fn create_provider(
             Ok(Box::new(provider))
         },
         "keycloak" => {
-            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
                 message: "Keycloak provider requires config with keycloak_url and realm"
                     .to_string(),
             })?;
@@ -75,7 +75,7 @@ pub async fn create_provider(
             let keycloak_url = config
                 .get("keycloak_url")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing keycloak_url in config".to_string(),
                 })?
                 .to_string();
@@ -83,7 +83,7 @@ pub async fn create_provider(
             let realm = config
                 .get("realm")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing realm in config".to_string(),
                 })?
                 .to_string();
@@ -94,14 +94,14 @@ pub async fn create_provider(
             Ok(Box::new(provider))
         },
         "okta" => {
-            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
                 message: "Okta provider requires config with okta_domain".to_string(),
             })?;
 
             let okta_domain = config
                 .get("okta_domain")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing okta_domain in config".to_string(),
                 })?
                 .to_string();
@@ -111,14 +111,14 @@ pub async fn create_provider(
             Ok(Box::new(provider))
         },
         "azure_ad" => {
-            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
                 message: "Azure AD provider requires config with tenant".to_string(),
             })?;
 
             let tenant = config
                 .get("tenant")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing tenant in config".to_string(),
                 })?
                 .to_string();
@@ -128,14 +128,14 @@ pub async fn create_provider(
             Ok(Box::new(provider))
         },
         "ory" => {
-            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
                 message: "Ory provider requires config with ory_issuer_url".to_string(),
             })?;
 
             let ory_issuer_url = config
                 .get("ory_issuer_url")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing ory_issuer_url in config".to_string(),
                 })?
                 .to_string();
@@ -145,14 +145,14 @@ pub async fn create_provider(
             Ok(Box::new(provider))
         },
         "logto" => {
-            let config = config.ok_or_else(|| crate::auth::AuthError::ConfigError {
+            let config = config.ok_or_else(|| crate::AuthError::ConfigError {
                 message: "Logto provider requires config with logto_endpoint".to_string(),
             })?;
 
             let logto_endpoint = config
                 .get("logto_endpoint")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| crate::auth::AuthError::ConfigError {
+                .ok_or_else(|| crate::AuthError::ConfigError {
                     message: "Missing logto_endpoint in config".to_string(),
                 })?
                 .to_string();
@@ -161,7 +161,7 @@ pub async fn create_provider(
                 LogtoOAuth::new(client_id, client_secret, logto_endpoint, redirect_uri).await?;
             Ok(Box::new(provider))
         },
-        _ => Err(crate::auth::AuthError::ConfigError {
+        _ => Err(crate::AuthError::ConfigError {
             message: format!("Unknown provider type: {}", provider_type),
         }),
     }

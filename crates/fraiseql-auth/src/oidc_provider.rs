@@ -2,7 +2,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{
+use crate::{
     error::{AuthError, Result},
     provider::{OAuthProvider, TokenResponse, UserInfo},
 };

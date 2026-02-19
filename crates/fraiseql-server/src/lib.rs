@@ -105,8 +105,8 @@ pub mod webhooks;
 // fraiseql-files modules (merged)
 pub mod files;
 
-// Authentication modules
-pub mod auth;
+// Authentication (extracted to fraiseql-auth crate)
+pub use fraiseql_auth as auth;
 
 // Secrets management
 pub mod secrets;

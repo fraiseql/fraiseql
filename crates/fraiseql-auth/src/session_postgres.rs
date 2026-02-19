@@ -2,7 +2,7 @@
 use async_trait::async_trait;
 use sqlx::{Row, postgres::PgPool};
 
-use crate::auth::{
+use crate::{
     error::{AuthError, Result},
     session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token},
 };
@@ -83,7 +83,7 @@ impl PostgresSessionStore {
 
         let exp = now + expires_in;
 
-        let mut claims = crate::auth::Claims {
+        let mut claims = crate::Claims {
             sub: user_id.to_string(),
             iat: now,
             exp,
@@ -98,11 +98,11 @@ impl PostgresSessionStore {
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         match &self.signing_key {
-            Some(private_key) => crate::auth::jwt::generate_rs256_token(&claims, private_key),
+            Some(private_key) => crate::jwt::generate_rs256_token(&claims, private_key),
             None => {
                 // Fallback: use deterministic HMAC secret (for testing/dev environments)
                 let secret = format!("fraiseql_session_{}", user_id).into_bytes();
-                crate::auth::jwt::generate_hs256_token(&claims, &secret)
+                crate::jwt::generate_hs256_token(&claims, &secret)
             },
         }
     }
@@ -242,7 +242,7 @@ mod tests {
             .unwrap_or_default()
             .as_secs();
 
-        let mut claims = crate::auth::Claims {
+        let mut claims = crate::Claims {
             sub:   "user123".to_string(),
             iat:   now,
             exp:   now + 3600,
@@ -256,7 +256,7 @@ mod tests {
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
         let secret = b"fraiseql_session_user123";
-        let token1 = crate::auth::jwt::generate_hs256_token(&claims, secret)
+        let token1 = crate::jwt::generate_hs256_token(&claims, secret)
             .expect("Failed to generate token");
 
         // Update JTI for second token
@@ -264,7 +264,7 @@ mod tests {
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
-        let token2 = crate::auth::jwt::generate_hs256_token(&claims, secret)
+        let token2 = crate::jwt::generate_hs256_token(&claims, secret)
             .expect("Failed to generate token");
 
         // Tokens should be different (different JTI)
@@ -276,14 +276,14 @@ mod tests {
 
     #[test]
     fn test_generate_access_token_with_rs256_key() {
-        let test_key = include_bytes!("../../test_data/test_rsa_key.pem");
+        let test_key = include_bytes!("../test_data/test_rsa_key.pem");
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        let mut claims = crate::auth::Claims {
+        let mut claims = crate::Claims {
             sub:   "user123".to_string(),
             iat:   now,
             exp:   now + 3600,
@@ -296,7 +296,7 @@ mod tests {
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
-        let token = crate::auth::jwt::generate_rs256_token(&claims, test_key)
+        let token = crate::jwt::generate_rs256_token(&claims, test_key)
             .expect("Failed to generate RS256 token");
 
         // Valid JWT should have three parts separated by dots

@@ -4,7 +4,7 @@ use std::fmt;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::error::{AuthError, Result};
+use crate::error::{AuthError, Result};
 
 /// User information retrieved from OAuth provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
