@@ -31,6 +31,7 @@
 #![allow(clippy::unused_async)]
 // Test-related - exact float comparison is intentional in tests
 #![allow(clippy::float_cmp)]
+#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used
 // Nursery lints - experimental, too noisy
 #![allow(clippy::collection_is_never_read)]
 #![allow(clippy::future_not_send)]

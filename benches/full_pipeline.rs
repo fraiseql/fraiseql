@@ -31,7 +31,7 @@ fn create_test_schema() -> String {
 }
 
 fn benchmark_simple_query(c: &mut Criterion) {
-    c.bench_function("phase9_simple_query", |b| {
+    c.bench_function("simple_query", |b| {
         // Initialize pipeline
         let schema_json = create_test_schema();
         fraiseql_rs::initialize_graphql_pipeline(schema_json).unwrap();
@@ -54,7 +54,7 @@ fn benchmark_simple_query(c: &mut Criterion) {
 }
 
 fn benchmark_complex_where(c: &mut Criterion) {
-    c.bench_function("phase9_complex_where", |b| {
+    c.bench_function("complex_where", |b| {
         // Initialize pipeline
         let schema_json = create_test_schema();
         fraiseql_rs::initialize_graphql_pipeline(schema_json).unwrap();
@@ -92,7 +92,7 @@ fn benchmark_complex_where(c: &mut Criterion) {
 }
 
 fn benchmark_cached_query(c: &mut Criterion) {
-    c.bench_function("phase9_cached_query", |b| {
+    c.bench_function("cached_query", |b| {
         // Initialize pipeline
         let schema_json = create_test_schema();
         fraiseql_rs::initialize_graphql_pipeline(schema_json).unwrap();

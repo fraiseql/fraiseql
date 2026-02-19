@@ -11,7 +11,7 @@
 //!   "Authorization: Bearer" header
 //! - Session tokens are validated using `validate_session_token()` helper
 //! - Extracted tokens come from `extract_session_token()` helper
-//! - `SecurityContext` created for each request to enable Row-Level Security (RLS) in future phases
+//! - `SecurityContext` created for each request to enable Row-Level Security (RLS)
 //! - Admin operations (cache invalidation, schema refresh) require "admin" scope
 //! - All failed auth attempts return descriptive errors guiding users to re-handshake if needed
 //!
@@ -112,7 +112,7 @@ pub(crate) type ActionTypeStream =
 /// FraiseQL Arrow Flight service implementation.
 ///
 /// This is the core gRPC service that handles Flight RPC calls.
-/// It will be extended in subsequent phases to actually fetch/stream data.
+/// It will be extended to support additional data fetching and streaming modes.
 ///
 /// # Example
 ///

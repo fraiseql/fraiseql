@@ -37,7 +37,7 @@ impl SchemaConverter {
     /// 1. Type conversion (intermediate types → compiled types)
     /// 2. Field name normalization (type → `field_type`)
     /// 3. Validation (type references, circular refs, etc.)
-    /// 4. Optimization (for future phases)
+    /// 4. Optimization
     ///
     /// # Panics
     ///

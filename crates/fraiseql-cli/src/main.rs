@@ -19,6 +19,7 @@
 #![allow(clippy::similar_names)] // Variable naming style
 #![allow(clippy::struct_excessive_bools)] // IntermediateAutoParams uses bools for flags
 #![allow(clippy::derive_partial_eq_without_eq)] // Some structs shouldn't implement Eq
+#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used
 
 use std::{env, process, str::FromStr};
 

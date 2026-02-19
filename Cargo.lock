@@ -1935,6 +1935,7 @@ dependencies = [
  "fiat-crypto",
  "rustc_version",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -2160,6 +2161,7 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
+ "pkcs8 0.10.2",
  "signature 2.2.0",
 ]
 
@@ -2171,9 +2173,11 @@ checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
+ "serde",
  "sha2",
  "signature 2.2.0",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -2484,6 +2488,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-auth"
+version = "2.0.0-beta.2"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum 0.8.8",
+ "base64 0.22.1",
+ "chacha20poly1305",
+ "chrono",
+ "dashmap",
+ "hex",
+ "http 1.4.0",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "redis",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "temp-env",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-test",
+ "tower 0.5.3",
+ "tracing",
+ "urlencoding",
+ "uuid",
+ "wiremock",
+ "zeroize",
+]
+
+[[package]]
 name = "fraiseql-cli"
 version = "2.0.0-beta.2"
 dependencies = [
@@ -2557,6 +2595,7 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -2618,6 +2657,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-secrets"
+version = "2.0.0-beta.2"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "fraiseql-core",
+ "rand 0.8.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "temp-env",
+ "tempfile",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "fraiseql-server"
 version = "2.0.0-beta.2"
 dependencies = [
@@ -2634,10 +2695,14 @@ dependencies = [
  "criterion",
  "dashmap",
  "dirs",
+ "ed25519-dalek",
  "fraiseql-arrow",
+ "fraiseql-auth",
  "fraiseql-core",
  "fraiseql-error",
  "fraiseql-observers",
+ "fraiseql-secrets",
+ "fraiseql-webhooks",
  "futures",
  "graphql-parser",
  "hex",
@@ -2696,6 +2761,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-webhooks"
+version = "2.0.0-beta.2"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "ed25519-dalek",
+ "futures",
+ "hex",
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-test",
+ "uuid",
+]
+
+[[package]]
 name = "fraiseql-wire"
 version = "2.0.0-beta.2"
 dependencies = [
@@ -2706,6 +2793,7 @@ dependencies = [
  "hmac",
  "metrics",
  "pbkdf2",
+ "proptest",
  "rand 0.8.5",
  "rustls 0.23.36",
  "rustls-native-certs 0.8.3",
@@ -2714,6 +2802,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "subtle",
  "testcontainers",
  "testcontainers-modules",
  "thiserror 2.0.18",

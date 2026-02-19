@@ -15,6 +15,7 @@
 #![allow(clippy::similar_names)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::derive_partial_eq_without_eq)]
+#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used
 
 pub mod commands;
 pub mod config;

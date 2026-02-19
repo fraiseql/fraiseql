@@ -73,7 +73,7 @@ impl AggregationProjector {
     /// ```
     pub fn project(rows: Vec<HashMap<String, Value>>, _plan: &AggregationPlan) -> Result<Value> {
         // For simple projection: just convert rows to JSON array
-        // In future phases, this could include:
+        // Future improvements could include:
         // - Type coercion (ensure numbers are numbers, not strings)
         // - Null handling
         // - Nested object construction
