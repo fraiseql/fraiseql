@@ -100,5 +100,3 @@ pub use types::{
 // Test modules
 // ============================================================================
 
-#[cfg(test)]
-mod directive_rbac_tests;

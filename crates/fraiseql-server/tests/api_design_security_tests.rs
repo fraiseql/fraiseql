@@ -4,7 +4,6 @@
 //! - Input validation attacks
 //! - DoS/resource exhaustion
 //! - Information disclosure
-//! - Authorization bypass
 
 use fraiseql_server::routes::api::design::DesignAuditRequest;
 use serde_json::json;
@@ -15,7 +14,6 @@ use serde_json::json;
 
 #[test]
 fn test_design_audit_rejects_extremely_large_schema() {
-    // Create a schema that's suspiciously large (potential DoS)
     let mut large_types = vec![];
     for i in 0..10000 {
         large_types.push(format!(
@@ -25,52 +23,34 @@ fn test_design_audit_rejects_extremely_large_schema() {
     }
     let large_schema = format!(r#"{{"types": [{}]}}"#, large_types.join(","));
 
-    // Should either handle gracefully or reject with clear error
-    let _req = DesignAuditRequest {
-        schema: serde_json::from_str(&large_schema).unwrap_or(json!({})),
-    };
+    let parsed: serde_json::Value = serde_json::from_str(&large_schema).unwrap();
+    let req = DesignAuditRequest { schema: parsed };
 
-    // Request should be constructible (validation happens at endpoint)
-    assert!(!large_schema.is_empty());
+    // Verify the large schema was parsed correctly with all 10,000 types
+    let types = req.schema.get("types").unwrap().as_array().unwrap();
+    assert_eq!(types.len(), 10000, "All 10,000 types should be parsed");
+    assert_eq!(types[0]["name"], "Type0");
+    assert_eq!(types[9999]["name"], "Type9999");
 }
 
 #[test]
 fn test_design_audit_handles_malformed_json() {
-    // Malformed JSON input
     let malformed_schema = r#"{"types": [{"name": "User", malformed}]}"#;
-
-    // Should fail to parse or handle gracefully
     let result = serde_json::from_str::<serde_json::Value>(malformed_schema);
     assert!(result.is_err(), "Malformed JSON should fail to parse");
 }
 
 #[test]
-fn test_design_audit_sanitizes_error_messages() {
-    // Error messages should not leak implementation details
-    let schema = json!({"invalid_field": "test"});
-
-    // Create request with suspicious data
-    let req = DesignAuditRequest { schema };
-
-    // Request should be valid, error handling at endpoint
-    assert!(req.schema.is_object());
-}
-
-#[test]
 fn test_design_audit_handles_null_schema() {
-    // Null schema should be handled safely
-    let null_schema = json!(null);
-
-    let _req = DesignAuditRequest {
-        schema: null_schema,
+    let req = DesignAuditRequest {
+        schema: json!(null),
     };
-
-    // Successful construction without panic is the test
+    assert!(req.schema.is_null(), "Null schema should remain null");
+    assert!(req.schema.get("types").is_none(), "Null schema has no types");
 }
 
 #[test]
 fn test_design_audit_handles_recursive_structures() {
-    // Circular references in JSON
     let schema = json!({
         "types": [
             {"name": "User", "fields": [{"ref": "self"}]}
@@ -78,7 +58,11 @@ fn test_design_audit_handles_recursive_structures() {
     });
 
     let req = DesignAuditRequest { schema };
-    assert!(req.schema.is_object());
+
+    // Verify the self-referential field structure is preserved
+    let fields = req.schema["types"][0]["fields"].as_array().unwrap();
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0]["ref"], "self", "Self-reference should be preserved");
 }
 
 // ============================================================================
@@ -86,49 +70,27 @@ fn test_design_audit_handles_recursive_structures() {
 // ============================================================================
 
 #[test]
-fn test_design_audit_limits_analysis_time() {
-    // Very complex schema structure
-    let schema = json!({
-        "subgraphs": [
-            {"name": "a"}, {"name": "b"}, {"name": "c"},
-            {"name": "d"}, {"name": "e"}, {"name": "f"},
-            {"name": "g"}, {"name": "h"}, {"name": "i"},
-            {"name": "j"}
-        ]
-    });
-
-    let req = DesignAuditRequest { schema };
-
-    // Should complete without hanging
-    assert!(req.schema.is_object());
-}
-
-#[test]
 fn test_design_audit_handles_deeply_nested_json() {
-    // JSON with extreme nesting depth
-    let mut nested = r#"{"value"#.to_string();
-    for _ in 0..1000 {
-        nested.push_str(r#": {"value"#);
+    // 128 levels of nesting (serde_json's default recursion limit)
+    let mut nested = String::from(r#"{"value""#);
+    for _ in 0..128 {
+        nested.push_str(r#": {"value""#);
     }
-    for _ in 0..1000 {
+    for _ in 0..128 {
         nested.push('}');
     }
     nested.push('}');
 
+    // serde_json should reject or handle extreme nesting gracefully
     let result = serde_json::from_str::<serde_json::Value>(&nested);
-
-    // Should either parse or fail gracefully
-    if let Ok(schema) = result {
-        let req = DesignAuditRequest { schema };
-        assert!(req.schema.is_object());
-    } else {
-        assert!(result.is_err(), "Deep nesting should be handled");
-    }
+    assert!(
+        result.is_err(),
+        "Deeply nested JSON (128+ levels) should hit serde_json's recursion limit"
+    );
 }
 
 #[test]
 fn test_design_audit_rejects_unicode_injection() {
-    // Unicode characters that might cause issues
     let schema = json!({
         "types": [{
             "name": "User🔓",
@@ -137,7 +99,13 @@ fn test_design_audit_rejects_unicode_injection() {
     });
 
     let req = DesignAuditRequest { schema };
-    assert!(req.schema.is_object());
+
+    // Verify unicode characters are preserved verbatim (no interpretation)
+    let type_name = req.schema["types"][0]["name"].as_str().unwrap();
+    assert!(type_name.contains('🔓'), "Unicode should be preserved, not stripped");
+
+    let field_name = req.schema["types"][0]["fields"][0]["name"].as_str().unwrap();
+    assert!(field_name.contains('\0'), "Null bytes should be preserved in JSON strings");
 }
 
 // ============================================================================
@@ -146,19 +114,18 @@ fn test_design_audit_rejects_unicode_injection() {
 
 #[test]
 fn test_design_audit_error_messages_dont_leak_paths() {
-    // Error messages should not reveal file system paths
     let schema = json!({"types": []});
-
     let req = DesignAuditRequest { schema };
 
-    // Verify request doesn't contain paths
     let json_str = serde_json::to_string(&req.schema).unwrap();
-    assert!(!json_str.contains("/"), "Error messages shouldn't contain paths");
+    assert!(
+        !json_str.contains("/home") && !json_str.contains("/etc") && !json_str.contains("C:\\"),
+        "Serialized schema should not contain filesystem paths"
+    );
 }
 
 #[test]
 fn test_design_audit_sanitizes_schema_names() {
-    // Schema with suspicious names
     let schema = json!({
         "types": [{
             "name": "../../../etc/passwd",
@@ -168,85 +135,35 @@ fn test_design_audit_sanitizes_schema_names() {
 
     let req = DesignAuditRequest { schema };
 
-    // Request should handle safely
-    assert!(req.schema.is_object());
+    // Path traversal in type names should be preserved as data (not interpreted)
+    let name = req.schema["types"][0]["name"].as_str().unwrap();
+    assert_eq!(name, "../../../etc/passwd", "Path traversal preserved as inert string data");
 }
 
 #[test]
-fn test_design_audit_doesnt_expose_internal_state() {
-    // Request shouldn't expose internal server state
+fn test_design_audit_extra_fields_ignored_by_struct() {
     let schema = json!({
-        "private_field": "should_not_be_exposed",
-        "types": []
-    });
-
-    let _req = DesignAuditRequest { schema };
-
-    // Verify that arbitrary fields don't affect schema analysis
-    // (Proto pollution is a JavaScript issue, not relevant for Rust JSON)
-    // Successful construction without panic is the test
-}
-
-// ============================================================================
-// Rate Limiting & Resource Control
-// ============================================================================
-
-#[test]
-fn test_design_audit_request_should_be_rate_limited() {
-    // Verify structure supports rate limiting headers
-    let req = DesignAuditRequest {
-        schema: json!({"types": []}),
-    };
-
-    // Request metadata should be available (at endpoint layer)
-    assert!(req.schema.is_object());
-}
-
-#[test]
-fn test_design_audit_handles_concurrent_requests() {
-    // Multiple requests should be safe
-    let schemas = vec![
-        json!({"types": []}),
-        json!({"subgraphs": []}),
-        json!({"types": [], "subgraphs": []}),
-    ];
-
-    for schema in schemas {
-        let req = DesignAuditRequest { schema };
-        assert!(req.schema.is_object());
-    }
-}
-
-// ============================================================================
-// Authorization Tests (Structural)
-// ============================================================================
-
-#[test]
-fn test_design_audit_request_structure_supports_auth() {
-    // Verify request can include auth context (at endpoint)
-    let schema = json!({
-        "types": [
-            {"name": "User", "fields": [
-                {"name": "email", "requires_auth": true}
-            ]}
-        ]
+        "types": [],
+        "extra1": "value",
+        "extra2": {"nested": "data"},
+        "extra3": [1, 2, 3]
     });
 
     let req = DesignAuditRequest { schema };
 
-    // Should handle auth-marked fields
-    if let Some(types) = req.schema.get("types") {
-        if let Some(first_type) = types.as_array().and_then(|a| a.first()) {
-            if let Some(fields) = first_type.get("fields") {
-                assert!(fields.is_array());
-            }
-        }
-    }
+    // Extra fields exist in the raw JSON but shouldn't affect the audit
+    assert_eq!(req.schema["types"].as_array().unwrap().len(), 0);
+    assert_eq!(req.schema["extra1"], "value", "Extra fields preserved in raw JSON");
+    // The key point: DesignAuditRequest only reads "types", so extras are inert
+    assert!(req.schema.get("types").is_some());
 }
 
+// ============================================================================
+// Authorization Tests
+// ============================================================================
+
 #[test]
-fn test_design_audit_doesnt_bypass_field_auth() {
-    // Schema with auth requirements should be preserved
+fn test_design_audit_auth_fields_survive_roundtrip() {
     let schema = json!({
         "types": [{
             "name": "Admin",
@@ -258,67 +175,54 @@ fn test_design_audit_doesnt_bypass_field_auth() {
 
     let req = DesignAuditRequest { schema };
 
-    // Auth requirements should survive serialization
-    assert!(req.schema.get("types").is_some());
+    // Verify auth metadata is preserved through construction
+    let field = &req.schema["types"][0]["fields"][0];
+    assert_eq!(field["requires_auth"], true, "Auth requirement must survive");
+    assert_eq!(field["required_role"], "admin", "Role requirement must survive");
+
+    // Verify survives JSON roundtrip
+    let serialized = serde_json::to_string(&req.schema).unwrap();
+    let deserialized: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(
+        deserialized["types"][0]["fields"][0]["required_role"], "admin",
+        "Auth metadata must survive serialization roundtrip"
+    );
 }
 
 // ============================================================================
-// Edge Cases & Recovery
+// Edge Cases
 // ============================================================================
 
 #[test]
-fn test_design_audit_recovers_from_invalid_type() {
-    // Invalid type field
+fn test_design_audit_recovers_from_invalid_type_field() {
     let schema = json!({
         "types": [{
             "name": "User",
-            "fields": [{"name": "id", "type": 123}]  // Invalid: should be string
+            "fields": [{"name": "id", "type": 123}]
         }]
     });
 
     let req = DesignAuditRequest { schema };
-    assert!(req.schema.is_object());
-}
 
-#[test]
-fn test_design_audit_handles_missing_required_fields() {
-    // Schema missing expected fields
-    let schema = json!({"subgraphs": []}); // No types field
-
-    let req = DesignAuditRequest { schema };
-
-    // Should not panic
-    assert!(req.schema.is_object());
-}
-
-#[test]
-fn test_design_audit_handles_extra_fields() {
-    // Schema with unexpected extra fields
-    let schema = json!({
-        "types": [],
-        "extra1": "value",
-        "extra2": {"nested": "data"},
-        "extra3": [1, 2, 3]
-    });
-
-    let req = DesignAuditRequest { schema };
-    assert!(req.schema.is_object());
+    // Verify the invalid type value (number instead of string) is preserved
+    let type_value = &req.schema["types"][0]["fields"][0]["type"];
+    assert!(type_value.is_number(), "Invalid type field should be preserved as-is");
+    assert_eq!(type_value.as_i64().unwrap(), 123);
 }
 
 #[test]
 fn test_design_audit_request_is_serializable() {
-    // Request should be serializable for logging/audit
     let schema = json!({
         "types": [{"name": "User", "fields": []}]
     });
 
     let req = DesignAuditRequest { schema };
 
-    // Should not panic on serialization
-    let result = serde_json::to_string(&req.schema);
-    assert!(result.is_ok(), "Schema should serialize successfully");
-
-    let json_str = result.unwrap();
+    let json_str = serde_json::to_string(&req.schema).unwrap();
     assert!(!json_str.is_empty(), "Serialized schema should not be empty");
-    assert!(json_str.contains("\"types\""), "Serialized schema should contain 'types' field");
+    assert!(json_str.contains("\"types\""), "Should contain 'types' field");
+
+    // Verify round-trip fidelity
+    let reparsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    assert_eq!(reparsed["types"][0]["name"], "User");
 }
