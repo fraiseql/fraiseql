@@ -1,10 +1,11 @@
-# Integration test databases for fraiseql-core adapter tests
+# Integration test infrastructure for fraiseql
 #
 # Usage:
 #   docker compose -f docker/docker-compose.test.yml up -d
 #   cargo test --features test-postgres -p fraiseql-core -- db::postgres
 #   cargo test --features test-mysql    -p fraiseql-core -- db::mysql
 #   cargo test --features test-sqlserver -p fraiseql-core -- db::sqlserver
+#   cargo test --features "postgres,dedup,caching,testing" -p fraiseql-observers --test integration_test
 #   docker compose -f docker/docker-compose.test.yml down -v
 
 services:
@@ -75,3 +76,13 @@ services:
       "-C",
       "-i", "/init.sql"
     ]
+
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

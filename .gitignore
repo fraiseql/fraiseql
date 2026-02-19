@@ -30,6 +30,9 @@ target/
 Cargo.lock
 **/*.rs.bk
 *.pdb
+rustc-ice-*.txt
+**/fuzz/corpus/
+**/fuzz/artifacts/
 
 # PyO3 / Rust-Python FFI
 # .cargo/ - We DO commit .cargo/config.toml for team tooling
