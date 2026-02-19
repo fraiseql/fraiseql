@@ -111,3 +111,9 @@ temp/
 
 # Analysis work-in-progress
 TODO_*/
+
+# Generated reports and caches
+coverage.xml
+reports/
+**/.database_state_cache.json
+archive/
