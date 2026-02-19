@@ -252,16 +252,12 @@ fn calculate_server_signature(server_key: &[u8], auth_message: &[u8]) -> Vec<u8>
     hmac.finalize().into_bytes().to_vec()
 }
 
-/// Constant-time comparison to prevent timing attacks
+/// Constant-time comparison to prevent timing attacks.
+///
+/// Uses the `subtle` crate for verified constant-time operations.
 fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut result = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        result |= x ^ y;
-    }
-    result == 0
+    use subtle::ConstantTimeEq;
+    a.ct_eq(b).into()
 }
 
 #[cfg(test)]

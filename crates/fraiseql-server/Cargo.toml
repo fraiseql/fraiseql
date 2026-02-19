@@ -22,6 +22,7 @@ chacha20poly1305 = "0.10"
 chrono = {version = "0.4", features = ["serde"]}
 dashmap = "6.1"
 dirs = "5"
+ed25519-dalek = {version = "2", features = ["std"]}
 fraiseql-arrow = {workspace = true}
 # FraiseQL core
 fraiseql-core = {workspace = true, features = ["postgres"]}

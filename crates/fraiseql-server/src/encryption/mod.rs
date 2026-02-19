@@ -12,7 +12,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit, Payload},
 };
-use rand::Rng;
+use rand::RngCore;
 
 use crate::secrets_manager::SecretsError;
 
@@ -90,7 +90,7 @@ impl FieldEncryption {
     /// each encryption produces a unique nonce, preventing pattern analysis.
     fn generate_nonce() -> [u8; NONCE_SIZE] {
         let mut nonce_bytes = [0u8; NONCE_SIZE];
-        rand::thread_rng().fill(&mut nonce_bytes);
+        rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
         nonce_bytes
     }
 

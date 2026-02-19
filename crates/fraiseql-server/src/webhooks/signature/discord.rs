@@ -1,13 +1,13 @@
 //! Discord webhook signature verification.
 //!
-//! Format: HMAC-SHA256 (simplified - real Discord uses Ed25519)
-//! Note: For we use HMAC-SHA256. Full Ed25519 support in later phase.
+//! Discord uses Ed25519 signatures. The public key is provided by Discord
+//! in the developer portal. The signature is sent in the X-Signature-Ed25519
+//! header, with the timestamp in X-Signature-Timestamp.
 
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use ed25519_dalek::{Signature, VerifyingKey, Verifier};
 
 use crate::webhooks::{
-    signature::{SignatureError, constant_time_eq},
+    signature::SignatureError,
     traits::SignatureVerifier,
 };
 
@@ -29,18 +29,26 @@ impl SignatureVerifier for DiscordVerifier {
         secret: &str,
         timestamp: Option<&str>,
     ) -> Result<bool, SignatureError> {
-        // Simplified verification - real Discord uses Ed25519
-        // For we use HMAC-SHA256 as a placeholder
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 
-        let signed_payload = format!("{}{}", timestamp, String::from_utf8_lossy(payload));
+        // Decode the hex-encoded public key from secret
+        let pk_bytes = hex::decode(secret)
+            .map_err(|e| SignatureError::Crypto(format!("invalid public key hex: {e}")))?;
 
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| SignatureError::Crypto(e.to_string()))?;
-        mac.update(signed_payload.as_bytes());
+        let public_key = VerifyingKey::try_from(pk_bytes.as_slice())
+            .map_err(|e| SignatureError::Crypto(format!("invalid Ed25519 public key: {e}")))?;
 
-        let expected = hex::encode(mac.finalize().into_bytes());
+        // Decode the hex-encoded signature
+        let sig_bytes = hex::decode(signature)
+            .map_err(|e| SignatureError::Crypto(format!("invalid signature hex: {e}")))?;
 
-        Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
+        let sig = Signature::try_from(sig_bytes.as_slice())
+            .map_err(|e| SignatureError::Crypto(format!("invalid Ed25519 signature: {e}")))?;
+
+        // Discord signs: timestamp + body
+        let mut message = timestamp.as_bytes().to_vec();
+        message.extend_from_slice(payload);
+
+        Ok(public_key.verify(&message, &sig).is_ok())
     }
 }
