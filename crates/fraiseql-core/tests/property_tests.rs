@@ -3,10 +3,13 @@
 //! Uses proptest to verify invariants and properties that should hold
 //! across all inputs and edge cases.
 
-use std::collections::HashMap;
-
 use proptest::prelude::*;
 use serde_json::{Value, json};
+
+use fraiseql_core::schema::{
+    CompiledSchema, TypeDefinition, QueryDefinition, RoleDefinition, SecurityConfig,
+};
+use fraiseql_core::security::ErrorFormatter;
 
 // ============================================================================
 // Property Tests for JSON Serialization
@@ -88,50 +91,127 @@ proptest! {
 }
 
 // ============================================================================
-// Property Tests for Collection Operations
+// Property Tests for Schema Operations
 // ============================================================================
 
 proptest! {
-    /// Property: HashMap insert should make the value retrievable
+    /// Property: CompiledSchema JSON roundtrip preserves all data.
+    /// Serializing a schema to JSON and deserializing it back should
+    /// produce an equivalent schema (excluding runtime-only fields).
     #[test]
-    fn prop_hashmap_insert_retrieve(
-        key in "[a-zA-Z0-9_]+",
-        value in any::<i32>()
+    fn prop_compiled_schema_json_roundtrip(
+        type_names in prop::collection::vec("[A-Z][a-zA-Z]{0,20}", 0..5),
+        query_names in prop::collection::vec("[a-z][a-zA-Z]{0,20}", 0..5),
     ) {
-        let mut map: HashMap<String, i32> = HashMap::new();
-        map.insert(key.clone(), value);
-
-        // Should be able to retrieve the inserted value
-        prop_assert_eq!(map.get(&key), Some(&value));
-    }
-
-    /// Property: HashMap length should match number of unique keys
-    #[test]
-    fn prop_hashmap_length(
-        kvs in prop::collection::hash_map("[a-zA-Z0-9_]+", any::<i32>(), 0..100)
-    ) {
-        let map: HashMap<String, i32> = kvs.clone();
-        prop_assert_eq!(map.len(), kvs.len(), "HashMap length should match input");
-    }
-
-    /// Property: HashMap iteration should visit all entries
-    #[test]
-    fn prop_hashmap_iteration_coverage(
-        kvs in prop::collection::hash_map("[a-zA-Z0-9_]+", any::<i32>(), 0..100)
-    ) {
-        let map: HashMap<String, i32> = kvs.clone();
-        let mut visited = std::collections::HashSet::new();
-
-        for (k, v) in map.iter() {
-            visited.insert((k.clone(), *v));
+        let mut schema = CompiledSchema::new();
+        for name in &type_names {
+            schema.types.push(TypeDefinition::new(name.clone(), format!("v_{}", name.to_lowercase())));
+        }
+        for qname in &query_names {
+            // Use a builtin return type so validation is not the concern here
+            schema.queries.push(QueryDefinition::new(qname.clone(), "String"));
         }
 
-        prop_assert_eq!(visited.len(), map.len(), "Iteration should visit all entries");
+        let json = schema.to_json().expect("serialization should succeed");
+        let restored = CompiledSchema::from_json(&json).expect("deserialization should succeed");
 
-        // All visited entries should be in the original map
-        for (k, v) in visited {
-            prop_assert_eq!(map.get(&k), Some(&v), "Visited entry not in map");
+        prop_assert_eq!(schema.types.len(), restored.types.len());
+        prop_assert_eq!(schema.queries.len(), restored.queries.len());
+        for (orig, rest) in schema.types.iter().zip(restored.types.iter()) {
+            prop_assert_eq!(&orig.name, &rest.name);
+            prop_assert_eq!(&orig.sql_source, &rest.sql_source);
         }
+        for (orig, rest) in schema.queries.iter().zip(restored.queries.iter()) {
+            prop_assert_eq!(&orig.name, &rest.name);
+            prop_assert_eq!(&orig.return_type, &rest.return_type);
+        }
+    }
+
+    /// Property: SecurityConfig JSON roundtrip preserves role definitions.
+    #[test]
+    fn prop_security_config_json_roundtrip(
+        role_names in prop::collection::vec("[a-z_]{1,15}", 1..5),
+        scopes in prop::collection::vec("[a-z]+:[a-zA-Z.*]+", 1..5),
+    ) {
+        let mut config = SecurityConfig::new();
+        for name in &role_names {
+            config.add_role(RoleDefinition::new(name.clone(), scopes.clone()));
+        }
+
+        let json = serde_json::to_string(&config).expect("serialization should succeed");
+        let restored: SecurityConfig = serde_json::from_str(&json)
+            .expect("deserialization should succeed");
+
+        prop_assert_eq!(config.role_definitions.len(), restored.role_definitions.len());
+        for (orig, rest) in config.role_definitions.iter().zip(restored.role_definitions.iter()) {
+            prop_assert_eq!(&orig.name, &rest.name);
+            prop_assert_eq!(&orig.scopes, &rest.scopes);
+        }
+    }
+
+    /// Property: Schema validation detects duplicate type names deterministically.
+    /// If we insert the same type name twice, validate() must always report an error.
+    #[test]
+    fn prop_schema_rejects_duplicate_type_names(
+        name in "[A-Z][a-zA-Z]{1,20}",
+    ) {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition::new(name.clone(), "v_table"));
+        schema.types.push(TypeDefinition::new(name.clone(), "v_other"));
+
+        let result = schema.validate();
+        prop_assert!(result.is_err(), "Schema with duplicate type names should fail validation");
+        let errors = result.unwrap_err();
+        prop_assert!(
+            errors.iter().any(|e| e.contains("Duplicate type name")),
+            "Error should mention duplicate type name"
+        );
+    }
+
+    /// Property: Production ErrorFormatter never leaks raw SQL in output.
+    /// Any input containing SQL keywords should be sanitized when using
+    /// production-level formatting.
+    #[test]
+    fn prop_error_formatter_hides_sql_in_production(
+        prefix in "[a-zA-Z ]{0,30}",
+        sql_keyword in prop_oneof![
+            Just("SELECT "),
+            Just("INSERT "),
+            Just("UPDATE "),
+            Just("DELETE "),
+        ],
+        suffix in "[a-zA-Z0-9_ ]{0,30}",
+    ) {
+        let formatter = ErrorFormatter::production();
+        let raw_error = format!("{}{}{}", prefix, sql_keyword, suffix);
+        let formatted = formatter.format_error(&raw_error);
+
+        // Production formatter should not pass through raw SQL keywords
+        prop_assert!(
+            !formatted.contains(sql_keyword.trim()),
+            "Production error should not contain SQL keyword '{}', got: {}",
+            sql_keyword.trim(),
+            formatted
+        );
+    }
+
+    /// Property: Production ErrorFormatter never leaks database URLs in output.
+    #[test]
+    fn prop_error_formatter_hides_db_urls_in_production(
+        user in "[a-zA-Z]{1,10}",
+        host in "[a-zA-Z.]{1,15}",
+        db_name in "[a-zA-Z_]{1,10}",
+    ) {
+        let formatter = ErrorFormatter::production();
+        let raw_error = format!("Connection failed: postgresql://{}:secret@{}/{}", user, host, db_name);
+        let formatted = formatter.format_error(&raw_error);
+
+        // Production formatter should not expose the database URL
+        prop_assert!(
+            !formatted.contains("postgresql://"),
+            "Production error should not contain database URL, got: {}",
+            formatted
+        );
     }
 }
 
