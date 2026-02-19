@@ -74,6 +74,7 @@ deadpool-postgres.workspace = true
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 proptest = {workspace = true}
 serial_test = "3"
 temp-env = {workspace = true}

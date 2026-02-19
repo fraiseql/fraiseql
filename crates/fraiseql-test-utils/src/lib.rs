@@ -4,6 +4,7 @@
 //! including mock implementations, test fixtures, and common assertions.
 
 pub mod assertions;
+pub mod failing_adapter;
 pub mod fixtures;
 pub mod mock_db;
 

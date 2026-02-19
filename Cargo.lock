@@ -2562,6 +2562,7 @@ dependencies = [
  "dashmap",
  "deadpool",
  "deadpool-postgres",
+ "fraiseql-test-utils",
  "fraiseql-wire",
  "futures",
  "graphql-parser",
@@ -2754,6 +2755,7 @@ dependencies = [
 name = "fraiseql-test-utils"
 version = "2.0.0-beta.2"
 dependencies = [
+ "async-trait",
  "fraiseql-core",
  "serde_json",
  "tempfile",
