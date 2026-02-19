@@ -1,303 +1,167 @@
-//! Integration tests for query intelligence API endpoints
+//! Behavioral tests for query intelligence API endpoints.
+//!
+//! Exercises the real `explain_handler`, `validate_handler`, and `stats_handler`
+//! through axum's `tower::ServiceExt::oneshot`.
 
-/// Tests for query complexity and scoring
-#[test]
-fn test_explain_response_structure() {
-    // Verify ExplainResponse has all required fields
-    use fraiseql_server::routes::api::query::{ComplexityInfo, ExplainResponse};
+mod common;
 
-    let response = ExplainResponse {
-        query:          "query { users { id } }".to_string(),
-        sql:            Some("SELECT id FROM users".to_string()),
-        complexity:     ComplexityInfo {
-            depth:       2,
-            field_count: 2,
-            score:       40,
-        },
-        warnings:       vec!["depth > 1".to_string()],
-        estimated_cost: 100,
-    };
+use common::test_app::{api_router, get_json, make_test_state, post_json};
+use http::StatusCode;
 
-    assert_eq!(response.query, "query { users { id } }");
-    assert!(response.sql.is_some());
-    assert_eq!(response.complexity.depth, 2);
-    assert_eq!(response.complexity.field_count, 2);
-    assert_eq!(response.complexity.score, 40);
-    assert!(!response.warnings.is_empty());
-    assert_eq!(response.estimated_cost, 100);
+// ============================================================================
+// EXPLAIN ENDPOINT
+// ============================================================================
+
+#[tokio::test]
+async fn explain_returns_complexity_for_valid_query() {
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/explain",
+        serde_json::json!({ "query": "query { users { id name } }" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["status"], "success");
+    assert!(json["data"]["complexity"]["depth"].is_number());
+    assert!(json["data"]["complexity"]["field_count"].is_number());
+    assert!(json["data"]["complexity"]["score"].is_number());
+    assert!(json["data"]["estimated_cost"].as_u64().unwrap() > 0);
 }
 
-#[test]
-fn test_validate_response_structure() {
-    use fraiseql_server::routes::api::query::ValidateResponse;
+#[tokio::test]
+async fn explain_returns_sql_equivalent() {
+    let router = api_router(make_test_state());
+    let (_, json) = post_json(
+        &router,
+        "/api/v1/query/explain",
+        serde_json::json!({ "query": "query { users { id } }" }),
+    )
+    .await;
 
-    let valid_response = ValidateResponse {
-        valid:  true,
-        errors: vec![],
-    };
-
-    assert!(valid_response.valid);
-    assert!(valid_response.errors.is_empty());
-
-    let invalid_response = ValidateResponse {
-        valid:  false,
-        errors: vec!["Syntax error at line 1".to_string()],
-    };
-
-    assert!(!invalid_response.valid);
-    assert!(!invalid_response.errors.is_empty());
+    assert!(json["data"]["sql"].is_string());
 }
 
-#[test]
-fn test_stats_response_structure() {
-    use fraiseql_server::routes::api::query::StatsResponse;
+#[tokio::test]
+async fn explain_rejects_empty_query() {
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/explain",
+        serde_json::json!({ "query": "" }),
+    )
+    .await;
 
-    let stats = StatsResponse {
-        total_queries:      1000,
-        successful_queries: 950,
-        failed_queries:     50,
-        average_latency_ms: 45.5,
-    };
-
-    assert_eq!(stats.total_queries, 1000);
-    assert_eq!(stats.successful_queries, 950);
-    assert_eq!(stats.failed_queries, 50);
-    assert!(stats.average_latency_ms > 0.0);
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(json["code"], "VALIDATION_ERROR");
 }
 
-/// Tests for complexity scoring logic
-#[test]
-fn test_complexity_depth_calculation() {
-    // Simple query: depth = 2 (Query -> field)
-    let simple_query = "query { users { id } }";
-    let depth = count_brace_depth(simple_query);
-    assert_eq!(depth, 2);
+#[tokio::test]
+async fn explain_deeply_nested_query_generates_warnings() {
+    // Build a query with depth > 10 to trigger the depth warning
+    let deep_query = "query { a { b { c { d { e { f { g { h { i { j { k { l } } } } } } } } } } } }";
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/explain",
+        serde_json::json!({ "query": deep_query }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let warnings = json["data"]["warnings"].as_array().unwrap();
+    assert!(
+        warnings.iter().any(|w| w.as_str().unwrap().contains("depth")),
+        "Expected depth warning, got: {warnings:?}"
+    );
 }
 
-#[test]
-fn test_complexity_nested_calculation() {
-    // Nested query: depth = 4 (Query -> field -> field -> field)
-    let nested_query = "query { users { posts { comments { text } } } }";
-    let depth = count_brace_depth(nested_query);
-    assert_eq!(depth, 4);
+// ============================================================================
+// VALIDATE ENDPOINT
+// ============================================================================
+
+#[tokio::test]
+async fn validate_accepts_well_formed_query() {
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/validate",
+        serde_json::json!({ "query": "query { users { id } }" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["data"]["valid"], true);
+    assert!(json["data"]["errors"].as_array().unwrap().is_empty());
 }
 
-#[test]
-fn test_complexity_field_count() {
-    // Count fields at each level
-    // Users has 3 fields, posts has 1 field
-    let user_field_count = 3;
-    let posts_field_count = 1;
+#[tokio::test]
+async fn validate_rejects_mismatched_braces() {
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/validate",
+        serde_json::json!({ "query": "query { users { id }" }),
+    )
+    .await;
 
-    assert_eq!(user_field_count, 3);
-    assert_eq!(posts_field_count, 1);
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["data"]["valid"], false);
+    let errors = json["data"]["errors"].as_array().unwrap();
+    assert!(!errors.is_empty());
+    assert!(errors[0].as_str().unwrap().contains("Mismatched"));
 }
 
-#[test]
-fn test_complexity_score_calculation() {
-    // Score = depth × field_count
-    // Simple: depth=2, fields=2 → score=4
-    // Complex: depth=3, fields=5 → score=15
+#[tokio::test]
+async fn validate_reports_empty_query_as_invalid() {
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/validate",
+        serde_json::json!({ "query": "" }),
+    )
+    .await;
 
-    let score_simple = 2 * 2; // depth * field_count
-    assert_eq!(score_simple, 4);
-
-    let score_complex = 3 * 5;
-    assert_eq!(score_complex, 15);
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["data"]["valid"], false);
 }
 
-/// Tests for warning generation
-#[test]
-fn test_warning_deep_nesting() {
-    // Depth > 10 should trigger warning
-    let depth = 12;
-    let threshold = 10;
+// ============================================================================
+// STATS ENDPOINT
+// ============================================================================
 
-    let has_warning = depth > threshold;
-    assert!(has_warning);
+#[tokio::test]
+async fn stats_returns_zero_counters_on_fresh_state() {
+    let router = api_router(make_test_state());
+    let (status, json) = get_json(&router, "/api/v1/query/stats").await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["status"], "success");
+    assert_eq!(json["data"]["total_queries"], 0);
+    assert_eq!(json["data"]["successful_queries"], 0);
+    assert_eq!(json["data"]["failed_queries"], 0);
+    assert_eq!(json["data"]["average_latency_ms"], 0.0);
 }
 
-#[test]
-fn test_warning_high_complexity() {
-    // Complexity score > 500 should trigger warning
-    let score = 600;
-    let threshold = 500;
+#[tokio::test]
+async fn stats_reflects_metrics_atomics() {
+    use std::sync::atomic::Ordering;
 
-    let has_warning = score > threshold;
-    assert!(has_warning);
-}
+    let state = make_test_state();
+    // Manually bump the metrics atomics that stats_handler reads
+    state.metrics.queries_total.fetch_add(5, Ordering::Relaxed);
+    state.metrics.queries_success.fetch_add(4, Ordering::Relaxed);
+    state.metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+    state.metrics.queries_duration_us.fetch_add(10_000, Ordering::Relaxed); // 10ms total
 
-#[test]
-fn test_warning_many_fields() {
-    // Field count > 50 should trigger warning
-    let field_count = 75;
-    let threshold = 50;
+    let router = api_router(state);
+    let (_, json) = get_json(&router, "/api/v1/query/stats").await;
 
-    let has_warning = field_count > threshold;
-    assert!(has_warning);
-}
-
-/// Tests for request/response serialization
-#[test]
-fn test_explain_request_json_serialization() {
-    use fraiseql_server::routes::api::query::ExplainRequest;
-
-    let json_str = r#"{"query":"query { users { id } }"}"#;
-    let request: ExplainRequest = serde_json::from_str(json_str).unwrap();
-
-    assert_eq!(request.query, "query { users { id } }");
-}
-
-#[test]
-fn test_explain_response_json_serialization() {
-    use fraiseql_server::routes::api::query::{ComplexityInfo, ExplainResponse};
-
-    let response = ExplainResponse {
-        query:          "test".to_string(),
-        sql:            Some("SELECT *".to_string()),
-        complexity:     ComplexityInfo {
-            depth:       1,
-            field_count: 1,
-            score:       1,
-        },
-        warnings:       vec![],
-        estimated_cost: 100,
-    };
-
-    let json = serde_json::to_string(&response).unwrap();
-    assert!(json.contains("\"query\":\"test\""));
-    assert!(json.contains("\"sql\":\"SELECT *\""));
-}
-
-#[test]
-fn test_validate_request_json_serialization() {
-    use fraiseql_server::routes::api::query::ValidateRequest;
-
-    let json_str = r#"{"query":"query { users { id } }"}"#;
-    let request: ValidateRequest = serde_json::from_str(json_str).unwrap();
-
-    assert_eq!(request.query, "query { users { id } }");
-}
-
-#[test]
-fn test_validate_response_json_serialization() {
-    use fraiseql_server::routes::api::query::ValidateResponse;
-
-    let response = ValidateResponse {
-        valid:  true,
-        errors: vec![],
-    };
-
-    let json = serde_json::to_string(&response).unwrap();
-    assert!(json.contains("\"valid\":true"));
-    assert!(json.contains("\"errors\":[]"));
-}
-
-#[test]
-fn test_stats_response_json_serialization() {
-    use fraiseql_server::routes::api::query::StatsResponse;
-
-    let response = StatsResponse {
-        total_queries:      100,
-        successful_queries: 95,
-        failed_queries:     5,
-        average_latency_ms: 42.5,
-    };
-
-    let json = serde_json::to_string(&response).unwrap();
-    assert!(json.contains("\"total_queries\":100"));
-    assert!(json.contains("\"successful_queries\":95"));
-    assert!(json.contains("\"failed_queries\":5"));
-    assert!(json.contains("\"average_latency_ms\":42.5"));
-}
-
-/// Helper function to calculate brace depth
-fn count_brace_depth(query: &str) -> usize {
-    let mut max_depth: usize = 0;
-    let mut current_depth: usize = 0;
-
-    for ch in query.chars() {
-        match ch {
-            '{' => {
-                current_depth += 1;
-                max_depth = max_depth.max(current_depth);
-            },
-            '}' => {
-                current_depth = current_depth.saturating_sub(1);
-            },
-            _ => {},
-        }
-    }
-
-    max_depth
-}
-
-/// Tests for error cases
-#[test]
-fn test_empty_query_string() {
-    use fraiseql_server::routes::api::query::ExplainRequest;
-
-    let request = ExplainRequest {
-        query: String::new(),
-    };
-
-    assert!(request.query.is_empty());
-}
-
-#[test]
-fn test_malformed_query_detection() {
-    // Verify queries can be checked for basic structure
-    let malformed = "query { users id }"; // Missing braces around id
-    let has_field_braces = malformed.contains("{ id");
-
-    assert!(!has_field_braces); // id doesn't have braces
-}
-
-#[test]
-fn test_query_with_variables() {
-    use fraiseql_server::routes::api::query::ExplainRequest;
-
-    let request = ExplainRequest {
-        query: "query GetUsers($limit: Int) { users(limit: $limit) { id } }".to_string(),
-    };
-
-    assert!(request.query.contains("$limit"));
-}
-
-#[test]
-fn test_query_with_fragments() {
-    use fraiseql_server::routes::api::query::ExplainRequest;
-
-    let request = ExplainRequest {
-        query: "query { users { ...userFields } } fragment userFields on User { id name }"
-            .to_string(),
-    };
-
-    assert!(request.query.contains("fragment"));
-}
-
-/// Tests for API response wrapper
-#[test]
-fn test_api_response_wrapper() {
-    use fraiseql_server::routes::api::{query::ExplainResponse, types::ApiResponse};
-
-    let data = ExplainResponse {
-        query:          "test".to_string(),
-        sql:            None,
-        complexity:     fraiseql_server::routes::api::query::ComplexityInfo {
-            depth:       1,
-            field_count: 1,
-            score:       1,
-        },
-        warnings:       vec![],
-        estimated_cost: 100,
-    };
-
-    let response = ApiResponse {
-        status: "success".to_string(),
-        data,
-    };
-
-    assert_eq!(response.status, "success");
-    assert_eq!(response.data.query, "test");
+    assert_eq!(json["data"]["total_queries"], 5);
+    assert_eq!(json["data"]["successful_queries"], 4);
+    assert_eq!(json["data"]["failed_queries"], 1);
+    // avg = 10_000us / 5 queries / 1000 = 2.0 ms
+    let avg = json["data"]["average_latency_ms"].as_f64().unwrap();
+    assert!((avg - 2.0).abs() < 0.01, "expected ~2.0ms, got {avg}");
 }

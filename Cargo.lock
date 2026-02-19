@@ -2705,6 +2705,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-observers",
  "fraiseql-secrets",
+ "fraiseql-test-utils",
  "fraiseql-webhooks",
  "futures",
  "graphql-parser",

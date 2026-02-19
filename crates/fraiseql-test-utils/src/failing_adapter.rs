@@ -92,13 +92,16 @@ impl FailError {
 ///
 /// Supports canned responses per view and configurable failure injection
 /// for testing error paths.
+///
+/// All fields are `Arc`-wrapped, so cloning is cheap and shares state.
+#[derive(Clone)]
 pub struct FailingAdapter {
     /// Canned responses per view name.
     responses: Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
     /// Failure injection configuration.
     fail_config: Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
-    query_count: AtomicU64,
+    query_count: Arc<AtomicU64>,
     /// Log of all query view names for assertion.
     query_log: Arc<Mutex<Vec<String>>>,
 }
@@ -110,7 +113,7 @@ impl FailingAdapter {
         Self {
             responses:   Arc::new(Mutex::new(HashMap::new())),
             fail_config: Arc::new(Mutex::new(FailConfig::default())),
-            query_count: AtomicU64::new(0),
+            query_count: Arc::new(AtomicU64::new(0)),
             query_log:   Arc::new(Mutex::new(Vec::new())),
         }
     }
