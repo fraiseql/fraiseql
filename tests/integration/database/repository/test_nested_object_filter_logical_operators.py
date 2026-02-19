@@ -168,7 +168,7 @@ def _parse_rust_response(result: Any) -> Any:
 class TestNestedObjectFilterLogicalOperatorsDatabase:
     """End-to-end database integration tests for logical operators in nested object filtering."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_test_data(
         self, class_db_pool: psycopg_pool.AsyncConnectionPool
     ) -> AsyncGenerator[dict[str, uuid.UUID]]:

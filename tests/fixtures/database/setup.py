@@ -143,7 +143,7 @@ class DatabaseManager:
         await self.execute_mutation(f"DELETE FROM {table}")
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_database() -> None:
     """Session-scoped test database fixture."""
     db_name = DB_NAME_TEMPLATE.format(suffix="main")

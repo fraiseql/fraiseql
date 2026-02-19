@@ -11,7 +11,7 @@ import pytest_asyncio
 pytestmark = pytest.mark.integration
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def partitioned_db(class_db_pool, test_schema):
     """Set up partitioned schema for testing."""
     # Read and execute partitioned schema

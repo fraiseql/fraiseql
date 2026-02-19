@@ -115,7 +115,7 @@ class TestJSONBFullGraphQLExecution:
             → GraphQL Type Checking → ??? (should work, but might fail)
     """
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_graphql_jsonb_test(self, class_db_pool, test_schema):
         """Create test data and register types for GraphQL execution."""
         # Register type with has_jsonb_data=True

@@ -193,7 +193,7 @@ def _parse_rust_response(result: RustResponseBytes | list[dict[str, Any]]) -> li
 class TestNestedObjectFilterDatabaseEdgeCases:
     """End-to-end database integration tests for nested object filtering edge cases."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_edge_case_data(self, class_db_pool: psycopg_pool.AsyncConnectionPool):
         """Set up test tables and data for edge case tests."""
         async with class_db_pool.connection() as conn:

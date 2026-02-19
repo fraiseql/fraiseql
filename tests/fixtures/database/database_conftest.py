@@ -119,7 +119,7 @@ def postgres_url(postgres_container) -> str:
     pytest.skip("No database available")
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool]:
     """Session-scoped pool for setup/teardown operations only.
 
@@ -169,7 +169,7 @@ async def session_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConn
     await pool.close()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def pgvector_available(postgres_container, postgres_url: str) -> bool:
     """Check if pgvector extension is available for testing.
 
@@ -226,7 +226,7 @@ async def pgvector_available(postgres_container, postgres_url: str) -> bool:
 # ============================================================================
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def test_schema(request, postgres_url) -> AsyncGenerator[str]:
     """Create and provide an isolated test schema for the entire test class.
 
@@ -269,7 +269,7 @@ async def test_schema(request, postgres_url) -> AsyncGenerator[str]:
         await pool.close()
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def class_db_pool(postgres_url) -> AsyncGenerator[psycopg_pool.AsyncConnectionPool]:
     """Per-class connection pool with minimal size.
 
@@ -321,7 +321,7 @@ async def db_connection(class_db_pool, test_schema) -> AsyncGenerator[psycopg.As
             pass
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def db_connection_committed(
     class_db_pool, test_schema
 ) -> AsyncGenerator[psycopg.AsyncConnection]:

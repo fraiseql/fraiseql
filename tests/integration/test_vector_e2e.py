@@ -33,7 +33,7 @@ class DocumentType:
     created_at: str
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def vector_test_setup(class_db_pool, test_schema, pgvector_available) -> None:
     """Set up test database with pgvector extension and test data."""
     if not pgvector_available:
@@ -105,7 +105,7 @@ async def vector_test_setup(class_db_pool, test_schema, pgvector_available) -> N
         await conn.commit()
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def binary_vector_test_setup(class_db_pool, test_schema, pgvector_available) -> None:
     """Set up test database with binary vector test data."""
     if not pgvector_available:

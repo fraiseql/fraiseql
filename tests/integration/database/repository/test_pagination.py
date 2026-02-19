@@ -117,7 +117,7 @@ class TestPaginationParams:
             PaginationParams(last=-1)
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def setup_pagination_tables(class_db_pool, test_schema):
     """Set up test tables for pagination tests using unified container system."""
     async with class_db_pool.connection() as conn:

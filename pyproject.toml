@@ -4,37 +4,37 @@ requires = ["maturin>=1.9,<2.0"]
 
 [dependency-groups]
 dev = [
-  "build>=1.2.2.post1",
+  "build>=1.4.0",
   "docker>=7.1.0",
-  "langchain>=1.0.5",
+  "langchain>=1.2.0",
   "langchain-community>=0.4.1",
-  "langchain-core>=1.2.5",
-  "llama-index>=0.14.8",
-  "llama-index-core>=0.14.8",
-  "maturin>=1.9.6",
-  "pre-commit>=4.2.0",
-  "psutil>=7.1.3",
-  "pyright>=1.1.405",
-  "pytest>=8.4.0",
-  "pytest-asyncio>=1.0.0",
+  "langchain-core>=1.2.14",
+  "llama-index>=0.14.15",
+  "llama-index-core>=0.14.15",
+  "maturin>=1.12.0",
+  "pre-commit>=4.5.0",
+  "psutil>=7.2.0",
+  "pyright>=1.1.408",
+  "pytest>=9.0.0",
+  "pytest-asyncio>=1.3.0",
   "pytest-cov>=7.0.0",
   "asgi-lifespan>=2.1.0",
   "pytest-forked>=1.6.0",
-  "testcontainers>=4.10.0",
-  "twine>=6.1.0",
-  "ty>=0.0.1a28",
-  "moto[kms]>=5.1.18"
+  "testcontainers>=4.14.0",
+  "twine>=6.2.0",
+  "ty>=0.0.17",
+  "moto[kms]>=5.1.21"
 ]
 docs = [
   "mkdocs>=1.6.1",
-  "mkdocs-material>=9.6.22",
+  "mkdocs-material>=9.7.0",
   "mkdocs-mermaid2-plugin>=1.2.3",
   "mkdocs-minify-plugin>=0.8.0",
   "mkdocs-redirects>=1.2.2",
-  "pymdown-extensions>=10.16.1",
-  "sphinx>=9.0.4",
-  "sphinx-autodoc-typehints>=3.6.0",
-  "sphinx-rtd-theme>=0.5.1"
+  "pymdown-extensions>=10.21",
+  "sphinx>=9.1.0",
+  "sphinx-autodoc-typehints>=3.6.3",
+  "sphinx-rtd-theme>=3.1.0"
 ]
 
 [project]
@@ -56,29 +56,29 @@ classifiers = [
   "Operating System :: OS Independent"
 ]
 dependencies = [
-  "fastapi>=0.115.12",
-  "starlette>=0.49.1",
-  "graphql-core>=3.2.0",  # Use 3.2.0 as 3.3.0 not yet released (only alphas available)
-  "psycopg[pool]>=3.2.6",
-  "psycopg-pool>=3.2.6",
-  "uvicorn>=0.34.3",
-  "pydantic>=2.0.0",
-  "pydantic-settings>=2.0.0",
-  "httpx>=0.27.0",  # Updated from 0.25.0 for security fixes
-  "pyjwt[crypto]>=2.10.0",  # Updated from 2.8.0 for security improvements
-  "python-dateutil>=2.9.0",  # Updated from 2.8.0 for security
-  "click>=8.1.7",  # Updated from 8.1.0 for security improvements
-  "python-dotenv>=1.0.1",  # Updated from 1.0.0 for security
-  "structlog>=24.2.0",  # Updated from 23.0.0 for security and features
+  "fastapi>=0.129.0",
+  "starlette>=0.52.0",
+  "graphql-core>=3.2.7",
+  "psycopg[pool]>=3.3.3",
+  "psycopg-pool>=3.3.0",
+  "uvicorn>=0.41.0",
+  "pydantic>=2.12.0",
+  "pydantic-settings>=2.13.0",
+  "httpx>=0.28.0",
+  "pyjwt[crypto]>=2.11.0",
+  "python-dateutil>=2.9.0",
+  "click>=8.3.0",
+  "python-dotenv>=1.2.0",
+  "structlog>=25.5.0",
   "passlib[argon2]>=1.7.4",
-  "aiosqlite>=0.22.1",  # Updated from 0.21.0 for security
-  "typer>=0.12.3",  # Updated from 0.12.0 for security
-  "rich>=13.8.1",  # Updated from 13.7.0 for security
-  "pyyaml>=6.0.2",  # Updated from 6.0.1 for security fixes (CVE-2024-xxxxx remediation)
-  "sqlparse>=0.5.1",  # Updated from 0.5.0 for security
-  "fraiseql-confiture>=0.1.0",
-  "jinja2>=3.1.4",  # Updated from 3.1.0 for security patches
-  "urllib3>=2.8.0"  # Updated from 2.6.3 for security fixes
+  "aiosqlite>=0.22.1",
+  "typer>=0.24.0",
+  "rich>=14.0.0",
+  "pyyaml>=6.0.2",
+  "sqlparse>=0.5.5",
+  "fraiseql-confiture>=0.5.2",
+  "jinja2>=3.1.6",
+  "urllib3>=2.6.0"
 ]
 description = "GraphQL for the LLM era. Simple. Powerful. Rust-fast. Production-ready GraphQL API framework for PostgreSQL with CQRS, JSONB optimization, and type-safe mutations"
 keywords = [
@@ -99,77 +99,75 @@ version = "1.9.17"
 
 [project.optional-dependencies]
 all = [
-  "protobuf>=5.28.1",  # Updated from >=4.25.8,<7.0 to fix CVE-2026-0994 (JSON recursion depth bypass)
+  "protobuf>=5.29.0,<7.0",
   "wrapt>=1.16.0",
-  "opentelemetry-api>=1.20.0",
-  "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-instrumentation-psycopg>=0.40b0",
-  "opentelemetry-exporter-otlp>=1.20.0",
-  "opentelemetry-exporter-jaeger>=1.20.0",
-  "pyjwt[crypto]>=2.10.0",  # Updated from 2.8.0 for security improvements
-  "httpx>=0.25.0",
+  "opentelemetry-api>=1.39.0",
+  "opentelemetry-sdk>=1.39.0",
+  "opentelemetry-instrumentation-psycopg>=0.60b1",
+  "opentelemetry-exporter-otlp>=1.39.0",
+  "pyjwt[crypto]>=2.11.0",
+  "httpx>=0.28.0",
   "cyclonedx-python-lib>=7.0.0,<12.0",
-  "packageurl-python>=0.15.0",
-  "boto3>=1.34.0",
-  "cryptography>=42.0.0",
-  "aioboto3>=12.0.0",
-  "google-cloud-kms>=2.21.0"
+  "packageurl-python>=0.17.0",
+  "boto3>=1.38.0",
+  "cryptography>=44.0.0",
+  "aioboto3>=15.0.0",
+  "google-cloud-kms>=3.11.0"
 ]
-auth0 = ["pyjwt[crypto]>=2.10.0", "httpx>=0.27.0"]
-aws = ["boto3>=1.34.0"]
+auth0 = ["pyjwt[crypto]>=2.11.0", "httpx>=0.28.0"]
+aws = ["boto3>=1.38.0"]
 dev = [
-  "black>=25.1.0",  # Updated from 25.0.1 for latest fixes
-  "pre-commit>=4.3.0",  # Updated from 4.2.0 for security
-  "pytest>=8.4.0",  # Updated from 8.3.5 for security
-  "pytest-asyncio>=0.25.1",  # Updated from 1.0.0 for stability and security
-  "pytest-timeout>=2.4.1",  # Updated from 2.4.0 for security
-  "faker>=38.2.0",  # Updated from 37.5.3 for latest features and security
-  "testcontainers[postgres]>=4.11.0",  # Updated from 4.10.0 for security
-  "testcontainers[vault]>=4.11.0",  # Updated from 4.10.0 for security
-  "docker>=7.2.0",  # Updated from 7.1.0 for security patches
-  "pytest-xdist>=3.6.1",  # Updated from 3.5.0 for security
-  "pytest-watch>=1.0.0",
-  "pytest-cov>=6.0.0",  # Updated from 4.0.0 for improvements
-  "pytest-mock>=3.14.0",  # Updated from 3.11.0 for security
-  "pytest-benchmark>=4.0.0",
-  "tox>=4.18.0",  # Updated from 4.0.0 for security
-  "ruff>=0.15.0",  # Updated from 0.13.0 for latest security and features
-  "build>=1.2.2",  # Updated from 1.0.0 for security
-  "twine>=6.1.0",
-  "pyyaml>=6.0.2",  # Updated from 6.0.0 for security patches
-  "prometheus-client>=0.21.0",  # Updated from 0.20.0 for security
-  "email-validator>=2.2.1",  # Updated from 2.0.0 for improvements
-  "hvac>=2.2.0",  # Updated from 2.0.0 for security
-  "moto[kms]>=5.1.20",  # Updated from 5.0.0 for security and fixes
-  "aiohttp>=3.14.0",  # Updated from 3.13.3 for critical security fixes
-  "filelock>=3.20.1",
-  "werkzeug>=3.1.5"
+  "black>=26.1.0",
+  "pre-commit>=4.5.0",
+  "pytest>=9.0.0",
+  "pytest-asyncio>=1.3.0",
+  "pytest-timeout>=2.4.0",
+  "faker>=40.0.0",
+  "testcontainers[postgres]>=4.14.0",
+  "testcontainers[vault]>=4.14.0",
+  "docker>=7.1.0",
+  "pytest-xdist>=3.8.0",
+  "pytest-watch>=4.2.0",
+  "pytest-cov>=7.0.0",
+  "pytest-mock>=3.15.0",
+  "pytest-benchmark>=5.2.0",
+  "tox>=4.41.0",
+  "ruff>=0.15.0",
+  "build>=1.4.0",
+  "twine>=6.2.0",
+  "pyyaml>=6.0.2",
+  "prometheus-client>=0.24.0",
+  "email-validator>=2.3.0",
+  "hvac>=2.4.0",
+  "moto[kms]>=5.1.21",
+  "aiohttp>=3.13.0",
+  "filelock>=3.24.0",
+  "werkzeug>=3.1.6"
 ]
 docs = [
   "mkdocs>=1.6.1",
-  "mkdocs-material>=9.6.22",
+  "mkdocs-material>=9.7.0",
   "mkdocs-redirects>=1.2.2",
-  "pymdown-extensions>=10.16.1"
+  "pymdown-extensions>=10.21"
 ]
-kms = ["cryptography>=42.0.0"]
+kms = ["cryptography>=44.0.0"]
 kms-all = [
-  "cryptography>=43.0.0",  # Updated from 42.0.0 for latest security patches
-  "httpx>=0.27.0",
-  "aioboto3>=12.1.0",  # Updated from 12.0.0 for security improvements
-  "google-cloud-kms>=3.15.0"  # Updated from 3.10.0 for security and stability
+  "cryptography>=44.0.0",
+  "httpx>=0.28.0",
+  "aioboto3>=15.0.0",
+  "google-cloud-kms>=3.11.0"
 ]
-kms-aws = ["aioboto3>=12.1.0"]  # Updated from 12.0.0 for security
-kms-gcp = ["google-cloud-kms>=3.15.0"]  # Updated from 3.10.0 for security
-kms-vault = ["httpx>=0.27.0"]
-sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.15.0"]
+kms-aws = ["aioboto3>=15.0.0"]
+kms-gcp = ["google-cloud-kms>=3.11.0"]
+kms-vault = ["httpx>=0.28.0"]
+sbom = ["cyclonedx-python-lib>=7.0.0,<12.0", "packageurl-python>=0.17.0"]
 tracing = [
-  "protobuf>=5.28.1",  # Updated from >=4.25.8,<7.0 to fix CVE-2026-0994 (JSON recursion depth bypass)
+  "protobuf>=5.29.0,<7.0",
   "wrapt>=1.16.0",
-  "opentelemetry-api>=1.20.0",
-  "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-instrumentation-psycopg>=0.40b0",
-  "opentelemetry-exporter-otlp>=1.20.0",
-  "opentelemetry-exporter-jaeger>=1.20.0"
+  "opentelemetry-api>=1.39.0",
+  "opentelemetry-sdk>=1.39.0",
+  "opentelemetry-instrumentation-psycopg>=0.60b1",
+  "opentelemetry-exporter-otlp>=1.39.0"
 ]
 
 [project.scripts]
@@ -260,7 +258,7 @@ markers = [
   "chaos_verification: Chaos infrastructure verification tests"
 ]
 # Minimum version
-minversion = "8.0"
+minversion = "9.0"
 python_classes = ["Test*"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]

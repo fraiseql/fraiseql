@@ -67,7 +67,7 @@ def _parse_rust_response(result) -> list[dict[str, Any]] | dict[str, Any]:
 class TestDictWhereMixedFiltersBug:
     """Test suite to reproduce and fix the dict WHERE mixed filters bug."""
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_test_tables(
         self, class_db_pool, test_schema
     ) -> AsyncGenerator[dict[str, UUID]]:

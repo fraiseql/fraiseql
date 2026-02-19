@@ -40,7 +40,7 @@ class TestStringFilterRegex:
             "ProductWhere": ProductWhere,
         }
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_test_views(
         self, class_db_pool: psycopg_pool.AsyncConnectionPool, test_types
     ) -> AsyncGenerator[None]:

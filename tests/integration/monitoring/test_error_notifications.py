@@ -19,7 +19,7 @@ from fraiseql.monitoring.postgres_error_tracker import (
 pytestmark = pytest.mark.integration
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def error_tracker(class_db_pool, test_schema):
     """Create error tracker instance for testing."""
     # Read and execute schema
@@ -42,7 +42,7 @@ async def error_tracker(class_db_pool, test_schema):
     yield tracker
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def notification_manager(class_db_pool, test_schema):
     """Create notification manager instance for testing."""
     yield NotificationManager(class_db_pool)

@@ -108,7 +108,7 @@ class TestJSONBNestedCamelCase:
 
     TEST_CONFIG_ID = "01436121-0000-0000-0000-000000000000"
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_database(self, class_db_pool, test_schema) -> AsyncGenerator[None]:
         """Set up database with JSONB nested objects."""
         async with class_db_pool.connection() as conn:
@@ -185,7 +185,7 @@ class TestJSONBNestedCamelCase:
 
         yield
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     def graphql_app(
         self, class_db_pool, test_schema, setup_database, clear_registry_class
     ) -> "FastAPI":

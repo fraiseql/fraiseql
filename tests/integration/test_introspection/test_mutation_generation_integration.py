@@ -44,7 +44,7 @@ class TestMutationGenerationIntegration:
         """Create PostgresIntrospector with real database pool."""
         return PostgresIntrospector(class_db_pool)
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def test_mutation_function(self, class_db_pool, test_schema):
         """Create a test mutation function for introspection."""
         import uuid

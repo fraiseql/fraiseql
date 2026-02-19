@@ -14,7 +14,7 @@ from fraiseql.introspection import AutoDiscovery
 pytestmark = pytest.mark.integration
 
 
-@pytest_asyncio.fixture(scope="class")
+@pytest_asyncio.fixture(scope="class", loop_scope="class")
 async def specql_test_schema(class_db_pool, test_schema) -> None:
     """Create SpecQL-style test schema for composite type generation testing.
 

@@ -35,7 +35,7 @@ class TestFullTextFilter:
             "DocumentWhere": DocumentWhere,
         }
 
-    @pytest_asyncio.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def setup_test_documents(self, class_db_pool, test_schema, test_types):
         """Create test documents with tsvector data."""
         Document = test_types["Document"]
