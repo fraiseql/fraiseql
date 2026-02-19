@@ -42,7 +42,7 @@ where
                     // Apply predicate
                     // Sample timing: only record 1 in 1000 evaluations
                     let eval_idx = self.eval_count.fetch_add(1, Ordering::Relaxed);
-                    let passed = if eval_idx % 1000 == 0 {
+                    let passed = if eval_idx.is_multiple_of(1000) {
                         // Record timing for sampled evaluation
                         let filter_start = std::time::Instant::now();
                         let result = (self.predicate)(&value);

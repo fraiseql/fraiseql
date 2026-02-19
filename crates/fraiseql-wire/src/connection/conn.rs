@@ -817,7 +817,7 @@ impl Connection {
 
                                                 // Only record metrics every 10 chunks to reduce overhead
                                                 let chunk_idx = CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
-                                                if chunk_idx % 10 == 0 {
+                                                if chunk_idx.is_multiple_of(10) {
                                                     crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
                                                     crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
                                                 }
@@ -893,7 +893,7 @@ impl Connection {
                                         // Record final chunk metrics (sampled)
                                         let chunk_duration = chunk_start.elapsed().as_millis() as u64;
                                         let chunk_idx = CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
-                                        if chunk_idx % 10 == 0 {
+                                        if chunk_idx.is_multiple_of(10) {
                                             crate::metrics::histograms::chunk_processing_duration(&entity_for_metrics, chunk_duration);
                                             crate::metrics::histograms::chunk_size(&entity_for_metrics, chunk_size_rows);
                                         }

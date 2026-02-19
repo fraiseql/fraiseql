@@ -450,7 +450,7 @@ impl Stream for JsonStream {
         // Sample metrics: record 1 in every 1000 polls to avoid hot path overhead
         // For 100K rows, this records ~100 times instead of 100K times
         let poll_idx = self.poll_count.fetch_add(1, Ordering::Relaxed);
-        if poll_idx % 1000 == 0 {
+        if poll_idx.is_multiple_of(1000) {
             let occupancy = self.receiver.len() as u64;
             crate::metrics::histograms::channel_occupancy(&self.entity, occupancy);
             crate::metrics::gauges::stream_buffered_items(&self.entity, occupancy as usize);
