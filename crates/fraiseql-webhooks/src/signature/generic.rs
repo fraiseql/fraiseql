@@ -4,7 +4,7 @@ use hmac::{Hmac, Mac};
 use sha1::Sha1;
 use sha2::Sha256;
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::SignatureVerifier,
 };

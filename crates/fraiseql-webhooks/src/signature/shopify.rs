@@ -1,25 +1,25 @@
-//! GitHub webhook signature verification.
+//! Shopify webhook signature verification.
 //!
-//! Format: `sha256=<hex>`
-//! Algorithm: HMAC-SHA256
+//! Format: Base64 encoded HMAC-SHA256
 
+use base64::{Engine as _, engine::general_purpose};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::SignatureVerifier,
 };
 
-pub struct GitHubVerifier;
+pub struct ShopifyVerifier;
 
-impl SignatureVerifier for GitHubVerifier {
+impl SignatureVerifier for ShopifyVerifier {
     fn name(&self) -> &'static str {
-        "github"
+        "shopify"
     }
 
     fn signature_header(&self) -> &'static str {
-        "X-Hub-Signature-256"
+        "X-Shopify-Hmac-Sha256"
     }
 
     fn verify(
@@ -29,16 +29,13 @@ impl SignatureVerifier for GitHubVerifier {
         secret: &str,
         _timestamp: Option<&str>,
     ) -> Result<bool, SignatureError> {
-        // GitHub format: sha256=<hex>
-        let sig_hex = signature.strip_prefix("sha256=").ok_or(SignatureError::InvalidFormat)?;
-
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
         mac.update(payload);
 
-        let expected = hex::encode(mac.finalize().into_bytes());
+        let expected = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
-        Ok(constant_time_eq(sig_hex.as_bytes(), expected.as_bytes()))
+        Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
     }
 }
 
@@ -49,12 +46,12 @@ mod tests {
     fn generate_signature(payload: &[u8], secret: &str) -> String {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
         mac.update(payload);
-        format!("sha256={}", hex::encode(mac.finalize().into_bytes()))
+        general_purpose::STANDARD.encode(mac.finalize().into_bytes())
     }
 
     #[test]
     fn test_valid_signature() {
-        let verifier = GitHubVerifier;
+        let verifier = ShopifyVerifier;
         let payload = b"test payload";
         let secret = "secret";
         let signature = generate_signature(payload, secret);
@@ -64,16 +61,7 @@ mod tests {
 
     #[test]
     fn test_invalid_signature() {
-        let verifier = GitHubVerifier;
-        let signature = "sha256=invalid";
-
-        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
-    }
-
-    #[test]
-    fn test_missing_prefix() {
-        let verifier = GitHubVerifier;
-        let result = verifier.verify(b"test", "abc123", "secret", None);
-        assert!(matches!(result, Err(SignatureError::InvalidFormat)));
+        let verifier = ShopifyVerifier;
+        assert!(!verifier.verify(b"test", "invalid", "secret", None).unwrap());
     }
 }

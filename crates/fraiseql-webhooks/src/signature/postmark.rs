@@ -1,4 +1,4 @@
-//! Lemon Squeezy webhook signature verification.
+//! Postmark webhook signature verification.
 //!
 //! Format: Base64 encoded HMAC-SHA256
 
@@ -6,20 +6,20 @@ use base64::{Engine as _, engine::general_purpose};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::SignatureVerifier,
 };
 
-pub struct LemonSqueezyVerifier;
+pub struct PostmarkVerifier;
 
-impl SignatureVerifier for LemonSqueezyVerifier {
+impl SignatureVerifier for PostmarkVerifier {
     fn name(&self) -> &'static str {
-        "lemonsqueezy"
+        "postmark"
     }
 
     fn signature_header(&self) -> &'static str {
-        "X-Signature"
+        "X-Postmark-Signature"
     }
 
     fn verify(

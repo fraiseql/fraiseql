@@ -11,7 +11,7 @@ pub mod mocks {
 
     use async_trait::async_trait;
 
-    use crate::webhooks::{
+    use crate::{
         Clock, IdempotencyStore, Result, SecretProvider, SignatureVerifier, WebhookError,
         signature::SignatureError,
     };

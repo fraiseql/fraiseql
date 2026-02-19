@@ -1,4 +1,4 @@
-//! Twilio webhook signature verification.
+//! Paddle webhook signature verification.
 //!
 //! Format: Base64 encoded HMAC-SHA1
 
@@ -6,20 +6,20 @@ use base64::{Engine as _, engine::general_purpose};
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::SignatureVerifier,
 };
 
-pub struct TwilioVerifier;
+pub struct PaddleVerifier;
 
-impl SignatureVerifier for TwilioVerifier {
+impl SignatureVerifier for PaddleVerifier {
     fn name(&self) -> &'static str {
-        "twilio"
+        "paddle"
     }
 
     fn signature_header(&self) -> &'static str {
-        "X-Twilio-Signature"
+        "X-Paddle-Signature"
     }
 
     fn verify(

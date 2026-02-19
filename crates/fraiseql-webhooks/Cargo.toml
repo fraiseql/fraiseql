@@ -1,0 +1,30 @@
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+ed25519-dalek = {version = "2", features = ["std"]}
+futures = "0.3"
+hex = "0.4"
+hmac = "0.12"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+sha1 = "0.10"
+sha2 = "0.10"
+sqlx = {version = "0.8", features = ["postgres", "runtime-tokio"]}
+subtle = "2.5"
+thiserror = "2.0"
+tokio = {version = "1.45", features = ["full"]}
+uuid = {version = "1.0", features = ["v4", "serde"]}
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[lints]
+workspace = true
+
+[package]
+name = "fraiseql-webhooks"
+description = "Webhook signature verification and event processing for FraiseQL"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+version.workspace = true

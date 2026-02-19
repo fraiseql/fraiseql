@@ -3,6 +3,18 @@
 //! Webhook processing with signature verification, idempotency, and event routing.
 //!
 //! ## Features
+
+#![forbid(unsafe_code)]
+#![allow(missing_docs)] // Reason: migrated from fraiseql-server; docs are a separate effort
+#![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style
+#![allow(clippy::must_use_candidate)] // Reason: builder methods return Self
+#![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting
+#![allow(clippy::missing_panics_doc)] // Reason: panics eliminated by design
+#![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
+#![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
+#![allow(clippy::uninlined_format_args)] // Reason: named variables improve readability
+#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
+#![allow(clippy::items_after_statements)] // Reason: helper structs near point of use in tests
 //!
 //! - **15+ provider support**: Stripe, GitHub, Shopify, and more
 //! - **Signature verification**: Constant-time comparison for security

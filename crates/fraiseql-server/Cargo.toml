@@ -28,6 +28,8 @@ fraiseql-arrow = {workspace = true}
 fraiseql-auth = {workspace = true}
 # FraiseQL core
 fraiseql-core = {workspace = true, features = ["postgres"]}
+# Webhooks
+fraiseql-webhooks = {workspace = true}
 fraiseql-error = {workspace = true}
 # FraiseQL observers (optional)
 fraiseql-observers = {workspace = true, optional = true}

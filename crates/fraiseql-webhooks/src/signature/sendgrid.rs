@@ -1,25 +1,24 @@
-//! Postmark webhook signature verification.
+//! SendGrid webhook signature verification.
 //!
-//! Format: Base64 encoded HMAC-SHA256
+//! Format: HMAC-SHA256 hex encoded
 
-use base64::{Engine as _, engine::general_purpose};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::SignatureVerifier,
 };
 
-pub struct PostmarkVerifier;
+pub struct SendGridVerifier;
 
-impl SignatureVerifier for PostmarkVerifier {
+impl SignatureVerifier for SendGridVerifier {
     fn name(&self) -> &'static str {
-        "postmark"
+        "sendgrid"
     }
 
     fn signature_header(&self) -> &'static str {
-        "X-Postmark-Signature"
+        "X-Twilio-Email-Event-Webhook-Signature"
     }
 
     fn verify(
@@ -33,7 +32,7 @@ impl SignatureVerifier for PostmarkVerifier {
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
         mac.update(payload);
 
-        let expected = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let expected = hex::encode(mac.finalize().into_bytes());
 
         Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
     }

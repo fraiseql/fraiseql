@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use crate::webhooks::{
+use crate::{
     signature::{
         discord::DiscordVerifier, generic::*, github::GitHubVerifier, gitlab::GitLabVerifier,
         lemonsqueezy::LemonSqueezyVerifier, paddle::PaddleVerifier, postmark::PostmarkVerifier,
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_registry_custom_verifier() {
-        use crate::webhooks::testing::mocks::MockSignatureVerifier;
+        use crate::testing::mocks::MockSignatureVerifier;
 
         let mut registry = ProviderRegistry::new();
         let mock = Arc::new(MockSignatureVerifier::succeeding());

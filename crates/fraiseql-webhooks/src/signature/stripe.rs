@@ -9,7 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::{Clock, SignatureVerifier, SystemClock},
 };
@@ -113,7 +113,7 @@ impl SignatureVerifier for StripeVerifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::webhooks::testing::mocks::MockClock;
+    use crate::testing::mocks::MockClock;
 
     fn generate_signature(payload: &str, secret: &str, timestamp: i64) -> String {
         let signed_payload = format!("{}.{}", timestamp, payload);

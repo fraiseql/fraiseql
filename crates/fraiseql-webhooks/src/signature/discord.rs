@@ -6,7 +6,7 @@
 
 use ed25519_dalek::{Signature, VerifyingKey, Verifier};
 
-use crate::webhooks::{
+use crate::{
     signature::SignatureError,
     traits::SignatureVerifier,
 };

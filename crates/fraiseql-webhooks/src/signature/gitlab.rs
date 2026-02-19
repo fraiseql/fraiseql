@@ -2,7 +2,7 @@
 //!
 //! Format: Plain token in X-Gitlab-Token header
 
-use crate::webhooks::{
+use crate::{
     signature::{SignatureError, constant_time_eq},
     traits::SignatureVerifier,
 };

@@ -99,8 +99,8 @@ pub mod resilience;
 pub mod runtime_state;
 pub mod tracing_utils;
 
-// fraiseql-webhooks modules (merged)
-pub mod webhooks;
+// Webhooks (extracted to fraiseql-webhooks crate)
+pub use fraiseql_webhooks as webhooks;
 
 // fraiseql-files modules (merged)
 pub mod files;
