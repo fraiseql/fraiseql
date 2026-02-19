@@ -789,7 +789,7 @@ class MutationDefinition:
                         error_type=error_type_name,
                         entity_field_name=self.entity_field_name,
                         entity_type=self.entity_type,
-                        context_args=context_args if context_args else None,
+                        context_args=context_args or None,
                         cascade_selections=cascade_selections_json,
                         success_type_class=self.success_type,
                         success_type_fields=success_type_fields,

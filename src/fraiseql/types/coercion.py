@@ -3,6 +3,7 @@
 import inspect
 import types
 from collections.abc import Callable
+from enum import Enum
 from typing import (
     Any,
     Literal,
@@ -71,6 +72,11 @@ def _coerce_field_value(raw_value: object, field_type: object) -> object:
             for item in cast("list[object]", raw_value)
         ]
 
+    # Case 4: Enum types (direct or inside Optional/Union)
+    enum_class = _resolve_enum_type(field_type)
+    if enum_class is not None and not isinstance(raw_value, enum_class):
+        return _coerce_to_enum(raw_value, enum_class)
+
     # Handle IPv4Address and IPv6Address objects
     import ipaddress
 
@@ -123,6 +129,53 @@ def coerce_input(cls: type, raw: dict[str, object]) -> object:
     return cls(**coerced_data)
 
 
+def _coerce_to_enum(value: object, enum_class: type[Enum]) -> Enum:
+    """Convert a raw value to an Enum instance.
+
+    Tries matching by value first, then by name.
+
+    Args:
+        value: The raw value from GraphQL (typically a string or int).
+        enum_class: The target Enum class.
+
+    Returns:
+        The matching Enum member.
+
+    Raises:
+        ValueError: If the value cannot be matched to any Enum member.
+    """
+    if isinstance(value, enum_class):
+        return value
+
+    for member in enum_class:
+        if member.value == value:
+            return member
+
+    if isinstance(value, str):
+        try:
+            return enum_class[value]
+        except KeyError:
+            pass
+
+    valid = [f"{m.name}={m.value!r}" for m in enum_class]
+    msg = f"Cannot convert {value!r} to {enum_class.__name__}. Valid: {', '.join(valid)}"
+    raise ValueError(msg)
+
+
+def _resolve_enum_type(annotation: object) -> type[Enum] | None:
+    """Extract the Enum class from an annotation, handling Optional/Union."""
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation
+
+    origin = get_origin(annotation)
+    if origin is Union or origin is types.UnionType:
+        for arg in get_args(annotation):
+            if isinstance(arg, type) and issubclass(arg, Enum):
+                return arg
+
+    return None
+
+
 def coerce_input_arguments(
     fn: Callable[..., object],
     raw_args: dict[str, object],
@@ -167,7 +220,11 @@ def coerce_input_arguments(
         if hasattr(annotation, "__fraiseql_definition__"):
             coerced[name] = coerce_input(annotation, raw_value)  # type: ignore[arg-type]
         else:
-            coerced[name] = raw_value
+            enum_class = _resolve_enum_type(annotation)
+            if enum_class is not None and not isinstance(raw_value, enum_class):
+                coerced[name] = _coerce_to_enum(raw_value, enum_class)
+            else:
+                coerced[name] = raw_value
 
     return coerced
 

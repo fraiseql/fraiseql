@@ -58,7 +58,7 @@ class SchemaComposer:
             query=query_type,
             mutation=mutation_type,
             subscription=subscription_type,
-            types=all_types if all_types else None,
+            types=all_types or None,
         )
 
     def _collect_all_types(self) -> list[GraphQLObjectType]:

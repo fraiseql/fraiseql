@@ -155,7 +155,7 @@ def _apply_collation_default(
         return field_collation
 
     # Otherwise, fall back to global default
-    return global_collation if global_collation else None
+    return global_collation or None
 
 
 def _convert_order_by_input_to_sql(order_by_input: Any, config: Any = None) -> OrderBySet | None:

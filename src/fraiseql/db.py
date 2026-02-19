@@ -471,7 +471,7 @@ class FraiseQLRepository:
                     (json.dumps(input_data),),
                 )
                 result = await cursor.fetchone()
-                return result if result else {}
+                return result or {}
         else:
             # asyncpg pool
             async with self._pool.acquire() as conn:
@@ -549,7 +549,7 @@ class FraiseQLRepository:
                     tuple(params),
                 )
                 result = await cursor.fetchone()
-                return result if result else {}
+                return result or {}
         else:
             # asyncpg pool
             if context_args:

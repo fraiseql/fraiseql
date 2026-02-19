@@ -127,7 +127,7 @@ class MutationResultProcessor:
         if db_result.object_data:
             data.update(db_result.object_data)
 
-        return data if data else None
+        return data or None
 
     def _extract_success_data(
         self, db_result: MutationResult, success_class: Type[T]
@@ -143,4 +143,4 @@ class MutationResultProcessor:
         if db_result.object_data:
             data.update(db_result.object_data)
 
-        return data if data else None
+        return data or None

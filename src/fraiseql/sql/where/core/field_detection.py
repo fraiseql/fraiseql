@@ -563,7 +563,7 @@ def _is_ltree_value(value: str) -> bool:
     }
 
     # If the last part is a common domain extension, probably not an LTree
-    last_part = value.split(".")[-1].lower()
+    last_part = value.rsplit(".", maxsplit=1)[-1].lower()
     if last_part in domain_extensions:
         return False
 
@@ -622,7 +622,7 @@ def _is_datetime_value(value: str) -> bool:
         return False
 
     # Additional validation: check the date part is reasonable
-    date_part = value.split("T")[0]
+    date_part = value.split("T", maxsplit=1)[0]
     try:
         year, month, day = map(int, date_part.split("-"))
         if not (1 <= month <= 12 and 1 <= day <= 31):

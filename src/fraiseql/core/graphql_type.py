@@ -875,7 +875,7 @@ def convert_type_to_graphql_output(
                 gql_type = GraphQLObjectType(
                     name=typ.__name__,
                     fields=make_fields_thunk,
-                    interfaces=interfaces if interfaces else None,
+                    interfaces=interfaces or None,
                     is_type_of=is_type_of,
                     description=_clean_docstring(typ.__doc__),
                 )
