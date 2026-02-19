@@ -284,7 +284,7 @@ fn validate_luhn(value: &str) -> Result<()> {
         is_even = !is_even;
     }
 
-    if sum % 10 == 0 {
+    if sum.is_multiple_of(10) {
         Ok(())
     } else {
         Err(FraiseQLError::validation("Invalid Luhn checksum".to_string()))

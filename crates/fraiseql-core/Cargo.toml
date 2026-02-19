@@ -41,11 +41,9 @@ hex = {workspace = true}
 hmac = {workspace = true}
 itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
-lazy_static = {workspace = true}
 linked-hash-map = {workspace = true}
 lru = {workspace = true}
 native-tls = {workspace = true}
-once_cell = {workspace = true}
 parking_lot = {workspace = true}
 postgres-native-tls = {workspace = true}
 rand = {workspace = true}

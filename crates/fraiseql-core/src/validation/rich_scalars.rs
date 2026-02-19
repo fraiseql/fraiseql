@@ -3,30 +3,31 @@
 //! This module provides validators for common structured data types like emails,
 //! phone numbers, IBANs, VINs, and country codes.
 
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
 use regex::Regex;
 
-lazy_static! {
-    // Email regex: Simple but practical pattern
-    static ref EMAIL_REGEX: Regex = Regex::new(
+// Email regex: Simple but practical pattern
+static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-    ).unwrap();
+    ).expect("email regex is valid")
+});
 
-    // International phone: +1-999-999-9999 or +999999999999, etc.
-    static ref PHONE_REGEX: Regex = Regex::new(
-        r"^\+?[1-9]\d{1,14}$"
-    ).unwrap();
+// International phone: +1-999-999-9999 or +999999999999, etc.
+static PHONE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\+?[1-9]\d{1,14}$").expect("phone regex is valid")
+});
 
-    // VIN: 17 alphanumeric characters (no I, O, Q)
-    static ref VIN_REGEX: Regex = Regex::new(
-        r"^[A-HJ-NPR-Z0-9]{17}$"
-    ).unwrap();
+// VIN: 17 alphanumeric characters (no I, O, Q)
+static VIN_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-HJ-NPR-Z0-9]{17}$").expect("VIN regex is valid")
+});
 
-    // Country code: ISO 3166-1 alpha-2 (2 letters)
-    static ref COUNTRY_CODE_REGEX: Regex = Regex::new(
-        r"^[A-Z]{2}$"
-    ).unwrap();
-}
+// Country code: ISO 3166-1 alpha-2 (2 letters)
+static COUNTRY_CODE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-Z]{2}$").expect("country code regex is valid")
+});
 
 /// Email address validator.
 pub struct EmailValidator;

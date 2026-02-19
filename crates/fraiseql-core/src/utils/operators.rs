@@ -5,8 +5,7 @@
 //! and full-text search operators.
 
 use std::collections::HashMap;
-
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
 /// Category of operator (affects SQL generation strategy)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,9 +51,8 @@ pub struct OperatorInfo {
     pub jsonb_operator: bool,
 }
 
-lazy_static! {
-    /// Global registry of all supported operators
-    pub static ref OPERATOR_REGISTRY: HashMap<&'static str, OperatorInfo> = {
+/// Global registry of all supported operators
+pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = LazyLock::new(|| {
         let mut m = HashMap::new();
 
         // ========== COMPARISON OPERATORS ==========
@@ -673,8 +671,7 @@ lazy_static! {
         });
 
         m
-    };
-}
+});
 
 /// Get operator information by name
 ///

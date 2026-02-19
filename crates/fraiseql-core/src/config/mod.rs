@@ -811,11 +811,11 @@ impl FraiseQLConfig {
 /// Supports `${VAR}` and `$VAR` syntax.
 #[allow(clippy::expect_used)]
 fn expand_env_vars(content: &str) -> String {
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
     // The regex pattern is a compile-time constant and is guaranteed to be valid
-    static ENV_VAR_REGEX: Lazy<regex::Regex> =
-        Lazy::new(|| regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("Invalid regex"));
+    static ENV_VAR_REGEX: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("env var regex is valid"));
 
     let mut result = content.to_string();
 
