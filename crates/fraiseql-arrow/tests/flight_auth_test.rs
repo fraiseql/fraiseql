@@ -119,39 +119,42 @@ async fn test_do_get_without_authorization_header() {
 /// Test `do_get` rejects invalid session token.
 #[tokio::test]
 async fn test_do_get_with_invalid_session_token() {
-    let service = FraiseQLFlightService::new();
+    temp_env::async_with_vars(flight_secret_vars(), async {
+        let service = FraiseQLFlightService::new();
 
-    // Create a valid ticket
-    let ticket = FlightTicket::OptimizedView {
-        view:     "va_orders".to_string(),
-        filter:   None,
-        order_by: None,
-        limit:    None,
-        offset:   None,
-    };
-    let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
+        // Create a valid ticket
+        let ticket = FlightTicket::OptimizedView {
+            view:     "va_orders".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    None,
+            offset:   None,
+        };
+        let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
-    // Create request with INVALID token
-    let ticket_proto = Ticket {
-        ticket: ticket_bytes.into(),
-    };
-    let mut request = Request::new(ticket_proto);
+        // Create request with INVALID token
+        let ticket_proto = Ticket {
+            ticket: ticket_bytes.into(),
+        };
+        let mut request = Request::new(ticket_proto);
 
-    // Add invalid token to metadata
-    request.metadata_mut().insert(
-        "authorization",
-        "Bearer invalid-token-xyz".parse().expect("Failed to insert header"),
-    );
+        // Add invalid token to metadata
+        request.metadata_mut().insert(
+            "authorization",
+            "Bearer invalid-token-xyz".parse().expect("Failed to insert header"),
+        );
 
-    // Should fail with unauthenticated error
-    let result = service.do_get(request).await;
+        // Should fail with unauthenticated error
+        let result = service.do_get(request).await;
 
-    match result {
-        Err(status) => {
-            assert_eq!(status.code(), tonic::Code::Unauthenticated);
-        },
-        Ok(_) => panic!("do_get should fail with invalid token"),
-    }
+        match result {
+            Err(status) => {
+                assert_eq!(status.code(), tonic::Code::Unauthenticated);
+            },
+            Ok(_) => panic!("do_get should fail with invalid token"),
+        }
+    })
+    .await;
 }
 
 /// Test `do_get` rejects expired session token.
@@ -215,7 +218,10 @@ async fn test_do_get_with_expired_session_token() {
         match result {
             Err(status) => {
                 assert_eq!(status.code(), tonic::Code::Unauthenticated);
-                assert!(status.message().contains("expired"), "Error should mention token expiration");
+                assert!(
+                    status.message().contains("expired"),
+                    "Error should mention token expiration"
+                );
             },
             Ok(_) => panic!("do_get should fail with expired token"),
         }
