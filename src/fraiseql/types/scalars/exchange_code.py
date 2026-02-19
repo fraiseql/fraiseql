@@ -1,7 +1,7 @@
 """Exchange code scalar type for stock exchange identifiers."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -84,7 +84,7 @@ class ExchangeCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "ExchangeCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new ExchangeCodeField instance with validation."""
         value_upper = value.upper()
         if not _EXCHANGE_CODE_REGEX.match(value_upper):

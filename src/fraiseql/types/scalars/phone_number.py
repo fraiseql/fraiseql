@@ -1,7 +1,7 @@
 """Phone number scalar type for E.164 validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -84,7 +84,7 @@ class PhoneNumberField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "PhoneNumberField":
+    def __new__(cls, value: str) -> Self:
         """Create a new PhoneNumberField instance with validation."""
         if not _PHONE_NUMBER_REGEX.match(value):
             raise ValueError(

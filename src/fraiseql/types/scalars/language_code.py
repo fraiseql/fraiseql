@@ -1,7 +1,7 @@
 """Language code scalar type for ISO 639-1 validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -84,7 +84,7 @@ class LanguageCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "LanguageCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new LanguageCodeField instance with validation."""
         value_lower = value.lower()
         if not _LANGUAGE_CODE_REGEX.match(value_lower):

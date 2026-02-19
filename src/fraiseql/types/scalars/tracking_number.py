@@ -1,7 +1,7 @@
 """Tracking number scalar type for shipping tracking validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -87,7 +87,7 @@ class TrackingNumberField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "TrackingNumberField":
+    def __new__(cls, value: str) -> Self:
         """Create a new TrackingNumberField instance with validation."""
         if not _TRACKING_NUMBER_REGEX.match(value):
             raise ValueError(

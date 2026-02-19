@@ -1,7 +1,7 @@
 """Slug scalar type for URL-friendly identifier validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -85,7 +85,7 @@ class SlugField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "SlugField":
+    def __new__(cls, value: str) -> Self:
         """Create a new SlugField instance with validation."""
         if not _SLUG_REGEX.match(value):
             raise ValueError(

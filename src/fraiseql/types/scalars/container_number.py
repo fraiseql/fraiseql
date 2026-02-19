@@ -1,7 +1,7 @@
 """Container number scalar type for ISO 6346 validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -182,7 +182,7 @@ class ContainerNumberField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "ContainerNumberField":
+    def __new__(cls, value: str) -> Self:
         """Create a new ContainerNumberField instance with validation."""
         value_upper = value.upper()
 

@@ -1,7 +1,7 @@
 """Image scalar type for image file validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -96,7 +96,7 @@ class ImageField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "ImageField":
+    def __new__(cls, value: str) -> Self:
         """Create a new ImageField instance with validation."""
         if not _IMAGE_REGEX.match(value):
             extensions_str = ", ".join(sorted(_IMAGE_EXTENSIONS))

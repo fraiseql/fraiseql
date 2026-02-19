@@ -1,7 +1,7 @@
 """Postal code scalar type for international postal/ZIP code validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -90,7 +90,7 @@ class PostalCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "PostalCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new PostalCodeField instance with validation."""
         value_str = value.strip()
         if not _POSTAL_CODE_REGEX.match(value_str):

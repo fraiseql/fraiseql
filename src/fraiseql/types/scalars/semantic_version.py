@@ -1,7 +1,7 @@
 """Semantic version scalar type for semver validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -89,7 +89,7 @@ class SemanticVersionField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "SemanticVersionField":
+    def __new__(cls, value: str) -> Self:
         """Create a new SemanticVersionField instance with validation."""
         if not _SEMVER_REGEX.match(value):
             raise ValueError(

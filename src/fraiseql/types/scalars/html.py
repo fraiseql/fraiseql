@@ -1,6 +1,6 @@
 """HTML scalar type for HTML content validation."""
 
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -70,6 +70,6 @@ class HTMLField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "HTMLField":
+    def __new__(cls, value: str) -> Self:
         """Create a new HTMLField instance."""
         return super().__new__(cls, value)

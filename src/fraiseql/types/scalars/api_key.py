@@ -1,7 +1,7 @@
 """API key scalar type for access token validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -82,7 +82,7 @@ class ApiKeyField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "ApiKeyField":
+    def __new__(cls, value: str) -> Self:
         """Create a new ApiKeyField instance with validation."""
         if not _API_KEY_REGEX.match(value):
             raise ValueError(

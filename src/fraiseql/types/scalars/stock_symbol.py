@@ -1,7 +1,7 @@
 """Stock symbol scalar type for stock ticker symbols."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -85,7 +85,7 @@ class StockSymbolField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "StockSymbolField":
+    def __new__(cls, value: str) -> Self:
         """Create a new StockSymbolField instance with validation."""
         value_upper = value.upper()
         if not _STOCK_SYMBOL_REGEX.match(value_upper):

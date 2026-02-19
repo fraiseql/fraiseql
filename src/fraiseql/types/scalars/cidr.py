@@ -1,7 +1,7 @@
 """CIDR scalar type for network CIDR notation validation."""
 
 import ipaddress
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -83,7 +83,7 @@ class CIDRField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "CIDRField":
+    def __new__(cls, value: str) -> Self:
         """Create a new CIDRField instance with validation."""
         try:
             ipaddress.ip_network(value, strict=False)

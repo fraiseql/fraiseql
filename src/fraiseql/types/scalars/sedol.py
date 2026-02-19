@@ -1,7 +1,7 @@
 """SEDOL scalar type for Stock Exchange Daily Official List."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -89,7 +89,7 @@ class SEDOLField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "SEDOLField":
+    def __new__(cls, value: str) -> Self:
         """Create a new SEDOLField instance with validation."""
         value_upper = value.upper()
         if not _SEDOL_REGEX.match(value_upper):

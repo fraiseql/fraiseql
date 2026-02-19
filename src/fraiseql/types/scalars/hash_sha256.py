@@ -1,7 +1,7 @@
 """SHA256 hash scalar type for cryptographic hash validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -82,7 +82,7 @@ class HashSHA256Field(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "HashSHA256Field":
+    def __new__(cls, value: str) -> Self:
         """Create a new HashSHA256Field instance with validation."""
         if not _HASH_SHA256_REGEX.match(value):
             raise ValueError(

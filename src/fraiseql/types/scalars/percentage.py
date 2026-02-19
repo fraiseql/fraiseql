@@ -2,7 +2,7 @@
 
 import re
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -97,7 +97,7 @@ class PercentageField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str | float | Decimal) -> "PercentageField":
+    def __new__(cls, value: str | float | Decimal) -> Self:
         """Create a new PercentageField instance with validation."""
         if isinstance(value, (int, float, Decimal)):
             if isinstance(value, Decimal):

@@ -1,7 +1,7 @@
 """Domain name scalar type for RFC-compliant domain validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -93,7 +93,7 @@ class DomainNameField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "DomainNameField":
+    def __new__(cls, value: str) -> Self:
         """Create a new DomainNameField instance with validation."""
         value_lower = value.lower()
         if not _DOMAIN_NAME_REGEX.match(value_lower):

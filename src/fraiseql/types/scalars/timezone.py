@@ -1,7 +1,7 @@
 """Timezone scalar type for IANA timezone identifier validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -89,7 +89,7 @@ class TimezoneField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "TimezoneField":
+    def __new__(cls, value: str) -> Self:
         """Create a new TimezoneField instance with validation."""
         if not _TIMEZONE_REGEX.match(value):
             raise ValueError(

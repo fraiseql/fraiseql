@@ -1,7 +1,7 @@
 """Airport code scalar type for IATA airport code validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -87,7 +87,7 @@ class AirportCodeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "AirportCodeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new AirportCodeField instance with validation."""
         value_upper = value.upper()
         if not _AIRPORT_CODE_REGEX.match(value_upper):

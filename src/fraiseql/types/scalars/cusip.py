@@ -1,7 +1,7 @@
 """CUSIP scalar type for Committee on Uniform Security Identification Procedures."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -87,7 +87,7 @@ class CUSIPField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "CUSIPField":
+    def __new__(cls, value: str) -> Self:
         """Create a new CUSIPField instance with validation."""
         value_upper = value.upper()
         if not _CUSIP_REGEX.match(value_upper):

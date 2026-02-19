@@ -1,7 +1,7 @@
 """MAC address scalar type for hardware address validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -121,7 +121,7 @@ class MacAddressField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "MacAddressField":
+    def __new__(cls, value: str) -> Self:
         """Create a new MacAddressField instance with validation."""
         # Validate format
         if not any(pattern.match(value) for pattern in _MAC_PATTERNS):

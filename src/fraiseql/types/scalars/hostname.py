@@ -1,7 +1,7 @@
 """Hostname scalar type for DNS hostname validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -94,7 +94,7 @@ class HostnameField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "HostnameField":
+    def __new__(cls, value: str) -> Self:
         """Create a new HostnameField instance with validation."""
         value_lower = value.lower()
         if not _HOSTNAME_REGEX.match(value_lower):

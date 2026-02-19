@@ -1,7 +1,7 @@
 """Time scalar type for time of day validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -86,7 +86,7 @@ class TimeField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "TimeField":
+    def __new__(cls, value: str) -> Self:
         """Create a new TimeField instance with validation."""
         if not _TIME_REGEX.match(value):
             raise ValueError(

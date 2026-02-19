@@ -1,7 +1,7 @@
 """License plate scalar type for vehicle license plate validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -89,7 +89,7 @@ class LicensePlateField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "LicensePlateField":
+    def __new__(cls, value: str) -> Self:
         """Create a new LicensePlateField instance with validation."""
         if not _LICENSE_PLATE_REGEX.match(value):
             raise ValueError(

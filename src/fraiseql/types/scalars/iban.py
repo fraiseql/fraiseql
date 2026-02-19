@@ -1,7 +1,7 @@
 """IBAN scalar type for ISO 13616 bank account number validation."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -254,7 +254,7 @@ class IBANField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "IBANField":
+    def __new__(cls, value: str) -> Self:
         """Create a new IBANField instance with validation."""
         value_upper = value.upper().replace(" ", "")
 

@@ -1,6 +1,6 @@
 """Port scalar type for network port validation (1-65535)."""
 
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import IntValueNode
@@ -71,7 +71,7 @@ class PortField(int, ScalarMarker):
         ...     port: Port
     """
 
-    def __new__(cls, value: int) -> "PortField":
+    def __new__(cls, value: int) -> Self:
         """Create a new PortField instance with validation."""
         if not (1 <= value <= 65535):
             raise ValueError(f"Port must be between 1 and 65535, got {value}")

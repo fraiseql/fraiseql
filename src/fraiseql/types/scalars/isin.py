@@ -1,7 +1,7 @@
 """ISIN scalar type for International Securities Identification Numbers."""
 
 import re
-from typing import Any
+from typing import Any, Self
 
 from graphql import GraphQLError, GraphQLScalarType
 from graphql.language import StringValueNode
@@ -119,7 +119,7 @@ class ISINField(str, ScalarMarker):
 
     __slots__ = ()
 
-    def __new__(cls, value: str) -> "ISINField":
+    def __new__(cls, value: str) -> Self:
         """Create a new ISINField instance with validation."""
         value_upper = value.upper()
         if not _ISIN_REGEX.match(value_upper):
