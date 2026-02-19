@@ -43,7 +43,7 @@ use crate::{
 /// - Schema validation fails
 /// - Output file can't be written
 /// - Database connection fails (when database URL is provided)
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // Reason: compile orchestrates multiple input sources; extracting a struct would add indirection for a single call site
 pub async fn run(
     input: &str,
     types: Option<&str>,

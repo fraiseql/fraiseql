@@ -1,7 +1,7 @@
 // Audit logging tests for secret access tracking
 
 #[cfg(test)]
-#[allow(clippy::module_inception)]
+#[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod audit_logging {
     use std::{collections::VecDeque, sync::Mutex};
 

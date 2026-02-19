@@ -30,7 +30,7 @@ pub(crate) fn map_security_error_to_status(
 }
 
 /// Create a short-lived session token (5 minutes).
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
 ) -> std::result::Result<String, Status> {
@@ -73,7 +73,7 @@ pub(crate) fn create_session_token(
 /// # Returns
 /// * `Ok(AuthenticatedUser)` - Valid token with user identity
 /// * `Err(Status)` - Invalid token, expired, or malformed
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn validate_session_token(
     token: &str,
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
@@ -131,7 +131,7 @@ pub(crate) fn validate_session_token(
 /// # Returns
 /// * `Ok(String)` - Session token extracted from header
 /// * `Err(Status)` - Missing or malformed authorization header
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn extract_session_token<T>(
     request: &Request<T>,
 ) -> std::result::Result<String, Status> {

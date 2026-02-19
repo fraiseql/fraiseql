@@ -557,7 +557,7 @@ impl Connection {
     ///
     /// Note: This method consumes the connection. The stream maintains the connection
     /// internally. Once the stream is exhausted or dropped, the connection is closed.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: streaming query requires all chunking parameters; a config struct would add allocation overhead
     pub async fn streaming_query(
         mut self,
         query: &str,

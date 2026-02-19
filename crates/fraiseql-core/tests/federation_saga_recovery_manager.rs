@@ -227,7 +227,7 @@ impl RecoveryStrategy {
 /// - `failed_recovery_attempts`: Count of retry attempts that resulted in permanent failure
 /// - `sagas_cleaned_up`: Count of stale sagas deleted by cleanup operations
 /// - `last_recovery_time`: Timestamp of the most recent recovery operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RecoveryMetrics {
     /// Total number of sagas successfully recovered
     pub total_sagas_recovered:    u64,
@@ -239,20 +239,6 @@ pub struct RecoveryMetrics {
     pub sagas_cleaned_up:         u64,
     /// Timestamp of the last recovery operation
     pub last_recovery_time:       Option<Instant>,
-}
-
-impl Default for RecoveryMetrics {
-    /// Initialize all metrics to zero with no recovery timestamp recorded.
-    #[allow(clippy::derivable_impls)]
-    fn default() -> Self {
-        Self {
-            total_sagas_recovered:    0,
-            total_recovery_attempts:  0,
-            failed_recovery_attempts: 0,
-            sagas_cleaned_up:         0,
-            last_recovery_time:       None,
-        }
-    }
 }
 
 /// Coordinates recovery of distributed sagas across multiple subgraphs.

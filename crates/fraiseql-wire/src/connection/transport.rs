@@ -7,7 +7,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UnixStream};
 
 /// TCP stream variant: plain or TLS-encrypted
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant)] // Reason: variant size difference is acceptable; boxing would add indirection in hot path
 pub enum TcpVariant {
     /// Plain TCP connection
     Plain(TcpStream),
@@ -64,7 +64,7 @@ impl TcpVariant {
 
 /// Transport layer abstraction
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant)] // Reason: variant size difference is acceptable; boxing would add indirection in hot path
 pub enum Transport {
     /// TCP socket (plain or TLS)
     Tcp(TcpVariant),

@@ -67,7 +67,7 @@ impl fmt::Display for DetailLevel {
 ///
 /// Configures which sensitive patterns to hide in error messages.
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_excessive_bools)]
+#[allow(clippy::struct_excessive_bools)] // Reason: each bool controls an independent sanitization rule; bitflags would reduce readability
 pub struct SanitizationConfig {
     /// Hide database connection strings
     pub hide_database_urls: bool,

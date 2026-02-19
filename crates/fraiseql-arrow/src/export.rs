@@ -41,7 +41,7 @@ impl ExportFormat {
     ///
     /// This method is a convenience wrapper around the `FromStr` trait impl.
     /// Prefer using `.parse()` for idiomatic Rust code.
-    #[allow(clippy::should_implement_trait)]
+    #[allow(clippy::should_implement_trait)] // Reason: from_* naming is intentional for builder ergonomics; From trait would consume self
     pub fn from_str(s: &str) -> Result<Self, String> {
         <Self as FromStr>::from_str(s)
     }

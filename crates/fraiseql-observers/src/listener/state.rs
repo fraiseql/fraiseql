@@ -130,7 +130,7 @@ impl ListenerStateMachine {
     }
 
     /// Validate state transition
-    #[allow(clippy::unnested_or_patterns)]
+    #[allow(clippy::unnested_or_patterns)] // Reason: flat pattern list with comments is clearer for state machine transitions
     const fn is_valid_transition(&self, current: ListenerState, next: ListenerState) -> bool {
         matches!(
             (current, next),

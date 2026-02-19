@@ -40,7 +40,7 @@ where
 {
     type Rejection = ExtensionRejection;
 
-    #[allow(clippy::manual_async_fn)]
+    #[allow(clippy::manual_async_fn)] // Reason: axum's FromRequestParts requires explicit Future type in return position
     fn from_request_parts(
         parts: &mut Parts,
         _state: &S,

@@ -8,7 +8,7 @@ use fraiseql_cli::schema::{IntermediateScalar, IntermediateSchema, SchemaConvert
 use fraiseql_core::validation::ValidationRule;
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // Reason: integration test exercises full custom scalar pipeline in one flow
 fn test_compile_schema_with_single_custom_scalar() {
     let schema = IntermediateSchema {
         version:           "2.0.0".to_string(),

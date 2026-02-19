@@ -897,7 +897,7 @@ mod tests {
         required_role: String,
     }
 
-    #[allow(clippy::unnecessary_literal_bound)]
+    #[allow(clippy::unnecessary_literal_bound)] // Reason: DirectiveHandler trait requires &str return, literal bound is clearest for test impls
     impl DirectiveHandler for AuthDirective {
         fn name(&self) -> &str {
             "auth"
@@ -922,7 +922,7 @@ mod tests {
     /// A test directive that always skips.
     struct AlwaysSkipDirective;
 
-    #[allow(clippy::unnecessary_literal_bound)]
+    #[allow(clippy::unnecessary_literal_bound)] // Reason: DirectiveHandler trait requires &str return, literal bound is clearest for test impls
     impl DirectiveHandler for AlwaysSkipDirective {
         fn name(&self) -> &str {
             "alwaysSkip"
@@ -940,7 +940,7 @@ mod tests {
     /// A test directive that returns an error.
     struct ErrorDirective;
 
-    #[allow(clippy::unnecessary_literal_bound)]
+    #[allow(clippy::unnecessary_literal_bound)] // Reason: DirectiveHandler trait requires &str return, literal bound is clearest for test impls
     impl DirectiveHandler for ErrorDirective {
         fn name(&self) -> &str {
             "error"

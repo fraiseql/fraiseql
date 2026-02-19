@@ -23,7 +23,7 @@ use tracing::warn;
 /// # Errors
 ///
 /// Returns error if IPC encoding fails
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn record_batch_to_flight_data(
     batch: &RecordBatch,
 ) -> std::result::Result<FlightData, Status> {
@@ -59,7 +59,7 @@ pub(crate) fn record_batch_to_flight_data(
 /// # Errors
 ///
 /// Returns error if IPC encoding fails
-#[allow(clippy::result_large_err)]
+#[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn schema_to_flight_data(
     schema: &Arc<arrow::datatypes::Schema>,
 ) -> std::result::Result<FlightData, Status> {

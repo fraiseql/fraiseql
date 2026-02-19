@@ -1,7 +1,7 @@
 //! Security tests for authentication and cryptographic operations.
 //! Validates that security-critical operations meet production standards.
 #[cfg(test)]
-#[allow(clippy::module_inception)]
+#[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod security_tests {
     use std::collections::HashSet;
 

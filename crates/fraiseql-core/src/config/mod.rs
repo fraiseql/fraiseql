@@ -809,7 +809,7 @@ impl FraiseQLConfig {
 /// Expand environment variables in a string.
 ///
 /// Supports `${VAR}` and `$VAR` syntax.
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used)] // Reason: regex pattern is a compile-time constant guaranteed to be valid
 fn expand_env_vars(content: &str) -> String {
     use std::sync::LazyLock;
 

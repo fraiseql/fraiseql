@@ -1792,7 +1792,7 @@ impl ArgumentDefinition {
 ///
 /// These are standard parameters automatically added to list queries.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[allow(clippy::struct_excessive_bools)] // These are intentional feature flags
+#[allow(clippy::struct_excessive_bools)] // Reason: these are intentional feature flags
 pub struct AutoParams {
     /// Enable `where` filtering.
     #[serde(default)]

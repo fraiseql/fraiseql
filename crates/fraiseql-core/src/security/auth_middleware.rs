@@ -1191,7 +1191,7 @@ mod tests {
     // ============================================================================
 
     /// Helper to create a properly signed HS256 JWT token
-    #[allow(clippy::items_after_statements)]
+    #[allow(clippy::items_after_statements)] // Reason: test helper structs defined near point of use for readability
     fn create_signed_hs256_token(
         sub: &str,
         exp_offset_secs: i64,
@@ -1283,7 +1283,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::items_after_statements)]
+    #[allow(clippy::items_after_statements)] // Reason: test helper structs defined near point of use for readability
     fn test_hs256_with_issuer_validation() {
         use jsonwebtoken::{EncodingKey, Header, encode};
 
@@ -1316,7 +1316,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::items_after_statements)]
+    #[allow(clippy::items_after_statements)] // Reason: test helper structs defined near point of use for readability
     fn test_hs256_with_wrong_issuer_rejected() {
         use jsonwebtoken::{EncodingKey, Header, encode};
 
@@ -1353,7 +1353,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::items_after_statements)]
+    #[allow(clippy::items_after_statements)] // Reason: test helper structs defined near point of use for readability
     fn test_hs256_with_audience_validation() {
         use jsonwebtoken::{EncodingKey, Header, encode};
 

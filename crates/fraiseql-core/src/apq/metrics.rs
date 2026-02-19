@@ -84,7 +84,7 @@ impl ApqMetrics {
             0.0
         } else {
             // Small precision loss is acceptable for metrics percentages
-            #[allow(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)] // Reason: APQ hit/miss counters won't exceed f64 mantissa (2^53)
             {
                 hits as f64 / (hits + misses) as f64
             }
@@ -174,16 +174,14 @@ mod tests {
     }
 
     #[test]
-    // Test assertions for metrics with acceptable tolerance
-    #[allow(clippy::float_cmp)]
+    #[allow(clippy::float_cmp)] // Reason: test assertion comparing exact metric values
     fn test_hit_rate_no_requests() {
         let metrics = ApqMetrics::default();
         assert_eq!(metrics.hit_rate(), 0.0);
     }
 
     #[test]
-    // Test assertions for metrics with acceptable tolerance
-    #[allow(clippy::float_cmp)]
+    #[allow(clippy::float_cmp)] // Reason: test assertion comparing exact metric values
     fn test_hit_rate_all_hits() {
         let metrics = ApqMetrics::default();
         for _ in 0..100 {
@@ -193,8 +191,7 @@ mod tests {
     }
 
     #[test]
-    // Test assertions for metrics with acceptable tolerance
-    #[allow(clippy::float_cmp)]
+    #[allow(clippy::float_cmp)] // Reason: test assertion comparing exact metric values
     fn test_hit_rate_all_misses() {
         let metrics = ApqMetrics::default();
         for _ in 0..100 {

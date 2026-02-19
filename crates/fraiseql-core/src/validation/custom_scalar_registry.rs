@@ -141,7 +141,7 @@ mod tests {
     struct TestScalar;
 
     impl CustomScalar for TestScalar {
-        #[allow(clippy::unnecessary_literal_bound)]
+        #[allow(clippy::unnecessary_literal_bound)] // Reason: trait requires &str return type
         fn name(&self) -> &str {
             "Test"
         }

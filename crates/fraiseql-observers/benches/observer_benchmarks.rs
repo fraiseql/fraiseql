@@ -302,7 +302,7 @@ fn benchmark_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("throughput");
 
     for event_count in &[100, 500, 1000] {
-        #[allow(clippy::cast_sign_loss)] // event_count values are all positive
+        #[allow(clippy::cast_sign_loss)] // Reason: event_count values are all positive
         group.throughput(Throughput::Elements(*event_count as u64));
         group.bench_with_input(
             BenchmarkId::new("events_per_second", event_count),

@@ -1,7 +1,7 @@
 // State encryption integration tests
 
 #[cfg(test)]
-#[allow(clippy::module_inception)]
+#[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod state_encryption_tests {
     use crate::auth::state_encryption::{StateEncryption, generate_state_encryption_key};
 

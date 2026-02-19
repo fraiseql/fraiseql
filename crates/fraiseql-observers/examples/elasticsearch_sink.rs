@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let entity_types = ["User", "Order", "Product", "Invoice"];
         let event_types = [EventKind::Created, EventKind::Updated, EventKind::Deleted];
 
-        #[allow(clippy::cast_precision_loss)] // i is bounded by num_events (50)
+        #[allow(clippy::cast_precision_loss)] // Reason: i is bounded by num_events (50)
         let amount = 100.0 + i as f64;
         let event = EntityEvent::new(
             event_types[i % event_types.len()],

@@ -48,7 +48,7 @@ impl FragmentGraph {
     }
 
     /// Extract dependencies from field selections (recursive helper)
-    #[allow(clippy::only_used_in_recursion)]
+    #[allow(clippy::only_used_in_recursion)] // Reason: &self receiver required for method dispatch on FragmentValidator
     fn extract_selection_dependencies(
         selection: &crate::graphql::types::FieldSelection,
         all_fragments: &[FragmentDefinition],
@@ -136,8 +136,7 @@ impl FragmentGraph {
 
         if recursion_stack.contains(dep) {
             // Cycle found - extract cycle path
-            // Fragment guaranteed to be in cycle_path after recursion_stack check
-            #[allow(clippy::expect_used)]
+            #[allow(clippy::expect_used)] // Reason: dep is guaranteed to be in cycle_path when found in recursion_stack
             let cycle_start = cycle_path
                 .iter()
                 .position(|f| f == dep)

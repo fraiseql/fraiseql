@@ -33,7 +33,7 @@ impl PostgresCheckpointStore {
 #[async_trait::async_trait]
 impl CheckpointStore for PostgresCheckpointStore {
     async fn load(&self, listener_id: &str) -> Result<Option<CheckpointState>> {
-        #[allow(clippy::cast_possible_wrap)]
+        #[allow(clippy::cast_possible_wrap)] // Reason: checkpoint sequence numbers are positive and won't exceed i64::MAX
         let record = sqlx::query_as::<_, (String, i64, chrono::DateTime<Utc>, i32, i32)>(
             r"
             SELECT listener_id, last_processed_id, last_processed_at, batch_size, event_count
@@ -59,7 +59,7 @@ impl CheckpointStore for PostgresCheckpointStore {
     }
 
     async fn save(&self, listener_id: &str, state: &CheckpointState) -> Result<()> {
-        #[allow(clippy::cast_possible_wrap)]
+        #[allow(clippy::cast_possible_wrap)] // Reason: checkpoint sequence numbers are positive and won't exceed i64::MAX
         sqlx::query(
             r"
             INSERT INTO observer_checkpoints

@@ -1,7 +1,7 @@
 // Rate limiting integration tests
 
 #[cfg(test)]
-#[allow(clippy::module_inception)]
+#[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod rate_limiting_tests {
     use crate::auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
 
