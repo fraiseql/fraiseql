@@ -99,6 +99,12 @@ def test_python_toml_workflow():
 
     TODO: Fix merger to convert types map to array before deserializing
     """
+    import pytest
+    try:
+        find_fraiseql_cli()
+    except FileNotFoundError:
+        pytest.skip("fraiseql-cli not available (requires: cargo build -p fraiseql-cli)")
+
     tmpdir = create_test_directory()
 
     # Create minimal Python types.json
