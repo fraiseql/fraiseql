@@ -527,6 +527,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);
 
+        // RBAC Management API (if database pool available)
+        #[cfg(feature = "observers")]
+        if let Some(ref db_pool) = self.db_pool {
+            info!("Adding RBAC Management API endpoints");
+            let rbac_backend = Arc::new(
+                crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
+            );
+            let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
+            let rbac_router = crate::api::rbac_management_router(rbac_state);
+            app = app.merge(rbac_router);
+        }
+
         // Add HTTP metrics middleware (tracks requests and response status codes)
         // This runs on ALL routes, even when metrics endpoints are disabled
         app = app.layer(middleware::from_fn_with_state(metrics, metrics_middleware));
