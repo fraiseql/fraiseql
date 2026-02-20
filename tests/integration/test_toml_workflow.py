@@ -205,6 +205,12 @@ def test_typescript_toml_workflow():
     3. fraiseql-cli compile combines them into schema.compiled.json
     4. Verify compiled schema has types from TypeScript + config from TOML
     """
+    import pytest
+    try:
+        find_fraiseql_cli()
+    except FileNotFoundError:
+        pytest.skip("fraiseql-cli not available (requires: cargo build -p fraiseql-cli)")
+
     tmpdir = create_test_directory()
 
     # Create minimal TypeScript types.json
@@ -295,6 +301,12 @@ def test_java_toml_workflow():
     3. fraiseql-cli compile combines them into schema.compiled.json
     4. Verify compiled schema has types from Java + config from TOML
     """
+    import pytest
+    try:
+        find_fraiseql_cli()
+    except FileNotFoundError:
+        pytest.skip("fraiseql-cli not available (requires: cargo build -p fraiseql-cli)")
+
     tmpdir = create_test_directory()
 
     # Create minimal Java types.json
@@ -392,6 +404,12 @@ def test_all_three_languages_with_single_toml():
     This validates that developers can choose different languages for
     different parts of their API while using shared TOML configuration.
     """
+    import pytest
+    try:
+        find_fraiseql_cli()
+    except FileNotFoundError:
+        pytest.skip("fraiseql-cli not available (requires: cargo build -p fraiseql-cli)")
+
     tmpdir = create_test_directory()
 
     # Create merged types.json from all three languages
