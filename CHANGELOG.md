@@ -5,6 +5,63 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.3] - 2026-02-20
+
+### Added
+
+- RBAC Management API router integrated into Server
+- SecretsManager wired into server runtime
+- Security test suites: auth bypass detection, field authorization edge cases,
+  error sanitization property tests, E2E SQL injection integration tests
+- Federation test expansion: 26 focused modules split from monolithic suite
+- Property-based testing expanded from 22 to 101 properties
+- Fuzz targets expanded with seed corpus
+- Concurrency stress tests for rate limiter, cache, cancellation, query execution
+- Error path tests with failure injection infrastructure
+- Saga test harness extracted to reusable library (fraiseql-test-utils)
+- Graceful degradation test suite (16 tests)
+- Docker Compose test infrastructure for integration tests
+- k6 load testing infrastructure (5 scenarios)
+- 12 operational runbooks
+- SLA/SLO documentation
+- 8 Architecture Decision Records (ADRs)
+
+### Changed
+
+- Extracted `fraiseql-auth` crate (38 modules) from fraiseql-server
+- Extracted `fraiseql-webhooks` crate (19 modules) from fraiseql-server
+- Extracted `fraiseql-secrets` crate (21 modules) from fraiseql-server
+- Deprecated 10 thin SDKs; retained 6 (Python, TypeScript, Java, Go, PHP, Rust)
+- Redis crate upgraded 0.25 -> 0.28
+- Migrated lazy_static/once_cell to std::sync::LazyLock
+- Replaced std::env::set_var in tests with temp_env crate
+- README rewritten to lead with value proposition
+
+### Fixed
+
+- Clippy unused parentheses warning in wire protocol property test
+- Formatting drift across 55 files resolved
+- Wire protocol decoder hardened against malformed messages
+- Fuzz target schema_compile roundtrip assertion for f64 edge cases
+- Clippy pedantic allows justified with `// Reason:` comments
+
+### Security
+
+- Zeroizing wrapper for sensitive key material
+- Constant-time comparison via `subtle` crate verified
+- OsRng for all cryptographic nonce generation
+- No internal details leaked in error responses (verified by property tests)
+- 19 E2E SQL injection prevention tests
+- 27 auth bypass and JWT tampering detection tests
+
+### Verification
+
+- cargo check --all-features: clean
+- cargo clippy --all-targets --all-features -D warnings: zero warnings
+- cargo fmt --all -- --check: clean
+- cargo test --all-features: 0 failures
+- All 4 database backends tested (PostgreSQL, MySQL, SQLite, SQL Server)
+
 ## [2.0.0-beta.2] - 2026-02-19
 
 ### Added
