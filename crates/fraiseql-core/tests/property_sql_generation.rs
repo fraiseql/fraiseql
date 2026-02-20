@@ -672,6 +672,91 @@ proptest! {
 }
 
 // ============================================================================
+// SQL Generation Robustness and Edge Cases
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(200))]
+
+    /// Property: Field WHERE clauses always generate valid SQL with placeholders.
+    #[test]
+    fn prop_field_where_generates_valid_sql(
+        path in arb_path(),
+        op in arb_comparison_operator(),
+        value in arb_scalar_value(),
+    ) {
+        let clause = WhereClause::Field {
+            path,
+            operator: op,
+            value,
+        };
+
+        let generator = PostgresWhereGenerator::new();
+        if let Ok((sql, params)) = generator.generate(&clause) {
+            // Should not be empty
+            prop_assert!(!sql.is_empty(), "Generated SQL should not be empty");
+            // Should have balanced parentheses
+            let open = sql.chars().filter(|c| *c == '(').count();
+            let close = sql.chars().filter(|c| *c == ')').count();
+            prop_assert_eq!(open, close, "Parentheses should be balanced in: {}", sql);
+            // Should have at least one parameter
+            prop_assert!(!params.is_empty(), "Should have parameters: {}", sql);
+        }
+    }
+
+    /// Property: Deeply nested field paths generate valid SQL.
+    #[test]
+    fn prop_deep_field_paths_valid_sql(
+        path_segments in prop::collection::vec(arb_path_segment(), 1..10),
+        op in arb_comparison_operator(),
+        value in arb_scalar_value(),
+    ) {
+        let clause = WhereClause::Field {
+            path: path_segments,
+            operator: op,
+            value,
+        };
+
+        let generator = PostgresWhereGenerator::new();
+        // Should either succeed or fail safely, never panic
+        let _result = generator.generate(&clause);
+    }
+
+    /// Property: SQL generation is deterministic (same input → same output).
+    #[test]
+    fn prop_sql_generation_deterministic(
+        path in arb_path(),
+        op in arb_comparison_operator(),
+        value in arb_scalar_value(),
+    ) {
+        let clause = WhereClause::Field {
+            path,
+            operator: op,
+            value,
+        };
+
+        let gen1 = PostgresWhereGenerator::new();
+        let gen2 = PostgresWhereGenerator::new();
+
+        let result1 = gen1.generate(&clause);
+        let result2 = gen2.generate(&clause);
+
+        // Both should succeed or both should fail
+        match (&result1, &result2) {
+            (Ok((sql1, _params1)), Ok((sql2, _params2))) => {
+                prop_assert_eq!(sql1, sql2, "SQL should be deterministic");
+            }
+            (Err(_), Err(_)) => {
+                // Both failed, which is deterministic
+            }
+            (Ok(_), Err(_)) | (Err(_), Ok(_)) => {
+                prop_assert!(false, "SQL generation should be deterministic: got Ok vs Err");
+            }
+        }
+    }
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 

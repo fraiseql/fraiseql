@@ -277,3 +277,57 @@ proptest! {
         prop_assert_eq!(after, before + 1);
     }
 }
+
+// ============================================================================
+// Schema Composition Properties
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(150))]
+
+    /// Property: Schema with both types and queries roundtrips with both intact.
+    #[test]
+    fn prop_schema_mixed_types_and_queries_roundtrip(
+        type_names in prop::collection::vec(arb_type_name(), 1..5),
+        query_names in prop::collection::vec(arb_query_name(), 1..5),
+        sources in prop::collection::vec(arb_sql_source(), 1..5),
+    ) {
+        let mut schema = CompiledSchema::new();
+        for (i, name) in type_names.iter().enumerate() {
+            let source = sources.get(i).cloned().unwrap_or_else(|| "v_default".to_string());
+            schema.types.push(TypeDefinition::new(name.clone(), source));
+        }
+        for name in &query_names {
+            schema.queries.push(QueryDefinition::new(name.clone(), "String"));
+        }
+
+        let json_str = schema.to_json().expect("serialization should succeed");
+        let restored = CompiledSchema::from_json(&json_str).expect("deserialization should succeed");
+
+        prop_assert_eq!(schema.types.len(), restored.types.len());
+        prop_assert_eq!(schema.queries.len(), restored.queries.len());
+    }
+
+    /// Property: Schema validation never panics on any input combination.
+    #[test]
+    fn prop_schema_validation_never_panics(
+        type_count in 0usize..20,
+        query_count in 0usize..20,
+    ) {
+        let mut schema = CompiledSchema::new();
+
+        for i in 0..type_count {
+            let name = format!("Type{}", i);
+            let source = format!("v_source_{}", i);
+            schema.types.push(TypeDefinition::new(name, source));
+        }
+
+        for i in 0..query_count {
+            let name = format!("query{}", i);
+            schema.queries.push(QueryDefinition::new(name, "String"));
+        }
+
+        // Must not panic on any configuration
+        let _ = schema.validate();
+    }
+}

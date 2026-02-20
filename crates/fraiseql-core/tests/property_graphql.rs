@@ -222,3 +222,60 @@ proptest! {
         }
     }
 }
+
+// ============================================================================
+// Mutation Safety Properties
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(300))]
+
+    /// Property: Mutations with arguments parse correctly.
+    #[test]
+    fn prop_parser_mutation_with_arguments(
+        mutation_name in "[a-z][a-zA-Z]{0,10}",
+        field in "[a-z][a-zA-Z]{0,10}",
+        arg_value in "[a-zA-Z0-9_]{1,20}",
+    ) {
+        let query = format!(
+            "mutation {{ {} (id: \"{}\") {{ {} }} }}",
+            mutation_name, arg_value, field
+        );
+        let result = parse_query(&query);
+
+        if let Ok(parsed) = result {
+            prop_assert_eq!(
+                &parsed.operation_type, "mutation",
+                "Should be parsed as mutation"
+            );
+            prop_assert!(!parsed.root_field.is_empty(), "Should have root field");
+        }
+    }
+
+    /// Property: Multiple mutations in selection set preserve all fields.
+    #[test]
+    fn prop_parser_multiple_mutations_preserve_all(
+        mutations in prop::collection::vec(
+            "[a-z][a-zA-Z]{0,8}",
+            1usize..=5
+        ),
+    ) {
+        let mutation_list = mutations.iter()
+            .map(|m| format!("{} {{ id }}", m))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let query = format!("mutation {{ {} }}", mutation_list);
+        let result = parse_query(&query);
+
+        if let Ok(parsed) = result {
+            prop_assert_eq!(
+                &parsed.operation_type, "mutation",
+                "Should be mutation"
+            );
+            prop_assert!(parsed.selections.len() >= mutations.len() || parsed.selections.is_empty(),
+                "Should parse all mutations (or be empty)"
+            );
+        }
+    }
+}

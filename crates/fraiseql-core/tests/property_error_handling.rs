@@ -386,3 +386,55 @@ proptest! {
         prop_assert_eq!(parsed.as_str(), "INFO", "Unknown level should default to INFO");
     }
 }
+
+// ============================================================================
+// Error Recovery and Resilience Properties
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(250))]
+
+    /// Property: ErrorFormatter survives formatting very long error messages.
+    #[test]
+    fn prop_formatter_handles_long_messages(
+        long_msg in ".{100,5000}",
+    ) {
+        let formatter = ErrorFormatter::production();
+        let formatted = formatter.format_error(&long_msg);
+
+        // Should always succeed (not panic) and return something
+        prop_assert!(!formatted.is_empty(), "Should produce some output");
+        prop_assert!(formatted.len() > 0, "Output should be non-empty");
+    }
+
+    /// Property: Error formatter handles special characters safely.
+    #[test]
+    fn prop_formatter_handles_special_chars(
+        message in "[a-zA-Z0-9 .,:;!?-]{0,200}",
+    ) {
+        let formatter = ErrorFormatter::production();
+        // Should never panic on any input
+        let formatted = formatter.format_error(&message);
+        let _ = formatted;
+    }
+
+    /// Property: Production and Development formatters output consistent structure.
+    #[test]
+    fn prop_formatters_consistent_structure(
+        raw in "[a-zA-Z0-9 ]{1,100}",
+    ) {
+        let prod = ErrorFormatter::production();
+        let dev = ErrorFormatter::development();
+
+        let prod_out = prod.format_error(&raw);
+        let dev_out = dev.format_error(&raw);
+
+        // Both should be non-empty
+        prop_assert!(!prod_out.is_empty(), "Production output should be non-empty");
+        prop_assert!(!dev_out.is_empty(), "Development output should be non-empty");
+
+        // Both should be valid strings
+        prop_assert!(prod_out.chars().all(|c| !c.is_control() || c == '\n'),
+            "Production output should have valid characters");
+    }
+}

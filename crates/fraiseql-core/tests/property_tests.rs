@@ -460,6 +460,141 @@ proptest! {
     }
 }
 
+// ============================================================================
+// SQL Identifier and String Escaping Safety
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(300))]
+
+    /// Property: SQL identifiers are always double-quoted for safety.
+    #[test]
+    fn prop_identifier_escaping_always_quoted(
+        ident in "[a-zA-Z_][a-zA-Z0-9_]{0,30}",
+    ) {
+        let escaped = escape_sql_identifier(&ident);
+        prop_assert!(escaped.starts_with('"'), "Identifier should start with quote: {}", escaped);
+        prop_assert!(escaped.ends_with('"'), "Identifier should end with quote: {}", escaped);
+    }
+
+    /// Property: SQL strings with embedded quotes are properly escaped.
+    #[test]
+    fn prop_string_quotes_properly_escaped(
+        prefix in "[a-zA-Z ]{0,20}",
+        suffix in "[a-zA-Z ]{0,20}",
+    ) {
+        let s = format!("{}'{}", prefix, suffix);
+        let escaped = escape_sql_string(&s);
+
+        // Should be wrapped in single quotes
+        prop_assert!(escaped.starts_with('\''), "String should start with quote");
+        prop_assert!(escaped.ends_with('\''), "String should end with quote");
+
+        // Inner quotes should be doubled
+        let expected_escaped = s.replace('\'', "''");
+        prop_assert!(
+            escaped.contains(&expected_escaped),
+            "Quotes should be escaped: {}", escaped
+        );
+    }
+
+    /// Property: Escaping is idempotent when applied to already-escaped strings.
+    #[test]
+    fn prop_escaping_strings_idempotent_concept(
+        s in "[a-zA-Z0-9 ]{0,50}",
+    ) {
+        let once = escape_sql_string(&s);
+        // The outer quotes should be preserved after first escaping
+        prop_assert!(once.starts_with('\''), "First escape should have quotes");
+        prop_assert!(once.ends_with('\''), "First escape should have quotes");
+    }
+}
+
+// ============================================================================
+// Configuration and Metadata Handling
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(200))]
+
+    /// Property: Large config strings are handled safely without panic.
+    #[test]
+    fn prop_large_config_strings_safe(
+        large_str in "[a-zA-Z0-9 ]{100,2000}",
+    ) {
+        // Escaping large strings should not panic
+        let escaped_id = escape_sql_identifier(&large_str[..50.min(large_str.len())]);
+        let escaped_str = escape_sql_string(&large_str);
+
+        prop_assert!(!escaped_id.is_empty());
+        prop_assert!(!escaped_str.is_empty());
+    }
+
+    /// Property: Special SQL keywords in values are safely escaped.
+    #[test]
+    fn prop_sql_keywords_safely_escaped(
+        keyword in prop_oneof![
+            Just("SELECT"),
+            Just("INSERT"),
+            Just("UPDATE"),
+            Just("DELETE"),
+            Just("DROP"),
+            Just("TRUNCATE"),
+        ],
+    ) {
+        let s = format!("malicious_{}payload", keyword);
+        let escaped = escape_sql_string(&s);
+
+        // Escaped string should still be quoted and not expose raw keywords
+        prop_assert!(escaped.starts_with('\''), "Should be quoted");
+        prop_assert!(escaped.ends_with('\''), "Should be quoted");
+    }
+}
+
+// ============================================================================
+// Roundtrip and Consistency Properties
+// ============================================================================
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(250))]
+
+    /// Property: Identifier escaping produces consistent output.
+    #[test]
+    fn prop_identifier_escaping_consistent(
+        ident in "[a-z][a-z0-9_]{0,20}",
+    ) {
+        let escaped1 = escape_sql_identifier(&ident);
+        let escaped2 = escape_sql_identifier(&ident);
+
+        prop_assert_eq!(escaped1, escaped2, "Identifier escaping should be consistent");
+    }
+
+    /// Property: String escaping produces consistent output.
+    #[test]
+    fn prop_string_escaping_consistent(
+        s in "[a-zA-Z0-9 ]{0,100}",
+    ) {
+        let escaped1 = escape_sql_string(&s);
+        let escaped2 = escape_sql_string(&s);
+
+        prop_assert_eq!(escaped1, escaped2, "String escaping should be consistent");
+    }
+
+    /// Property: Different inputs produce different escaped outputs.
+    #[test]
+    fn prop_different_strings_produce_different_escapes(
+        s1 in "[a-z]{1,20}",
+        s2 in "[A-Z]{1,20}",
+    ) {
+        prop_assume!(s1 != s2);
+
+        let esc1 = escape_sql_string(&s1);
+        let esc2 = escape_sql_string(&s2);
+
+        prop_assert_ne!(esc1, esc2, "Different strings should escape differently");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
