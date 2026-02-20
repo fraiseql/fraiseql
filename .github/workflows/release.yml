@@ -98,10 +98,6 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: fraiseql-cli.exe
             asset_name: fraiseql-cli-windows-amd64.exe
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact_name: fraiseql-cli
-            asset_name: fraiseql-cli-macos-amd64
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: fraiseql-cli
@@ -350,10 +346,10 @@ jobs:
           echo "## 📎 Release Assets" >> $GITHUB_STEP_SUMMARY
           echo "Total binaries uploaded: $ASSET_COUNT" >> $GITHUB_STEP_SUMMARY
 
-          if [ "$ASSET_COUNT" -ge 5 ]; then
+          if [ "$ASSET_COUNT" -ge 4 ]; then
             echo "✅ All expected binaries present" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Missing some binaries (expected 5, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Missing some binaries (expected 4, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
           fi
 
           # List all assets
