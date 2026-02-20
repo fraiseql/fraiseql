@@ -95,7 +95,7 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 ```toml
 [dependencies]
-fraiseql = { version = "2.0.0-beta.2", features = ["server"] }
+fraiseql = { version = "2.0.0-beta.3", features = ["server"] }
 ```
 
 **Schema authoring:**

@@ -1,6 +1,6 @@
 # FraiseQL v2 Roadmap
 
-**Current Version**: v2.0.0-beta.2 (Released Feb 2026)
+**Current Version**: v2.0.0-beta.3 (Released Feb 2026)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
