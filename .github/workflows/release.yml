@@ -58,18 +58,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
+          TAG="v${VERSION}"
           PRERELEASE="false"
           [[ "$VERSION" =~ alpha|beta|rc ]] && PRERELEASE="true"
 
-          # Check if release already exists
-          if gh release view "$GITHUB_REF" >/dev/null 2>&1; then
-            echo "Release already exists, updating..."
-            gh release edit "$GITHUB_REF" \
-              --title "Release v$VERSION" \
+          # Check if release already exists (use tag name, not full ref)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, updating..."
+            gh release edit "$TAG" \
+              --title "Release $TAG" \
               --prerelease=$PRERELEASE
           else
-            gh release create "$GITHUB_REF" \
-              --title "Release v$VERSION" \
+            echo "Creating release $TAG..."
+            gh release create "$TAG" \
+              --title "Release $TAG" \
               --notes "FraiseQL $VERSION — see [CHANGELOG.md](CHANGELOG.md) for details." \
               --draft=false \
               --prerelease=$PRERELEASE
