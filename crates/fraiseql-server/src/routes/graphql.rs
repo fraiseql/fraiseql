@@ -186,6 +186,21 @@ impl<A: DatabaseAdapter> AppState<A> {
             .as_ref()
             .map(|cfg| crate::routes::api::types::SanitizedConfig::from_config(cfg))
     }
+
+    /// Set secrets manager (for credential and secret management).
+    #[must_use]
+    pub fn with_secrets_manager(
+        mut self,
+        secrets_manager: Arc<crate::secrets_manager::SecretsManager>,
+    ) -> Self {
+        self.secrets_manager = Some(secrets_manager);
+        self
+    }
+
+    /// Get secrets manager if configured.
+    pub fn secrets_manager(&self) -> Option<&Arc<crate::secrets_manager::SecretsManager>> {
+        self.secrets_manager.as_ref()
+    }
 }
 
 /// GraphQL HTTP handler for POST requests.

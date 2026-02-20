@@ -46,6 +46,7 @@ pub struct Server<A: DatabaseAdapter> {
     subscription_manager: Arc<SubscriptionManager>,
     oidc_validator:       Option<Arc<OidcValidator>>,
     rate_limiter:         Option<Arc<RateLimiter>>,
+    secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -152,6 +153,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_manager,
             oidc_validator,
             rate_limiter,
+            secrets_manager: None,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -159,6 +161,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "arrow")]
             flight_service,
         })
+    }
+
+    /// Set secrets manager for the server.
+    ///
+    /// This allows attaching a secrets manager after server creation for credential management.
+    pub fn set_secrets_manager(&mut self, manager: Arc<crate::secrets_manager::SecretsManager>) {
+        self.secrets_manager = Some(manager);
+        info!("Secrets manager attached to server");
     }
 
     /// Create new server with pre-configured Arrow Flight service.
@@ -235,6 +245,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_manager,
             oidc_validator,
             rate_limiter,
+            secrets_manager: None,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -279,7 +290,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Build application router.
     fn build_router(&self) -> Router {
-        let state = AppState::new(self.executor.clone());
+        let mut state = AppState::new(self.executor.clone());
+
+        // Attach secrets manager if configured
+        if let Some(ref secrets_manager) = self.secrets_manager {
+            state = state.with_secrets_manager(secrets_manager.clone());
+            info!("SecretsManager attached to AppState");
+        }
+
         let metrics = state.metrics.clone();
 
         // Build GraphQL route (possibly with OIDC auth)

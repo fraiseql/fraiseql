@@ -251,6 +251,23 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "observers"))]
     let db_pool: Option<sqlx::PgPool> = None;
 
+    // Initialize secrets manager if configured via environment
+    // For development/testing, use ENV backend if FRAISEQL_SECRETS_BACKEND env var is set
+    let secrets_manager = if env::var("FRAISEQL_SECRETS_BACKEND").is_ok() {
+        tracing::info!("Initializing secrets manager from environment configuration");
+        let config = fraiseql_server::secrets_manager::SecretsBackendConfig::Env;
+        match fraiseql_server::secrets_manager::create_secrets_manager(config).await {
+            Ok(manager) => Some(manager),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to initialize secrets manager");
+                anyhow::bail!("Secrets manager initialization failed: {}", e);
+            }
+        }
+    } else {
+        tracing::debug!("Secrets manager disabled (set FRAISEQL_SECRETS_BACKEND to enable)");
+        None
+    };
+
     // Create and start server
     #[cfg(feature = "arrow")]
     {
@@ -260,9 +277,15 @@ async fn main() -> anyhow::Result<()> {
         let flight_service = create_flight_service(adapter.clone());
         tracing::info!("Arrow Flight service initialized with real database adapter");
 
-        let server =
+        let mut server =
             Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
                 .await?;
+
+        // Attach secrets manager if configured
+        if let Some(mgr) = secrets_manager {
+            server.set_secrets_manager(mgr);
+        }
+
         tracing::info!(
             "FraiseQL Server {} starting (HTTP + Arrow Flight)",
             env!("CARGO_PKG_VERSION")
@@ -273,7 +296,13 @@ async fn main() -> anyhow::Result<()> {
 
     #[cfg(not(feature = "arrow"))]
     {
-        let server = Server::new(config, schema, adapter, db_pool).await?;
+        let mut server = Server::new(config, schema, adapter, db_pool).await?;
+
+        // Attach secrets manager if configured
+        if let Some(mgr) = secrets_manager {
+            server.set_secrets_manager(mgr);
+        }
+
         tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
 
         server.serve().await?;
