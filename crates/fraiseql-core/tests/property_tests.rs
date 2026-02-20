@@ -409,10 +409,8 @@ proptest! {
         let mut schema = CompiledSchema::new();
 
         // Simulate UUID-like names
-        let uuid_names = vec![
-            "a550e8d4-e45c-41a3-b397-f66f3850a6e0",
-            "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-        ];
+        let uuid_names = ["a550e8d4-e45c-41a3-b397-f66f3850a6e0",
+            "f47ac10b-58cc-4372-a567-0e02b2c3d479"];
 
         for (i, name) in uuid_names.iter().enumerate() {
             schema.types.push(TypeDefinition::new(

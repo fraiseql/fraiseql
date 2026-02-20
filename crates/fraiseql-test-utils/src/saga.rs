@@ -58,7 +58,7 @@ pub struct SagaStepResult {
 
 impl SagaStepResult {
     /// Create a successful step result
-    pub fn success(step_number: usize, data: Value) -> Self {
+    pub const fn success(step_number: usize, data: Value) -> Self {
         Self {
             step_number,
             success: true,
@@ -131,7 +131,7 @@ impl TestSagaExecutor {
     }
 
     /// Configure executor to fail at a specific step
-    pub fn fail_at_step(mut self, step_number: usize) -> Self {
+    pub const fn fail_at_step(mut self, step_number: usize) -> Self {
         self.fail_step = Some(step_number);
         self
     }
@@ -155,7 +155,7 @@ impl TestSagaExecutor {
                     step_num,
                     &format!("Simulated failure at step {}", step_num),
                 );
-                results.push(result.clone());
+                results.push(result);
 
                 // On failure, trigger compensation for all executed steps
                 return Err(format!(
@@ -253,7 +253,7 @@ impl TestSagaExecutor {
             compensation_steps.iter().map(|s| s.step_number).collect();
 
         // Reverse executed steps to get expected compensation order
-        let mut expected_order = executed_steps.clone();
+        let mut expected_order = executed_steps;
         expected_order.reverse();
 
         if compensated_steps == expected_order {
