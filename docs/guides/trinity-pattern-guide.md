@@ -340,6 +340,7 @@ $$;
 Verify your implementation follows the checklist in the "Manual Verification" section below.
 
 Note: Automated verification tools are available in development environments.
+
 ```
 
 ### Manual Verification
