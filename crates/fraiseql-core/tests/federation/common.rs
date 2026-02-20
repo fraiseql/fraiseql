@@ -15,6 +15,8 @@ use fraiseql_core::{
     },
     schema::SqlProjectionHint,
 };
+use std::time::Duration;
+
 use serde_json::{Value, json};
 
 // =============================================================================
@@ -281,6 +283,128 @@ pub fn enforce_requires(
         }
     }
 
+    Ok(())
+}
+
+// =============================================================================
+// Docker Network Infrastructure
+// =============================================================================
+
+pub const APOLLO_GATEWAY_URL: &str = "http://localhost:4000/graphql";
+pub const USERS_SUBGRAPH_URL: &str = "http://localhost:4001/graphql";
+pub const ORDERS_SUBGRAPH_URL: &str = "http://localhost:4002/graphql";
+pub const PRODUCTS_SUBGRAPH_URL: &str = "http://localhost:4003/graphql";
+
+/// Wait for a service to be ready with health check.
+pub async fn wait_for_service(url: &str, max_retries: u32) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let mut retries = 0;
+
+    loop {
+        match client
+            .post(url)
+            .json(&json!({ "query": "{ __typename }" }))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                println!("✓ Service ready: {}", url);
+                return Ok(());
+            },
+            Ok(response) => {
+                println!("✗ Service {} returned status: {}", url, response.status());
+            },
+            Err(e) => {
+                println!("✗ Service {} connection failed: {}", url, e);
+            },
+        }
+
+        retries += 1;
+        if retries >= max_retries {
+            return Err(format!(
+                "Service {} failed to become ready after {} retries",
+                url, max_retries
+            )
+            .into());
+        }
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+}
+
+/// Execute a GraphQL query against a service.
+pub async fn graphql_query(url: &str, query: &str) -> std::result::Result<Value, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .json(&json!({ "query": query }))
+        .timeout(Duration::from_secs(10))
+        .send()
+        .await?;
+
+    let body: Value = response.json().await?;
+    Ok(body)
+}
+
+/// Extract data from a GraphQL response.
+pub fn extract_data(response: &Value) -> Option<&Value> {
+    response.get("data")
+}
+
+/// Check for GraphQL errors.
+pub fn has_errors(response: &Value) -> bool {
+    response.get("errors").is_some()
+}
+
+/// Get error messages from a GraphQL response.
+pub fn get_error_messages(response: &Value) -> String {
+    response
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|err| err.get("message")?.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+        .unwrap_or_else(|| "Unknown error".to_string())
+}
+
+/// Setup test fixtures — ensures 2-subgraph services are ready.
+pub async fn setup_federation_tests() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Setting up 2-subgraph federation tests ===\n");
+
+    println!("Waiting for users subgraph...");
+    wait_for_service(USERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for orders subgraph...");
+    wait_for_service(ORDERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for Apollo Router gateway...");
+    wait_for_service(APOLLO_GATEWAY_URL, 30).await?;
+
+    println!("\n✓ All services ready for 2-subgraph federation tests\n");
+    Ok(())
+}
+
+/// Setup helper for 3-subgraph federation tests (users -> orders -> products).
+pub async fn setup_three_subgraph_tests() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Setting up 3-subgraph federation tests ===\n");
+
+    println!("Waiting for users subgraph (port 4001)...");
+    wait_for_service(USERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for orders subgraph (port 4002)...");
+    wait_for_service(ORDERS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for products subgraph (port 4003)...");
+    wait_for_service(PRODUCTS_SUBGRAPH_URL, 30).await?;
+
+    println!("Waiting for Apollo Router gateway...");
+    wait_for_service(APOLLO_GATEWAY_URL, 30).await?;
+
+    println!("\n✓ All 3 subgraphs + gateway ready for federation tests\n");
     Ok(())
 }
 

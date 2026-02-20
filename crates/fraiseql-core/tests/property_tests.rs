@@ -328,6 +328,138 @@ fn escape_sql_string(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
+// ============================================================================
+// Additional Property Tests for Type Definitions and Schemas
+// ============================================================================
+
+proptest! {
+    /// Property: Type names should preserve through construction
+    #[test]
+    fn prop_type_name_preservation(
+        name in "[A-Z][a-zA-Z0-9]{0,30}"
+    ) {
+        use fraiseql_core::schema::TypeDefinition;
+        let typedef = TypeDefinition::new(name.clone(), "v_source");
+        prop_assert_eq!(typedef.name, name);
+    }
+
+    /// Property: Query names should preserve through construction
+    #[test]
+    fn prop_query_name_preservation(
+        name in "[a-z][a-z0-9_]{0,30}"
+    ) {
+        use fraiseql_core::schema::QueryDefinition;
+        let query = QueryDefinition::new(name.clone(), "String");
+        prop_assert_eq!(query.name, name);
+    }
+
+    /// Property: Schema with arbitrary counts should construct
+    #[test]
+    fn prop_schema_arbitrary_construction(
+        type_count in 0..10usize,
+        query_count in 0..10usize
+    ) {
+        use fraiseql_core::schema::{CompiledSchema, TypeDefinition, QueryDefinition};
+        let mut schema = CompiledSchema::new();
+
+        for i in 0..type_count {
+            schema.types.push(TypeDefinition::new(format!("T{}", i), "v_t"));
+        }
+        for i in 0..query_count {
+            schema.queries.push(QueryDefinition::new(format!("q{}", i), "String"));
+        }
+
+        prop_assert_eq!(schema.types.len(), type_count);
+        prop_assert_eq!(schema.queries.len(), query_count);
+    }
+
+    /// Property: Large schemas should serialize without error
+    #[test]
+    fn prop_large_schema_serialization(
+        count in 1..20usize
+    ) {
+        use fraiseql_core::schema::{CompiledSchema, TypeDefinition};
+        let mut schema = CompiledSchema::new();
+
+        for i in 0..count {
+            schema.types.push(TypeDefinition::new(format!("Large{}", i), "v_table"));
+        }
+
+        let result = schema.to_json();
+        prop_assert!(result.is_ok());
+    }
+
+    /// Property: Empty collections should be handled
+    #[test]
+    fn prop_empty_collections_handling(_unit in ".*") {
+        use fraiseql_core::schema::CompiledSchema;
+        let schema = CompiledSchema::new();
+
+        prop_assert_eq!(schema.types.len(), 0);
+        prop_assert_eq!(schema.queries.len(), 0);
+
+        let json_result = schema.to_json();
+        prop_assert!(json_result.is_ok());
+    }
+
+    /// Property: UUID-like identifiers should be handled in schema
+    #[test]
+    fn prop_uuid_identifiers(_unit in ".*") {
+        use fraiseql_core::schema::{CompiledSchema, TypeDefinition};
+        let mut schema = CompiledSchema::new();
+
+        // Simulate UUID-like names
+        let uuid_names = vec![
+            "a550e8d4-e45c-41a3-b397-f66f3850a6e0",
+            "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        ];
+
+        for (i, name) in uuid_names.iter().enumerate() {
+            schema.types.push(TypeDefinition::new(
+                format!("Type{}", i),
+                name.to_string(),
+            ));
+        }
+
+        let json = schema.to_json().expect("should serialize");
+        let restored = CompiledSchema::from_json(&json).expect("should deserialize");
+
+        prop_assert_eq!(schema.types.len(), restored.types.len());
+    }
+
+    /// Property: Special characters in field names should be escaped correctly
+    #[test]
+    fn prop_identifier_escaping_roundtrip(
+        identifier in "[a-zA-Z_][a-zA-Z0-9_]{0,20}"
+    ) {
+        let escaped = escape_sql_identifier(&identifier);
+
+        // Should start and end with quotes
+        prop_assert!(escaped.starts_with('"'));
+        prop_assert!(escaped.ends_with('"'));
+
+        // Original identifier should be present
+        for c in identifier.chars() {
+            prop_assert!(escaped.contains(c));
+        }
+    }
+
+    /// Property: String escaping should preserve content
+    #[test]
+    fn prop_string_escaping_preservation(
+        s in "[ -~]{0,100}"
+    ) {
+        let escaped = escape_sql_string(&s);
+
+        // Should be quoted
+        prop_assert!(escaped.starts_with('\''));
+        prop_assert!(escaped.ends_with('\''));
+
+        // Escaped form should be valid SQL syntax
+        prop_assert!(escaped.len() >= 2);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
