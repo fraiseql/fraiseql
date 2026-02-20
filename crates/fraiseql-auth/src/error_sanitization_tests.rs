@@ -43,7 +43,6 @@ mod error_sanitization {
 
     #[test]
     fn test_jwt_invalid_signature_sanitized() {
-        // RED: JWT signature errors should hide cryptographic details from users
         let error = SanitizableError::new(
             "Authentication failed",
             "Invalid JWT signature: RS256 verification failed at index 145",
@@ -59,7 +58,6 @@ mod error_sanitization {
 
     #[test]
     fn test_jwt_expired_token_generic() {
-        // RED: Token expiration should not reveal expiration time to user
         let error = SanitizableError::new(
             "Authentication failed",
             "Token expired: exp: 1704067200, now: 1704153600",
@@ -72,7 +70,6 @@ mod error_sanitization {
 
     #[test]
     fn test_jwt_invalid_issuer_sanitized() {
-        // RED: Issuer errors should not expose internal issuer URLs
         let error = SanitizableError::new(
             "Authentication failed",
             "Invalid issuer: expected https://internal-auth.company.com/oauth, got https://attacker.com",
@@ -85,7 +82,6 @@ mod error_sanitization {
 
     #[test]
     fn test_jwt_missing_claim_sanitized() {
-        // RED: Missing claims should not expose claim structure
         let error = SanitizableError::new(
             "Authentication failed",
             "Missing required claim: custom_org_id (expected for RBAC)",
@@ -99,7 +95,6 @@ mod error_sanitization {
 
     #[test]
     fn test_oidc_server_error_sanitized() {
-        // RED: OIDC server errors should hide provider internals
         let error = SanitizableError::new(
             "Authentication failed",
             "OIDC provider error: Internal database transaction failed at db.execute_query",
@@ -112,7 +107,6 @@ mod error_sanitization {
 
     #[test]
     fn test_oidc_network_error_sanitized() {
-        // RED: Network errors should hide provider URLs/IPs
         let error = SanitizableError::new(
             "Authentication failed",
             "Failed to reach OIDC provider: connection timeout to 10.0.1.45:8443",
@@ -125,7 +119,6 @@ mod error_sanitization {
 
     #[test]
     fn test_oidc_invalid_client_secret_sanitized() {
-        // RED: Client secret errors should hide credential details
         let error = SanitizableError::new(
             "Authentication failed",
             "Client secret validation failed: provided secret does not match stored hmac",
@@ -139,7 +132,6 @@ mod error_sanitization {
 
     #[test]
     fn test_invalid_session_token_sanitized() {
-        // RED: Session token errors should not expose token format
         let error = SanitizableError::new(
             "Authentication failed",
             "Invalid session token: expected format {session_id}:{signature}, got malformed",
@@ -152,7 +144,6 @@ mod error_sanitization {
 
     #[test]
     fn test_expired_session_sanitized() {
-        // RED: Session expiration should not expose TTL details
         let error = SanitizableError::new(
             "Authentication failed",
             "Session expired: created_at: 2024-01-01, expires_at: 2024-01-08, ttl: 604800s",
@@ -165,7 +156,6 @@ mod error_sanitization {
 
     #[test]
     fn test_revoked_session_sanitized() {
-        // RED: Revocation reasons should not expose revocation policy
         let error = SanitizableError::new(
             "Authentication failed",
             "Session revoked: Reason=AdminRevoke, PolicyViolation=3_failed_logins, IPChange=true",
@@ -180,7 +170,6 @@ mod error_sanitization {
 
     #[test]
     fn test_database_connection_error_sanitized() {
-        // RED: DB errors should not expose host/port/schema
         let error = SanitizableError::new(
             "Service temporarily unavailable",
             "Database connection failed: cannot connect to postgres://user@db.internal:5432/auth_db",
@@ -194,7 +183,6 @@ mod error_sanitization {
 
     #[test]
     fn test_database_query_error_sanitized() {
-        // RED: SQL errors should not expose schema/queries
         let error = SanitizableError::new(
             "Service temporarily unavailable",
             "Query execution failed: syntax error at line 5: SELECT * FROM users WHERE id = $1",
@@ -207,7 +195,6 @@ mod error_sanitization {
 
     #[test]
     fn test_database_constraint_error_sanitized() {
-        // RED: Constraint violations should not expose table/column names
         let error = SanitizableError::new(
             "Request failed",
             "Unique constraint violation on table 'users' column 'email'",
@@ -222,7 +209,6 @@ mod error_sanitization {
 
     #[test]
     fn test_permission_denied_generic() {
-        // RED: Permission errors should not expose permission structure
         let error = SanitizableError::new(
             "Permission denied",
             "User does not have permission: requires role=admin, organization=org123, scope=write:users",
@@ -235,7 +221,6 @@ mod error_sanitization {
 
     #[test]
     fn test_rbac_policy_error_sanitized() {
-        // RED: RBAC errors should not expose policy details
         let error = SanitizableError::new(
             "Permission denied",
             "RBAC policy violation: PolicyID=p_read_only_2024, Rule=deny_mutation, Effect=Deny",
@@ -249,7 +234,6 @@ mod error_sanitization {
 
     #[test]
     fn test_all_auth_errors_have_consistent_user_message() {
-        // RED: All auth-related errors should have same user message for consistency
         let jwt_error =
             SanitizableError::new("Authentication failed", "JWT signature verification failed");
 
@@ -266,7 +250,6 @@ mod error_sanitization {
 
     #[test]
     fn test_no_internal_details_in_user_message() {
-        // RED: User messages must never contain technical details
         let errors = vec![
             SanitizableError::new("Authentication failed", "JWT exp=1234567890, iat=1234567800"),
             SanitizableError::new("Permission denied", "Policy admin_only_7a4b prevents access"),
@@ -290,7 +273,6 @@ mod error_sanitization {
 
     #[test]
     fn test_internal_message_contains_full_details() {
-        // RED: Internal messages must contain all details for debugging
         let error = SanitizableError::new(
             "Authentication failed",
             "JWT validation failed: algorithm=RS256, kid=abc123, issuer=https://auth.example.com, subject=user@example.com",
@@ -307,7 +289,6 @@ mod error_sanitization {
 
     #[test]
     fn test_error_display_uses_user_message() {
-        // RED: Display impl should show user message (safe for logging)
         let error = SanitizableError::new(
             "Authentication failed",
             "Secret JWT signing key exposed at /etc/secrets/jwt.key",
@@ -318,7 +299,6 @@ mod error_sanitization {
 
     #[test]
     fn test_error_debug_shows_internal() {
-        // RED: Debug impl can show full details for development
         let error = SanitizableError::new(
             "Authentication failed",
             "Critical: JWT validation failed at cryptographic boundary",
@@ -333,7 +313,6 @@ mod error_sanitization {
 
     #[test]
     fn test_very_long_error_messages_sanitized() {
-        // RED: Long errors should still be sanitized
         let long_internal = format!("Detailed error: {}", "x".repeat(1000));
 
         let error = SanitizableError::new("Authentication failed", &long_internal);
@@ -344,7 +323,6 @@ mod error_sanitization {
 
     #[test]
     fn test_special_characters_in_internal_messages() {
-        // RED: Should handle special characters safely
         let error = SanitizableError::new(
             "Authentication failed",
             "Error contains: <script>, \"quotes\", \\backslash, 'apostrophe'",
@@ -357,7 +335,6 @@ mod error_sanitization {
 
     #[test]
     fn test_sanitization_doesnt_lose_information() {
-        // RED: Sanitization should preserve all details internally
         let original_internal =
             "Cannot connect to auth server: socket error 111 (Connection refused) at 10.0.0.1:9000";
 

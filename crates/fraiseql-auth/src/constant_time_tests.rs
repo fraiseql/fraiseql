@@ -8,7 +8,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_equal_tokens_return_true() {
-        // RED: Equal tokens should always return true
         let token1 = b"valid_jwt_token_12345";
         let token2 = b"valid_jwt_token_12345";
 
@@ -17,7 +16,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_different_tokens_return_false() {
-        // RED: Different tokens should always return false
         let token1 = b"valid_jwt_token_12345";
         let token2 = b"invalid_jwt_token_54321";
 
@@ -26,7 +24,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_mismatch_at_start() {
-        // RED: Mismatch at first byte should return false
         let token1 = b"AAAAAAAAAAAAAAAAAAAAA";
         let token2 = b"BBBBBBBBBBBBBBBBBBBBB";
 
@@ -35,7 +32,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_mismatch_at_middle() {
-        // RED: Mismatch in middle should return false
         let token1 = b"AAAAAAAAAABAAAAAAAAAA";
         let token2 = b"AAAAAAAAAABAAAAAAAAA";
 
@@ -44,7 +40,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_mismatch_at_end() {
-        // RED: Mismatch at last byte should return false
         let token1 = b"AAAAAAAAAAAAAAAAAAAAA";
         let token2 = b"AAAAAAAAAAAAAAAAAAAAB";
 
@@ -53,7 +48,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_empty_tokens_equal() {
-        // RED: Empty tokens should compare equal
         let token1 = b"";
         let token2 = b"";
 
@@ -62,7 +56,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_different_lengths() {
-        // RED: Different length tokens should return false
         let token1 = b"short";
         let token2 = b"much_longer_token";
 
@@ -73,7 +66,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_jwt_valid_signature() {
-        // RED: Valid JWT signature comparison
         let valid_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
         let same_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
 
@@ -82,7 +74,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_jwt_invalid_signature() {
-        // RED: Invalid JWT signature comparison should return false
         let valid_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
         let invalid_jwt =
             "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature999";
@@ -92,7 +83,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_jwt_tampered_payload() {
-        // RED: Tampered JWT payload should return false
         let original = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature123";
         let tampered = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbjEyM30.signature123";
 
@@ -103,7 +93,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_session_token_valid() {
-        // RED: Valid session token comparison
         let token1 = "sess_abcdef123456:hmac_signature_value_xyz";
         let token2 = "sess_abcdef123456:hmac_signature_value_xyz";
 
@@ -112,7 +101,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_session_token_invalid_session_id() {
-        // RED: Invalid session ID should return false
         let token1 = "sess_abcdef123456:hmac_signature_value_xyz";
         let token2 = "sess_different654321:hmac_signature_value_xyz";
 
@@ -121,7 +109,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_session_token_invalid_signature() {
-        // RED: Invalid session signature should return false
         let token1 = "sess_abcdef123456:hmac_signature_value_xyz";
         let token2 = "sess_abcdef123456:hmac_signature_value_abc";
 
@@ -132,7 +119,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_csrf_token_valid() {
-        // RED: Valid CSRF token comparison
         let token1 = "csrf_token_abcdefghijklmnopqrstuvwxyz";
         let token2 = "csrf_token_abcdefghijklmnopqrstuvwxyz";
 
@@ -141,7 +127,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_csrf_token_invalid() {
-        // RED: Invalid CSRF token should return false
         let token1 = "csrf_token_abcdefghijklmnopqrstuvwxyz";
         let token2 = "csrf_token_zyxwvutsrqponmlkjihgfedcba";
 
@@ -152,7 +137,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_mismatch_position_doesnt_affect_comparison() {
-        // RED: Time should be constant regardless of mismatch position
         // This is a functional test - actual timing test would require benchmarks
         let base = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
@@ -172,7 +156,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_multiple_bit_flips_same_result() {
-        // RED: Multiple differences should still return false
         let token1 = b"abcdefghijklmnopqrstuvwxyz123456";
         let token2 = b"abXdefgXijklmnXpqrstuvwXyz12X456";
 
@@ -181,7 +164,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_single_bit_flip() {
-        // RED: Single bit flip should return false
         let token1 = b"abcdefghijklmnopqrstuvwxyz123456";
         let token2 = b"abcdefghijklmnopqrstuvwxyz123457"; // Last char 6->7
 
@@ -192,7 +174,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_hmac_signatures_equal() {
-        // RED: Equal HMAC signatures should return true
         let sig1 = b"\x48\x6d\x61\x63\x5f\x76\x61\x6c\x75\x65\x5f\x78\x79\x7a\x5f\x31\x32\x33";
         let sig2 = b"\x48\x6d\x61\x63\x5f\x76\x61\x6c\x75\x65\x5f\x78\x79\x7a\x5f\x31\x32\x33";
 
@@ -201,7 +182,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_hmac_signatures_different() {
-        // RED: Different HMAC signatures should return false
         let sig1 = b"\x48\x6d\x61\x63\x5f\x76\x61\x6c\x75\x65\x5f\x78\x79\x7a\x5f\x31\x32\x33";
         let sig2 = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
@@ -212,7 +192,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_brute_force_attempt_early_match() {
-        // RED: Brute force attempt with early byte match should still fail
         let valid_token = b"super_secret_token_xyz_abc_def_123";
         let attack_1 = b"super_fake_token_qqq_bbb_ggg_456";
         let attack_2 = b"super_secret_token_xyz_abc_def_999";
@@ -223,7 +202,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_token_with_null_bytes() {
-        // RED: Tokens with null bytes should be compared safely
         let token1 = b"token\x00with\x00nulls";
         let token2 = b"token\x00with\x00nulls";
         let token3 = b"token\x00with\x00other";
@@ -234,7 +212,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_token_with_all_byte_values() {
-        // RED: Should handle all possible byte values
         let mut token1 = vec![0u8; 256];
         let mut token2 = vec![0u8; 256];
         for (i, t) in token1.iter_mut().enumerate() {
@@ -255,7 +232,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_very_long_tokens() {
-        // RED: Should handle very long tokens (e.g., 10KB)
         let token1: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
         let token2 = token1.clone();
         let mut token3 = token1.clone();
@@ -267,7 +243,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_unicode_in_tokens() {
-        // RED: Should safely handle UTF-8 encoded tokens
         let token1 = "token_with_émojis_🔐_🔒_🔓";
         let token2 = "token_with_émojis_🔐_🔒_🔓";
         let token3 = "token_with_émojis_🔐_🔐_🔐";
@@ -278,7 +253,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_comparison_is_commutative() {
-        // RED: compare(a, b) should equal compare(b, a)
         let token1 = b"first_token_value_abcd";
         let token2 = b"second_token_value_xyz";
 
@@ -290,7 +264,6 @@ mod constant_time_comparison {
 
     #[test]
     fn test_comparison_consistency() {
-        // RED: Same comparison should always return same result
         let token1 = b"consistent_token_abc";
         let token2 = b"different_token_xyz";
 

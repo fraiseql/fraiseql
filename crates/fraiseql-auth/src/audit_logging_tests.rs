@@ -46,7 +46,6 @@ mod audit_logging {
 
     #[test]
     fn test_jwt_validation_success_logged() {
-        // RED: Test should pass when JWT validation is successful and logged
         let logger = MockAuditLogger::new();
 
         // Simulate JWT validation success
@@ -72,7 +71,6 @@ mod audit_logging {
 
     #[test]
     fn test_jwt_validation_failure_logged() {
-        // RED: Test should track failed JWT validations
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -95,7 +93,6 @@ mod audit_logging {
 
     #[test]
     fn test_jwt_validation_log_includes_timestamp() {
-        // RED: Audit logs must include timestamp for sequence verification
         let logger = MockAuditLogger::new();
         let timestamp = 1_234_567_890_u64;
 
@@ -119,7 +116,6 @@ mod audit_logging {
 
     #[test]
     fn test_oidc_credential_access_logged() {
-        // RED: Test should track OIDC credential access
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -142,7 +138,6 @@ mod audit_logging {
 
     #[test]
     fn test_oidc_token_exchange_logged() {
-        // RED: Test should track OAuth token exchanges
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -166,7 +161,6 @@ mod audit_logging {
 
     #[test]
     fn test_session_token_creation_logged() {
-        // RED: Test should track session token creation
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -188,7 +182,6 @@ mod audit_logging {
 
     #[test]
     fn test_session_token_validation_logged() {
-        // RED: Test should track session token validation
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -209,7 +202,6 @@ mod audit_logging {
 
     #[test]
     fn test_session_token_revocation_logged() {
-        // RED: Test should track session token revocation
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -232,7 +224,6 @@ mod audit_logging {
 
     #[test]
     fn test_invalid_jwt_validation_includes_error() {
-        // RED: Failed operations must include error details
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -254,7 +245,6 @@ mod audit_logging {
 
     #[test]
     fn test_denied_oidc_credential_access_logged() {
-        // RED: Test should track failed credential access attempts
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -279,7 +269,6 @@ mod audit_logging {
 
     #[test]
     fn test_audit_log_includes_subject_context() {
-        // RED: Audit logs must track which user/service performed action
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -300,7 +289,6 @@ mod audit_logging {
 
     #[test]
     fn test_audit_log_subject_optional_for_anonymous() {
-        // RED: Anonymous operations may not have subject
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -323,7 +311,6 @@ mod audit_logging {
 
     #[test]
     fn test_multiple_operations_logged_in_sequence() {
-        // RED: Audit log should track multiple operations in order
         let logger = MockAuditLogger::new();
 
         // Simulate OAuth flow: start → callback → token exchange
@@ -373,7 +360,6 @@ mod audit_logging {
 
     #[test]
     fn test_audit_log_clear_for_testing() {
-        // RED: Need ability to clear logs for test isolation
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -397,7 +383,6 @@ mod audit_logging {
 
     #[test]
     fn test_audit_log_with_very_long_error_message() {
-        // RED: Should handle long error messages
         let logger = MockAuditLogger::new();
         let long_error = "a".repeat(1000);
 
@@ -419,7 +404,6 @@ mod audit_logging {
 
     #[test]
     fn test_audit_log_with_special_characters_in_subject() {
-        // RED: Should handle special characters in subject
         let logger = MockAuditLogger::new();
 
         let entry = AuditLogEntry {
@@ -440,7 +424,6 @@ mod audit_logging {
 
     #[test]
     fn test_high_volume_audit_logging() {
-        // RED: Should handle high volume of audit log entries
         let logger = MockAuditLogger::new();
 
         // Generate 1000 log entries

@@ -531,7 +531,6 @@ mod tests {
 
     #[test]
     fn test_postgres_projection_with_field_mapping_snake_case() {
-        // RED: Test for Issue #269 - Field name extraction should use original names
         //
         // Problem: GraphQL converts field names to camelCase (first_name → firstName)
         // But JSONB stores them in snake_case (first_name).

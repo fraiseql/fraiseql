@@ -165,7 +165,6 @@ fn create_context(role: &str) -> SecurityContext {
 
 #[test]
 fn test_field_filtering_partial_access() {
-    // RED: When user requests fields they can't all access, should filter appropriately
     // GIVEN: User requests all fields but can only access some
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -197,7 +196,6 @@ fn test_field_filtering_partial_access() {
 
 #[test]
 fn test_field_filtering_all_fields_denied() {
-    // RED: If user has no scopes, should only see public fields
     // GIVEN: Restricted user (no scopes)
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -223,7 +221,6 @@ fn test_field_filtering_all_fields_denied() {
 
 #[test]
 fn test_field_filtering_empty_request() {
-    // RED: If user requests empty field list, should return empty
     // GIVEN: Empty field request
     let schema = create_schema_with_mixed_fields();
     let security_config =
@@ -242,7 +239,6 @@ fn test_field_filtering_empty_request() {
 
 #[test]
 fn test_field_filtering_respects_field_order() {
-    // RED: Filtered fields should maintain order from original request
     // GIVEN: Specific field order requested
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -271,7 +267,6 @@ fn test_field_filtering_respects_field_order() {
 
 #[test]
 fn test_field_filtering_duplicate_requests() {
-    // RED: If same field requested multiple times, filter should handle it
     // GIVEN: Duplicate fields in request
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -300,7 +295,6 @@ fn test_field_filtering_duplicate_requests() {
 
 #[test]
 fn test_field_access_denied_for_single_field() {
-    // RED: can_access_field should return false for denied fields
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
@@ -323,7 +317,6 @@ fn test_field_access_denied_for_single_field() {
 
 #[test]
 fn test_field_access_public_fields_always_allowed() {
-    // RED: Public fields should always be accessible regardless of role
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
@@ -347,7 +340,6 @@ fn test_field_access_public_fields_always_allowed() {
 
 #[test]
 fn test_field_filtering_with_null_fields() {
-    // RED: Nullable fields should be filtered same as non-nullable
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
@@ -370,7 +362,6 @@ fn test_field_filtering_with_null_fields() {
 
 #[test]
 fn test_field_filtering_consistency_across_calls() {
-    // RED: Multiple calls should return consistent results
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
@@ -398,7 +389,6 @@ fn test_field_filtering_consistency_across_calls() {
 
 #[test]
 fn test_field_filtering_mixed_nullability() {
-    // RED: Nullable settings should not affect filtering logic
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
@@ -430,7 +420,6 @@ fn test_field_filtering_mixed_nullability() {
 
 #[test]
 fn test_field_filtering_empty_security_config() {
-    // RED: If security config is empty/missing, should allow all public fields
     // (graceful degradation)
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -451,7 +440,6 @@ fn test_field_filtering_empty_security_config() {
 
 #[test]
 fn test_field_filtering_preserves_metadata_on_filtered() {
-    // RED: Even when fields are filtered out, remaining fields should have correct metadata
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =

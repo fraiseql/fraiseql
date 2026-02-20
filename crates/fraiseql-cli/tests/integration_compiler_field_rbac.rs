@@ -133,7 +133,6 @@ fn create_schema_with_field_scopes(temp_dir: &TempDir) -> PathBuf {
 
 #[test]
 fn test_compiler_preserves_field_scopes_from_schema() {
-    // RED: Test that field scopes from schema.json are preserved in compiled output
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
 
@@ -163,7 +162,6 @@ fn test_compiler_preserves_field_scopes_from_schema() {
 
 #[test]
 fn test_compiler_merges_role_definitions_from_toml() {
-    // RED: Test that role definitions from fraiseql.toml are included in compiled schema
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
     let toml_path = create_test_toml_with_roles(&temp_dir);
@@ -184,7 +182,6 @@ fn test_compiler_merges_role_definitions_from_toml() {
 
 #[test]
 fn test_compiler_validates_scope_consistency() {
-    // RED: Test that compiler can identify field scopes that need validation
     // This test verifies the mechanism for detecting scope mismatches
 
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -236,7 +233,6 @@ fn test_compiler_validates_scope_consistency() {
 
 #[test]
 fn test_compiler_handles_missing_role_definitions() {
-    // RED: Test that compiler handles schema without role definitions gracefully
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
 
@@ -255,7 +251,6 @@ fn test_compiler_handles_missing_role_definitions() {
 
 #[test]
 fn test_compiler_output_includes_both_field_scopes_and_roles() {
-    // RED: Integration test verifying the compiler should merge:
     // schema.json (field scopes) + fraiseql.toml (roles) → schema.compiled.json (both)
 
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -361,7 +356,6 @@ fn test_role_definitions_parse_from_toml() {
 
 #[test]
 fn test_compiler_includes_role_definitions_in_compiled_output() {
-    // GREEN: Test that role definitions from fraiseql.toml are properly serialized
     // This verifies the SecurityConfig::to_json() includes role definitions
 
     let temp_dir = TempDir::new().expect("Failed to create temp dir");

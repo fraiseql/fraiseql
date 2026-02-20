@@ -276,7 +276,6 @@ mod tests {
         assert_eq!(plan.projection_fields.len(), 2);
         assert!(!plan.is_cached);
         assert_eq!(plan.estimated_cost, 120);
-        // RED: Plan should now include jsonb_strategy
         assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
     }
 

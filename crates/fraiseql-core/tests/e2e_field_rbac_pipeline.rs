@@ -192,7 +192,6 @@ fn create_user_context(role: &str) -> SecurityContext {
 
 #[test]
 fn test_e2e_schema_field_scopes_compiled() {
-    // RED: Schema with field scopes should be preserved through compilation
     // GIVEN: User type with mixed public/scoped fields (Python decorator output)
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -208,7 +207,6 @@ fn test_e2e_schema_field_scopes_compiled() {
 
 #[test]
 fn test_e2e_role_definitions_from_toml() {
-    // RED: TOML role definitions should be parsed and available at runtime
     // GIVEN: Compiled schema with TOML role definitions
     let schema = create_compiled_schema_with_rbac();
 
@@ -230,7 +228,6 @@ fn test_e2e_role_definitions_from_toml() {
 
 #[test]
 fn test_e2e_viewer_cannot_access_admin_fields() {
-    // RED: Viewer role should not access admin-only fields
     // GIVEN: Compiled schema with roles
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -255,7 +252,6 @@ fn test_e2e_viewer_cannot_access_admin_fields() {
 
 #[test]
 fn test_e2e_admin_accesses_all_fields() {
-    // RED: Admin role with global wildcard should access all fields
     // GIVEN: Admin context and full schema
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -273,7 +269,6 @@ fn test_e2e_admin_accesses_all_fields() {
 
 #[test]
 fn test_e2e_public_role_no_scoped_fields() {
-    // RED: Public role with no scopes should only access public fields
     // GIVEN: Public role context
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -294,7 +289,6 @@ fn test_e2e_public_role_no_scoped_fields() {
 
 #[test]
 fn test_e2e_multiple_roles_aggregate() {
-    // RED: User with multiple roles should aggregate scope access
     // GIVEN: Context with both viewer and moderator roles
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -319,7 +313,6 @@ fn test_e2e_multiple_roles_aggregate() {
 
 #[test]
 fn test_e2e_wildcard_matching_read_star() {
-    // RED: read:User.* should match read:User.email
     // GIVEN: Viewer with read:User.* scope
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -339,7 +332,6 @@ fn test_e2e_wildcard_matching_read_star() {
 
 #[test]
 fn test_e2e_global_wildcard_matches_all() {
-    // RED: Global wildcard * should match any scope
     // GIVEN: Admin with * scope (global wildcard)
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -359,7 +351,6 @@ fn test_e2e_global_wildcard_matches_all() {
 
 #[test]
 fn test_e2e_missing_role_defaults_to_public() {
-    // RED: User without defined role should fall back to default role
     // GIVEN: Security config with default role
     let schema = create_compiled_schema_with_rbac();
     let security_value = schema.security.as_ref().expect("Should have security config");
@@ -373,7 +364,6 @@ fn test_e2e_missing_role_defaults_to_public() {
 
 #[test]
 fn test_e2e_multi_tenant_field_filtering() {
-    // RED: Field filtering should work with multi-tenant contexts
     // GIVEN: Multi-tenant context
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
@@ -399,7 +389,6 @@ fn test_e2e_multi_tenant_field_filtering() {
 
 #[test]
 fn test_e2e_scope_requirement_none_always_accessible() {
-    // RED: Fields with no scope requirement should be accessible to anyone
     // GIVEN: Public role (no scopes) and public fields
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();

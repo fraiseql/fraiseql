@@ -11,7 +11,6 @@ use serde_json::json;
 
 #[test]
 fn test_jsonb_column_preserved_in_query() {
-    // RED: Test that jsonb_column survives schema compilation
     let schema_json = json!({
         "types": [
             {
@@ -65,7 +64,6 @@ fn test_jsonb_column_preserved_in_query() {
 
 #[test]
 fn test_jsonb_column_defaults_to_data() {
-    // RED: Test that jsonb_column defaults to "data" when not specified
     let schema_json = json!({
         "types": [
             {
@@ -116,7 +114,6 @@ fn test_jsonb_column_defaults_to_data() {
 
 #[test]
 fn test_jsonb_column_custom_value() {
-    // RED: Test that custom jsonb_column values are preserved
     let schema_json = json!({
         "types": [
             {
@@ -160,7 +157,6 @@ fn test_jsonb_column_custom_value() {
 
 #[test]
 fn test_jsonb_column_in_compiled_schema_json() {
-    // RED: Test that jsonb_column appears in compiled schema JSON output
     let schema_json = json!({
         "types": [
             {
@@ -208,7 +204,6 @@ fn test_jsonb_column_in_compiled_schema_json() {
 
 #[test]
 fn test_multiple_queries_with_different_jsonb_columns() {
-    // RED: Test that each query can have its own jsonb_column
     let schema_json = json!({
         "types": [
             {

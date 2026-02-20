@@ -14,7 +14,6 @@ mod integration_security {
 
     #[test]
     fn test_complete_oauth_flow_with_all_security_layers() {
-        // RED: Full OAuth flow should succeed with all security measures active
         // 1. Rate limiter allows auth/start
         // 2. State is encrypted and stored
         // 3. Audit logging tracks the flow
@@ -42,7 +41,6 @@ mod integration_security {
 
     #[test]
     fn test_brute_force_attack_blocked_with_audit_trail() {
-        // RED: Repeated failed attempts should be blocked and logged
         let scenario = OAuthFlowScenario::new();
         let ip = "203.0.113.99"; // Attacker IP
 
@@ -63,7 +61,6 @@ mod integration_security {
 
     #[test]
     fn test_tampered_state_rejected_with_proper_error() {
-        // RED: Tampered PKCE state should be rejected
         let scenario = OAuthFlowScenario::new();
 
         // Get valid encrypted state
@@ -90,7 +87,6 @@ mod integration_security {
 
     #[test]
     fn test_distributed_attack_per_user_limit_enforced() {
-        // RED: Multiple IPs attacking same user should hit per-user limit
         let scenario = OAuthFlowScenario::new();
         let target_user = "alice@example.com";
 
@@ -116,7 +112,6 @@ mod integration_security {
 
     #[test]
     fn test_invalid_jwt_signature_detected_safely() {
-        // RED: Invalid JWT signature detected without timing leak
         let scenario = OAuthFlowScenario::new();
 
         // Setup valid session
@@ -141,7 +136,6 @@ mod integration_security {
 
     #[test]
     fn test_session_token_verified_with_constant_time() {
-        // RED: Session token verification uses constant-time comparison
         let scenario = OAuthFlowScenario::new();
 
         // Create session
@@ -168,7 +162,6 @@ mod integration_security {
 
     #[test]
     fn test_all_auth_errors_properly_sanitized() {
-        // RED: All authentication errors should be sanitized consistently
         let scenario = OAuthFlowScenario::new();
 
         let error_scenarios = vec![
@@ -203,7 +196,6 @@ mod integration_security {
 
     #[test]
     fn test_audit_logging_captures_all_security_events() {
-        // RED: Audit log should capture all security-relevant events
         let scenario = OAuthFlowScenario::new();
 
         let ip = "192.168.1.1";
@@ -246,7 +238,6 @@ mod integration_security {
 
     #[test]
     fn test_pkce_state_encryption_integrated_in_oauth_flow() {
-        // RED: PKCE state should be encrypted in auth/start and decrypted in auth/callback
         let scenario = OAuthFlowScenario::new();
 
         // Start auth - state encrypted and stored
@@ -270,7 +261,6 @@ mod integration_security {
 
     #[test]
     fn test_state_encryption_prevents_replay_attacks() {
-        // RED: Encrypted state with random nonce prevents replay
         let scenario = OAuthFlowScenario::new();
 
         // Capture encrypted state
@@ -295,7 +285,6 @@ mod integration_security {
 
     #[test]
     fn test_token_comparison_timing_independent_of_mismatch_position() {
-        // RED: Token comparison time should not depend on where comparison fails
         let scenario = OAuthFlowScenario::new();
 
         // Setup session
@@ -331,7 +320,6 @@ mod integration_security {
 
     #[test]
     fn test_rate_limiting_integrated_across_endpoints() {
-        // RED: Rate limiting should work per-endpoint and globally
         let scenario = OAuthFlowScenario::new();
 
         let ip = "203.0.113.1";
@@ -361,7 +349,6 @@ mod integration_security {
 
     #[test]
     fn test_rate_limiting_windows_independent() {
-        // RED: Different rate limit windows should be independent
         let scenario = OAuthFlowScenario::new();
 
         // Multiple auth/start calls from one IP
@@ -382,7 +369,6 @@ mod integration_security {
 
     #[test]
     fn test_all_security_layers_working_together_successfully() {
-        // RED: Full security stack should work seamlessly
         let scenario = OAuthFlowScenario::new();
 
         // 1. Rate limiter tracks request
@@ -413,7 +399,6 @@ mod integration_security {
 
     #[test]
     fn test_security_stack_survives_attempted_circumvention() {
-        // RED: Security stack should be robust against multiple attack vectors
         let scenario = OAuthFlowScenario::new();
 
         // Attack 1: Try to bypass rate limiting with different IPs

@@ -158,7 +158,6 @@ fn create_executor_context(role: &str) -> SecurityContext {
 
 #[test]
 fn test_executor_reader_sees_only_readable_fields() {
-    // RED: Reader should see only fields with read scope
     // GIVEN: Post type and reader context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
@@ -186,7 +185,6 @@ fn test_executor_reader_sees_only_readable_fields() {
 
 #[test]
 fn test_executor_editor_sees_read_and_write_fields() {
-    // RED: Editor should see fields they can read AND write
     // GIVEN: Post type and editor context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
@@ -211,7 +209,6 @@ fn test_executor_editor_sees_read_and_write_fields() {
 
 #[test]
 fn test_executor_admin_sees_all_fields() {
-    // RED: Admin should see all fields via global wildcard
     // GIVEN: Post type and admin context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
@@ -230,7 +227,6 @@ fn test_executor_admin_sees_all_fields() {
 
 #[test]
 fn test_executor_field_filtering_preserves_field_metadata() {
-    // RED: Filtered fields should preserve type, description, nullability
     // GIVEN: Post type and security context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
@@ -256,7 +252,6 @@ fn test_executor_field_filtering_preserves_field_metadata() {
 
 #[test]
 fn test_executor_projection_fields_filtered_by_scope() {
-    // RED: Projection fields list should be filtered during execution plan
     // SCENARIO: When executor creates a projection plan, it should only include fields
     // that the user has access to.
 
@@ -286,7 +281,6 @@ fn test_executor_projection_fields_filtered_by_scope() {
 
 #[test]
 fn test_executor_runtime_config_with_field_filter() {
-    // RED: RuntimeConfig should support field filtering configuration
     let config = RuntimeConfig {
         cache_query_plans:    true,
         max_query_depth:      10,
@@ -305,7 +299,6 @@ fn test_executor_runtime_config_with_field_filter() {
 
 #[test]
 fn test_executor_multiple_roles_scope_union() {
-    // RED: User with multiple roles should see union of all accessible fields
     // GIVEN: User with both reader and editor roles
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
@@ -327,7 +320,6 @@ fn test_executor_multiple_roles_scope_union() {
 
 #[test]
 fn test_executor_public_fields_in_all_scopes() {
-    // RED: Public fields should be in projection regardless of user role
     // GIVEN: Any user context
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
@@ -349,7 +341,6 @@ fn test_executor_public_fields_in_all_scopes() {
 
 #[test]
 fn test_executor_security_context_with_config() {
-    // RED: Executor should use security context with RuntimeConfig
     let _config = RuntimeConfig::default();
     let context = create_executor_context("reader");
 
@@ -361,7 +352,6 @@ fn test_executor_security_context_with_config() {
 
 #[test]
 fn test_executor_field_access_check_pattern() {
-    // RED: Executor should provide field access check utility
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
@@ -384,7 +374,6 @@ fn test_executor_field_access_check_pattern() {
 
 #[test]
 fn test_executor_default_role_applied() {
-    // RED: When user has no explicit role, default role should be used
     // GIVEN: Security config with default role
     let schema = create_executor_test_schema();
     let security_value = schema.security.as_ref().expect("Should have security config");
@@ -398,7 +387,6 @@ fn test_executor_default_role_applied() {
 
 #[test]
 fn test_executor_field_filtering_idempotent() {
-    // RED: Filtering same fields multiple times should give same result
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =

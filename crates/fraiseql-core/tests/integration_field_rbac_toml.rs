@@ -6,7 +6,6 @@
 
 #[test]
 fn test_toml_role_definitions_parsing() {
-    // RED: This test documents the expected TOML structure for role definitions
     // Example TOML that should be parseable:
     //
     // [[security.role_definitions]]
@@ -58,7 +57,6 @@ scopes = ["read:*"]
 
 #[test]
 fn test_role_definition_structure() {
-    // RED: This test defines the expected structure of a role definition
     let toml_content = r#"
 [[security.role_definitions]]
 name = "admin"
@@ -110,7 +108,6 @@ scopes = ["read:User.*"]
 
 #[test]
 fn test_multiple_scopes_per_role() {
-    // RED: Roles should support multiple scopes
     let toml_content = r#"
 [[security.role_definitions]]
 name = "editor"
@@ -137,7 +134,6 @@ scopes = ["read:*", "write:Post.*", "write:Comment.*"]
 
 #[test]
 fn test_environment_overrides_for_roles() {
-    // RED: TOML should support environment-specific role overrides
     // Example with environment override:
     //
     // [security.role_definitions]
@@ -184,7 +180,6 @@ scopes = ["admin:*"]
 
 #[test]
 fn test_complex_toml_with_role_definitions() {
-    // RED: Complete TOML with multiple sections and role definitions
     let toml_content = r#"
 [fraiseql]
 version = "2.0"
@@ -253,7 +248,6 @@ scopes = ["read:*"]
 
 #[test]
 fn test_role_definition_validation() {
-    // RED: Invalid role definitions should be detectable
     // Examples of invalid TOML:
     // - Role without name
     // - Role without scopes
@@ -291,7 +285,6 @@ name = "admin"
 
 #[test]
 fn test_toml_scope_format_validation() {
-    // RED: Scope values should follow naming convention
     // Valid formats:
     // - read:Type.field
     // - read:Type.*
@@ -322,7 +315,6 @@ fn test_toml_scope_format_validation() {
 
 #[test]
 fn test_role_definitions_compilation_to_schema() {
-    // RED: Role definitions from TOML should be compilable to compiled schema
     // The compiled schema should include:
     // - role_definitions array
     // - Each role with: name, description?, scopes[]

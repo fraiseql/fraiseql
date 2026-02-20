@@ -125,7 +125,6 @@ fn create_security_context(roles: Vec<String>) -> fraiseql_core::security::Secur
 
 #[test]
 fn test_user_with_viewer_role_can_access_public_fields() {
-    // RED: Test that user with 'viewer' role can access public fields
     let schema = create_schema_with_scoped_fields();
     let context = create_security_context(vec!["viewer".to_string()]);
 
@@ -158,7 +157,6 @@ fn test_user_with_viewer_role_can_access_public_fields() {
 
 #[test]
 fn test_user_with_viewer_role_cannot_access_admin_fields() {
-    // RED: Test that user with 'viewer' role cannot access admin-only fields
     let schema = create_schema_with_scoped_fields();
     let context = create_security_context(vec!["viewer".to_string()]);
 
@@ -181,7 +179,6 @@ fn test_user_with_viewer_role_cannot_access_admin_fields() {
 
 #[test]
 fn test_user_with_admin_role_can_access_all_fields() {
-    // RED: Test that user with 'admin' role can access all fields including admin-only
     let schema = create_schema_with_scoped_fields();
     let context = create_security_context(vec!["admin".to_string()]);
 
@@ -209,7 +206,6 @@ fn test_user_with_admin_role_can_access_all_fields() {
 
 #[test]
 fn test_scope_matching_exact_match() {
-    // RED: Test that exact scope matching works
     // User has "read:User.email" scope, field requires "read:User.email"
     let schema = create_schema_with_scoped_fields();
 
@@ -243,7 +239,6 @@ fn test_scope_matching_exact_match() {
 
 #[test]
 fn test_scope_matching_wildcard_all() {
-    // RED: Test that global wildcard matches any scope
     let admin_role = RoleDefinition {
         name:        "admin".to_string(),
         description: None,
@@ -260,7 +255,6 @@ fn test_scope_matching_wildcard_all() {
 
 #[test]
 fn test_scope_matching_action_wildcard() {
-    // RED: Test that action wildcard (admin:*) matches specific admin scopes
     let admin_role = RoleDefinition {
         name:        "admin".to_string(),
         description: None,
@@ -277,7 +271,6 @@ fn test_scope_matching_action_wildcard() {
 
 #[test]
 fn test_field_filtering_removes_inaccessible_fields() {
-    // RED: Test that field projection removes fields user cannot access
     // When user with 'viewer' role queries User, password_hash should be removed
 
     let schema = create_schema_with_scoped_fields();
@@ -300,7 +293,6 @@ fn test_field_filtering_removes_inaccessible_fields() {
 
 #[test]
 fn test_missing_scope_error_handling() {
-    // RED: Test error handling when user lacks required scope
     let schema = create_schema_with_scoped_fields();
     let context = create_security_context(vec!["viewer".to_string()]);
 
@@ -321,7 +313,6 @@ fn test_missing_scope_error_handling() {
 
 #[test]
 fn test_multiple_roles_aggregate_scopes() {
-    // RED: Test that multiple roles aggregate their scopes
     let mut context = create_security_context(vec!["viewer".to_string()]);
     context.roles.push("moderator".to_string());
 
@@ -332,7 +323,6 @@ fn test_multiple_roles_aggregate_scopes() {
 
 #[test]
 fn test_default_role_fallback() {
-    // RED: Test that default role is available when user has no explicit role
     let schema = create_schema_with_scoped_fields();
 
     // Get security config
