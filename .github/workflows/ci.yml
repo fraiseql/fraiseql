@@ -5,6 +5,13 @@ on:
     branches: [dev]
   pull_request:
     branches: [dev]
+  workflow_dispatch:
+    inputs:
+      run_ignored_tests:
+        description: 'Run ignored tests (requires manual trigger)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -406,6 +413,60 @@ jobs:
 
       - name: Check for broken links
         run: cargo doc --all-features --no-deps 2>&1 | grep -i "warning" && exit 1 || exit 0
+
+  # Optional: Run all ignored tests (triggered manually)
+  ignored-tests:
+    name: Ignored Tests (Manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-ignored-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql || true
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql || true
+        env:
+          PGPASSWORD: fraiseql_test_password
+
+      - name: Run all ignored tests
+        run: cargo test -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TLS_TEST_DB_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: info
 
   # Benchmark performance (only on v2-development)
   bench:
