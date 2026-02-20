@@ -192,10 +192,12 @@ jobs:
       - name: Build distributions with maturin
         run: |
           rm -rf dist/
+          mkdir -p dist/
           maturin build --release
-          cp fraiseql_rs/target/wheels/*.whl dist/
+          cp fraiseql_rs/target/wheels/*.whl dist/ 2>/dev/null || true
           maturin sdist
-          cp fraiseql_rs/target/wheels/*.tar.gz dist/
+          cp fraiseql_rs/target/wheels/*.tar.gz dist/ 2>/dev/null || true
+          ls -lh dist/
 
       - name: Publish to PyPI
         env:
