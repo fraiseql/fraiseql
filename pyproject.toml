@@ -187,7 +187,7 @@ target-version = ["py313"]
 [tool.maturin]
 features = ["pyo3/extension-module"]
 # Also include typed marker and Rust source files for sdist
-include = ["src/fraiseql/py.typed", "fraiseql_rs/src/**/*", "fraiseql_rs/Cargo.toml"]
+include = ["LICENSE", "src/fraiseql/py.typed", "fraiseql_rs/src/**/*", "fraiseql_rs/Cargo.toml"]
 manifest-path = "fraiseql_rs/Cargo.toml"
 # Module name for the Rust extension (will be installed as fraiseql/_fraiseql_rs.so)
 module-name = "fraiseql._fraiseql_rs"
