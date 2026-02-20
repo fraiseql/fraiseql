@@ -509,6 +509,12 @@ def test_toml_validation_errors():
     Note: This test verifies error handling for invalid TOML structures.
     The test is currently limited by the known issue in the merger.
     """
+    import pytest
+    try:
+        find_fraiseql_cli()
+    except FileNotFoundError:
+        pytest.skip("fraiseql-cli not available (requires: cargo build -p fraiseql-cli)")
+
     tmpdir = create_test_directory()
 
     types_json = {"types": {}}  # Empty types map (valid structure)
