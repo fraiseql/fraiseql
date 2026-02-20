@@ -483,9 +483,9 @@ Median latency:  958 µs
 ```text
 <!-- Code example in TEXT -->
 
-### Full Results Table
+### Full Results
 
-See `.phases/PHASE_3_CYCLE_1_RESULTS.md` for complete data dump.
+Results are from baseline testing during development.
 
 ---
 

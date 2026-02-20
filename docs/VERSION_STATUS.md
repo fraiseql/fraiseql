@@ -36,10 +36,7 @@
 
 **Status**: Design complete, Phase 0 ready to start
 **Completion Date**: December 21, 2025
-**Documentation**:
-
-- `.phases/phase-chaos-engineering-plan.md` - 5-phase implementation plan (500+ lines)
-- `.phases/chaos-engineering-examples.md` - Code examples (400+ lines)
+**Status**: Complete - Development artifacts removed for v1.9.18 release
 
 **5-Phase Roadmap** (4-6 weeks, 100-150 hours):
 
@@ -168,8 +165,6 @@ HTTP Response
 | `fraiseql_rs/src/auth/` | Rust auth implementation | ✅ Complete |
 | `fraiseql_rs/src/auth/py_bindings.rs` | PyO3 bindings | ✅ Complete |
 | `tests/test_rust_auth.py` | Auth test suite (26 tests) | ✅ Complete |
-| `.phases/phase-chaos-engineering-plan.md` | Chaos plan (5 phases) | ✅ Complete |
-| `.phases/chaos-engineering-examples.md` | Code examples | ✅ Complete |
 
 ---
 

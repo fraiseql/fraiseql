@@ -390,13 +390,7 @@ During verification, these mistakes were found in actual examples:
 
 ### Automated Fixes
 
-```bash
-# Run verification to find issues
-python .phases/verify-examples-compliance/verify.py your_example/
-
-# Fix common issues automatically
-python .phases/verify-examples-compliance/auto_fix.py your_example/
-```
+Automated verification tools are available during development. For released versions, use the manual checklist below.
 
 ### Manual Checklist
 

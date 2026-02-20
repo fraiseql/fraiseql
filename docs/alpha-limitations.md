@@ -143,12 +143,11 @@ These features are **not in alpha** but are planned:
 
 ## 🐛 Known Issues (Non-Blocking)
 
-### Minor Issues That Won't Affect Alpha Testing
+### Resolved Issues
 
 1. **Phase Documentation in Codebase**
-   - `.phases/` directory present (will be removed at GA)
-   - Does not affect runtime or functionality
-   - Safe to ignore for alpha testing
+   - `.phases/` directory has been removed (v1.9.18+)
+   - Development artifacts cleaned up for release
 
 2. **Documentation Updates**
    - Some documentation references may be outdated

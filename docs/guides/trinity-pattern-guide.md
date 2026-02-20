@@ -337,16 +337,9 @@ $$;
 
 ## 🔍 Verification Checklist
 
-Run automated verification on your implementation:
+Verify your implementation follows the checklist in the "Manual Verification" section below.
 
-```bash
-# Check single example
-python .phases/verify-examples-compliance/verify.py your_example/
-
-# Should show:
-# ✅ Trinity pattern: PASS
-# ✅ JSONB security: PASS
-# ✅ Foreign keys: PASS
+Note: Automated verification tools are available in development environments.
 ```
 
 ### Manual Verification
