@@ -9,8 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     federation::{
-        database_resolver::DatabaseEntityResolver,
-        selection_parser::FieldSelection,
+        database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
         types::EntityRepresentation,
     },
 };
@@ -270,8 +269,7 @@ fn test_database_transaction_rollback() {
     user.insert("name".to_string(), json!("John"));
 
     let mock_adapter = Arc::new(
-        common::MockDatabaseAdapter::new()
-            .with_table_data("user".to_string(), vec![user.clone()]),
+        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), vec![user.clone()]),
     );
 
     let runtime = tokio::runtime::Runtime::new().unwrap();

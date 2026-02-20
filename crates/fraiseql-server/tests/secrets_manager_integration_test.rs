@@ -1,6 +1,6 @@
 //! Integration tests for SecretsManager initialization and wiring into AppState.
 
-use fraiseql_secrets::secrets_manager::{create_secrets_manager, SecretsBackendConfig, VaultAuth};
+use fraiseql_secrets::secrets_manager::{SecretsBackendConfig, VaultAuth, create_secrets_manager};
 
 /// Test file backend initialization
 #[tokio::test]
@@ -34,14 +34,15 @@ async fn test_env_backend_initialization() {
     .await;
 }
 
-/// Test vault backend initialization with token auth (marked as ignore since it requires running Vault)
+/// Test vault backend initialization with token auth (marked as ignore since it requires running
+/// Vault)
 #[tokio::test]
 #[ignore = "requires vault"]
 async fn test_vault_backend_token_initialization() {
     let config = SecretsBackendConfig::Vault {
-        addr: "http://127.0.0.1:8200".to_string(),
-        auth: VaultAuth::Token("test-token".to_string()),
-        namespace: None,
+        addr:       "http://127.0.0.1:8200".to_string(),
+        auth:       VaultAuth::Token("test-token".to_string()),
+        namespace:  None,
         tls_verify: true,
     };
 
@@ -50,17 +51,18 @@ async fn test_vault_backend_token_initialization() {
     let _secret = manager.get_secret("secret/data/test").await;
 }
 
-/// Test vault backend initialization with AppRole auth (marked as ignore since it requires running Vault)
+/// Test vault backend initialization with AppRole auth (marked as ignore since it requires running
+/// Vault)
 #[tokio::test]
 #[ignore = "requires vault"]
 async fn test_vault_backend_approle_initialization() {
     let config = SecretsBackendConfig::Vault {
-        addr: "http://127.0.0.1:8200".to_string(),
-        auth: VaultAuth::AppRole {
-            role_id: "test-role-id".to_string(),
+        addr:       "http://127.0.0.1:8200".to_string(),
+        auth:       VaultAuth::AppRole {
+            role_id:   "test-role-id".to_string(),
             secret_id: "test-secret-id".to_string(),
         },
-        namespace: None,
+        namespace:  None,
         tls_verify: true,
     };
 
@@ -73,9 +75,9 @@ async fn test_vault_backend_approle_initialization() {
 #[tokio::test]
 async fn test_vault_namespace_configuration() {
     let config = SecretsBackendConfig::Vault {
-        addr: "http://127.0.0.1:8200".to_string(),
-        auth: VaultAuth::Token("test-token".to_string()),
-        namespace: Some("fraiseql/prod".to_string()),
+        addr:       "http://127.0.0.1:8200".to_string(),
+        auth:       VaultAuth::Token("test-token".to_string()),
+        namespace:  Some("fraiseql/prod".to_string()),
         tls_verify: true,
     };
 
@@ -88,9 +90,9 @@ async fn test_vault_namespace_configuration() {
 #[tokio::test]
 async fn test_vault_tls_verification_disabled() {
     let config = SecretsBackendConfig::Vault {
-        addr: "https://127.0.0.1:8200".to_string(),
-        auth: VaultAuth::Token("test-token".to_string()),
-        namespace: None,
+        addr:       "https://127.0.0.1:8200".to_string(),
+        auth:       VaultAuth::Token("test-token".to_string()),
+        namespace:  None,
         tls_verify: false,
     };
 

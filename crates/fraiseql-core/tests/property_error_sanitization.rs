@@ -23,11 +23,13 @@
 //! - Connection string leakage: `error: postgresql://user:pass@host/db connection failed`
 //! - File system disclosure: `error: /root/.ssh/id_rsa permission denied`
 //! - SQL injection signatures: `error: unexpected token DROP`
-//!
+
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 use fraiseql_core::error::FraiseQLError;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
 // ============================================================================
 // Helper Functions for Sanitization Testing
@@ -41,21 +43,35 @@ fn is_safe_message(msg: &str) -> bool {
     }
 
     // Check for database connection strings
-    if msg.contains("postgresql://") || msg.contains("mysql://") ||
-       msg.contains("@localhost") || msg.contains("@127.0.0.1") {
+    if msg.contains("postgresql://")
+        || msg.contains("mysql://")
+        || msg.contains("@localhost")
+        || msg.contains("@127.0.0.1")
+    {
         return false;
     }
 
     // Check for file paths
-    if msg.contains("/root/") || msg.contains("/home/") || msg.contains("/.ssh/") ||
-       msg.contains("/etc/") || msg.contains("/var/") {
+    if msg.contains("/root/")
+        || msg.contains("/home/")
+        || msg.contains("/.ssh/")
+        || msg.contains("/etc/")
+        || msg.contains("/var/")
+    {
         return false;
     }
 
     // Check for SQL keywords that shouldn't appear outside examples
     let dangerous_keywords = [
-        "DROP TABLE", "DELETE FROM", "TRUNCATE", "INSERT INTO",
-        "UPDATE", "ALTER", "EXEC", "EXECUTE", "sp_executesql",
+        "DROP TABLE",
+        "DELETE FROM",
+        "TRUNCATE",
+        "INSERT INTO",
+        "UPDATE",
+        "ALTER",
+        "EXEC",
+        "EXECUTE",
+        "sp_executesql",
     ];
 
     for keyword in dangerous_keywords {
@@ -77,20 +93,53 @@ fn error_hash(err: &FraiseQLError) -> u64 {
 /// Extract user-facing message from error (what clients should see)
 fn user_message(err: &FraiseQLError) -> String {
     match err {
-        FraiseQLError::Parse { message: _, location: _ } => "Query parse error".to_string(),
-        FraiseQLError::Validation { message: _, path: _ } => "Query validation error".to_string(),
-        FraiseQLError::Database { message: _, sql_state: _ } => "Database operation failed".to_string(),
-        FraiseQLError::ConnectionPool { message: _ } => "Service temporarily unavailable".to_string(),
-        FraiseQLError::Timeout { timeout_ms: _, query: _ } => "Request timeout".to_string(),
-        FraiseQLError::Cancelled { query_id: _, reason: _ } => "Request cancelled".to_string(),
-        FraiseQLError::Authorization { message: _, action: _, resource: _ } => "Access denied".to_string(),
+        FraiseQLError::Parse {
+            message: _,
+            location: _,
+        } => "Query parse error".to_string(),
+        FraiseQLError::Validation {
+            message: _,
+            path: _,
+        } => "Query validation error".to_string(),
+        FraiseQLError::Database {
+            message: _,
+            sql_state: _,
+        } => "Database operation failed".to_string(),
+        FraiseQLError::ConnectionPool { message: _ } => {
+            "Service temporarily unavailable".to_string()
+        },
+        FraiseQLError::Timeout {
+            timeout_ms: _,
+            query: _,
+        } => "Request timeout".to_string(),
+        FraiseQLError::Cancelled {
+            query_id: _,
+            reason: _,
+        } => "Request cancelled".to_string(),
+        FraiseQLError::Authorization {
+            message: _,
+            action: _,
+            resource: _,
+        } => "Access denied".to_string(),
         FraiseQLError::Authentication { message: _ } => "Authentication failed".to_string(),
-        FraiseQLError::RateLimited { message: _, retry_after_secs: _ } => "Rate limited".to_string(),
-        FraiseQLError::NotFound { resource_type: _, identifier: _ } => "Resource not found".to_string(),
+        FraiseQLError::RateLimited {
+            message: _,
+            retry_after_secs: _,
+        } => "Rate limited".to_string(),
+        FraiseQLError::NotFound {
+            resource_type: _,
+            identifier: _,
+        } => "Resource not found".to_string(),
         FraiseQLError::Conflict { message: _ } => "Conflict".to_string(),
         FraiseQLError::Configuration { message: _ } => "Configuration error".to_string(),
-        FraiseQLError::Internal { message: _, source: _ } => "Internal error".to_string(),
-        FraiseQLError::UnknownField { field: _, type_name: _ } => "Unknown field".to_string(),
+        FraiseQLError::Internal {
+            message: _,
+            source: _,
+        } => "Internal error".to_string(),
+        FraiseQLError::UnknownField {
+            field: _,
+            type_name: _,
+        } => "Unknown field".to_string(),
         FraiseQLError::UnknownType { type_name: _ } => "Unknown type".to_string(),
         _ => "Unknown error".to_string(),
     }
@@ -137,19 +186,24 @@ fn test_parse_error_deterministic_hash() {
 fn test_database_error_no_connection_leak() {
     let connection_string = "postgresql://admin:secret_password@db.internal:5432/prod_database";
     let err = FraiseQLError::Database {
-        message: format!("Failed to connect: {}", connection_string),
+        message:   format!("Failed to connect: {}", connection_string),
         sql_state: Some("08001".to_string()),
     };
 
     let safe_msg = user_message(&err);
-    assert!(is_safe_message(&safe_msg), "Database error leaked connection string: {}", safe_msg);
+    assert!(
+        is_safe_message(&safe_msg),
+        "Database error leaked connection string: {}",
+        safe_msg
+    );
 }
 
 #[test]
 fn test_database_error_no_schema_leak() {
-    let internal_error = "Column 'password_hash' not found. Available columns: id, email, password_hash, api_key";
+    let internal_error =
+        "Column 'password_hash' not found. Available columns: id, email, password_hash, api_key";
     let err = FraiseQLError::Database {
-        message: internal_error.to_string(),
+        message:   internal_error.to_string(),
         sql_state: Some("42703".to_string()),
     };
 
@@ -169,7 +223,7 @@ fn test_database_error_no_sql_keywords() {
 
     for sql_keyword in error_variants {
         let err = FraiseQLError::Database {
-            message: format!("Query failed: {}", sql_keyword),
+            message:   format!("Query failed: {}", sql_keyword),
             sql_state: None,
         };
 
@@ -215,8 +269,8 @@ fn test_authorization_error_no_sensitive_resource_leak() {
 
     for resource in sensitive_resources {
         let err = FraiseQLError::Authorization {
-            message: format!("Permission denied for {}", resource),
-            action: Some("read".to_string()),
+            message:  format!("Permission denied for {}", resource),
+            action:   Some("read".to_string()),
             resource: Some(resource.to_string()),
         };
 
@@ -277,7 +331,7 @@ fn test_all_error_variants_have_safe_user_messages() {
         FraiseQLError::parse("syntax error at position 42"),
         FraiseQLError::validation("invalid type"),
         FraiseQLError::Database {
-            message: "connection refused".to_string(),
+            message:   "connection refused".to_string(),
             sql_state: Some("08001".to_string()),
         },
         FraiseQLError::ConnectionPool {
@@ -285,27 +339,27 @@ fn test_all_error_variants_have_safe_user_messages() {
         },
         FraiseQLError::Timeout {
             timeout_ms: 5000,
-            query: Some("SELECT * FROM huge_table".to_string()),
+            query:      Some("SELECT * FROM huge_table".to_string()),
         },
         FraiseQLError::Cancelled {
             query_id: "q123".to_string(),
-            reason: "client disconnected".to_string(),
+            reason:   "client disconnected".to_string(),
         },
         FraiseQLError::Authorization {
-            message: "access denied".to_string(),
-            action: Some("read".to_string()),
+            message:  "access denied".to_string(),
+            action:   Some("read".to_string()),
             resource: Some("User.email".to_string()),
         },
         FraiseQLError::Authentication {
             message: "token expired".to_string(),
         },
         FraiseQLError::RateLimited {
-            message: "too many requests".to_string(),
+            message:          "too many requests".to_string(),
             retry_after_secs: 60,
         },
         FraiseQLError::NotFound {
             resource_type: "User".to_string(),
-            identifier: "12345".to_string(),
+            identifier:    "12345".to_string(),
         },
         FraiseQLError::Conflict {
             message: "unique constraint violated".to_string(),
@@ -315,7 +369,7 @@ fn test_all_error_variants_have_safe_user_messages() {
         },
         FraiseQLError::Internal {
             message: "unexpected error".to_string(),
-            source: None,
+            source:  None,
         },
     ];
 
@@ -331,12 +385,12 @@ fn test_all_error_variants_have_safe_user_messages() {
 fn test_error_messages_do_not_contain_internal_marker() {
     let errors: Vec<FraiseQLError> = vec![
         FraiseQLError::Database {
-            message: "internal error occurred".to_string(),
+            message:   "internal error occurred".to_string(),
             sql_state: None,
         },
         FraiseQLError::Internal {
             message: "internal state corrupted".to_string(),
-            source: None,
+            source:  None,
         },
     ];
 
@@ -359,7 +413,7 @@ fn test_error_message_size_bounded() {
         FraiseQLError::parse(huge_message.clone()),
         FraiseQLError::validation(huge_message.clone()),
         FraiseQLError::Database {
-            message: huge_message.clone(),
+            message:   huge_message.clone(),
             sql_state: None,
         },
         FraiseQLError::Configuration {
@@ -369,8 +423,7 @@ fn test_error_message_size_bounded() {
 
     for err in errors {
         let safe_msg = user_message(&err);
-        assert!(safe_msg.len() <= 1000,
-                "Error message not bounded: {} bytes", safe_msg.len());
+        assert!(safe_msg.len() <= 1000, "Error message not bounded: {} bytes", safe_msg.len());
     }
 }
 
@@ -413,12 +466,16 @@ fn test_no_common_secret_patterns() {
     for pattern in secret_patterns {
         let err = FraiseQLError::Internal {
             message: format!("Error with {}: sensitive_value_here", pattern),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
-        assert!(is_safe_message(&safe_msg),
-                "Internal error leaked secret pattern '{}': {}", pattern, safe_msg);
+        assert!(
+            is_safe_message(&safe_msg),
+            "Internal error leaked secret pattern '{}': {}",
+            pattern,
+            safe_msg
+        );
     }
 }
 
@@ -442,8 +499,12 @@ fn test_no_common_system_paths() {
         };
 
         let safe_msg = user_message(&err);
-        assert!(is_safe_message(&safe_msg),
-                "Config error leaked system path '{}': {}", path_prefix, safe_msg);
+        assert!(
+            is_safe_message(&safe_msg),
+            "Config error leaked system path '{}': {}",
+            path_prefix,
+            safe_msg
+        );
     }
 }
 
@@ -462,13 +523,16 @@ fn test_no_database_connection_strings_leaked() {
 
     for conn_str in connection_strings {
         let err = FraiseQLError::Database {
-            message: format!("Connection failed: {}", conn_str),
+            message:   format!("Connection failed: {}", conn_str),
             sql_state: None,
         };
 
         let safe_msg = user_message(&err);
-        assert!(is_safe_message(&safe_msg),
-                "Database error leaked connection string: {}", safe_msg);
+        assert!(
+            is_safe_message(&safe_msg),
+            "Database error leaked connection string: {}",
+            safe_msg
+        );
     }
 }
 
@@ -484,14 +548,13 @@ fn test_no_hostnames_or_ips_leaked() {
 
     for endpoint in endpoints {
         let err = FraiseQLError::Database {
-            message: format!("Cannot reach {}", endpoint),
+            message:   format!("Cannot reach {}", endpoint),
             sql_state: None,
         };
 
         let safe_msg = user_message(&err);
         // Should not contain the specific endpoint
-        assert!(!safe_msg.contains(endpoint),
-                "Error leaked endpoint: {}", endpoint);
+        assert!(!safe_msg.contains(endpoint), "Error leaked endpoint: {}", endpoint);
     }
 }
 
@@ -513,12 +576,15 @@ fn test_no_function_names_leaked() {
     for func_name in function_names {
         let err = FraiseQLError::Internal {
             message: format!("Error in {}: unexpected state", func_name),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
-        assert!(!safe_msg.contains(func_name),
-                "Internal error leaked function name: {}", func_name);
+        assert!(
+            !safe_msg.contains(func_name),
+            "Internal error leaked function name: {}",
+            func_name
+        );
     }
 }
 
@@ -533,12 +599,15 @@ fn test_no_module_paths_leaked() {
     for module_path in module_paths {
         let err = FraiseQLError::Internal {
             message: format!("Panic in {}: {}", module_path, "assertion failed"),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
-        assert!(!safe_msg.contains(module_path),
-                "Internal error leaked module path: {}", module_path);
+        assert!(
+            !safe_msg.contains(module_path),
+            "Internal error leaked module path: {}",
+            module_path
+        );
     }
 }
 
@@ -562,11 +631,13 @@ fn test_error_injection_via_user_input_prevented() {
         let safe_msg = user_message(&err);
 
         // Regardless of input, sanitized message should be safe
-        assert!(is_safe_message(&safe_msg),
-                "Could not sanitize injected payload: {}", payload);
+        assert!(is_safe_message(&safe_msg), "Could not sanitize injected payload: {}", payload);
         // And should be generic (not leak the injection attempt)
-        assert!(safe_msg == "Query parse error",
-                "Sanitized message should be generic, got: {}", safe_msg);
+        assert!(
+            safe_msg == "Query parse error",
+            "Sanitized message should be generic, got: {}",
+            safe_msg
+        );
     }
 }
 
@@ -574,20 +645,19 @@ fn test_error_injection_via_user_input_prevented() {
 fn test_unicode_normalization_attacks_prevented() {
     // Homograph attacks and unicode tricks
     let unicode_attacks = vec![
-        "password (looks like: ρassword)",  // Greek rho
-        "secret (looks like: ѕecret)",      // Cyrillic dze
-        "token\u{202E}token",               // Right-to-left override
+        "password (looks like: ρassword)", // Greek rho
+        "secret (looks like: ѕecret)",     // Cyrillic dze
+        "token\u{202E}token",              // Right-to-left override
     ];
 
     for payload in unicode_attacks {
         let err = FraiseQLError::Internal {
             message: format!("Error: {}", payload),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
-        assert!(is_safe_message(&safe_msg),
-                "Unicode attack not prevented: {}", payload);
+        assert!(is_safe_message(&safe_msg), "Unicode attack not prevented: {}", payload);
     }
 }
 
@@ -597,8 +667,9 @@ fn test_unicode_normalization_attacks_prevented() {
 
 #[cfg(test)]
 mod property_tests {
-    use super::*;
     use proptest::prelude::*;
+
+    use super::*;
 
     // Property 1: All internal messages become safe user messages
     proptest! {

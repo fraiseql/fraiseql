@@ -10,7 +10,7 @@ use fraiseql_core::{
     db::traits::DatabaseAdapter,
     federation::{
         database_resolver::DatabaseEntityResolver,
-        selection_parser::{parse_field_selection, FieldSelection},
+        selection_parser::{FieldSelection, parse_field_selection},
         types::EntityRepresentation,
     },
 };

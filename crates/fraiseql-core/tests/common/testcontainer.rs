@@ -8,7 +8,7 @@ use std::sync::Arc;
 use fraiseql_core::db::postgres::PostgresAdapter;
 use testcontainers_modules::{
     postgres::Postgres,
-    testcontainers::{runners::AsyncRunner, ContainerAsync},
+    testcontainers::{ContainerAsync, runners::AsyncRunner},
 };
 use tokio::sync::OnceCell;
 
@@ -19,7 +19,7 @@ static CONTAINER: OnceCell<Arc<TestContainer>> = OnceCell::const_new();
 
 pub struct TestContainer {
     #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
+    container:    ContainerAsync<Postgres>,
     pub port:     u16,
     pub user:     String,
     pub password: String,
@@ -58,14 +58,10 @@ async fn start_postgres_container() -> TestContainer {
         .await
         .expect("Failed to start PostgreSQL container");
 
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("Failed to get container port");
+    let port = container.get_host_port_ipv4(5432).await.expect("Failed to get container port");
 
-    let conn_string = format!(
-        "host=127.0.0.1 port={port} user={user} password={password} dbname={database}",
-    );
+    let conn_string =
+        format!("host=127.0.0.1 port={port} user={user} password={password} dbname={database}",);
 
     let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
         .await
@@ -77,15 +73,9 @@ async fn start_postgres_container() -> TestContainer {
         }
     });
 
-    client
-        .batch_execute(SCHEMA_SQL)
-        .await
-        .expect("Failed to create schema");
+    client.batch_execute(SCHEMA_SQL).await.expect("Failed to create schema");
 
-    client
-        .batch_execute(SEED_SQL)
-        .await
-        .expect("Failed to seed data");
+    client.batch_execute(SEED_SQL).await.expect("Failed to seed data");
 
     TestContainer {
         container,

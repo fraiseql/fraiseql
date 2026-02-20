@@ -46,12 +46,8 @@ async fn explain_returns_sql_equivalent() {
 #[tokio::test]
 async fn explain_rejects_empty_query() {
     let router = api_router(make_test_state());
-    let (status, json) = post_json(
-        &router,
-        "/api/v1/query/explain",
-        serde_json::json!({ "query": "" }),
-    )
-    .await;
+    let (status, json) =
+        post_json(&router, "/api/v1/query/explain", serde_json::json!({ "query": "" })).await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(json["code"], "VALIDATION_ERROR");
@@ -60,14 +56,12 @@ async fn explain_rejects_empty_query() {
 #[tokio::test]
 async fn explain_deeply_nested_query_generates_warnings() {
     // Build a query with depth > 10 to trigger the depth warning
-    let deep_query = "query { a { b { c { d { e { f { g { h { i { j { k { l } } } } } } } } } } } }";
+    let deep_query =
+        "query { a { b { c { d { e { f { g { h { i { j { k { l } } } } } } } } } } } }";
     let router = api_router(make_test_state());
-    let (status, json) = post_json(
-        &router,
-        "/api/v1/query/explain",
-        serde_json::json!({ "query": deep_query }),
-    )
-    .await;
+    let (status, json) =
+        post_json(&router, "/api/v1/query/explain", serde_json::json!({ "query": deep_query }))
+            .await;
 
     assert_eq!(status, StatusCode::OK);
     let warnings = json["data"]["warnings"].as_array().unwrap();
@@ -116,12 +110,8 @@ async fn validate_rejects_mismatched_braces() {
 #[tokio::test]
 async fn validate_reports_empty_query_as_invalid() {
     let router = api_router(make_test_state());
-    let (status, json) = post_json(
-        &router,
-        "/api/v1/query/validate",
-        serde_json::json!({ "query": "" }),
-    )
-    .await;
+    let (status, json) =
+        post_json(&router, "/api/v1/query/validate", serde_json::json!({ "query": "" })).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["data"]["valid"], false);

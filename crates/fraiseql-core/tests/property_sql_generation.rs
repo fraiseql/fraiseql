@@ -4,12 +4,11 @@
 //! safe, well-formed output for any valid input combination.
 
 use fraiseql_core::db::{
-    postgres::PostgresWhereGenerator,
+    WhereClause, WhereOperator, postgres::PostgresWhereGenerator,
     where_sql_generator::WhereSqlGenerator,
-    WhereClause, WhereOperator,
 };
 use proptest::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 // ============================================================================
 // Strategies for generating arbitrary WhereClause ASTs
@@ -84,13 +83,13 @@ fn arb_comparison_field() -> impl Strategy<Value = WhereClause> {
 
 /// Strategy for generating a WhereClause::Field with string operators.
 fn arb_string_field() -> impl Strategy<Value = WhereClause> {
-    (arb_path(), arb_string_operator(), arb_string_value()).prop_map(
-        |(path, operator, value)| WhereClause::Field {
+    (arb_path(), arb_string_operator(), arb_string_value()).prop_map(|(path, operator, value)| {
+        WhereClause::Field {
             path,
             operator,
             value,
-        },
-    )
+        }
+    })
 }
 
 /// Strategy for generating a WhereClause::Field with IN/NIN.

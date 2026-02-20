@@ -29,11 +29,7 @@ fn make_post_data() -> Vec<JsonbValue> {
 async fn test_cache_stampede_limited_database_hits() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
     let cache = QueryResultCache::new(CacheConfig::default());
-    let cached = Arc::new(CachedDatabaseAdapter::new(
-        adapter,
-        cache,
-        "1.0.0".to_string(),
-    ));
+    let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
     let barrier = Arc::new(Barrier::new(50));
 
     let mut handles = Vec::with_capacity(50);
@@ -42,9 +38,7 @@ async fn test_cache_stampede_limited_database_hits() {
         let barrier = Arc::clone(&barrier);
         handles.push(tokio::spawn(async move {
             barrier.wait().await;
-            cached
-                .execute_where_query("v_user", None, None, None)
-                .await
+            cached.execute_where_query("v_user", None, None, None).await
         }));
     }
 
@@ -66,17 +60,10 @@ async fn test_cache_stampede_limited_database_hits() {
 async fn test_concurrent_reads_and_invalidation_no_deadlock() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
     let cache = QueryResultCache::new(CacheConfig::default());
-    let cached = Arc::new(CachedDatabaseAdapter::new(
-        adapter,
-        cache,
-        "1.0.0".to_string(),
-    ));
+    let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
 
     // Warm the cache
-    cached
-        .execute_where_query("v_user", None, None, None)
-        .await
-        .unwrap();
+    cached.execute_where_query("v_user", None, None, None).await.unwrap();
 
     let mut handles = Vec::with_capacity(11);
 
@@ -85,9 +72,7 @@ async fn test_concurrent_reads_and_invalidation_no_deadlock() {
         let cached = Arc::clone(&cached);
         handles.push(tokio::spawn(async move {
             for _ in 0..100 {
-                let result = cached
-                    .execute_where_query("v_user", None, None, None)
-                    .await;
+                let result = cached.execute_where_query("v_user", None, None, None).await;
                 assert!(result.is_ok());
             }
         }));
@@ -115,21 +100,11 @@ async fn test_concurrent_queries_different_views_independent() {
         .with_response("v_user", make_user_data())
         .with_response("v_post", make_post_data());
     let cache = QueryResultCache::new(CacheConfig::default());
-    let cached = Arc::new(CachedDatabaseAdapter::new(
-        adapter,
-        cache,
-        "1.0.0".to_string(),
-    ));
+    let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
 
     // Warm both caches
-    cached
-        .execute_where_query("v_user", None, None, None)
-        .await
-        .unwrap();
-    cached
-        .execute_where_query("v_post", None, None, None)
-        .await
-        .unwrap();
+    cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    cached.execute_where_query("v_post", None, None, None).await.unwrap();
     let count_after_warm = cached.inner().query_count();
     assert_eq!(count_after_warm, 2);
 
@@ -139,9 +114,7 @@ async fn test_concurrent_queries_different_views_independent() {
         let cached = Arc::clone(&cached);
         let view = if i % 2 == 0 { "v_user" } else { "v_post" };
         handles.push(tokio::spawn(async move {
-            cached
-                .execute_where_query(view, None, None, None)
-                .await
+            cached.execute_where_query(view, None, None, None).await
         }));
     }
 
@@ -150,16 +123,11 @@ async fn test_concurrent_queries_different_views_independent() {
     }
 
     // Invalidate v_user only
-    cached
-        .invalidate_views(&["v_user".to_string()])
-        .unwrap();
+    cached.invalidate_views(&["v_user".to_string()]).unwrap();
 
     // v_post should still be cached (no additional DB hit)
     let count_before = cached.inner().query_count();
-    cached
-        .execute_where_query("v_post", None, None, None)
-        .await
-        .unwrap();
+    cached.execute_where_query("v_post", None, None, None).await.unwrap();
     assert_eq!(
         cached.inner().query_count(),
         count_before,
@@ -167,10 +135,7 @@ async fn test_concurrent_queries_different_views_independent() {
     );
 
     // v_user should miss cache (causes a DB hit)
-    cached
-        .execute_where_query("v_user", None, None, None)
-        .await
-        .unwrap();
+    cached.execute_where_query("v_user", None, None, None).await.unwrap();
     assert_eq!(cached.inner().query_count(), count_before + 1);
 }
 
@@ -178,35 +143,21 @@ async fn test_concurrent_queries_different_views_independent() {
 async fn test_concurrent_cache_hits_return_consistent_data() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
     let cache = QueryResultCache::new(CacheConfig::default());
-    let cached = Arc::new(CachedDatabaseAdapter::new(
-        adapter,
-        cache,
-        "1.0.0".to_string(),
-    ));
+    let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
 
     // Warm the cache
-    let expected = cached
-        .execute_where_query("v_user", None, None, None)
-        .await
-        .unwrap();
-    let expected_json: Vec<String> = expected
-        .iter()
-        .map(|v| serde_json::to_string(v.as_value()).unwrap())
-        .collect();
+    let expected = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+    let expected_json: Vec<String> =
+        expected.iter().map(|v| serde_json::to_string(v.as_value()).unwrap()).collect();
 
     let mut handles = Vec::with_capacity(50);
     for _ in 0..50 {
         let cached = Arc::clone(&cached);
         let expected_json = expected_json.clone();
         handles.push(tokio::spawn(async move {
-            let result = cached
-                .execute_where_query("v_user", None, None, None)
-                .await
-                .unwrap();
-            let result_json: Vec<String> = result
-                .iter()
-                .map(|v| serde_json::to_string(v.as_value()).unwrap())
-                .collect();
+            let result = cached.execute_where_query("v_user", None, None, None).await.unwrap();
+            let result_json: Vec<String> =
+                result.iter().map(|v| serde_json::to_string(v.as_value()).unwrap()).collect();
             assert_eq!(result_json, expected_json, "cached data must be consistent");
         }));
     }

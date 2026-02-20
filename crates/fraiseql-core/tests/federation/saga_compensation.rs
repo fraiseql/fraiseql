@@ -4,12 +4,12 @@
 //! - Cycle 3: Automatic compensation scenarios (9 tests)
 //! - Cycle 4: Manual compensation strategy (5 tests)
 
-use super::common;
-
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},
 };
+
+use super::common;
 
 // ===========================================================================================
 // CYCLE 3: AUTOMATIC COMPENSATION SCENARIOS
@@ -272,11 +272,13 @@ async fn test_manual_compensation_can_be_triggered_after_failure() {
 #[tokio::test]
 async fn test_manual_compensation_executes_same_as_automatic() {
     // Given: Two sagas - one automatic, one manual, both with same failure point
-    let auto_scenario = common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Automatic);
+    let auto_scenario =
+        common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Automatic);
     let (_, auto_saga_id) = common::execute_saga_scenario(auto_scenario).await;
     common::execute_all_steps_with_failure(auto_saga_id, 4, Some(3)).await;
 
-    let manual_scenario = common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Manual);
+    let manual_scenario =
+        common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Manual);
     let (_, manual_saga_id) = common::execute_saga_scenario(manual_scenario).await;
     common::execute_all_steps_with_failure(manual_saga_id, 4, Some(3)).await;
     common::execute_compensation(manual_saga_id, 2).await;
@@ -305,11 +307,13 @@ async fn test_manual_compensation_executes_same_as_automatic() {
 #[tokio::test]
 async fn test_cancel_saga_triggers_compensation_regardless_of_strategy() {
     // Given: One saga with automatic and one with manual strategy
-    let auto_scenario = common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Automatic);
+    let auto_scenario =
+        common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Automatic);
     let (_, auto_saga_id) = common::execute_saga_scenario(auto_scenario).await;
     common::execute_all_steps(auto_saga_id, 3).await;
 
-    let manual_scenario = common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Manual);
+    let manual_scenario =
+        common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Manual);
     let (_, manual_saga_id) = common::execute_saga_scenario(manual_scenario).await;
     common::execute_all_steps(manual_saga_id, 3).await;
 

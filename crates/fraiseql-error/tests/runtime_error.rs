@@ -63,7 +63,10 @@ fn from_integration_error() {
 fn from_sqlx_error() {
     let err: RuntimeError = sqlx::Error::RowNotFound.into();
     assert_eq!(err.error_code(), "database_error");
-    assert_eq!(err.to_string(), "Database error: no rows returned by a query that expected to return at least one row");
+    assert_eq!(
+        err.to_string(),
+        "Database error: no rows returned by a query that expected to return at least one row"
+    );
 }
 
 #[test]
@@ -118,20 +121,12 @@ fn internal_error_with_source() {
 
 #[test]
 fn docs_url_format() {
-    let err = RuntimeError::RateLimited {
-        retry_after: None,
-    };
-    assert_eq!(
-        err.docs_url(),
-        "https://docs.fraiseql.dev/errors#rate_limited"
-    );
+    let err = RuntimeError::RateLimited { retry_after: None };
+    assert_eq!(err.docs_url(), "https://docs.fraiseql.dev/errors#rate_limited");
 }
 
 #[test]
 fn docs_url_delegates_to_inner() {
     let err: RuntimeError = AuthError::TokenExpired.into();
-    assert_eq!(
-        err.docs_url(),
-        "https://docs.fraiseql.dev/errors#token_expired"
-    );
+    assert_eq!(err.docs_url(), "https://docs.fraiseql.dev/errors#token_expired");
 }

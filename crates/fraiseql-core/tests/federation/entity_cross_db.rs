@@ -5,8 +5,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::federation::{
-    database_resolver::DatabaseEntityResolver,
-    selection_parser::FieldSelection,
+    database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
     types::EntityRepresentation,
 };
 use serde_json::json;

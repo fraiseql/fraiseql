@@ -12,6 +12,6 @@ pub use database_fixture::{
     DatabaseFixture, GraphQLResult, PostFixture, TestDataBuilder, UserFixture,
 };
 #[allow(unused_imports)]
-pub use graphql_executor::TestGraphQLExecutor;
-#[allow(unused_imports)]
 pub use fraiseql_test_utils::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
+#[allow(unused_imports)]
+pub use graphql_executor::TestGraphQLExecutor;

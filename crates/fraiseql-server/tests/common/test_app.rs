@@ -6,13 +6,16 @@
 use std::sync::Arc;
 
 use axum::{
-    Router, body::Body,
+    Router,
+    body::Body,
     routing::{get, post},
 };
 use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 use fraiseql_server::routes::{
-    api::query::{explain_handler, stats_handler, validate_handler},
-    api::schema::{export_json_handler, export_sdl_handler},
+    api::{
+        query::{explain_handler, stats_handler, validate_handler},
+        schema::{export_json_handler, export_sdl_handler},
+    },
     graphql::AppState,
     health::health_handler,
     introspection::introspection_handler,
@@ -40,36 +43,18 @@ pub fn make_test_state_with(
 pub fn health_router(state: AppState<FailingAdapter>) -> Router {
     Router::new()
         .route("/health", get(health_handler::<FailingAdapter>))
-        .route(
-            "/introspection",
-            get(introspection_handler::<FailingAdapter>),
-        )
+        .route("/introspection", get(introspection_handler::<FailingAdapter>))
         .with_state(state)
 }
 
 /// Build a router with API query and schema endpoints.
 pub fn api_router(state: AppState<FailingAdapter>) -> Router {
     Router::new()
-        .route(
-            "/api/v1/query/explain",
-            post(explain_handler::<FailingAdapter>),
-        )
-        .route(
-            "/api/v1/query/validate",
-            post(validate_handler::<FailingAdapter>),
-        )
-        .route(
-            "/api/v1/query/stats",
-            get(stats_handler::<FailingAdapter>),
-        )
-        .route(
-            "/api/v1/schema.graphql",
-            get(export_sdl_handler::<FailingAdapter>),
-        )
-        .route(
-            "/api/v1/schema.json",
-            get(export_json_handler::<FailingAdapter>),
-        )
+        .route("/api/v1/query/explain", post(explain_handler::<FailingAdapter>))
+        .route("/api/v1/query/validate", post(validate_handler::<FailingAdapter>))
+        .route("/api/v1/query/stats", get(stats_handler::<FailingAdapter>))
+        .route("/api/v1/schema.graphql", get(export_sdl_handler::<FailingAdapter>))
+        .route("/api/v1/schema.json", get(export_json_handler::<FailingAdapter>))
         .with_state(state)
 }
 
@@ -81,9 +66,7 @@ pub async fn get_json(router: &Router, uri: &str) -> (StatusCode, serde_json::Va
         .await
         .unwrap();
     let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     (status, json)
 }
@@ -96,9 +79,7 @@ pub async fn get_text(router: &Router, uri: &str) -> (StatusCode, String) {
         .await
         .unwrap();
     let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     (status, String::from_utf8(body.to_vec()).unwrap())
 }
 
@@ -121,9 +102,7 @@ pub async fn post_json(
         .await
         .unwrap();
     let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     (status, json)
 }

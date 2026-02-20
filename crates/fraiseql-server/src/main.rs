@@ -261,7 +261,7 @@ async fn main() -> anyhow::Result<()> {
             Err(e) => {
                 tracing::error!(error = %e, "Failed to initialize secrets manager");
                 anyhow::bail!("Secrets manager initialization failed: {}", e);
-            }
+            },
         }
     } else {
         tracing::debug!("Secrets manager disabled (set FRAISEQL_SECRETS_BACKEND to enable)");

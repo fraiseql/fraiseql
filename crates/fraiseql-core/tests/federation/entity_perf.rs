@@ -6,8 +6,7 @@
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use fraiseql_core::federation::{
-    database_resolver::DatabaseEntityResolver,
-    selection_parser::FieldSelection,
+    database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
     types::EntityRepresentation,
 };
 use serde_json::json;
@@ -82,9 +81,8 @@ fn test_batch_100_entities_resolution_latency() {
         });
     }
 
-    let mock_adapter = Arc::new(
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), rows),
-    );
+    let mock_adapter =
+        Arc::new(common::MockDatabaseAdapter::new().with_table_data("user".to_string(), rows));
 
     let metadata = common::metadata_single_key("User", "id");
 
@@ -117,9 +115,8 @@ fn test_concurrent_entity_resolution() {
         users.push(user);
     }
 
-    let mock_adapter = Arc::new(
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), users),
-    );
+    let mock_adapter =
+        Arc::new(common::MockDatabaseAdapter::new().with_table_data("user".to_string(), users));
 
     let metadata = common::metadata_single_key("User", "id");
 

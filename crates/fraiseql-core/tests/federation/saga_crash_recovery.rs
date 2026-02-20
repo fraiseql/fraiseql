@@ -3,13 +3,12 @@
 //! Tests validate recovery from crashes during forward phase,
 //! compensation phase, multiple crashes, and step-level crash scenarios.
 
-use super::common;
-
 use fraiseql_core::federation::{
-    saga_compensator::SagaCompensator,
-    saga_coordinator::CompensationStrategy,
+    saga_compensator::SagaCompensator, saga_coordinator::CompensationStrategy,
     saga_executor::SagaExecutor,
 };
+
+use super::common;
 
 // ===========================================================================================
 // CRASH/INTERRUPTION RECOVERY SCENARIOS

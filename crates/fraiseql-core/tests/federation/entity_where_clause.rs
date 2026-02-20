@@ -5,8 +5,7 @@
 use std::collections::HashMap;
 
 use fraiseql_core::federation::{
-    query_builder::construct_where_in_clause,
-    types::EntityRepresentation,
+    query_builder::construct_where_in_clause, types::EntityRepresentation,
 };
 use serde_json::json;
 

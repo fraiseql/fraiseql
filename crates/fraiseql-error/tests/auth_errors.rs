@@ -82,22 +82,13 @@ fn insufficient_permissions_error_code_and_display() {
         required: "admin".into(),
     };
     assert_eq!(err.error_code(), "insufficient_permissions");
-    assert_eq!(
-        err.to_string(),
-        "Insufficient permissions: requires admin"
-    );
+    assert_eq!(err.to_string(), "Insufficient permissions: requires admin");
 }
 
 #[test]
 fn refresh_token_invalid_error_code_and_display() {
-    assert_eq!(
-        AuthError::RefreshTokenInvalid.error_code(),
-        "refresh_token_invalid"
-    );
-    assert_eq!(
-        AuthError::RefreshTokenInvalid.to_string(),
-        "Refresh token invalid or expired"
-    );
+    assert_eq!(AuthError::RefreshTokenInvalid.error_code(), "refresh_token_invalid");
+    assert_eq!(AuthError::RefreshTokenInvalid.to_string(), "Refresh token invalid or expired");
 }
 
 #[test]

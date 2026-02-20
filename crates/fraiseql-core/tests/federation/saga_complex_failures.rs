@@ -4,13 +4,13 @@
 //! with retry, concurrent saga mixed outcomes, cascading failures,
 //! timeout handling, network error retry, and partial result handling.
 
-use super::common;
-
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},
     saga_executor::SagaExecutor,
 };
+
+use super::common;
 
 // ===========================================================================================
 // COMPLEX MULTI-FAILURE SCENARIOS

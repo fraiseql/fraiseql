@@ -24,17 +24,13 @@ fn make_post_data() -> Vec<JsonbValue> {
 
 #[tokio::test]
 async fn test_100_concurrent_reads_all_succeed() {
-    let adapter = Arc::new(
-        FailingAdapter::new().with_response("v_user", make_user_data()),
-    );
+    let adapter = Arc::new(FailingAdapter::new().with_response("v_user", make_user_data()));
 
     let mut handles = Vec::with_capacity(100);
     for _ in 0..100 {
         let adapter = Arc::clone(&adapter);
         handles.push(tokio::spawn(async move {
-            adapter
-                .execute_where_query("v_user", None, None, None)
-                .await
+            adapter.execute_where_query("v_user", None, None, None).await
         }));
     }
 
@@ -61,9 +57,7 @@ async fn test_concurrent_reads_to_different_views() {
         let adapter = Arc::clone(&adapter);
         let view = if i < 50 { "v_user" } else { "v_post" };
         handles.push(tokio::spawn(async move {
-            adapter
-                .execute_where_query(view, None, None, None)
-                .await
+            adapter.execute_where_query(view, None, None, None).await
         }));
     }
 
@@ -93,9 +87,7 @@ async fn test_concurrent_queries_with_single_failure() {
     for _ in 0..100 {
         let adapter = Arc::clone(&adapter);
         handles.push(tokio::spawn(async move {
-            adapter
-                .execute_where_query("v_user", None, None, None)
-                .await
+            adapter.execute_where_query("v_user", None, None, None).await
         }));
     }
 
@@ -115,9 +107,7 @@ async fn test_concurrent_queries_with_single_failure() {
 
 #[tokio::test]
 async fn test_barrier_synchronized_concurrent_queries() {
-    let adapter = Arc::new(
-        FailingAdapter::new().with_response("v_user", make_user_data()),
-    );
+    let adapter = Arc::new(FailingAdapter::new().with_response("v_user", make_user_data()));
     let barrier = Arc::new(Barrier::new(50));
 
     let mut handles = Vec::with_capacity(50);
@@ -126,9 +116,7 @@ async fn test_barrier_synchronized_concurrent_queries() {
         let barrier = Arc::clone(&barrier);
         handles.push(tokio::spawn(async move {
             barrier.wait().await;
-            adapter
-                .execute_where_query("v_user", None, None, None)
-                .await
+            adapter.execute_where_query("v_user", None, None, None).await
         }));
     }
 

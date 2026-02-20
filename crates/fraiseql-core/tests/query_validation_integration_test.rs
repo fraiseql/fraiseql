@@ -51,8 +51,7 @@ fn parse_query_extracts_selections() {
 
 #[test]
 fn parse_query_extracts_variables() {
-    let parsed =
-        parse_query("query GetUser($id: ID!) { user(id: $id) { name } }").unwrap();
+    let parsed = parse_query("query GetUser($id: ID!) { user(id: $id) { name } }").unwrap();
     assert_eq!(parsed.operation_name, Some("GetUser".to_string()));
     assert!(!parsed.variables.is_empty());
     assert_eq!(parsed.variables[0].name, "id");
@@ -74,16 +73,10 @@ fn compiled_schema_new_is_empty() {
 fn compiled_schema_from_json_roundtrip() {
     let mut schema = CompiledSchema::new();
     let mut user_type = TypeDefinition::new("User", "v_user");
-    user_type
-        .fields
-        .push(FieldDefinition::new("id", FieldType::Int));
-    user_type
-        .fields
-        .push(FieldDefinition::new("name", FieldType::String));
+    user_type.fields.push(FieldDefinition::new("id", FieldType::Int));
+    user_type.fields.push(FieldDefinition::new("name", FieldType::String));
     schema.types.push(user_type);
-    schema
-        .queries
-        .push(QueryDefinition::new("getUser", "User"));
+    schema.queries.push(QueryDefinition::new("getUser", "User"));
 
     let json = serde_json::to_string(&schema).unwrap();
     let restored = CompiledSchema::from_json(&json).unwrap();
@@ -113,9 +106,7 @@ fn compiled_schema_type_lookup() {
 fn query_return_type_references_existing_type() {
     let mut schema = CompiledSchema::new();
     schema.types.push(TypeDefinition::new("User", "v_user"));
-    schema
-        .queries
-        .push(QueryDefinition::new("getUser", "User"));
+    schema.queries.push(QueryDefinition::new("getUser", "User"));
 
     let query = &schema.queries[0];
     let type_exists = schema.types.iter().any(|t| t.name == query.return_type);

@@ -160,7 +160,7 @@ proptest! {
         if result.is_ok() {
             let (_, consumed) = result.unwrap();
             // consumed should be tag (1) + length field (4) + body
-            prop_assert_eq!(consumed, (1 + body_len + 4));
+            prop_assert_eq!(consumed, 1 + body_len + 4);
         }
     }
 

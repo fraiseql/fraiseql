@@ -20,10 +20,7 @@ fn provider_error_code_and_display() {
         message:  "rate limited".into(),
     };
     assert_eq!(err.error_code(), "notification_provider_error");
-    assert_eq!(
-        err.to_string(),
-        "Provider error: sendgrid - rate limited"
-    );
+    assert_eq!(err.to_string(), "Provider error: sendgrid - rate limited");
 }
 
 #[test]
@@ -70,10 +67,7 @@ fn provider_rate_limited_error_code_and_display() {
         seconds:  60,
     };
     assert_eq!(err.error_code(), "notification_rate_limited");
-    assert_eq!(
-        err.to_string(),
-        "Rate limited by provider: retry after 60 seconds"
-    );
+    assert_eq!(err.to_string(), "Rate limited by provider: retry after 60 seconds");
 }
 
 #[test]
@@ -83,17 +77,11 @@ fn circuit_open_error_code_and_display() {
         retry_after: Duration::from_secs(120),
     };
     assert_eq!(err.error_code(), "notification_circuit_open");
-    assert_eq!(
-        err.to_string(),
-        "Circuit breaker open for provider: ses"
-    );
+    assert_eq!(err.to_string(), "Circuit breaker open for provider: ses");
 }
 
 #[test]
 fn timeout_error_code_and_display() {
     assert_eq!(NotificationError::Timeout.error_code(), "notification_timeout");
-    assert_eq!(
-        NotificationError::Timeout.to_string(),
-        "Timeout sending notification"
-    );
+    assert_eq!(NotificationError::Timeout.to_string(), "Timeout sending notification");
 }

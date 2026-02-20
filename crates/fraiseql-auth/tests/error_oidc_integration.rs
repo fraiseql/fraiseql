@@ -69,12 +69,10 @@ async fn oidc_discovery_missing_required_fields_returns_error() {
     // Return valid JSON but missing required OIDC fields
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "issuer": "https://example.com"
-                // Missing: authorization_endpoint, token_endpoint, userinfo_endpoint
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issuer": "https://example.com"
+            // Missing: authorization_endpoint, token_endpoint, userinfo_endpoint
+        })))
         .mount(&mock_server)
         .await;
 

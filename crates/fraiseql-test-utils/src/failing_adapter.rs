@@ -27,11 +27,11 @@ use fraiseql_core::{
 #[derive(Debug, Clone, Default)]
 pub struct FailConfig {
     /// Fail on the Nth query (0-indexed).
-    pub fail_on_query: Option<u64>,
+    pub fail_on_query:     Option<u64>,
     /// Return a `Timeout` error with this duration in milliseconds.
-    pub timeout_ms: Option<u64>,
+    pub timeout_ms:        Option<u64>,
     /// Return this specific error on failure.
-    pub error: Option<FailError>,
+    pub error:             Option<FailError>,
     /// Make `health_check` return an error.
     pub fail_health_check: bool,
 }
@@ -97,13 +97,13 @@ impl FailError {
 #[derive(Clone)]
 pub struct FailingAdapter {
     /// Canned responses per view name.
-    responses: Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    responses:   Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
     /// Failure injection configuration.
     fail_config: Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
     query_count: Arc<AtomicU64>,
     /// Log of all query view names for assertion.
-    query_log: Arc<Mutex<Vec<String>>>,
+    query_log:   Arc<Mutex<Vec<String>>>,
 }
 
 impl FailingAdapter {
@@ -231,12 +231,7 @@ impl FailingAdapter {
 
     /// Get canned response for a view, or empty vec.
     fn get_response(&self, view: &str) -> Vec<JsonbValue> {
-        self.responses
-            .lock()
-            .unwrap()
-            .get(view)
-            .cloned()
-            .unwrap_or_default()
+        self.responses.lock().unwrap().get(view).cloned().unwrap_or_default()
     }
 }
 
@@ -309,44 +304,30 @@ mod tests {
     #[tokio::test]
     async fn test_default_returns_empty() {
         let adapter = FailingAdapter::new();
-        let result = adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        let result = adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert!(result.is_empty());
     }
 
     #[tokio::test]
     async fn test_canned_response() {
-        let adapter = FailingAdapter::new().with_response(
-            "v_user",
-            vec![JsonbValue::new(serde_json::json!({"id": 1}))],
-        );
-        let result = adapter
-            .execute_where_query("v_user", None, None, None)
-            .await
-            .unwrap();
+        let adapter = FailingAdapter::new()
+            .with_response("v_user", vec![JsonbValue::new(serde_json::json!({"id": 1}))]);
+        let result = adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[tokio::test]
     async fn test_fail_on_query_zero() {
         let adapter = FailingAdapter::new().fail_on_query(0);
-        let result = adapter
-            .execute_where_query("v_user", None, None, None)
-            .await;
+        let result = adapter.execute_where_query("v_user", None, None, None).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_query_count_and_log() {
         let adapter = FailingAdapter::new();
-        let _ = adapter
-            .execute_where_query("v_user", None, None, None)
-            .await;
-        let _ = adapter
-            .execute_where_query("v_post", None, None, None)
-            .await;
+        let _ = adapter.execute_where_query("v_user", None, None, None).await;
+        let _ = adapter.execute_where_query("v_post", None, None, None).await;
         assert_eq!(adapter.query_count(), 2);
         assert_eq!(adapter.recorded_queries(), vec!["v_user", "v_post"]);
     }
@@ -354,19 +335,9 @@ mod tests {
     #[tokio::test]
     async fn test_reset() {
         let adapter = FailingAdapter::new().fail_on_query(0);
-        assert!(
-            adapter
-                .execute_where_query("v_user", None, None, None)
-                .await
-                .is_err()
-        );
+        assert!(adapter.execute_where_query("v_user", None, None, None).await.is_err());
         adapter.reset();
-        assert!(
-            adapter
-                .execute_where_query("v_user", None, None, None)
-                .await
-                .is_ok()
-        );
+        assert!(adapter.execute_where_query("v_user", None, None, None).await.is_ok());
         assert_eq!(adapter.query_count(), 1);
     }
 }

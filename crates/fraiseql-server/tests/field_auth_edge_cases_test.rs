@@ -29,20 +29,20 @@ use std::collections::HashSet;
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct TestSecurityContext {
-    user_id: String,
+    user_id:   String,
     tenant_id: String,
-    roles: Vec<String>,
-    scopes: HashSet<String>,
+    roles:     Vec<String>,
+    scopes:    HashSet<String>,
 }
 
 impl TestSecurityContext {
     /// Create a new security context
     fn new(user_id: &str, tenant_id: &str, roles: Vec<&str>) -> Self {
         Self {
-            user_id: user_id.to_string(),
+            user_id:   user_id.to_string(),
             tenant_id: tenant_id.to_string(),
-            roles: roles.iter().map(|r| r.to_string()).collect(),
-            scopes: HashSet::new(),
+            roles:     roles.iter().map(|r| r.to_string()).collect(),
+            scopes:    HashSet::new(),
         }
     }
 
@@ -54,18 +54,19 @@ impl TestSecurityContext {
 
     /// Check if user has a specific scope
     fn has_scope(&self, scope: &str) -> bool {
-        self.scopes.contains(scope) || self.scopes.iter().any(|s| {
-            // Support wildcard matching
-            if s == "read:*.*" || s == "write:*.*" {
-                // Admin wildcard: matches everything with same prefix (read: or write:)
-                scope.starts_with("read:") || scope.starts_with("write:")
-            } else if s.ends_with(".*") {
-                let prefix = &s[..s.len() - 2];
-                scope.starts_with(&format!("{}.", prefix))
-            } else {
-                false
-            }
-        })
+        self.scopes.contains(scope)
+            || self.scopes.iter().any(|s| {
+                // Support wildcard matching
+                if s == "read:*.*" || s == "write:*.*" {
+                    // Admin wildcard: matches everything with same prefix (read: or write:)
+                    scope.starts_with("read:") || scope.starts_with("write:")
+                } else if s.ends_with(".*") {
+                    let prefix = &s[..s.len() - 2];
+                    scope.starts_with(&format!("{}.", prefix))
+                } else {
+                    false
+                }
+            })
     }
 
     /// Check if user can read a field
@@ -105,24 +106,24 @@ impl TestSecurityContext {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct FieldDefinition {
-    type_name: String,
-    field_name: String,
-    required_read_scope: Option<String>,
+    type_name:            String,
+    field_name:           String,
+    required_read_scope:  Option<String>,
     required_write_scope: Option<String>,
-    is_sensitive: bool,
-    is_masked: bool,
+    is_sensitive:         bool,
+    is_masked:            bool,
 }
 
 impl FieldDefinition {
     /// Create a new field definition
     fn new(type_name: &str, field_name: &str) -> Self {
         Self {
-            type_name: type_name.to_string(),
-            field_name: field_name.to_string(),
-            required_read_scope: Some(format!("read:{}.{}", type_name, field_name)),
+            type_name:            type_name.to_string(),
+            field_name:           field_name.to_string(),
+            required_read_scope:  Some(format!("read:{}.{}", type_name, field_name)),
             required_write_scope: Some(format!("write:{}.{}", type_name, field_name)),
-            is_sensitive: false,
-            is_masked: false,
+            is_sensitive:         false,
+            is_masked:            false,
         }
     }
 
@@ -246,9 +247,9 @@ fn test_nested_wildcard_scope() {
 fn test_multiple_roles_merge_scopes() {
     let ctx = TestSecurityContext::new("user1", "tenant1", vec!["reader", "commenter"])
         .with_scopes(vec![
-            "read:Post.title",      // from reader role
-            "read:Post.content",    // from reader role
-            "write:Comment.text",   // from commenter role
+            "read:Post.title",    // from reader role
+            "read:Post.content",  // from reader role
+            "write:Comment.text", // from commenter role
         ]);
 
     // Should have combined scopes from both roles
@@ -259,10 +260,10 @@ fn test_multiple_roles_merge_scopes() {
 
 #[test]
 fn test_overlapping_scopes_from_multiple_roles() {
-    let ctx = TestSecurityContext::new("user1", "tenant1", vec!["reader", "editor"])
-        .with_scopes(vec![
-            "read:Post.*",      // from reader role
-            "write:Post.*",     // from editor role
+    let ctx =
+        TestSecurityContext::new("user1", "tenant1", vec!["reader", "editor"]).with_scopes(vec![
+            "read:Post.*",  // from reader role
+            "write:Post.*", // from editor role
         ]);
 
     // Should have both read and write access
@@ -291,8 +292,7 @@ fn test_admin_with_wildcard_has_all_access() {
 
 #[test]
 fn test_specific_scope_takes_precedence() {
-    let ctx = TestSecurityContext::new("user1", "tenant1", vec!["limited"])
-        .with_scopes(vec![
+    let ctx = TestSecurityContext::new("user1", "tenant1", vec!["limited"]).with_scopes(vec![
             "read:User.name",      // Specific: granted
             // No general "read:User.*"
         ]);
@@ -358,11 +358,11 @@ fn test_cross_tenant_token_swap_prevents_access() {
     let user_tenant1_scopes = vec!["read:User.name", "read:User.email"];
     let user_tenant2_scopes = vec!["read:Post.title"];
 
-    let ctx1 = TestSecurityContext::new("user1", "tenant1", vec!["user"])
-        .with_scopes(user_tenant1_scopes);
+    let ctx1 =
+        TestSecurityContext::new("user1", "tenant1", vec!["user"]).with_scopes(user_tenant1_scopes);
 
-    let ctx2 = TestSecurityContext::new("user2", "tenant2", vec!["user"])
-        .with_scopes(user_tenant2_scopes);
+    let ctx2 =
+        TestSecurityContext::new("user2", "tenant2", vec!["user"]).with_scopes(user_tenant2_scopes);
 
     // Different tenants should have different data access
     assert!(ctx1.can_read_field("User", "name"));
@@ -455,9 +455,7 @@ fn test_nested_wildcard_grants_nested_access() {
 #[test]
 fn test_deep_nesting_with_cascading_permissions() {
     let ctx = TestSecurityContext::new("user1", "tenant1", vec!["user"])
-        .with_scopes(vec![
-            "read:User.posts.comments.author.name",
-        ]);
+        .with_scopes(vec!["read:User.posts.comments.author.name"]);
 
     // Deep nested field access
     assert!(ctx.can_read_field("User", "posts"));

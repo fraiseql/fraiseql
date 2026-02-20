@@ -6,8 +6,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::federation::{
-    database_resolver::DatabaseEntityResolver,
-    selection_parser::FieldSelection,
+    database_resolver::DatabaseEntityResolver, selection_parser::FieldSelection,
     types::EntityRepresentation,
 };
 use serde_json::{Value, json};
@@ -236,8 +235,7 @@ fn test_resolve_entity_large_result_set_from_postgres() {
         });
     }
 
-    let mock_adapter =
-        common::MockDatabaseAdapter::new().with_table_data("user".to_string(), rows);
+    let mock_adapter = common::MockDatabaseAdapter::new().with_table_data("user".to_string(), rows);
 
     let metadata = common::metadata_single_key("User", "id");
 

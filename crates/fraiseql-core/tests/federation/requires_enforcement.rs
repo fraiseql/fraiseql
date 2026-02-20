@@ -189,8 +189,12 @@ fn test_requires_enforcement_multiple_required_fields() {
         .collect(),
     };
 
-    let result =
-        common::enforce_requires(&metadata, "Order", &["shippingEstimate"], &repr_missing_dimensions);
+    let result = common::enforce_requires(
+        &metadata,
+        "Order",
+        &["shippingEstimate"],
+        &repr_missing_dimensions,
+    );
     assert!(result.is_err(), "Should fail when any required field is missing");
 
     // Has both required fields
@@ -207,7 +211,8 @@ fn test_requires_enforcement_multiple_required_fields() {
         .collect(),
     };
 
-    let result = common::enforce_requires(&metadata, "Order", &["shippingEstimate"], &repr_complete);
+    let result =
+        common::enforce_requires(&metadata, "Order", &["shippingEstimate"], &repr_complete);
     assert!(result.is_ok(), "Should pass when all required fields present");
 }
 

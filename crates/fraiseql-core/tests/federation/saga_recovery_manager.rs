@@ -4,13 +4,13 @@
 //! stale cleanup, batch processing, single-saga-failure resilience,
 //! metrics, continued execution, and coordinator coordination.
 
-use super::common;
-
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},
     saga_executor::SagaExecutor,
 };
+
+use super::common;
 
 // ===========================================================================================
 // RECOVERY MANAGER INTEGRATION

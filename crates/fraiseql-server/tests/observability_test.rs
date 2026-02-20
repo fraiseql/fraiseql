@@ -51,24 +51,9 @@ fn metrics_collector_records_entity_resolution() {
     metrics.record_entity_resolution(1000, true);
     metrics.record_entity_resolution(2000, false);
 
-    assert_eq!(
-        metrics
-            .federation_entity_resolutions_total
-            .load(Ordering::Relaxed),
-        2
-    );
-    assert_eq!(
-        metrics
-            .federation_entity_resolutions_errors
-            .load(Ordering::Relaxed),
-        1
-    );
-    assert_eq!(
-        metrics
-            .federation_entity_resolution_duration_us
-            .load(Ordering::Relaxed),
-        3000
-    );
+    assert_eq!(metrics.federation_entity_resolutions_total.load(Ordering::Relaxed), 2);
+    assert_eq!(metrics.federation_entity_resolutions_errors.load(Ordering::Relaxed), 1);
+    assert_eq!(metrics.federation_entity_resolution_duration_us.load(Ordering::Relaxed), 3000);
 }
 
 // ============================================================================
@@ -131,10 +116,7 @@ async fn request_with_traceparent_header_succeeds() {
         .oneshot(
             http::Request::builder()
                 .uri("/health")
-                .header(
-                    "traceparent",
-                    "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-                )
+                .header("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )

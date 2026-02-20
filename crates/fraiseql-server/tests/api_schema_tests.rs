@@ -18,10 +18,7 @@ async fn schema_graphql_endpoint_returns_sdl_text() {
     let (status, sdl) = get_text(&router, "/api/v1/schema.graphql").await;
 
     assert_eq!(status, StatusCode::OK);
-    assert!(
-        sdl.contains("type Query"),
-        "SDL should contain type Query, got: {sdl}"
-    );
+    assert!(sdl.contains("type Query"), "SDL should contain type Query, got: {sdl}");
 }
 
 #[tokio::test]
@@ -30,10 +27,7 @@ async fn schema_graphql_sdl_contains_types_and_mutations() {
     let (_, sdl) = get_text(&router, "/api/v1/schema.graphql").await;
 
     assert!(sdl.contains("type User"), "SDL should contain User type");
-    assert!(
-        sdl.contains("type Mutation"),
-        "SDL should contain Mutation type"
-    );
+    assert!(sdl.contains("type Mutation"), "SDL should contain Mutation type");
 }
 
 // ============================================================================

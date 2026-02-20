@@ -4,7 +4,6 @@ use axum::{
     http::{HeaderValue, StatusCode},
     response::IntoResponse,
 };
-
 use fraiseql_error::{
     AuthError, ErrorResponse, FileError, IntegrationError, NotificationError, RuntimeError,
     WebhookError,
@@ -82,7 +81,11 @@ fn webhook_payload_error_returns_400() {
 
 #[test]
 fn file_too_large_returns_413() {
-    let err: RuntimeError = FileError::TooLarge { size: 100, max: 50 }.into();
+    let err: RuntimeError = FileError::TooLarge {
+        size: 100,
+        max:  50,
+    }
+    .into();
     let resp = err.into_response();
     assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
@@ -180,9 +183,7 @@ fn notification_provider_returns_500() {
 
 #[test]
 fn rate_limited_returns_429() {
-    let err = RuntimeError::RateLimited {
-        retry_after: None,
-    };
+    let err = RuntimeError::RateLimited { retry_after: None };
     let resp = err.into_response();
     assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
 }
@@ -194,10 +195,7 @@ fn rate_limited_with_retry_after_header() {
     };
     let resp = err.into_response();
     assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-    assert_eq!(
-        resp.headers().get("Retry-After").unwrap(),
-        &HeaderValue::from_static("60")
-    );
+    assert_eq!(resp.headers().get("Retry-After").unwrap(), &HeaderValue::from_static("60"));
 }
 
 #[test]
@@ -218,10 +216,7 @@ fn service_unavailable_with_retry_after_header() {
     };
     let resp = err.into_response();
     assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(
-        resp.headers().get("Retry-After").unwrap(),
-        &HeaderValue::from_static("120")
-    );
+    assert_eq!(resp.headers().get("Retry-After").unwrap(), &HeaderValue::from_static("120"));
 }
 
 #[test]
@@ -269,10 +264,7 @@ fn error_response_serialization_basic() {
     assert_eq!(json["error"], "test_error");
     assert_eq!(json["error_description"], "Something failed");
     assert_eq!(json["error_code"], "test_code");
-    assert_eq!(
-        json["error_uri"],
-        "https://docs.fraiseql.dev/errors#test_code"
-    );
+    assert_eq!(json["error_uri"], "https://docs.fraiseql.dev/errors#test_code");
     assert!(json.get("details").is_none());
     assert!(json.get("retry_after").is_none());
 }

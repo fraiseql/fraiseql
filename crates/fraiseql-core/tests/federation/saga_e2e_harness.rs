@@ -201,8 +201,7 @@ impl InMemorySagaStore {
         new_state: StepState,
     ) -> Result<(), String> {
         let mut sagas = self.sagas.lock().unwrap();
-        let saga =
-            sagas.get_mut(&saga_id).ok_or_else(|| format!("Saga {saga_id} not found"))?;
+        let saga = sagas.get_mut(&saga_id).ok_or_else(|| format!("Saga {saga_id} not found"))?;
         let step = saga
             .steps
             .get_mut(step_order)
@@ -225,8 +224,7 @@ impl InMemorySagaStore {
         result: Value,
     ) -> Result<(), String> {
         let mut sagas = self.sagas.lock().unwrap();
-        let saga =
-            sagas.get_mut(&saga_id).ok_or_else(|| format!("Saga {saga_id} not found"))?;
+        let saga = sagas.get_mut(&saga_id).ok_or_else(|| format!("Saga {saga_id} not found"))?;
         let step = saga
             .steps
             .get_mut(step_order)

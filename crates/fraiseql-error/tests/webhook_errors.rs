@@ -4,10 +4,7 @@ use fraiseql_error::WebhookError;
 
 #[test]
 fn invalid_signature_error_code_and_display() {
-    assert_eq!(
-        WebhookError::InvalidSignature.error_code(),
-        "webhook_invalid_signature"
-    );
+    assert_eq!(WebhookError::InvalidSignature.error_code(), "webhook_invalid_signature");
     assert_eq!(WebhookError::InvalidSignature.to_string(), "Invalid signature");
 }
 
@@ -17,10 +14,7 @@ fn missing_signature_error_code_and_display() {
         header: "X-Hub-Signature".into(),
     };
     assert_eq!(err.error_code(), "webhook_missing_signature");
-    assert_eq!(
-        err.to_string(),
-        "Missing signature header: X-Hub-Signature"
-    );
+    assert_eq!(err.to_string(), "Missing signature header: X-Hub-Signature");
 }
 
 #[test]
@@ -30,10 +24,7 @@ fn timestamp_expired_error_code_and_display() {
         max_seconds: 300,
     };
     assert_eq!(err.error_code(), "webhook_timestamp_expired");
-    assert_eq!(
-        err.to_string(),
-        "Timestamp too old: 600s (max: 300s)"
-    );
+    assert_eq!(err.to_string(), "Timestamp too old: 600s (max: 300s)");
 }
 
 #[test]

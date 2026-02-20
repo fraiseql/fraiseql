@@ -31,8 +31,8 @@ use serde_json::json;
 /// Represents a JWT token with its component parts for testing
 #[derive(Debug, Clone)]
 struct JwtTestToken {
-    header: String,
-    payload: String,
+    header:    String,
+    payload:   String,
     signature: String,
 }
 
@@ -41,13 +41,16 @@ impl JwtTestToken {
     fn new(sub: &str, exp: i64, scopes: Vec<&str>) -> Self {
         // Simplified JWT creation for testing
         let header = base64_url_encode(r#"{"alg":"RS256","typ":"JWT"}"#);
-        let payload = base64_url_encode(&json!({
-            "sub": sub,
-            "exp": exp,
-            "iat": 1000000,
-            "iss": "test-issuer",
-            "scopes": scopes,
-        }).to_string());
+        let payload = base64_url_encode(
+            &json!({
+                "sub": sub,
+                "exp": exp,
+                "iat": 1000000,
+                "iss": "test-issuer",
+                "scopes": scopes,
+            })
+            .to_string(),
+        );
         let signature = "test_signature_placeholder";
 
         Self {
@@ -70,10 +73,13 @@ impl JwtTestToken {
 
     /// Change the algorithm in the header
     fn change_algorithm(&self, new_alg: &str) -> String {
-        let new_header = base64_url_encode(&json!({
-            "alg": new_alg,
-            "typ": "JWT"
-        }).to_string());
+        let new_header = base64_url_encode(
+            &json!({
+                "alg": new_alg,
+                "typ": "JWT"
+            })
+            .to_string(),
+        );
         format!("{}.{}.{}", new_header, self.payload, self.signature)
     }
 
@@ -124,9 +130,8 @@ fn test_signature_tampering_detected() {
     let valid_jwt = token.to_jwt_string();
 
     // Tamper with payload but keep signature
-    let tampered_jwt = token.tamper_payload(
-        r#"{"sub":"user123","exp":9999999999,"scopes":["admin","delete"]}"#,
-    );
+    let tampered_jwt =
+        token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["admin","delete"]}"#);
 
     // Valid JWT should be accepted, tampered JWT should be rejected
     assert_ne!(valid_jwt, tampered_jwt, "Tampering should change token");
@@ -147,7 +152,8 @@ fn test_multiple_signature_attempts() {
     let tampered1 = token.tamper_payload(r#"{"sub":"admin","exp":9999999999,"scopes":["admin"]}"#);
 
     // Attempt 3: Tamper with different payload
-    let tampered2 = token.tamper_payload(r#"{"sub":"other_user","exp":9999999999,"scopes":["super_admin"]}"#);
+    let tampered2 =
+        token.tamper_payload(r#"{"sub":"other_user","exp":9999999999,"scopes":["super_admin"]}"#);
 
     // All tampering attempts should be detectable
     assert_ne!(original, tampered1);
@@ -219,9 +225,7 @@ fn test_expiration_manipulation_detected() {
     let original_expired = token.to_jwt_string();
 
     // Attempt to extend expiration in payload but keep signature
-    let tampered = token.tamper_payload(
-        r#"{"sub":"user123","exp":9999999999,"scopes":["read"]}"#,
-    );
+    let tampered = token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["read"]}"#);
 
     assert_ne!(original_expired, tampered);
     // Expected: tampered token should fail signature verification
@@ -237,9 +241,8 @@ fn test_scope_escalation_tampering_detected() {
     let original = token.to_jwt_string();
 
     // Attempt to escalate from "read" to "admin" and "delete"
-    let escalated = token.tamper_payload(
-        r#"{"sub":"user123","exp":9999999999,"scopes":["admin","delete"]}"#,
-    );
+    let escalated =
+        token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["admin","delete"]}"#);
 
     assert_ne!(original, escalated);
     // Expected: Escalated token fails signature check
@@ -250,13 +253,10 @@ fn test_role_injection_in_scopes_rejected() {
     let token = JwtTestToken::new("user123", VALID_EXP, vec!["read"]);
 
     // Attempt to inject wildcard or glob scopes
-    let injected1 = token.tamper_payload(
-        r#"{"sub":"user123","exp":9999999999,"scopes":["*"]}"#,
-    );
+    let injected1 = token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["*"]}"#);
 
-    let injected2 = token.tamper_payload(
-        r#"{"sub":"user123","exp":9999999999,"scopes":["admin:*"]}"#,
-    );
+    let injected2 =
+        token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["admin:*"]}"#);
 
     assert_ne!(token.to_jwt_string(), injected1);
     assert_ne!(token.to_jwt_string(), injected2);
@@ -350,9 +350,8 @@ fn test_subject_tampering_detected() {
     let original = token.to_jwt_string();
 
     // Attempt to change subject from user123 to admin
-    let tampered_subject = token.tamper_payload(
-        r#"{"sub":"admin","exp":9999999999,"scopes":["read"]}"#,
-    );
+    let tampered_subject =
+        token.tamper_payload(r#"{"sub":"admin","exp":9999999999,"scopes":["read"]}"#);
 
     assert_ne!(original, tampered_subject);
     // Expected: Subject tampering detected via signature
@@ -412,9 +411,8 @@ fn test_combination_attack_signature_tampering_plus_expiration() {
     let token = JwtTestToken::new("user123", EXPIRED_EXP, vec!["read"]);
 
     // Try to both extend expiration AND add admin scope
-    let combo_attack = token.tamper_payload(
-        r#"{"sub":"admin","exp":9999999999,"scopes":["admin","delete"]}"#,
-    );
+    let combo_attack =
+        token.tamper_payload(r#"{"sub":"admin","exp":9999999999,"scopes":["admin","delete"]}"#);
 
     assert_ne!(token.to_jwt_string(), combo_attack);
     // Expected: Multiple tampering attempts should all fail
@@ -426,9 +424,8 @@ fn test_algorithm_swap_plus_scope_escalation() {
 
     // Try to swap algorithm AND escalate scopes
     let hs256_token = token.change_algorithm("HS256");
-    let escalated = token.tamper_payload(
-        r#"{"sub":"user123","exp":9999999999,"scopes":["admin"]}"#,
-    );
+    let escalated =
+        token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["admin"]}"#);
 
     assert_ne!(token.to_jwt_string(), hs256_token);
     assert_ne!(token.to_jwt_string(), escalated);
@@ -482,9 +479,15 @@ fn test_all_tampering_vectors_fail() {
 
     // Collect all tampering variants
     let variants = vec![
-        ("signature", token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["admin"]}"#)),
+        (
+            "signature",
+            token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["admin"]}"#),
+        ),
         ("algorithm", token.change_algorithm("HS256")),
-        ("expiration", token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["read"]}"#)),
+        (
+            "expiration",
+            token.tamper_payload(r#"{"sub":"user123","exp":9999999999,"scopes":["read"]}"#),
+        ),
         ("no_signature", token.remove_signature()),
         ("extra_parts", token.add_extra_parts()),
     ];

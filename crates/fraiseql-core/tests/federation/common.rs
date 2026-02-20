@@ -1,6 +1,6 @@
 //! Shared fixtures and helpers for federation tests.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use fraiseql_core::{
@@ -10,13 +10,9 @@ use fraiseql_core::{
         where_clause::WhereClause,
     },
     error::Result,
-    federation::types::{
-        EntityRepresentation, FederatedType, FederationMetadata, KeyDirective,
-    },
+    federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
     schema::SqlProjectionHint,
 };
-use std::time::Duration;
-
 use serde_json::{Value, json};
 
 // =============================================================================
@@ -52,8 +48,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None)
-            .await
+        self.execute_where_query(view, where_clause, limit, None).await
     }
 
     async fn execute_where_query(
@@ -129,8 +124,7 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None)
-            .await
+        self.execute_where_query(view, where_clause, limit, None).await
     }
 
     async fn execute_where_query(
@@ -217,10 +211,7 @@ pub fn metadata_extended_type(
 }
 
 /// Create a `FederationMetadata` with a composite key.
-pub fn metadata_composite_key(
-    type_name: &str,
-    key_fields: &[&str],
-) -> FederationMetadata {
+pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> FederationMetadata {
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
@@ -296,7 +287,10 @@ pub const ORDERS_SUBGRAPH_URL: &str = "http://localhost:4002/graphql";
 pub const PRODUCTS_SUBGRAPH_URL: &str = "http://localhost:4003/graphql";
 
 /// Wait for a service to be ready with health check.
-pub async fn wait_for_service(url: &str, max_retries: u32) -> std::result::Result<(), Box<dyn std::error::Error>> {
+pub async fn wait_for_service(
+    url: &str,
+    max_retries: u32,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let mut retries = 0;
 
@@ -334,7 +328,10 @@ pub async fn wait_for_service(url: &str, max_retries: u32) -> std::result::Resul
 }
 
 /// Execute a GraphQL query against a service.
-pub async fn graphql_query(url: &str, query: &str) -> std::result::Result<Value, Box<dyn std::error::Error>> {
+pub async fn graphql_query(
+    url: &str,
+    query: &str,
+) -> std::result::Result<Value, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let response = client
         .post(url)
@@ -467,9 +464,7 @@ impl TestSagaScenario {
 }
 
 /// Create coordinator and execute saga creation.
-pub async fn execute_saga_scenario(
-    scenario: TestSagaScenario,
-) -> (Vec<SagaStep>, Uuid) {
+pub async fn execute_saga_scenario(scenario: TestSagaScenario) -> (Vec<SagaStep>, Uuid) {
     let coordinator = SagaCoordinator::new(scenario.compensation_strategy);
     let steps = scenario.build_steps();
     let saga_id = coordinator.create_saga(steps.clone()).await.expect("Failed to create saga");

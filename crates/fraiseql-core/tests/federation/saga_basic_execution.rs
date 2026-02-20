@@ -4,13 +4,13 @@
 //! - Cycle 1: Basic multi-step saga execution (8 tests)
 //! - Cycle 5: Concurrent saga handling (6 tests)
 
-use super::common;
-
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},
     saga_executor::SagaExecutor,
 };
+
+use super::common;
 
 // ===========================================================================================
 // CYCLE 1: BASIC MULTI-STEP SAGA EXECUTION
@@ -257,11 +257,13 @@ async fn test_concurrent_sagas_with_different_strategies() {
     let mut manual_sagas = Vec::new();
 
     for _ in 0..5 {
-        let auto_scenario = common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Automatic);
+        let auto_scenario =
+            common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Automatic);
         let (_, auto_id) = common::execute_saga_scenario(auto_scenario).await;
         auto_sagas.push(auto_id);
 
-        let manual_scenario = common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Manual);
+        let manual_scenario =
+            common::TestSagaScenario::new(3).with_strategy(CompensationStrategy::Manual);
         let (_, manual_id) = common::execute_saga_scenario(manual_scenario).await;
         manual_sagas.push(manual_id);
     }
@@ -357,7 +359,8 @@ async fn test_concurrent_compensation_does_not_interfere() {
     // Given: 5 sagas with automatic strategy that fail and compensate
     let mut saga_ids = Vec::new();
     for _ in 0..5 {
-        let scenario = common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Automatic);
+        let scenario =
+            common::TestSagaScenario::new(4).with_strategy(CompensationStrategy::Automatic);
         let (_, saga_id) = common::execute_saga_scenario(scenario).await;
         saga_ids.push(saga_id);
     }

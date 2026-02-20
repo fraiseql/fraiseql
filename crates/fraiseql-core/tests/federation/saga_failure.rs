@@ -3,12 +3,12 @@
 //! Split from `federation_saga_e2e_scenarios.rs`:
 //! - Cycle 2: Single-step failure scenarios (6 tests)
 
-use super::common;
-
 use fraiseql_core::federation::{
     saga_coordinator::{CompensationStrategy, SagaCoordinator},
     saga_executor::SagaExecutor,
 };
+
+use super::common;
 
 // ===========================================================================================
 // CYCLE 2: SINGLE-STEP FAILURE SCENARIOS

@@ -113,8 +113,7 @@ fn test_mutation_extended_entity_with_external_fields() {
 fn test_mutation_extended_entity_reference_tracking() {
     // Reference tracking in extended entity mutations
     let mock_adapter = common::mock_mutation_adapter();
-    let metadata =
-        common::metadata_extended_type("UserProfile", "user_id", &["user_id"], &[]);
+    let metadata = common::metadata_extended_type("UserProfile", "user_id", &["user_id"], &[]);
 
     let variables = json!({
         "user_id": "user123",
@@ -158,8 +157,7 @@ fn test_mutation_extended_entity_cascade_updates() {
 fn test_mutation_extended_entity_conflict_resolution() {
     // Conflict resolution in extended entity mutations
     let mock_adapter = common::mock_mutation_adapter();
-    let metadata =
-        common::metadata_extended_type("SharedResource", "resource_id", &[], &["data"]);
+    let metadata = common::metadata_extended_type("SharedResource", "resource_id", &[], &["data"]);
 
     let variables = json!({
         "resource_id": "res123",

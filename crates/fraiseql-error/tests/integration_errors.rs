@@ -9,10 +9,7 @@ fn search_error_code_and_display() {
         message:  "cluster red".into(),
     };
     assert_eq!(err.error_code(), "integration_search_error");
-    assert_eq!(
-        err.to_string(),
-        "Search provider error: elasticsearch - cluster red"
-    );
+    assert_eq!(err.to_string(), "Search provider error: elasticsearch - cluster red");
 }
 
 #[test]

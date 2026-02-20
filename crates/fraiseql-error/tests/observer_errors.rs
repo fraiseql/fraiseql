@@ -45,10 +45,7 @@ fn processing_failed_error_code_and_display() {
         message: "deserialization error".into(),
     };
     assert_eq!(err.error_code(), "observer_processing_failed");
-    assert_eq!(
-        err.to_string(),
-        "Event processing failed: deserialization error"
-    );
+    assert_eq!(err.to_string(), "Event processing failed: deserialization error");
 }
 
 #[test]
@@ -57,10 +54,7 @@ fn max_retries_exceeded_error_code_and_display() {
         event_id: "evt_456".into(),
     };
     assert_eq!(err.error_code(), "observer_max_retries");
-    assert_eq!(
-        err.to_string(),
-        "Max retries exceeded for event evt_456"
-    );
+    assert_eq!(err.to_string(), "Max retries exceeded for event evt_456");
 }
 
 #[test]
@@ -75,5 +69,8 @@ fn database_error_from_sqlx() {
 fn database_error_code_and_display() {
     let err = ObserverError::Database(sqlx::Error::RowNotFound);
     assert_eq!(err.error_code(), "observer_database_error");
-    assert_eq!(err.to_string(), "Database error: no rows returned by a query that expected to return at least one row");
+    assert_eq!(
+        err.to_string(),
+        "Database error: no rows returned by a query that expected to return at least one row"
+    );
 }

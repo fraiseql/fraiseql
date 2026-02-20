@@ -127,9 +127,7 @@ fn test_validator_rejects_malformed_query() {
 
 #[test]
 fn test_validator_enforces_depth_limit() {
-    let validator = RequestValidator::new()
-        .with_max_depth(3)
-        .with_depth_validation(true);
+    let validator = RequestValidator::new().with_max_depth(3).with_depth_validation(true);
 
     // Within limit
     let shallow = "{ user { id name } }";
@@ -141,17 +139,12 @@ fn test_validator_enforces_depth_limit() {
     // Exceeds limit
     let deep = "{ user { posts { comments { replies { author { id } } } } } }";
     let result = validator.validate_query(deep);
-    assert!(
-        result.is_err(),
-        "Depth-6 query should fail depth-3 limit: {result:?}"
-    );
+    assert!(result.is_err(), "Depth-6 query should fail depth-3 limit: {result:?}");
 }
 
 #[test]
 fn test_validator_enforces_complexity_limit() {
-    let validator = RequestValidator::new()
-        .with_max_complexity(5)
-        .with_complexity_validation(true);
+    let validator = RequestValidator::new().with_max_complexity(5).with_complexity_validation(true);
 
     // Simple query within limit
     let simple = "{ user { id } }";
@@ -163,17 +156,12 @@ fn test_validator_enforces_complexity_limit() {
     // High-complexity query (many fields = high complexity)
     let complex = "{ user { id name email phone address bio avatar role createdAt updatedAt } }";
     let result = validator.validate_query(complex);
-    assert!(
-        result.is_err(),
-        "10-field query should fail complexity-5 limit: {result:?}"
-    );
+    assert!(result.is_err(), "10-field query should fail complexity-5 limit: {result:?}");
 }
 
 #[test]
 fn test_validator_depth_disabled_allows_deep_queries() {
-    let validator = RequestValidator::new()
-        .with_max_depth(1)
-        .with_depth_validation(false);
+    let validator = RequestValidator::new().with_max_depth(1).with_depth_validation(false);
 
     let deep = "{ user { posts { comments { id } } } }";
     assert!(
@@ -186,10 +174,7 @@ fn test_validator_depth_disabled_allows_deep_queries() {
 fn test_validator_accepts_mutations() {
     let validator = RequestValidator::new();
     let mutation = "mutation { createUser(input: { name: \"test\" }) { id } }";
-    assert!(
-        validator.validate_query(mutation).is_ok(),
-        "Mutation should pass validation"
-    );
+    assert!(validator.validate_query(mutation).is_ok(), "Mutation should pass validation");
 }
 
 #[test]
@@ -236,10 +221,7 @@ fn test_graphql_request_deserializes_from_json() {
     });
 
     let request: GraphQLRequest = serde_json::from_value(json).unwrap();
-    assert_eq!(
-        request.query,
-        "query { user(id: \"123\") { id name email } }"
-    );
+    assert_eq!(request.query, "query { user(id: \"123\") { id name email } }");
     assert!(request.variables.is_some());
     assert_eq!(request.operation_name, Some("GetUser".to_string()));
 }
@@ -247,8 +229,8 @@ fn test_graphql_request_deserializes_from_json() {
 #[test]
 fn test_graphql_request_minimal() {
     let request = GraphQLRequest {
-        query: "{ user { id } }".to_string(),
-        variables: None,
+        query:          "{ user { id } }".to_string(),
+        variables:      None,
         operation_name: None,
     };
 
@@ -265,7 +247,8 @@ fn test_forbidden_error_does_not_leak_schema_info() {
     let fields = vec!["password", "ssn", "secretKey", "internalId"];
 
     for field in fields {
-        let error = GraphQLError::forbidden().with_path(vec!["query".to_string(), field.to_string()]);
+        let error =
+            GraphQLError::forbidden().with_path(vec!["query".to_string(), field.to_string()]);
 
         // The error message must never contain the field name
         assert!(

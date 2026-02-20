@@ -9,10 +9,7 @@ fn too_large_error_code_and_display() {
         max:  1_000_000,
     };
     assert_eq!(err.error_code(), "file_too_large");
-    assert_eq!(
-        err.to_string(),
-        "File too large: 2000000 bytes (max: 1000000 bytes)"
-    );
+    assert_eq!(err.to_string(), "File too large: 2000000 bytes (max: 1000000 bytes)");
 }
 
 #[test]
@@ -35,10 +32,7 @@ fn mime_mismatch_error_code_and_display() {
         detected: "image/jpeg".into(),
     };
     assert_eq!(err.error_code(), "file_mime_mismatch");
-    assert_eq!(
-        err.to_string(),
-        "MIME type mismatch: declared image/png, detected image/jpeg"
-    );
+    assert_eq!(err.to_string(), "MIME type mismatch: declared image/png, detected image/jpeg");
 }
 
 #[test]
