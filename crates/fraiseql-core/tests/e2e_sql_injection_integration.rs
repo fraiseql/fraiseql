@@ -510,7 +510,7 @@ fn test_comprehensive_owasp_injection_safety() {
             };
 
             let sql = WhereSqlGenerator::to_sql(&clause)
-                .expect(&format!("Should handle payload: {}", payload));
+                .unwrap_or_else(|_| panic!("Should handle payload: {}", payload));
 
             assert_injection_safe(&sql, payload, &format!("{:?}", operator));
         }
@@ -536,6 +536,6 @@ fn test_injection_robustness_no_panic() {
 
         // Must not panic, must generate SQL
         let _sql = WhereSqlGenerator::to_sql(&clause)
-            .expect(&format!("Should safely handle: {}", payload));
+            .unwrap_or_else(|_| panic!("Should safely handle: {}", payload));
     }
 }

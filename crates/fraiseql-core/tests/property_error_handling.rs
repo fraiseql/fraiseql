@@ -404,7 +404,6 @@ proptest! {
 
         // Should always succeed (not panic) and return something
         prop_assert!(!formatted.is_empty(), "Should produce some output");
-        prop_assert!(formatted.len() > 0, "Output should be non-empty");
     }
 
     /// Property: Error formatter handles special characters safely.

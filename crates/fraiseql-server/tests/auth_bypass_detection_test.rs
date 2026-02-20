@@ -437,9 +437,10 @@ fn test_algorithm_swap_plus_scope_escalation() {
 
 #[test]
 fn test_null_token_rejected() {
+    // Test with empty/null token (should be rejected)
     let null_jwt = "";
-    assert!(null_jwt.is_empty());
     // Expected: Empty token should be rejected
+    assert_eq!(null_jwt.len(), 0);
 }
 
 #[test]
