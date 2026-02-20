@@ -11,12 +11,10 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 # Set Rust target based on architecture
-RUN case "$TARGETARCH" in \
+RUN case "${TARGETARCH:-amd64}" in \
       amd64) TARGET="x86_64-unknown-linux-gnu" ;; \
       arm64) TARGET="aarch64-unknown-linux-gnu" ;; \
-      arm) TARGET="armv7-unknown-linux-gnueabihf" ;; \
-      ppc64le) TARGET="powerpc64le-unknown-linux-gnu" ;; \
-      *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
     esac && \
     echo "$TARGET" > /tmp/rust_target.txt && \
     rustup target add "$TARGET"

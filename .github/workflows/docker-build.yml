@@ -38,11 +38,6 @@ jobs:
             build-context: .
             image-suffix: "tutorial"
 
-          - name: admin-dashboard
-            dockerfile: admin-dashboard/Dockerfile
-            build-context: .
-            image-suffix: "dashboard"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -91,7 +86,6 @@ jobs:
         service:
           - fraiseql-server
           - tutorial
-          - admin-dashboard
 
     steps:
       - name: Checkout repository
@@ -136,12 +130,6 @@ jobs:
             build-context: .
             image-suffix: "tutorial"
             docker-hub-image: fraiseql/tutorial
-
-          - name: admin-dashboard
-            dockerfile: admin-dashboard/Dockerfile
-            build-context: .
-            image-suffix: "dashboard"
-            docker-hub-image: fraiseql/dashboard
 
     steps:
       - name: Checkout repository

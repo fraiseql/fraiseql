@@ -102,7 +102,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: fraiseql-cli.exe
             asset_name: fraiseql-cli-windows-amd64.exe
-          - os: macos-latest
+          - os: macos-13
             target: x86_64-apple-darwin
             artifact_name: fraiseql-cli
             asset_name: fraiseql-cli-macos-amd64

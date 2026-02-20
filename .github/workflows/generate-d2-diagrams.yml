@@ -33,7 +33,11 @@ jobs:
 
       - name: Generate D2 SVG Diagrams
         run: |
-          python3 tools/embed-d2-diagrams.py docs/
+          if [ -f tools/embed-d2-diagrams.py ]; then
+            python3 tools/embed-d2-diagrams.py docs/
+          else
+            echo "⚠️ tools/embed-d2-diagrams.py not found, skipping diagram generation"
+          fi
 
       - name: Commit changes
         if: github.event_name == 'push'
@@ -43,13 +47,7 @@ jobs:
 
           if [[ -n $(git status -s docs/) ]]; then
             git add docs/
-            git commit -m "docs: Auto-generate D2 diagram SVGs
-
-- Converted D2 diagrams to SVG for GitHub rendering
-- SVGs embedded in collapsible details tags
-- Source code preserved in markdown
-
-[skip ci]" || true
+            git commit -m "docs: auto-generate D2 diagram SVGs [skip ci]" || true
             git push
           else
             echo "✅ No diagram changes needed"
