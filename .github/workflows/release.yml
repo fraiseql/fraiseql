@@ -181,17 +181,23 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
+          pip install maturin twine patchelf
 
-      - name: Build distributions
-        working-directory: fraiseql-python
-        run: python -m build
+      - name: Build distributions with maturin
+        run: |
+          rm -rf dist/
+          maturin build --release
+          cp fraiseql_rs/target/wheels/*.whl dist/
+          maturin sdist
+          cp fraiseql_rs/target/wheels/*.tar.gz dist/
 
       - name: Publish to PyPI
-        working-directory: fraiseql-python
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
