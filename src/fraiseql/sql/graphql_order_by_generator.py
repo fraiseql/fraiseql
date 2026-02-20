@@ -553,8 +553,8 @@ def create_graphql_order_by_input(cls: type, name: str | None = None) -> type:
 
         # Add conversion method
         OrderByInputClass._target_class = cls
-        OrderByInputClass._to_sql_order_by = (
-            lambda self, config=None: _convert_order_by_input_to_sql(self, config)
+        OrderByInputClass._to_sql_order_by = lambda self, config=None: (
+            _convert_order_by_input_to_sql(self, config)
         )
 
         # Add helpful docstring

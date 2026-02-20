@@ -11,7 +11,10 @@ from fraiseql import _get_fraiseql_rs
 @pytest.fixture
 def fraiseql_rs():
     """Get Rust module."""
-    return _get_fraiseql_rs()
+    rs = _get_fraiseql_rs()
+    if rs is None:
+        pytest.skip("Rust extension not available")
+    return rs
 
 
 def test_performance_small_response_field_filtering(fraiseql_rs, benchmark=None):
@@ -233,6 +236,8 @@ def test_performance_canary():
     from fraiseql import _get_fraiseql_rs
 
     fraiseql_rs = _get_fraiseql_rs()
+    if fraiseql_rs is None:
+        pytest.skip("Rust extension not available")
 
     fake_result = {
         "status": "success",

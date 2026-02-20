@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
+.PHONY: help build test test-unit test-integration clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status release-check release-build release-publish release
 
 # Default target
 help:
@@ -55,6 +55,12 @@ help:
 	@echo "  make prod-examples-stop  - Stop production multi-example"
 	@echo "  make prod-examples-status - Check multi-example health"
 	@echo "  make prod-examples-clean  - Remove multi-example volumes"
+	@echo ""
+	@echo "Release (PyPI):"
+	@echo "  make release-check       - Pre-release checks (lint, tests, version)"
+	@echo "  make release-build       - Build wheel+sdist (runs checks first)"
+	@echo "  make release-publish     - Publish dist/ to PyPI"
+	@echo "  make release             - Full pipeline: check → build → publish"
 	@echo ""
 
 # Build all crates
@@ -527,3 +533,65 @@ prod-examples-clean:
 	@echo "✅ Production multi-example stack cleaned"
 	@echo ""
 	@echo "💡 Run 'make prod-examples-start' to start fresh"
+
+# ============================================================================
+# Python Package Release (fraiseql on PyPI)
+# ============================================================================
+
+# Extract version from pyproject.toml
+VERSION := $(shell grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+
+## Pre-release checks: lint, tests, version consistency, clean working tree
+release-check:
+	@echo "🔍 Running pre-release checks for fraiseql v$(VERSION)..."
+	@echo ""
+	@echo "── Checking clean working tree ──"
+	@git diff --quiet && git diff --cached --quiet || { echo "❌ Working tree is dirty. Commit or stash changes first."; exit 1; }
+	@echo "✅ Working tree is clean"
+	@echo ""
+	@echo "── Checking version consistency ──"
+	@INIT_VERSION=$$(grep '__version__' src/fraiseql/__init__.py | sed 's/.*"\(.*\)"/\1/') && \
+		if [ "$(VERSION)" != "$$INIT_VERSION" ]; then \
+			echo "❌ Version mismatch: pyproject.toml=$(VERSION) vs __init__.py=$$INIT_VERSION"; \
+			exit 1; \
+		fi
+	@echo "✅ Version $(VERSION) consistent across pyproject.toml and __init__.py"
+	@echo ""
+	@echo "── Running ruff checks ──"
+	@uv run ruff check src/fraiseql/ || { echo "❌ Ruff check failed"; exit 1; }
+	@uv run ruff format --check src/fraiseql/ || { echo "❌ Ruff format check failed"; exit 1; }
+	@echo "✅ Ruff checks passed"
+	@echo ""
+	@echo "── Running tests ──"
+	@uv run pytest tests/ -x -q || { echo "❌ Tests failed"; exit 1; }
+	@echo ""
+	@echo "✅ All pre-release checks passed for v$(VERSION)"
+
+## Build wheel and sdist with maturin
+release-build: release-check
+	@echo ""
+	@echo "📦 Building fraiseql v$(VERSION)..."
+	@rm -rf dist/
+	@uv run maturin build --release
+	@echo ""
+	@echo "✅ Build artifacts:"
+	@ls -lh dist/
+	@echo ""
+	@echo "── Validating with twine ──"
+	@uv run twine check dist/* || { echo "❌ Twine check failed"; exit 1; }
+	@echo "✅ Package validation passed"
+
+## Publish to PyPI (requires TWINE_USERNAME/TWINE_PASSWORD or ~/.pypirc)
+release-publish:
+	@echo ""
+	@echo "🚀 Publishing fraiseql v$(VERSION) to PyPI..."
+	@test -d dist/ || { echo "❌ No dist/ directory. Run 'make release-build' first."; exit 1; }
+	@uv run twine upload dist/*
+	@echo ""
+	@echo "✅ fraiseql v$(VERSION) published to PyPI"
+	@echo "   https://pypi.org/project/fraiseql/$(VERSION)/"
+
+## Full release pipeline: check → build → publish
+release: release-build release-publish
+	@echo ""
+	@echo "🎉 Release v$(VERSION) complete!"
