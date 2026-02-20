@@ -26,6 +26,7 @@ jobs:
       packages: write
 
     strategy:
+      fail-fast: false
       matrix:
         service:
           - name: fraiseql-server

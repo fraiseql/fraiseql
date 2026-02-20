@@ -5,7 +5,7 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 # Stage 1: Builder - use rust image for target arch
-FROM --platform=$BUILDPLATFORM rust:1.85-slim AS builder
+FROM --platform=$BUILDPLATFORM rust:1.88-slim AS builder
 
 ARG TARGETARCH
 ARG TARGETVARIANT

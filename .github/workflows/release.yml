@@ -53,7 +53,7 @@ jobs:
         id: get_version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -61,26 +61,19 @@ jobs:
           PRERELEASE="false"
           [[ "$VERSION" =~ alpha|beta|rc ]] && PRERELEASE="true"
 
-          gh release create "$GITHUB_REF" \
-            --title "Release v$VERSION" \
-            --notes "FraiseQL $VERSION
-
-          See [CHANGELOG.md](CHANGELOG.md) for complete list of changes.
-
-          ## Installation
-
-          ### Rust Crates
-          \`\`\`bash
-          cargo add fraiseql@$VERSION
-          \`\`\`
-
-          ### CLI Binaries
-          Download from the Assets section below.
-
-          ---
-          *Automated release created by [Release Workflow](.github/workflows/release.yml)*" \
-            --draft=false \
-            --prerelease=$PRERELEASE
+          # Check if release already exists
+          if gh release view "$GITHUB_REF" >/dev/null 2>&1; then
+            echo "Release already exists, updating..."
+            gh release edit "$GITHUB_REF" \
+              --title "Release v$VERSION" \
+              --prerelease=$PRERELEASE
+          else
+            gh release create "$GITHUB_REF" \
+              --title "Release v$VERSION" \
+              --notes "FraiseQL $VERSION — see [CHANGELOG.md](CHANGELOG.md) for details." \
+              --draft=false \
+              --prerelease=$PRERELEASE
+          fi
 
   # Build binaries for multiple platforms
   build-binaries:
