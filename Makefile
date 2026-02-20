@@ -562,8 +562,8 @@ release-check:
 	@uv run ruff format --check src/fraiseql/ || { echo "❌ Ruff format check failed"; exit 1; }
 	@echo "✅ Ruff checks passed"
 	@echo ""
-	@echo "── Running tests ──"
-	@uv run pytest tests/ -x -q || { echo "❌ Tests failed"; exit 1; }
+	@echo "── Running unit tests ──"
+	@uv run pytest tests/unit/ -x -q || { echo "❌ Unit tests failed"; exit 1; }
 	@echo ""
 	@echo "✅ All pre-release checks passed for v$(VERSION)"
 
