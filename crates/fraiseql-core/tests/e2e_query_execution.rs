@@ -15,12 +15,18 @@ use fraiseql_core::{
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
-    runtime::ResultProjector,
+    runtime::{FieldMapping, ProjectionMapper, ResultProjector},
     schema::SqlProjectionHint,
 };
 use serde_json::json;
 
-/// Mock database adapter with sample seed data
+/// Mock database adapter with sample seed data.
+///
+/// NOTE: This mock ignores WHERE clause arguments entirely (see
+/// `execute_where_query` which discards `_where_clause`). Tests using this mock
+/// cannot catch bugs in argument coercion (e.g. enum deserialization from
+/// GraphQL variables, fraiseql-python issue #287). Those bugs must be caught
+/// by Python-level integration tests that exercise the full SQL query path.
 struct MockDatabaseAdapter {
     tables: HashMap<String, Vec<JsonbValue>>,
 }
@@ -102,6 +108,38 @@ impl MockDatabaseAdapter {
             })),
         ];
         tables.insert("products".to_string(), products);
+
+        Self { tables }
+    }
+
+    /// Create a mock adapter where nested-object fields are stored as JSON strings,
+    /// matching what PostgreSQL's `->>` operator returns for JSONB nested-object columns.
+    ///
+    /// Use this in tests that need to exercise the projection layer's string-to-object
+    /// recovery path (Fix A for issue #27).
+    fn with_realistic_sample_data() -> Self {
+        let mut tables = HashMap::new();
+
+        // metadata arrives as a serialized JSON string (the ->> path)
+        let users = vec![
+            JsonbValue::new(json!({
+                "id":         "123e4567-e89b-12d3-a456-426614174000",
+                "name":       "Alice Johnson",
+                "email":      "alice@example.com",
+                "status":     "active",
+                "created_at": "2024-01-15T10:00:00Z",
+                "metadata":   r#"{"last_login":"2024-01-14T15:30:00Z","login_count":42}"#
+            })),
+            JsonbValue::new(json!({
+                "id":         "223e4567-e89b-12d3-a456-426614174001",
+                "name":       "Bob Smith",
+                "email":      "bob@example.com",
+                "status":     "active",
+                "created_at": "2024-01-10T09:30:00Z",
+                "metadata":   r#"{"last_login":"2024-01-13T20:15:00Z","login_count":87}"#
+            })),
+        ];
+        tables.insert("users".to_string(), users);
 
         Self { tables }
     }
@@ -522,4 +560,139 @@ async fn test_different_tables_independent() {
 
     // Verify products have product fields
     assert!(products[0].as_value().get("sku").is_some());
+}
+
+// ============================================================================
+// Realistic Data Tests (nested objects as JSON strings — the ->> path)
+// ============================================================================
+
+#[tokio::test]
+async fn test_projection_recovers_nested_object_from_json_string() {
+    // Regression guard for issue #27.
+    // When a nested-object field (metadata) arrives as a serialized JSON string
+    // (the ->> path), the projection layer must return a proper object.
+    let adapter = MockDatabaseAdapter::with_realistic_sample_data();
+    let results = adapter.execute_where_query("users", None, None, None).await.unwrap();
+
+    let mapper = ProjectionMapper::with_mappings(vec![
+        FieldMapping::simple("id"),
+        FieldMapping::simple("name"),
+        FieldMapping::nested_object(
+            "metadata",
+            "UserMetadata",
+            vec![FieldMapping::simple("last_login"), FieldMapping::simple("login_count")],
+        ),
+    ]);
+
+    for row in &results {
+        let result = mapper.project(row).expect("projection must not fail");
+
+        let meta = result.get("metadata").expect("metadata field must be present");
+
+        assert!(
+            meta.is_object(),
+            "metadata must be projected as an object, not a string — got: {meta}"
+        );
+        assert_eq!(
+            meta.get("__typename"),
+            Some(&json!("UserMetadata")),
+            "metadata must have __typename injected"
+        );
+        assert!(
+            meta.get("last_login").is_some(),
+            "last_login must be projected from nested metadata"
+        );
+        assert!(
+            meta.get("login_count").is_some(),
+            "login_count must be projected from nested metadata"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_e2e_pipeline_with_realistic_nested_data() {
+    // Full pipeline test with realistic data:
+    // DB returns metadata as a JSON string (the ->> path) →
+    // projection recovers it as an object →
+    // GraphQL envelope contains proper nested structure.
+    let adapter = MockDatabaseAdapter::with_realistic_sample_data();
+    let db_results =
+        adapter.execute_where_query("users", None, Some(1), None).await.unwrap();
+
+    let mapper = ProjectionMapper::with_mappings(vec![
+        FieldMapping::simple("id"),
+        FieldMapping::simple("name"),
+        FieldMapping::nested_object(
+            "metadata",
+            "UserMetadata",
+            vec![FieldMapping::simple("login_count")],
+        ),
+    ])
+    .with_typename("User");
+
+    let projected = mapper.project(&db_results[0]).expect("projection must not fail");
+    let response = ResultProjector::wrap_in_data_envelope(projected, "user");
+
+    let user = response["data"]["user"].as_object().expect("user must be an object");
+    assert_eq!(user["__typename"], json!("User"), "top-level __typename");
+
+    let meta = user["metadata"].as_object().expect("metadata must be an object");
+    assert_eq!(
+        meta["__typename"],
+        json!("UserMetadata"),
+        "nested __typename must be injected"
+    );
+    assert!(meta["login_count"].is_number(), "login_count must be a number");
+
+    // metadata must NOT be a string anywhere in the response
+    let response_str = serde_json::to_string(&response["data"]).unwrap();
+    assert!(
+        !response_str.contains(r#""metadata":"{\"#),
+        "metadata must not appear as a JSON-encoded string in the response"
+    );
+}
+
+// ============================================================================
+// Double-Processing Guard (fraiseql-python issue #288)
+// ============================================================================
+
+#[tokio::test]
+async fn test_projection_of_already_projected_data_is_not_empty() {
+    // Regression guard for fraiseql-python issue #288.
+    //
+    // Verifies that the projection layer does NOT silently return empty objects
+    // when fed data that has already been projected (fields at top level, no
+    // nested JSONB object to extract from).
+    //
+    // The Python router can call the projector twice on the same data in the
+    // multi-field-query path. The second call must still return meaningful data,
+    // not silently strip all fields.
+    let already_projected = JsonbValue::new(serde_json::json!({
+        "__typename": "MyItem",
+        "id":         "item-1",
+        "nested":     { "__typename": "Nested", "value": "hello" }
+    }));
+
+    let mapper = ProjectionMapper::with_mappings(vec![
+        FieldMapping::simple("id"),
+        FieldMapping::nested_object("nested", "Nested", vec![FieldMapping::simple("value")]),
+    ])
+    .with_typename("MyItem");
+
+    let result = mapper.project(&already_projected).unwrap();
+    let obj = result.as_object().expect("result must be an object");
+
+    assert_eq!(
+        obj.get("__typename"),
+        Some(&serde_json::json!("MyItem")),
+        "top-level __typename must be present"
+    );
+    assert!(obj.get("id").is_some(), "id must be present — got empty object: {result}");
+
+    let nested = obj.get("nested").expect("nested must be present");
+    assert!(nested.is_object(), "nested must be an object, not absent or string");
+    assert!(
+        nested.get("value").is_some(),
+        "nested.value must be present — silent empty: {nested}"
+    );
 }

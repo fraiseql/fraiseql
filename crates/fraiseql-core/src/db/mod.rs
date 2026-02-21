@@ -80,7 +80,7 @@ pub use identifier::{
 pub use mysql::MySqlAdapter;
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
-pub use projection_generator::PostgresProjectionGenerator;
+pub use projection_generator::{FieldKind, PostgresProjectionGenerator};
 #[cfg(feature = "sqlite")]
 pub use sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]

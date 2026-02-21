@@ -8,11 +8,12 @@
 use fraiseql_core::{
     db::{
         projection_generator::{
-            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
+            FieldKind, MySqlProjectionGenerator, PostgresProjectionGenerator,
+            SqliteProjectionGenerator,
         },
         types::JsonbValue,
     },
-    runtime::ResultProjector,
+    runtime::{FieldMapping, ProjectionMapper, ResultProjector},
     schema::SqlProjectionHint,
 };
 use serde_json::json;
@@ -322,6 +323,62 @@ fn test_projection_with_nested_structure() {
     assert_eq!(projected.get("settings"), None);
 }
 
+/// Companion to `test_projection_with_nested_structure`.
+///
+/// Verifies the same invariant — nested object fields are preserved and extraneous
+/// fields are excluded — but with the field arriving as a serialized JSON string
+/// (the format PostgreSQL `->>` returns for JSONB object columns).
+///
+/// This is the regression guard for issue #27 at the `projection_integration` level.
+#[test]
+fn test_projection_with_serialized_nested_structure() {
+    let projector = ProjectionMapper::with_mappings(vec![
+        FieldMapping::simple("id"),
+        FieldMapping::nested_object(
+            "profile",
+            "Profile",
+            vec![FieldMapping::simple("name")], // only request name, not email
+        ),
+    ]);
+
+    // profile arrives as a JSON string (the ->> path)
+    let data = json!({
+        "id":      "123",
+        "profile": r#"{"name":"Alice","email":"alice@example.com"}"#,
+        "settings": { "theme": "dark" }
+    });
+
+    let jsonb = JsonbValue::new(data);
+    let projected = projector.project(&jsonb).expect("projection must not fail");
+
+    // id must be present
+    assert_eq!(projected.get("id"), Some(&json!("123")));
+
+    // settings must be excluded (not in field list)
+    assert_eq!(projected.get("settings"), None, "settings must be filtered out");
+
+    // profile must be an object — NOT a string
+    let profile = projected.get("profile").expect("profile must be present");
+    assert!(
+        profile.is_object(),
+        "profile must be recovered as an object, got: {profile}"
+    );
+    // __typename must be injected
+    assert_eq!(
+        profile.get("__typename"),
+        Some(&json!("Profile")),
+        "profile must have __typename"
+    );
+    // requested field must be present
+    assert_eq!(profile.get("name"), Some(&json!("Alice")), "profile.name must be projected");
+    // unrequested field must be excluded
+    assert_eq!(
+        profile.get("email"),
+        None,
+        "profile.email must be filtered out (not requested)"
+    );
+}
+
 /// Test complete flow: hint creation -> projection generation -> result wrapping
 #[test]
 fn test_complete_projection_pipeline() {
@@ -389,7 +446,7 @@ fn test_database_specific_syntax() {
     let mysql_sql = MySqlProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
     let sqlite_sql = SqliteProjectionGenerator::new().generate_projection_sql(&fields).unwrap();
 
-    // PostgreSQL uses ->> operator
+    // PostgreSQL uses ->> for scalar fields (text extraction)
     assert!(pg_sql.contains("->>'"));
 
     // MySQL uses JSON_EXTRACT
@@ -397,6 +454,78 @@ fn test_database_specific_syntax() {
 
     // SQLite uses json_extract
     assert!(sqlite_sql.contains("json_extract"));
+}
+
+/// Test that typed projection uses -> for Object fields, ->> for Scalar fields.
+///
+/// This is the regression test for issue #27: using ->> on a JSONB column that contains
+/// a nested object returns its JSON-serialised text rather than a structured value.
+#[test]
+fn test_postgres_typed_projection_operator_selection() {
+    let generator = PostgresProjectionGenerator::new();
+    let fields = vec![
+        ("id".to_string(), FieldKind::Scalar),
+        ("title".to_string(), FieldKind::Scalar),
+        ("author".to_string(), FieldKind::Object),
+    ];
+
+    let sql = generator.generate_projection_sql_typed(&fields).unwrap();
+
+    // Scalar fields: text extraction
+    assert!(sql.contains("'id', \"data\"->>'id'"), "scalar 'id' must use ->>");
+    assert!(sql.contains("'title', \"data\"->>'title'"), "scalar 'title' must use ->>");
+    // Object field: JSONB extraction — preserves nested structure
+    assert!(sql.contains("'author', \"data\"->'author'"), "object 'author' must use ->");
+    assert!(
+        !sql.contains("'author', \"data\"->>'author'"),
+        "object 'author' must NOT use ->>"
+    );
+}
+
+/// Regression test for issue #27: full pipeline simulation.
+///
+/// Simulates what happens in production when the SQL layer uses ->> for an Object field
+/// (returning a JSON-encoded string) and the Rust projection layer must recover the
+/// nested structure correctly.
+///
+/// This test intentionally crosses the boundary between projection_generator.rs (SQL)
+/// and projection.rs (Rust) — the gap that allowed the bug to go undetected.
+#[test]
+fn test_nested_object_pipeline_json_string_to_object() {
+    // Simulate the buggy SQL path: ->> returns a JSON string for a nested object.
+    // In production this is what PostgreSQL hands back when the view has a JSONB
+    // nested object column but the SQL uses ->>.
+    let raw_db_row = serde_json::json!({
+        "id": "bb18a1b3",
+        "title": "Post Title",
+        // author arrives as a serialized JSON string (what ->> produces)
+        "author": "{\"id\": \"4787988d\", \"identifier\": \"author\", \"email\": \"author@example.com\"}"
+    });
+
+    let jsonb = JsonbValue::new(raw_db_row);
+
+    // Rust projection layer must re-parse the string back into an object.
+    let mapper = ProjectionMapper::with_mappings(vec![
+        FieldMapping::simple("id"),
+        FieldMapping::simple("title"),
+        FieldMapping::nested_object(
+            "author",
+            "User",
+            vec![FieldMapping::simple("id"), FieldMapping::simple("identifier")],
+        ),
+    ]);
+
+    let result = mapper.project(&jsonb).unwrap();
+
+    // author must be a proper object, not a string
+    let author = result.get("author").expect("author field must exist");
+    assert!(author.is_object(), "author must be an object, got: {author}");
+    assert_eq!(author.get("id"), Some(&serde_json::json!("4787988d")));
+    assert_eq!(author.get("identifier"), Some(&serde_json::json!("author")));
+    // email was not requested — must be filtered out by nested_fields projection
+    assert_eq!(author.get("email"), None, "unrequested field must not leak");
+    // __typename must be injected
+    assert_eq!(author.get("__typename"), Some(&serde_json::json!("User")));
 }
 
 /// Test projection result projection for list vs single
@@ -431,4 +560,72 @@ fn test_projection_with_empty_results() {
     // Empty result set for single query
     let single_result = projector.project_results(&[], false).unwrap();
     assert_eq!(single_result, json!(null));
+}
+
+/// Regression guard for fraiseql-python issue #269.
+///
+/// Verifies the full camelCase/snake_case round-trip:
+///  1. SQL generator uses snake_case JSONB keys (`first_name`, `created_at`)
+///  2. The SQL response key labels stay camelCase (`firstName`, `createdAt`) for GraphQL
+///  3. The Rust projection layer maps snake_case source keys to camelCase output keys
+///
+/// If either conversion is broken, fields silently return null.
+#[test]
+fn test_camel_to_snake_jsonb_lookup_round_trip() {
+    let generator = PostgresProjectionGenerator::new();
+
+    // GraphQL field names are camelCase (what the client sends)
+    let typed_fields = vec![
+        ("id".to_string(), FieldKind::Scalar),
+        ("firstName".to_string(), FieldKind::Scalar),
+        ("isActive".to_string(), FieldKind::Scalar),
+        ("createdAt".to_string(), FieldKind::Scalar),
+    ];
+
+    let sql = generator.generate_projection_sql_typed(&typed_fields).unwrap();
+
+    // SQL must use snake_case keys for JSONB lookup (the DB stores them that way)
+    assert!(sql.contains("->>'first_name'"), "JSONB key must be snake_case: first_name");
+    assert!(sql.contains("->>'is_active'"), "JSONB key must be snake_case: is_active");
+    assert!(sql.contains("->>'created_at'"), "JSONB key must be snake_case: created_at");
+
+    // SQL must NOT use camelCase keys (would return null from JSONB)
+    assert!(!sql.contains("->>'firstName'"), "Must NOT look up camelCase key");
+    assert!(!sql.contains("->>'isActive'"), "Must NOT look up camelCase key");
+    assert!(!sql.contains("->>'createdAt'"), "Must NOT look up camelCase key");
+
+    // Response key labels in jsonb_build_object must stay camelCase (for GraphQL)
+    assert!(sql.contains("'firstName'"), "Response key must be camelCase");
+    assert!(sql.contains("'isActive'"), "Response key must be camelCase");
+    assert!(sql.contains("'createdAt'"), "Response key must be camelCase");
+
+    // Now simulate what PostgreSQL returns (JSONB stored with snake_case keys)
+    // and verify the projector maps them correctly to camelCase output keys.
+    //
+    // Note: when SQL projection is active, PostgreSQL already applies the key
+    // renaming inside jsonb_build_object. Here we test the Rust-side projection
+    // path (no SQL projection), which must also handle the rename.
+    let projector = ProjectionMapper::with_mappings(vec![
+        FieldMapping::aliased("first_name", "firstName"),
+        FieldMapping::aliased("is_active", "isActive"),
+        FieldMapping::aliased("created_at", "createdAt"),
+    ]);
+
+    let db_row = serde_json::json!({
+        "first_name": "Bob",
+        "is_active":  true,
+        "created_at": "2024-01-14T00:00:00Z",
+    });
+
+    let result = projector.project(&JsonbValue::new(db_row)).unwrap();
+
+    // Response uses camelCase (GraphQL convention)
+    assert_eq!(result.get("firstName"), Some(&serde_json::json!("Bob")));
+    assert_eq!(result.get("isActive"), Some(&serde_json::json!(true)));
+    assert_eq!(result.get("createdAt"), Some(&serde_json::json!("2024-01-14T00:00:00Z")));
+
+    // snake_case keys must not leak into the GraphQL response
+    assert_eq!(result.get("first_name"), None, "snake_case key must not appear in response");
+    assert_eq!(result.get("is_active"), None, "snake_case key must not appear in response");
+    assert_eq!(result.get("created_at"), None, "snake_case key must not appear in response");
 }

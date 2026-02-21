@@ -223,6 +223,21 @@ impl ProjectionMapper {
                     Ok(value.clone())
                 }
             },
+            JsonValue::String(s) => {
+                // Workaround for projection_generator.rs using ->>'field' (text extraction)
+                // instead of ->'field' (JSONB extraction) for nested Object types.
+                // The JSONB object arrives as a serialized JSON string; re-parse and recurse.
+                // See: https://github.com/fraiseql/fraiseql/issues/27
+                if let Ok(parsed) = serde_json::from_str::<JsonValue>(s) {
+                    match parsed {
+                        JsonValue::Object(_) | JsonValue::Array(_) => {
+                            return self.project_nested_value(&parsed, field);
+                        },
+                        _ => {},
+                    }
+                }
+                Ok(value.clone())
+            },
             _ => Ok(value.clone()),
         }
     }
@@ -901,5 +916,95 @@ mod tests {
                 }
             })
         );
+    }
+
+    // ========================================================================
+    // Issue #27: Nested Object fields returned as JSON strings
+    // ========================================================================
+
+    #[test]
+    fn test_nested_object_from_json_string_with_fields() {
+        // Regression test for issue #27:
+        // When projection_generator.rs uses ->> instead of -> for Object fields,
+        // the nested JSONB object arrives as a serialized JSON string.
+        // ProjectionMapper must re-parse and project it correctly.
+        let mapper = ProjectionMapper::with_mappings(vec![
+            FieldMapping::simple("id"),
+            FieldMapping::simple("title"),
+            FieldMapping::nested_object(
+                "author",
+                "User",
+                vec![FieldMapping::simple("id"), FieldMapping::simple("identifier")],
+            ),
+        ]);
+
+        // "author" is a JSON string (as ->> would produce)
+        let data = json!({
+            "id": "bb18a1b3",
+            "title": "Post Title",
+            "author": "{\"id\": \"4787988d\", \"identifier\": \"author\", \"email\": \"author@example.com\"}"
+        });
+
+        let jsonb = JsonbValue::new(data);
+        let result = mapper.project(&jsonb).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "id": "bb18a1b3",
+                "title": "Post Title",
+                "author": {
+                    "__typename": "User",
+                    "id": "4787988d",
+                    "identifier": "author"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_nested_object_from_json_string_without_typename() {
+        // Without nested_typename, a JSON string that parses as an object
+        // should still be returned as the parsed object (not as a string).
+        let mapper = ProjectionMapper::with_mappings(vec![
+            FieldMapping::simple("id"),
+            FieldMapping::simple("author"),
+        ]);
+
+        let data = json!({
+            "id": "post-1",
+            "author": "{\"id\": \"user-1\", \"name\": \"Alice\"}"
+        });
+
+        let jsonb = JsonbValue::new(data);
+        let result = mapper.project(&jsonb).unwrap();
+
+        // author should be the parsed object, not the raw string
+        assert_eq!(
+            result,
+            json!({
+                "id": "post-1",
+                "author": { "id": "user-1", "name": "Alice" }
+            })
+        );
+    }
+
+    #[test]
+    fn test_scalar_json_string_not_reparsed() {
+        // A plain string value that is NOT a JSON object/array should be returned as-is.
+        let mapper = ProjectionMapper::with_mappings(vec![
+            FieldMapping::simple("id"),
+            FieldMapping::simple("title"),
+        ]);
+
+        let data = json!({
+            "id": "post-1",
+            "title": "Hello World"
+        });
+
+        let jsonb = JsonbValue::new(data);
+        let result = mapper.project(&jsonb).unwrap();
+
+        assert_eq!(result, json!({ "id": "post-1", "title": "Hello World" }));
     }
 }

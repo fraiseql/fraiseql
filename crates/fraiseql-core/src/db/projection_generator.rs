@@ -26,6 +26,25 @@
 
 use crate::error::Result;
 
+/// Indicates whether a GraphQL field is a scalar or a nested object type.
+///
+/// Used by [`PostgresProjectionGenerator::generate_projection_sql_typed`] to choose
+/// the correct PostgreSQL JSONB extraction operator:
+///
+/// - `Scalar` → `->>` (text extraction, correct for strings/numbers/booleans)
+/// - `Object` → `->` (JSONB extraction, preserves nested structure)
+///
+/// Using `->>` on a JSONB object column returns its JSON-serialised text
+/// representation (e.g. `"{\"id\":\"1\",...}"`), which is the root cause
+/// of [issue #27](https://github.com/fraiseql/fraiseql/issues/27).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldKind {
+    /// A leaf scalar field (string, number, boolean, null).
+    Scalar,
+    /// A nested object or array field whose value must remain JSONB.
+    Object,
+}
+
 /// Convert camelCase field name to snake_case for JSON/JSONB key lookup.
 ///
 /// FraiseQL converts schema field names from snake_case to camelCase for GraphQL spec compliance.
@@ -128,6 +147,57 @@ impl PostgresProjectionGenerator {
             .collect();
 
         // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
+        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+    }
+
+    /// Generate PostgreSQL projection SQL with per-field type awareness.
+    ///
+    /// Unlike [`generate_projection_sql`](Self::generate_projection_sql), this method
+    /// accepts a `(field_name, FieldKind)` slice so that nested Object fields use the
+    /// JSONB extraction operator `->` (which preserves the JSONB value) while scalar
+    /// fields continue to use the text extraction operator `->>`.
+    ///
+    /// This is the proper fix for [issue #27](https://github.com/fraiseql/fraiseql/issues/27):
+    /// using `->>` on an Object column returns a raw JSON string rather than a structured
+    /// JSONB value, causing downstream code to receive `"{"id":"…"}"` instead of
+    /// `{"id":"…"}`.
+    ///
+    /// # Arguments
+    ///
+    /// * `fields` - Pairs of `(GraphQL field name, FieldKind)`
+    ///
+    /// # Returns
+    ///
+    /// SQL fragment, e.g.:
+    /// `jsonb_build_object('id', data->>'id', 'author', data->'author')`
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible, but returns `Result` for API consistency.
+    pub fn generate_projection_sql_typed(&self, fields: &[(String, FieldKind)]) -> Result<String> {
+        if fields.is_empty() {
+            return Ok(format!("\"{}\"", self.jsonb_column));
+        }
+
+        let field_pairs: Vec<String> = fields
+            .iter()
+            .map(|(field, kind)| {
+                let safe_field = Self::escape_identifier(field);
+                let jsonb_key = to_snake_case(field);
+                let safe_jsonb_key = Self::escape_identifier(&jsonb_key);
+                match kind {
+                    FieldKind::Object => {
+                        // Use -> to preserve JSONB structure for nested objects
+                        format!("'{}', \"{}\"->'{}' ", safe_field, self.jsonb_column, safe_jsonb_key)
+                    },
+                    FieldKind::Scalar => {
+                        // Use ->> for scalar text extraction
+                        format!("'{}', \"{}\"->>'{}' ", safe_field, self.jsonb_column, safe_jsonb_key)
+                    },
+                }
+            })
+            .collect();
+
         Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
     }
 
@@ -565,5 +635,69 @@ mod tests {
              JSONB has snake_case keys like 'first_name', 'created_at'. SQL: {}",
             sql
         );
+    }
+
+    // ========================================================================
+    // Issue #27: Object fields must use -> not ->> in SQL projection
+    // ========================================================================
+
+    #[test]
+    fn test_postgres_object_field_uses_jsonb_arrow() {
+        // Regression test for issue #27:
+        // Object-typed fields must use -> (JSONB extraction, preserves type)
+        // instead of ->> (text extraction, serializes JSONB to string).
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ("id".to_string(), FieldKind::Scalar),
+            ("title".to_string(), FieldKind::Scalar),
+            ("author".to_string(), FieldKind::Object),
+        ];
+
+        let sql = generator.generate_projection_sql_typed(&fields).unwrap();
+
+        // Scalar fields use ->>
+        assert!(
+            sql.contains("'id', \"data\"->>'id'"),
+            "Scalar 'id' should use ->>, got: {sql}"
+        );
+        assert!(
+            sql.contains("'title', \"data\"->>'title'"),
+            "Scalar 'title' should use ->>, got: {sql}"
+        );
+        // Object field uses -> (no second >)
+        assert!(
+            sql.contains("'author', \"data\"->'author'"),
+            "Object 'author' should use ->, got: {sql}"
+        );
+        assert!(
+            !sql.contains("'author', \"data\"->>'author'"),
+            "Object 'author' must NOT use ->>, got: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_postgres_all_scalar_fields_typed() {
+        // When all fields are Scalar, typed and untyped generators produce equivalent SQL.
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ("id".to_string(), FieldKind::Scalar),
+            ("name".to_string(), FieldKind::Scalar),
+        ];
+
+        let sql = generator.generate_projection_sql_typed(&fields).unwrap();
+
+        assert!(sql.contains("jsonb_build_object("));
+        assert!(sql.contains("'id', \"data\"->>'id'"));
+        assert!(sql.contains("'name', \"data\"->>'name'"));
+        assert!(!sql.contains("->'")); // no single-arrow access
+    }
+
+    #[test]
+    fn test_postgres_typed_projection_empty_fields() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields: Vec<(String, FieldKind)> = vec![];
+
+        let sql = generator.generate_projection_sql_typed(&fields).unwrap();
+        assert_eq!(sql, "\"data\"");
     }
 }

@@ -35,11 +35,12 @@ use std::time::Instant;
 use fraiseql_core::{
     db::{
         projection_generator::{
-            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
+            FieldKind, MySqlProjectionGenerator, PostgresProjectionGenerator,
+            SqliteProjectionGenerator,
         },
         types::JsonbValue,
     },
-    runtime::{FieldMapping, ResultProjector},
+    runtime::{FieldMapping, ProjectionMapper, ResultProjector},
 };
 use serde_json::{Map, Value as JsonValue, json};
 
@@ -47,7 +48,12 @@ use serde_json::{Map, Value as JsonValue, json};
 // Test Helpers - Sample data generation
 // ============================================================================
 
-/// Generate sample JSONB rows with specified field and row counts
+/// Generate sample JSONB rows with specified field and row counts.
+///
+/// Nested-object fields are pre-parsed in-memory objects. Use this helper for
+/// performance tests and general field-filtering accuracy tests.
+/// When you need to test the string-to-object recovery path (the `->>` boundary),
+/// use [`generate_sample_rows_with_serialized_nested`] instead.
 fn generate_sample_rows(row_count: usize, field_count: usize) -> Vec<JsonbValue> {
     let mut rows = Vec::with_capacity(row_count);
 
@@ -70,6 +76,34 @@ fn generate_sample_rows(row_count: usize, field_count: usize) -> Vec<JsonbValue>
         obj.insert("metadata".to_string(), json!({"score": 100}));
 
         rows.push(JsonbValue::new(JsonValue::Object(obj)));
+    }
+
+    rows
+}
+
+/// Generate sample rows where nested-object fields arrive as serialized JSON strings,
+/// exactly as PostgreSQL's `->>` operator returns them.
+///
+/// Use this helper when testing the handoff between the SQL projection layer
+/// (which may use `->>`)) and the Rust projection layer (which must recover objects).
+fn generate_sample_rows_with_serialized_nested(row_count: usize) -> Vec<JsonbValue> {
+    let mut rows = Vec::with_capacity(row_count);
+
+    for row_id in 0..row_count {
+        // Nested-object field arrives as a JSON string — this is what
+        // PostgreSQL's ->> operator actually returns for a JSONB object column.
+        let metadata_as_string =
+            format!(r#"{{"score":{},"row":{}}}"#, 100 + row_id, row_id);
+
+        let obj = serde_json::json!({
+            "id":       format!("id_{row_id}"),
+            "name":     format!("User {row_id}"),
+            "email":    format!("user{row_id}@example.com"),
+            "status":   "active",
+            "metadata": metadata_as_string,   // JSON string, not object
+        });
+
+        rows.push(JsonbValue::new(obj));
     }
 
     rows
@@ -457,6 +491,48 @@ mod query_optimization_tests {
     }
 
     // ============================================================================
+    // SECTION 5b: Field Filtering with Serialized Nested Objects
+    // ============================================================================
+    // When the SQL layer uses ->>', nested-object fields arrive as JSON strings.
+    // The projection layer must recover the object structure from the string.
+    // This is a cross-boundary regression guard for issue #27.
+
+    #[test]
+    fn test_field_filtering_with_serialized_nested_object() {
+        // When metadata arrives as a JSON string (the ->> path), the projector
+        // must still project it as an object with only requested nested fields.
+        let rows = generate_sample_rows_with_serialized_nested(5);
+
+        let mapper = ProjectionMapper::with_mappings(vec![
+            FieldMapping::simple("id"),
+            FieldMapping::simple("name"),
+            FieldMapping::nested_object(
+                "metadata",
+                "Metadata",
+                vec![FieldMapping::simple("score")],
+            ),
+        ]);
+
+        for row in &rows {
+            let result = mapper.project(row).expect("projection must not fail");
+
+            // Scalar fields must be present
+            assert!(result.get("id").is_some(), "id must be present");
+            assert!(result.get("name").is_some(), "name must be present");
+
+            // metadata must be a proper object — NOT a string
+            let meta = result.get("metadata").expect("metadata must be present");
+            assert!(
+                meta.is_object(),
+                "metadata must be projected as an object, got: {meta}"
+            );
+            assert!(meta.get("score").is_some(), "nested score field must be projected");
+            // Unrequested 'row' field must be filtered out
+            assert_eq!(meta.get("row"), None, "unrequested nested field must not leak");
+        }
+    }
+
+    // ============================================================================
     // SECTION 6: PostgreSQL-Specific Features (2 tests)
     // ============================================================================
     // Tests PostgreSQL projection SQL generation features.
@@ -464,17 +540,56 @@ mod query_optimization_tests {
     // Target: Correct jsonb_build_object SQL generation.
 
     #[test]
-    fn test_postgres_projection_sql_structure() {
-        // Verify PostgreSQL projection generates correct jsonb_build_object syntax
+    fn test_postgres_projection_sql_structure_scalar_fields() {
+        // Scalar-only projection must use ->>' (text extraction) for every field.
         let generator = PostgresProjectionGenerator::new();
-        let fields = vec!["id".to_string(), "name".to_string()];
+        let fields = vec![
+            ("id".to_string(), FieldKind::Scalar),
+            ("name".to_string(), FieldKind::Scalar),
+        ];
 
-        let sql = generator.generate_projection_sql(&fields).expect("Should generate SQL");
+        let sql = generator.generate_projection_sql_typed(&fields).expect("Should generate SQL");
 
-        assert!(sql.contains("jsonb_build_object("), "Should use jsonb_build_object");
-        assert!(sql.contains("'id'"), "Should include id field");
-        assert!(sql.contains("'name'"), "Should include name field");
-        assert!(sql.contains("\"data\""), "Should reference data column");
+        assert!(sql.contains("jsonb_build_object("), "Must use jsonb_build_object");
+        assert!(sql.contains("'id',"), "Must include id key");
+        assert!(sql.contains("'name',"), "Must include name key");
+        assert!(sql.contains("\"data\""), "Must reference data column");
+
+        // Scalar fields: text extraction operator
+        assert!(sql.contains("->>'id'"), "Scalar id must use ->>");
+        assert!(sql.contains("->>'name'"), "Scalar name must use ->>");
+        // No JSONB-extraction-only access on scalar fields
+        assert!(!sql.contains("->'id'"), "Scalar id must NOT use ->");
+        assert!(!sql.contains("->'name'"), "Scalar name must NOT use ->");
+    }
+
+    #[test]
+    fn test_postgres_projection_sql_structure_mixed_fields() {
+        // Mixed projection: scalar fields use ->>', object fields use ->.
+        // This is the regression guard for issue #27.
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ("id".to_string(), FieldKind::Scalar),
+            ("title".to_string(), FieldKind::Scalar),
+            ("author".to_string(), FieldKind::Object),
+            ("tags".to_string(), FieldKind::Object),
+        ];
+
+        let sql = generator.generate_projection_sql_typed(&fields).expect("Should generate SQL");
+
+        assert!(sql.contains("jsonb_build_object("), "Must use jsonb_build_object");
+
+        // Scalar fields: text extraction
+        assert!(sql.contains("->>'id'"), "Scalar id must use ->>");
+        assert!(sql.contains("->>'title'"), "Scalar title must use ->>");
+
+        // Object fields: JSONB extraction — preserves nested structure
+        assert!(sql.contains("->'author'"), "Object author must use ->");
+        assert!(sql.contains("->'tags'"), "Object tags must use ->");
+
+        // Object fields must NOT use text extraction
+        assert!(!sql.contains("->>'author'"), "Object author must NOT use ->>");
+        assert!(!sql.contains("->>'tags'"), "Object tags must NOT use ->>");
     }
 
     #[test]
@@ -496,5 +611,114 @@ mod query_optimization_tests {
             select.contains("\"users\"") || select.contains("`users`") || select.contains("users"),
             "Should include table name"
         );
+    }
+
+    // ============================================================================
+    // SECTION 7: SQL-to-Projection Boundary (cross-module regression guards)
+    // ============================================================================
+    // These tests verify that what the SQL generator specifies (via FieldKind)
+    // is consistent with what the projection layer expects to receive from the
+    // database driver. They guard the interface between projection_generator.rs
+    // and projection.rs — the gap where issue #27 hid.
+
+    #[test]
+    fn test_sql_operator_matches_projection_input_format_scalars() {
+        // When the SQL generator emits ->>' for a scalar field, PostgreSQL
+        // returns a plain string/number. The projection layer must handle this.
+        let generator = PostgresProjectionGenerator::new();
+        let typed_fields = vec![
+            ("id".to_string(), FieldKind::Scalar),
+            ("name".to_string(), FieldKind::Scalar),
+            ("email".to_string(), FieldKind::Scalar),
+        ];
+
+        // Verify the SQL uses ->>' for all three (text extraction)
+        let sql = generator.generate_projection_sql_typed(&typed_fields).unwrap();
+        assert!(sql.contains("->>'id'"), "id must use ->>");
+        assert!(sql.contains("->>'name'"), "name must use ->>");
+        assert!(sql.contains("->>'email'"), "email must use ->>");
+
+        // Simulate what PostgreSQL returns: plain scalar values
+        let db_row = serde_json::json!({
+            "id":    "user-1",
+            "name":  "Alice",
+            "email": "alice@example.com",
+        });
+        let jsonb = JsonbValue::new(db_row);
+
+        // Projection layer must accept scalar values as-is
+        let projector = ResultProjector::with_mappings(
+            typed_fields.into_iter().map(|(name, _)| FieldMapping::simple(name)).collect(),
+        );
+        let result = projector.project_results(&[jsonb], false).unwrap();
+
+        assert_eq!(result.get("id"), Some(&serde_json::json!("user-1")));
+        assert_eq!(result.get("name"), Some(&serde_json::json!("Alice")));
+        assert_eq!(result.get("email"), Some(&serde_json::json!("alice@example.com")));
+    }
+
+    #[test]
+    fn test_sql_operator_matches_projection_input_format_objects() {
+        // When the SQL generator emits ->' for an Object field, PostgreSQL
+        // returns a JSONB value (an object). But if ->> was mistakenly used,
+        // PostgreSQL would return a JSON string. This test asserts both:
+        //  (a) the generator emits -> (not ->>) for Object fields
+        //  (b) the projector correctly handles the string fallback path
+        let generator = PostgresProjectionGenerator::new();
+        let typed_fields = vec![
+            ("id".to_string(), FieldKind::Scalar),
+            ("author".to_string(), FieldKind::Object),
+        ];
+
+        let sql = generator.generate_projection_sql_typed(&typed_fields).unwrap();
+
+        // (a) verify correct SQL operators
+        assert!(sql.contains("->>'id'"), "scalar id must use ->>");
+        assert!(sql.contains("->'author'"), "object author must use ->");
+        assert!(!sql.contains("->>'author'"), "object author must NOT use ->>");
+
+        // (b) simulate the ->' path: PostgreSQL returns a proper object
+        let db_row_proper =
+            serde_json::json!({ "id": "post-1", "author": { "id": "user-1", "name": "Alice" } });
+
+        // (b') simulate the ->> path (bug): PostgreSQL returns a string
+        let db_row_string = serde_json::json!({
+            "id":     "post-1",
+            "author": "{\"id\":\"user-1\",\"name\":\"Alice\"}"
+        });
+
+        let mapper = ProjectionMapper::with_mappings(vec![
+            FieldMapping::simple("id"),
+            FieldMapping::nested_object(
+                "author",
+                "User",
+                vec![FieldMapping::simple("id"), FieldMapping::simple("name")],
+            ),
+        ]);
+
+        for (label, db_row) in [
+            ("proper JSONB object", db_row_proper),
+            ("serialized JSON string (legacy ->> path)", db_row_string),
+        ] {
+            let result = mapper
+                .project(&JsonbValue::new(db_row))
+                .unwrap_or_else(|e| panic!("{label}: projection failed: {e}"));
+
+            let author = result
+                .get("author")
+                .unwrap_or_else(|| panic!("{label}: author field missing"));
+
+            assert!(author.is_object(), "{label}: author must be an object, got: {author}");
+            assert_eq!(
+                author.get("__typename"),
+                Some(&serde_json::json!("User")),
+                "{label}: author must have __typename"
+            );
+            assert_eq!(
+                author.get("id"),
+                Some(&serde_json::json!("user-1")),
+                "{label}: author.id must be projected"
+            );
+        }
     }
 }
