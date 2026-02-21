@@ -58,14 +58,6 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: fraiseql-cli.exe
             asset_name: fraiseql-cli-windows-amd64.exe
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: fraiseql-cli
-            asset_name: fraiseql-cli-macos-amd64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_name: fraiseql-cli
-            asset_name: fraiseql-cli-macos-arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +76,7 @@ jobs:
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql-cli
 
-      - name: Strip binary (Linux/macOS)
+      - name: Strip binary (Linux)
         if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
