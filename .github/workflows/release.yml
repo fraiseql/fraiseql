@@ -18,7 +18,6 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
@@ -28,19 +27,21 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        run: |
+          PRERELEASE=""
+          if echo "$GITHUB_REF" | grep -qE '(alpha|beta|rc)'; then
+            PRERELEASE="--prerelease"
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Release $GITHUB_REF_NAME" \
+            --generate-notes \
+            $PRERELEASE
 
   # Build binaries for multiple platforms
   build-binaries:
-    name: Build Binary (${{ matrix.os }})
+    name: Build Binary (${{ matrix.asset_name }})
     needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
@@ -81,15 +82,12 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
+      - name: Upload binary to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          asset_content_type: application/octet-stream
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}#${{ matrix.asset_name }}"
 
   # Publish to crates.io
   publish-crates:
