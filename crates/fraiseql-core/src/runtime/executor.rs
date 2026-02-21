@@ -582,6 +582,37 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(projection_fields)
     }
 
+    /// Extract the `limit` argument from a matched query.
+    ///
+    /// Checks two sources in order of precedence:
+    /// 1. Inline arguments on the root field selection (highest priority).
+    /// 2. Variables map (fallback when `limit` is passed via a GraphQL variable).
+    ///
+    /// # Returns
+    ///
+    /// `Some(n)` when a valid non-negative integer limit is found, `None` otherwise.
+    fn extract_limit(query_match: &super::QueryMatch) -> Option<u32> {
+        // Check inline args on the root selection first (highest priority).
+        if let Some(root_selection) = query_match.parsed_query.selections.first() {
+            for arg in &root_selection.arguments {
+                if arg.name == "limit" {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&arg.value_json) {
+                        if let Some(n) = v.as_u64() {
+                            return Some(n as u32);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fall back to variables map.
+        query_match
+            .arguments
+            .get("limit")
+            .and_then(serde_json::Value::as_u64)
+            .map(|n| n as u32)
+    }
+
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -658,13 +689,14 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 7. Execute query with RLS WHERE clause filter
         // The database adapter handles composition of RLS filter with user filters
         // and generates the final SQL with both constraints applied
+        let limit = Self::extract_limit(&query_match);
         let results = self
             .adapter
             .execute_with_projection(
                 sql_source,
                 projection_hint.as_ref(),
                 rls_where_clause.as_ref(),
-                None,
+                limit,
             )
             .await?;
 
@@ -728,9 +760,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
+        let limit = Self::extract_limit(&query_match);
         let results = self
             .adapter
-            .execute_with_projection(sql_source, projection_hint.as_ref(), None, None)
+            .execute_with_projection(sql_source, projection_hint.as_ref(), None, limit)
             .await?;
 
         // 4. Project results
@@ -1564,6 +1597,107 @@ mod tests {
     // ========================================================================
 
     // ========================================================================
+
+    // ========================================================================
+    // Bug regression: LIMIT/OFFSET not pushed down to SQL
+    // ========================================================================
+
+    /// Mock adapter that records the `limit` value passed to execute_with_projection.
+    struct LimitCapturingAdapter {
+        mock_results: Vec<JsonbValue>,
+        captured_limit: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
+    }
+
+    impl LimitCapturingAdapter {
+        fn new(mock_results: Vec<JsonbValue>) -> (Self, std::sync::Arc<std::sync::Mutex<Option<u32>>>) {
+            let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
+            (
+                Self {
+                    mock_results,
+                    captured_limit: captured.clone(),
+                },
+                captured,
+            )
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseAdapter for LimitCapturingAdapter {
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            limit: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            *self.captured_limit.lock().unwrap() = limit;
+            Ok(self.mock_results.clone())
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(self.mock_results.clone())
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    #[tokio::test]
+    async fn test_limit_pushed_down_inline_arg() {
+        // Regression test: limit inline argument must be passed to execute_with_projection,
+        // not hardcoded as None.
+        let schema = test_schema();
+        let (adapter, captured_limit) = LimitCapturingAdapter::new(mock_user_results());
+        let executor = Executor::new(schema, Arc::new(adapter));
+
+        let query = "{ users(limit: 5) { id name } }";
+        let _result = executor.execute(query, None).await.unwrap();
+
+        let limit = *captured_limit.lock().unwrap();
+        assert_eq!(limit, Some(5), "limit inline arg must be forwarded to the adapter");
+    }
+
+    #[tokio::test]
+    async fn test_limit_pushed_down_via_variable() {
+        // Regression test: limit variable must be passed to execute_with_projection.
+        let schema = test_schema();
+        let (adapter, captured_limit) = LimitCapturingAdapter::new(mock_user_results());
+        let executor = Executor::new(schema, Arc::new(adapter));
+
+        let query = "query($limit: Int) { users(limit: $limit) { id name } }";
+        let variables = serde_json::json!({ "limit": 10 });
+        let _result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        let limit = *captured_limit.lock().unwrap();
+        assert_eq!(limit, Some(10), "limit variable must be forwarded to the adapter");
+    }
 
     #[test]
     fn test_jsonb_strategy_in_runtime_config() {
