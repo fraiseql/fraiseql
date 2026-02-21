@@ -5,6 +5,32 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.4] - 2026-02-21
+
+### Fixed
+
+- Nested JSONB objects returned as raw JSON strings (issue #27): projection
+  generator now uses `->` operator for Object fields and `->>` for scalars,
+  and the projection mapper re-parses serialized strings back to objects
+- Mutation variable encryption now wired into the GraphQL handler — fields
+  marked `@encrypted` in the schema are encrypted before SQL execution
+  (decrypt-on-read was already present; this completes the round-trip)
+
+### Added
+
+- `FieldKind` enum (`Scalar` / `Object`) in `fraiseql-core` to drive correct
+  JSONB operator selection at SQL generation time
+- `generate_projection_sql_typed()` on `PostgresProjectionGenerator` for
+  mixed-field projections with per-field operator selection
+- Regression test suite (P1–P8) covering the JSONB operator anti-patterns,
+  serialized-nested-object recovery, and cross-module boundary tests
+
+### Verification
+
+- cargo check --all-features: clean
+- cargo clippy --all-targets --all-features -D warnings: zero warnings
+- cargo test --workspace: all pass
+
 ## [2.0.0-beta.3] - 2026-02-20
 
 ### Added
