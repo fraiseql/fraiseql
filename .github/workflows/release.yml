@@ -283,9 +283,8 @@ jobs:
           echo "Waiting for PyPI to index..."
           sleep 10
           echo "Testing PyPI package installation..."
-          VERSION=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "fraiseql") | .version')
-          python -m pip install --upgrade fraiseql=="${VERSION}"
+          VERSION=$(grep '^version = ' fraiseql-python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          python -m pip install --upgrade "fraiseql==${VERSION}"
           python -c "import fraiseql; print(f'✅ fraiseql {fraiseql.__version__} successfully published to PyPI')"
         continue-on-error: true
 
