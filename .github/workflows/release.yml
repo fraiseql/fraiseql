@@ -129,10 +129,16 @@ jobs:
         if: matrix.os != 'windows-latest' && matrix.target != 'aarch64-unknown-linux-gnu'
         run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
+      - name: Rename binary to asset name
+        shell: bash
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} \
+             ${{ matrix.asset_name }}
+
       - name: Upload binary to release
         uses: softprops/action-gh-release@v2
         with:
-          files: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          files: ${{ matrix.asset_name }}
           fail_on_unmatched_files: true
 
   # Publish to crates.io
