@@ -5,6 +5,24 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.19] - 2026-02-21
+
+### Fixed
+
+- **Multi-field query with JSONB types returns empty nested fields** (#288): When a GraphQL
+  query had 2+ root-level fields and at least one resolver used a JSONB type
+  (`@fraiseql.type(jsonb_column=...)`), nested JSONB fields in the response were empty —
+  only `__typename` was returned for each nested object. The root cause was that
+  `execute_multi_field_query` only passed top-level field names (e.g. `"nested"`) to
+  `build_multi_field_response`, causing Rust's `transform_with_selections` to filter out
+  all sub-fields (e.g. `"nested.value"`) whose full paths were absent from `selected_paths`.
+  Fixed by replacing the shallow field list with a complete recursive traversal via the new
+  `_build_field_selections_recursive()` helper, which includes every dot-separated path at
+  every nesting depth. Sub-field `@skip`/`@include` directives and aliases at any depth are
+  also preserved correctly. Single-field queries are unaffected.
+
+---
+
 ## [2.0.0-alpha.2] - 2026-02-06
 
 ### Added
@@ -12,25 +30,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Audit Backend Test Coverage (Complete):**
 
 - PostgreSQL audit backend comprehensive tests (27 tests, 804 lines):
-  * Backend creation and schema validation
-  * Event logging with optional fields
-  * Query operations with filters and pagination
-  * JSONB metadata and state snapshots
-  * Multi-tenancy and tenant isolation
-  * Bulk logging and concurrent operations
-  * Schema idempotency verification
-  * Complex multi-filter queries
-  * Error handling and validation scenarios
+  - Backend creation and schema validation
+  - Event logging with optional fields
+  - Query operations with filters and pagination
+  - JSONB metadata and state snapshots
+  - Multi-tenancy and tenant isolation
+  - Bulk logging and concurrent operations
+  - Schema idempotency verification
+  - Complex multi-filter queries
+  - Error handling and validation scenarios
 
 - Syslog audit backend comprehensive tests (27 tests, 574 lines):
-  * RFC 3164 format validation
-  * Facility and severity mapping
-  * Event logging and complex event handling
-  * Query behavior (always returns empty)
-  * Network operations and timeout handling
-  * Concurrent logging with 20+ concurrent tasks
-  * Builder pattern and trait compliance
-  * E2E integration flows for all statuses
+  - RFC 3164 format validation
+  - Facility and severity mapping
+  - Event logging and complex event handling
+  - Query behavior (always returns empty)
+  - Network operations and timeout handling
+  - Concurrent logging with 20+ concurrent tasks
+  - Builder pattern and trait compliance
+  - E2E integration flows for all statuses
 
 **Arrow Flight Enhancements:**
 
