@@ -655,6 +655,129 @@ def _extract_root_query_fields(
     return []
 
 
+def _build_field_selections_recursive(
+    field_node: Any,
+    document: Any,
+    variables: dict[str, Any] | None,
+    parent_path: str = "",
+    visited_fragments: frozenset[str] | None = None,
+) -> list[dict[str, str | None]]:
+    """Build a flat list of field selections with full materialized dot-path keys.
+
+    Unlike extract_field_selections() which only captures immediate sub-fields
+    of a root field, this function recurses into nested objects and accumulates
+    selections like ``[{"materialized_path": "nested", ...},
+    {"materialized_path": "nested.value", ...}]``.
+
+    The complete path list is required by Rust's ``transform_with_selections``
+    inside ``build_multi_field_response``: without a path such as
+    ``"nested.value"`` in ``selected_paths``, Rust cannot include that field
+    and silently returns only ``__typename`` for the nested object.
+
+    Directive evaluation (``@skip`` / ``@include``) is applied via
+    ``_should_include_field`` so excluded fields are omitted from the list.
+    Fragment spreads are expanded with cycle-detection.
+
+    Args:
+        field_node: The root FieldNode (or fragment definition) whose
+            selection_set to traverse.
+        document: Full parsed GraphQL document for fragment lookup.
+        variables: Query variables for ``@skip``/``@include`` evaluation.
+        parent_path: Dot-separated path prefix for the current traversal
+            level (empty string at root level).
+        visited_fragments: Fragment names already expanded in the current
+            traversal branch (prevents infinite recursion on circular refs).
+
+    Returns:
+        Flat list of ``{"materialized_path": "...", "alias": "..."|None}``
+        dicts covering every field at every nesting depth.
+    """
+    from graphql import FieldNode as _FieldNode
+    from graphql import FragmentSpreadNode as _FragmentSpreadNode
+    from graphql import InlineFragmentNode as _InlineFragmentNode
+
+    if visited_fragments is None:
+        visited_fragments = frozenset()
+
+    result: list[dict[str, str | None]] = []
+
+    selection_set = getattr(field_node, "selection_set", None)
+    if not selection_set or not hasattr(selection_set, "selections"):
+        return result
+
+    for sel in selection_set.selections:
+        # Fragment spread: locate and expand the fragment definition.
+        if isinstance(sel, _FragmentSpreadNode):
+            if not _should_include_field(sel, variables):
+                continue
+            frag_name = sel.name.value
+            if frag_name in visited_fragments:
+                continue
+            frag_def = next(
+                (
+                    d
+                    for d in document.definitions
+                    if hasattr(d, "name") and d.name and d.name.value == frag_name
+                ),
+                None,
+            )
+            if frag_def:
+                result.extend(
+                    _build_field_selections_recursive(
+                        frag_def,
+                        document,
+                        variables,
+                        parent_path,
+                        visited_fragments | {frag_name},
+                    )
+                )
+            continue
+
+        # Inline fragment: recurse transparently.
+        if isinstance(sel, _InlineFragmentNode):
+            if not _should_include_field(sel, variables):
+                continue
+            result.extend(
+                _build_field_selections_recursive(
+                    sel,
+                    document,
+                    variables,
+                    parent_path,
+                    visited_fragments,
+                )
+            )
+            continue
+
+        # Regular field.
+        if not isinstance(sel, _FieldNode):
+            continue
+        if not hasattr(sel, "name") or not sel.name:
+            continue
+        if sel.name.value.startswith("__"):
+            continue
+        if not _should_include_field(sel, variables):
+            continue
+
+        field_name = sel.name.value
+        alias: str | None = sel.alias.value if sel.alias else None
+        path = f"{parent_path}.{field_name}" if parent_path else field_name
+        result.append({"materialized_path": path, "alias": alias})
+
+        # Recurse into nested object selections.
+        if getattr(sel, "selection_set", None):
+            result.extend(
+                _build_field_selections_recursive(
+                    sel,
+                    document,
+                    variables,
+                    path,
+                    visited_fragments,
+                )
+            )
+
+    return result
+
+
 async def execute_multi_field_query(
     schema: GraphQLSchema,
     query_string: str,
@@ -681,7 +804,13 @@ async def execute_multi_field_query(
     Raises:
         Exception: If field extraction or resolver execution fails
     """
+    # Parse once; reused by _extract_variable_defaults, _extract_root_query_fields,
+    # and _build_field_selections_recursive (fragment lookup for issue #288 fix).
+    from graphql import parse as _gql_parse
+
     from fraiseql.core.rust_pipeline import fraiseql_rs
+
+    _parsed_query = _gql_parse(query_string)
 
     # Extract variable defaults from operation definition
     variable_defaults = _extract_variable_defaults(query_string, None)
@@ -847,20 +976,20 @@ async def execute_multi_field_query(
                 # Single object
                 json_rows = [json.dumps(result) if isinstance(result, dict) else result]
 
-            # Convert field selections to JSON string for Rust
-            # Rust expects format: [{materialized_path: "field_name", alias: "alias_name"}, ...]
-            field_selections_json = None
-            if field_info.get("selections"):
-                # Convert from {field_name, alias} to {materialized_path, alias}
-                rust_selections = []
-                for sel in field_info["selections"]:
-                    # For root-level fields, materialized_path = field_name
-                    rust_sel = {
-                        "materialized_path": sel["field_name"],
-                        "alias": sel["alias"],
-                    }
-                    rust_selections.append(rust_sel)
-                field_selections_json = json.dumps(rust_selections)
+            # Build COMPLETE recursive field selections with full materialized paths.
+            # This fixes issue #288: the previous code only captured top-level field
+            # names (e.g. "nested"), causing transform_with_selections to filter out
+            # nested sub-fields (e.g. "nested.value" was absent from selected_paths),
+            # leaving JSONB nested objects with only __typename populated.
+            # _build_field_selections_recursive() includes all paths at every depth
+            # (e.g. "nested" AND "nested.value"), respects @skip/@include, and
+            # preserves field aliases at any nesting level.
+            recursive_selections = _build_field_selections_recursive(
+                field_node, _parsed_query, variables
+            )
+            field_selections_json = (
+                json.dumps(recursive_selections) if recursive_selections else None
+            )
 
             # Add to field data list (use response_key for the response field name)
             field_data_list.append(
