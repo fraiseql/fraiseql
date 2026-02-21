@@ -15,7 +15,12 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    graphql::parse_query,
+    runtime::Executor,
+    security::SecurityContext,
+};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
@@ -328,7 +333,7 @@ fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
 /// Shared GraphQL execution logic for both GET and POST handlers.
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: AppState<A>,
-    request: GraphQLRequest,
+    mut request: GraphQLRequest,
     _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
     security_context: Option<SecurityContext>,
     headers: &HeaderMap,
@@ -412,6 +417,28 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         }
 
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
+    }
+
+    // Encrypt mutation variables if field encryption is configured.
+    // Variables must be encrypted before the executor writes them to the database.
+    if let Some(ref encryption) = state.field_encryption {
+        if encryption.has_encrypted_fields() {
+            if let Some(ref mut vars) = request.variables {
+                if let Ok(parsed) = parse_query(&request.query) {
+                    if parsed.operation_type == "mutation" {
+                        if let Some(target_type) = encryption.get_return_type(&parsed.root_field) {
+                            let target_type = target_type.to_string();
+                            if let Err(e) = encryption.encrypt_variables(vars, &target_type).await {
+                                error!(error = %e, mutation = %parsed.root_field, "Failed to encrypt mutation variables");
+                                return Err(ErrorResponse::from_error(GraphQLError::internal(
+                                    "Mutation variable encryption failed".to_string(),
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Execute query with or without security context
