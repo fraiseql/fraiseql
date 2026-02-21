@@ -39,9 +39,9 @@ redis-rate-limiting = ["redis"]
 workspace = true
 
 [package]
-name = "fraiseql-auth"
 description = "Authentication, authorization, and session management for FraiseQL"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+name = "fraiseql-auth"
 repository = "https://github.com/fraiseql/fraiseql"
 version.workspace = true

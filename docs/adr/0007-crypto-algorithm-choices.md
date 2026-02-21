@@ -22,12 +22,14 @@ Use algorithm portfolio approach:
 ## Consequences
 
 **Positive:**
+
 - Algorithms chosen based on use case, not dogmatism
 - Production-grade crypto with peer review
 - Hardware acceleration where available
 - Resistance to timing attacks
 
 **Negative:**
+
 - Multiple algorithms increase cognitive complexity
 - More dependencies to maintain
 - Requires cryptography expertise for changes

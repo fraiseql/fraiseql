@@ -147,6 +147,7 @@ done
 ### Immediate (< 2 minutes)
 
 1. **Kill long-running queries holding connections**
+
    ```bash
    # Find and kill queries that have run > 5 minutes
    psql $DATABASE_URL << 'EOF'
@@ -161,6 +162,7 @@ done
    ```
 
 2. **Clear idle-in-transaction connections** (highest priority!)
+
    ```bash
    # These are transaction zombies holding locks
    psql $DATABASE_URL << 'EOF'
@@ -174,6 +176,7 @@ done
    ```
 
 3. **Restart FraiseQL to reset connection pool**
+
    ```bash
    # Force new connections (clears any stuck ones)
    docker restart fraiseql-server
@@ -189,6 +192,7 @@ done
 ### Short-term (5-30 minutes)
 
 4. **Increase pool size temporarily**
+
    ```bash
    # Scale up pool to handle load
    export DB_POOL_MAX_CONNECTIONS=50  # from default 20
@@ -202,6 +206,7 @@ done
    ```
 
 5. **Reduce connection idle timeout** (faster reaping)
+
    ```bash
    # Return connections to pool more aggressively
    export DB_POOL_IDLE_TIMEOUT=60  # from default 300 (5 min)
@@ -210,6 +215,7 @@ done
    ```
 
 6. **Enable query timeout**
+
    ```bash
    # Kill any query that takes > 30 seconds
    export FRAISEQL_QUERY_TIMEOUT=30000  # milliseconds
@@ -218,6 +224,7 @@ done
    ```
 
 7. **Implement connection pooler proxy** (if needed)
+
    ```bash
    # Use PgBouncer to multiplex connections
    # PgBouncer allows N client connections to share M database connections

@@ -143,6 +143,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 ### Immediate (< 5 minutes)
 
 1. **Check if Vault is just restarting**
+
    ```bash
    # Wait for it to come online
    while ! curl -s "$VAULT_ADDR/v1/sys/health" > /dev/null; do
@@ -164,6 +165,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 2. **Use fallback/cached credentials** (if available)
+
    ```bash
    # If Vault is down but data was cached
    export FRAISEQL_VAULT_FALLBACK_MODE=cached
@@ -175,6 +177,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 3. **Check Vault logs for errors**
+
    ```bash
    # If running self-hosted Vault
    docker logs vault | grep -i "error\|fatal" | tail -20
@@ -187,6 +190,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 ### Short-term (5-30 minutes)
 
 4. **Verify Vault is initialized and unsealed**
+
    ```bash
    # Check initialization
    STATUS=$(curl -s "$VAULT_ADDR/v1/sys/health")
@@ -202,6 +206,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 5. **Verify token is valid**
+
    ```bash
    # Check if token is revoked or expired
    LOOKUP=$(curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
@@ -221,6 +226,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 6. **Check and fix network connectivity**
+
    ```bash
    # If DNS fails
    systemctl restart systemd-resolved
@@ -241,6 +247,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 ### Extended Outage (30+ minutes)
 
 7. **Disable Vault requirement temporarily**
+
    ```bash
    # Last resort: Run without Vault (limited functionality)
    # Set credentials directly in environment
@@ -254,6 +261,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 8. **Switch to backup Vault instance**
+
    ```bash
    # If you have a replicated/backup Vault
    export VAULT_ADDR="https://vault-backup.example.com:8200"

@@ -22,9 +22,9 @@ tokio-test = "0.4"
 workspace = true
 
 [package]
-name = "fraiseql-webhooks"
 description = "Webhook signature verification and event processing for FraiseQL"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+name = "fraiseql-webhooks"
 repository = "https://github.com/fraiseql/fraiseql"
 version.workspace = true

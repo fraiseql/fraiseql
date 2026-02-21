@@ -21,12 +21,14 @@ Extends PostgreSQL's binary protocol, requiring custom decoder/encoder in fraise
 ## Consequences
 
 **Positive:**
+
 - Sub-millisecond first-byte latency
 - Constant memory usage for arbitrarily large result sets
 - Better user experience for real-time data
 - Competitive advantage over REST APIs
 
 **Negative:**
+
 - Requires maintaining wire protocol implementation
 - PostgreSQL-specific; other databases need different streaming strategies
 - Potential compatibility issues with PostgreSQL version updates
