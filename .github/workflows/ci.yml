@@ -472,7 +472,7 @@ jobs:
   bench:
     name: Benchmarks
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/v2-development'
+    if: github.ref == 'refs/heads/dev'
     steps:
       - uses: actions/checkout@v4
 

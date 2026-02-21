@@ -102,6 +102,10 @@ jobs:
             target: aarch64-apple-darwin
             artifact_name: fraiseql-cli
             asset_name: fraiseql-cli-macos-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: fraiseql-cli
+            asset_name: fraiseql-cli-macos-amd64
 
     steps:
       - uses: actions/checkout@v4
@@ -287,7 +291,9 @@ jobs:
           echo "Waiting for PyPI to index..."
           sleep 10
           echo "Testing PyPI package installation..."
-          python -m pip install --upgrade fraiseql==$(python -c "import toml; print(toml.load('fraiseql-python/pyproject.toml')['project']['version'])")
+          VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "fraiseql") | .version')
+          python -m pip install --upgrade fraiseql=="${VERSION}"
           python -c "import fraiseql; print(f'✅ fraiseql {fraiseql.__version__} successfully published to PyPI')"
         continue-on-error: true
 
@@ -346,10 +352,10 @@ jobs:
           echo "## 📎 Release Assets" >> $GITHUB_STEP_SUMMARY
           echo "Total binaries uploaded: $ASSET_COUNT" >> $GITHUB_STEP_SUMMARY
 
-          if [ "$ASSET_COUNT" -ge 4 ]; then
+          if [ "$ASSET_COUNT" -ge 5 ]; then
             echo "✅ All expected binaries present" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Missing some binaries (expected 4, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Missing some binaries (expected 5, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
           fi
 
           # List all assets

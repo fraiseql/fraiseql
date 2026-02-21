@@ -27,18 +27,21 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
       with:
-        python-version: '3.13'
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-cargo-sbom-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-
-    - name: Install dependencies
-      run: |
-        uv venv
-        uv pip install ".[dev]"
+    - name: Install cargo-cyclonedx
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-cyclonedx
 
     - name: Determine version
       id: version
@@ -53,24 +56,21 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Generating SBOM for version: $VERSION"
 
-    - name: Generate SBOM (JSON)
+    - name: Generate SBOM (CycloneDX JSON)
       run: |
-        uv run fraiseql sbom generate \
-          --output "fraiseql-${{ steps.version.outputs.version }}-sbom.json" \
-          --format json \
-          --component-name "fraiseql" \
-          --component-version "${{ steps.version.outputs.version }}" \
-          --supplier-name "Evolution Digitale" \
-          --supplier-url "https://github.com/fraiseql/fraiseql" \
-          --supplier-contact "lionel.hamayon@evolution-digitale.fr" \
-          --author "Lionel Hamayon" \
-          --verbose
+        cargo cyclonedx --format json --all \
+          --output-file "fraiseql-${{ steps.version.outputs.version }}-sbom"
+        # cargo-cyclonedx appends .cdx.json — rename to expected path
+        mv "fraiseql-${{ steps.version.outputs.version }}-sbom.cdx.json" \
+           "fraiseql-${{ steps.version.outputs.version }}-sbom.json"
 
-    - name: Validate SBOM
+    - name: Validate SBOM schema
       run: |
-        uv run fraiseql sbom validate \
-          --input "fraiseql-${{ steps.version.outputs.version }}-sbom.json" \
-          --verbose
+        # Confirm file is valid JSON with required CycloneDX fields
+        jq -e '.bomFormat == "CycloneDX" and .specVersion and .components' \
+          "fraiseql-${{ steps.version.outputs.version }}-sbom.json" \
+          > /dev/null
+        echo "✅ SBOM is valid CycloneDX JSON"
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@v3
@@ -167,7 +167,7 @@ jobs:
         EOF
 
     - name: Upload SBOM artifacts
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v4
       with:
         name: sbom-artifacts-${{ steps.version.outputs.version }}
         path: sbom-artifacts/
@@ -175,7 +175,7 @@ jobs:
 
     - name: Attach SBOM to Release
       if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           fraiseql-${{ steps.version.outputs.version }}-sbom.json

@@ -112,7 +112,12 @@ jobs:
   publish-to-docker-hub:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: >-
+      github.event_name == 'push' && (
+        github.ref == 'refs/heads/main' ||
+        startsWith(github.ref, 'refs/tags/v') ||
+        startsWith(github.ref, 'refs/heads/release/')
+      )
     permissions:
       contents: read
       packages: write
@@ -225,8 +230,7 @@ jobs:
           echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
           echo "**Images**:" >> $GITHUB_STEP_SUMMARY
           echo "- \`ghcr.io/${{ github.repository }}/server\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository }}/tutorial\`" >> $GITHUB_STEP_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository }}/dashboard\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

@@ -2,7 +2,7 @@ name: CI Metrics
 
 on:
   workflow_run:
-    workflows: ["Quality Gate"]
+    workflows: ["CI"]
     types: [completed]
 
 jobs:
