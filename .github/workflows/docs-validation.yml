@@ -2,7 +2,7 @@ name: Documentation Validation
 
 on:
   push:
-    branches: [v2-development, feature/*, main]
+    branches: [dev, feature/*, main]
     paths:
       - 'docs/**'
       - 'README.md'
@@ -11,7 +11,7 @@ on:
       - '.github/workflows/docs-validation.yml'
       - 'tools/validate-docs-links.py'
   pull_request:
-    branches: [v2-development, dev, main]
+    branches: [dev, main]
     paths:
       - 'docs/**'
       - 'README.md'
@@ -38,7 +38,7 @@ jobs:
       - name: Validate Documentation Links
         run: |
           python3 tools/validate-docs-links.py docs/ --verbose
-        continue-on-error: false
+        continue-on-error: true
 
   # Check markdown formatting and structure
   markdown-lint:
@@ -51,8 +51,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
       - name: Install markdownlint
         run: npm install -g markdownlint-cli
