@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 # Add fraiseql-python to path if running from examples directory
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "fraiseql-python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "sdks/official/fraiseql-python"))
 
 import fraiseql
 from datetime import datetime

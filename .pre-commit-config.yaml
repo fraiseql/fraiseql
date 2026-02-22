@@ -82,9 +82,9 @@ repos:
       - id: python-build-check
         name: python build check
         description: Validate Python package builds
-        entry: bash -c 'cd fraiseql-python && python -m build --sdist --wheel -q'
+        entry: bash -c 'cd sdks/official/fraiseql-python && python -m build --sdist --wheel -q'
         language: system
-        files: ^fraiseql-python/
+        files: ^sdks/official/fraiseql-python/
         pass_filenames: false
         stages: [push]
 

@@ -94,16 +94,16 @@ Apache License 2.0
 
 ## See Also
 
-- [FraiseQL Python](../fraiseql-python/)
-- [FraiseQL TypeScript](../fraiseql-typescript/)
-- [FraiseQL Java](../fraiseql-java/)
-- [FraiseQL Go](../fraiseql-go/)
-- [FraiseQL PHP](../fraiseql-php/)
+- [FraiseQL Python](../official/fraiseql-python/)
+- [FraiseQL TypeScript](../official/fraiseql-typescript/)
+- [FraiseQL Java](../official/fraiseql-java/)
+- [FraiseQL Go](../official/fraiseql-go/)
+- [FraiseQL PHP](../official/fraiseql-php/)
 - [FraiseQL Node.js](../fraiseql-nodejs/)
-- [FraiseQL Ruby](../fraiseql-ruby/)
+- [FraiseQL Ruby](../official/fraiseql-ruby/)
 - [FraiseQL Kotlin](../fraiseql-kotlin/)
 - [FraiseQL C#/.NET](../fraiseql-csharp/)
-- [FraiseQL Rust](../fraiseql-rust/)
+- [FraiseQL Rust](../official/fraiseql-authz/)
 - [FraiseQL Swift](../fraiseql-swift/)
 - [FraiseQL Scala](../fraiseql-scala/)
 

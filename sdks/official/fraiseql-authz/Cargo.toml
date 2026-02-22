@@ -1,0 +1,33 @@
+[package]
+name = "fraiseql-authz"
+version = "2.0.0-rc.2"
+edition = "2021"
+description = "FraiseQL RBAC and authorization module for Rust"
+license = "Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+authors = ["FraiseQL Contributors"]
+categories = ["authentication", "database", "network-programming"]
+keywords = ["graphql", "authorization", "rbac", "security", "schema"]
+
+[lib]
+name = "fraiseql_authz"
+path = "src/lib.rs"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+cargo = "deny"
+nursery = "warn"
+
+[[test]]
+name = "integration_test"
+path = "tests/integration_test.rs"
+
+[[test]]
+name = "scope_extraction_test"
+path = "tests/scope_extraction_test.rs"
+
+[workspace]

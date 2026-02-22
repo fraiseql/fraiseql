@@ -210,7 +210,7 @@ e2e-python: e2e-setup
 	@echo ""
 	@echo "========== PYTHON E2E TEST =========="
 	@export PATH="$(PWD)/target/release:$$PATH" && \
-		cd fraiseql-python && \
+		cd sdks/official/fraiseql-python && \
 		. .venv/bin/activate && \
 		echo "✅ Python environment ready" && \
 		echo "" && \
@@ -225,7 +225,7 @@ e2e-typescript: e2e-setup
 	@echo "========== TYPESCRIPT E2E TEST =========="
 	@echo "✅ TypeScript environment ready"
 	@echo "Running E2E tests..."
-	@npm test --prefix fraiseql-typescript
+	@npm test --prefix sdks/official/fraiseql-typescript
 	@echo "✅ TypeScript E2E tests passed"
 	@echo ""
 
@@ -242,7 +242,7 @@ e2e-go: e2e-setup
 	@echo "========== GO E2E TEST =========="
 	@echo "✅ Go environment ready"
 	@echo "Running E2E tests..."
-	@cd fraiseql-go && go test ./fraiseql/... -v
+	@cd sdks/official/fraiseql-go && go test ./fraiseql/... -v
 	@echo "✅ Go E2E tests passed"
 	@echo ""
 
@@ -258,7 +258,7 @@ e2e-velocitybench: e2e-setup
 	@echo ""
 	@echo "========== VELOCITYBENCH E2E TEST =========="
 	@export PATH="$(PWD)/target/release:$$PATH" && \
-		. fraiseql-python/.venv/bin/activate && \
+		. sdks/official/fraiseql-python/.venv/bin/activate && \
 		echo "✅ Test environment ready" && \
 		echo "" && \
 		echo "Running VelocityBench blogging app E2E test..." && \

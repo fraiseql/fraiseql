@@ -601,7 +601,7 @@ After setup:
 
 - **Framework docs**: See parent `crates/README.md`
 - **Framework architecture**: See parent `docs/`
-- **Language bindings**: See `fraiseql-python/`, etc.
+- **Language bindings**: See `sdks/official/fraiseql-python/`, etc.
 
 ---
 

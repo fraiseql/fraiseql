@@ -17,9 +17,9 @@ Fraisier is **THE canonical FraiseQL application** - the official example of how
 ```
 github.com/fraiseql/fraiseql
 ├── crates/               → Rust engine (CLI, server, core)
-├── fraiseql-python/      → Python schema authoring
-├── fraiseql-typescript/  → TypeScript schema authoring
-├── fraiseql-go/          → Go schema authoring
+├── sdks/official/fraiseql-python/      → Python schema authoring
+├── sdks/official/fraiseql-typescript/  → TypeScript schema authoring
+├── sdks/official/fraiseql-go/          → Go schema authoring
 │
 ├── fraisier/             → REFERENCE IMPLEMENTATION
 │   ├── db/               → Database (THE source of truth)

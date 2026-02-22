@@ -134,10 +134,10 @@ Fraisier serves as the **canonical example** of how to build a FraiseQL applicat
 │   │   ├── fraiseql-core/    → Core library                              │
 │   │   ├── fraiseql-cli/     → CLI (compile schemas)                     │
 │   │   └── fraiseql-server/  → GraphQL runtime                           │
-│   ├── fraiseql-python/      → Python schema authoring                   │
-│   ├── fraiseql-typescript/  → TypeScript schema authoring               │
-│   ├── fraiseql-go/          → Go schema authoring                       │
-│   ├── fraiseql-java/        → Java schema authoring                     │
+│   ├── sdks/official/fraiseql-python/      → Python schema authoring                   │
+│   ├── sdks/official/fraiseql-typescript/  → TypeScript schema authoring               │
+│   ├── sdks/official/fraiseql-go/          → Go schema authoring                       │
+│   ├── sdks/official/fraiseql-java/        → Java schema authoring                     │
 │   │                                                                     │
 │   ├── fraisier/             → REFERENCE IMPLEMENTATION                  │
 │   │   ├── db/               → Database (THE source of truth)            │
@@ -1143,10 +1143,10 @@ fraiseql/                       # github.com/fraiseql/fraiseql
 │   ├── fraiseql-cli/           # CLI: fraiseql-cli compile
 │   └── fraiseql-server/        # GraphQL runtime server
 │
-├── fraiseql-python/            # Python schema authoring
-├── fraiseql-typescript/        # TypeScript schema authoring
-├── fraiseql-go/                # Go schema authoring
-├── fraiseql-java/              # Java schema authoring
+├── sdks/official/fraiseql-python/            # Python schema authoring
+├── sdks/official/fraiseql-typescript/        # TypeScript schema authoring
+├── sdks/official/fraiseql-go/                # Go schema authoring
+├── sdks/official/fraiseql-java/              # Java schema authoring
 │
 ├── fraisier/                   # REFERENCE IMPLEMENTATION
 │   ├── db/                     # THE SOURCE OF TRUTH

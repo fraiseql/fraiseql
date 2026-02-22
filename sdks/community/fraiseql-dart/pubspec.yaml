@@ -15,7 +15,7 @@ authors:
 
 homepage: https://github.com/fraiseql/fraiseql
 repository: https://github.com/fraiseql/fraiseql
-documentation: https://github.com/fraiseql/fraiseql/tree/main/fraiseql-dart
+documentation: https://github.com/fraiseql/fraiseql/tree/main/sdks/official/fraiseql-dart
 issue_tracker: https://github.com/fraiseql/fraiseql/issues
 
 topics:

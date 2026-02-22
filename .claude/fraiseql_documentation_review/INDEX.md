@@ -324,10 +324,10 @@ Core Project Docs (10 files)
 └── docs/SECURITY_MIGRATION_v2.1.md [RECENTLY UPDATED]
 
 Language Implementations (40+ files)
-├── fraiseql-python/ (7 docs)
-├── fraiseql-java/ (7 docs)
-├── fraiseql-go/ (4 docs)
-├── fraiseql-typescript/, fraiseql-php/, fraiseql-scala/, etc.
+├── sdks/official/fraiseql-python/ (7 docs)
+├── sdks/official/fraiseql-java/ (7 docs)
+├── sdks/official/fraiseql-go/ (4 docs)
+├── sdks/official/fraiseql-typescript/, sdks/official/fraiseql-php/, fraiseql-scala/, etc.
 
 Crate Documentation (50+ files)
 ├── fraiseql-core/ (2 docs)

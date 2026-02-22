@@ -317,7 +317,7 @@ for crate in fraiseql-error fraiseql-wire fraiseql-core fraiseql-arrow fraiseql-
 done
 
 # 4. Publish Python package
-cd fraiseql-python
+cd sdks/official/fraiseql-python
 python -m build
 twine upload dist/* -u __token__ -p $PYPI_TOKEN
 
@@ -414,7 +414,7 @@ gh release upload v2.0.0-alpha.6 \
 - Manually fix and upload Python package:
 
   ```bash
-  cd fraiseql-python
+  cd sdks/official/fraiseql-python
   python -m build
   twine upload dist/*
   ```

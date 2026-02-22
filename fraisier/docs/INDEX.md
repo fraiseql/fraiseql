@@ -258,7 +258,7 @@ fraisier/
 
 - **Framework README**: See `../../README.md` (parent repo)
 - **Framework Architecture**: See `../../docs/`
-- **Language Bindings**: See `../../fraiseql-python/`, `../../fraiseql-typescript/`, etc.
+- **Language Bindings**: See `../../sdks/official/fraiseql-python/`, `../../sdks/official/fraiseql-typescript/`, etc.
 
 ### GitHub Repository
 

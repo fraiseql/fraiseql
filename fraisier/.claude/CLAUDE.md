@@ -19,8 +19,8 @@ This repository contains both:
 ```
 fraiseql/  (FraiseQL Framework)
 ├── crates/              → Rust engine
-├── fraiseql-python/     → Python schema authoring
-├── fraiseql-typescript/ → TypeScript schema authoring
+├── sdks/official/fraiseql-python/     → Python schema authoring
+├── sdks/official/fraiseql-typescript/ → TypeScript schema authoring
 │
 └── fraisier/            ← YOU ARE HERE (Reference Implementation)
     ├── fraisier/        → Deployment orchestrator (Python package)

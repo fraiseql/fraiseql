@@ -161,38 +161,38 @@ Extensive documentation suite (40+ files):
 
 ### fraiseql-python (Python Implementation)
 
-- `fraiseql-python/README.md`
-- `fraiseql-python/docs/GETTING_STARTED.md`
-- `fraiseql-python/docs/INSTALLATION.md`
-- `fraiseql-python/docs/DECORATORS_REFERENCE.md`
-- `fraiseql-python/docs/EXAMPLES.md`
-- `fraiseql-python/docs/TROUBLESHOOTING.md`
-- `fraiseql-python/docs/ANALYTICS_GUIDE.md`
+- `sdks/official/fraiseql-python/README.md`
+- `sdks/official/fraiseql-python/docs/GETTING_STARTED.md`
+- `sdks/official/fraiseql-python/docs/INSTALLATION.md`
+- `sdks/official/fraiseql-python/docs/DECORATORS_REFERENCE.md`
+- `sdks/official/fraiseql-python/docs/EXAMPLES.md`
+- `sdks/official/fraiseql-python/docs/TROUBLESHOOTING.md`
+- `sdks/official/fraiseql-python/docs/ANALYTICS_GUIDE.md`
 
 ### fraiseql-typescript (TypeScript Implementation)
 
-- `fraiseql-typescript/README.md` (likely, based on package structure)
+- `sdks/official/fraiseql-typescript/README.md` (likely, based on package structure)
 
 ### fraiseql-java (Java Implementation)
 
-- `fraiseql-java/README.md`
-- `fraiseql-java/INSTALL.md`
-- `fraiseql-java/EXAMPLES.md`
-- `fraiseql-java/API_GUIDE.md`
-- `fraiseql-java/CHANGELOG.md`
-- `fraiseql-java/CONTRIBUTING.md`
-- `fraiseql-java/RELEASE_CHECKLIST.md`
+- `sdks/official/fraiseql-java/README.md`
+- `sdks/official/fraiseql-java/INSTALL.md`
+- `sdks/official/fraiseql-java/EXAMPLES.md`
+- `sdks/official/fraiseql-java/API_GUIDE.md`
+- `sdks/official/fraiseql-java/CHANGELOG.md`
+- `sdks/official/fraiseql-java/CONTRIBUTING.md`
+- `sdks/official/fraiseql-java/RELEASE_CHECKLIST.md`
 
 ### fraiseql-go (Go Implementation)
 
-- `fraiseql-go/README.md`
-- `fraiseql-go/IMPLEMENTATION_SUMMARY.md`
-- `fraiseql-go/CONTRIBUTING.md`
-- `fraiseql-go/examples/README.md`
+- `sdks/official/fraiseql-go/README.md`
+- `sdks/official/fraiseql-go/IMPLEMENTATION_SUMMARY.md`
+- `sdks/official/fraiseql-go/CONTRIBUTING.md`
+- `sdks/official/fraiseql-go/examples/README.md`
 
 ### fraiseql-php (PHP Implementation)
 
-- `fraiseql-php/PHP_FEATURE_PARITY.md`
+- `sdks/official/fraiseql-php/PHP_FEATURE_PARITY.md`
 
 ### fraiseql-scala (Scala Implementation)
 
