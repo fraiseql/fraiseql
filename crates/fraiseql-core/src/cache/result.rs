@@ -137,6 +137,15 @@ pub struct CacheMetrics {
 }
 
 impl QueryResultCache {
+    /// Returns whether caching is enabled.
+    ///
+    /// Used by `CachedDatabaseAdapter` to short-circuit the SHA-256 key generation
+    /// and result clone overhead when caching is disabled.
+    #[must_use]
+    pub fn is_enabled(&self) -> bool {
+        self.config.enabled
+    }
+
     /// Create new cache with configuration.
     ///
     /// # Panics
