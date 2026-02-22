@@ -1,6 +1,6 @@
 {
   "name": "fraiseql",
-  "version": "2.0.0-rc.1",
+  "version": "2.0.0-rc.2",
   "description": "FraiseQL v2 - Compiled GraphQL execution engine (schema authoring)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
