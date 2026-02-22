@@ -58,7 +58,7 @@ impl AuthorizeConfig {
 }
 
 /// Fluent builder for custom authorization rules
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct AuthorizeBuilder {
     rule: String,
     policy: String,
@@ -68,6 +68,21 @@ pub struct AuthorizeBuilder {
     operations: String,
     cacheable: bool,
     cache_duration_seconds: u32,
+}
+
+impl Default for AuthorizeBuilder {
+    fn default() -> Self {
+        Self {
+            rule: String::new(),
+            policy: String::new(),
+            description: String::new(),
+            error_message: String::new(),
+            recursive: false,
+            operations: String::new(),
+            cacheable: true,
+            cache_duration_seconds: 300,
+        }
+    }
 }
 
 impl AuthorizeBuilder {

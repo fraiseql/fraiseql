@@ -22,14 +22,14 @@ keywords = ["graphql", "authorization", "rbac", "schema"]
 license = "Apache-2.0"
 name = "fraiseql-rust"
 repository = "https://github.com/fraiseql/fraiseql"
-version = "1.0.0"
+version = "2.0.0-rc.2"
 
 [[test]]
 name = "integration_test"
 path = "tests/integration_test.rs"
 
 [[test]]
-name = "phase18_cycle16_scope_extraction_test"
-path = "tests/phase18_cycle16_scope_extraction_test.rs"
+name = "scope_extraction_test"
+path = "tests/scope_extraction_test.rs"
 
 [workspace]

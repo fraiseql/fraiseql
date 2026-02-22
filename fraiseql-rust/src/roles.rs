@@ -109,7 +109,7 @@ impl RoleRequiredConfig {
 }
 
 /// Fluent builder for role-based access control
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RoleRequiredBuilder {
     roles: Vec<String>,
     strategy: RoleMatchStrategy,
@@ -120,6 +120,22 @@ pub struct RoleRequiredBuilder {
     inherit: bool,
     cacheable: bool,
     cache_duration_seconds: u32,
+}
+
+impl Default for RoleRequiredBuilder {
+    fn default() -> Self {
+        Self {
+            roles: Vec::new(),
+            strategy: RoleMatchStrategy::Any,
+            hierarchy: false,
+            description: String::new(),
+            error_message: String::new(),
+            operations: String::new(),
+            inherit: false,
+            cacheable: true,
+            cache_duration_seconds: 300,
+        }
+    }
 }
 
 impl RoleRequiredBuilder {
