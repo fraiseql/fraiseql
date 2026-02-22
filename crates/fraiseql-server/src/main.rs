@@ -5,6 +5,8 @@ use std::{env, path::Path, sync::Arc};
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]
+use fraiseql_core::cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache};
+#[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{
     CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
@@ -219,14 +221,32 @@ async fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(not(feature = "wire-backend"))]
-    let adapter = Arc::new(
-        PostgresAdapter::with_pool_config(
+    let adapter = {
+        let pg = PostgresAdapter::with_pool_config(
             &config.database_url,
             config.pool_min_size,
             config.pool_max_size,
         )
-        .await?,
-    );
+        .await?;
+
+        let cache_config = if config.cache_enabled {
+            tracing::info!(
+                max_entries = CacheConfig::default().max_entries,
+                ttl_seconds = CacheConfig::default().ttl_seconds,
+                "Query result cache enabled"
+            );
+            CacheConfig::default()
+        } else {
+            tracing::info!("Query result cache disabled");
+            CacheConfig::disabled()
+        };
+
+        Arc::new(CachedDatabaseAdapter::new(
+            pg,
+            QueryResultCache::new(cache_config),
+            env!("CARGO_PKG_VERSION").to_string(),
+        ))
+    };
 
     #[cfg(feature = "wire-backend")]
     let adapter = Arc::new(FraiseWireAdapter::new(&config.database_url));

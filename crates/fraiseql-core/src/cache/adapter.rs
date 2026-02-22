@@ -114,6 +114,7 @@ use crate::{
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Clone)]
 pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// Underlying database adapter.
     adapter: A,

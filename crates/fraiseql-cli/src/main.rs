@@ -454,6 +454,42 @@ EXAMPLES:
         output: Option<String>,
     },
 
+    /// Compile schema and start the GraphQL server (zero-config)
+    ///
+    /// Compiles the schema in-memory (no artifacts written to disk) and immediately
+    /// starts serving the GraphQL API.  Use `--watch` for hot-reload on schema changes.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql run
+    fraiseql run fraiseql.toml
+    fraiseql run --port 3000 --watch
+    fraiseql run --database postgres://localhost/mydb")]
+    Run {
+        /// Input file path: fraiseql.toml (default) or schema.json
+        #[arg(value_name = "INPUT")]
+        input: Option<String>,
+
+        /// Database connection URL (falls back to DATABASE_URL env var)
+        #[arg(long, value_name = "URL")]
+        database: Option<String>,
+
+        /// TCP port to listen on
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+
+        /// Bind address
+        #[arg(long, default_value = "0.0.0.0")]
+        bind: String,
+
+        /// Watch schema file for changes and hot-reload the server
+        #[arg(short, long)]
+        watch: bool,
+
+        /// Enable the introspection endpoint (no auth required)
+        #[arg(long)]
+        introspection: bool,
+    },
+
     /// Development server with hot-reload
     #[command(hide = true)] // Hide until implemented
     Serve {
@@ -861,6 +897,25 @@ async fn main() {
         Commands::Sbom { format, output } => match commands::sbom::SbomFormat::from_str(&format) {
             Ok(fmt) => commands::sbom::run(fmt, output.as_deref()),
             Err(e) => Err(anyhow::anyhow!(e)),
+        },
+
+        Commands::Run {
+            input,
+            database,
+            port,
+            bind,
+            watch,
+            introspection,
+        } => {
+            commands::run::run(
+                input.as_deref(),
+                database,
+                port,
+                bind,
+                watch,
+                introspection,
+            )
+            .await
         },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,

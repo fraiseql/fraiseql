@@ -655,6 +655,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Returns error if server fails to bind or encounters runtime errors.
     pub async fn serve(self) -> Result<()> {
+        self.serve_with_shutdown(Self::shutdown_signal()).await
+    }
+
+    /// Start server with a custom shutdown future.
+    ///
+    /// Enables programmatic shutdown (e.g., for `--watch` hot-reload) by accepting any
+    /// future that resolves when the server should stop.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if server fails to bind or encounters runtime errors.
+    pub async fn serve_with_shutdown<F>(self, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
         let app = self.build_router();
 
         // Initialize TLS setup
@@ -710,6 +725,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         info!("Server listening on http://{}", self.config.bind_addr);
 
+        // Wrap the user-supplied shutdown future so we can also stop observer runtime
+        #[cfg(feature = "observers")]
+        let observer_runtime = self.observer_runtime.clone();
+
+        let shutdown_with_cleanup = async move {
+            shutdown.await;
+
+            // Stop observer runtime on shutdown
+            #[cfg(feature = "observers")]
+            if let Some(ref runtime) = observer_runtime {
+                info!("Shutting down observer runtime");
+                let mut guard = runtime.write().await;
+                if let Err(e) = guard.stop().await {
+                    #[cfg(feature = "observers")]
+                    error!("Error stopping runtime: {}", e);
+                } else {
+                    info!("Runtime stopped cleanly");
+                }
+            }
+        };
+
         // Start both HTTP and gRPC servers concurrently if Arrow Flight is enabled
         #[cfg(feature = "arrow")]
         if let Some(flight_service) = self.flight_service {
@@ -725,58 +761,29 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .await
             });
 
-            // Run HTTP server with graceful shutdown
             axum::serve(listener, app)
-                .with_graceful_shutdown(async move {
-                    Self::shutdown_signal().await;
-
-                    // Stop observer runtime
-                    #[cfg(feature = "observers")]
-                    if let Some(ref runtime) = self.observer_runtime {
-                        info!("Shutting down observer runtime");
-                        let mut guard = runtime.write().await;
-                        if let Err(e) = guard.stop().await {
-                            error!("Error stopping runtime: {}", e);
-                        } else {
-                            info!("Runtime stopped cleanly");
-                        }
-                    }
-                })
+                .with_graceful_shutdown(shutdown_with_cleanup)
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
-            // Wait for Flight server to shut down
+            // Abort Flight server after HTTP server exits
             flight_server.abort();
         }
 
         // HTTP-only server (when arrow feature not enabled)
         #[cfg(not(feature = "arrow"))]
-        {
-            axum::serve(listener, app)
-                .with_graceful_shutdown(async move {
-                    Self::shutdown_signal().await;
-
-                    // Stop observer runtime
-                    #[cfg(feature = "observers")]
-                    if let Some(ref runtime) = self.observer_runtime {
-                        info!("Shutting down observer runtime");
-                        let mut guard = runtime.write().await;
-                        if let Err(e) = guard.stop().await {
-                            error!("Error stopping runtime: {}", e);
-                        } else {
-                            info!("Runtime stopped cleanly");
-                        }
-                    }
-                })
-                .await
-                .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
-        }
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_with_cleanup)
+            .await
+            .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
 
         Ok(())
     }
 
-    /// Listen for shutdown signals (Ctrl+C or SIGTERM)
-    async fn shutdown_signal() {
+    /// Listen for OS shutdown signals (Ctrl+C or SIGTERM).
+    ///
+    /// Public so that the `fraiseql run` command can compose it with a watch future.
+    pub async fn shutdown_signal() {
         use tokio::signal;
 
         let ctrl_c = async {
