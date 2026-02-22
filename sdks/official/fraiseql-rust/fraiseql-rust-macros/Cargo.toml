@@ -1,6 +1,6 @@
 [package]
 name = "fraiseql-rust-macros"
-version = "2.0.0-rc.2"
+version = "2.0.0-rc.3"
 edition = "2021"
 description = "Proc macros for the FraiseQL Rust authoring SDK"
 license = "Apache-2.0"

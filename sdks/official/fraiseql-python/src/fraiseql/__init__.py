@@ -53,7 +53,7 @@ from fraiseql.validators import (
     validate_custom_scalar,
 )
 
-__version__ = "2.0.0rc2"
+__version__ = "2.0.0rc3"
 
 __all__ = [
     # Decorators
