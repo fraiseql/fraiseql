@@ -1,35 +1,16 @@
-[dev-dependencies]
+[package]
+name = "fraiseql-rust"
+version = "2.0.0-rc.2"
+edition = "2021"
+description = "Rust authoring language for FraiseQL (not yet implemented)"
+license = "Apache-2.0"
+repository = "https://github.com/fraiseql/fraiseql"
+authors = ["FraiseQL Contributors"]
+categories = ["database", "network-programming"]
+keywords = ["graphql", "schema", "authoring"]
 
 [lib]
 name = "fraiseql_rust"
 path = "src/lib.rs"
-
-[lints.clippy]
-all = "deny"
-cargo = "deny"
-nursery = "warn"
-pedantic = "deny"
-
-[lints.rust]
-unsafe_code = "forbid"
-
-[package]
-authors = ["FraiseQL Contributors"]
-categories = ["database", "network-programming"]
-description = "Rust authoring language for FraiseQL with 100% feature parity"
-edition = "2021"
-keywords = ["graphql", "authorization", "rbac", "schema"]
-license = "Apache-2.0"
-name = "fraiseql-rust"
-repository = "https://github.com/fraiseql/fraiseql"
-version = "2.0.0-rc.2"
-
-[[test]]
-name = "integration_test"
-path = "tests/integration_test.rs"
-
-[[test]]
-name = "scope_extraction_test"
-path = "tests/scope_extraction_test.rs"
 
 [workspace]
