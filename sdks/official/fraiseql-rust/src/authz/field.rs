@@ -5,7 +5,7 @@
 //!
 //! # Example
 //! ```
-//! use fraiseql_authz::Field;
+//! use fraiseql_rust::Field;
 //!
 //! let field = Field::new("email", "String")
 //!     .with_nullable(false)
@@ -42,7 +42,7 @@ impl Field {
     ///
     /// # Example
     /// ```
-    /// # use fraiseql_authz::Field;
+    /// # use fraiseql_rust::Field;
     /// let field = Field::new("email", "String");
     /// assert_eq!(field.name, "email");
     /// assert!(field.nullable); // default
@@ -66,7 +66,7 @@ impl Field {
     ///
     /// # Example
     /// ```
-    /// # use fraiseql_authz::Field;
+    /// # use fraiseql_rust::Field;
     /// let field = Field::new("id", "Int").with_nullable(false);
     /// assert!(!field.nullable);
     /// ```
@@ -86,7 +86,7 @@ impl Field {
     ///
     /// # Example
     /// ```
-    /// # use fraiseql_authz::Field;
+    /// # use fraiseql_rust::Field;
     /// let field = Field::new("email", "String")
     ///     .with_requires_scope(Some("read:user.email".to_string()));
     /// ```
@@ -106,7 +106,7 @@ impl Field {
     ///
     /// # Example
     /// ```
-    /// # use fraiseql_authz::Field;
+    /// # use fraiseql_rust::Field;
     /// let scopes = vec!["read:user.email".to_string(), "write:user.*".to_string()];
     /// let field = Field::new("email", "String")
     ///     .with_requires_scopes(Some(scopes));
@@ -121,7 +121,7 @@ impl Field {
     ///
     /// # Example
     /// ```
-    /// # use fraiseql_authz::Field;
+    /// # use fraiseql_rust::Field;
     /// let field = Field::new("email", "String")
     ///     .with_description(Some("User email address".to_string()));
     /// ```

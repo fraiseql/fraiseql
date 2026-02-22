@@ -6,7 +6,7 @@
 //! - JSON export of schema with scope metadata
 
 use std::collections::HashMap;
-use crate::field::Field;
+use crate::authz::field::Field;
 
 /// Error type for scope validation failures.
 #[derive(Debug, Clone, PartialEq, Eq)]

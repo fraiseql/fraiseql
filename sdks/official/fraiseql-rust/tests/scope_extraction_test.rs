@@ -9,8 +9,8 @@
 /// - SchemaRegistry for type tracking
 /// - JSON export with scope metadata
 
-use fraiseql_authz::field::Field;
-use fraiseql_authz::schema::{SchemaRegistry, validate_scope};
+use fraiseql_rust::authz::Field;
+use fraiseql_rust::authz::scope::{SchemaRegistry, validate_scope};
 
 // ============================================================================
 // FIELD STRUCT TESTS (3 tests)

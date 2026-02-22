@@ -1,6 +1,6 @@
 //! Integration tests for FraiseQL Rust security module
 
-use fraiseql_authz::{
+use fraiseql_rust::{
     AuthorizeBuilder, RoleRequiredBuilder, AuthzPolicyBuilder,
     RoleMatchStrategy, AuthzPolicyType,
 };
