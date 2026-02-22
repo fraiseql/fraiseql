@@ -239,18 +239,16 @@ impl PostgresAdapter {
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
-            // Add parameterized LIMIT
-            let mut params = where_params;
-            let mut param_count = params.len();
+            // Convert WHERE params to QueryParam (preserves types)
+            let params = where_params;
+            let param_count = params.len();
+            let mut typed_params: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
 
+            // Add parameterized LIMIT as BigInt (PostgreSQL requires integer type for LIMIT)
             if let Some(lim) = limit {
-                param_count += 1;
-                sql.push_str(&format!(" LIMIT ${param_count}"));
-                params.push(serde_json::Value::Number(lim.into()));
+                sql.push_str(&format!(" LIMIT ${}", param_count + 1));
+                typed_params.push(QueryParam::BigInt(i64::from(lim)));
             }
-
-            // Convert JSON values to QueryParam (preserves types)
-            let typed_params: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
 
             tracing::debug!("SQL with projection = {}", sql);
             tracing::debug!("typed_params = {:?}", typed_params);
@@ -263,18 +261,13 @@ impl PostgresAdapter {
 
             self.execute_raw(&sql, &param_refs).await
         } else {
-            // No WHERE clause
-            let mut params: Vec<serde_json::Value> = vec![];
-            let mut param_count = 0;
+            // No WHERE clause — add LIMIT directly as BigInt (PostgreSQL requires integer type)
+            let mut typed_params: Vec<QueryParam> = vec![];
 
             if let Some(lim) = limit {
-                param_count += 1;
-                sql.push_str(&format!(" LIMIT ${param_count}"));
-                params.push(serde_json::Value::Number(lim.into()));
+                sql.push_str(" LIMIT $1");
+                typed_params.push(QueryParam::BigInt(i64::from(lim)));
             }
-
-            // Convert JSON values to QueryParam (preserves types)
-            let typed_params: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
 
             // Create references to QueryParam for ToSql
             let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
