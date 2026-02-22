@@ -1,51 +1,66 @@
 # fraiseql-rust
 
-> **Status: Not yet implemented.**
+RBAC and authorization primitives for FraiseQL schema authoring in Rust.
 
-The Rust authoring SDK for FraiseQL is planned but not yet built.
+This crate provides the security layer used when defining FraiseQL schemas:
+role-based access control, attribute-based policies, field-level scopes, and
+scope format validation. It is **not** a full schema authoring SDK — type and
+query definition are handled by the other language SDKs (Python, TypeScript,
+Go, Java, PHP).
 
-## What it will provide
-
-A proc-macro-based way to define FraiseQL schemas in Rust that compile to `schema.json`:
+## Usage
 
 ```rust
-// Planned API (subject to change)
-use fraiseql::prelude::*;
+use fraiseql_rust::{
+    AuthorizeBuilder, RoleRequiredBuilder, RoleMatchStrategy,
+    AuthzPolicyBuilder, AuthzPolicyType,
+    Field, validate_scope,
+};
 
-#[fraiseql::type]
-struct User {
-    id: i32,
-    name: String,
-    email: Option<String>,
-}
+// Field-level scope requirement
+let field = Field::new("salary", "Int")
+    .with_requires_scope(Some("read:User.salary".to_string()));
 
-#[fraiseql::query(sql_source = "v_users")]
-fn users(limit: Option<i32>) -> Vec<User> {}
+// Role-based access control
+let admin_only = RoleRequiredBuilder::new()
+    .roles(vec!["admin"])
+    .strategy(RoleMatchStrategy::Any)
+    .cacheable(true)
+    .build();
 
-fn main() {
-    fraiseql::export_schema("schema.json").unwrap();
-}
+// Custom authorization rule
+let ownership_check = AuthorizeBuilder::new()
+    .rule("isOwner($context.userId, $field.ownerId)")
+    .description("Owner-only access")
+    .build();
+
+// ABAC policy
+let policy = AuthzPolicyBuilder::new("content_access")
+    .policy_type(AuthzPolicyType::ResourceBased)
+    .condition("$context.subscription == 'premium'")
+    .build();
+
+// Scope validation
+assert!(validate_scope("read:User.email").is_ok());
+assert!(validate_scope("invalid").is_err());
 ```
 
-## Note on complexity
+## What's included
 
-A full Rust authoring SDK requires procedural macros for type introspection at
-compile time. This is non-trivial to implement correctly. If you need schema
-authoring today, the Python or TypeScript SDKs are the easiest to use alongside
-a Rust runtime.
+| Module | Contents |
+|--------|----------|
+| `authorization` | `AuthorizeConfig`, `AuthorizeBuilder` — custom rule expressions |
+| `roles` | `RoleRequiredConfig`, `RoleRequiredBuilder`, `RoleMatchStrategy` — RBAC |
+| `policies` | `AuthzPolicyConfig`, `AuthzPolicyBuilder`, `AuthzPolicyType` — ABAC |
+| `field` | `Field` — field definition with scope metadata |
+| `schema` | `SchemaRegistry`, `validate_scope`, `ScopeValidationError` |
 
-## Alternatives
+## Full authoring SDKs
 
-The following SDKs are production-ready today:
+For defining types, queries, and mutations use one of the production-ready SDKs:
 
 - [fraiseql-python](../fraiseql-python) — reference implementation
 - [fraiseql-typescript](../fraiseql-typescript)
 - [fraiseql-java](../fraiseql-java)
 - [fraiseql-php](../fraiseql-php)
 - [fraiseql-go](../fraiseql-go)
-
-## Contributing
-
-Contributions welcome. See the Python SDK for the reference authoring API and
-the expected `schema.json` output format. Proc macro implementation should live
-in a `fraiseql-rust-macros` sub-crate.
