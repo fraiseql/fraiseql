@@ -128,13 +128,15 @@ tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-ot
 wire-backend = ["fraiseql-core/wire-backend"]
 
 [package]
-authors = ["FraiseQL Contributors"]
-categories = ["database", "web-programming::http-server"]
-description = "HTTP server for FraiseQL v2 GraphQL engine"
-edition = "2021"
-keywords = ["graphql", "sql", "database", "server", "api"]
-license = "MIT OR Apache-2.0"
 name = "fraiseql-server"
-repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.75"
+description = "HTTP server for FraiseQL v2 GraphQL engine"
+authors.workspace = true
+categories = ["database", "web-programming::http-server"]
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords = ["graphql", "sql", "database", "server", "api"]
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 version.workspace = true

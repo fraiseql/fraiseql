@@ -41,7 +41,13 @@ workspace = true
 [package]
 name = "fraiseql-auth"
 description = "Authentication, authorization, and session management for FraiseQL"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/fraiseql/fraiseql"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 version.workspace = true

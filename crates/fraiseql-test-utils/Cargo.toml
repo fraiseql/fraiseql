@@ -1,5 +1,6 @@
 [package]
 name = "fraiseql-test-utils"
+publish = false
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

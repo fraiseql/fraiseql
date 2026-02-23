@@ -7,11 +7,15 @@ syn = {version = "2.0", features = ["full"]}
 proc-macro = true
 
 [package]
-description = "Procedural macros for automatic span creation and structured logging in fraiseql-observers"
 name = "fraiseql-observers-macros"
+description = "Procedural macros for automatic span creation and structured logging in fraiseql-observers"
 authors.workspace = true
+categories.workspace = true
 documentation.workspace = true
 edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 version.workspace = true

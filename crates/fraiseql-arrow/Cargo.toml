@@ -64,9 +64,15 @@ name = "fraiseql_arrow"
 path = "src/lib.rs"
 
 [package]
-authors = ["FraiseQL Contributors"]
-description = "Apache Arrow Flight integration for FraiseQL"
-edition.workspace = true
-license.workspace = true
 name = "fraiseql-arrow"
+description = "Apache Arrow Flight integration for FraiseQL"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 version.workspace = true
