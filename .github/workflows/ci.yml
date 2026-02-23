@@ -179,7 +179,7 @@ jobs:
           PGPASSWORD: fraiseql_test_password
 
       - name: Run integration tests
-        run: cargo test --test '*' --all-features -- --test-threads=1
+        run: cargo test --test '*' --all-features -- --test-threads=1 --skip mysql_tests --skip sqlserver_tests
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
@@ -244,7 +244,7 @@ jobs:
           mysql -h 127.0.0.1 -P 3307 -u fraiseql_test -pfraiseql_test_password test_fraiseql < tests/sql/mysql/init.sql
 
       - name: Run MySQL integration tests
-        run: cargo test -p fraiseql-core --features "mysql" --test multi_database_integration mysql -- --ignored --test-threads=1
+        run: cargo test -p fraiseql-core --features "test-mysql" --test multi_database_integration -- --test-threads=1
         env:
           MYSQL_URL: mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql
           RUST_LOG: debug
@@ -321,7 +321,7 @@ jobs:
           key: ${{ runner.os }}-cargo-sqlserver-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run SQL Server integration tests
-        run: cargo test -p fraiseql-core --features "sqlserver" --test multi_database_integration sqlserver -- --ignored --test-threads=1
+        run: cargo test -p fraiseql-core --features "test-sqlserver" --test multi_database_integration -- --test-threads=1
         env:
           SQLSERVER_URL: "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test123!;TrustServerCertificate=true"
           RUST_LOG: debug
