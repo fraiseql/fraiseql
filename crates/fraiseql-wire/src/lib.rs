@@ -13,6 +13,8 @@
 //! ```
 
 #![warn(missing_docs, rust_2018_idioms)]
+#[cfg(not(unix))]
+compile_error!("fraiseql-wire only supports Unix-like operating systems (Linux, macOS).");
 
 pub mod auth;
 pub mod client;
