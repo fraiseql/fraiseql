@@ -20,9 +20,8 @@ impl fraiseql_arrow::db::DatabaseAdapter for BenchFlightAdapter {
     async fn execute_raw_query(
         &self,
         sql: &str,
-    ) -> fraiseql_arrow::db::DatabaseResult<
-        Vec<std::collections::HashMap<String, serde_json::Value>>,
-    > {
+    ) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>>
+    {
         use fraiseql_core::db::DatabaseAdapter as _;
         self.inner
             .execute_raw_query(sql)

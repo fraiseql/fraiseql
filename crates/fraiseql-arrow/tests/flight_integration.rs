@@ -18,7 +18,6 @@
 
 use std::sync::Arc;
 
-use fraiseql_arrow::db::DatabaseAdapter;
 use sqlx::postgres::PgPoolOptions;
 
 /// Test database setup and teardown.
