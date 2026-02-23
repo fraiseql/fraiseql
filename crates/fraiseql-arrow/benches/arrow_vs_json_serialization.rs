@@ -138,7 +138,7 @@ async fn query_json_plane(
     db_url: &str,
     limit_clause: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(db_url).await?;
+    let adapter = fraiseql_core::db::PostgresAdapter::new(db_url).await?;
 
     let query = format!("SELECT * FROM v_users {}", limit_clause);
     let rows = adapter.execute_raw_query(&query).await?;
@@ -153,7 +153,7 @@ async fn query_arrow_plane(
     db_url: &str,
     limit_clause: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(db_url).await?;
+    let adapter = fraiseql_core::db::PostgresAdapter::new(db_url).await?;
 
     let query = format!("SELECT * FROM ta_users {}", limit_clause);
     let rows = adapter.execute_raw_query(&query).await?;

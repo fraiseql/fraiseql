@@ -132,22 +132,37 @@ impl Drop for TestDb {
 mod tests {
     use super::*;
 
-    /// Create an appropriate database adapter based on feature flags.
+    /// Test adapter that wraps PostgresAdapter for Arrow Flight integration tests.
+    ///
+    /// Arrow Flight operates on raw SQL, so it always uses PostgreSQL directly.
+    struct TestFlightAdapter {
+        inner: fraiseql_core::db::PostgresAdapter,
+    }
+
+    #[async_trait::async_trait]
+    impl fraiseql_arrow::db::DatabaseAdapter for TestFlightAdapter {
+        async fn execute_raw_query(
+            &self,
+            sql: &str,
+        ) -> fraiseql_arrow::db::DatabaseResult<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+        > {
+            use fraiseql_core::db::traits::DatabaseAdapter as _;
+            self.inner
+                .execute_raw_query(sql)
+                .await
+                .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
+        }
+    }
+
+    /// Create a PostgreSQL-backed Arrow Flight adapter for testing.
     async fn create_flight_adapter(
         conn_string: &str,
-    ) -> Result<Arc<fraiseql_server::arrow::FlightDatabaseAdapter>, Box<dyn std::error::Error>>
-    {
-        #[cfg(not(feature = "wire-backend"))]
-        {
-            let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;
-            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter)))
-        }
-
-        #[cfg(feature = "wire-backend")]
-        {
-            let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(conn_string);
-            Ok(Arc::new(fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter)))
-        }
+    ) -> Result<Arc<dyn fraiseql_arrow::db::DatabaseAdapter>, Box<dyn std::error::Error>> {
+        let pg_adapter = fraiseql_core::db::PostgresAdapter::new(conn_string).await?;
+        let adapter: Arc<dyn fraiseql_arrow::db::DatabaseAdapter> =
+            Arc::new(TestFlightAdapter { inner: pg_adapter });
+        Ok(adapter)
     }
 
     /// Test invalid view name returns appropriate error

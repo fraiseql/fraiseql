@@ -45,9 +45,8 @@ uuid = {version = "1", features = ["v4"]}
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 # Integration test dependencies
-fraiseql-core = {workspace = true}
+fraiseql-core = {workspace = true, features = ["postgres"]}
 temp-env = {workspace = true}
-fraiseql-server = {workspace = true, features = ["arrow"]}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
 tempfile = "3"
 tokio-stream = "0.1"
@@ -58,7 +57,7 @@ uuid = {version = "1", features = ["v4"]}
 [features]
 clickhouse = ["dep:clickhouse"]
 default = []
-wire-backend = ["fraiseql-server/wire-backend"]
+wire-backend = []
 
 [lib]
 name = "fraiseql_arrow"

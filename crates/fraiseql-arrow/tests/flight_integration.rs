@@ -215,9 +215,11 @@ mod tests {
     /// Create a PostgreSQL-backed Arrow Flight adapter for testing.
     async fn create_flight_adapter(
         conn_string: &str,
-    ) -> Result<Arc<TestFlightAdapter>, Box<dyn std::error::Error>> {
-        let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(conn_string).await?;
-        Ok(Arc::new(TestFlightAdapter { inner: pg_adapter }))
+    ) -> Result<Arc<dyn fraiseql_arrow::db::DatabaseAdapter>, Box<dyn std::error::Error>> {
+        let pg_adapter = fraiseql_core::db::PostgresAdapter::new(conn_string).await?;
+        let adapter: Arc<dyn fraiseql_arrow::db::DatabaseAdapter> =
+            Arc::new(TestFlightAdapter { inner: pg_adapter });
+        Ok(adapter)
     }
 
     /// Test that Flight database adapter can connect and execute queries

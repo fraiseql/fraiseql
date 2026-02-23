@@ -10,6 +10,27 @@ use fraiseql_arrow::db::DatabaseAdapter as ArrowDatabaseAdapter;
 use fraiseql_core::db::DatabaseAdapter;
 use sqlx::postgres::PgPoolOptions;
 
+/// Benchmark adapter that wraps PostgresAdapter for Arrow Flight benchmarks.
+struct BenchFlightAdapter {
+    inner: fraiseql_core::db::PostgresAdapter,
+}
+
+#[async_trait::async_trait]
+impl fraiseql_arrow::db::DatabaseAdapter for BenchFlightAdapter {
+    async fn execute_raw_query(
+        &self,
+        sql: &str,
+    ) -> fraiseql_arrow::db::DatabaseResult<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+    > {
+        use fraiseql_core::db::DatabaseAdapter as _;
+        self.inner
+            .execute_raw_query(sql)
+            .await
+            .map_err(|e| fraiseql_arrow::db::DatabaseError::new(e.to_string()))
+    }
+}
+
 /// Test database for benchmarks
 struct BenchDb {
     #[allow(dead_code)]
@@ -98,7 +119,7 @@ fn adapter_initialization(c: &mut Criterion) {
     c.bench_function("adapter_init_postgres", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box("postgresql://localhost/postgres".to_string());
-            fraiseql_core::db::postgres::PostgresAdapter::new(&db_url).await
+            fraiseql_core::db::PostgresAdapter::new(&db_url).await
         });
     });
 }
@@ -115,7 +136,7 @@ fn query_latency(c: &mut Criterion) {
     group.bench_function("query_1_row", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+            let adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
             adapter
@@ -128,7 +149,7 @@ fn query_latency(c: &mut Criterion) {
     group.bench_function("query_5_rows", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+            let adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
             adapter.execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5")).await
@@ -139,7 +160,7 @@ fn query_latency(c: &mut Criterion) {
     group.bench_function("query_full_table_scan", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+            let adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
             adapter.execute_raw_query(black_box("SELECT * FROM ta_users")).await
@@ -150,7 +171,7 @@ fn query_latency(c: &mut Criterion) {
     group.bench_function("query_with_filter", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+            let adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
             adapter
@@ -165,7 +186,7 @@ fn query_latency(c: &mut Criterion) {
     group.bench_function("query_with_order_by", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
+            let adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
                 .await
                 .expect("Failed to create adapter");
             adapter.execute_raw_query(black_box("SELECT * FROM ta_users ORDER BY id")).await
@@ -187,21 +208,10 @@ fn flight_adapter_latency(c: &mut Criterion) {
     group.bench_function("adapter_wrapping_overhead", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            #[cfg(not(feature = "wire-backend"))]
-            {
-                let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
-                    .await
-                    .expect("Failed to create adapter");
-                let _flight_adapter =
-                    fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
-            }
-
-            #[cfg(feature = "wire-backend")]
-            {
-                let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(&db_url);
-                let _flight_adapter =
-                    fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
-            }
+            let pg_adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
+                .await
+                .expect("Failed to create adapter");
+            let _flight_adapter = BenchFlightAdapter { inner: pg_adapter };
         });
     });
 
@@ -209,26 +219,13 @@ fn flight_adapter_latency(c: &mut Criterion) {
     group.bench_function("flight_query_5_rows", |b| {
         b.to_async(&rt).iter(|| async {
             let db_url = black_box(bench_db.connection_string());
-            #[cfg(not(feature = "wire-backend"))]
-            {
-                let pg_adapter = fraiseql_core::db::postgres::PostgresAdapter::new(&db_url)
-                    .await
-                    .expect("Failed to create adapter");
-                let flight_adapter = fraiseql_server::arrow::FlightDatabaseAdapter::new(pg_adapter);
-                flight_adapter
-                    .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
-                    .await
-            }
-
-            #[cfg(feature = "wire-backend")]
-            {
-                let wire_adapter = fraiseql_core::db::FraiseWireAdapter::new(&db_url);
-                let flight_adapter =
-                    fraiseql_server::arrow::FlightDatabaseAdapter::new(wire_adapter);
-                flight_adapter
-                    .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
-                    .await
-            }
+            let pg_adapter = fraiseql_core::db::PostgresAdapter::new(&db_url)
+                .await
+                .expect("Failed to create adapter");
+            let flight_adapter = BenchFlightAdapter { inner: pg_adapter };
+            flight_adapter
+                .execute_raw_query(black_box("SELECT * FROM ta_users LIMIT 5"))
+                .await
         });
     });
 
