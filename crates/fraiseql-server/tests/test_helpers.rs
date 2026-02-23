@@ -148,7 +148,7 @@ pub fn assert_graphql_response(response: &serde_json::Value) {
 pub fn assert_no_graphql_errors(response: &serde_json::Value) {
     if let Some(errors) = response.get("errors") {
         assert!(
-            errors.as_array().map_or(true, |e| e.is_empty()),
+            errors.as_array().is_none_or(|e| e.is_empty()),
             "Unexpected GraphQL errors: {}",
             errors
         );

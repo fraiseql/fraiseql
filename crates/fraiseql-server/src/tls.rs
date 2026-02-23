@@ -173,7 +173,7 @@ impl TlsSetup {
     /// Check if certificate verification is enabled for databases.
     #[must_use]
     pub fn verify_certificates(&self) -> bool {
-        self.db_config.as_ref().map_or(true, |c| c.verify_certificates)
+        self.db_config.as_ref().is_none_or(|c| c.verify_certificates)
     }
 
     /// Get the CA bundle path for verifying database certificates.

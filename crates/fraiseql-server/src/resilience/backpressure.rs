@@ -41,7 +41,7 @@ impl AdmissionController {
         match self.semaphore.clone().try_acquire_owned() {
             Ok(permit) => Some(AdmissionPermit {
                 _permit:     permit,
-                _controller: self as *const Self as usize,
+                _controller: std::ptr::from_ref::<Self>(self) as usize,
                 _phantom:    std::marker::PhantomData,
             }),
             Err(_) => {
@@ -69,7 +69,7 @@ impl AdmissionController {
                 self.queue_depth.fetch_sub(1, Ordering::Relaxed);
                 Some(AdmissionPermit {
                     _permit:     permit,
-                    _controller: self as *const Self as usize,
+                    _controller: std::ptr::from_ref::<Self>(self) as usize,
                     _phantom:    std::marker::PhantomData,
                 })
             },

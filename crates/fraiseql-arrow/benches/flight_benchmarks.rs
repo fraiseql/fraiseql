@@ -44,12 +44,8 @@ impl BenchDb {
         let pool = PgPoolOptions::new().max_connections(5).connect(&db_url).await?;
 
         // Drop and recreate to guarantee clean schema with correct constraints
-        sqlx::query("DROP TABLE IF EXISTS ta_orders CASCADE")
-            .execute(&pool)
-            .await?;
-        sqlx::query("DROP TABLE IF EXISTS ta_users CASCADE")
-            .execute(&pool)
-            .await?;
+        sqlx::query("DROP TABLE IF EXISTS ta_orders CASCADE").execute(&pool).await?;
+        sqlx::query("DROP TABLE IF EXISTS ta_users CASCADE").execute(&pool).await?;
 
         sqlx::query(
             r#"

@@ -89,7 +89,7 @@ impl JwksCache {
             .read()
             .ok()
             .and_then(|guard| *guard)
-            .map_or(true, |t| t.elapsed() > self.ttl)
+            .is_none_or(|t| t.elapsed() > self.ttl)
     }
 
     /// Fetch the JWKS document and populate the cache.
