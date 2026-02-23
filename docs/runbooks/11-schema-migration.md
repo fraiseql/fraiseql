@@ -125,6 +125,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
 ### Pre-Migration Validation
 
 1. **Validate new schema**
+
    ```bash
    # Compile from source
    fraiseql-cli compile schema.json --output schema.compiled.json.new
@@ -140,6 +141,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
    ```
 
 2. **Test in staging**
+
    ```bash
    # Deploy new schema to staging environment
    cp schema.compiled.json.new /etc/fraiseql-staging/schema.compiled.json
@@ -158,6 +160,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
    ```
 
 3. **Identify breaking changes**
+
    ```bash
    # Compare schemas side-by-side
    python3 << 'EOF'
@@ -193,6 +196,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
 ### Safe Migration Path
 
 4. **Backup current schema**
+
    ```bash
    # Always backup before changes
    cp /etc/fraiseql/schema.compiled.json /etc/fraiseql/schema.compiled.json.backup-$(date +%Y%m%d-%H%M%S)
@@ -202,6 +206,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
    ```
 
 5. **Deploy new schema (non-breaking changes)**
+
    ```bash
    # If all changes are backward compatible (new fields/types only):
 
@@ -230,6 +235,7 @@ jq '.types[] | .fields[]? | select(.deprecated == true) | {type: .name, field: .
 ### Breaking Change Migration
 
 6. **Coordinate breaking schema changes**
+
    ```bash
    # For breaking changes (removed fields/types):
    # Must coordinate with clients
