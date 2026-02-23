@@ -202,7 +202,32 @@ jobs:
       - name: Wait for crates.io indexing
         run: sleep 30
 
-      # Tier 3: Depends on Tier 1 and Tier 2
+      # Tier 3: Depends on Tier 1 only (no cross-dependencies)
+      - name: Publish fraiseql-auth
+        id: publish-auth
+        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        continue-on-error: true
+
+      - name: Wait for crates.io indexing
+        run: sleep 30
+
+      - name: Publish fraiseql-webhooks
+        id: publish-webhooks
+        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        continue-on-error: true
+
+      - name: Wait for crates.io indexing
+        run: sleep 30
+
+      - name: Publish fraiseql-secrets
+        id: publish-secrets
+        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
+        continue-on-error: true
+
+      - name: Wait for crates.io indexing
+        run: sleep 30
+
+      # Tier 4: Depends on Tier 1 and Tier 2
       - name: Publish fraiseql-observers
         id: publish-observers
         run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }} || echo "Already published or publish failed"
@@ -240,11 +265,14 @@ jobs:
           echo "## 📦 Crates.io Publishing Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-error.outcome }}" = "success" ] && echo "- ✅ fraiseql-error" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-error" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-observers-macros.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers-macros" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers-macros" >> $GITHUB_STEP_SUMMARY
-          [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-wire.outcome }}" = "success" ] && echo "- ✅ fraiseql-wire" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-wire" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-observers-macros.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers-macros" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers-macros" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-core.outcome }}" = "success" ] && echo "- ✅ fraiseql-core" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-core" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-auth.outcome }}" = "success" ] && echo "- ✅ fraiseql-auth" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-auth" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-webhooks.outcome }}" = "success" ] && echo "- ✅ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-webhooks" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-secrets.outcome }}" = "success" ] && echo "- ✅ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-secrets" >> $GITHUB_STEP_SUMMARY
+          [ "${{ steps.publish-arrow.outcome }}" = "success" ] && echo "- ✅ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-arrow" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-observers.outcome }}" = "success" ] && echo "- ✅ fraiseql-observers" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-observers" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-server.outcome }}" = "success" ] && echo "- ✅ fraiseql-server" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-server" >> $GITHUB_STEP_SUMMARY
           [ "${{ steps.publish-cli.outcome }}" = "success" ] && echo "- ✅ fraiseql-cli" >> $GITHUB_STEP_SUMMARY || echo "- ❌ fraiseql-cli" >> $GITHUB_STEP_SUMMARY
