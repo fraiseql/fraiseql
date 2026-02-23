@@ -90,6 +90,7 @@ curl http://localhost:8815/metrics
 ```
 
 Returns Prometheus metrics including:
+
 - Request rate, latency percentiles
 - Database pool connections (active/idle)
 - Authentication failures
