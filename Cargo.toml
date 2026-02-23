@@ -53,17 +53,17 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.0.0-rc.8"}
-fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.0.0-rc.8"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.0.0-rc.8"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.0.0-rc.8"}
-fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.0-rc.8"}
-fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.0-rc.8", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.0.0-rc.8"}
-fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.0.0-rc.8"}
-fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.0.0-rc.8"}
-fraiseql-server = {path = "crates/fraiseql-server", version = "2.0.0-rc.8"}
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.0.0-rc.8"}
+fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.0.0-rc.9"}
+fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.0.0-rc.9"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.0.0-rc.9"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.0.0-rc.9"}
+fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.0-rc.9"}
+fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.0-rc.9", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.0.0-rc.9"}
+fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.0.0-rc.9"}
+fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.0.0-rc.9"}
+fraiseql-server = {path = "crates/fraiseql-server", version = "2.0.0-rc.9"}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.0.0-rc.9"}
 futures = "0.3"
 # GraphQL parsing
 graphql-parser = "0.4"
@@ -169,4 +169,4 @@ keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.88"  # MSRV — driven by dependency requirements
-version = "2.0.0-rc.8"
+version = "2.0.0-rc.9"
