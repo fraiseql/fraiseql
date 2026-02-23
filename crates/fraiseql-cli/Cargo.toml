@@ -27,7 +27,7 @@ walkdir = "2"
 
 [dev-dependencies]
 temp-env = {workspace = true}
-tempfile = "3.8"
+tempfile = "3.25"
 
 [lints]
 workspace = true
