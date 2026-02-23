@@ -36,7 +36,7 @@ jobs:
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fuzz-crash-core-${{ matrix.target }}
           path: crates/fraiseql-core/fuzz/artifacts/${{ matrix.target }}/
@@ -67,7 +67,7 @@ jobs:
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fuzz-crash-wire-${{ matrix.target }}
           path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/
