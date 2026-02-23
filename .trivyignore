@@ -180,6 +180,54 @@ CVE-2024-56433
 # Review Date: Weekly until patch available
 CVE-2025-9820 # KEEP VISIBLE - Do not ignore, monitor actively
 
+# -----------------------------------------------------------------------------
+# CATEGORY 5b: CRITICAL/HIGH CVEs (No fix available in debian:bookworm-slim)
+# Risk Level: MEDIUM (mitigated by container isolation)
+# Mitigation: Enhanced monitoring, update when patches available
+# -----------------------------------------------------------------------------
+
+# CVE-2023-45853: zlib integer overflow in minizip zipOpenNewFileInZip4_64
+# Justification: Integer overflow in ZIP file creation via minizip's zipOpenNewFileInZip4_64
+# Impact: Heap-based buffer overflow when creating ZIP files with large filenames
+# Severity: CRITICAL
+# Mitigation:
+#   - FraiseQL does not create or process ZIP files
+#   - Application is a GraphQL API server, no archive operations
+#   - Container filesystem is read-only during operation
+#   - No user input reaches zlib's minizip functionality
+# Status: No fix available in debian:bookworm-slim (zlib1g 1:1.2.13.dfsg-1)
+# Review date: 2026-03-02 (7-day SLA for CRITICAL)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2023-45853
+
+# CVE-2026-0861: glibc integer overflow in memalign
+# Justification: Integer overflow in memalign leads to heap corruption
+# Impact: Potential heap corruption with crafted allocation sizes
+# Severity: HIGH
+# Mitigation:
+#   - Requires attacker-controlled allocation size parameters
+#   - Application does not expose memory allocation to user input
+#   - Container runs as non-root 'fraiseql' user
+#   - ASLR and stack canaries provide defense-in-depth
+# Status: No fix available in debian:bookworm-slim (libc6 2.36-9+deb12u13)
+# Review date: 2026-03-02 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-0861
+
+# CVE-2023-2953: openldap null pointer dereference in ber_memalloc_x
+# Justification: Null pointer dereference in OpenLDAP's BER decoding
+# Impact: Potential DoS if processing malicious LDAP responses
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL does not use LDAP authentication
+#   - libldap included as transitive dependency in base image
+#   - No LDAP connections initiated by application
+#   - Network policies prevent outbound LDAP traffic
+# Status: No fix available in debian:bookworm-slim (libldap-2.5-0 2.5.13+dfsg-5)
+# Review date: 2026-03-02 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2023-2953
+
 # =============================================================================
 # CATEGORY 6: LOW SEVERITY CVEs (All Documented & Accepted)
 # Risk Level: MINIMAL

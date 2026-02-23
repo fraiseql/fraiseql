@@ -106,8 +106,9 @@ jobs:
         shell: bash
         run: |
           # rdkafka requires a POSIX configure script and does not build on Windows
+          # fraiseql-wire is Unix-only (uses tokio::net::UnixStream)
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cargo build --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
+            cargo build --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
             cargo build --all-features --verbose
           fi
@@ -116,7 +117,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cargo test --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
+            cargo test --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
             cargo test --all-features --verbose
           fi
@@ -125,7 +126,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cargo test --doc --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
+            cargo test --doc --workspace --exclude fraiseql-wire --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
           else
             cargo test --doc --all-features --verbose
           fi

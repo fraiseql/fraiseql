@@ -43,10 +43,17 @@ impl BenchDb {
 
         let pool = PgPoolOptions::new().max_connections(5).connect(&db_url).await?;
 
-        // Create test tables if they don't exist
+        // Drop and recreate to guarantee clean schema with correct constraints
+        sqlx::query("DROP TABLE IF EXISTS ta_orders CASCADE")
+            .execute(&pool)
+            .await?;
+        sqlx::query("DROP TABLE IF EXISTS ta_users CASCADE")
+            .execute(&pool)
+            .await?;
+
         sqlx::query(
             r#"
-            CREATE TABLE IF NOT EXISTS ta_users (
+            CREATE TABLE ta_users (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 email TEXT NOT NULL,
@@ -60,7 +67,7 @@ impl BenchDb {
 
         sqlx::query(
             r#"
-            CREATE TABLE IF NOT EXISTS ta_orders (
+            CREATE TABLE ta_orders (
                 id TEXT PRIMARY KEY,
                 total NUMERIC(12, 2) NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL,
