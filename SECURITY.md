@@ -13,6 +13,7 @@ FraiseQL v2 prioritizes security and follows industry best practices for secure 
 **Status**: ⚠️ **KNOWN & ACCEPTED**
 
 **Vulnerability Details**:
+
 - **CVE**: RUSTSEC-2023-0071
 - **Crate**: `rsa` v0.9.10
 - **Attack**: Marvin Attack - potential key recovery through timing sidechannels
@@ -20,6 +21,7 @@ FraiseQL v2 prioritizes security and follows industry best practices for secure 
 - **Date Discovered**: 2023-11-22
 
 **Dependency Chain**:
+
 ```
 fraiseql-server
   └── sqlx 0.8.6
@@ -38,11 +40,13 @@ FraiseQL has determined this vulnerability to be **LOW RISK** in our deployment 
 4. **Constant-Time Crypto**: All cryptographic operations use timing-resistant implementations
 
 **Remediation Timeline**:
+
 - **Current**: Risk accepted with documentation
 - **1-2 months**: Monitor for sqlx 0.9+ stable release
 - **6 months**: Upgrade to rsa >= 0.10 when stable
 
 **References**:
+
 - https://rustsec.org/advisories/RUSTSEC-2023-0071
 - https://github.com/RustCrypto/RSA/issues/318
 
@@ -51,23 +55,27 @@ FraiseQL has determined this vulnerability to be **LOW RISK** in our deployment 
 ## Security Best Practices Implemented
 
 ### Development
+
 - Type Safety: 100% safe Rust (no `unsafe` blocks)
 - Linting: Clippy pedantic checks enabled
 - Testing: 206+ tests with 100% pass rate
 - Code Review: All changes reviewed
 
 ### Cryptography
+
 - Constant-Time Comparison: Using `subtle` crate
 - Secure Randomness: Using `getrandom`
 - No Hardcoded Secrets: All via environment variables
 - Error Sanitization: No sensitive data in errors
 
 ### Database
+
 - SQL Injection Prevention: Parameterized queries only
 - Type-Safe Compilation: Schema compiler validates all operations
 - Property-Based Fuzzing: Tests for escaping vulnerabilities
 
 ### Deployment
+
 - Configuration Profiles: STANDARD, REGULATED, RESTRICTED
 - Monitoring: Comprehensive logging
 - Incident Response: Emergency runbooks
@@ -80,6 +88,7 @@ FraiseQL has determined this vulnerability to be **LOW RISK** in our deployment 
 **DO NOT** open public issues for security vulnerabilities.
 
 Instead, email security@fraiseql.dev with:
+
 - Description of vulnerability
 - Steps to reproduce
 - Potential impact

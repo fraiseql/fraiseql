@@ -358,11 +358,13 @@ See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation
 To dramatically speed up compilation, install the `mold` linker for 3-5x faster builds:
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -S mold
 ```
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get install mold
 ```
@@ -371,6 +373,7 @@ sudo apt-get install mold
 See [mold releases](https://github.com/rui314/mold/releases)
 
 The mold linker is configured in `.cargo/config.toml` and used automatically.
+
 - Full rebuild: ~60s → ~15s
 - Incremental linking: 2-5s → 0.5s
 
