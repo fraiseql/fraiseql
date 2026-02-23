@@ -23,7 +23,7 @@ tokio = {version = "1.45", features = ["full"]}
 tower = {version = "0.5"}
 tracing = "0.1"
 urlencoding = "2.1"
-uuid = {version = "1.0", features = ["v4", "serde"]}
+uuid = {version = "1.21", features = ["v4", "serde"]}
 zeroize = "1.8"
 
 [dev-dependencies]
