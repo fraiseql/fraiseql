@@ -44,7 +44,10 @@ impl TestDb {
             .execute(&pool)
             .await?;
 
-        let test_db_url = db_url.replace("/postgres", &format!("/{}", test_db_name));
+        let test_db_url = match db_url.rsplit_once('/') {
+            Some((base, _)) => format!("{}/{}", base, test_db_name),
+            None => format!("{}/{}", db_url, test_db_name),
+        };
         let test_pool = PgPoolOptions::new().max_connections(5).connect(&test_db_url).await?;
 
         Self::create_tables(&test_pool).await?;
@@ -92,7 +95,11 @@ impl TestDb {
     fn connection_string(&self) -> String {
         std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string())
-            .replace("/postgres", &format!("/{}", self.database_name))
+            .rsplit_once('/')
+            .map_or_else(
+                || format!("postgresql://localhost/{}", self.database_name),
+                |(base, _)| format!("{}/{}", base, self.database_name),
+            )
     }
 }
 

@@ -66,14 +66,17 @@ impl Default for ShutdownHandler {
 pub async fn install_signal_handlers(handler: ShutdownHandler) -> Result<(), std::io::Error> {
     use tokio::signal;
 
-    let handler_clone = handler.clone();
-    tokio::spawn(async move {
-        let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("Failed to create SIGTERM handler");
+    #[cfg(unix)]
+    {
+        let handler_clone = handler.clone();
+        tokio::spawn(async move {
+            let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
+                .expect("Failed to create SIGTERM handler");
 
-        sigterm.recv().await;
-        handler_clone.request_shutdown();
-    });
+            sigterm.recv().await;
+            handler_clone.request_shutdown();
+        });
+    }
 
     let handler_clone = handler.clone();
     tokio::spawn(async move {

@@ -223,7 +223,21 @@ impl ProjectionMapper {
                     Ok(value.clone())
                 }
             },
-            _ => Ok(value.clone()),
+            _ => {
+                // If the value is a JSON string that encodes an object or array
+                // (which happens when the database uses ->>'field' text extraction
+                // instead of ->'field' JSONB extraction), attempt to re-parse it.
+                // Scalar strings (e.g. "hello") won't parse as Object/Array and
+                // are returned unchanged, so this is safe for all field types.
+                if let JsonValue::String(ref s) = *value {
+                    if let Ok(parsed @ (JsonValue::Object(_) | JsonValue::Array(_))) =
+                        serde_json::from_str::<JsonValue>(s)
+                    {
+                        return self.project_nested_value(&parsed, field);
+                    }
+                }
+                Ok(value.clone())
+            },
         }
     }
 
@@ -864,6 +878,45 @@ mod tests {
                 }
             })
         );
+    }
+
+    // ========================================================================
+    // Issue #27: Nested objects returned as JSON strings
+    // ========================================================================
+
+    #[test]
+    fn test_nested_object_as_json_string_is_re_parsed() {
+        // Reproduces Issue #27: when the database extracts a nested JSONB field
+        // using ->>'field' (text operator), it arrives as a JSON string rather
+        // than a proper Object. The projector must re-parse it.
+        let mapper = ProjectionMapper::with_mappings(vec![
+            FieldMapping::simple("id"),
+            FieldMapping::nested_object(
+                "author",
+                "User",
+                vec![FieldMapping::simple("id"), FieldMapping::simple("name")],
+            ),
+        ])
+        .with_typename("Post");
+
+        // "author" is a raw JSON string, not a parsed object
+        let data = json!({
+            "id": "post-1",
+            "author": "{\"id\":\"user-2\",\"name\":\"Bob\"}"
+        });
+
+        let jsonb = JsonbValue::new(data);
+        let result = mapper.project(&jsonb).unwrap();
+
+        // author must be an object, not a string
+        let author = result.get("author").expect("author field missing");
+        assert!(
+            author.is_object(),
+            "author should be a JSON object, got: {:?}",
+            author
+        );
+        assert_eq!(author.get("id"), Some(&json!("user-2")));
+        assert_eq!(author.get("name"), Some(&json!("Bob")));
     }
 
     #[test]

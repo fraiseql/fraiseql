@@ -5,7 +5,10 @@
 
 use std::{
     num::NonZeroUsize,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -51,9 +54,10 @@ pub struct CachedResult {
 ///
 /// # Thread Safety
 ///
-/// All operations use interior mutability (`Arc<Mutex<>>`), making the cache
-/// safe to share across async tasks. Lock contention is minimal as critical
-/// sections are short.
+/// The LRU structure uses a single `Mutex` for correctness. Metrics counters
+/// use `AtomicU64` / `AtomicUsize` so no second lock is acquired in the hot path.
+/// Under high concurrency this eliminates the double-lock contention that caused
+/// cache hits to be slower than cache misses.
 ///
 /// # Memory Safety
 ///
@@ -94,8 +98,15 @@ pub struct QueryResultCache {
     /// Configuration (immutable after creation).
     config: CacheConfig,
 
-    /// Metrics for monitoring.
-    metrics: Arc<Mutex<CacheMetrics>>,
+    // Metrics counters — atomic so the hot `get()` path acquires only ONE lock
+    // (the LRU), not two. `Relaxed` ordering is sufficient: these counters are
+    // independent and used only for monitoring, not for correctness.
+    hits: AtomicU64,
+    misses: AtomicU64,
+    total_cached: AtomicU64,
+    invalidations: AtomicU64,
+    size: AtomicUsize,
+    memory_bytes: AtomicUsize,
 }
 
 /// Cache metrics for monitoring.
@@ -144,16 +155,14 @@ impl QueryResultCache {
         let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
 
         Self {
-            cache: Arc::new(Mutex::new(LruCache::new(max))),
+            cache:        Arc::new(Mutex::new(LruCache::new(max))),
             config,
-            metrics: Arc::new(Mutex::new(CacheMetrics {
-                hits:          0,
-                misses:        0,
-                total_cached:  0,
-                invalidations: 0,
-                size:          0,
-                memory_bytes:  0,
-            })),
+            hits:         AtomicU64::new(0),
+            misses:       AtomicU64::new(0),
+            total_cached: AtomicU64::new(0),
+            invalidations: AtomicU64::new(0),
+            size:         AtomicUsize::new(0),
+            memory_bytes: AtomicUsize::new(0),
         }
     }
 
@@ -166,7 +175,7 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache or metrics mutex is poisoned (should never happen).
+    /// Returns error if cache mutex is poisoned (should never happen).
     ///
     /// # Example
     ///
@@ -184,6 +193,15 @@ impl QueryResultCache {
     /// }
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
+    /// Returns whether caching is enabled.
+    ///
+    /// Used by `CachedDatabaseAdapter` to short-circuit the SHA-256 key generation
+    /// and result clone overhead when caching is disabled.
+    #[must_use]
+    pub fn is_enabled(&self) -> bool {
+        self.config.enabled
+    }
+
     pub fn get(&self, cache_key: &str) -> Result<Option<Arc<Vec<JsonbValue>>>> {
         if !self.config.enabled {
             return Ok(None);
@@ -198,19 +216,24 @@ impl QueryResultCache {
             // Check TTL
             let now = current_timestamp();
             if now - cached.cached_at > self.config.ttl_seconds {
-                // Expired - remove and return None
+                // Expired: remove and count as miss
                 cache.pop(cache_key);
-                self.record_miss()?;
+                let new_size = cache.len();
+                drop(cache); // Release LRU lock before atomic updates
+                self.size.store(new_size, Ordering::Relaxed);
+                self.misses.fetch_add(1, Ordering::Relaxed);
                 return Ok(None);
             }
 
-            // Cache hit - update stats and return
+            // Cache hit: clone the Arc (zero-copy) while still holding the LRU lock
             cached.hit_count += 1;
-            self.record_hit()?;
-            Ok(Some(cached.result.clone()))
+            let result = cached.result.clone();
+            drop(cache); // Release LRU lock before atomic update
+            self.hits.fetch_add(1, Ordering::Relaxed);
+            Ok(Some(result))
         } else {
-            // Cache miss
-            self.record_miss()?;
+            drop(cache); // Release LRU lock before atomic update
+            self.misses.fetch_add(1, Ordering::Relaxed);
             Ok(None)
         }
     }
@@ -227,7 +250,7 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache or metrics mutex is poisoned.
+    /// Returns error if cache mutex is poisoned.
     ///
     /// # Example
     ///
@@ -257,6 +280,7 @@ impl QueryResultCache {
         }
 
         let now = current_timestamp();
+        let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
 
         let cached = CachedResult {
             result: Arc::new(result),
@@ -265,24 +289,17 @@ impl QueryResultCache {
             hit_count: 0,
         };
 
-        // Estimate memory usage (rough approximation)
-        let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
-
         let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Cache lock poisoned: {e}"),
             source:  None,
         })?;
-
         cache.put(cache_key, cached);
+        let new_size = cache.len();
+        drop(cache); // Release LRU lock before atomic updates
 
-        // Update metrics
-        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Metrics lock poisoned: {e}"),
-            source:  None,
-        })?;
-        metrics.total_cached += 1;
-        metrics.size = cache.len();
-        metrics.memory_bytes += memory_size;
+        self.total_cached.fetch_add(1, Ordering::Relaxed);
+        self.size.store(new_size, Ordering::Relaxed);
+        self.memory_bytes.fetch_add(memory_size, Ordering::Relaxed);
 
         Ok(())
     }
@@ -290,16 +307,6 @@ impl QueryResultCache {
     /// Invalidate entries accessing specified views.
     ///
     /// Called after mutations to invalidate affected cache entries.
-    ///
-    /// # Behavior
-    ///
-    /// - Simple view-based invalidation
-    /// - Removes all entries that read from any specified view
-    ///
-    /// # Future Enhancements
-    ///
-    /// - Entity-level invalidation (only invalidate specific IDs)
-    /// - Cascade-driven invalidation (from mutation metadata)
     ///
     /// # Arguments
     ///
@@ -311,7 +318,7 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache or metrics mutex is poisoned.
+    /// Returns error if cache mutex is poisoned.
     ///
     /// # Example
     ///
@@ -326,8 +333,6 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
-        let mut invalidated_count = 0u64;
-
         let mut cache = self.cache.lock().map_err(|e| FraiseQLError::Internal {
             message: format!("Cache lock poisoned: {e}"),
             source:  None,
@@ -336,37 +341,33 @@ impl QueryResultCache {
         // Collect keys to remove (can't modify during iteration)
         let keys_to_remove: Vec<String> = cache
             .iter()
-            .filter(|(_, cached)| {
-                // Check if any accessed view matches invalidation list
-                cached.accessed_views.iter().any(|v| views.contains(v))
-            })
+            .filter(|(_, cached)| cached.accessed_views.iter().any(|v| views.contains(v)))
             .map(|(k, _)| k.clone())
             .collect();
 
-        // Remove entries
-        for key in keys_to_remove {
-            cache.pop(&key);
-            invalidated_count += 1;
+        for key in &keys_to_remove {
+            cache.pop(key);
         }
 
-        // Update metrics
-        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Metrics lock poisoned: {e}"),
-            source:  None,
-        })?;
-        metrics.invalidations += invalidated_count;
-        metrics.size = cache.len();
+        let new_size = cache.len();
+        let invalidated_count = keys_to_remove.len() as u64;
+        drop(cache); // Release LRU lock before atomic updates
+
+        self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
+        self.size.store(new_size, Ordering::Relaxed);
 
         Ok(invalidated_count)
     }
 
-    /// Get cache metrics.
+    /// Get cache metrics snapshot.
     ///
-    /// Used for monitoring and debugging.
+    /// Returns a consistent snapshot of current counters. Individual fields may
+    /// be updated independently (atomics), so the snapshot is not a single
+    /// atomic transaction, but is accurate enough for monitoring.
     ///
     /// # Errors
     ///
-    /// Returns error if metrics mutex is poisoned.
+    /// Always returns `Ok`. The `Result` return type is kept for API compatibility.
     ///
     /// # Example
     ///
@@ -381,13 +382,14 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn metrics(&self) -> Result<CacheMetrics> {
-        self.metrics
-            .lock()
-            .map_err(|e| FraiseQLError::Internal {
-                message: format!("Metrics lock poisoned: {e}"),
-                source:  None,
-            })
-            .map(|m| m.clone())
+        Ok(CacheMetrics {
+            hits:          self.hits.load(Ordering::Relaxed),
+            misses:        self.misses.load(Ordering::Relaxed),
+            total_cached:  self.total_cached.load(Ordering::Relaxed),
+            invalidations: self.invalidations.load(Ordering::Relaxed),
+            size:          self.size.load(Ordering::Relaxed),
+            memory_bytes:  self.memory_bytes.load(Ordering::Relaxed),
+        })
     }
 
     /// Clear all cache entries.
@@ -396,7 +398,7 @@ impl QueryResultCache {
     ///
     /// # Errors
     ///
-    /// Returns error if cache or metrics mutex is poisoned.
+    /// Returns error if cache mutex is poisoned.
     ///
     /// # Example
     ///
@@ -416,33 +418,9 @@ impl QueryResultCache {
             })?
             .clear();
 
-        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Metrics lock poisoned: {e}"),
-            source:  None,
-        })?;
-        metrics.size = 0;
-        metrics.memory_bytes = 0;
+        self.size.store(0, Ordering::Relaxed);
+        self.memory_bytes.store(0, Ordering::Relaxed);
 
-        Ok(())
-    }
-
-    // Private helpers
-
-    fn record_hit(&self) -> Result<()> {
-        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Metrics lock poisoned: {e}"),
-            source:  None,
-        })?;
-        metrics.hits += 1;
-        Ok(())
-    }
-
-    fn record_miss(&self) -> Result<()> {
-        let mut metrics = self.metrics.lock().map_err(|e| FraiseQLError::Internal {
-            message: format!("Metrics lock poisoned: {e}"),
-            source:  None,
-        })?;
-        metrics.misses += 1;
         Ok(())
     }
 }

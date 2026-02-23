@@ -32,7 +32,7 @@ RUN TARGET=$(cat /tmp/rust_target.txt) && \
     cargo build --release --target "$TARGET" -p fraiseql-server
 
 # Stage 2: Runtime
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
 LABEL org.opencontainers.image.version="2.1.0" \
       org.opencontainers.image.vendor="FraiseQL" \
