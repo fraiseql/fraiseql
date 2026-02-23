@@ -46,8 +46,8 @@ uuid = {version = "1", features = ["v4"]}
 criterion = {version = "0.5", features = ["async_tokio"]}
 # Integration test dependencies
 fraiseql-core = {workspace = true, features = ["postgres"]}
-temp-env = {workspace = true}
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid"]}
+temp-env = {workspace = true}
 tempfile = "3"
 tokio-stream = "0.1"
 tokio-test = "0.4"
@@ -66,7 +66,7 @@ path = "src/lib.rs"
 [package]
 authors = ["FraiseQL Contributors"]
 description = "Apache Arrow Flight integration for FraiseQL"
+name = "fraiseql-arrow"
 edition.workspace = true
 license.workspace = true
-name = "fraiseql-arrow"
 version.workspace = true

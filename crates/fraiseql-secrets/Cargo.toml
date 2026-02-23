@@ -23,9 +23,9 @@ tokio-test = "0.4"
 workspace = true
 
 [package]
-name = "fraiseql-secrets"
 description = "Secrets management and field-level encryption for FraiseQL"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+name = "fraiseql-secrets"
 repository = "https://github.com/fraiseql/fraiseql"
 version.workspace = true

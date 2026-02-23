@@ -146,6 +146,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
 ### Immediate Actions (< 5 minutes)
 
 1. **Increase rate limits temporarily** (if legitimate traffic)
+
    ```bash
    # Option 1: Update compiled schema and reload
    jq '.security.rate_limiting.auth_max_requests = 1000' \
@@ -160,6 +161,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```
 
 2. **Whitelist specific client or IP** (if legitimate)
+
    ```bash
    # Add to rate limit whitelist
    # Method depends on configuration, but typically:
@@ -173,6 +175,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```
 
 3. **Clear rate limit state in Redis** (reset counters)
+
    ```bash
    # If using Redis backend, flush rate limit keys
    redis-cli -u $REDIS_URL FLUSHDB  # CAREFUL: Clears entire DB!
@@ -184,6 +187,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```
 
 4. **Temporarily disable rate limiting** (emergency only)
+
    ```bash
    # Only if under attack or critical service outage
    export FRAISEQL_RATE_LIMITING_ENABLED=false
@@ -197,6 +201,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
 ### Short-term (5-30 minutes)
 
 5. **Block traffic from attack source**
+
    ```bash
    # If DDoS attack detected
    ATTACK_IP="192.168.1.50"
@@ -212,6 +217,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```
 
 6. **Enable stricter rate limiting for anonymous clients**
+
    ```bash
    # Separate limits for authenticated vs anonymous
    export FRAISEQL_RATE_LIMIT_ANON_MAX_REQUESTS=10    # Very strict
@@ -222,6 +228,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```
 
 7. **Implement per-client rate limiting**
+
    ```bash
    # If specific API key is misbehaving, limit just that key
    redis-cli -u $REDIS_URL SET "rate_limit:key:bad_key" 5  # 5 requests
