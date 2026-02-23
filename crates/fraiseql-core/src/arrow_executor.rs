@@ -11,5 +11,5 @@
 //!
 //! This separation allows:
 //! - fraiseql-core to remain independent of fraiseql-arrow
-//! - fraiseql-arrow to access Executor<A> and query execution
+//! - fraiseql-arrow to access `Executor<A>` and query execution
 //! - No circular dependencies in the dependency graph

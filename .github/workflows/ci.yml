@@ -103,13 +103,32 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --all-features --verbose
+        shell: bash
+        run: |
+          # rdkafka requires a POSIX configure script and does not build on Windows
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cargo build --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
+          else
+            cargo build --all-features --verbose
+          fi
 
       - name: Run tests
-        run: cargo test --all-features --verbose
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cargo test --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
+          else
+            cargo test --all-features --verbose
+          fi
 
       - name: Run doc tests
-        run: cargo test --doc --all-features --verbose
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cargo test --doc --features "postgres,mysql,sqlite,sqlserver,rich-filters" --verbose
+          else
+            cargo test --doc --all-features --verbose
+          fi
 
   # Integration tests with PostgreSQL
   integration-postgres:
@@ -473,6 +492,22 @@ jobs:
     name: Benchmarks
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/dev'
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
     steps:
       - uses: actions/checkout@v4
 
@@ -493,8 +528,17 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Initialize benchmark database
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
       - name: Run benchmarks
         run: cargo bench --no-fail-fast
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
       - name: Store benchmark results
         uses: actions/upload-artifact@v4

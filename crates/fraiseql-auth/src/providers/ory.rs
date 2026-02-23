@@ -74,11 +74,8 @@ impl OryOAuth {
                             .filter_map(|g| g.as_str().map(|s| s.to_string()))
                             .collect(),
                     )
-                } else if let Some(s) = groups.as_str() {
-                    // Single group as string
-                    Some(vec![s.to_string()])
                 } else {
-                    None
+                    groups.as_str().map(|s| vec![s.to_string()])
                 }
             })
             .unwrap_or_default()
