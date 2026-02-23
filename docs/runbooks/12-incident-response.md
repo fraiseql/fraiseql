@@ -219,6 +219,7 @@ echo "(Assign based on above criteria)"
 ### For All Incidents
 
 1. **Notify incident commander and stakeholders** (immediately)
+
    ```bash
    # Create incident ticket
    # Example using curl to incident system:
@@ -235,6 +236,7 @@ echo "(Assign based on above criteria)"
    ```
 
 2. **Establish war room / comms channel**
+
    ```bash
    # Create Slack channel: #incident-fraiseql-20260219
    # Post regular updates
@@ -242,6 +244,7 @@ echo "(Assign based on above criteria)"
    ```
 
 3. **Identify specific issue using decision tree** (from Investigation section)
+
    ```bash
    # Reference appropriate runbook from list
    # Runbook 01: Deployment issues
@@ -258,6 +261,7 @@ echo "(Assign based on above criteria)"
    ```
 
 4. **Implement immediate stabilization** (from identified runbook)
+
    ```bash
    # Depends on specific issue
    # See appropriate runbook for mitigation steps
