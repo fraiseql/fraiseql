@@ -17,7 +17,9 @@ use std::{
 use anyhow::{Context, Result};
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{Server, ServerConfig};
-use notify::{Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+    Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+};
 use tracing::info;
 
 use super::compile::compile_to_schema;
@@ -47,16 +49,11 @@ pub async fn run(
 ) -> Result<()> {
     let input_path = resolve_input(input)?;
 
-    let db_url = database
-        .or_else(|| std::env::var("DATABASE_URL").ok())
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "No database URL provided. Use --database or set DATABASE_URL env var."
-            )
-        })?;
+    let db_url = database.or_else(|| std::env::var("DATABASE_URL").ok()).ok_or_else(|| {
+        anyhow::anyhow!("No database URL provided. Use --database or set DATABASE_URL env var.")
+    })?;
 
-    let bind_addr: SocketAddr =
-        format!("{bind}:{port}").parse().context("Invalid bind address")?;
+    let bind_addr: SocketAddr = format!("{bind}:{port}").parse().context("Invalid bind address")?;
 
     println!("FraiseQL");
     println!("   Schema: {}", input_path.display());
@@ -83,13 +80,9 @@ async fn run_once(
     let config = build_config(db_url, bind_addr, introspection);
 
     let adapter = Arc::new(
-        PostgresAdapter::with_pool_config(
-            db_url,
-            config.pool_min_size,
-            config.pool_max_size,
-        )
-        .await
-        .context("Failed to connect to database")?,
+        PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
+            .await
+            .context("Failed to connect to database")?,
     );
 
     println!("Server ready at http://{bind_addr}/graphql");
@@ -115,13 +108,9 @@ async fn run_watch_loop(
         let config = build_config(db_url, bind_addr, introspection);
 
         let adapter = Arc::new(
-            PostgresAdapter::with_pool_config(
-                db_url,
-                config.pool_min_size,
-                config.pool_max_size,
-            )
-            .await
-            .context("Failed to connect to database")?,
+            PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
+                .await
+                .context("Failed to connect to database")?,
         );
 
         println!("Server ready at http://{bind_addr}/graphql");
@@ -175,9 +164,7 @@ async fn run_watch_loop(
 
 /// Compile the schema at `path`, printing progress to stdout.
 async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSchema> {
-    let input = path
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("Input path is not valid UTF-8"))?;
+    let input = path.to_str().ok_or_else(|| anyhow::anyhow!("Input path is not valid UTF-8"))?;
 
     println!("Compiling schema...");
 

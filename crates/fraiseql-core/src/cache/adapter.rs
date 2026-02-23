@@ -586,7 +586,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<JsonbValue>> {
         // Short-circuit when cache is disabled: skip SHA-256 key generation and result clone.
         if !self.cache.is_enabled() {
-            return self.adapter.execute_with_projection(view, projection, where_clause, limit).await;
+            return self
+                .adapter
+                .execute_with_projection(view, projection, where_clause, limit)
+                .await;
         }
 
         // Generate cache key including projection info

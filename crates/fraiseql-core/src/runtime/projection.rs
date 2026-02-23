@@ -910,11 +910,7 @@ mod tests {
 
         // author must be an object, not a string
         let author = result.get("author").expect("author field missing");
-        assert!(
-            author.is_object(),
-            "author should be a JSON object, got: {:?}",
-            author
-        );
+        assert!(author.is_object(), "author should be a JSON object, got: {:?}", author);
         assert_eq!(author.get("id"), Some(&json!("user-2")));
         assert_eq!(author.get("name"), Some(&json!("Bob")));
     }

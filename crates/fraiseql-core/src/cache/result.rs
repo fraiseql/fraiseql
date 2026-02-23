@@ -101,12 +101,12 @@ pub struct QueryResultCache {
     // Metrics counters — atomic so the hot `get()` path acquires only ONE lock
     // (the LRU), not two. `Relaxed` ordering is sufficient: these counters are
     // independent and used only for monitoring, not for correctness.
-    hits: AtomicU64,
-    misses: AtomicU64,
-    total_cached: AtomicU64,
+    hits:          AtomicU64,
+    misses:        AtomicU64,
+    total_cached:  AtomicU64,
     invalidations: AtomicU64,
-    size: AtomicUsize,
-    memory_bytes: AtomicUsize,
+    size:          AtomicUsize,
+    memory_bytes:  AtomicUsize,
 }
 
 /// Cache metrics for monitoring.
@@ -155,13 +155,13 @@ impl QueryResultCache {
         let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
 
         Self {
-            cache:        Arc::new(Mutex::new(LruCache::new(max))),
+            cache: Arc::new(Mutex::new(LruCache::new(max))),
             config,
-            hits:         AtomicU64::new(0),
-            misses:       AtomicU64::new(0),
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
             total_cached: AtomicU64::new(0),
             invalidations: AtomicU64::new(0),
-            size:         AtomicUsize::new(0),
+            size: AtomicUsize::new(0),
             memory_bytes: AtomicUsize::new(0),
         }
     }

@@ -10,7 +10,9 @@ use tracing::{info, warn};
 
 use crate::{
     config::FraiseQLConfig,
-    schema::{IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator},
+    schema::{
+        IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator,
+    },
 };
 
 /// Compile a schema to `CompiledSchema` without writing to disk.

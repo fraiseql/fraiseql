@@ -906,9 +906,7 @@ async fn main() {
             bind,
             watch,
             introspection,
-        } => {
-            commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await
-        },
+        } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
     };
