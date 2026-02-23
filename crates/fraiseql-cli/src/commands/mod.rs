@@ -14,6 +14,7 @@ pub mod introspect_facts;
 pub mod lint;
 pub mod migrate;
 pub mod sbom;
+pub mod run;
 pub mod serve;
 pub mod validate;
 pub mod validate_facts;

@@ -2527,6 +2527,7 @@ dependencies = [
  "clap",
  "deadpool-postgres",
  "fraiseql-core",
+ "fraiseql-server",
  "glob",
  "notify",
  "regex",

@@ -10,10 +10,13 @@ use tracing::{info, warn};
 
 use crate::{
     config::FraiseQLConfig,
-    schema::{IntermediateSchema, SchemaConverter, SchemaOptimizer, SchemaValidator},
+    schema::{IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator},
 };
 
-/// Run the compile command
+/// Compile a schema to `CompiledSchema` without writing to disk.
+///
+/// This is the core compilation logic, shared between `compile` (which writes to disk)
+/// and `run` (which serves in-memory without any file artifacts).
 ///
 /// # Arguments
 ///
@@ -23,38 +26,22 @@ use crate::{
 /// * `type_files` - Optional vector of explicit type file paths
 /// * `query_files` - Optional vector of explicit query file paths
 /// * `mutation_files` - Optional vector of explicit mutation file paths
-/// * `output` - Path to write schema.compiled.json
-/// * `check` - If true, validate only without writing output
 /// * `database` - Optional database URL for indexed column validation
-///
-/// # Workflows
-///
-/// 1. TOML-only: `fraiseql compile fraiseql.toml`
-/// 2. Language + TOML: `fraiseql compile fraiseql.toml --types types.json`
-/// 3. Multi-file auto-discovery: `fraiseql compile fraiseql.toml --schema-dir schema/`
-/// 4. Multi-file explicit: `fraiseql compile fraiseql.toml --type-file a.json --type-file b.json`
-/// 5. Legacy JSON: `fraiseql compile schema.json`
 ///
 /// # Errors
 ///
-/// Returns error if:
-/// - Input file doesn't exist or can't be read
-/// - JSON/TOML parsing fails
-/// - Schema validation fails
-/// - Output file can't be written
-/// - Database connection fails (when database URL is provided)
+/// Returns error if input is missing, parsing fails, validation fails, or the database
+/// connection fails (when `database` is provided).
 #[allow(clippy::too_many_arguments)] // Reason: compile orchestrates multiple input sources; extracting a struct would add indirection for a single call site
-pub async fn run(
+pub async fn compile_to_schema(
     input: &str,
     types: Option<&str>,
     schema_dir: Option<&str>,
     type_files: Vec<String>,
     query_files: Vec<String>,
     mutation_files: Vec<String>,
-    output: &str,
-    check: bool,
     database: Option<&str>,
-) -> Result<()> {
+) -> Result<(CompiledSchema, OptimizationReport)> {
     info!("Compiling schema: {input}");
 
     // 1. Determine workflow based on input file and options
@@ -170,10 +157,9 @@ pub async fn run(
     let mut schema = SchemaConverter::convert(intermediate)
         .context("Failed to convert schema to compiled format")?;
 
-    // 5. Optimize schema and generate SQL hints
+    // 5. Optimize schema and generate SQL hints (mutates schema in place, report for display)
     info!("Analyzing schema for optimization opportunities...");
-    let optimization_report =
-        SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
+    let report = SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
 
     // 5b. Optional: Validate indexed columns against database
     if let Some(db_url) = database {
@@ -181,35 +167,85 @@ pub async fn run(
         validate_indexed_columns(&schema, db_url).await?;
     }
 
-    // 6. If check-only mode, stop here
+    Ok((schema, report))
+}
+
+/// Run the compile command
+///
+/// # Arguments
+///
+/// * `input` - Path to fraiseql.toml (TOML) or schema.json (legacy)
+/// * `types` - Optional path to types.json (when using TOML workflow)
+/// * `schema_dir` - Optional directory for auto-discovery of schema files
+/// * `type_files` - Optional vector of explicit type file paths
+/// * `query_files` - Optional vector of explicit query file paths
+/// * `mutation_files` - Optional vector of explicit mutation file paths
+/// * `output` - Path to write schema.compiled.json
+/// * `check` - If true, validate only without writing output
+/// * `database` - Optional database URL for indexed column validation
+///
+/// # Workflows
+///
+/// 1. TOML-only: `fraiseql compile fraiseql.toml`
+/// 2. Language + TOML: `fraiseql compile fraiseql.toml --types types.json`
+/// 3. Multi-file auto-discovery: `fraiseql compile fraiseql.toml --schema-dir schema/`
+/// 4. Multi-file explicit: `fraiseql compile fraiseql.toml --type-file a.json --type-file b.json`
+/// 5. Legacy JSON: `fraiseql compile schema.json`
+///
+/// # Errors
+///
+/// Returns error if:
+/// - Input file doesn't exist or can't be read
+/// - JSON/TOML parsing fails
+/// - Schema validation fails
+/// - Output file can't be written
+/// - Database connection fails (when database URL is provided)
+#[allow(clippy::too_many_arguments)] // Reason: compile orchestrates multiple input sources; extracting a struct would add indirection for a single call site
+pub async fn run(
+    input: &str,
+    types: Option<&str>,
+    schema_dir: Option<&str>,
+    type_files: Vec<String>,
+    query_files: Vec<String>,
+    mutation_files: Vec<String>,
+    output: &str,
+    check: bool,
+    database: Option<&str>,
+) -> Result<()> {
+    let (schema, optimization_report) = compile_to_schema(
+        input,
+        types,
+        schema_dir,
+        type_files,
+        query_files,
+        mutation_files,
+        database,
+    )
+    .await?;
+
+    // If check-only mode, stop here
     if check {
         println!("✓ Schema is valid");
         println!("  Types: {}", schema.types.len());
         println!("  Queries: {}", schema.queries.len());
         println!("  Mutations: {}", schema.mutations.len());
-
-        // Print optimization suggestions
         optimization_report.print();
-
         return Ok(());
     }
 
-    // 7. Write compiled schema
+    // Write compiled schema
     info!("Writing compiled schema to: {output}");
     let output_json =
         serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
-
     fs::write(output, output_json).context("Failed to write compiled schema")?;
 
-    // 8. Success message
+    // Success message
     println!("✓ Schema compiled successfully");
     println!("  Input:  {input}");
     println!("  Output: {output}");
     println!("  Types: {}", schema.types.len());
     println!("  Queries: {}", schema.queries.len());
     println!("  Mutations: {}", schema.mutations.len());
-
-    // Print optimization suggestions
     optimization_report.print();
 
     Ok(())

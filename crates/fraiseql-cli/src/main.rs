@@ -454,6 +454,42 @@ EXAMPLES:
         output: Option<String>,
     },
 
+    /// Compile schema and immediately start the GraphQL server
+    ///
+    /// Compiles the schema in-memory (no disk artifact) and starts the HTTP server.
+    /// With --watch, the server hot-reloads whenever the schema file changes.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql run
+    fraiseql run fraiseql.toml --database postgres://localhost/mydb
+    fraiseql run --port 3000 --watch
+    fraiseql run schema.json --introspection")]
+    Run {
+        /// Input file path (fraiseql.toml or schema.json); auto-detected if omitted
+        #[arg(value_name = "INPUT")]
+        input: Option<String>,
+
+        /// Database URL (falls back to DATABASE_URL env var)
+        #[arg(short, long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Port to listen on
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+
+        /// Bind address
+        #[arg(long, default_value = "0.0.0.0")]
+        bind: String,
+
+        /// Watch input file for changes and hot-reload the server
+        #[arg(short, long)]
+        watch: bool,
+
+        /// Enable the GraphQL introspection endpoint (no auth required)
+        #[arg(long)]
+        introspection: bool,
+    },
+
     /// Development server with hot-reload
     #[command(hide = true)] // Hide until implemented
     Serve {
@@ -861,6 +897,17 @@ async fn main() {
         Commands::Sbom { format, output } => match commands::sbom::SbomFormat::from_str(&format) {
             Ok(fmt) => commands::sbom::run(fmt, output.as_deref()),
             Err(e) => Err(anyhow::anyhow!(e)),
+        },
+
+        Commands::Run {
+            input,
+            database,
+            port,
+            bind,
+            watch,
+            introspection,
+        } => {
+            commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await
         },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
