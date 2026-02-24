@@ -62,7 +62,6 @@
 // Re-export core types
 #[cfg(feature = "arrow")]
 pub use fraiseql_arrow as arrow;
-#[cfg(feature = "cli")]
 pub use fraiseql_cli as cli;
 pub use fraiseql_core::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
 // Re-export core modules for namespaced access

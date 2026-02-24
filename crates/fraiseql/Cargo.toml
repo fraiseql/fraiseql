@@ -1,17 +1,18 @@
 [dependencies]
 fraiseql-arrow = {workspace = true, optional = true}
-fraiseql-cli = {workspace = true, optional = true}
+fraiseql-cli = {workspace = true}
 # Core (always included)
 fraiseql-core = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true}
 fraiseql-observers = {workspace = true, optional = true}
 # Optional components
 fraiseql-server = {workspace = true, optional = true}
+tokio = {workspace = true}
 fraiseql-wire = {workspace = true, optional = true}
 
 [features]
 arrow = ["dep:fraiseql-arrow", "fraiseql-core/arrow", "server"]
-cli = ["dep:fraiseql-cli"]
+cli = []
 default = ["postgres"]
 # Feature bundles
 full = ["server", "observers", "arrow", "wire", "postgres", "mysql", "sqlite"]
@@ -25,6 +26,10 @@ server = ["dep:fraiseql-server"]
 sqlite = ["fraiseql-core/sqlite"]
 sqlserver = ["fraiseql-core/sqlserver"]
 wire = ["dep:fraiseql-wire", "fraiseql-core/wire-backend"]
+
+[[bin]]
+name = "fraiseql"
+path = "src/main.rs"
 
 [lints]
 workspace = true
@@ -42,3 +47,11 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/fraiseql-{ target }.tar.gz"
+bin-dir = "fraiseql{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"

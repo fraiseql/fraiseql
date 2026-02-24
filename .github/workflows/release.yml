@@ -79,7 +79,7 @@ jobs:
 
   # Build binaries for multiple platforms
   build-binaries:
-    name: Build Binary (${{ matrix.os }})
+    name: Build Binary (${{ matrix.target }})
     needs: create-github-release
     runs-on: ${{ matrix.os }}
     strategy:
@@ -88,16 +88,25 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: fraiseql-cli
-            asset_name: fraiseql-cli-linux-amd64
+            binary: fraiseql
+            archive_ext: tar.gz
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            artifact_name: fraiseql-cli
-            asset_name: fraiseql-cli-linux-arm64
+            binary: fraiseql
+            archive_ext: tar.gz
+            use_cross: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: fraiseql
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: fraiseql
+            archive_ext: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: fraiseql-cli.exe
-            asset_name: fraiseql-cli-windows-amd64.exe
+            binary: fraiseql.exe
+            archive_ext: zip
 
     steps:
       - uses: actions/checkout@v4
@@ -107,38 +116,45 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross for ARM64 builds
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Install cross for cross-compiled targets
+        if: matrix.use_cross
         run: cargo install cross
 
-      - name: Install cross-compilation tools (Linux AMD64)
+      - name: Install system dependencies (Linux AMD64)
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Build binary (using cross for ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cross build --release --target ${{ matrix.target }} --package fraiseql-cli
+      - name: Build binary (cross)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }} --package fraiseql
 
-      - name: Build binary (using cargo for native/MSVC targets)
-        if: matrix.target != 'aarch64-unknown-linux-gnu'
-        run: cargo build --release --target ${{ matrix.target }} --package fraiseql-cli
+      - name: Build binary (cargo)
+        if: '!matrix.use_cross'
+        run: cargo build --release --target ${{ matrix.target }} --package fraiseql
 
-      - name: Strip binary (Linux/macOS, native targets only)
-        if: matrix.os != 'windows-latest' && matrix.target != 'aarch64-unknown-linux-gnu'
-        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+      - name: Strip binary (Linux/macOS native)
+        if: matrix.os != 'windows-latest' && !matrix.use_cross
+        run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}
 
-      - name: Rename binary to asset name
+      - name: Create archive (tar.gz)
+        if: matrix.archive_ext == 'tar.gz'
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql
+          tar czf fraiseql-${{ matrix.target }}.tar.gz fraiseql
+
+      - name: Create archive (zip)
+        if: matrix.archive_ext == 'zip'
         shell: bash
         run: |
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} \
-             ${{ matrix.asset_name }}
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} fraiseql.exe
+          7z a fraiseql-${{ matrix.target }}.zip fraiseql.exe
 
-      - name: Upload binary to release
+      - name: Upload archive to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.asset_name }}
+          files: fraiseql-${{ matrix.target }}.${{ matrix.archive_ext }}
           fail_on_unmatched_files: true
 
   # Publish to crates.io
@@ -377,10 +393,10 @@ jobs:
           echo "## 📎 Release Assets" >> $GITHUB_STEP_SUMMARY
           echo "Total binaries uploaded: $ASSET_COUNT" >> $GITHUB_STEP_SUMMARY
 
-          if [ "$ASSET_COUNT" -ge 3 ]; then
+          if [ "$ASSET_COUNT" -ge 5 ]; then
             echo "✅ All expected binaries present" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Missing some binaries (expected 3, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Missing some binaries (expected 5, got $ASSET_COUNT)" >> $GITHUB_STEP_SUMMARY
           fi
 
           # List all assets

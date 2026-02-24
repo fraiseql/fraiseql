@@ -1,4 +1,4 @@
-//! FraiseQL CLI - Schema compilation and development tools
+//! FraiseQL CLI entry point — delegates to fraiseql-cli.
 
 #[tokio::main]
 async fn main() {

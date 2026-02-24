@@ -26,6 +26,10 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 # Multi-file schema loading
 walkdir = "2"
 
+[[bin]]
+name = "fraiseql"
+path = "src/main.rs"
+
 [dev-dependencies]
 temp-env = {workspace = true}
 tempfile = "3.25"
@@ -46,3 +50,11 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/fraiseql-{ target }.tar.gz"
+bin-dir = "fraiseql{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
