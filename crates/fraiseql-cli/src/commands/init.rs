@@ -287,6 +287,7 @@ fn create_toml_config(project_dir: &Path, config: &InitConfig) -> Result<()> {
 name = "{name}"
 version = "0.1.0"
 description = "A FraiseQL project"
+database_target = "{db_target}"
 
 [fraiseql]
 schema_file = "schema.json"
@@ -301,16 +302,8 @@ auth_start_window_secs = 60
 enabled = true
 log_level = "info"
 
-[schema]
-name = "{name}"
-version = "1.0.0"
-database_target = "{db_target}"
-
-[database]
-url = "{db_url}"
-pool_size = 10
-ssl_mode = "prefer"
-timeout_seconds = 30
+# Database connection URL — set via DATABASE_URL environment variable at runtime
+# {db_url}
 "#,
         name = config.project_name,
     );
