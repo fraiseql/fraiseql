@@ -128,9 +128,6 @@ all = {level = "deny", priority = -1}
 cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
 cargo_common_metadata = "allow"  # Internal crates don't need all metadata
 if_not_else = "allow"  # Style preference
-missing_errors_doc = "allow"  # Can be too verbose
-missing_panics_doc = "allow"  # Can be too verbose
-module_name_repetitions = "allow"
 multiple_crate_versions = "allow"  # Transitive dependencies cause this
 must_use_candidate = "allow"  # We'll use this selectively
 nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
@@ -170,7 +167,3 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.88"  # MSRV — driven by dependency requirements
 version = "2.0.0-rc.11"
-
-[workspace.lints.clippy]
-missing_errors_doc = "warn"
-missing_panics_doc = "warn"
