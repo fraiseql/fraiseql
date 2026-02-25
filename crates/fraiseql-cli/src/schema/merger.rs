@@ -83,6 +83,49 @@ impl SchemaMerger {
         Self::merge_values(&types_value, &toml_schema)
     }
 
+    /// Load a named section from a set of files, returning `None` when the list is empty.
+    fn load_section(files: &[String], key: &str) -> Result<Option<serde_json::Value>> {
+        if files.is_empty() {
+            return Ok(None);
+        }
+        let paths: Vec<std::path::PathBuf> = files.iter().map(std::path::PathBuf::from).collect();
+        let loaded = crate::schema::MultiFileLoader::load_from_paths(&paths)
+            .with_context(|| format!("Failed to load {key} files"))?;
+        Ok(loaded.get(key).cloned())
+    }
+
+    /// Parse a JSON file and extend the target vectors with its `types`, `queries`, and
+    /// `mutations` arrays. Missing keys are silently skipped.
+    fn extend_from_json_file(
+        path: &std::path::Path,
+        all_types: &mut Vec<Value>,
+        all_queries: &mut Vec<Value>,
+        all_mutations: &mut Vec<Value>,
+    ) -> Result<()> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read {}", path.display()))?;
+        let value: Value = serde_json::from_str(&content)
+            .with_context(|| format!("Failed to parse {}", path.display()))?;
+        for (vec, key) in [
+            (all_types as &mut Vec<Value>, "types"),
+            (all_queries, "queries"),
+            (all_mutations, "mutations"),
+        ] {
+            if let Some(Value::Array(items)) = value.get(key) {
+                vec.extend(items.iter().cloned());
+            }
+        }
+        Ok(())
+    }
+
+    /// Apply TOML metadata (`sql_source`, `description`) to a type JSON object in place.
+    fn enrich_type_from_toml(enriched_type: &mut Value, toml_type: &crate::config::toml_schema::TypeDefinition) {
+        enriched_type["sql_source"] = json!(toml_type.sql_source);
+        if let Some(desc) = &toml_type.description {
+            enriched_type["description"] = json!(desc);
+        }
+    }
+
     /// Merge explicit file lists
     ///
     /// # Arguments
@@ -104,47 +147,22 @@ impl SchemaMerger {
 
         toml_schema.validate()?;
 
-        // Load explicit files
         let mut types_value = serde_json::json!({
             "types": [],
             "queries": [],
             "mutations": []
         });
 
-        // Load type files
-        if !type_files.is_empty() {
-            let type_paths: Vec<std::path::PathBuf> =
-                type_files.iter().map(std::path::PathBuf::from).collect();
-            let loaded = crate::schema::MultiFileLoader::load_from_paths(&type_paths)
-                .context("Failed to load type files")?;
-            if let Some(types_array) = loaded.get("types") {
-                types_value["types"] = types_array.clone();
-            }
+        if let Some(v) = Self::load_section(type_files, "types")? {
+            types_value["types"] = v;
+        }
+        if let Some(v) = Self::load_section(query_files, "queries")? {
+            types_value["queries"] = v;
+        }
+        if let Some(v) = Self::load_section(mutation_files, "mutations")? {
+            types_value["mutations"] = v;
         }
 
-        // Load query files
-        if !query_files.is_empty() {
-            let query_paths: Vec<std::path::PathBuf> =
-                query_files.iter().map(std::path::PathBuf::from).collect();
-            let loaded = crate::schema::MultiFileLoader::load_from_paths(&query_paths)
-                .context("Failed to load query files")?;
-            if let Some(queries_array) = loaded.get("queries") {
-                types_value["queries"] = queries_array.clone();
-            }
-        }
-
-        // Load mutation files
-        if !mutation_files.is_empty() {
-            let mutation_paths: Vec<std::path::PathBuf> =
-                mutation_files.iter().map(std::path::PathBuf::from).collect();
-            let loaded = crate::schema::MultiFileLoader::load_from_paths(&mutation_paths)
-                .context("Failed to load mutation files")?;
-            if let Some(mutations_array) = loaded.get("mutations") {
-                types_value["mutations"] = mutations_array.clone();
-            }
-        }
-
-        // Merge with TOML definitions
         Self::merge_values(&types_value, &toml_schema)
     }
 
@@ -177,54 +195,20 @@ impl SchemaMerger {
             return Self::merge_values(&empty_value, &toml_schema);
         }
 
-        // Load types from all domains
         let mut all_types = Vec::new();
         let mut all_queries = Vec::new();
         let mut all_mutations = Vec::new();
 
         for domain in domains {
-            // Load {domain}/types.json if it exists
-            let types_path = domain.path.join("types.json");
-            if types_path.exists() {
-                let content = fs::read_to_string(&types_path)
-                    .context(format!("Failed to read {}", types_path.display()))?;
-                let value: Value = serde_json::from_str(&content)
-                    .context(format!("Failed to parse {}", types_path.display()))?;
-
-                if let Some(Value::Array(type_items)) = value.get("types") {
-                    all_types.extend(type_items.clone());
-                }
-                if let Some(Value::Array(query_items)) = value.get("queries") {
-                    all_queries.extend(query_items.clone());
-                }
-                if let Some(Value::Array(mutation_items)) = value.get("mutations") {
-                    all_mutations.extend(mutation_items.clone());
-                }
-            }
-
-            // Load {domain}/queries.json if it exists
-            let queries_path = domain.path.join("queries.json");
-            if queries_path.exists() {
-                let content = fs::read_to_string(&queries_path)
-                    .context(format!("Failed to read {}", queries_path.display()))?;
-                let value: Value = serde_json::from_str(&content)
-                    .context(format!("Failed to parse {}", queries_path.display()))?;
-
-                if let Some(Value::Array(query_items)) = value.get("queries") {
-                    all_queries.extend(query_items.clone());
-                }
-            }
-
-            // Load {domain}/mutations.json if it exists
-            let mutations_path = domain.path.join("mutations.json");
-            if mutations_path.exists() {
-                let content = fs::read_to_string(&mutations_path)
-                    .context(format!("Failed to read {}", mutations_path.display()))?;
-                let value: Value = serde_json::from_str(&content)
-                    .context(format!("Failed to parse {}", mutations_path.display()))?;
-
-                if let Some(Value::Array(mutation_items)) = value.get("mutations") {
-                    all_mutations.extend(mutation_items.clone());
+            for filename in ["types.json", "queries.json", "mutations.json"] {
+                let path = domain.path.join(filename);
+                if path.exists() {
+                    Self::extend_from_json_file(
+                        &path,
+                        &mut all_types,
+                        &mut all_queries,
+                        &mut all_mutations,
+                    )?;
                 }
             }
         }
@@ -281,27 +265,26 @@ impl SchemaMerger {
 
             // Load and merge query files
             if !resolved.queries.is_empty() {
-                let query_value =
-                    crate::schema::MultiFileLoader::load_from_paths(&resolved.queries)
-                        .context("Failed to load query files")?;
-                if let Some(Value::Array(queries)) = query_value.get("queries") {
-                    if let Some(Value::Array(existing_queries)) = merged_types.get_mut("queries") {
-                        existing_queries.extend(queries.clone());
-                    }
+                let loaded = crate::schema::MultiFileLoader::load_from_paths(&resolved.queries)
+                    .context("Failed to load query files")?;
+                let new_items =
+                    loaded.get("queries").and_then(Value::as_array).cloned().unwrap_or_default();
+                if let Some(Value::Array(existing)) = merged_types.get_mut("queries") {
+                    existing.extend(new_items);
                 }
             }
 
             // Load and merge mutation files
             if !resolved.mutations.is_empty() {
-                let mutation_value =
-                    crate::schema::MultiFileLoader::load_from_paths(&resolved.mutations)
-                        .context("Failed to load mutation files")?;
-                if let Some(Value::Array(mutations)) = mutation_value.get("mutations") {
-                    if let Some(Value::Array(existing_mutations)) =
-                        merged_types.get_mut("mutations")
-                    {
-                        existing_mutations.extend(mutations.clone());
-                    }
+                let loaded = crate::schema::MultiFileLoader::load_from_paths(&resolved.mutations)
+                    .context("Failed to load mutation files")?;
+                let new_items = loaded
+                    .get("mutations")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some(Value::Array(existing)) = merged_types.get_mut("mutations") {
+                    existing.extend(new_items);
                 }
             }
 
@@ -328,15 +311,9 @@ impl SchemaMerger {
                     for type_item in types_list {
                         if let Some(type_name) = type_item.get("name").and_then(|v| v.as_str()) {
                             let mut enriched_type = type_item.clone();
-
-                            // Enrich with TOML metadata if available
                             if let Some(toml_type) = toml_schema.types.get(type_name) {
-                                enriched_type["sql_source"] = json!(toml_type.sql_source);
-                                if let Some(desc) = &toml_type.description {
-                                    enriched_type["description"] = json!(desc);
-                                }
+                                Self::enrich_type_from_toml(&mut enriched_type, toml_type);
                             }
-
                             types_array.push(enriched_type);
                         }
                     }
@@ -361,10 +338,7 @@ impl SchemaMerger {
                         }
 
                         if let Some(toml_type) = toml_schema.types.get(type_name) {
-                            enriched_type["sql_source"] = json!(toml_type.sql_source);
-                            if let Some(desc) = &toml_type.description {
-                                enriched_type["description"] = json!(desc);
-                            }
+                            Self::enrich_type_from_toml(&mut enriched_type, toml_type);
                         }
 
                         types_array.push(enriched_type);
@@ -378,7 +352,7 @@ impl SchemaMerger {
         let existing_type_names: std::collections::HashSet<_> = types_array
             .iter()
             .filter_map(|t| {
-                t.get("name").and_then(|v| v.as_str()).map(std::string::ToString::to_string)
+                t.get("name").and_then(|v| v.as_str()).map(str::to_string)
             })
             .collect();
 
@@ -398,7 +372,6 @@ impl SchemaMerger {
             }
         }
 
-        // Process queries (similar array-based approach)
         if let Some(Value::Array(queries_list)) = types_value.get("queries") {
             queries_array.clone_from(queries_list);
         }
@@ -421,7 +394,6 @@ impl SchemaMerger {
             }));
         }
 
-        // Process mutations (similar array-based approach)
         if let Some(Value::Array(mutations_list)) = types_value.get("mutations") {
             mutations_array.clone_from(mutations_list);
         }
@@ -491,9 +463,39 @@ impl SchemaMerger {
             }),
         });
 
-        // Note: Federation, caching, observers, and analytics configuration
-        // are available in TOML but not included in IntermediateSchema to keep
-        // it language-agnostic and focused on schema definition
+        // Embed observers configuration if enabled or if any backend URL is set
+        if toml_schema.observers.enabled
+            || toml_schema.observers.redis_url.is_some()
+            || toml_schema.observers.nats_url.is_some()
+        {
+            if toml_schema.observers.backend == "nats" && toml_schema.observers.nats_url.is_none() {
+                tracing::warn!(
+                    "observers.backend is \"nats\" but observers.nats_url is not set; \
+                     the runtime will require FRAISEQL_NATS_URL to be configured"
+                );
+            }
+            merged["observers_config"] = json!({
+                "enabled": toml_schema.observers.enabled,
+                "backend": toml_schema.observers.backend,
+                "redis_url": toml_schema.observers.redis_url,
+                "nats_url": toml_schema.observers.nats_url,
+                "handlers": toml_schema.observers.handlers.iter().map(|h| json!({
+                    "name": h.name,
+                    "event": h.event,
+                    "action": h.action,
+                    "webhook_url": h.webhook_url,
+                    "retry_strategy": h.retry_strategy,
+                    "max_retries": h.max_retries,
+                    "description": h.description,
+                })).collect::<Vec<_>>(),
+            });
+        }
+
+        // Embed federation configuration if enabled
+        if toml_schema.federation.enabled {
+            merged["federation_config"] = serde_json::to_value(&toml_schema.federation)
+                .unwrap_or_default();
+        }
 
         // Convert to IntermediateSchema
         serde_json::from_value::<IntermediateSchema>(merged)

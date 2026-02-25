@@ -13,6 +13,7 @@ from fraiseql.types import extract_field_info, extract_function_signature
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
     from fraiseql.scalars import CustomScalar
 
 T = TypeVar("T")

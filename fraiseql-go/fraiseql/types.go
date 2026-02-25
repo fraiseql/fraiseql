@@ -199,7 +199,7 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 				if scope == "" {
 					return FieldInfo{}, fmt.Errorf("empty scope in scopes array for field %s", fieldName)
 				}
-				if err := validateScope(scope, fieldName); err != nil {
+				if err := validateScopeOrRoleName(scope, fieldName); err != nil {
 					return FieldInfo{}, err
 				}
 			}
@@ -298,6 +298,7 @@ func isValidAction(action string) bool {
 }
 
 // isValidResource validates that resource matches [a-zA-Z_][a-zA-Z0-9_.]*|*
+// Also accepts a trailing .* wildcard (e.g. User.*, Order.*).
 func isValidResource(resource string) bool {
 	if resource == "*" {
 		return true
@@ -305,6 +306,14 @@ func isValidResource(resource string) bool {
 
 	if len(resource) == 0 {
 		return false
+	}
+
+	// Allow Type.* wildcard sub-resource (e.g. User.*, Order.*)
+	if strings.HasSuffix(resource, ".*") {
+		resource = resource[:len(resource)-2]
+		if resource == "" {
+			return false
+		}
 	}
 
 	// First character must be letter or underscore
@@ -322,6 +331,29 @@ func isValidResource(resource string) bool {
 	}
 
 	return true
+}
+
+// validateScopeOrRoleName validates a single entry from a scopes= array.
+// An entry may be either a full action:resource scope or a bare role name.
+// Bare role names match [a-zA-Z_][a-zA-Z0-9_]* (no colon required).
+func validateScopeOrRoleName(s, fieldName string) error {
+	if strings.Contains(s, ":") {
+		return validateScope(s, fieldName)
+	}
+	// Bare role name validation: [a-zA-Z_][a-zA-Z0-9_]*
+	if s == "" {
+		return fmt.Errorf("field %s has empty role name in scopes array", fieldName)
+	}
+	first := rune(s[0])
+	if !(isLetter(first) || first == '_') {
+		return fmt.Errorf("field %s has invalid role name '%s' in scopes array", fieldName, s)
+	}
+	for _, ch := range s[1:] {
+		if !(isLetter(ch) || isDigit(ch) || ch == '_') {
+			return fmt.Errorf("field %s has invalid role name '%s' in scopes array", fieldName, s)
+		}
+	}
+	return nil
 }
 
 func isLetter(ch rune) bool {

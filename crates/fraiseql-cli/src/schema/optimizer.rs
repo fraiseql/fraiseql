@@ -340,6 +340,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -382,6 +383,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -424,6 +426,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -469,6 +472,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -514,6 +518,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -569,6 +574,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };

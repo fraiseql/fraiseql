@@ -202,7 +202,9 @@ impl SubgraphHealthChecker {
         // Record result and get updated stats
         let (error_count, error_rate) = {
             let windows = self.error_windows.lock().unwrap();
-            let window = windows.get(&config.name).expect("Window should exist for subgraph");
+            let window = windows.get(&config.name).expect(
+                "RollingErrorWindow created for each subgraph in constructor; window must exist",
+            );
 
             if available {
                 window.record_success();

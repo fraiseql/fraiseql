@@ -677,12 +677,12 @@ export function Scalar<T extends typeof CustomScalar>(target: T): T {
   // Verify that target extends CustomScalar
   if (!isCustomScalarSubclass(target)) {
     throw new TypeError(
-      `@Scalar can only be applied to CustomScalar subclasses, got ${target.name}`
+      `@Scalar can only be applied to CustomScalar subclasses, got ${(target as any).name}`
     );
   }
 
   // Create instance to get the name
-  const instance = new target();
+  const instance = new (target as any)();
   const scalarName = instance.name;
 
   // Validate name

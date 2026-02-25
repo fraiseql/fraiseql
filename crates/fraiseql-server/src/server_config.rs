@@ -820,8 +820,12 @@ mod tests {
     #[test]
     fn test_subscription_path_serialization() {
         let config = ServerConfig::default();
-        let json = serde_json::to_string(&config).expect("serialize should work");
-        let restored: ServerConfig = serde_json::from_str(&json).expect("deserialize should work");
+        let json = serde_json::to_string(&config).expect(
+            "ServerConfig derives Serialize with serializable fields; serialization is infallible",
+        );
+        let restored: ServerConfig = serde_json::from_str(&json).expect(
+            "ServerConfig roundtrip: deserialization of just-serialized data is infallible",
+        );
 
         assert_eq!(restored.subscription_path, config.subscription_path);
         assert_eq!(restored.subscriptions_enabled, config.subscriptions_enabled);
@@ -834,7 +838,9 @@ mod tests {
             subscriptions_enabled = false
         "#;
 
-        let decoded: ServerConfig = toml::from_str(toml_str).expect("decode should work");
+        let decoded: ServerConfig = toml::from_str(toml_str).expect(
+            "TOML config parsing: valid TOML syntax with expected fields deserializes correctly",
+        );
         assert_eq!(decoded.subscription_path, "/graphql-ws");
         assert!(!decoded.subscriptions_enabled);
     }
@@ -981,9 +987,11 @@ mod tests {
             ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
         };
 
-        let json = serde_json::to_string(&db_tls).expect("serialize should work");
-        let restored: DatabaseTlsConfig =
-            serde_json::from_str(&json).expect("deserialize should work");
+        let json = serde_json::to_string(&db_tls)
+            .expect("DatabaseTlsConfig derives Serialize with serializable fields; serialization is infallible");
+        let restored: DatabaseTlsConfig = serde_json::from_str(&json).expect(
+            "DatabaseTlsConfig roundtrip: deserialization of just-serialized data is infallible",
+        );
 
         assert_eq!(restored.postgres_ssl_mode, db_tls.postgres_ssl_mode);
         assert_eq!(restored.redis_ssl, db_tls.redis_ssl);

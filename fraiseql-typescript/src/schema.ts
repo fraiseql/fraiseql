@@ -8,6 +8,42 @@
 import * as fs from "fs";
 import { SchemaRegistry, Schema } from "./registry";
 
+const BUILTIN_SCALARS = new Set(["String", "Int", "Float", "Boolean", "ID"]);
+
+function validateSchemaBeforeExport(schema: Schema): void {
+  const registeredTypeNames = new Set<string>([
+    ...schema.types.map((t) => t.name),
+    ...(schema.enums ?? []).map((e) => e.name),
+    ...BUILTIN_SCALARS,
+  ]);
+
+  const errors: string[] = [];
+
+  for (const query of schema.queries) {
+    const ret = query.return_type;
+    if (ret && !registeredTypeNames.has(ret)) {
+      errors.push(
+        `Query '${query.name}' has return type '${ret}' which is not a registered type.`
+      );
+    }
+  }
+
+  for (const mutation of schema.mutations) {
+    const ret = mutation.return_type;
+    if (ret && !registeredTypeNames.has(ret)) {
+      errors.push(
+        `Mutation '${mutation.name}' has return type '${ret}' which is not a registered type.`
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Schema validation failed before export. Fix the following errors:\n  - ${errors.join("\n  - ")}`
+    );
+  }
+}
+
 /**
  * Configuration holder for temporary config during function definition.
  *
@@ -92,6 +128,8 @@ export function exportSchema(outputPath: string, options: { pretty?: boolean } =
   const { pretty = true } = options;
 
   const schema = SchemaRegistry.getSchema();
+
+  validateSchemaBeforeExport(schema);
 
   // Write to file
   const content = pretty ? JSON.stringify(schema, null, 2) + "\n" : JSON.stringify(schema);

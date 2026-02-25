@@ -44,7 +44,7 @@ from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import type as type_decorator
 from fraiseql.decorators import union as union_decorator
-from fraiseql.scalars import CustomScalar, ID, UUID, Date, DateTime, Decimal, Json, Time, Vector
+from fraiseql.scalars import ID, UUID, CustomScalar, Date, DateTime, Decimal, Json, Time, Vector
 from fraiseql.schema import config, export_schema, export_types
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
 from fraiseql.validators import (

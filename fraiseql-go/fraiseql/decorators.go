@@ -2,8 +2,8 @@ package fraiseql
 
 import "reflect"
 
-// QueryBuilder provides a fluent interface for building GraphQL queries
-type QueryBuilder struct {
+// operationBuilder holds the common fields and shared logic for QueryBuilder and MutationBuilder.
+type operationBuilder struct {
 	name        string
 	returnType  string
 	returnsList bool
@@ -13,76 +13,102 @@ type QueryBuilder struct {
 	config      map[string]interface{}
 }
 
-// NewQuery creates a new query builder
-func NewQuery(name string) *QueryBuilder {
-	return &QueryBuilder{
-		name:      name,
-		config:    make(map[string]interface{}),
-		arguments: []ArgumentDefinition{},
-	}
-}
-
-// ReturnType sets the return type for the query
-func (qb *QueryBuilder) ReturnType(returnType interface{}) *QueryBuilder {
+func (b *operationBuilder) setReturnType(returnType interface{}) {
 	switch v := returnType.(type) {
 	case string:
-		qb.returnType = v
+		b.returnType = v
 	default:
-		// Try to get the type name from reflect
-		qb.returnType = getTypeName(returnType)
+		b.returnType = getTypeName(returnType)
 	}
-	return qb
 }
 
-// ReturnsArray sets whether the query returns an array
-func (qb *QueryBuilder) ReturnsArray(b bool) *QueryBuilder {
-	qb.returnsList = b
-	return qb
+func (b *operationBuilder) setReturnsArray(arr bool) {
+	b.returnsList = arr
 }
 
-// Nullable sets whether the return value can be null
-func (qb *QueryBuilder) Nullable(b bool) *QueryBuilder {
-	qb.nullable = b
-	return qb
+func (b *operationBuilder) setNullable(n bool) {
+	b.nullable = n
 }
 
-// Config sets the configuration for the query
-func (qb *QueryBuilder) Config(config map[string]interface{}) *QueryBuilder {
-	qb.config = config
-	return qb
+func (b *operationBuilder) setConfig(cfg map[string]interface{}) {
+	b.config = cfg
 }
 
-// Arg adds an argument to the query
-// nullable is a variadic bool (defaults to false if not provided)
-func (qb *QueryBuilder) Arg(name string, graphQLType string, defaultValue interface{}, nullable ...bool) *QueryBuilder {
+func (b *operationBuilder) addArg(name string, graphQLType string, defaultValue interface{}, nullable ...bool) {
 	isNullable := false
 	if len(nullable) > 0 {
 		isNullable = nullable[0]
 	}
-
 	arg := ArgumentDefinition{
 		Name:      name,
 		Type:      graphQLType,
 		Nullable:  isNullable,
 		IsDefault: defaultValue != nil,
 	}
-
 	if defaultValue != nil {
 		arg.Default = defaultValue
 	}
+	b.arguments = append(b.arguments, arg)
+}
 
-	qb.arguments = append(qb.arguments, arg)
+func (b *operationBuilder) setDescription(desc string) {
+	b.description = desc
+}
+
+// QueryBuilder provides a fluent interface for building GraphQL queries
+type QueryBuilder struct {
+	operationBuilder
+}
+
+// NewQuery creates a new query builder
+func NewQuery(name string) *QueryBuilder {
+	return &QueryBuilder{operationBuilder{
+		name:      name,
+		config:    make(map[string]interface{}),
+		arguments: []ArgumentDefinition{},
+	}}
+}
+
+// ReturnType sets the return type for the query
+func (qb *QueryBuilder) ReturnType(returnType interface{}) *QueryBuilder {
+	qb.setReturnType(returnType)
+	return qb
+}
+
+// ReturnsArray sets whether the query returns an array
+func (qb *QueryBuilder) ReturnsArray(b bool) *QueryBuilder {
+	qb.setReturnsArray(b)
+	return qb
+}
+
+// Nullable sets whether the return value can be null
+func (qb *QueryBuilder) Nullable(b bool) *QueryBuilder {
+	qb.setNullable(b)
+	return qb
+}
+
+// Config sets the configuration for the query
+func (qb *QueryBuilder) Config(config map[string]interface{}) *QueryBuilder {
+	qb.setConfig(config)
+	return qb
+}
+
+// Arg adds an argument to the query
+// nullable is a variadic bool (defaults to false if not provided)
+func (qb *QueryBuilder) Arg(name string, graphQLType string, defaultValue interface{}, nullable ...bool) *QueryBuilder {
+	qb.addArg(name, graphQLType, defaultValue, nullable...)
 	return qb
 }
 
 // Description sets the description for the query
 func (qb *QueryBuilder) Description(desc string) *QueryBuilder {
-	qb.description = desc
+	qb.setDescription(desc)
 	return qb
 }
 
-// Register registers the query with the global schema registry
-func (qb *QueryBuilder) Register() {
+// Register registers the query with the global schema registry.
+// Returns an error if a query with the same name is already registered.
+func (qb *QueryBuilder) Register() error {
 	definition := QueryDefinition{
 		Name:        qb.name,
 		ReturnType:  qb.returnType,
@@ -92,95 +118,80 @@ func (qb *QueryBuilder) Register() {
 		Description: qb.description,
 	}
 
-	// Merge config into the definition
 	if len(qb.config) > 0 {
-		definition.Config = qb.config
+		remaining := make(map[string]interface{})
+		for k, v := range qb.config {
+			switch k {
+			case "sql_source":
+				if s, ok := v.(string); ok {
+					definition.SqlSource = s
+				}
+			default:
+				remaining[k] = v
+			}
+		}
+		if len(remaining) > 0 {
+			definition.Config = remaining
+		}
 	}
 
-	RegisterQuery(definition)
+	return RegisterQuery(definition)
 }
 
 // MutationBuilder provides a fluent interface for building GraphQL mutations
 type MutationBuilder struct {
-	name        string
-	returnType  string
-	returnsList bool
-	nullable    bool
-	arguments   []ArgumentDefinition
-	description string
-	config      map[string]interface{}
+	operationBuilder
 }
 
 // NewMutation creates a new mutation builder
 func NewMutation(name string) *MutationBuilder {
-	return &MutationBuilder{
+	return &MutationBuilder{operationBuilder{
 		name:      name,
 		config:    make(map[string]interface{}),
 		arguments: []ArgumentDefinition{},
-	}
+	}}
 }
 
 // ReturnType sets the return type for the mutation
 func (mb *MutationBuilder) ReturnType(returnType interface{}) *MutationBuilder {
-	switch v := returnType.(type) {
-	case string:
-		mb.returnType = v
-	default:
-		// Try to get the type name from reflect
-		mb.returnType = getTypeName(returnType)
-	}
+	mb.setReturnType(returnType)
 	return mb
 }
 
 // ReturnsArray sets whether the mutation returns an array
 func (mb *MutationBuilder) ReturnsArray(b bool) *MutationBuilder {
-	mb.returnsList = b
+	mb.setReturnsArray(b)
 	return mb
 }
 
 // Nullable sets whether the return value can be null
 func (mb *MutationBuilder) Nullable(b bool) *MutationBuilder {
-	mb.nullable = b
+	mb.setNullable(b)
 	return mb
 }
 
 // Config sets the configuration for the mutation
 func (mb *MutationBuilder) Config(config map[string]interface{}) *MutationBuilder {
-	mb.config = config
+	mb.setConfig(config)
 	return mb
 }
 
 // Arg adds an argument to the mutation
 // nullable is a variadic bool (defaults to false if not provided)
 func (mb *MutationBuilder) Arg(name string, graphQLType string, defaultValue interface{}, nullable ...bool) *MutationBuilder {
-	isNullable := false
-	if len(nullable) > 0 {
-		isNullable = nullable[0]
-	}
-
-	arg := ArgumentDefinition{
-		Name:      name,
-		Type:      graphQLType,
-		Nullable:  isNullable,
-		IsDefault: defaultValue != nil,
-	}
-
-	if defaultValue != nil {
-		arg.Default = defaultValue
-	}
-
-	mb.arguments = append(mb.arguments, arg)
+	mb.addArg(name, graphQLType, defaultValue, nullable...)
 	return mb
 }
 
 // Description sets the description for the mutation
 func (mb *MutationBuilder) Description(desc string) *MutationBuilder {
-	mb.description = desc
+	mb.setDescription(desc)
 	return mb
 }
 
-// Register registers the mutation with the global schema registry
-func (mb *MutationBuilder) Register() {
+// Register registers the mutation with the global schema registry.
+// Returns an error if a mutation with the same name is already registered.
+func (mb *MutationBuilder) Register() error {
 	definition := MutationDefinition{
 		Name:        mb.name,
 		ReturnType:  mb.returnType,
@@ -190,12 +201,28 @@ func (mb *MutationBuilder) Register() {
 		Description: mb.description,
 	}
 
-	// Merge config into the definition
 	if len(mb.config) > 0 {
-		definition.Config = mb.config
+		remaining := make(map[string]interface{})
+		for k, v := range mb.config {
+			switch k {
+			case "operation":
+				if s, ok := v.(string); ok {
+					definition.Operation = s
+				}
+			case "sql_source":
+				if s, ok := v.(string); ok {
+					definition.SqlSource = s
+				}
+			default:
+				remaining[k] = v
+			}
+		}
+		if len(remaining) > 0 {
+			definition.Config = remaining
+		}
 	}
 
-	RegisterMutation(definition)
+	return RegisterMutation(definition)
 }
 
 // NOTE: FactTableBuilder removed - use analytics.NewFactTable() instead

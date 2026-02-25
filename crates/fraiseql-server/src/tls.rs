@@ -327,7 +327,8 @@ mod tests {
 
     #[test]
     fn test_tls_setup_disabled() {
-        let setup = TlsSetup::new(None, None).expect("should create setup");
+        let setup = TlsSetup::new(None, None)
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         assert!(!setup.is_tls_enabled());
         assert!(!setup.is_mtls_required());
@@ -337,7 +338,8 @@ mod tests {
 
     #[test]
     fn test_database_tls_defaults() {
-        let setup = TlsSetup::new(None, None).expect("should create setup");
+        let setup = TlsSetup::new(None, None)
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         assert_eq!(setup.postgres_ssl_mode(), "prefer");
         assert!(!setup.redis_ssl_enabled());
@@ -357,7 +359,8 @@ mod tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let url = "postgresql://localhost/fraiseql";
         let tls_url = setup.apply_postgres_tls(url);
@@ -376,7 +379,8 @@ mod tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let url = "redis://localhost:6379";
         let tls_url = setup.apply_redis_tls(url);
@@ -395,7 +399,8 @@ mod tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let url = "http://localhost:8123";
         let tls_url = setup.apply_clickhouse_tls(url);
@@ -414,7 +419,8 @@ mod tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let url = "http://localhost:9200";
         let tls_url = setup.apply_elasticsearch_tls(url);
@@ -433,7 +439,8 @@ mod tests {
             ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         assert_eq!(setup.postgres_ssl_mode(), "require");
         assert!(setup.redis_ssl_enabled());
@@ -454,7 +461,8 @@ mod tests {
             ca_bundle_path:      None,
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let url = "postgresql://localhost/fraiseql?application_name=fraiseql";
         let tls_url = setup.apply_postgres_tls(url);
@@ -474,7 +482,8 @@ mod tests {
             ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
         };
 
-        let setup = TlsSetup::new(None, Some(db_config)).expect("should create setup");
+        let setup = TlsSetup::new(None, Some(db_config))
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         assert!(setup.db_config().is_some());
         assert_eq!(setup.postgres_ssl_mode(), "verify-full");
@@ -486,7 +495,8 @@ mod tests {
 
     #[test]
     fn test_create_rustls_config_without_tls_enabled() {
-        let setup = TlsSetup::new(None, None).expect("should create setup");
+        let setup = TlsSetup::new(None, None)
+            .expect("TlsSetup::new is infallible when cert and db_config are None");
 
         let result = setup.create_rustls_config();
         assert!(result.is_err());
@@ -504,7 +514,8 @@ mod tests {
             min_version:         "1.2".to_string(),
         };
 
-        let setup = TlsSetup::new(Some(tls_config), None).expect("should create setup");
+        let setup = TlsSetup::new(Some(tls_config), None)
+            .expect("TlsSetup::new succeeds with enabled=true when min_version is valid; cert reading happens later in create_rustls_config");
 
         let result = setup.create_rustls_config();
         assert!(result.is_err());

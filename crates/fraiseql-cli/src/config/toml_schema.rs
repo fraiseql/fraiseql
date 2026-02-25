@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 /// │   └── mutations.json
 /// ```
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct DomainDiscovery {
     /// Enable automatic domain discovery
     pub enabled:  bool,
@@ -95,7 +95,7 @@ impl DomainDiscovery {
 /// mutations = ["schema/mutations/**/*.json"]
 /// ```
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct SchemaIncludes {
     /// Glob patterns for type files
     pub types:     Vec<String>,
@@ -195,7 +195,7 @@ pub struct ResolvedIncludes {
 
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct TomlSchema {
     /// Schema metadata
     #[serde(rename = "schema")]
@@ -252,7 +252,7 @@ pub struct TomlSchema {
 
 /// Schema metadata
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct SchemaMetadata {
     /// Schema name
     pub name:            String,
@@ -277,7 +277,7 @@ impl Default for SchemaMetadata {
 
 /// Database configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct DatabaseConfig {
     /// Database connection URL
     pub url:             String,
@@ -302,7 +302,7 @@ impl Default for DatabaseConfig {
 
 /// Type definition in TOML
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct TypeDefinition {
     /// SQL source table or view
     pub sql_source:  String,
@@ -324,6 +324,7 @@ impl Default for TypeDefinition {
 
 /// Field definition
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct FieldDefinition {
     /// GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)
     #[serde(rename = "type")]
@@ -337,7 +338,7 @@ pub struct FieldDefinition {
 
 /// Query definition in TOML
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct QueryDefinition {
     /// Return type name
     pub return_type:  String,
@@ -366,7 +367,7 @@ impl Default for QueryDefinition {
 
 /// Mutation definition in TOML
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MutationDefinition {
     /// Return type name
     pub return_type: String,
@@ -394,6 +395,7 @@ impl Default for MutationDefinition {
 
 /// Argument definition
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ArgumentDefinition {
     /// Argument name
     pub name:        String,
@@ -409,31 +411,77 @@ pub struct ArgumentDefinition {
     pub description: Option<String>,
 }
 
+/// Circuit breaker configuration for a specific federated database/service
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerDatabaseCircuitBreakerOverride {
+    /// Database or service name matching a federation entity
+    pub database:             String,
+    /// Override: number of consecutive failures before opening (must be > 0)
+    pub failure_threshold:    Option<u32>,
+    /// Override: seconds to wait before attempting recovery (must be > 0)
+    pub recovery_timeout_secs: Option<u64>,
+    /// Override: successes required in half-open state to close the breaker (must be > 0)
+    pub success_threshold:    Option<u32>,
+}
+
+/// Circuit breaker configuration for Apollo Federation fan-out requests
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FederationCircuitBreakerConfig {
+    /// Enable circuit breaker protection on federation fan-out
+    pub enabled:              bool,
+    /// Consecutive failures before the breaker opens (default: 5, must be > 0)
+    pub failure_threshold:    u32,
+    /// Seconds to wait before attempting a probe request (default: 30, must be > 0)
+    pub recovery_timeout_secs: u64,
+    /// Probe successes needed to transition from half-open to closed (default: 2, must be > 0)
+    pub success_threshold:    u32,
+    /// Per-database overrides (database name must match a defined federation entity)
+    pub per_database:         Vec<PerDatabaseCircuitBreakerOverride>,
+}
+
+impl Default for FederationCircuitBreakerConfig {
+    fn default() -> Self {
+        Self {
+            enabled:              true,
+            failure_threshold:    5,
+            recovery_timeout_secs: 30,
+            success_threshold:    2,
+            per_database:         vec![],
+        }
+    }
+}
+
 /// Federation configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct FederationConfig {
     /// Enable Apollo federation
     #[serde(default)]
-    pub enabled:        bool,
+    pub enabled:         bool,
     /// Apollo federation version
-    pub apollo_version: Option<u32>,
+    pub apollo_version:  Option<u32>,
     /// Federated entities
-    pub entities:       Vec<FederationEntity>,
+    pub entities:        Vec<FederationEntity>,
+    /// Circuit breaker configuration for federation fan-out requests
+    pub circuit_breaker: Option<FederationCircuitBreakerConfig>,
 }
 
 impl Default for FederationConfig {
     fn default() -> Self {
         Self {
-            enabled:        false,
-            apollo_version: Some(2),
-            entities:       vec![],
+            enabled:         false,
+            apollo_version:  Some(2),
+            entities:        vec![],
+            circuit_breaker: None,
         }
     }
 }
 
 /// Federation entity
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct FederationEntity {
     /// Entity name
     pub name:       String,
@@ -443,7 +491,7 @@ pub struct FederationEntity {
 
 /// Security configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
     /// Default policy to apply if none specified
     pub default_policy: Option<String>,
@@ -471,6 +519,7 @@ impl Default for SecuritySettings {
 
 /// Authorization rule (custom expressions)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
     /// Rule name
     pub name:              String,
@@ -487,6 +536,7 @@ pub struct AuthorizationRule {
 
 /// Authorization policy (RBAC/ABAC)
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthorizationPolicy {
     /// Policy name
     pub name:              String,
@@ -510,6 +560,7 @@ pub struct AuthorizationPolicy {
 
 /// Field-level authorization rule
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct FieldAuthRule {
     /// Type name this rule applies to
     pub type_name:  String,
@@ -521,7 +572,7 @@ pub struct FieldAuthRule {
 
 /// Enterprise security configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct EnterpriseSecurityConfig {
     /// Enable rate limiting
     pub rate_limiting_enabled:        bool,
@@ -564,15 +615,20 @@ impl Default for EnterpriseSecurityConfig {
 
 /// Observers/event system configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system
     #[serde(default)]
     pub enabled:   bool,
     /// Backend service (redis, nats, postgresql, mysql, in-memory)
     pub backend:   String,
-    /// Redis connection URL
+    /// Redis connection URL (required when backend = "redis")
     pub redis_url: Option<String>,
+    /// NATS connection URL (required when backend = "nats")
+    ///
+    /// Example: `nats://localhost:4222`
+    /// Can be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.
+    pub nats_url:  Option<String>,
     /// Event handlers
     pub handlers:  Vec<EventHandler>,
 }
@@ -583,6 +639,7 @@ impl Default for ObserversConfig {
             enabled:   false,
             backend:   "redis".to_string(),
             redis_url: None,
+            nats_url:  None,
             handlers:  vec![],
         }
     }
@@ -590,6 +647,7 @@ impl Default for ObserversConfig {
 
 /// Event handler configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EventHandler {
     /// Handler name
     pub name:           String,
@@ -609,7 +667,7 @@ pub struct EventHandler {
 
 /// Caching configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CachingConfig {
     /// Enable caching
     #[serde(default)]
@@ -635,6 +693,7 @@ impl Default for CachingConfig {
 
 /// Cache invalidation rule
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CacheRule {
     /// Query pattern to cache
     pub query:                 String,
@@ -646,7 +705,7 @@ pub struct CacheRule {
 
 /// Analytics configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AnalyticsConfig {
     /// Enable analytics
     #[serde(default)]
@@ -657,6 +716,7 @@ pub struct AnalyticsConfig {
 
 /// Analytics query definition
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnalyticsQuery {
     /// Query name
     pub name:        String,
@@ -668,7 +728,7 @@ pub struct AnalyticsQuery {
 
 /// Observability configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ObservabilityConfig {
     /// Enable Prometheus metrics
     pub prometheus_enabled:            bool,
@@ -753,6 +813,59 @@ impl TomlSchema {
         for entity in &self.federation.entities {
             if !self.types.contains_key(&entity.name) {
                 anyhow::bail!("Federation entity '{}' references undefined type", entity.name);
+            }
+        }
+
+        // Validate federation circuit breaker configuration
+        if let Some(cb) = &self.federation.circuit_breaker {
+            if cb.failure_threshold == 0 {
+                anyhow::bail!(
+                    "federation.circuit_breaker.failure_threshold must be greater than 0"
+                );
+            }
+            if cb.recovery_timeout_secs == 0 {
+                anyhow::bail!(
+                    "federation.circuit_breaker.recovery_timeout_secs must be greater than 0"
+                );
+            }
+            if cb.success_threshold == 0 {
+                anyhow::bail!(
+                    "federation.circuit_breaker.success_threshold must be greater than 0"
+                );
+            }
+
+            // Validate per-database overrides reference defined entity names
+            let entity_names: std::collections::HashSet<&str> =
+                self.federation.entities.iter().map(|e| e.name.as_str()).collect();
+            for override_cfg in &cb.per_database {
+                if !entity_names.contains(override_cfg.database.as_str()) {
+                    anyhow::bail!(
+                        "federation.circuit_breaker.per_database entry '{}' does not match \
+                         any defined federation entity",
+                        override_cfg.database
+                    );
+                }
+                if override_cfg.failure_threshold == Some(0) {
+                    anyhow::bail!(
+                        "federation.circuit_breaker.per_database['{}'].failure_threshold \
+                         must be greater than 0",
+                        override_cfg.database
+                    );
+                }
+                if override_cfg.recovery_timeout_secs == Some(0) {
+                    anyhow::bail!(
+                        "federation.circuit_breaker.per_database['{}'].recovery_timeout_secs \
+                         must be greater than 0",
+                        override_cfg.database
+                    );
+                }
+                if override_cfg.success_threshold == Some(0) {
+                    anyhow::bail!(
+                        "federation.circuit_breaker.per_database['{}'].success_threshold \
+                         must be greater than 0",
+                        override_cfg.database
+                    );
+                }
             }
         }
 
@@ -862,5 +975,208 @@ sql_source = "v_user"
     fn test_validate_schema() {
         let schema = TomlSchema::default();
         assert!(schema.validate().is_ok());
+    }
+
+    // --- Issue #38: nats_url ---
+
+    #[test]
+    fn test_observers_config_nats_url_round_trip() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[observers]
+enabled = true
+backend = "nats"
+nats_url = "nats://localhost:4222"
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert_eq!(schema.observers.backend, "nats");
+        assert_eq!(
+            schema.observers.nats_url.as_deref(),
+            Some("nats://localhost:4222")
+        );
+        assert!(schema.observers.redis_url.is_none());
+    }
+
+    #[test]
+    fn test_observers_config_redis_url_unchanged() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[observers]
+enabled = true
+backend = "redis"
+redis_url = "redis://localhost:6379"
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert_eq!(schema.observers.backend, "redis");
+        assert_eq!(
+            schema.observers.redis_url.as_deref(),
+            Some("redis://localhost:6379")
+        );
+        assert!(schema.observers.nats_url.is_none());
+    }
+
+    #[test]
+    fn test_observers_config_nats_url_default_is_none() {
+        let config = ObserversConfig::default();
+        assert!(config.nats_url.is_none());
+    }
+
+    // --- Issue #39: federation circuit breaker ---
+
+    #[test]
+    fn test_federation_circuit_breaker_round_trip() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Product]
+sql_source = "v_product"
+
+[federation]
+enabled = true
+apollo_version = 2
+
+[[federation.entities]]
+name = "Product"
+key_fields = ["id"]
+
+[federation.circuit_breaker]
+enabled = true
+failure_threshold = 3
+recovery_timeout_secs = 60
+success_threshold = 1
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        let cb = schema.federation.circuit_breaker.as_ref().expect("Expected circuit_breaker");
+        assert!(cb.enabled);
+        assert_eq!(cb.failure_threshold, 3);
+        assert_eq!(cb.recovery_timeout_secs, 60);
+        assert_eq!(cb.success_threshold, 1);
+        assert!(cb.per_database.is_empty());
+    }
+
+    #[test]
+    fn test_federation_circuit_breaker_zero_failure_threshold_rejected() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[federation]
+enabled = true
+
+[federation.circuit_breaker]
+enabled = true
+failure_threshold = 0
+recovery_timeout_secs = 30
+success_threshold = 2
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        let err = schema.validate().unwrap_err();
+        assert!(err.to_string().contains("failure_threshold"), "{err}");
+    }
+
+    #[test]
+    fn test_federation_circuit_breaker_zero_recovery_timeout_rejected() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[federation]
+enabled = true
+
+[federation.circuit_breaker]
+enabled = true
+failure_threshold = 5
+recovery_timeout_secs = 0
+success_threshold = 2
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        let err = schema.validate().unwrap_err();
+        assert!(err.to_string().contains("recovery_timeout_secs"), "{err}");
+    }
+
+    #[test]
+    fn test_federation_circuit_breaker_per_database_unknown_entity_rejected() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Product]
+sql_source = "v_product"
+
+[federation]
+enabled = true
+
+[[federation.entities]]
+name = "Product"
+key_fields = ["id"]
+
+[federation.circuit_breaker]
+enabled = true
+failure_threshold = 5
+recovery_timeout_secs = 30
+success_threshold = 2
+
+[[federation.circuit_breaker.per_database]]
+database = "NonExistentEntity"
+failure_threshold = 3
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        let err = schema.validate().unwrap_err();
+        assert!(err.to_string().contains("NonExistentEntity"), "{err}");
+    }
+
+    #[test]
+    fn test_federation_circuit_breaker_per_database_valid() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Product]
+sql_source = "v_product"
+
+[federation]
+enabled = true
+
+[[federation.entities]]
+name = "Product"
+key_fields = ["id"]
+
+[federation.circuit_breaker]
+enabled = true
+failure_threshold = 5
+recovery_timeout_secs = 30
+success_threshold = 2
+
+[[federation.circuit_breaker.per_database]]
+database = "Product"
+failure_threshold = 3
+recovery_timeout_secs = 15
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert!(schema.validate().is_ok());
+        let cb = schema.federation.circuit_breaker.as_ref().unwrap();
+        assert_eq!(cb.per_database.len(), 1);
+        assert_eq!(cb.per_database[0].database, "Product");
+        assert_eq!(cb.per_database[0].failure_threshold, Some(3));
+        assert_eq!(cb.per_database[0].recovery_timeout_secs, Some(15));
     }
 }

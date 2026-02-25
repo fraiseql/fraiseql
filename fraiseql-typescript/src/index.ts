@@ -169,3 +169,7 @@ export type {
 
 // Export custom scalar validators
 export { validateCustomScalar, getAllCustomScalars, ScalarValidationError } from "./validators";
+
+// Export observer authoring API
+export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
+export type { RetryConfig } from "./observers";

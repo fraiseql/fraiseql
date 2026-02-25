@@ -2,6 +2,7 @@ package fraiseql
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -34,7 +35,7 @@ func TestSingleScopeExtraction(t *testing.T) {
 		Salary float64 `fraiseql:"salary,type=Float,scope=read:user.salary"`
 	}
 
-	fields, err := ExtractFields(&UserWithScope{})
+	fields, err := ExtractFields(reflect.TypeOf(UserWithScope{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestMultipleDifferentScopesExtraction(t *testing.T) {
 		SSN   string `fraiseql:"ssn,type=String,scope=read:user.ssn"`
 	}
 
-	fields, err := ExtractFields(&UserWithMultipleScopes{})
+	fields, err := ExtractFields(reflect.TypeOf(UserWithMultipleScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestPublicFieldNoScopeExtraction(t *testing.T) {
 		Email string `fraiseql:"email,type=String,scope=read:user.email"`
 	}
 
-	fields, err := ExtractFields(&UserWithMixedFields{})
+	fields, err := ExtractFields(reflect.TypeOf(UserWithMixedFields{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -112,7 +113,7 @@ func TestMultipleScopesOnSingleField(t *testing.T) {
 		AdminNotes string `fraiseql:"adminNotes,type=String,scopes=admin;auditor"`
 	}
 
-	fields, err := ExtractFields(&AdminWithMultipleScopes{})
+	fields, err := ExtractFields(reflect.TypeOf(AdminWithMultipleScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -137,7 +138,7 @@ func TestMixedSingleAndMultipleScopes(t *testing.T) {
 		AdvancedField string `fraiseql:"advancedField,type=String,scopes=read:advanced;admin"`
 	}
 
-	fields, err := ExtractFields(&MixedScopeTypes{})
+	fields, err := ExtractFields(reflect.TypeOf(MixedScopeTypes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -160,7 +161,7 @@ func TestScopeArrayOrder(t *testing.T) {
 		Restricted string `fraiseql:"restricted,type=String,scopes=first;second;third"`
 	}
 
-	fields, err := ExtractFields(&OrderedScopes{})
+	fields, err := ExtractFields(reflect.TypeOf(OrderedScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -185,7 +186,7 @@ func TestResourceBasedScopePattern(t *testing.T) {
 		Phone string `fraiseql:"phone,type=String,scope=read:User.phone"`
 	}
 
-	fields, err := ExtractFields(&ResourcePatternScopes{})
+	fields, err := ExtractFields(reflect.TypeOf(ResourcePatternScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -205,7 +206,7 @@ func TestActionBasedScopePattern(t *testing.T) {
 		WritableField  string `fraiseql:"writableField,type=String,scope=write:User.*"`
 	}
 
-	fields, err := ExtractFields(&ActionPatternScopes{})
+	fields, err := ExtractFields(reflect.TypeOf(ActionPatternScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -227,7 +228,7 @@ func TestGlobalWildcardScope(t *testing.T) {
 		AdminOverride string `fraiseql:"adminOverride,type=String,scope=*"`
 	}
 
-	fields, err := ExtractFields(&GlobalWildcardScope{})
+	fields, err := ExtractFields(reflect.TypeOf(GlobalWildcardScope{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -252,7 +253,10 @@ func TestScopeExportToJsonSingleScope(t *testing.T) {
 
 	RegisterTypes(ExportTestSingleScope{})
 
-	schemaJSON := GetSchemaJSON(false)
+	schemaJSON, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
 	var schema map[string]interface{}
 	if err := json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
@@ -283,7 +287,10 @@ func TestScopeExportToJsonMultipleScopes(t *testing.T) {
 
 	RegisterTypes(ExportTestMultipleScopes{})
 
-	schemaJSON := GetSchemaJSON(false)
+	schemaJSON, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
 	var schema map[string]interface{}
 	if err := json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
@@ -312,7 +319,10 @@ func TestPublicFieldJsonExport(t *testing.T) {
 
 	RegisterTypes(ExportTestPublicField{})
 
-	schemaJSON := GetSchemaJSON(false)
+	schemaJSON, err := GetSchemaJSON(false)
+	if err != nil {
+		t.Fatalf("GetSchemaJSON failed: %v", err)
+	}
 	var schema map[string]interface{}
 	if err := json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
@@ -345,7 +355,7 @@ func TestScopePreservedWithMetadata(t *testing.T) {
 		Salary float64 `fraiseql:"salary,type=Float,scope=read:user.salary"`
 	}
 
-	fields, err := ExtractFields(&ScopeWithMetadata{})
+	fields, err := ExtractFields(reflect.TypeOf(ScopeWithMetadata{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -368,7 +378,7 @@ func TestScopeWithNullableField(t *testing.T) {
 		OptionalEmail *string `fraiseql:"optionalEmail,type=String,nullable=true,scope=read:user.email"`
 	}
 
-	fields, err := ExtractFields(&ScopeWithNullable{})
+	fields, err := ExtractFields(reflect.TypeOf(ScopeWithNullable{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -388,19 +398,19 @@ func TestMultipleScopedFieldsMetadataIndependence(t *testing.T) {
 	defer Reset()
 
 	type MetadataIndependence struct {
-		Field1 string `fraiseql:"field1,type=String,scope=scope1"`
-		Field2 string `fraiseql:"field2,type=String,scope=scope2"`
+		Field1 string `fraiseql:"field1,type=String,scope=read:scope1"`
+		Field2 string `fraiseql:"field2,type=String,scope=read:scope2"`
 	}
 
-	fields, err := ExtractFields(&MetadataIndependence{})
+	fields, err := ExtractFields(reflect.TypeOf(MetadataIndependence{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
 
-	if fields["field1"].Scope != "scope1" {
+	if fields["field1"].Scope != "read:scope1" {
 		t.Error("Field1 scope incorrect")
 	}
-	if fields["field2"].Scope != "scope2" {
+	if fields["field2"].Scope != "read:scope2" {
 		t.Error("Field2 scope incorrect")
 	}
 }
@@ -418,7 +428,7 @@ func TestInvalidScopeFormatDetection(t *testing.T) {
 		Field string `fraiseql:"field,type=String,scope=invalid_scope_no_colon"`
 	}
 
-	_, err := ExtractFields(&InvalidScopeFormat{})
+	_, err := ExtractFields(reflect.TypeOf(InvalidScopeFormat{}))
 	if err == nil {
 		t.Error("Should reject invalid scope format (missing colon)")
 	}
@@ -433,7 +443,7 @@ func TestEmptyScopeRejection(t *testing.T) {
 		Field string `fraiseql:"field,type=String,scope="`
 	}
 
-	_, err := ExtractFields(&EmptyScope{})
+	_, err := ExtractFields(reflect.TypeOf(EmptyScope{}))
 	if err == nil {
 		t.Error("Should reject empty scope")
 	}
@@ -448,7 +458,7 @@ func TestEmptyScopesArrayRejection(t *testing.T) {
 		Field string `fraiseql:"field,type=String,scopes="`
 	}
 
-	_, err := ExtractFields(&EmptyScopesArray{})
+	_, err := ExtractFields(reflect.TypeOf(EmptyScopesArray{}))
 	if err == nil {
 		t.Error("Should reject empty scopes array")
 	}
@@ -463,7 +473,7 @@ func TestInvalidActionWithHyphensValidation(t *testing.T) {
 		Field string `fraiseql:"field,type=String,scope=invalid-action:resource"`
 	}
 
-	_, err := ExtractFields(&InvalidActionWithHyphens{})
+	_, err := ExtractFields(reflect.TypeOf(InvalidActionWithHyphens{}))
 	if err == nil {
 		t.Error("Should reject hyphens in action prefix")
 	}
@@ -478,7 +488,7 @@ func TestInvalidResourceWithHyphensValidation(t *testing.T) {
 		Field string `fraiseql:"field,type=String,scope=read:invalid-resource-name"`
 	}
 
-	_, err := ExtractFields(&InvalidResourceWithHyphens{})
+	_, err := ExtractFields(reflect.TypeOf(InvalidResourceWithHyphens{}))
 	if err == nil {
 		t.Error("Should reject hyphens in resource name")
 	}
@@ -493,7 +503,7 @@ func TestConflictingBothScopeAndScopes(t *testing.T) {
 		Field string `fraiseql:"field,type=String,scope=read:user.email,scopes=admin;auditor"`
 	}
 
-	_, err := ExtractFields(&ConflictingScopeAndScopes{})
+	_, err := ExtractFields(reflect.TypeOf(ConflictingScopeAndScopes{}))
 	if err == nil {
 		t.Error("Should reject field with both scope and scopes")
 	}

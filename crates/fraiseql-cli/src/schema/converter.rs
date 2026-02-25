@@ -133,8 +133,9 @@ impl SchemaConverter {
             fact_tables, // Analytics metadata
             observers: Vec::new(), /* Observer definitions (populated from
                           * IntermediateSchema) */
-            federation: None,                              // Federation metadata
+            federation: intermediate.federation_config,    // Federation config from TOML
             security: intermediate.security,               // Security configuration from TOML
+            observers_config: intermediate.observers_config, // Observers config from TOML
             schema_sdl: None,                              // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
         };
@@ -406,10 +407,6 @@ impl SchemaConverter {
             Some("DELETE") => {
                 let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
                 Ok(MutationOperation::Delete { table })
-            },
-            Some("FUNCTION") => {
-                let name = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
-                Ok(MutationOperation::Function { name })
             },
             Some("CUSTOM") | None => Ok(MutationOperation::Custom),
             Some(op) => {
@@ -704,6 +701,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -753,6 +752,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -793,6 +794,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -846,6 +849,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -901,6 +906,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -965,6 +972,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1045,6 +1054,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1092,6 +1103,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1143,6 +1156,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1206,6 +1221,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1291,6 +1308,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1360,6 +1379,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1406,6 +1427,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1462,6 +1485,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1521,6 +1546,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1594,6 +1621,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();

@@ -58,12 +58,28 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     // Collect metrics from AppState
     let prometheus_metrics = PrometheusMetrics::from(state.metrics.as_ref());
+    let mut output = prometheus_metrics.to_prometheus_format();
 
-    (
-        axum::http::StatusCode::OK,
-        [("Content-Type", "text/plain; version=0.0.4")],
-        prometheus_metrics.to_prometheus_format(),
-    )
+    // Append per-entity federation circuit breaker state gauge (Step 8 of Issue #39)
+    if let Some(ref cb_manager) = state.circuit_breaker {
+        let states = cb_manager.collect_states();
+        if !states.is_empty() {
+            output.push_str(concat!(
+                "\n# HELP fraiseql_federation_circuit_breaker_state ",
+                "Federation circuit breaker state per entity type ",
+                "(0=closed, 1=open, 2=half_open)\n",
+                "# TYPE fraiseql_federation_circuit_breaker_state gauge\n",
+            ));
+            for (entity, state_code) in states {
+                output.push_str(&format!(
+                    "fraiseql_federation_circuit_breaker_state{{entity=\"{entity}\"}} \
+                     {state_code}\n"
+                ));
+            }
+        }
+    }
+
+    (axum::http::StatusCode::OK, [("Content-Type", "text/plain; version=0.0.4")], output)
 }
 
 /// JSON metrics handler - returns metrics in JSON format.

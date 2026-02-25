@@ -240,4 +240,50 @@ describe("SchemaRegistry", () => {
       expect(schema.subscriptions).toHaveLength(0);
     });
   });
+
+  describe("duplicate registration", () => {
+    it("should throw when registering a type with a duplicate name", () => {
+      SchemaRegistry.registerType("User", [{ name: "id", type: "Int", nullable: false }]);
+      expect(() => {
+        SchemaRegistry.registerType("User", [{ name: "id", type: "String", nullable: false }]);
+      }).toThrow("already registered");
+    });
+
+    it("should throw when registering a query with a duplicate name", () => {
+      SchemaRegistry.registerQuery("getUser", "User", false, true, []);
+      expect(() => {
+        SchemaRegistry.registerQuery("getUser", "User", false, false, []);
+      }).toThrow("already registered");
+    });
+
+    it("should throw when registering a mutation with a duplicate name", () => {
+      SchemaRegistry.registerMutation("createUser", "User", false, false, []);
+      expect(() => {
+        SchemaRegistry.registerMutation("createUser", "User", false, false, []);
+      }).toThrow("already registered");
+    });
+  });
+
+  describe("sqlSource normalisation", () => {
+    it("should normalise camelCase sqlSource to snake_case in query output", () => {
+      SchemaRegistry.registerQuery("getUser", "User", false, true, [], undefined, {
+        sqlSource: "v_user",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const query = schema.queries[0] as Record<string, unknown>;
+      expect(query["sql_source"]).toBe("v_user");
+      expect(query["sqlSource"]).toBeUndefined();
+    });
+
+    it("should normalise camelCase sqlSource to snake_case in mutation output", () => {
+      SchemaRegistry.registerMutation("createUser", "User", false, false, [], undefined, {
+        sqlSource: "fn_create_user",
+        operation: "CREATE",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect(mutation["sql_source"]).toBe("fn_create_user");
+      expect(mutation["sqlSource"]).toBeUndefined();
+    });
+  });
 });

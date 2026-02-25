@@ -96,6 +96,9 @@ pub struct AppState<A: DatabaseAdapter> {
     pub secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
     /// Field encryption service for transparent encrypt/decrypt of marked fields.
     pub field_encryption:     Option<Arc<crate::encryption::middleware::FieldEncryptionService>>,
+    /// Federation circuit breaker manager (optional, enabled via `fraiseql.toml`).
+    pub circuit_breaker:
+        Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -112,23 +115,14 @@ impl<A: DatabaseAdapter> AppState<A> {
             )),
             secrets_manager: None,
             field_encryption: None,
+            circuit_breaker: None,
         }
     }
 
     /// Create new application state with custom metrics collector.
     #[must_use]
     pub fn with_metrics(executor: Arc<Executor<A>>, metrics: Arc<MetricsCollector>) -> Self {
-        Self {
-            executor,
-            metrics,
-            cache: None,
-            config: None,
-            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
-                RateLimitConfig::per_ip_standard(),
-            )),
-            secrets_manager: None,
-            field_encryption: None,
-        }
+        Self::new(executor).set_metrics(metrics)
     }
 
     /// Create new application state with cache.
@@ -137,17 +131,7 @@ impl<A: DatabaseAdapter> AppState<A> {
         executor: Arc<Executor<A>>,
         cache: Arc<fraiseql_arrow::cache::QueryCache>,
     ) -> Self {
-        Self {
-            executor,
-            metrics: Arc::new(MetricsCollector::new()),
-            cache: Some(cache),
-            config: None,
-            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
-                RateLimitConfig::per_ip_standard(),
-            )),
-            secrets_manager: None,
-            field_encryption: None,
-        }
+        Self::new(executor).set_cache(cache)
     }
 
     /// Create new application state with cache and config.
@@ -157,17 +141,22 @@ impl<A: DatabaseAdapter> AppState<A> {
         cache: Arc<fraiseql_arrow::cache::QueryCache>,
         config: Arc<crate::config::ServerConfig>,
     ) -> Self {
-        Self {
-            executor,
-            metrics: Arc::new(MetricsCollector::new()),
-            cache: Some(cache),
-            config: Some(config),
-            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
-                RateLimitConfig::per_ip_standard(),
-            )),
-            secrets_manager: None,
-            field_encryption: None,
-        }
+        Self::new(executor).set_cache(cache).set_config(config)
+    }
+
+    fn set_metrics(mut self, metrics: Arc<MetricsCollector>) -> Self {
+        self.metrics = metrics;
+        self
+    }
+
+    fn set_cache(mut self, cache: Arc<fraiseql_arrow::cache::QueryCache>) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
+    fn set_config(mut self, config: Arc<crate::config::ServerConfig>) -> Self {
+        self.config = Some(config);
+        self
     }
 
     /// Get query cache if configured.
@@ -200,6 +189,16 @@ impl<A: DatabaseAdapter> AppState<A> {
     /// Get secrets manager if configured.
     pub fn secrets_manager(&self) -> Option<&Arc<crate::secrets_manager::SecretsManager>> {
         self.secrets_manager.as_ref()
+    }
+
+    /// Attach a federation circuit breaker manager.
+    #[must_use]
+    pub fn with_circuit_breaker(
+        mut self,
+        circuit_breaker: Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
+    ) -> Self {
+        self.circuit_breaker = Some(circuit_breaker);
+        self
     }
 }
 
@@ -414,50 +413,75 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
     }
 
-    // Execute query with or without security context
-    let result = if let Some(sec_ctx) = security_context {
+    // Check federation circuit breaker for _entities queries before execution
+    let cb_entity_types: Vec<String> =
+        if fraiseql_core::federation::is_federation_query(&request.query) {
+            if let Some(ref cb_manager) = state.circuit_breaker {
+                let entity_types = crate::federation::circuit_breaker::extract_entity_types(
+                    request.variables.as_ref(),
+                );
+                for entity_type in &entity_types {
+                    if let Some(retry_after) = cb_manager.check(entity_type) {
+                        warn!(
+                            entity = %entity_type,
+                            retry_after_secs = retry_after,
+                            "Federation circuit breaker open — rejecting _entities request"
+                        );
+                        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+                        return Err(ErrorResponse::from_error(GraphQLError::circuit_breaker_open(
+                            entity_type,
+                            retry_after,
+                        )));
+                    }
+                }
+                entity_types
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        };
+
+    // Execute query (defer error propagation to record circuit breaker outcome first)
+    let exec_result = if let Some(sec_ctx) = security_context {
         state
             .executor
             .execute_with_security(&request.query, request.variables.as_ref(), &sec_ctx)
             .await
-            .map_err(|e| {
-                let elapsed = start_time.elapsed();
-                error!(
-                    error = %e,
-                    elapsed_ms = elapsed.as_millis(),
-                    operation_name = ?request.operation_name,
-                    "Query execution failed"
-                );
-                metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-                metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
-                // Record duration even for failed queries
-                metrics
-                    .queries_duration_us
-                    .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-                ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
-            })?
     } else {
-        state
-            .executor
-            .execute(&request.query, request.variables.as_ref())
-            .await
-            .map_err(|e| {
-                let elapsed = start_time.elapsed();
-                error!(
-                    error = %e,
-                    elapsed_ms = elapsed.as_millis(),
-                    operation_name = ?request.operation_name,
-                    "Query execution failed"
-                );
-                metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-                metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
-                // Record duration even for failed queries
-                metrics
-                    .queries_duration_us
-                    .fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-                ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
-            })?
+        state.executor.execute(&request.query, request.variables.as_ref()).await
     };
+
+    // Record circuit breaker outcome for federation entity queries
+    if !cb_entity_types.is_empty() {
+        if let Some(ref cb_manager) = state.circuit_breaker {
+            if exec_result.is_ok() {
+                for entity_type in &cb_entity_types {
+                    cb_manager.record_success(entity_type);
+                }
+            } else {
+                for entity_type in &cb_entity_types {
+                    cb_manager.record_failure(entity_type);
+                }
+            }
+        }
+    }
+
+    // Propagate execution errors with metrics
+    let result = exec_result.map_err(|e| {
+        let elapsed = start_time.elapsed();
+        error!(
+            error = %e,
+            elapsed_ms = elapsed.as_millis(),
+            operation_name = ?request.operation_name,
+            "Query execution failed"
+        );
+        metrics.queries_error.fetch_add(1, Ordering::Relaxed);
+        metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
+        // Record duration even for failed queries
+        metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+        ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
+    })?;
 
     let elapsed = start_time.elapsed();
     let elapsed_us = elapsed.as_micros() as u64;

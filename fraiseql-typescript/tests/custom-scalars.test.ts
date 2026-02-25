@@ -2,14 +2,14 @@
  * End-to-end tests for custom scalar support.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "@jest/globals";
 import { CustomScalar, Scalar, validateCustomScalar, getAllCustomScalars, ScalarValidationError } from "../src";
 import { SchemaRegistry } from "../src/registry";
 
 /**
  * Email scalar for testing.
  */
-@Scalar()
+@Scalar
 class Email extends CustomScalar {
   name = "Email";
 
@@ -38,7 +38,7 @@ class Email extends CustomScalar {
 /**
  * Phone scalar for testing.
  */
-@Scalar()
+@Scalar
 class Phone extends CustomScalar {
   name = "Phone";
 
@@ -80,7 +80,7 @@ describe("Custom Scalar Support", () => {
       expect(SchemaRegistry.getCustomScalars().size).toBe(0);
 
       // Register Email
-      @Scalar()
+      @Scalar
       class EmailScalar extends CustomScalar {
         name = "Email";
         serialize(v: unknown) { return v; }
@@ -103,6 +103,7 @@ describe("Custom Scalar Support", () => {
     });
 
     it("should validate name attribute", () => {
+      // @ts-expect-error intentionally missing abstract 'name' for error-path test
       class NoNameScalar extends CustomScalar {
         serialize(v: unknown) { return v; }
         parseValue(v: unknown) { return v; }
@@ -115,7 +116,7 @@ describe("Custom Scalar Support", () => {
     });
 
     it("should prevent duplicate names", () => {
-      @Scalar()
+      @Scalar
       class Email1 extends CustomScalar {
         name = "Email";
         serialize(v: unknown) { return v; }
@@ -215,6 +216,11 @@ describe("Custom Scalar Support", () => {
   });
 
   describe("Utility Functions", () => {
+    beforeEach(() => {
+      SchemaRegistry.registerScalar("Email", Email);
+      SchemaRegistry.registerScalar("Phone", Phone);
+    });
+
     it("should get all custom scalars", () => {
       const scalars = getAllCustomScalars();
       expect(scalars.has("Email")).toBe(true);
@@ -229,6 +235,11 @@ describe("Custom Scalar Support", () => {
   });
 
   describe("Schema Export", () => {
+    beforeEach(() => {
+      SchemaRegistry.registerScalar("Email", Email);
+      SchemaRegistry.registerScalar("Phone", Phone);
+    });
+
     it("should include custom scalars in schema", () => {
       const schema = SchemaRegistry.getSchema();
 

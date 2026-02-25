@@ -239,8 +239,8 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       //   pass
 
       const schema = SchemaRegistry.getSchema();
-      expect(schema.queries[0].autoParams).toBeDefined();
-      expect(schema.queries[0].autoParams).toEqual({
+      expect(schema.queries[0].auto_params).toBeDefined();
+      expect(schema.queries[0].auto_params).toEqual({
         email: true,
         status: true,
       });

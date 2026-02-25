@@ -6,6 +6,45 @@ from typing import Any
 from fraiseql.registry import SchemaRegistry
 
 
+def _validate_schema_before_export(schema: dict[str, Any]) -> None:
+    """Validate schema structure before writing to disk.
+
+    Raises:
+        ValueError: If the schema contains structural errors such as
+            undefined return types or missing queries.
+    """
+    errors: list[str] = []
+
+    registered_type_names: set[str] = {t["name"] for t in schema.get("types", [])}
+    # Also include enum and scalar names as valid return types
+    registered_type_names.update(e["name"] for e in schema.get("enums", []))
+    registered_type_names.update(s["name"] for s in schema.get("custom_scalars", []))
+    # Built-in GraphQL scalar names are always valid
+    builtin_scalars = {"String", "Int", "Float", "Boolean", "ID"}
+    registered_type_names.update(builtin_scalars)
+
+    for query in schema.get("queries", []):
+        ret = query.get("return_type", "")
+        if ret and ret not in registered_type_names:
+            errors.append(
+                f"Query {query['name']!r} has return type {ret!r} which is not a registered type."
+            )
+
+    for mutation in schema.get("mutations", []):
+        ret = mutation.get("return_type", "")
+        if ret and ret not in registered_type_names:
+            errors.append(
+                f"Mutation {mutation['name']!r} has return type {ret!r} "
+                "which is not a registered type."
+            )
+
+    if errors:
+        error_list = "\n  - ".join(errors)
+        raise ValueError(
+            f"Schema validation failed before export. Fix the following errors:\n  - {error_list}"
+        )
+
+
 class Federation:
     """Federation metadata container."""
 
@@ -209,7 +248,9 @@ def config(**kwargs: Any) -> None:
     _ConfigHolder._pending_config = kwargs
 
 
-def export_schema(output_path: str, pretty: bool = True) -> None:
+def export_schema(
+    output_path: str, pretty: bool = True, include_custom_scalars: bool = True
+) -> None:
     """Export the schema registry to a JSON file.
 
     This function should be called after all decorators have been processed
@@ -218,6 +259,7 @@ def export_schema(output_path: str, pretty: bool = True) -> None:
     Args:
         output_path: Path to output schema.json file
         pretty: If True, format JSON with indentation (default: True)
+        include_custom_scalars: If True, include custom scalars in output (default: True)
 
     Examples:
         >>> # At end of schema.py
@@ -230,6 +272,10 @@ def export_schema(output_path: str, pretty: bool = True) -> None:
         - Pretty formatting is recommended for version control
     """
     schema = SchemaRegistry.get_schema()
+    if not include_custom_scalars:
+        schema = {k: v for k, v in schema.items() if k != "custom_scalars"}
+
+    _validate_schema_before_export(schema)
 
     # Write to file
     with open(output_path, "w", encoding="utf-8") as f:

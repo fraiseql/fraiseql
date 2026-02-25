@@ -147,52 +147,52 @@ impl SchemaDependencyGraph {
         // Collect all type names first
         for type_def in &schema.types {
             all_types.insert(type_def.name.clone());
-            outgoing.insert(type_def.name.clone(), HashSet::new());
-            incoming.insert(type_def.name.clone(), HashSet::new());
+            outgoing.entry(type_def.name.clone()).or_default();
+            incoming.entry(type_def.name.clone()).or_default();
         }
 
         for enum_def in &schema.enums {
             all_types.insert(enum_def.name.clone());
-            outgoing.insert(enum_def.name.clone(), HashSet::new());
-            incoming.insert(enum_def.name.clone(), HashSet::new());
+            outgoing.entry(enum_def.name.clone()).or_default();
+            incoming.entry(enum_def.name.clone()).or_default();
         }
 
         for input_def in &schema.input_types {
             all_types.insert(input_def.name.clone());
-            outgoing.insert(input_def.name.clone(), HashSet::new());
-            incoming.insert(input_def.name.clone(), HashSet::new());
+            outgoing.entry(input_def.name.clone()).or_default();
+            incoming.entry(input_def.name.clone()).or_default();
         }
 
         for interface_def in &schema.interfaces {
             all_types.insert(interface_def.name.clone());
-            outgoing.insert(interface_def.name.clone(), HashSet::new());
-            incoming.insert(interface_def.name.clone(), HashSet::new());
+            outgoing.entry(interface_def.name.clone()).or_default();
+            incoming.entry(interface_def.name.clone()).or_default();
         }
 
         for union_def in &schema.unions {
             all_types.insert(union_def.name.clone());
-            outgoing.insert(union_def.name.clone(), HashSet::new());
-            incoming.insert(union_def.name.clone(), HashSet::new());
+            outgoing.entry(union_def.name.clone()).or_default();
+            incoming.entry(union_def.name.clone()).or_default();
         }
 
         // Add virtual root types for operations
         if !schema.queries.is_empty() {
             root_types.insert("Query".to_string());
             all_types.insert("Query".to_string());
-            outgoing.insert("Query".to_string(), HashSet::new());
-            incoming.insert("Query".to_string(), HashSet::new());
+            outgoing.entry("Query".to_string()).or_default();
+            incoming.entry("Query".to_string()).or_default();
         }
         if !schema.mutations.is_empty() {
             root_types.insert("Mutation".to_string());
             all_types.insert("Mutation".to_string());
-            outgoing.insert("Mutation".to_string(), HashSet::new());
-            incoming.insert("Mutation".to_string(), HashSet::new());
+            outgoing.entry("Mutation".to_string()).or_default();
+            incoming.entry("Mutation".to_string()).or_default();
         }
         if !schema.subscriptions.is_empty() {
             root_types.insert("Subscription".to_string());
             all_types.insert("Subscription".to_string());
-            outgoing.insert("Subscription".to_string(), HashSet::new());
-            incoming.insert("Subscription".to_string(), HashSet::new());
+            outgoing.entry("Subscription".to_string()).or_default();
+            incoming.entry("Subscription".to_string()).or_default();
         }
 
         // Build dependencies for object types
@@ -200,8 +200,8 @@ impl SchemaDependencyGraph {
             for field in &type_def.fields {
                 if let Some(ref_type) = Self::extract_referenced_type(&field.field_type) {
                     if all_types.contains(&ref_type) {
-                        outgoing.get_mut(&type_def.name).unwrap().insert(ref_type.clone());
-                        incoming.get_mut(&ref_type).unwrap().insert(type_def.name.clone());
+                        outgoing.entry(type_def.name.clone()).or_default().insert(ref_type.clone());
+                        incoming.entry(ref_type.clone()).or_default().insert(type_def.name.clone());
                     }
                 }
             }
@@ -209,8 +209,14 @@ impl SchemaDependencyGraph {
             // Track interface implementations
             for interface_name in &type_def.implements {
                 if all_types.contains(interface_name) {
-                    outgoing.get_mut(&type_def.name).unwrap().insert(interface_name.clone());
-                    incoming.get_mut(interface_name).unwrap().insert(type_def.name.clone());
+                    outgoing
+                        .entry(type_def.name.clone())
+                        .or_default()
+                        .insert(interface_name.clone());
+                    incoming
+                        .entry(interface_name.clone())
+                        .or_default()
+                        .insert(type_def.name.clone());
                 }
             }
         }
@@ -220,8 +226,14 @@ impl SchemaDependencyGraph {
             for field in &interface_def.fields {
                 if let Some(ref_type) = Self::extract_referenced_type(&field.field_type) {
                     if all_types.contains(&ref_type) {
-                        outgoing.get_mut(&interface_def.name).unwrap().insert(ref_type.clone());
-                        incoming.get_mut(&ref_type).unwrap().insert(interface_def.name.clone());
+                        outgoing
+                            .entry(interface_def.name.clone())
+                            .or_default()
+                            .insert(ref_type.clone());
+                        incoming
+                            .entry(ref_type.clone())
+                            .or_default()
+                            .insert(interface_def.name.clone());
                     }
                 }
             }
@@ -231,8 +243,8 @@ impl SchemaDependencyGraph {
         for union_def in &schema.unions {
             for member_type in &union_def.member_types {
                 if all_types.contains(member_type) {
-                    outgoing.get_mut(&union_def.name).unwrap().insert(member_type.clone());
-                    incoming.get_mut(member_type).unwrap().insert(union_def.name.clone());
+                    outgoing.entry(union_def.name.clone()).or_default().insert(member_type.clone());
+                    incoming.entry(member_type.clone()).or_default().insert(union_def.name.clone());
                 }
             }
         }
@@ -244,8 +256,14 @@ impl SchemaDependencyGraph {
                 let parsed = FieldType::parse(&field.field_type, &all_types);
                 if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                     if all_types.contains(&ref_type) {
-                        outgoing.get_mut(&input_def.name).unwrap().insert(ref_type.clone());
-                        incoming.get_mut(&ref_type).unwrap().insert(input_def.name.clone());
+                        outgoing
+                            .entry(input_def.name.clone())
+                            .or_default()
+                            .insert(ref_type.clone());
+                        incoming
+                            .entry(ref_type.clone())
+                            .or_default()
+                            .insert(input_def.name.clone());
                     }
                 }
             }
@@ -256,8 +274,8 @@ impl SchemaDependencyGraph {
             let parsed = FieldType::parse(&query.return_type, &all_types);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
-                    outgoing.get_mut("Query").unwrap().insert(ref_type.clone());
-                    incoming.get_mut(&ref_type).unwrap().insert("Query".to_string());
+                    outgoing.entry("Query".to_string()).or_default().insert(ref_type.clone());
+                    incoming.entry(ref_type.clone()).or_default().insert("Query".to_string());
                 }
             }
         }
@@ -267,8 +285,8 @@ impl SchemaDependencyGraph {
             let parsed = FieldType::parse(&mutation.return_type, &all_types);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
-                    outgoing.get_mut("Mutation").unwrap().insert(ref_type.clone());
-                    incoming.get_mut(&ref_type).unwrap().insert("Mutation".to_string());
+                    outgoing.entry("Mutation".to_string()).or_default().insert(ref_type.clone());
+                    incoming.entry(ref_type.clone()).or_default().insert("Mutation".to_string());
                 }
             }
         }
@@ -278,8 +296,14 @@ impl SchemaDependencyGraph {
             let parsed = FieldType::parse(&subscription.return_type, &all_types);
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
-                    outgoing.get_mut("Subscription").unwrap().insert(ref_type.clone());
-                    incoming.get_mut(&ref_type).unwrap().insert("Subscription".to_string());
+                    outgoing
+                        .entry("Subscription".to_string())
+                        .or_default()
+                        .insert(ref_type.clone());
+                    incoming
+                        .entry(ref_type.clone())
+                        .or_default()
+                        .insert("Subscription".to_string());
                 }
             }
         }

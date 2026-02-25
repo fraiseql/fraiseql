@@ -208,9 +208,10 @@ fn test_multiple_errors_response() {
 #[test]
 fn test_error_extensions() {
     let extensions = ErrorExtensions {
-        category:   Some("VALIDATION".to_string()),
-        status:     Some(400),
-        request_id: Some("req-12345".to_string()),
+        category:         Some("VALIDATION".to_string()),
+        status:           Some(400),
+        request_id:       Some("req-12345".to_string()),
+        retry_after_secs: None,
     };
 
     let error = GraphQLError::validation("Invalid input").with_extensions(extensions);

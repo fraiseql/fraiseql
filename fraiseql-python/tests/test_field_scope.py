@@ -13,6 +13,14 @@ from fraiseql.registry import SchemaRegistry
 from fraiseql.scalars import ID
 
 
+@pytest.fixture(autouse=True)
+def clear_registry():
+    """Clear registry before and after each test."""
+    SchemaRegistry.clear()
+    yield
+    SchemaRegistry.clear()
+
+
 class TestFieldScopeDeclaration:
     """Test declaring field-level scope requirements."""
 

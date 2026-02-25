@@ -472,3 +472,58 @@ def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None
     assert sub["entity_type"] == "Order"
     assert sub["topic"] == "orders"
     assert sub["operation"] == "CREATE"
+
+
+# =============================================================================
+# Duplicate Registration Tests
+# =============================================================================
+
+
+def test_duplicate_type_registration_raises_error() -> None:
+    """Registering a type with a duplicate name raises ValueError."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    with pytest.raises(ValueError, match="already registered"):
+
+        @fraiseql.type
+        class User:  # noqa: F811
+            id: str
+
+
+def test_duplicate_query_registration_raises_error() -> None:
+    """Registering a query with a duplicate name raises ValueError."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.query(sql_source="v_user")
+    def get_user() -> User:
+        pass
+
+    with pytest.raises(ValueError, match="already registered"):
+
+        @fraiseql.query(sql_source="v_user")
+        def get_user() -> User:  # noqa: F811
+            pass
+
+
+def test_duplicate_mutation_registration_raises_error() -> None:
+    """Registering a mutation with a duplicate name raises ValueError."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    @fraiseql.mutation(operation="CREATE")
+    def create_user(name: str) -> User:
+        pass
+
+    with pytest.raises(ValueError, match="already registered"):
+
+        @fraiseql.mutation(operation="CREATE")
+        def create_user(name: str) -> User:  # noqa: F811
+            pass

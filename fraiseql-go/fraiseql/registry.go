@@ -31,6 +31,7 @@ type QueryDefinition struct {
 	Nullable    bool                   `json:"nullable"`
 	Arguments   []ArgumentDefinition   `json:"arguments"`
 	Description string                 `json:"description,omitempty"`
+	SqlSource   string                 `json:"sql_source,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
@@ -42,6 +43,8 @@ type MutationDefinition struct {
 	Nullable    bool                   `json:"nullable"`
 	Arguments   []ArgumentDefinition   `json:"arguments"`
 	Description string                 `json:"description,omitempty"`
+	Operation   string                 `json:"operation,omitempty"`
+	SqlSource   string                 `json:"sql_source,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
@@ -119,64 +122,94 @@ func getInstance() *SchemaRegistry {
 	return registry
 }
 
-// RegisterType registers a type with the schema registry
-func RegisterType(name string, fields []FieldInfo, description string) {
+// RegisterType registers a type with the schema registry.
+// Returns an error if a type with the same name is already registered.
+func RegisterType(name string, fields []FieldInfo, description string) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	if _, exists := reg.types[name]; exists {
+		return fmt.Errorf("type %q is already registered; each name must be unique within a schema", name)
+	}
 	reg.types[name] = TypeDefinition{
 		Name:        name,
 		Fields:      fields,
 		Description: description,
 	}
+	return nil
 }
 
-// RegisterQuery registers a query with the schema registry
-func RegisterQuery(definition QueryDefinition) {
+// RegisterQuery registers a query with the schema registry.
+// Returns an error if a query with the same name is already registered.
+func RegisterQuery(definition QueryDefinition) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	if _, exists := reg.queries[definition.Name]; exists {
+		return fmt.Errorf("query %q is already registered; each name must be unique within a schema", definition.Name)
+	}
 	reg.queries[definition.Name] = definition
+	return nil
 }
 
-// RegisterMutation registers a mutation with the schema registry
-func RegisterMutation(definition MutationDefinition) {
+// RegisterMutation registers a mutation with the schema registry.
+// Returns an error if a mutation with the same name is already registered.
+func RegisterMutation(definition MutationDefinition) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	if _, exists := reg.mutations[definition.Name]; exists {
+		return fmt.Errorf("mutation %q is already registered; each name must be unique within a schema", definition.Name)
+	}
 	reg.mutations[definition.Name] = definition
+	return nil
 }
 
-// RegisterFactTable registers a fact table with the schema registry
-func RegisterFactTable(definition FactTableDefinition) {
+// RegisterFactTable registers a fact table with the schema registry.
+// Returns an error if a fact table with the same name is already registered.
+func RegisterFactTable(definition FactTableDefinition) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	if _, exists := reg.factTables[definition.Name]; exists {
+		return fmt.Errorf("fact table %q is already registered; each name must be unique within a schema", definition.Name)
+	}
 	reg.factTables[definition.Name] = definition
+	return nil
 }
 
-// RegisterAggregateQuery registers an aggregate query with the schema registry
-func RegisterAggregateQuery(definition AggregateQueryDefinition) {
+// RegisterAggregateQuery registers an aggregate query with the schema registry.
+// Returns an error if an aggregate query with the same name is already registered.
+func RegisterAggregateQuery(definition AggregateQueryDefinition) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	if _, exists := reg.aggregateQueries[definition.Name]; exists {
+		return fmt.Errorf("aggregate query %q is already registered; each name must be unique within a schema", definition.Name)
+	}
 	reg.aggregateQueries[definition.Name] = definition
+	return nil
 }
 
-// RegisterSubscription registers a subscription with the schema registry
+// RegisterSubscription registers a subscription with the schema registry.
 // Subscriptions in FraiseQL are compiled projections of database events.
 // They are sourced from LISTEN/NOTIFY or CDC, not resolver-based.
-func RegisterSubscription(definition SubscriptionDefinition) {
+// Returns an error if a subscription with the same name is already registered.
+func RegisterSubscription(definition SubscriptionDefinition) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
 
+	if _, exists := reg.subscriptions[definition.Name]; exists {
+		return fmt.Errorf("subscription %q is already registered; each name must be unique within a schema", definition.Name)
+	}
 	reg.subscriptions[definition.Name] = definition
+	return nil
 }
 
 // GetRegistry returns the singleton registry instance

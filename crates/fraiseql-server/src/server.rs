@@ -47,6 +47,8 @@ pub struct Server<A: DatabaseAdapter> {
     oidc_validator:       Option<Arc<OidcValidator>>,
     rate_limiter:         Option<Arc<RateLimiter>>,
     secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
+    circuit_breaker:
+        Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -89,6 +91,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         adapter: Arc<A>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
+        // Read circuit breaker config from compiled schema BEFORE schema is moved.
+        let circuit_breaker = schema
+            .federation
+            .as_ref()
+            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
@@ -154,6 +162,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             oidc_validator,
             rate_limiter,
             secrets_manager: None,
+            circuit_breaker,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -194,6 +203,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
+        // Read circuit breaker config from compiled schema BEFORE schema is moved.
+        let circuit_breaker = schema
+            .federation
+            .as_ref()
+            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
@@ -246,6 +261,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             oidc_validator,
             rate_limiter,
             secrets_manager: None,
+            circuit_breaker,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -296,6 +312,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let Some(ref secrets_manager) = self.secrets_manager {
             state = state.with_secrets_manager(secrets_manager.clone());
             info!("SecretsManager attached to AppState");
+        }
+
+        // Attach federation circuit breaker if configured
+        if let Some(ref cb) = self.circuit_breaker {
+            state = state.with_circuit_breaker(cb.clone());
+            info!("Federation circuit breaker attached to AppState");
         }
 
         let metrics = state.metrics.clone();

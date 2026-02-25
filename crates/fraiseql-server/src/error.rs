@@ -38,6 +38,8 @@ pub enum ErrorCode {
     NotFound,
     /// Conflict.
     Conflict,
+    /// Circuit breaker open — federation entity temporarily unavailable.
+    CircuitBreakerOpen,
 }
 
 impl ErrorCode {
@@ -55,6 +57,7 @@ impl ErrorCode {
             Self::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             Self::Timeout => StatusCode::REQUEST_TIMEOUT,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::CircuitBreakerOpen => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 }
@@ -104,6 +107,10 @@ pub struct ErrorExtensions {
     /// Request ID for tracking.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
+
+    /// Seconds until the client may retry (set for `CircuitBreakerOpen` errors).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_secs: Option<u64>,
 }
 
 /// GraphQL response with errors.
@@ -151,9 +158,10 @@ impl GraphQLError {
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         let request_id = request_id.into();
         let extensions = self.extensions.take().unwrap_or(ErrorExtensions {
-            category:   None,
-            status:     None,
-            request_id: None,
+            category:         None,
+            status:           None,
+            request_id:       None,
+            retry_after_secs: None,
         });
 
         self.extensions = Some(ErrorExtensions {
@@ -220,6 +228,26 @@ impl GraphQLError {
     pub fn rate_limited(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::RateLimitExceeded)
     }
+
+    /// Circuit breaker open — federation entity temporarily unavailable.
+    ///
+    /// The response will carry a `Retry-After` header set to `retry_after_secs`.
+    #[must_use]
+    pub fn circuit_breaker_open(entity: &str, retry_after_secs: u64) -> Self {
+        Self::new(
+            format!(
+                "Federation entity '{entity}' is temporarily unavailable. \
+                 Please retry after {retry_after_secs} seconds."
+            ),
+            ErrorCode::CircuitBreakerOpen,
+        )
+        .with_extensions(ErrorExtensions {
+            category:         Some("CIRCUIT_BREAKER".to_string()),
+            status:           Some(503),
+            request_id:       None,
+            retry_after_secs: Some(retry_after_secs),
+        })
+    }
 }
 
 impl ErrorResponse {
@@ -245,7 +273,21 @@ impl IntoResponse for ErrorResponse {
             .first()
             .map_or(StatusCode::INTERNAL_SERVER_ERROR, |e| e.code.status_code());
 
-        (status, Json(self)).into_response()
+        let retry_after = self
+            .errors
+            .first()
+            .and_then(|e| e.extensions.as_ref())
+            .and_then(|ext| ext.retry_after_secs);
+
+        let mut response = (status, Json(self)).into_response();
+
+        if let Some(secs) = retry_after {
+            if let Ok(value) = secs.to_string().parse() {
+                response.headers_mut().insert(axum::http::header::RETRY_AFTER, value);
+            }
+        }
+
+        response
     }
 }
 
@@ -289,14 +331,39 @@ mod tests {
         assert_eq!(ErrorCode::Unauthenticated.status_code(), StatusCode::UNAUTHORIZED);
         assert_eq!(ErrorCode::Forbidden.status_code(), StatusCode::FORBIDDEN);
         assert_eq!(ErrorCode::DatabaseError.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(ErrorCode::CircuitBreakerOpen.status_code(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[test]
+    fn test_circuit_breaker_open_error() {
+        let error = GraphQLError::circuit_breaker_open("Product", 30);
+        assert_eq!(error.code, ErrorCode::CircuitBreakerOpen);
+        assert!(error.message.contains("Product"));
+        assert!(error.message.contains("30"));
+        let ext = error.extensions.unwrap();
+        assert_eq!(ext.retry_after_secs, Some(30));
+        assert_eq!(ext.category, Some("CIRCUIT_BREAKER".to_string()));
+    }
+
+    #[test]
+    fn test_circuit_breaker_response_has_retry_after_header() {
+        use axum::response::IntoResponse;
+
+        let response =
+            ErrorResponse::from_error(GraphQLError::circuit_breaker_open("User", 60))
+                .into_response();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let retry_after = response.headers().get(axum::http::header::RETRY_AFTER);
+        assert_eq!(retry_after.and_then(|v| v.to_str().ok()), Some("60"));
     }
 
     #[test]
     fn test_error_extensions() {
         let extensions = ErrorExtensions {
-            category:   Some("VALIDATION".to_string()),
-            status:     Some(400),
-            request_id: Some("req-123".to_string()),
+            category:         Some("VALIDATION".to_string()),
+            status:           Some(400),
+            request_id:       Some("req-123".to_string()),
+            retry_after_secs: None,
         };
 
         let error = GraphQLError::validation("Invalid").with_extensions(extensions);

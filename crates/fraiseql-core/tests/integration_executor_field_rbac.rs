@@ -130,6 +130,7 @@ fn create_executor_test_schema() -> CompiledSchema {
         fact_tables:    HashMap::default(),
         federation:     None,
         security:       Some(serde_json::to_value(security_config).unwrap()),
+        observers_config: None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
     }

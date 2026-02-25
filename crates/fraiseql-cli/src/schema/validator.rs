@@ -519,6 +519,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -555,6 +557,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -612,6 +616,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -654,6 +660,8 @@ mod tests {
             aggregate_queries: None,
             observers:         None,
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -705,6 +713,8 @@ mod tests {
                 },
             }]),
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -747,6 +757,8 @@ mod tests {
                 },
             }]),
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -794,6 +806,8 @@ mod tests {
                 },
             }]),
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -841,6 +855,8 @@ mod tests {
                 },
             }]),
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -888,6 +904,8 @@ mod tests {
                 },
             }]),
             custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();

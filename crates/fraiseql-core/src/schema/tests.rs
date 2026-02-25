@@ -137,6 +137,7 @@ fn test_schema_to_json_roundtrip() {
         observers:      Vec::new(),
         federation:     None,
         security:       None,
+        observers_config: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
@@ -279,12 +280,6 @@ fn test_mutation_operation_serialization() {
     let json = serde_json::to_string(&insert).unwrap();
     assert_eq!(json, r#"{"Insert":{"table":"users"}}"#);
 
-    let function = MutationOperation::Function {
-        name: "create_user".to_string(),
-    };
-    let json = serde_json::to_string(&function).unwrap();
-    assert_eq!(json, r#"{"Function":{"name":"create_user"}}"#);
-
     let custom = MutationOperation::Custom;
     let json = serde_json::to_string(&custom).unwrap();
     assert_eq!(json, r#""Custom""#);
@@ -333,6 +328,7 @@ fn test_operation_count() {
         observers:      Vec::new(),
         federation:     None,
         security:       None,
+        observers_config: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
@@ -704,6 +700,7 @@ fn test_vector_field_roundtrip() {
         observers:      Vec::new(),
         federation:     None,
         security:       None,
+        observers_config: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };

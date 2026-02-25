@@ -15,6 +15,53 @@ use crate::{
     },
 };
 
+/// Select and execute the appropriate schema-loading strategy for TOML-based workflows.
+///
+/// Tries strategies in priority order:
+/// 1. Explicit file lists (highest priority)
+/// 2. Directory auto-discovery
+/// 3. Single types file (backward-compatible)
+/// 4. Domain discovery → TOML includes → TOML-only (fallback sequence)
+fn load_intermediate_schema(
+    toml_path: &str,
+    type_files: &[String],
+    query_files: &[String],
+    mutation_files: &[String],
+    schema_dir: Option<&str>,
+    types_path: Option<&str>,
+) -> Result<IntermediateSchema> {
+    if !type_files.is_empty() || !query_files.is_empty() || !mutation_files.is_empty() {
+        info!("Mode: Explicit file lists");
+        return crate::schema::SchemaMerger::merge_explicit_files(
+            toml_path,
+            type_files,
+            query_files,
+            mutation_files,
+        )
+        .context("Failed to load explicit schema files");
+    }
+    if let Some(dir) = schema_dir {
+        info!("Mode: Auto-discovery from directory: {}", dir);
+        return crate::schema::SchemaMerger::merge_from_directory(toml_path, dir)
+            .context("Failed to load schema from directory");
+    }
+    if let Some(types) = types_path {
+        info!("Mode: Language + TOML (types.json + fraiseql.toml)");
+        return crate::schema::SchemaMerger::merge_files(types, toml_path)
+            .context("Failed to merge types.json with TOML");
+    }
+    info!("Mode: TOML-based (checking for domain discovery...)");
+    if let Ok(schema) = crate::schema::SchemaMerger::merge_from_domains(toml_path) {
+        return Ok(schema);
+    }
+    info!("No domains configured, checking for TOML includes...");
+    if let Ok(schema) = crate::schema::SchemaMerger::merge_with_includes(toml_path) {
+        return Ok(schema);
+    }
+    info!("No includes configured, using TOML-only definitions");
+    crate::schema::SchemaMerger::merge_toml_only(toml_path).context("Failed to load schema from TOML")
+}
+
 /// Compile a schema to `CompiledSchema` without writing to disk.
 ///
 /// This is the core compilation logic, shared between `compile` (which writes to disk)
@@ -58,53 +105,8 @@ pub async fn compile_to_schema(
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"));
     let mut intermediate: IntermediateSchema = if is_toml {
-        // TOML workflow (new)
         info!("Using TOML-based workflow");
-
-        // Determine mode based on precedence:
-        // 1. Explicit file lists (highest priority)
-        // 2. --schema-dir auto-discovery
-        // 3. Domain discovery (from TOML config)
-        // 4. TOML includes (if configured)
-        // 5. --types single file
-        // 6. TOML-only (no external files)
-
-        if !type_files.is_empty() || !query_files.is_empty() || !mutation_files.is_empty() {
-            // Mode 1: Explicit file lists
-            info!("Mode: Explicit file lists");
-            crate::schema::SchemaMerger::merge_explicit_files(
-                input,
-                &type_files,
-                &query_files,
-                &mutation_files,
-            )
-            .context("Failed to load explicit schema files")?
-        } else if let Some(dir) = schema_dir {
-            // Mode 2: Auto-discovery directory
-            info!("Mode: Auto-discovery from directory: {}", dir);
-            crate::schema::SchemaMerger::merge_from_directory(input, dir)
-                .context("Failed to load schema from directory")?
-        } else if let Some(types_path) = types {
-            // Mode 3: Single types.json file (backward compatible)
-            info!("Mode: Language + TOML (types.json + fraiseql.toml)");
-            crate::schema::SchemaMerger::merge_files(types_path, input)
-                .context("Failed to merge types.json with TOML")?
-        } else {
-            // Try modes in order: domain discovery → includes → toml-only
-            info!("Mode: TOML-based (checking for domain discovery...)");
-            if let Ok(schema) = crate::schema::SchemaMerger::merge_from_domains(input) {
-                schema
-            } else {
-                info!("No domains configured, checking for TOML includes...");
-                if let Ok(schema) = crate::schema::SchemaMerger::merge_with_includes(input) {
-                    schema
-                } else {
-                    info!("No includes configured, using TOML-only definitions");
-                    crate::schema::SchemaMerger::merge_toml_only(input)
-                        .context("Failed to load schema from TOML")?
-                }
-            }
-        }
+        load_intermediate_schema(input, &type_files, &query_files, &mutation_files, schema_dir, types)?
     } else {
         // Legacy JSON workflow
         info!("Using legacy JSON workflow");
@@ -131,8 +133,10 @@ pub async fn compile_to_schema(
                 info!("Security configuration applied successfully");
             },
             Err(e) => {
-                warn!("Failed to load fraiseql.toml: {e}");
-                warn!("Continuing with default security configuration");
+                anyhow::bail!(
+                    "Failed to parse fraiseql.toml: {e}\n\
+                     Fix the configuration file or remove it to use defaults."
+                );
             },
         }
     } else {
@@ -395,6 +399,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -432,6 +437,7 @@ mod tests {
             fact_tables:    HashMap::default(),
             federation:     None,
             security:       None,
+            observers_config: None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };

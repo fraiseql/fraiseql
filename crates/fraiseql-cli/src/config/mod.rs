@@ -16,7 +16,7 @@ use tracing::info;
 
 /// Project configuration from fraiseql.toml
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct FraiseQLConfig {
     /// Project metadata (name, version, description)
     #[serde(rename = "project")]
@@ -29,7 +29,7 @@ pub struct FraiseQLConfig {
 
 /// Project metadata
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProjectConfig {
     /// Project name
     pub name:        String,
@@ -51,7 +51,7 @@ impl Default for ProjectConfig {
 
 /// FraiseQL-specific settings
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct FraiseQLSettings {
     /// Path to the GraphQL schema file
     pub schema_file: String,

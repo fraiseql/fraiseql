@@ -1,6 +1,8 @@
 """Global schema registry for collecting types, queries, and mutations."""
 
-from typing import Any
+from typing import Any, TypeAlias
+
+SchemaElement: TypeAlias = dict[str, Any]
 
 
 class SchemaRegistry:
@@ -11,15 +13,28 @@ class SchemaRegistry:
     """
 
     # Class-level storage (singleton pattern)
-    _types: dict[str, dict[str, Any]] = {}
-    _enums: dict[str, dict[str, Any]] = {}
-    _input_types: dict[str, dict[str, Any]] = {}
-    _interfaces: dict[str, dict[str, Any]] = {}
-    _unions: dict[str, dict[str, Any]] = {}
-    _queries: dict[str, dict[str, Any]] = {}
-    _mutations: dict[str, dict[str, Any]] = {}
-    _subscriptions: dict[str, dict[str, Any]] = {}
+    _types: dict[str, SchemaElement] = {}
+    _enums: dict[str, SchemaElement] = {}
+    _input_types: dict[str, SchemaElement] = {}
+    _interfaces: dict[str, SchemaElement] = {}
+    _unions: dict[str, SchemaElement] = {}
+    _queries: dict[str, SchemaElement] = {}
+    _mutations: dict[str, SchemaElement] = {}
+    _subscriptions: dict[str, SchemaElement] = {}
     _custom_scalars: dict[str, tuple[type, str | None]] = {}  # name -> (class, description)
+
+    @staticmethod
+    def _build_field_def(field_name: str, field_info: SchemaElement) -> SchemaElement:
+        """Build a single field definition dict from a field name and info mapping."""
+        field_def: dict[str, Any] = {
+            "name": field_name,
+            "type": field_info["type"],
+            "nullable": field_info["nullable"],
+        }
+        for key in ("requires_scope", "deprecated", "description"):
+            if key in field_info:
+                field_def[key] = field_info[key]
+        return field_def
 
     @classmethod
     def register_type(
@@ -37,30 +52,18 @@ class SchemaRegistry:
             description: Optional type description from docstring
             implements: List of interface names this type implements
         """
-        # Build field list
-        field_list = []
-        for field_name, field_info in fields.items():
-            field_def: dict[str, Any] = {
-                "name": field_name,
-                "type": field_info["type"],
-                "nullable": field_info["nullable"],
-            }
-
-            # Include optional metadata: requires_scope, deprecated, description
-            if "requires_scope" in field_info:
-                field_def["requires_scope"] = field_info["requires_scope"]
-            if "deprecated" in field_info:
-                field_def["deprecated"] = field_info["deprecated"]
-            if "description" in field_info:
-                field_def["description"] = field_info["description"]
-
-            field_list.append(field_def)
+        field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
         type_def: dict[str, Any] = {
             "name": name,
             "fields": field_list,
             "description": description,
         }
+
+        if name in cls._types:
+            raise ValueError(
+                f"Type {name!r} is already registered. Each name must be unique within a schema."
+            )
 
         # Add implements if specified
         if implements:
@@ -82,24 +85,13 @@ class SchemaRegistry:
             fields: Dictionary of field_name -> {"type": str, "nullable": bool, ...metadata}
             description: Optional interface description from docstring
         """
-        # Build field list with metadata
-        field_list = []
-        for field_name, field_info in fields.items():
-            field_def: dict[str, Any] = {
-                "name": field_name,
-                "type": field_info["type"],
-                "nullable": field_info["nullable"],
-            }
+        field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
-            # Include optional metadata: requires_scope, deprecated, description
-            if "requires_scope" in field_info:
-                field_def["requires_scope"] = field_info["requires_scope"]
-            if "deprecated" in field_info:
-                field_def["deprecated"] = field_info["deprecated"]
-            if "description" in field_info:
-                field_def["description"] = field_info["description"]
-
-            field_list.append(field_def)
+        if name in cls._interfaces:
+            raise ValueError(
+                f"Interface {name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
 
         cls._interfaces[name] = {
             "name": name,
@@ -121,6 +113,10 @@ class SchemaRegistry:
             values: List of enum value definitions
             description: Optional enum description from docstring
         """
+        if name in cls._enums:
+            raise ValueError(
+                f"Enum {name!r} is already registered. Each name must be unique within a schema."
+            )
         cls._enums[name] = {
             "name": name,
             "values": values,
@@ -141,6 +137,11 @@ class SchemaRegistry:
             fields: List of field definitions
             description: Optional input type description from docstring
         """
+        if name in cls._input_types:
+            raise ValueError(
+                f"Input type {name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
         cls._input_types[name] = {
             "name": name,
             "fields": fields,
@@ -164,6 +165,10 @@ class SchemaRegistry:
             member_types: List of object type names that belong to this union
             description: Optional union description from docstring
         """
+        if name in cls._unions:
+            raise ValueError(
+                f"Union {name!r} is already registered. Each name must be unique within a schema."
+            )
         cls._unions[name] = {
             "name": name,
             "member_types": member_types,
@@ -192,6 +197,11 @@ class SchemaRegistry:
             description: Optional query description from docstring
             **config: Additional configuration (sql_source, etc.)
         """
+        if name in cls._queries:
+            raise ValueError(
+                f"Query {name!r} is already registered. Each name must be unique within a schema."
+            )
+
         # Clean return type (remove list brackets for returns_list queries)
         clean_type = return_type.strip("[]!") if returns_list else return_type
 
@@ -227,6 +237,12 @@ class SchemaRegistry:
             description: Optional mutation description from docstring
             **config: Additional configuration (sql_source, operation, etc.)
         """
+        if name in cls._mutations:
+            raise ValueError(
+                f"Mutation {name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
+
         # Clean return type (remove list brackets for returns_list mutations)
         clean_type = return_type.strip("[]!") if returns_list else return_type
 
@@ -263,6 +279,11 @@ class SchemaRegistry:
             description: Optional subscription description from docstring
             **config: Additional configuration (topic, operation, etc.)
         """
+        if name in cls._subscriptions:
+            raise ValueError(
+                f"Subscription {name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
         cls._subscriptions[name] = {
             "name": name,
             "entity_type": entity_type,

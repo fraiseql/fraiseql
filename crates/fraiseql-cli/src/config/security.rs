@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// Audit logging configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AuditLoggingConfig {
     /// Enable audit logging
     pub enabled:                bool,
@@ -50,7 +50,7 @@ impl AuditLoggingConfig {
 
 /// Error sanitization configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationConfig {
     /// Enable error sanitization
     pub enabled:                bool,
@@ -101,7 +101,7 @@ impl ErrorSanitizationConfig {
 
 /// Rate limiting configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RateLimitConfig {
     /// Enable rate limiting
     pub enabled: bool,
@@ -197,7 +197,7 @@ impl RateLimitConfig {
 
 /// State encryption configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct StateEncryptionConfig {
     /// Enable state encryption
     pub enabled:              bool,
@@ -249,7 +249,7 @@ impl StateEncryptionConfig {
 
 /// Constant-time comparison configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ConstantTimeConfig {
     /// Enable constant-time comparisons
     pub enabled:                 bool,
@@ -290,6 +290,7 @@ impl ConstantTimeConfig {
 
 /// Field-level RBAC role definition from fraiseql.toml
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RoleDefinitionConfig {
     /// Role name identifier
     pub name:        String,
@@ -302,7 +303,7 @@ pub struct RoleDefinitionConfig {
 
 /// Complete security configuration from fraiseql.toml
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct SecurityConfig {
     /// Audit logging configuration
     #[serde(rename = "audit_logging")]

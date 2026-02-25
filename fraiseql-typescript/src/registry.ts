@@ -232,6 +232,26 @@ export interface Schema {
   fact_tables?: FactTableDefinition[];
   aggregate_queries?: AggregateQueryDefinition[];
   observers?: ObserverDefinition[];
+  /** Apollo Federation v2 metadata, included when generateSchemaJson() is used. */
+  federation?: { enabled: boolean; version: string; [key: string]: unknown };
+}
+
+/**
+ * Normalise camelCase config keys to snake_case so the Rust compiler receives
+ * the expected field names.  Currently handles the known camelCase keys used
+ * in decorator config objects.
+ */
+function normaliseConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const keyMap: Record<string, string> = {
+    sqlSource: "sql_source",
+    autoParams: "auto_params",
+    jsonbColumn: "jsonb_column",
+  };
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    result[keyMap[key] ?? key] = value;
+  }
+  return result;
 }
 
 /**
@@ -262,6 +282,11 @@ export class SchemaRegistry {
    * @param description - Optional type description
    */
   static registerType(name: string, fields: Field[], description?: string): void {
+    if (this.types.has(name)) {
+      throw new Error(
+        `Type '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     this.types.set(name, {
       name,
       fields,
@@ -289,7 +314,15 @@ export class SchemaRegistry {
     description?: string,
     config?: Record<string, unknown>
   ): void {
+    if (this.queries.has(name)) {
+      throw new Error(
+        `Query '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
+
+    // Normalise camelCase config keys to snake_case for the compiler
+    const normalisedConfig = config ? normaliseConfig(config) : undefined;
 
     this.queries.set(name, {
       name,
@@ -298,7 +331,7 @@ export class SchemaRegistry {
       nullable,
       arguments: args,
       description,
-      ...config,
+      ...normalisedConfig,
     });
   }
 
@@ -322,7 +355,15 @@ export class SchemaRegistry {
     description?: string,
     config?: Record<string, unknown>
   ): void {
+    if (this.mutations.has(name)) {
+      throw new Error(
+        `Mutation '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
+
+    // Normalise camelCase config keys to snake_case for the compiler
+    const normalisedConfig = config ? normaliseConfig(config) : undefined;
 
     this.mutations.set(name, {
       name,
@@ -331,7 +372,7 @@ export class SchemaRegistry {
       nullable,
       arguments: args,
       description,
-      ...config,
+      ...normalisedConfig,
     });
   }
 
@@ -356,6 +397,11 @@ export class SchemaRegistry {
     description?: string,
     config?: Record<string, unknown>
   ): void {
+    if (this.subscriptions.has(name)) {
+      throw new Error(
+        `Subscription '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     this.subscriptions.set(name, {
       name,
       entity_type: entityType,
@@ -454,6 +500,11 @@ export class SchemaRegistry {
    * @param description - Optional enum description
    */
   static registerEnum(name: string, values: EnumValue[], description?: string): void {
+    if (this.enums.has(name)) {
+      throw new Error(
+        `Enum '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     this.enums.set(name, {
       name,
       values,
@@ -469,6 +520,11 @@ export class SchemaRegistry {
    * @param description - Optional interface description
    */
   static registerInterface(name: string, fields: Field[], description?: string): void {
+    if (this.interfaces.has(name)) {
+      throw new Error(
+        `Interface '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     this.interfaces.set(name, {
       name,
       fields,
@@ -488,6 +544,11 @@ export class SchemaRegistry {
     fields: Array<Field & { default?: unknown }>,
     description?: string
   ): void {
+    if (this.inputTypes.has(name)) {
+      throw new Error(
+        `Input type '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     this.inputTypes.set(name, {
       name,
       fields,
@@ -503,6 +564,11 @@ export class SchemaRegistry {
    * @param description - Optional union description
    */
   static registerUnion(name: string, memberTypes: string[], description?: string): void {
+    if (this.unions.has(name)) {
+      throw new Error(
+        `Union '${name}' is already registered. Each name must be unique within a schema.`
+      );
+    }
     this.unions.set(name, {
       name,
       member_types: memberTypes,
@@ -521,7 +587,9 @@ export class SchemaRegistry {
    */
   static registerScalar(name: string, scalarClass: any, description?: string): void {
     if (this.customScalars.has(name)) {
-      throw new Error(`Scalar ${name!r} is already registered`);
+      throw new Error(
+        `Scalar '${name}' is already registered. Each name must be unique within a schema.`
+      );
     }
     this.customScalars.set(name, { class: scalarClass, description });
   }

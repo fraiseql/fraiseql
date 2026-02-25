@@ -170,9 +170,10 @@ fn test_database_error_sanitized() {
     // Simulate what the error sanitizer should produce
     let error = GraphQLError::database("Service temporarily unavailable").with_extensions(
         ErrorExtensions {
-            category:   Some("DATABASE".to_string()),
-            status:     Some(503),
-            request_id: Some("req-001".to_string()),
+            category:         Some("DATABASE".to_string()),
+            status:           Some(503),
+            request_id:       Some("req-001".to_string()),
+            retry_after_secs: None,
         },
     );
 
@@ -189,9 +190,10 @@ fn test_query_during_outage_returns_503_error() {
     let error =
         GraphQLError::new("Service temporarily unavailable", ErrorCode::InternalServerError)
             .with_extensions(ErrorExtensions {
-                category:   Some("DATABASE".to_string()),
-                status:     Some(503),
-                request_id: Some("req-002".to_string()),
+                category:         Some("DATABASE".to_string()),
+                status:           Some(503),
+                request_id:       Some("req-002".to_string()),
+                retry_after_secs: None,
             });
 
     assert_eq!(error.code, ErrorCode::InternalServerError);

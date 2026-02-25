@@ -95,78 +95,24 @@ impl SchemaParser {
             location: "root".to_string(),
         })?;
 
-        // Parse types
-        let types = if let Some(types_val) = obj.get("types") {
-            self.parse_types(types_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse queries
-        let queries = if let Some(queries_val) = obj.get("queries") {
-            self.parse_queries(queries_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse mutations
-        let mutations = if let Some(mutations_val) = obj.get("mutations") {
-            self.parse_mutations(mutations_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse subscriptions
-        let subscriptions = if let Some(subscriptions_val) = obj.get("subscriptions") {
-            self.parse_subscriptions(subscriptions_val)?
-        } else {
-            Vec::new()
-        };
-
-        let fact_tables = if let Some(fact_tables_val) = obj.get("fact_tables") {
-            if let Some(obj) = fact_tables_val.as_object() {
-                obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-            } else {
-                std::collections::HashMap::new()
-            }
-        } else {
-            std::collections::HashMap::new()
-        };
-
-        // Parse enums if present
-        let enums = if let Some(enums_val) = obj.get("enums") {
-            EnumValidator::parse_enums(enums_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse interfaces if present
-        let interfaces = if let Some(interfaces_val) = obj.get("interfaces") {
-            self.parse_interfaces(interfaces_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse unions if present
-        let unions = if let Some(unions_val) = obj.get("unions") {
-            self.parse_unions(unions_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse input types if present
-        let input_types = if let Some(input_types_val) = obj.get("input_types") {
-            self.parse_input_types(input_types_val)?
-        } else {
-            Vec::new()
-        };
-
-        // Parse scalars if present
-        let scalars = if let Some(scalars_val) = obj.get("scalars") {
-            self.parse_scalars(scalars_val)?
-        } else {
-            Vec::new()
-        };
+        let types = obj.get("types").map_or(Ok(vec![]), |v| self.parse_types(v))?;
+        let queries = obj.get("queries").map_or(Ok(vec![]), |v| self.parse_queries(v))?;
+        let mutations = obj.get("mutations").map_or(Ok(vec![]), |v| self.parse_mutations(v))?;
+        let subscriptions =
+            obj.get("subscriptions").map_or(Ok(vec![]), |v| self.parse_subscriptions(v))?;
+        let fact_tables = obj
+            .get("fact_tables")
+            .and_then(Value::as_object)
+            .map_or_else(std::collections::HashMap::new, |o| {
+                o.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            });
+        let enums = obj.get("enums").map_or(Ok(vec![]), |v| EnumValidator::parse_enums(v))?;
+        let interfaces =
+            obj.get("interfaces").map_or(Ok(vec![]), |v| self.parse_interfaces(v))?;
+        let unions = obj.get("unions").map_or(Ok(vec![]), |v| self.parse_unions(v))?;
+        let input_types =
+            obj.get("input_types").map_or(Ok(vec![]), |v| self.parse_input_types(v))?;
+        let scalars = obj.get("scalars").map_or(Ok(vec![]), |v| self.parse_scalars(v))?;
 
         // Warn about unsupported fragments feature
         if obj.contains_key("fragments") {
@@ -389,16 +335,25 @@ impl SchemaParser {
             Vec::new()
         };
 
-        let operation = obj
-            .get("operation")
-            .and_then(|v| v.as_str())
-            .map(|s| match s {
+        let operation = if let Some(s) = obj.get("operation").and_then(|v| v.as_str()) {
+            match s.to_lowercase().as_str() {
                 "create" => MutationOperation::Create,
                 "update" => MutationOperation::Update,
                 "delete" => MutationOperation::Delete,
-                _ => MutationOperation::Custom,
-            })
-            .unwrap_or(MutationOperation::Custom);
+                "custom" => MutationOperation::Custom,
+                other => {
+                    return Err(FraiseQLError::Parse {
+                        message:  format!(
+                            "Mutation '{name}' has unknown operation {other:?}. \
+                             Valid values are: create, update, delete, custom"
+                        ),
+                        location: format!("mutations.{name}.operation"),
+                    })
+                },
+            }
+        } else {
+            MutationOperation::Custom
+        };
 
         Ok(IRMutation {
             name,
@@ -866,6 +821,67 @@ mod tests {
         assert_eq!(ir.mutations[0].name, "createUser");
         assert_eq!(ir.mutations[0].operation, MutationOperation::Create);
         assert_eq!(ir.mutations[0].arguments.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_mutation_operation_case_insensitive() {
+        // Test that operation strings are accepted in any case (lowercase, uppercase, mixed)
+        let parser = SchemaParser::new();
+
+        let cases: &[(&str, MutationOperation)] = &[
+            ("create", MutationOperation::Create),
+            ("CREATE", MutationOperation::Create),
+            ("Create", MutationOperation::Create),
+            ("update", MutationOperation::Update),
+            ("UPDATE", MutationOperation::Update),
+            ("delete", MutationOperation::Delete),
+            ("DELETE", MutationOperation::Delete),
+            ("custom", MutationOperation::Custom),
+            ("CUSTOM", MutationOperation::Custom),
+        ];
+
+        for (op_str, expected) in cases {
+            let json = format!(
+                r#"{{"mutations": [{{"name": "m", "return_type": "T", "nullable": false, "operation": "{op_str}", "arguments": []}}]}}"#
+            );
+            let ir = parser.parse(&json).unwrap_or_else(|e| {
+                panic!("Expected parse to succeed for operation {op_str:?}, got error: {e}")
+            });
+            assert_eq!(
+                ir.mutations[0].operation, *expected,
+                "operation {op_str:?} should map to {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_mutation_operation_missing_defaults_to_custom() {
+        let parser = SchemaParser::new();
+        let json =
+            r#"{"mutations": [{"name": "m", "return_type": "T", "nullable": false, "arguments": []}]}"#;
+        let ir = parser.parse(json).unwrap();
+        assert_eq!(ir.mutations[0].operation, MutationOperation::Custom);
+    }
+
+    #[test]
+    fn test_parse_mutation_operation_typo_returns_error() {
+        let parser = SchemaParser::new();
+        let invalid_ops = &["creat", "CREAT", "updaet", "delet", "FUNCTION", "insert"];
+        for op in invalid_ops {
+            let json = format!(
+                r#"{{"mutations": [{{"name": "m", "return_type": "T", "nullable": false, "operation": "{op}", "arguments": []}}]}}"#
+            );
+            let result = parser.parse(&json);
+            assert!(
+                result.is_err(),
+                "Expected parse error for unknown operation {op:?}, but got Ok"
+            );
+            let err = result.unwrap_err().to_string();
+            assert!(
+                err.contains("unknown operation"),
+                "Error for {op:?} should mention 'unknown operation', got: {err}"
+            );
+        }
     }
 
     #[test]

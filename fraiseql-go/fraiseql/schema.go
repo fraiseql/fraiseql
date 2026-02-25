@@ -4,11 +4,58 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
+
+var builtinScalars = map[string]struct{}{
+	"String": {}, "Int": {}, "Float": {}, "Boolean": {}, "ID": {},
+}
+
+// validateSchemaBeforeExport checks that all query and mutation return types
+// refer to registered types, returning a descriptive error if not.
+func validateSchemaBeforeExport(schema Schema) error {
+	registeredNames := make(map[string]struct{})
+	for _, t := range schema.Types {
+		registeredNames[t.Name] = struct{}{}
+	}
+	for k, v := range builtinScalars {
+		registeredNames[k] = v
+	}
+
+	var errs []string
+
+	for _, q := range schema.Queries {
+		if _, ok := registeredNames[q.ReturnType]; !ok && q.ReturnType != "" {
+			errs = append(errs, fmt.Sprintf(
+				"query %q has return type %q which is not a registered type", q.Name, q.ReturnType,
+			))
+		}
+	}
+	for _, m := range schema.Mutations {
+		if _, ok := registeredNames[m.ReturnType]; !ok && m.ReturnType != "" {
+			errs = append(errs, fmt.Sprintf(
+				"mutation %q has return type %q which is not a registered type", m.Name, m.ReturnType,
+			))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(
+			"schema validation failed before export. Fix the following errors:\n  - %s",
+			strings.Join(errs, "\n  - "),
+		)
+	}
+	return nil
+}
 
 // ExportSchema exports the schema registry to a JSON file
 // Returns error if file cannot be written
 func ExportSchema(outputPath string) error {
+	schema := GetSchema()
+	if err := validateSchemaBeforeExport(schema); err != nil {
+		return err
+	}
+
 	schemaJSON, err := GetSchemaJSON(true)
 	if err != nil {
 		return fmt.Errorf("failed to marshal schema to JSON: %w", err)
@@ -21,7 +68,6 @@ func ExportSchema(outputPath string) error {
 	}
 
 	// Print summary
-	schema := GetSchema()
 	fmt.Printf("✅ Schema exported to %s\n", outputPath)
 	fmt.Printf("   Types: %d\n", len(schema.Types))
 	fmt.Printf("   Queries: %d\n", len(schema.Queries))

@@ -60,7 +60,7 @@ export function validateCustomScalar(
   value: unknown,
   context: "serialize" | "parseValue" | "parseLiteral" = "parseValue"
 ): unknown {
-  const instance = new scalarClass();
+  const instance = new (scalarClass as any)();
   const scalarName = instance.name;
 
   try {

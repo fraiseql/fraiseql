@@ -78,6 +78,20 @@ pub struct IntermediateSchema {
     /// Optional - if not provided, defaults are used.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub security: Option<serde_json::Value>,
+
+    /// Observers/event system configuration (from fraiseql.toml).
+    ///
+    /// Contains backend connection settings (redis_url, nats_url, etc.) compiled
+    /// from the `[observers]` TOML section. Embedded verbatim into the compiled schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observers_config: Option<serde_json::Value>,
+
+    /// Federation configuration (from fraiseql.toml).
+    ///
+    /// Contains Apollo Federation settings and circuit breaker configuration compiled
+    /// from the `[federation]` TOML section. Embedded verbatim into the compiled schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federation_config: Option<serde_json::Value>,
 }
 
 fn default_version() -> String {

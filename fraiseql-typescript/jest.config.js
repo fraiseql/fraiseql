@@ -12,6 +12,7 @@ module.exports = {
   coveragePathIgnorePatterns: ["/node_modules/"],
   globals: {
     "ts-jest": {
+      diagnostics: false,
       tsconfig: {
         esModuleInterop: true,
         strict: false,

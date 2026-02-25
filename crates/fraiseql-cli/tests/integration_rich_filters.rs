@@ -31,6 +31,8 @@ fn test_rich_filter_compilation_pipeline() {
         aggregate_queries: None,
         observers:         None,
         custom_scalars:    None,
+        observers_config:  None,
+        federation_config: None,
     };
 
     // 2. Compile to schema
@@ -98,6 +100,8 @@ fn test_all_rich_types_generate_where_input() {
         aggregate_queries: None,
         observers:         None,
         custom_scalars:    None,
+        observers_config:  None,
+        federation_config: None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -152,6 +156,8 @@ fn test_where_input_fields_include_standard_operators() {
         aggregate_queries: None,
         observers:         None,
         custom_scalars:    None,
+        observers_config:  None,
+        federation_config: None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -201,6 +207,8 @@ fn test_sql_templates_cover_all_databases() {
         aggregate_queries: None,
         observers:         None,
         custom_scalars:    None,
+        observers_config:  None,
+        federation_config: None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -261,6 +269,8 @@ fn test_lookup_data_integrity() {
         aggregate_queries: None,
         observers:         None,
         custom_scalars:    None,
+        observers_config:  None,
+        federation_config: None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -320,6 +330,8 @@ fn test_compiled_schema_is_valid() {
         aggregate_queries: None,
         observers:         None,
         custom_scalars:    None,
+        observers_config:  None,
+        federation_config: None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

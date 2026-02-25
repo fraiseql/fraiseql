@@ -206,6 +206,7 @@ impl CodeGenerator {
             // Security configuration: populated from fraiseql.toml
             security: None,
             // Raw schema SDL: populated for federation _service query
+            observers_config: None,
             schema_sdl: None,
             // Custom scalar types registry
             custom_scalars,

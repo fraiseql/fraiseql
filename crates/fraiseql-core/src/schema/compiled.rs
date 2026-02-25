@@ -228,6 +228,13 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub security: Option<serde_json::Value>,
 
+    /// Observers/event system configuration (from fraiseql.toml).
+    ///
+    /// Contains backend connection settings (redis_url, nats_url, etc.) and
+    /// event handler definitions compiled from the `[observers]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observers_config: Option<serde_json::Value>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
@@ -257,6 +264,7 @@ impl PartialEq for CompiledSchema {
             && self.observers == other.observers
             && self.federation == other.federation
             && self.security == other.security
+            && self.observers_config == other.observers_config
             && self.schema_sdl == other.schema_sdl
     }
 }
@@ -1502,12 +1510,6 @@ pub enum MutationOperation {
     Delete {
         /// Target table name.
         table: String,
-    },
-
-    /// Call a database function.
-    Function {
-        /// Function name.
-        name: String,
     },
 
     /// Custom mutation (for complex operations).
