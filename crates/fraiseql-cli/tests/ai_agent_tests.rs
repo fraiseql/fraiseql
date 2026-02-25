@@ -8,7 +8,7 @@ use std::process::Command;
 use serde_json::Value;
 
 fn run_cli(args: &[&str]) -> (String, i32) {
-    let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_fraiseql"))
         .args(args)
         .output()
         .expect("Failed to execute CLI");
@@ -249,7 +249,7 @@ mod exit_codes_in_help {
 
     #[test]
     fn regular_help_shows_exit_codes() {
-        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql"))
             .args(["--help"])
             .output()
             .expect("Failed to execute CLI");
@@ -267,7 +267,7 @@ mod examples_in_help {
 
     #[test]
     fn compile_help_shows_examples() {
-        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql"))
             .args(["compile", "--help"])
             .output()
             .expect("Failed to execute CLI");
@@ -282,7 +282,7 @@ mod examples_in_help {
 
     #[test]
     fn validate_help_shows_examples() {
-        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql"))
             .args(["validate", "--help"])
             .output()
             .expect("Failed to execute CLI");
@@ -293,7 +293,7 @@ mod examples_in_help {
 
     #[test]
     fn lint_help_shows_examples() {
-        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql"))
             .args(["lint", "--help"])
             .output()
             .expect("Failed to execute CLI");

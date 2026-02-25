@@ -12,7 +12,7 @@ use tempfile::TempDir;
 
 /// Helper to compile a schema and verify success
 fn compile_schema(toml_path: &Path) -> Result<String, String> {
-    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql");
 
     // Run fraiseql compile
     let output = std::process::Command::new(cli_path)

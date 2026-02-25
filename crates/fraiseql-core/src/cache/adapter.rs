@@ -910,6 +910,13 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::disabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
         // First query
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
@@ -935,6 +942,13 @@ mod tests {
         let mock = MockAdapter::new();
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
 
         // Simple query 1: no WHERE, no LIMIT
         // This should bypass cache and execute directly
@@ -1135,6 +1149,13 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
         // Pre-populate cache with multiple views
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
@@ -1217,6 +1238,13 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
         // Pre-populate cache
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
@@ -1253,6 +1281,13 @@ mod tests {
         let mock = MockAdapter::new();
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
 
         // Pre-populate cache
         adapter
@@ -1296,6 +1331,13 @@ mod tests {
         let mock = MockAdapter::new();
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
 
         // Pre-populate cache
         adapter
@@ -1375,6 +1417,13 @@ mod tests {
         let mock = MockAdapter::new();
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
 
         // Pre-populate cache
         adapter

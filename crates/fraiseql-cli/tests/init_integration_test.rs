@@ -13,7 +13,7 @@ use tempfile::TempDir;
 
 /// Helper: get the CLI binary path
 fn cli_bin() -> String {
-    env!("CARGO_BIN_EXE_fraiseql-cli").to_string()
+    env!("CARGO_BIN_EXE_fraiseql").to_string()
 }
 
 /// Helper: run `fraiseql init` with given args, return (success, stdout, stderr)
