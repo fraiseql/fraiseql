@@ -5,6 +5,23 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.20] - 2026-02-25
+
+### Fixed
+
+- **Scalar fields on `@fraiseql.error` types silently resolve to `None`** (#294): When a
+  SQL mutation function returned scalar values (e.g. `datetime`, `str`, `int`, `UUID`) in
+  its metadata JSONB (via `jsonb_build_object(...)`), those values were never populated into
+  the corresponding fields of an `@fraiseql.error`-decorated class — they always resolved to
+  `None`. The root cause was that `build_error_response_with_code` in the Rust pipeline only
+  extracted fields from `result.entity` (dict-backed entities like `conflict_machine:
+  Machine`), and completely ignored scalar values stored directly in `result.metadata`. Fixed
+  by iterating `result.metadata` after `result.entity` and promoting any non-reserved key
+  (`errors`, `entity_type`, `entity`, `_cascade`) to the root error response object, applying
+  camelCase conversion and field selection filtering consistently with the rest of the pipeline.
+
+---
+
 ## [1.9.19] - 2026-02-21
 
 ### Fixed
