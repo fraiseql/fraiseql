@@ -3,7 +3,6 @@
 //! Parses GraphQL query strings into a Rust AST for further processing
 //! by fragment resolution and directive evaluation.
 
-use anyhow::{Result, anyhow};
 use graphql_parser::query::{
     self, Definition, Directive as GraphQLDirective, Document, OperationDefinition, Selection,
 };
@@ -11,6 +10,22 @@ use graphql_parser::query::{
 use crate::graphql::types::{
     Directive, FieldSelection, GraphQLArgument, GraphQLType, ParsedQuery, VariableDefinition,
 };
+
+/// Errors that can occur when parsing a GraphQL query.
+#[derive(Debug, thiserror::Error)]
+pub enum GraphQLParseError {
+    /// Failed to parse GraphQL syntax.
+    #[error("Failed to parse GraphQL query: {0}")]
+    Syntax(String),
+
+    /// No query or mutation operation found in the document.
+    #[error("No query or mutation operation found")]
+    MissingOperation,
+
+    /// Selection set has no fields.
+    #[error("No fields in selection set")]
+    EmptySelection,
+}
 
 /// Parse GraphQL query string into Rust AST.
 ///
@@ -30,10 +45,10 @@ use crate::graphql::types::{
 /// assert_eq!(parsed.operation_type, "query");
 /// assert_eq!(parsed.root_field, "users");
 /// ```
-pub fn parse_query(source: &str) -> Result<ParsedQuery> {
+pub fn parse_query(source: &str) -> Result<ParsedQuery, GraphQLParseError> {
     // Use graphql-parser to parse query string
     let doc: Document<String> =
-        query::parse_query(source).map_err(|e| anyhow!("Failed to parse GraphQL query: {e}"))?;
+        query::parse_query(source).map_err(|e| GraphQLParseError::Syntax(e.to_string()))?;
 
     // Extract first operation (ignore multiple operations for now)
     let operation = doc
@@ -43,7 +58,7 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery> {
             query::Definition::Operation(op) => Some(op),
             query::Definition::Fragment(_) => None,
         })
-        .ok_or_else(|| anyhow!("No query or mutation operation found"))?;
+        .ok_or(GraphQLParseError::MissingOperation)?;
 
     // Extract operation details
     let (operation_type, operation_name, root_field, selections, variables) =
@@ -66,7 +81,7 @@ pub fn parse_query(source: &str) -> Result<ParsedQuery> {
 /// Extract fragment definitions from GraphQL document.
 fn extract_fragments(
     doc: &Document<String>,
-) -> Result<Vec<crate::graphql::types::FragmentDefinition>> {
+) -> Result<Vec<crate::graphql::types::FragmentDefinition>, GraphQLParseError> {
     let mut fragments = Vec::new();
 
     for def in &doc.definitions {
@@ -119,7 +134,10 @@ fn extract_fragment_spreads(selection_set: &query::SelectionSet<String>) -> Vec<
 /// Extract operation details from GraphQL operation definition.
 fn extract_operation(
     operation: &OperationDefinition<String>,
-) -> Result<(String, Option<String>, String, Vec<FieldSelection>, Vec<VariableDefinition>)> {
+) -> Result<
+    (String, Option<String>, String, Vec<FieldSelection>, Vec<VariableDefinition>),
+    GraphQLParseError,
+> {
     let operation_type = match operation {
         OperationDefinition::Query(_) | OperationDefinition::SelectionSet(_) => "query",
         OperationDefinition::Mutation(_) => "mutation",
@@ -143,7 +161,7 @@ fn extract_operation(
     let root_field = selections
         .first()
         .map(|s| s.name.clone())
-        .ok_or_else(|| anyhow!("No fields in selection set"))?;
+        .ok_or(GraphQLParseError::EmptySelection)?;
 
     // Parse variable definitions
     let variables = var_defs
@@ -161,7 +179,9 @@ fn extract_operation(
 /// Parse GraphQL selection set recursively.
 ///
 /// Handles fields, fragment spreads, and inline fragments.
-fn parse_selection_set(selection_set: &query::SelectionSet<String>) -> Result<Vec<FieldSelection>> {
+fn parse_selection_set(
+    selection_set: &query::SelectionSet<String>,
+) -> Result<Vec<FieldSelection>, GraphQLParseError> {
     let mut fields = Vec::new();
 
     for selection in &selection_set.items {

@@ -17,7 +17,6 @@ harness = false
 name = "federation_bench"
 
 [dependencies]
-anyhow = {workspace = true}
 # Arrow Flight integration (optional)
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
 # to avoid circular dependency. fraiseql-arrow provides the Flight server

@@ -9,6 +9,22 @@ use deadpool_postgres::Pool;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+/// Errors that can occur during audit operations.
+#[derive(Debug, thiserror::Error)]
+pub enum AuditError {
+    /// Database operation failed.
+    #[error("Database operation failed: {0}")]
+    Database(#[from] deadpool_postgres::PoolError),
+
+    /// SQL query execution failed.
+    #[error("SQL query failed: {0}")]
+    Sql(#[from] tokio_postgres::Error),
+
+    /// Failed to serialize data to JSON.
+    #[error("JSON serialization failed: {0}")]
+    Serialization(#[from] serde_json::Error),
+}
+
 /// Audit log levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuditLevel {
@@ -152,7 +168,7 @@ impl AuditLogger {
     /// # Errors
     ///
     /// Returns error if database operation fails
-    pub async fn log(&self, entry: AuditEntry) -> Result<i64, anyhow::Error> {
+    pub async fn log(&self, entry: AuditEntry) -> Result<i64, AuditError> {
         let sql = r"
             INSERT INTO fraiseql_audit_logs (
                 timestamp,
@@ -211,7 +227,7 @@ impl AuditLogger {
         tenant_id: i64,
         level: Option<AuditLevel>,
         limit: i64,
-    ) -> Result<Vec<AuditEntry>, anyhow::Error> {
+    ) -> Result<Vec<AuditEntry>, AuditError> {
         let client = self.pool.get().await?;
 
         let rows = if let Some(lvl) = level {

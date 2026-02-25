@@ -2549,7 +2549,6 @@ dependencies = [
 name = "fraiseql-core"
 version = "2.0.0-rc.11"
 dependencies = [
- "anyhow",
  "arrow",
  "arrow-array",
  "async-trait",
