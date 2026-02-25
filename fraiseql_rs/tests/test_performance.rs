@@ -72,8 +72,16 @@ fn main() {
 
     let (_new_time, new_bytes) =
         benchmark_implementation("v0.2 Zero-Copy", &small_workload, iterations, || {
-            build_graphql_response(small_workload.clone(), "users", Some("User"), None, None, None)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            build_graphql_response(
+                small_workload.clone(),
+                "users",
+                Some("User"),
+                None,
+                None,
+                None,
+                None,
+            )
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         });
 
     println!("  Output size: {} bytes", new_bytes);
@@ -87,8 +95,16 @@ fn main() {
 
     let (_new_time, new_bytes) =
         benchmark_implementation("v0.2 Zero-Copy", &medium_workload, iterations, || {
-            build_graphql_response(medium_workload.clone(), "users", Some("User"), None, None, None)
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            build_graphql_response(
+                medium_workload.clone(),
+                "users",
+                Some("User"),
+                None,
+                None,
+                None,
+                None,
+            )
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         });
 
     println!("  Output size: {} bytes", new_bytes);

@@ -365,8 +365,6 @@ impl QueryParam {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_query_executor_api() {
         // Test that the API compiles and types work correctly

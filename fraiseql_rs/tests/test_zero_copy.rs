@@ -22,10 +22,11 @@ fn main() {
         camel_case:          true,
         project_fields:      false,
         add_graphql_wrapper: false,
+        max_depth:           64,
     };
 
     // Create transformer
-    let transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
+    let mut transformer = ZeroCopyTransformer::new(&arena, config, Some("User"), None);
 
     // Transform
     let mut output = ByteBuf::with_estimated_capacity(json_input.len(), &config);

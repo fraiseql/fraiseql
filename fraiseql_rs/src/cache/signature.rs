@@ -66,7 +66,7 @@ pub fn is_cacheable(parsed_query: &ParsedQuery) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graphql::types::{FieldSelection, GraphQLArgument, ParsedQuery, VariableDefinition};
+    use crate::graphql::types::{FieldSelection, ParsedQuery};
 
     #[test]
     fn test_signature_generation() {

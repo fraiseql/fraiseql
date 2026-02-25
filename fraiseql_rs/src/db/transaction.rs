@@ -105,9 +105,6 @@ impl<'a> Drop for Transaction<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::db::types::DatabaseResult;
-
     #[tokio::test]
     async fn test_transaction_lifecycle() {
         // This is a mock test - real transaction testing requires database setup

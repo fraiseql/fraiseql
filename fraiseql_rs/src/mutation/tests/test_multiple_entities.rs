@@ -46,6 +46,7 @@ fn test_success_with_multiple_entities() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -108,6 +109,7 @@ fn test_error_with_conflict_entity() {
         Some("Machine"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -174,6 +176,7 @@ fn test_multiple_entities_field_selection() {
         None,
         true,
         Some(selected_fields),
+        None,
         None,
     )
     .unwrap();

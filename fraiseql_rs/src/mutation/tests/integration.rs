@@ -37,6 +37,7 @@ fn test_build_error_response_validation() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -73,6 +74,7 @@ fn test_build_error_response_conflict() {
         Some("User"),
         None,
         true,
+        None,
         None,
         None,
     );
@@ -116,6 +118,7 @@ fn test_build_noop_response() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -152,6 +155,7 @@ fn test_build_success_response() {
         Some("User"),
         None,
         true,
+        None,
         None,
         None,
     );
@@ -191,6 +195,7 @@ fn test_unauthorized_error() {
         true,
         None,
         None,
+        None,
     );
 
     assert!(result.is_ok());
@@ -223,6 +228,7 @@ fn test_timeout_error() {
         None,
         None,
         true,
+        None,
         None,
         None,
     );
@@ -383,6 +389,7 @@ fn test_error_response_includes_errors_array() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -430,6 +437,7 @@ fn test_error_response_with_explicit_errors() {
         Some("User"),
         None,
         true,
+        None,
         None,
         None,
     )

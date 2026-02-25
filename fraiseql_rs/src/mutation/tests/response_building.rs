@@ -45,6 +45,7 @@ fn test_build_simple_format_response() {
         None,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -80,6 +81,7 @@ fn test_build_simple_format_with_status_data_field() {
         None,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -112,6 +114,7 @@ fn test_build_simple_format_array_response() {
         Some("users"),
         Some("User"),
         true,
+        None,
         None,
         None,
         None,
@@ -159,6 +162,7 @@ fn test_build_simple_format_response_with_cascade() {
         None,                         // success_type_fields
         None,                         // error_type_fields
         Some(r#"{"cascade": true}"#), // cascade_selections
+        None,
     )
     .unwrap();
 
@@ -217,6 +221,7 @@ fn test_build_full_success_response() {
         None,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -249,6 +254,7 @@ fn test_build_full_error_response() {
         None,
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -290,6 +296,7 @@ fn test_success_response_has_status_field() {
         true, // auto_camel_case
         None, // success_type_fields
         None, // cascade_selections
+        None, // entity_selections
     )
     .expect("Failed to build response");
 
@@ -321,7 +328,7 @@ fn test_success_response_has_errors_field() {
 
     // Execute
     let response =
-        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None, None)
             .expect("Failed to build response");
 
     // Verify
@@ -353,7 +360,7 @@ fn test_success_response_all_standard_fields() {
 
     // Execute
     let response =
-        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None, None)
             .expect("Failed to build response");
 
     // Verify all standard fields present
@@ -392,7 +399,7 @@ fn test_success_status_preserves_detail() {
     };
 
     let response =
-        build_success_response(&result, "UpdatePostSuccess", Some("post"), true, None, None)
+        build_success_response(&result, "UpdatePostSuccess", Some("post"), true, None, None, None)
             .expect("Failed to build response");
 
     let obj = response.as_object().unwrap();
@@ -417,7 +424,7 @@ fn test_success_fields_order() {
     };
 
     let response =
-        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None)
+        build_success_response(&result, "CreateUserSuccess", Some("user"), true, None, None, None)
             .expect("Failed to build response");
 
     let obj = response.as_object().unwrap();
@@ -589,6 +596,7 @@ fn test_noop_returns_error_type_v1_8() {
         None,
         None,
         Some(r#"{"status": true}"#),
+        None,
     )
     .unwrap();
 
@@ -625,6 +633,7 @@ fn test_not_found_returns_error_type_with_404() {
         None,
         None,
         None,
+        None,
     )
     .unwrap();
     let data = &response["data"]["deleteMachine"];
@@ -656,6 +665,7 @@ fn test_conflict_returns_error_type_with_409() {
         None,
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -694,6 +704,7 @@ fn test_success_with_null_entity_returns_error() {
         None,
         None,
         None,
+        None,
     );
     assert!(response.is_err());
     let error_msg = response.unwrap_err();
@@ -723,6 +734,7 @@ fn test_success_always_has_entity() {
         Some("machine"),
         None,
         true,
+        None,
         None,
         None,
         None,
@@ -762,6 +774,7 @@ fn test_error_response_includes_cascade() {
         None,
         None,
         Some(r#"{"status": true, "reason": true}"#),
+        None,
     )
     .unwrap();
     let data = &response["data"]["createMachine"];
@@ -795,6 +808,7 @@ fn test_cascade_never_nested_in_entity() {
         Some("Post"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -874,6 +888,7 @@ fn test_cascade_never_copied_from_entity_wrapper() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -916,6 +931,7 @@ fn test_typename_always_present() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -946,6 +962,7 @@ fn test_typename_matches_entity_type() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -972,6 +989,7 @@ fn test_ambiguous_status_treated_as_simple() {
         Some("Entity"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -1007,6 +1025,7 @@ fn test_null_entity() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1037,6 +1056,7 @@ fn test_array_of_entities() {
         Some("User"),
         None,
         true,
+        None,
         None,
         None,
     )
@@ -1078,6 +1098,7 @@ fn test_deeply_nested_objects() {
         true,
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1112,6 +1133,7 @@ fn test_special_characters_in_fields() {
         None,
         false,
         None, // No camelCase
+        None,
         None,
     )
     .unwrap();
@@ -1161,6 +1183,7 @@ fn test_success_response_field_filtering_all_fields() {
         Some(&selected_fields),
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1200,6 +1223,7 @@ fn test_success_response_field_filtering_partial_fields() {
         Some("User"),
         true,
         Some(&selected_fields),
+        None,
         None,
         None,
     )
@@ -1243,6 +1267,7 @@ fn test_success_response_field_filtering_no_filtering() {
         None, // No filtering
         None,
         None,
+        None,
     )
     .unwrap();
 
@@ -1283,6 +1308,7 @@ fn test_error_response_field_filtering() {
         None,
         true,
         Some(&selected_fields),
+        None,
         None,
         None,
     )
