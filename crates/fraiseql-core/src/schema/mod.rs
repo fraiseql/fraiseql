@@ -39,6 +39,7 @@
 //! ```
 
 mod compiled;
+mod config_types;
 mod dependency_graph;
 mod field_type;
 mod introspection;
@@ -51,6 +52,11 @@ pub use compiled::{
     ObserverDefinition, QueryDefinition, RetryConfig, RoleDefinition, SecurityConfig,
     SqlProjectionHint, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
     TypeDefinition, UnionDefinition,
+};
+pub use config_types::{
+    AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
+    EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler, FederationConfig,
+    FederationEntity, FieldAuthRule, ObserversConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
