@@ -1,82 +1,94 @@
 //! Cache configuration.
 //!
-//! Defines configuration options for the query result cache with memory-safe bounds
-//! and sensible defaults for different deployment sizes.
+//! Defines configuration options for the query result cache.
+//!
+//! # Important: Caching is Disabled by Default (v2.0.0-rc.12+)
+//!
+//! **FraiseQL v2.0.0-rc.12 changed the default: caching is now DISABLED.**
+//!
+//! FraiseQL uses precomputed views (tv_* tables) and optimized PostgreSQL queries
+//! that are typically faster than cache overhead for most use cases. Caching only
+//! provides benefit for specific scenarios (see below).
+//!
+//! # When to Enable Caching
+//!
+//! Enable caching (`enabled = true`) **only** if you have:
+//!
+//! 1. **Federation with slow external services** (>100ms response times)
+//! 2. **Expensive computations** not covered by precomputed views
+//! 3. **Very high-frequency repeated queries** (>1000 QPS with identical parameters)
+//!
+//! # When NOT to Enable Caching
+//!
+//! Don't enable caching for:
+//! - Simple lookups (faster to query PostgreSQL directly)
+//! - Standard CRUD operations on precomputed views
+//! - Low-traffic applications (<100 QPS)
+//! - Any workload where Issue #40 analysis applies
+//!
+//! # Configuration Examples
+//!
+//! **Default (recommended for most deployments):**
+//! ```rust
+//! use fraiseql_core::cache::CacheConfig;
+//!
+//! let config = CacheConfig::default(); // enabled = false
+//! ```
+//!
+//! **Federation with external services:**
+//! ```rust
+//! use fraiseql_core::cache::CacheConfig;
+//!
+//! let config = CacheConfig::enabled();
+//! ```
+//!
+//! **Custom cache size (if enabled):**
+//! ```rust
+//! use fraiseql_core::cache::CacheConfig;
+//!
+//! let config = CacheConfig {
+//!     enabled: true,
+//!     max_entries: 5_000,
+//!     ttl_seconds: 3_600, // 1 hour
+//!     cache_list_queries: true,
+//! };
+//! ```
+//!
+//! # Memory Estimates (if enabled)
+//!
+//! - **1,000 entries**: ~10 MB
+//! - **10,000 entries**: ~100 MB
+//! - **50,000 entries**: ~500 MB
+//!
+//! Actual memory usage depends on query result sizes.
 
 use serde::{Deserialize, Serialize};
 
-/// Cache configuration with memory-safe bounds.
+/// Cache configuration - **disabled by default** as of v2.0.0-rc.12.
 ///
-/// # Memory Safety
+/// FraiseQL's architecture (precomputed views + optimized PostgreSQL) makes
+/// caching unnecessary for most use cases. Enable only for federation or
+/// expensive computations.
 ///
-/// The cache uses a hard LRU limit to prevent unbounded growth, combined with
-/// TTL-based expiry as a safety net for non-mutation changes. This ensures
-/// predictable memory usage and prevents OOM conditions.
+/// # Key Changes in rc.12
 ///
-/// # Recommended Settings
+/// - `enabled` now defaults to `false` (was `true`)
+/// - `with_max_entries()` and `with_ttl()` also set `enabled: false`
+/// - New `enabled()` constructor for explicit opt-in
 ///
-/// **Small Deployments** (development, low traffic):
-/// ```rust
-/// use fraiseql_core::cache::CacheConfig;
-///
-/// let config = CacheConfig {
-///     enabled: true,
-///     max_entries: 1_000,
-///     ttl_seconds: 3_600,  // 1 hour
-///     cache_list_queries: true,
-/// };
-/// ```
-///
-/// **Medium Deployments** (10-50 QPS):
-/// ```rust
-/// use fraiseql_core::cache::CacheConfig;
-///
-/// let config = CacheConfig {
-///     enabled: true,
-///     max_entries: 10_000,
-///     ttl_seconds: 86_400,  // 24 hours
-///     cache_list_queries: true,
-/// };
-/// ```
-///
-/// **Large Deployments** (100+ QPS):
-/// ```rust
-/// use fraiseql_core::cache::CacheConfig;
-///
-/// let config = CacheConfig {
-///     enabled: true,
-///     max_entries: 50_000,
-///     ttl_seconds: 86_400,  // 24 hours
-///     cache_list_queries: true,
-/// };
-/// ```
-///
-/// **Development/Testing** (deterministic behavior):
-/// ```rust
-/// use fraiseql_core::cache::CacheConfig;
-///
-/// let config = CacheConfig {
-///     enabled: false,  // Disable caching for testing
-///     ..Default::default()
-/// };
-/// ```
-///
-/// # Memory Estimates
-///
-/// - **1,000 entries**: ~10 MB (small)
-/// - **10,000 entries**: ~100 MB (medium, default)
-/// - **50,000 entries**: ~500 MB (large)
-///
-/// Actual memory usage depends on query result sizes. These estimates assume
-/// average result size of 10 KB per entry.
+/// See module documentation for detailed guidance.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct CacheConfig {
     /// Enable response caching.
     ///
-    /// Set to `false` for testing or debugging to ensure deterministic behavior
-    /// without cached results affecting tests.
+    /// **Default: `false`** (changed from `true` in v2.0.0-rc.12)
     ///
-    /// Default: `true`
+    /// Enable only for:
+    /// - Federation with slow external services
+    /// - Expensive computations not covered by precomputed views
+    /// - High-frequency repeated queries with identical parameters
+    ///
+    /// See Issue #40 for performance analysis.
     pub enabled: bool,
 
     /// Maximum number of cached entries.
@@ -119,15 +131,26 @@ pub struct CacheConfig {
 }
 
 impl Default for CacheConfig {
-    /// Default cache configuration suitable for medium-sized production deployments.
+    /// Default cache configuration - **DISABLED by default** as of v2.0.0-rc.12.
     ///
-    /// - Caching enabled
-    /// - 10,000 max entries (~100 MB)
+    /// FraiseQL uses precomputed views (tv_* tables) and optimized PostgreSQL queries
+    /// that are typically faster than cache overhead for most use cases.
+    ///
+    /// Enable caching ONLY if you have:
+    /// - Federation with slow external services
+    /// - Expensive computations not covered by precomputed views
+    /// - High-frequency repeated queries (>1000 QPS with same params)
+    ///
+    /// See Issue #40 for performance analysis.
+    ///
+    /// # Current Default
+    /// - **Caching: DISABLED**
+    /// - 10,000 max entries (~100 MB if enabled)
     /// - 24 hour TTL
-    /// - List queries cached
+    /// - List queries cached (when enabled)
     fn default() -> Self {
         Self {
-            enabled:            true,
+            enabled:            false, // CHANGED in rc.12: Disabled by default
             max_entries:        10_000,
             ttl_seconds:        86_400, // 24 hours
             cache_list_queries: true,
@@ -138,7 +161,7 @@ impl Default for CacheConfig {
 impl CacheConfig {
     /// Create cache configuration with custom max entries.
     ///
-    /// Uses default values for other fields (enabled=true, 24h TTL).
+    /// Uses default values for other fields (**enabled=false**, 24h TTL).
     ///
     /// # Arguments
     ///
@@ -151,12 +174,12 @@ impl CacheConfig {
     ///
     /// let config = CacheConfig::with_max_entries(50_000);
     /// assert_eq!(config.max_entries, 50_000);
-    /// assert!(config.enabled);
+    /// assert!(!config.enabled); // Disabled by default
     /// ```
     #[must_use]
     pub const fn with_max_entries(max_entries: usize) -> Self {
         Self {
-            enabled: true,
+            enabled: false, // Consistent with new default
             max_entries,
             ttl_seconds: 86_400,
             cache_list_queries: true,
@@ -165,7 +188,7 @@ impl CacheConfig {
 
     /// Create cache configuration with custom TTL.
     ///
-    /// Uses default values for other fields (enabled=true, 10,000 entries).
+    /// Uses default values for other fields (**enabled=false**, 10,000 entries).
     ///
     /// # Arguments
     ///
@@ -178,22 +201,46 @@ impl CacheConfig {
     ///
     /// let config = CacheConfig::with_ttl(3_600);  // 1 hour
     /// assert_eq!(config.ttl_seconds, 3_600);
-    /// assert!(config.enabled);
+    /// assert!(!config.enabled); // Disabled by default
     /// ```
     #[must_use]
     pub const fn with_ttl(ttl_seconds: u64) -> Self {
         Self {
-            enabled: true,
+            enabled: false, // Consistent with new default
             max_entries: 10_000,
             ttl_seconds,
             cache_list_queries: true,
         }
     }
 
+    /// Create cache configuration with caching **enabled**.
+    ///
+    /// Use this method when you explicitly need caching (e.g., federation,
+    /// expensive computations). Most FraiseQL deployments don't need this.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use fraiseql_core::cache::CacheConfig;
+    ///
+    /// let config = CacheConfig::enabled();
+    /// assert!(config.enabled);
+    /// assert_eq!(config.max_entries, 10_000);
+    /// ```
+    #[must_use]
+    pub const fn enabled() -> Self {
+        Self {
+            enabled:            true,
+            max_entries:        10_000,
+            ttl_seconds:        86_400,
+            cache_list_queries: true,
+        }
+    }
+
     /// Create cache configuration with caching disabled.
     ///
-    /// Useful for testing and debugging when you want deterministic behavior
-    /// without cached results.
+    /// This is now the **default behavior**. Use this method for explicit clarity
+    /// or to override a previously enabled configuration.
     ///
     /// # Example
     ///
@@ -246,7 +293,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = CacheConfig::default();
-        assert!(config.enabled);
+        assert!(!config.enabled); // Disabled by default as of rc.12
         assert_eq!(config.max_entries, 10_000);
         assert_eq!(config.ttl_seconds, 86_400);
         assert!(config.cache_list_queries);
@@ -256,7 +303,7 @@ mod tests {
     fn test_with_max_entries() {
         let config = CacheConfig::with_max_entries(50_000);
         assert_eq!(config.max_entries, 50_000);
-        assert!(config.enabled);
+        assert!(!config.enabled); // Disabled by default as of rc.12
         assert_eq!(config.ttl_seconds, 86_400);
     }
 
@@ -264,8 +311,16 @@ mod tests {
     fn test_with_ttl() {
         let config = CacheConfig::with_ttl(3_600);
         assert_eq!(config.ttl_seconds, 3_600);
+        assert!(!config.enabled); // Disabled by default as of rc.12
+        assert_eq!(config.max_entries, 10_000);
+    }
+
+    #[test]
+    fn test_enabled() {
+        let config = CacheConfig::enabled();
         assert!(config.enabled);
         assert_eq!(config.max_entries, 10_000);
+        assert_eq!(config.ttl_seconds, 86_400);
     }
 
     #[test]
