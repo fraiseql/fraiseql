@@ -642,7 +642,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // result clone overhead exceeds the query execution time for these cases.
         //
         // Fixes Issue #40: Cache was hurting performance by -35% for simple queries
-        let is_simple_query = where_clause.is_none() && limit.map_or(true, |l| l <= 1000);
+        let is_simple_query = where_clause.is_none() && limit.is_none_or(|l| l <= 1000);
 
         if is_simple_query {
             // Fast path: Execute directly without cache overhead
@@ -796,7 +796,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_miss_then_hit() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -826,7 +826,7 @@ mod tests {
     #[tokio::test]
     async fn test_different_where_clauses_produce_different_cache_entries() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         let where1 = WhereClause::Field {
@@ -853,7 +853,7 @@ mod tests {
     #[tokio::test]
     async fn test_invalidation_clears_cache() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -892,7 +892,7 @@ mod tests {
     #[tokio::test]
     async fn test_different_limits_produce_different_cache_entries() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Query with limit 10
@@ -940,32 +940,15 @@ mod tests {
     #[tokio::test]
     async fn test_simple_queries_bypass_cache() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
-        let where_clause = WhereClause::Field {
-            path:     vec!["status".to_string()],
-            operator: WhereOperator::Eq,
-            value:    json!("active"),
-        };
-
-        // Simple query 1: no WHERE, no LIMIT
-        // This should bypass cache and execute directly
-        adapter
-            .execute_where_query("v_user", Some(&where_clause), None, None)
-            .await
-            .unwrap();
+        // Simple query 1: no WHERE, no LIMIT — bypasses cache entirely
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
-        // Same simple query again
-        // With the old implementation, this would hit cache
-        // With Issue #40 fix, it bypasses cache (same performance, less overhead)
-        adapter
-            .execute_where_query("v_user", Some(&where_clause), None, None)
-            .await
-            .unwrap();
-        // Call count increases because we bypass cache for simple queries
+        // Same simple query again — still bypasses cache (no cache benefit for trivial queries)
+        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
         // Simple query 2: no WHERE, small LIMIT (1000)
@@ -1006,7 +989,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema_version_change_invalidates_cache() {
-        let cache = Arc::new(QueryResultCache::new(CacheConfig::default()));
+        let cache = Arc::new(QueryResultCache::new(CacheConfig::enabled()));
         let version_provider = Arc::new(FactTableVersionProvider::default());
 
         // Adapter with version 1.0.0
@@ -1040,7 +1023,7 @@ mod tests {
     #[tokio::test]
     async fn test_forwards_database_type() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         assert_eq!(adapter.database_type(), DatabaseType::PostgreSQL);
@@ -1049,7 +1032,7 @@ mod tests {
     #[tokio::test]
     async fn test_forwards_health_check() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         adapter.health_check().await.unwrap();
@@ -1058,7 +1041,7 @@ mod tests {
     #[tokio::test]
     async fn test_forwards_pool_metrics() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         let metrics = adapter.pool_metrics();
@@ -1069,7 +1052,7 @@ mod tests {
     #[tokio::test]
     async fn test_inner_and_cache_accessors() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Test inner()
@@ -1090,7 +1073,7 @@ mod tests {
     #[tokio::test]
     async fn test_invalidate_cascade_entities_with_single_entity() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -1146,7 +1129,7 @@ mod tests {
     #[tokio::test]
     async fn test_invalidate_cascade_entities_with_multiple_entities() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -1156,13 +1139,19 @@ mod tests {
             value:    json!("active"),
         };
 
-        // Pre-populate cache with multiple views
+        // Pre-populate cache with multiple views (WHERE clause required to enter cache)
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
             .await
             .unwrap();
-        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
-        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 3);
 
         // Cascade with multiple entity types
@@ -1185,13 +1174,19 @@ mod tests {
         // Should invalidate 3 views
         assert_eq!(invalidated, 3);
 
-        // All queries should now be cache misses
+        // All queries should now be cache misses (same WHERE clause, different cache key after invalidation)
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
             .await
             .unwrap();
-        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
-        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         // Should have 6 total calls (3 initial + 3 after invalidation)
         assert_eq!(adapter.inner().call_count(), 6);
     }
@@ -1199,12 +1194,24 @@ mod tests {
     #[tokio::test]
     async fn test_invalidate_cascade_entities_with_deleted_entities() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Pre-populate cache with both views that will be invalidated
-        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
-        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
+        // Pre-populate cache with both views (WHERE clause required to enter cache)
+        adapter
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
         // Cascade with deleted entities
@@ -1226,16 +1233,22 @@ mod tests {
         // Should invalidate 2 views (v_post and v_comment)
         assert_eq!(invalidated, 2);
 
-        // Both queries should now be cache misses
-        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
-        adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
+        // Both queries should now be cache misses after invalidation
+        adapter
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        adapter
+            .execute_where_query("v_comment", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 4);
     }
 
     #[tokio::test]
     async fn test_invalidate_cascade_entities_with_no_cascade_field() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -1279,7 +1292,7 @@ mod tests {
     #[tokio::test]
     async fn test_invalidate_cascade_entities_mixed_updated_and_deleted() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -1289,12 +1302,15 @@ mod tests {
             value:    json!("active"),
         };
 
-        // Pre-populate cache
+        // Pre-populate cache (WHERE clause required to enter cache)
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
             .await
             .unwrap();
-        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
         // Cascade with both updated and deleted entities
@@ -1317,19 +1333,22 @@ mod tests {
         // Should invalidate 2 views (v_user and v_post)
         assert_eq!(invalidated, 2);
 
-        // Both queries should now be cache misses
+        // Both queries should now be cache misses after invalidation
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
             .await
             .unwrap();
-        adapter.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 4);
     }
 
     #[tokio::test]
     async fn test_cascade_invalidation_deduplicates_entity_types() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -1371,13 +1390,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_cascade_invalidation_vs_view_invalidation_same_result() {
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
         // Test 1: Cascade-based invalidation
         let mock1 = MockAdapter::new();
-        let cache1 = QueryResultCache::new(CacheConfig::default());
+        let cache1 = QueryResultCache::new(CacheConfig::enabled());
         let adapter1 = CachedDatabaseAdapter::new(mock1, cache1, "1.0.0".to_string());
 
-        adapter1.execute_where_query("v_user", None, None, None).await.unwrap();
-        adapter1.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter1
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        adapter1
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
 
         let cascade_response = json!({
             "mutation": {
@@ -1397,11 +1428,17 @@ mod tests {
 
         // Test 2: View-level invalidation (old approach)
         let mock2 = MockAdapter::new();
-        let cache2 = QueryResultCache::new(CacheConfig::default());
+        let cache2 = QueryResultCache::new(CacheConfig::enabled());
         let adapter2 = CachedDatabaseAdapter::new(mock2, cache2, "1.0.0".to_string());
 
-        adapter2.execute_where_query("v_user", None, None, None).await.unwrap();
-        adapter2.execute_where_query("v_post", None, None, None).await.unwrap();
+        adapter2
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        adapter2
+            .execute_where_query("v_post", Some(&where_clause), None, None)
+            .await
+            .unwrap();
 
         let invalidated_views = adapter2
             .invalidate_views(&["v_user".to_string(), "v_post".to_string()])
@@ -1415,7 +1452,7 @@ mod tests {
     #[tokio::test]
     async fn test_cascade_invalidation_with_empty_cascade() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
@@ -1533,7 +1570,7 @@ mod tests {
     #[tokio::test]
     async fn test_aggregation_caching_time_based() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         // Configure time-based caching for tf_sales
         let mut ft_config = FactTableCacheConfig::default();
@@ -1565,7 +1602,7 @@ mod tests {
     #[tokio::test]
     async fn test_aggregation_caching_schema_version() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         // Configure schema version caching for tf_historical_rates
         let mut ft_config = FactTableCacheConfig::default();
@@ -1619,7 +1656,7 @@ mod tests {
     #[tokio::test]
     async fn test_aggregation_caching_non_fact_table() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         // Even with caching configured, non-fact tables bypass cache
         let ft_config = FactTableCacheConfig::with_default(FactTableVersionStrategy::SchemaVersion);
@@ -1641,7 +1678,7 @@ mod tests {
     #[tokio::test]
     async fn test_aggregation_caching_different_queries() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         let mut ft_config = FactTableCacheConfig::default();
         ft_config.set_strategy("tf_sales", FactTableVersionStrategy::SchemaVersion);
@@ -1678,7 +1715,7 @@ mod tests {
     #[tokio::test]
     async fn test_fact_table_config_accessor() {
         let mock = MockAdapter::new();
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         let mut ft_config = FactTableCacheConfig::default();
         ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);

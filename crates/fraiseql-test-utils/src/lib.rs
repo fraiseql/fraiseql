@@ -30,6 +30,10 @@ pub const fn setup_test_env() {
 
 /// Create a temporary directory for test files
 ///
+/// # Panics
+///
+/// Panics if the OS fails to create a temporary directory.
+///
 /// # Example
 ///
 /// ```ignore

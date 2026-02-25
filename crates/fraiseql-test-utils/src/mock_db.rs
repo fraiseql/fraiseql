@@ -52,6 +52,10 @@ impl MockDb {
     }
 
     /// Get a record by key
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MockDbError::NotFound`] if the key does not exist.
     pub async fn get(&self, key: &str) -> Result<serde_json::Value, MockDbError> {
         let data = self.data.read().await;
         data.get(key).cloned().ok_or(MockDbError::NotFound)

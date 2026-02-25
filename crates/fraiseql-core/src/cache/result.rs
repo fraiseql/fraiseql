@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn test_cache_miss() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         let result = cache.get("nonexistent_key").unwrap();
         assert!(result.is_none(), "Should be cache miss");
@@ -521,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_cache_put_and_get() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
         let result = test_result();
 
         // Put
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn test_cache_hit_updates_hit_count() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
             .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
@@ -565,6 +565,7 @@ mod tests {
     fn test_ttl_expiry() {
         let config = CacheConfig {
             ttl_seconds: 1, // 1 second TTL
+            enabled: true,
             ..Default::default()
         };
 
@@ -589,6 +590,7 @@ mod tests {
     fn test_ttl_not_expired() {
         let config = CacheConfig {
             ttl_seconds: 3600, // 1 hour TTL
+            enabled: true,
             ..Default::default()
         };
 
@@ -611,6 +613,7 @@ mod tests {
     fn test_lru_eviction() {
         let config = CacheConfig {
             max_entries: 2, // Only 2 entries
+            enabled: true,
             ..Default::default()
         };
 
@@ -640,6 +643,7 @@ mod tests {
     fn test_lru_updates_on_access() {
         let config = CacheConfig {
             max_entries: 2,
+            enabled: true,
             ..Default::default()
         };
 
@@ -692,7 +696,7 @@ mod tests {
 
     #[test]
     fn test_invalidate_single_view() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
             .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
@@ -712,7 +716,7 @@ mod tests {
 
     #[test]
     fn test_invalidate_multiple_views() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
             .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
@@ -736,7 +740,7 @@ mod tests {
 
     #[test]
     fn test_invalidate_entry_with_multiple_views() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         // Entry accesses both v_user and v_post
         cache
@@ -756,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_invalidate_nonexistent_view() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
             .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
@@ -776,7 +780,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
             .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
@@ -800,7 +804,7 @@ mod tests {
 
     #[test]
     fn test_metrics_tracking() {
-        let cache = QueryResultCache::new(CacheConfig::default());
+        let cache = QueryResultCache::new(CacheConfig::enabled());
 
         // Miss
         cache.get("NotThere").unwrap();
@@ -881,7 +885,7 @@ mod tests {
     fn test_concurrent_access() {
         use std::{sync::Arc, thread};
 
-        let cache = Arc::new(QueryResultCache::new(CacheConfig::default()));
+        let cache = Arc::new(QueryResultCache::new(CacheConfig::enabled()));
 
         // Spawn multiple threads accessing cache
         let handles: Vec<_> = (0..10)

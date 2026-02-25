@@ -210,7 +210,7 @@ impl PostgresAdapter {
                 Err(e) => {
                     last_error = Some(e);
                     if attempt < MAX_CONNECTION_RETRIES - 1 {
-                        let delay = CONNECTION_RETRY_DELAY_MS * (attempt as u64 + 1);
+                        let delay = CONNECTION_RETRY_DELAY_MS * (u64::from(attempt) + 1);
                         tracing::warn!(
                             "Connection pool exhausted (attempt {}/{}), retrying in {}ms...",
                             attempt + 1,

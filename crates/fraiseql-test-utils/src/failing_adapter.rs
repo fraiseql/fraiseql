@@ -119,6 +119,10 @@ impl FailingAdapter {
     }
 
     /// Set a canned response for a specific view.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal responses mutex is poisoned.
     #[must_use]
     pub fn with_response(self, view: &str, data: Vec<JsonbValue>) -> Self {
         self.responses.lock().unwrap().insert(view.to_string(), data);
@@ -126,6 +130,10 @@ impl FailingAdapter {
     }
 
     /// Configure failure on the Nth query (0-indexed).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     #[must_use]
     pub fn fail_on_query(self, n: u64) -> Self {
         self.fail_config.lock().unwrap().fail_on_query = Some(n);
@@ -133,6 +141,10 @@ impl FailingAdapter {
     }
 
     /// Configure timeout error response.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     #[must_use]
     pub fn fail_with_timeout(self, ms: u64) -> Self {
         self.fail_config.lock().unwrap().timeout_ms = Some(ms);
@@ -140,6 +152,10 @@ impl FailingAdapter {
     }
 
     /// Configure a specific error to return on failure.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     #[must_use]
     pub fn fail_with_error(self, err: FailError) -> Self {
         self.fail_config.lock().unwrap().error = Some(err);
@@ -147,6 +163,10 @@ impl FailingAdapter {
     }
 
     /// Configure health check to fail.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     #[must_use]
     pub fn fail_health_check(self) -> Self {
         self.fail_config.lock().unwrap().fail_health_check = true;
@@ -154,6 +174,10 @@ impl FailingAdapter {
     }
 
     /// Reset failure config and query count.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any internal mutex is poisoned.
     pub fn reset(&self) {
         *self.fail_config.lock().unwrap() = FailConfig::default();
         self.query_count.store(0, Ordering::SeqCst);
@@ -161,6 +185,10 @@ impl FailingAdapter {
     }
 
     /// Get all recorded query view names.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal query log mutex is poisoned.
     #[must_use]
     pub fn recorded_queries(&self) -> Vec<String> {
         self.query_log.lock().unwrap().clone()
@@ -173,16 +201,28 @@ impl FailingAdapter {
     }
 
     /// Re-configure failure on the Nth query after construction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     pub fn set_fail_on_query(&self, n: u64) {
         self.fail_config.lock().unwrap().fail_on_query = Some(n);
     }
 
     /// Re-configure timeout error after construction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     pub fn set_fail_with_timeout(&self, ms: u64) {
         self.fail_config.lock().unwrap().timeout_ms = Some(ms);
     }
 
     /// Re-configure a specific error after construction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal config mutex is poisoned.
     pub fn set_fail_with_error(&self, err: FailError) {
         self.fail_config.lock().unwrap().error = Some(err);
     }

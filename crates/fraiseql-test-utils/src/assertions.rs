@@ -28,6 +28,10 @@ macro_rules! assert_json_key {
 ///
 /// # Example
 ///
+/// # Panics
+///
+/// Panics if the response contains a non-empty `errors` array.
+///
 /// ```ignore
 /// assert_no_graphql_errors(&response);
 /// ```
@@ -40,6 +44,10 @@ pub fn assert_no_graphql_errors(response: &serde_json::Value) {
 }
 
 /// Assert that a response has data
+///
+/// # Panics
+///
+/// Panics if the response does not contain a `data` field.
 ///
 /// # Example
 ///

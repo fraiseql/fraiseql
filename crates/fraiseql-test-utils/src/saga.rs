@@ -137,6 +137,10 @@ impl TestSagaExecutor {
     }
 
     /// Execute a saga forward phase (execute all steps sequentially)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any step fails and compensation also fails.
     pub async fn execute_saga(
         &mut self,
         saga_id: &str,
@@ -204,6 +208,10 @@ impl TestSagaExecutor {
     }
 
     /// Execute compensation (rollback) for steps in LIFO order
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any compensation step fails.
     pub async fn compensate_saga(
         &mut self,
         saga_id: &str,
@@ -240,6 +248,10 @@ impl TestSagaExecutor {
     }
 
     /// Verify LIFO compensation order
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if compensation did not execute in LIFO order.
     pub fn verify_lifo_order(
         &self,
         forward_steps: &[SagaStepDef],
