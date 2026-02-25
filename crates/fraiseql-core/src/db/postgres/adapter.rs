@@ -16,6 +16,17 @@ use crate::{
     schema::SqlProjectionHint,
 };
 
+/// Default maximum pool size for PostgreSQL connections.
+/// Increased from 10 to 25 to prevent pool exhaustion under concurrent
+/// nested query load (fixes Issue #41).
+const DEFAULT_POOL_SIZE: usize = 25;
+
+/// Maximum retries for connection acquisition with exponential backoff.
+const MAX_CONNECTION_RETRIES: u32 = 3;
+
+/// Base delay in milliseconds for connection retry backoff.
+const CONNECTION_RETRY_DELAY_MS: u64 = 50;
+
 /// PostgreSQL database adapter with connection pooling.
 ///
 /// Uses `deadpool-postgres` for connection pooling and `tokio-postgres` for async queries.
@@ -72,7 +83,7 @@ impl PostgresAdapter {
     /// # }
     /// ```
     pub async fn new(connection_string: &str) -> Result<Self> {
-        Self::with_pool_size(connection_string, 10).await
+        Self::with_pool_size(connection_string, DEFAULT_POOL_SIZE).await
     }
 
     /// Create new PostgreSQL adapter with custom pool configuration.
@@ -154,9 +165,7 @@ impl PostgresAdapter {
         sql: &str,
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
     ) -> Result<Vec<JsonbValue>> {
-        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
-            message: format!("Failed to acquire connection: {e}"),
-        })?;
+        let client = self.acquire_connection_with_retry().await?;
 
         let rows: Vec<Row> =
             client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
@@ -173,6 +182,66 @@ impl PostgresAdapter {
             .collect();
 
         Ok(results)
+    }
+
+    /// Acquire a connection from the pool with retry logic.
+    ///
+    /// Implements exponential backoff retry when the pool is exhausted.
+    /// This prevents transient pool exhaustion from causing query failures
+    /// under concurrent load (fixes Issue #41).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::ConnectionPool` if all retries are exhausted.
+    async fn acquire_connection_with_retry(&self) -> Result<deadpool_postgres::Client> {
+        let mut last_error = None;
+
+        for attempt in 0..MAX_CONNECTION_RETRIES {
+            match self.pool.get().await {
+                Ok(client) => {
+                    if attempt > 0 {
+                        tracing::info!(
+                            "Successfully acquired connection after {} retries",
+                            attempt
+                        );
+                    }
+                    return Ok(client);
+                },
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < MAX_CONNECTION_RETRIES - 1 {
+                        let delay = CONNECTION_RETRY_DELAY_MS * (attempt as u64 + 1);
+                        tracing::warn!(
+                            "Connection pool exhausted (attempt {}/{}), retrying in {}ms...",
+                            attempt + 1,
+                            MAX_CONNECTION_RETRIES,
+                            delay
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                    }
+                },
+            }
+        }
+
+        // All retries exhausted - log detailed pool state
+        let pool_metrics = self.pool_metrics();
+        tracing::error!(
+            "Failed to acquire connection after {} retries. Pool state: available={}, active={}, total={}",
+            MAX_CONNECTION_RETRIES,
+            pool_metrics.idle_connections,
+            pool_metrics.active_connections,
+            pool_metrics.total_connections
+        );
+
+        Err(FraiseQLError::ConnectionPool {
+            message: format!(
+                "Failed to acquire connection after {} retries: {}. Pool exhausted (available={}/{}). Consider increasing pool size or reducing concurrent load.",
+                MAX_CONNECTION_RETRIES,
+                last_error.unwrap(),
+                pool_metrics.idle_connections,
+                pool_metrics.total_connections
+            ),
+        })
     }
 
     /// Execute query with SQL field projection optimization.
@@ -353,9 +422,8 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn health_check(&self) -> Result<()> {
-        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
-            message: format!("Failed to acquire connection: {e}"),
-        })?;
+        // Use retry logic for health check to avoid false negatives during pool exhaustion
+        let client = self.acquire_connection_with_retry().await?;
 
         client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
             message:   format!("Health check failed: {e}"),
@@ -380,9 +448,8 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
-            message: format!("Failed to acquire connection: {e}"),
-        })?;
+        // Use retry logic for connection acquisition
+        let client = self.acquire_connection_with_retry().await?;
 
         let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| FraiseQLError::Database {
             message:   format!("Query execution failed: {e}"),
