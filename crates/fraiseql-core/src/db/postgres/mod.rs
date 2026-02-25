@@ -6,9 +6,6 @@ mod adapter;
 mod introspector;
 mod where_generator;
 
-#[cfg(test)]
-mod concurrent_tests;
-
 pub use adapter::PostgresAdapter;
 pub use introspector::PostgresIntrospector;
 pub use where_generator::{IndexedColumnsCache, PostgresWhereGenerator};

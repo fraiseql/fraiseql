@@ -100,10 +100,10 @@ use crate::{
 /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string());
 ///
 /// // First query - cache miss (slower)
-/// let users1 = adapter.execute_where_query("v_user", None, None, None).await?;
+/// let users1 = adapter.execute_where_query("v_user", Some(&where_clause), None, None).await?;
 ///
 /// // Second query - cache hit (fast!)
-/// let users2 = adapter.execute_where_query("v_user", None, None, None).await?;
+/// let users2 = adapter.execute_where_query("v_user", Some(&where_clause), None, None).await?;
 ///
 /// // After mutation, invalidate
 /// let invalidation = InvalidationContext::for_mutation(
@@ -632,6 +632,24 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             return self.adapter.execute_where_query(view, where_clause, limit, offset).await;
         }
 
+        // Optimization: Skip caching for simple queries that execute faster than cache overhead
+        // These are queries that:
+        // 1. Have no WHERE clause (full table scan is fast for small tables)
+        // 2. Have small LIMIT (< 1000 rows)
+        // 3. Simple view lookups that complete in < 5ms
+        //
+        // The SHA-256 hash computation (~50-100μs) + cache lookup (~20-50μs) +
+        // result clone overhead exceeds the query execution time for these cases.
+        //
+        // Fixes Issue #40: Cache was hurting performance by -35% for simple queries
+        let is_simple_query = where_clause.is_none() && limit.map_or(true, |l| l <= 1000);
+
+        if is_simple_query {
+            // Fast path: Execute directly without cache overhead
+            // This restores performance for Q1/Q2/Q2b queries in benchmarks
+            return self.adapter.execute_where_query(view, where_clause, limit, offset).await;
+        }
+
         // Generate cache key
         let query_string = format!("query {{ {view} }}");
         let variables = json!({
@@ -781,13 +799,26 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(true),
+        };
+
         // First query - cache miss
-        let result1 = adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        let result1 = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(result1.len(), 2);
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Second query - cache hit
-        let result2 = adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        let result2 = adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(result2.len(), 2);
         assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
     }
@@ -825,12 +856,25 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
         // Query 1 - cache miss
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Query 2 - cache hit
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Invalidate
@@ -838,7 +882,10 @@ mod tests {
         assert_eq!(invalidated, 1);
 
         // Query 3 - cache miss again (was invalidated)
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -864,12 +911,83 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // First query
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Second query - should NOT hit cache (cache disabled)
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
+    }
+
+    /// Test that simple queries bypass cache (Issue #40 fix).
+    ///
+    /// Simple queries (no WHERE clause, small LIMIT) execute faster than
+    /// the cache overhead (SHA-256 hash + lookup), so they bypass the cache
+    /// to improve performance.
+    #[tokio::test]
+    async fn test_simple_queries_bypass_cache() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::default());
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        // Simple query 1: no WHERE, no LIMIT
+        // This should bypass cache and execute directly
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 1);
+
+        // Same simple query again
+        // With the old implementation, this would hit cache
+        // With Issue #40 fix, it bypasses cache (same performance, less overhead)
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        // Call count increases because we bypass cache for simple queries
+        assert_eq!(adapter.inner().call_count(), 2);
+
+        // Simple query 2: no WHERE, small LIMIT (1000)
+        adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 3);
+
+        // Same query again - still bypasses cache
+        adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 4);
+
+        // Complex query: with WHERE clause - should use cache
+        let where_clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(1),
+        };
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 5);
+
+        // Same complex query - should hit cache
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
+        assert_eq!(adapter.inner().call_count(), 5); // Still 5 - cache hit!
+
+        // Large limit (> 1000) should also use cache
+        adapter.execute_where_query("v_user", None, Some(1001), None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 6);
+
+        // Same large limit query - should hit cache
+        adapter.execute_where_query("v_user", None, Some(1001), None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 6); // Still 6 - cache hit!
     }
 
     #[tokio::test]
@@ -961,12 +1079,25 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::default());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
+        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        let where_clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+
         // Pre-populate cache with query reading from v_user
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Cache hit on second query
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Parse cascade response with single User entity
@@ -991,7 +1122,10 @@ mod tests {
         assert_eq!(invalidated, 1);
 
         // Next query should be a cache miss (was invalidated)
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
@@ -1002,7 +1136,10 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache with multiple views
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         adapter.execute_where_query("v_post", None, None, None).await.unwrap();
         adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 3);
@@ -1028,7 +1165,10 @@ mod tests {
         assert_eq!(invalidated, 3);
 
         // All queries should now be cache misses
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         adapter.execute_where_query("v_post", None, None, None).await.unwrap();
         adapter.execute_where_query("v_comment", None, None, None).await.unwrap();
         // Should have 6 total calls (3 initial + 3 after invalidation)
@@ -1078,7 +1218,10 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Response without cascade field (mutation with no side effects)
@@ -1098,7 +1241,10 @@ mod tests {
         assert_eq!(invalidated, 0);
 
         // Cache should still be valid - should be a cache hit
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
     }
 
@@ -1109,7 +1255,10 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         adapter.execute_where_query("v_post", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
@@ -1134,7 +1283,10 @@ mod tests {
         assert_eq!(invalidated, 2);
 
         // Both queries should now be cache misses
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         adapter.execute_where_query("v_post", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 4);
     }
@@ -1146,7 +1298,10 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Cascade with multiple instances of the same entity type
@@ -1222,7 +1377,10 @@ mod tests {
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
         // Pre-populate cache
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
         // Empty cascade (no entities affected)
@@ -1242,7 +1400,10 @@ mod tests {
         assert_eq!(invalidated, 0);
 
         // Cache should still be valid
-        adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        adapter
+            .execute_where_query("v_user", Some(&where_clause), None, None)
+            .await
+            .unwrap();
         assert_eq!(adapter.inner().call_count(), 1); // Cache hit
     }
 
