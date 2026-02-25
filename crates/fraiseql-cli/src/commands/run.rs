@@ -22,7 +22,7 @@ use notify::{
 };
 use tracing::info;
 
-use super::compile::compile_to_schema;
+use super::compile::{CompileOptions, compile_to_schema};
 
 /// Run the `fraiseql run` command.
 ///
@@ -168,7 +168,7 @@ async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSc
 
     println!("Compiling schema...");
 
-    let (schema, _report) = compile_to_schema(input, None, None, vec![], vec![], vec![], None)
+    let (schema, _report) = compile_to_schema(CompileOptions::new(input))
         .await
         .context("Schema compilation failed")?;
 

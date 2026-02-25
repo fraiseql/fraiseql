@@ -15,6 +15,57 @@ use crate::{
     },
 };
 
+/// Input source configuration for schema compilation.
+#[derive(Debug, Default)]
+pub struct CompileOptions<'a> {
+    /// Path to `fraiseql.toml` (TOML workflow) or `schema.json` (legacy).
+    pub input:          &'a str,
+    /// Optional path to `types.json` (TOML workflow, backward compat).
+    pub types:          Option<&'a str>,
+    /// Optional directory for schema file auto-discovery.
+    pub schema_dir:     Option<&'a str>,
+    /// Explicit type file paths (highest priority).
+    pub type_files:     Vec<String>,
+    /// Explicit query file paths.
+    pub query_files:    Vec<String>,
+    /// Explicit mutation file paths.
+    pub mutation_files: Vec<String>,
+    /// Optional database URL for indexed column validation.
+    pub database:       Option<&'a str>,
+}
+
+impl<'a> CompileOptions<'a> {
+    /// Create new compile options with just the input path.
+    #[must_use]
+    pub fn new(input: &'a str) -> Self {
+        Self {
+            input,
+            ..Default::default()
+        }
+    }
+
+    /// Set the types path.
+    #[must_use]
+    pub fn with_types(mut self, types: &'a str) -> Self {
+        self.types = Some(types);
+        self
+    }
+
+    /// Set the schema directory for auto-discovery.
+    #[must_use]
+    pub fn with_schema_dir(mut self, schema_dir: &'a str) -> Self {
+        self.schema_dir = Some(schema_dir);
+        self
+    }
+
+    /// Set the database URL for validation.
+    #[must_use]
+    pub fn with_database(mut self, database: &'a str) -> Self {
+        self.database = Some(database);
+        self
+    }
+}
+
 /// Select and execute the appropriate schema-loading strategy for TOML-based workflows.
 ///
 /// Tries strategies in priority order:
@@ -59,7 +110,8 @@ fn load_intermediate_schema(
         return Ok(schema);
     }
     info!("No includes configured, using TOML-only definitions");
-    crate::schema::SchemaMerger::merge_toml_only(toml_path).context("Failed to load schema from TOML")
+    crate::schema::SchemaMerger::merge_toml_only(toml_path)
+        .context("Failed to load schema from TOML")
 }
 
 /// Compile a schema to `CompiledSchema` without writing to disk.
@@ -69,34 +121,21 @@ fn load_intermediate_schema(
 ///
 /// # Arguments
 ///
-/// * `input` - Path to fraiseql.toml (TOML) or schema.json (legacy)
-/// * `types` - Optional path to types.json (when using TOML workflow)
-/// * `schema_dir` - Optional directory for auto-discovery of schema files
-/// * `type_files` - Optional vector of explicit type file paths
-/// * `query_files` - Optional vector of explicit query file paths
-/// * `mutation_files` - Optional vector of explicit mutation file paths
-/// * `database` - Optional database URL for indexed column validation
+/// * `opts` - Compilation options including input paths and configuration
 ///
 /// # Errors
 ///
 /// Returns error if input is missing, parsing fails, validation fails, or the database
 /// connection fails (when `database` is provided).
-#[allow(clippy::too_many_arguments)] // Reason: compile orchestrates multiple input sources; extracting a struct would add indirection for a single call site
 pub async fn compile_to_schema(
-    input: &str,
-    types: Option<&str>,
-    schema_dir: Option<&str>,
-    type_files: Vec<String>,
-    query_files: Vec<String>,
-    mutation_files: Vec<String>,
-    database: Option<&str>,
+    opts: CompileOptions<'_>,
 ) -> Result<(CompiledSchema, OptimizationReport)> {
-    info!("Compiling schema: {input}");
+    info!("Compiling schema: {}", opts.input);
 
     // 1. Determine workflow based on input file and options
-    let input_path = Path::new(input);
+    let input_path = Path::new(opts.input);
     if !input_path.exists() {
-        anyhow::bail!("Input file not found: {input}");
+        anyhow::bail!("Input file not found: {}", opts.input);
     }
 
     // Load schema based on file type and options
@@ -106,7 +145,14 @@ pub async fn compile_to_schema(
         .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"));
     let mut intermediate: IntermediateSchema = if is_toml {
         info!("Using TOML-based workflow");
-        load_intermediate_schema(input, &type_files, &query_files, &mutation_files, schema_dir, types)?
+        load_intermediate_schema(
+            opts.input,
+            &opts.type_files,
+            &opts.query_files,
+            &opts.mutation_files,
+            opts.schema_dir,
+            opts.types,
+        )?
     } else {
         // Legacy JSON workflow
         info!("Using legacy JSON workflow");
@@ -168,7 +214,7 @@ pub async fn compile_to_schema(
     let report = SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
 
     // 5b. Optional: Validate indexed columns against database
-    if let Some(db_url) = database {
+    if let Some(db_url) = opts.database {
         info!("Validating indexed columns against database...");
         validate_indexed_columns(&schema, db_url).await?;
     }
@@ -206,7 +252,7 @@ pub async fn compile_to_schema(
 /// - Schema validation fails
 /// - Output file can't be written
 /// - Database connection fails (when database URL is provided)
-#[allow(clippy::too_many_arguments)] // Reason: compile orchestrates multiple input sources; extracting a struct would add indirection for a single call site
+#[allow(clippy::too_many_arguments)] // Reason: run() is the CLI entry point that receives individual args from clap; keeping them separate for clarity
 pub async fn run(
     input: &str,
     types: Option<&str>,
@@ -218,7 +264,7 @@ pub async fn run(
     check: bool,
     database: Option<&str>,
 ) -> Result<()> {
-    let (schema, optimization_report) = compile_to_schema(
+    let opts = CompileOptions {
         input,
         types,
         schema_dir,
@@ -226,8 +272,8 @@ pub async fn run(
         query_files,
         mutation_files,
         database,
-    )
-    .await?;
+    };
+    let (schema, optimization_report) = compile_to_schema(opts).await?;
 
     // If check-only mode, stop here
     if check {
@@ -342,7 +388,7 @@ mod tests {
     #[test]
     fn test_validate_schema_success() {
         let schema = CompiledSchema {
-            types:          vec![TypeDefinition {
+            types:            vec![TypeDefinition {
                 name:                "User".to_string(),
                 fields:              vec![
                     FieldDefinition {
@@ -376,7 +422,7 @@ mod tests {
                 sql_projection_hint: None,
                 implements:          vec![],
             }],
-            queries:        vec![QueryDefinition {
+            queries:          vec![QueryDefinition {
                 name:         "users".to_string(),
                 return_type:  "User".to_string(),
                 returns_list: true,
@@ -388,20 +434,20 @@ mod tests {
                 deprecation:  None,
                 jsonb_column: "data".to_string(),
             }],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            enums:            vec![],
+            input_types:      vec![],
+            interfaces:       vec![],
+            unions:           vec![],
+            mutations:        vec![],
+            subscriptions:    vec![],
+            directives:       vec![],
+            observers:        Vec::new(),
+            fact_tables:      HashMap::default(),
+            federation:       None,
+            security:         None,
             observers_config: None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:       None,
+            custom_scalars:   CustomTypeRegistry::default(),
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -413,12 +459,12 @@ mod tests {
     #[test]
     fn test_validate_schema_unknown_type() {
         let schema = CompiledSchema {
-            types:          vec![],
-            enums:          vec![],
-            input_types:    vec![],
-            interfaces:     vec![],
-            unions:         vec![],
-            queries:        vec![QueryDefinition {
+            types:            vec![],
+            enums:            vec![],
+            input_types:      vec![],
+            interfaces:       vec![],
+            unions:           vec![],
+            queries:          vec![QueryDefinition {
                 name:         "users".to_string(),
                 return_type:  "UnknownType".to_string(),
                 returns_list: true,
@@ -430,16 +476,16 @@ mod tests {
                 deprecation:  None,
                 jsonb_column: "data".to_string(),
             }],
-            mutations:      vec![],
-            subscriptions:  vec![],
-            directives:     vec![],
-            observers:      Vec::new(),
-            fact_tables:    HashMap::default(),
-            federation:     None,
-            security:       None,
+            mutations:        vec![],
+            subscriptions:    vec![],
+            directives:       vec![],
+            observers:        Vec::new(),
+            fact_tables:      HashMap::default(),
+            federation:       None,
+            security:         None,
             observers_config: None,
-            schema_sdl:     None,
-            custom_scalars: CustomTypeRegistry::default(),
+            schema_sdl:       None,
+            custom_scalars:   CustomTypeRegistry::default(),
         };
 
         // Note: Validation is private to SchemaConverter
