@@ -1454,6 +1454,7 @@ mod tests {
             auto_params:  AutoParams::default(),
             deprecation:  None,
             jsonb_column: "data".to_string(),
+            relay: false,
         });
         schema
     }

@@ -72,6 +72,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         sql_projection_hint: None,
         implements:          vec![],
         is_error:            false,
+        relay:            false,
     };
 
     let mut security_config = SecurityConfig::new();

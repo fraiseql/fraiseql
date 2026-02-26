@@ -1387,6 +1387,7 @@ mod tests {
             auto_params:  AutoParams::default(),
             deprecation:  None,
             jsonb_column: "data".to_string(),
+            relay: false,
         });
 
         // Add a user query with argument
@@ -1408,6 +1409,7 @@ mod tests {
             auto_params:  AutoParams::default(),
             deprecation:  None,
             jsonb_column: "data".to_string(),
+            relay: false,
         });
 
         schema
@@ -1526,6 +1528,7 @@ mod tests {
             sql_projection_hint: None,
             implements:          vec![],
             is_error:            false,
+            relay:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
@@ -1772,6 +1775,7 @@ mod tests {
             sql_projection_hint: None,
             implements:          vec!["Node".to_string()],
             is_error:            false,
+            relay:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
@@ -1786,6 +1790,7 @@ mod tests {
             sql_projection_hint: None,
             implements:          vec!["Node".to_string()],
             is_error:            false,
+            relay:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
@@ -1848,6 +1853,7 @@ mod tests {
             sql_projection_hint: None,
             implements:          vec!["Node".to_string(), "Timestamped".to_string()],
             is_error:            false,
+            relay:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),
@@ -2055,6 +2061,7 @@ mod tests {
                 reason: Some("Use 'users' instead".to_string()),
             }),
             jsonb_column: "data".to_string(),
+            relay: false,
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -2088,6 +2095,7 @@ mod tests {
             auto_params:  AutoParams::default(),
             deprecation:  None,
             jsonb_column: "data".to_string(),
+            relay: false,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

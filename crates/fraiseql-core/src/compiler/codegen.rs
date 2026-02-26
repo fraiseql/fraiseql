@@ -117,6 +117,7 @@ impl CodeGenerator {
                     implements:          Vec::new(), /* Note: IR doesn't have interface
                                                 * implementation yet */
                     is_error:            false,
+                    relay:            false,
                 }
             })
             .collect();
@@ -141,6 +142,7 @@ impl CodeGenerator {
                     },
                     deprecation:  None, // Note: IR doesn't have deprecation info yet
                     jsonb_column: "data".to_string(), // Default to "data" column
+                    relay:        false,
                 }
             })
             .collect();

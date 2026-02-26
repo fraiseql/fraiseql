@@ -394,6 +394,7 @@ impl SchemaExtractor for PythonExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -420,6 +421,7 @@ impl SchemaExtractor for PythonExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -486,6 +488,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     description: None,
                     implements: Vec::new(),
                     is_error: false,
+                    relay: false,
                 });
             }
         }
@@ -511,6 +514,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     auto_params: None,
                     deprecated: None,
                     jsonb_column: None,
+                    relay: false,
                 });
             }
         }
@@ -645,6 +649,7 @@ impl SchemaExtractor for RustExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -668,6 +673,7 @@ impl SchemaExtractor for RustExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -733,6 +739,7 @@ impl SchemaExtractor for JavaExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -757,6 +764,7 @@ impl SchemaExtractor for JavaExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -849,6 +857,7 @@ impl SchemaExtractor for KotlinExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -872,6 +881,7 @@ impl SchemaExtractor for KotlinExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -962,6 +972,7 @@ impl SchemaExtractor for GoExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -985,6 +996,7 @@ impl SchemaExtractor for GoExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -1072,6 +1084,7 @@ impl SchemaExtractor for CSharpExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -1096,6 +1109,7 @@ impl SchemaExtractor for CSharpExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -1202,6 +1216,7 @@ impl SchemaExtractor for SwiftExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -1225,6 +1240,7 @@ impl SchemaExtractor for SwiftExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 
@@ -1287,6 +1303,7 @@ impl SchemaExtractor for ScalaExtractor {
                 description,
                 implements: Vec::new(),
                 is_error: false,
+                relay: false,
             });
         }
 
@@ -1310,6 +1327,7 @@ impl SchemaExtractor for ScalaExtractor {
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,
+                relay: false,
             });
         }
 

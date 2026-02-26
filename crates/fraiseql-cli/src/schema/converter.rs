@@ -181,6 +181,7 @@ impl SchemaConverter {
             sql_projection_hint: None, // Will be populated by optimizer in
             implements: intermediate.implements,
             is_error: intermediate.is_error,
+            relay: intermediate.relay,
         })
     }
 
@@ -332,6 +333,25 @@ impl SchemaConverter {
 
     /// Convert `IntermediateQuery` to `QueryDefinition`
     fn convert_query(intermediate: IntermediateQuery) -> Result<QueryDefinition> {
+        // Validate relay constraints before conversion.
+        if intermediate.relay {
+            if !intermediate.returns_list {
+                anyhow::bail!(
+                    "Query '{}': relay=true requires returns_list=true; \
+                     Relay connections only apply to list queries",
+                    intermediate.name
+                );
+            }
+            if intermediate.sql_source.is_none() {
+                anyhow::bail!(
+                    "Query '{}': relay=true requires sql_source to be set; \
+                     the compiler needs the view name to derive the cursor column \
+                     (pk_{{snake_case(return_type)}})",
+                    intermediate.name
+                );
+            }
+        }
+
         let arguments = intermediate
             .arguments
             .into_iter()
@@ -339,16 +359,26 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert query '{}'", intermediate.name))?;
 
-        let auto_params = intermediate.auto_params.map_or_else(
-            || {
-                if intermediate.returns_list {
-                    AutoParams::all()
-                } else {
-                    AutoParams::default()
-                }
-            },
-            Self::convert_auto_params,
-        );
+        // Relay queries use cursor-based pagination; disable limit/offset auto_params.
+        let auto_params = if intermediate.relay {
+            AutoParams {
+                has_where:    true,
+                has_order_by: true,
+                has_limit:    false,
+                has_offset:   false,
+            }
+        } else {
+            intermediate.auto_params.map_or_else(
+                || {
+                    if intermediate.returns_list {
+                        AutoParams::all()
+                    } else {
+                        AutoParams::default()
+                    }
+                },
+                Self::convert_auto_params,
+            )
+        };
 
         let deprecation = intermediate
             .deprecated
@@ -365,6 +395,7 @@ impl SchemaConverter {
             auto_params,
             deprecation,
             jsonb_column: intermediate.jsonb_column.unwrap_or_else(|| "data".to_string()),
+            relay: intermediate.relay,
         })
     }
 
@@ -749,6 +780,7 @@ mod tests {
                 description: Some("User type".to_string()),
                 implements:  vec![],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -796,6 +828,7 @@ mod tests {
                 auto_params:  None,
                 deprecated:   None,
                 jsonb_column: None,
+                relay: false,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -825,6 +858,7 @@ mod tests {
                 description: None,
                 implements:  vec![],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -852,6 +886,7 @@ mod tests {
                 }),
                 deprecated:   None,
                 jsonb_column: None,
+                relay: false,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -883,6 +918,7 @@ mod tests {
                 description: None,
                 implements:  vec![],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -899,6 +935,7 @@ mod tests {
                 auto_params:  None,
                 deprecated:   None,
                 jsonb_column: None,
+                relay: false,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -931,6 +968,7 @@ mod tests {
                 description: None,
                 implements:  vec![],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -947,6 +985,7 @@ mod tests {
                 auto_params:  None,
                 deprecated:   None,
                 jsonb_column: None,
+                relay: false,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1001,6 +1040,7 @@ mod tests {
                 description: None,
                 implements:  vec![],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1464,6 +1504,7 @@ mod tests {
                 description: None,
                 implements:  vec!["Node".to_string()],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1524,6 +1565,7 @@ mod tests {
                 description: None,
                 implements:  vec!["UnknownInterface".to_string()],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1572,6 +1614,7 @@ mod tests {
                 description: None,
                 implements:  vec!["Node".to_string()],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1627,6 +1670,7 @@ mod tests {
                     description: None,
                     implements:  vec![],
                     is_error:    false,
+                    relay:    false,
                 },
                 IntermediateType {
                     name:        "Post".to_string(),
@@ -1641,6 +1685,7 @@ mod tests {
                     description: None,
                     implements:  vec![],
                     is_error:    false,
+                    relay:    false,
                 },
             ],
             enums:             vec![],
@@ -1722,6 +1767,7 @@ mod tests {
                 description: None,
                 implements:  vec![],
                 is_error:    false,
+                relay:    false,
             }],
             enums:             vec![],
             input_types:       vec![],

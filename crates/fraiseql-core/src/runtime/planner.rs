@@ -189,6 +189,7 @@ mod tests {
                 auto_params:  AutoParams::default(),
                 deprecation:  None,
                 jsonb_column: "data".to_string(),
+                relay: false,
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {

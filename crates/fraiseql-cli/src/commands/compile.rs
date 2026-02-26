@@ -425,6 +425,7 @@ mod tests {
                 sql_projection_hint: None,
                 implements:          vec![],
                 is_error:            false,
+                relay:            false,
             }],
             queries:          vec![QueryDefinition {
                 name:         "users".to_string(),
@@ -437,6 +438,7 @@ mod tests {
                 auto_params:  AutoParams::default(),
                 deprecation:  None,
                 jsonb_column: "data".to_string(),
+                relay: false,
             }],
             enums:            vec![],
             input_types:      vec![],
@@ -479,6 +481,7 @@ mod tests {
                 auto_params:  AutoParams::default(),
                 deprecation:  None,
                 jsonb_column: "data".to_string(),
+                relay: false,
             }],
             mutations:        vec![],
             subscriptions:    vec![],

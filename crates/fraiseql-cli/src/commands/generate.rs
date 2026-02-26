@@ -1122,6 +1122,7 @@ mod tests {
             auto_params:  None,
             deprecated:   None,
             jsonb_column: None,
+            relay: false,
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -1142,6 +1143,7 @@ mod tests {
             auto_params:  None,
             deprecated:   None,
             jsonb_column: None,
+            relay: false,
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
     }
@@ -1195,6 +1197,7 @@ mod tests {
                 description: None,
                 implements:  Vec::new(),
                 is_error:    false,
+                relay:    false,
             }],
             queries: vec![
                 IntermediateQuery {
@@ -1208,6 +1211,7 @@ mod tests {
                     auto_params:  None,
                     deprecated:   None,
                     jsonb_column: None,
+                    relay: false,
                 },
                 IntermediateQuery {
                     name:         "author".to_string(),
@@ -1226,6 +1230,7 @@ mod tests {
                     auto_params:  None,
                     deprecated:   None,
                     jsonb_column: None,
+                    relay: false,
                 },
             ],
             enums: vec![IntermediateEnum {

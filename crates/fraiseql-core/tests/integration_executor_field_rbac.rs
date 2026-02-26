@@ -96,6 +96,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         sql_projection_hint: None,
         implements:          vec![],
         is_error:            false,
+        relay:            false,
     }
 }
 

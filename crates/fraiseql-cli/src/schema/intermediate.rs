@@ -118,6 +118,12 @@ pub struct IntermediateType {
     /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_error: bool,
+
+    /// Whether this type implements the Relay Node interface.
+    /// When true, the compiler generates global node IDs (`base64("TypeName:uuid")`)
+    /// and validates that `pk_{entity}` (BIGINT) is present in the view's data JSONB.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub relay: bool,
 }
 
 /// Field definition in intermediate format
@@ -397,6 +403,13 @@ pub struct IntermediateQuery {
     /// Used for tv_* (denormalized JSONB tables) pattern
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jsonb_column: Option<String>,
+
+    /// Whether this is a Relay connection query.
+    /// When true, the compiler wraps results in `{ edges: [{ node, cursor }], pageInfo }`
+    /// and generates `first`/`after`/`last`/`before` arguments instead of `limit`/`offset`.
+    /// Requires `returns_list = true` and `sql_source` to be set.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub relay: bool,
 }
 
 /// Mutation definition in intermediate format

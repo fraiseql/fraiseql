@@ -694,6 +694,18 @@ pub struct TypeDefinition {
     /// the `entity` field.  Both scalar primitives and nested objects are supported.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_error: bool,
+
+    /// Whether this type implements the Relay Node interface.
+    ///
+    /// When `true`, the compiler auto-generates:
+    /// - `implements: ["Node"]` in the type definition
+    /// - A global `node(id: ID!)` query entry routing to this type
+    /// - `XxxConnection` and `XxxEdge` wrapper types
+    ///
+    /// The global `id` field is the public UUID (`id` column).
+    /// Cursor-based pagination uses `pk_{snake_case(name)}` (BIGINT) for keyset ordering.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub relay: bool,
 }
 
 /// SQL projection hint for database-specific field projection optimization.
@@ -732,6 +744,7 @@ impl TypeDefinition {
             sql_projection_hint: None,
             implements:          Vec::new(),
             is_error:            false,
+            relay:               false,
         }
     }
 
@@ -1343,6 +1356,14 @@ pub struct QueryDefinition {
     /// Used to extract data from JSONB columns in query results.
     #[serde(default = "default_jsonb_column")]
     pub jsonb_column: String,
+
+    /// Whether this query is a Relay connection query.
+    ///
+    /// When `true`, the compiler wraps the result in `XxxConnection` with
+    /// `edges { cursor node { ... } }` and `pageInfo` fields, using keyset
+    /// pagination on `pk_{snake_case(return_type)}` (BIGINT).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub relay: bool,
 }
 
 impl QueryDefinition {
@@ -1360,6 +1381,7 @@ impl QueryDefinition {
             auto_params:  AutoParams::default(),
             deprecation:  None,
             jsonb_column: "data".to_string(),
+            relay:        false,
         }
     }
 
