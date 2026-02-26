@@ -239,11 +239,11 @@ impl TransportAdapter for KafkaAdapter {
         let timeout = Duration::from_millis(self.config.timeout_ms);
 
         match self.producer.send(record, timeout).await {
-            Ok((partition, offset)) => {
+            Ok(delivery) => {
                 tracing::debug!(
                     topic = topic,
-                    partition = partition,
-                    offset = offset,
+                    partition = delivery.partition,
+                    offset = delivery.offset,
                     key = message.key(),
                     event_id = %event.event_id,
                     "Kafka message delivered successfully"
