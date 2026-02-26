@@ -1292,6 +1292,26 @@ impl UnionDefinition {
     }
 }
 
+/// The type of column used as the keyset cursor for relay pagination.
+///
+/// Determines how the cursor value is encoded/decoded and how the SQL comparison
+/// is emitted (`bigint` vs `uuid` cast).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CursorType {
+    /// BIGINT / INTEGER column (default, backward-compatible).
+    /// Cursor is `base64(decimal_string)`.
+    #[default]
+    Int64,
+    /// UUID column.
+    /// Cursor is `base64(uuid_string)`.
+    Uuid,
+}
+
+fn is_default_cursor_type(ct: &CursorType) -> bool {
+    *ct == CursorType::Int64
+}
+
 /// A query definition compiled from `@fraiseql.query`.
 ///
 /// Queries are declarative bindings to database views/tables.
@@ -1300,20 +1320,9 @@ impl UnionDefinition {
 /// # Example
 ///
 /// ```
-/// use fraiseql_core::schema::{QueryDefinition, AutoParams};
+/// use fraiseql_core::schema::QueryDefinition;
 ///
-/// let query = QueryDefinition {
-///     name: "users".to_string(),
-///     return_type: "User".to_string(),
-///     returns_list: true,
-///     nullable: false,
-///     arguments: vec![],
-///     sql_source: Some("v_user".to_string()),
-///     description: Some("Get all users".to_string()),
-///     auto_params: AutoParams::default(),
-///     deprecation: None,
-///     jsonb_column: "data".to_string(),
-/// };
+/// let query = QueryDefinition::new("users", "User");
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryDefinition {
@@ -1376,6 +1385,15 @@ pub struct QueryDefinition {
     /// Only set when `relay = true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relay_cursor_column: Option<String>,
+
+    /// Type of the keyset cursor column.
+    ///
+    /// Defaults to `Int64` for backward compatibility with schemas that use `pk_{type}`
+    /// BIGINT columns. Set to `Uuid` when the cursor column has a UUID type.
+    ///
+    /// Only meaningful when `relay = true`.
+    #[serde(default, skip_serializing_if = "is_default_cursor_type")]
+    pub relay_cursor_type: CursorType,
 }
 
 impl QueryDefinition {
@@ -1395,6 +1413,7 @@ impl QueryDefinition {
             jsonb_column:        "data".to_string(),
             relay:               false,
             relay_cursor_column: None,
+            relay_cursor_type:   CursorType::Int64,
         }
     }
 

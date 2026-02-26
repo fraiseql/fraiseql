@@ -144,6 +144,7 @@ impl CodeGenerator {
                     jsonb_column: "data".to_string(), // Default to "data" column
                     relay:        false,
                     relay_cursor_column: None,
+                    relay_cursor_type: Default::default(),
                 }
             })
             .collect();

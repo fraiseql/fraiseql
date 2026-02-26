@@ -993,7 +993,7 @@ impl IntrospectionBuilder {
         // Inject synthetic `node(id: ID!): Node` field when relay types exist.
         let has_relay_types = schema.types.iter().any(|t| t.relay)
             || schema.interfaces.iter().any(|i| i.name == "Node");
-        if has_relay_types {
+        if has_relay_types && !fields.iter().any(|f| f.name == "node") {
             fields.push(Self::build_node_query_field());
         }
 
@@ -1553,6 +1553,7 @@ mod tests {
             jsonb_column: "data".to_string(),
             relay: false,
             relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
         });
 
         // Add a user query with argument
@@ -1576,6 +1577,7 @@ mod tests {
             jsonb_column: "data".to_string(),
             relay: false,
             relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
         });
 
         schema
@@ -2229,6 +2231,7 @@ mod tests {
             jsonb_column: "data".to_string(),
             relay: false,
             relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -2264,6 +2267,7 @@ mod tests {
             jsonb_column: "data".to_string(),
             relay: false,
             relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

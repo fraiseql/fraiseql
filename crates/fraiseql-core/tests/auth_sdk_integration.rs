@@ -94,6 +94,7 @@ impl DatabaseAdapter for MockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+
 }
 
 /// Test that schema with fact tables can be parsed and validated
@@ -398,6 +399,7 @@ fn create_test_schema() -> CompiledSchema {
         jsonb_column: "data".to_string(),
         relay: false,
         relay_cursor_column: None,
+        relay_cursor_type: Default::default(),
     });
 
     schema

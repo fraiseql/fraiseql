@@ -441,6 +441,7 @@ impl DatabaseAdapter for SqlServerAdapter {
             sql_state: None,
         })
     }
+
 }
 
 #[cfg(all(test, feature = "test-sqlserver"))]

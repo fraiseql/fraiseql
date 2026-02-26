@@ -344,6 +344,7 @@ impl DatabaseAdapter for FailingAdapter {
         self.check_failure(function_name)?;
         Ok(vec![])
     }
+
 }
 
 #[cfg(test)]

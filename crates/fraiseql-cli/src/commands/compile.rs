@@ -383,7 +383,8 @@ mod tests {
 
     use fraiseql_core::{
         schema::{
-            AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
+            AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, QueryDefinition,
+            TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
@@ -440,6 +441,7 @@ mod tests {
                 jsonb_column: "data".to_string(),
                 relay: false,
                 relay_cursor_column: None,
+                relay_cursor_type: CursorType::default(),
             }],
             enums:            vec![],
             input_types:      vec![],
@@ -484,6 +486,7 @@ mod tests {
                 jsonb_column: "data".to_string(),
                 relay: false,
                 relay_cursor_column: None,
+                relay_cursor_type: CursorType::default(),
             }],
             mutations:        vec![],
             subscriptions:    vec![],

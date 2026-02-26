@@ -16,6 +16,8 @@
 
 use std::{sync::Arc, time::Duration};
 
+use futures::future::BoxFuture;
+
 use super::{
     ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
     filter_fields,
@@ -24,12 +26,75 @@ use super::{
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
-    db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
+    compiler::aggregation::OrderByClause,
+    db::{
+        CursorValue, RelayDatabaseAdapter, WhereClause,
+        projection_generator::PostgresProjectionGenerator,
+        traits::{DatabaseAdapter, RelayPageResult},
+    },
     error::{FraiseQLError, Result},
     graphql::parse_query,
     schema::{CompiledSchema, IntrospectionResponses, SecurityConfig, SqlProjectionHint},
     security::{FieldAccessError, SecurityContext},
 };
+
+// ── Relay dispatch ─────────────────────────────────────────────────────────────
+//
+// `RelayDispatch` is a private type-erased relay executor stored as
+// `Option<Arc<dyn RelayDispatch>>` in `Executor<A>`.  It is populated at
+// construction time only when `A: RelayDatabaseAdapter`, giving us:
+//
+//  - No `unreachable!()` in non-relay adapters.
+//  - No capability flag to keep in sync.
+//  - `execute_relay_page` exists *only* on relay-capable adapters.
+//  - One clean runtime `Option::is_some()` check in the dispatcher.
+//
+// This design works in stable Rust because specialisation is not required —
+// the selection happens in two differently-named constructors.
+
+trait RelayDispatch: Send + Sync {
+    fn execute_relay_page<'a>(
+        &'a self,
+        view: &'a str,
+        cursor_column: &'a str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&'a WhereClause>,
+        order_by: Option<&'a [OrderByClause]>,
+        include_total_count: bool,
+    ) -> BoxFuture<'a, Result<RelayPageResult>>;
+}
+
+struct RelayDispatchImpl<A: RelayDatabaseAdapter>(Arc<A>);
+
+impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDispatchImpl<A> {
+    fn execute_relay_page<'a>(
+        &'a self,
+        view: &'a str,
+        cursor_column: &'a str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&'a WhereClause>,
+        order_by: Option<&'a [OrderByClause]>,
+        include_total_count: bool,
+    ) -> BoxFuture<'a, Result<RelayPageResult>> {
+        Box::pin(self.0.execute_relay_page(
+            view,
+            cursor_column,
+            after,
+            before,
+            limit,
+            forward,
+            where_clause,
+            order_by,
+            include_total_count,
+        ))
+    }
+}
 
 /// Query type classification for routing.
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +178,13 @@ pub struct Executor<A: DatabaseAdapter> {
     /// Wrapped in Arc to allow multiple executors to use the same connection pool
     adapter: Arc<A>,
 
+    /// Type-erased relay capability slot.
+    ///
+    /// `Some` when the executor was constructed via `new_with_relay` (requires
+    /// `A: RelayDatabaseAdapter`).  `None` causes relay queries to return a
+    /// `FraiseQLError::Validation` — no `unreachable!()`, no capability flag.
+    relay: Option<Arc<dyn RelayDispatch>>,
+
     /// Query matching engine (stateless)
     matcher: QueryMatcher,
 
@@ -164,12 +236,58 @@ impl<A: DatabaseAdapter> Executor<A> {
         Self {
             schema,
             adapter,
+            relay: None,
             matcher,
             planner,
             config,
             introspection,
         }
     }
+}
+
+impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
+    /// Create a new executor with relay cursor pagination enabled.
+    ///
+    /// Only callable when `A: RelayDatabaseAdapter`.  The relay capability is
+    /// encoded once at construction time as a type-erased `Arc<dyn RelayDispatch>`,
+    /// so there is no per-query overhead beyond an `Option::is_some()` check.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = PostgresAdapter::new(connection_string).await?;
+    /// let executor = Executor::new_with_relay(schema, Arc::new(adapter));
+    /// ```
+    #[must_use]
+    pub fn new_with_relay(schema: CompiledSchema, adapter: Arc<A>) -> Self {
+        Self::with_config_and_relay(schema, adapter, RuntimeConfig::default())
+    }
+
+    /// Create a new executor with relay support and custom configuration.
+    #[must_use]
+    pub fn with_config_and_relay(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        config: RuntimeConfig,
+    ) -> Self {
+        let relay: Arc<dyn RelayDispatch> = Arc::new(RelayDispatchImpl(adapter.clone()));
+        let matcher = QueryMatcher::new(schema.clone());
+        let planner = QueryPlanner::new(config.cache_query_plans);
+        let introspection = IntrospectionResponses::build(&schema);
+
+        Self {
+            schema,
+            adapter,
+            relay: Some(relay),
+            matcher,
+            planner,
+            config,
+            introspection,
+        }
+    }
+}
+
+impl<A: DatabaseAdapter> Executor<A> {
 
     /// Execute a GraphQL query.
     ///
@@ -796,7 +914,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         use crate::{
             compiler::aggregation::OrderByClause,
-            runtime::relay::{decode_edge_cursor, encode_edge_cursor},
+            runtime::relay::{decode_edge_cursor, decode_uuid_cursor, encode_edge_cursor},
+            schema::CursorType,
         };
 
         let query_def = &query_match.query_def;
@@ -821,6 +940,18 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
+        // Guard: relay pagination requires the executor to have been constructed
+        // via `Executor::new_with_relay` with a `RelayDatabaseAdapter`.
+        let relay = self.relay.as_ref().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "Relay pagination is not supported by the {} adapter. \
+                 Use a relay-capable adapter (e.g. PostgreSQL) and construct \
+                 the executor with `Executor::new_with_relay`.",
+                self.adapter.database_type()
+            ),
+            path: None,
+        })?;
+
         // Extract relay pagination arguments from variables.
         let vars = variables.and_then(|v| v.as_object());
         let first: Option<u32> = vars
@@ -836,9 +967,17 @@ impl<A: DatabaseAdapter> Executor<A> {
         let before_cursor: Option<&str> =
             vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
 
-        // Decode base64 cursors.
-        let after_pk: Option<i64> = after_cursor.and_then(decode_edge_cursor);
-        let before_pk: Option<i64> = before_cursor.and_then(decode_edge_cursor);
+        // Decode base64 cursors — type depends on relay_cursor_type.
+        let (after_pk, before_pk) = match query_def.relay_cursor_type {
+            CursorType::Int64 => (
+                after_cursor.and_then(decode_edge_cursor).map(CursorValue::Int64),
+                before_cursor.and_then(decode_edge_cursor).map(CursorValue::Int64),
+            ),
+            CursorType::Uuid => (
+                after_cursor.and_then(decode_uuid_cursor).map(CursorValue::Uuid),
+                before_cursor.and_then(decode_uuid_cursor).map(CursorValue::Uuid),
+            ),
+        };
 
         // Determine direction and limit.
         // Forward pagination takes priority; fallback to 20 if neither first/last given.
@@ -869,17 +1008,33 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // Detect whether the client selected `totalCount` in the connection.
-        // Walk the selection set: the connection is the root field, and
-        // `totalCount` appears as a direct child of the connection selection.
+        // Detect whether the client selected `totalCount` inside the connection.
+        // `query_match.selections` contains the root-level fields of the query (e.g.
+        // `users`). `totalCount` is a field *inside* the connection, so we look in the
+        // nested_fields of the matched root field.
+        //
+        // Fragment spreads (e.g. `... on UserConnection { totalCount }`) are NOT
+        // resolved here; clients using fragment spreads for totalCount will receive null.
+        // Relay compiler and Apollo relay mode always emit totalCount as an inline field.
+        // TODO(relay): flatten fragments before this check for full spec compliance.
         let include_total_count = query_match
             .selections
             .iter()
-            .any(|sel| sel.name == "totalCount");
+            .find(|sel| sel.name == query_def.name)
+            .map(|connection_field| {
+                connection_field
+                    .nested_fields
+                    .iter()
+                    .any(|sel| sel.name == "totalCount")
+            })
+            .unwrap_or(false);
 
-        let result = self
-            .adapter
-            .execute_relay_page_v2(
+        // Capture before the move into execute_relay_page.
+        let had_after = after_pk.is_some();
+        let had_before = before_pk.is_some();
+
+        let result = relay
+            .execute_relay_page(
                 sql_source,
                 cursor_column,
                 after_pk,
@@ -897,9 +1052,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         let rows: Vec<_> = result.rows.into_iter().take(page_size as usize).collect();
 
         let (has_next_page, has_previous_page) = if forward {
-            (has_extra, after_pk.is_some())
+            (has_extra, had_after)
         } else {
-            (before_pk.is_some(), has_extra)
+            (had_before, has_extra)
         };
 
         // Build edges: each edge has { cursor, node }.
@@ -910,21 +1065,32 @@ impl<A: DatabaseAdapter> Executor<A> {
         for (i, row) in rows.iter().enumerate() {
             let data = &row.data;
 
-            let pk_val = data
-                .as_object()
-                .and_then(|obj| obj.get(cursor_column))
-                .and_then(|v| v.as_i64());
+            let col_val = data.as_object().and_then(|obj| obj.get(cursor_column));
 
-            let cursor_str = pk_val.map(encode_edge_cursor).ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: format!(
-                        "Relay query '{}': cursor column '{}' not found in result JSONB. \
-                         Ensure the view exposes this column inside the `data` object.",
-                        query_def.name, cursor_column
-                    ),
-                    path: None,
-                }
-            })?;
+            let cursor_str = match query_def.relay_cursor_type {
+                CursorType::Int64 => col_val
+                    .and_then(|v| v.as_i64())
+                    .map(encode_edge_cursor)
+                    .ok_or_else(|| FraiseQLError::Validation {
+                        message: format!(
+                            "Relay query '{}': cursor column '{}' not found or not an integer in \
+                             result JSONB. Ensure the view exposes this column inside the `data` object.",
+                            query_def.name, cursor_column
+                        ),
+                        path: None,
+                    })?,
+                CursorType::Uuid => col_val
+                    .and_then(|v| v.as_str())
+                    .map(crate::runtime::relay::encode_uuid_cursor)
+                    .ok_or_else(|| FraiseQLError::Validation {
+                        message: format!(
+                            "Relay query '{}': cursor column '{}' not found or not a string in \
+                             result JSONB. Ensure the view exposes this column inside the `data` object.",
+                            query_def.name, cursor_column
+                        ),
+                        path: None,
+                    })?,
+            };
 
             if i == 0 {
                 start_cursor_str = Some(cursor_str.clone());
@@ -1760,6 +1926,7 @@ mod tests {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
+
     }
 
     fn test_schema() -> CompiledSchema {
@@ -1777,6 +1944,7 @@ mod tests {
             jsonb_column: "data".to_string(),
             relay: false,
             relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
         });
         schema
     }

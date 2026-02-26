@@ -191,6 +191,7 @@ mod tests {
                 jsonb_column: "data".to_string(),
                 relay: false,
                 relay_cursor_column: None,
+                relay_cursor_type: Default::default(),
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {

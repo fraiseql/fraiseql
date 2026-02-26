@@ -85,7 +85,9 @@ pub use projection_generator::PostgresProjectionGenerator;
 pub use sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
 pub use sqlserver::SqlServerAdapter;
-pub use traits::{DatabaseAdapter, DatabaseCapabilities, RelayPageResult};
+pub use traits::{
+    CursorValue, DatabaseAdapter, DatabaseCapabilities, RelayDatabaseAdapter, RelayPageResult,
+};
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_sql_generator::WhereSqlGenerator;

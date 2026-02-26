@@ -9,7 +9,7 @@ use axum::{
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
+    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::OidcValidator,
@@ -63,6 +63,10 @@ pub struct Server<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Create new server.
     ///
+    /// Relay pagination queries will return a `Validation` error at runtime. Use
+    /// [`Server::with_relay_pagination`] when the adapter implements [`RelayDatabaseAdapter`]
+    /// and relay support is required.
+    ///
     /// # Arguments
     ///
     /// * `config` - Server configuration
@@ -100,6 +104,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
+        Self::from_executor(config, executor, subscription_manager, circuit_breaker, db_pool).await
+    }
+
+    /// Shared initialization path used by both `new` and `with_relay_pagination`.
+    ///
+    /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
+    /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
+    async fn from_executor(
+        config: ServerConfig,
+        executor: Arc<Executor<A>>,
+        subscription_manager: Arc<SubscriptionManager>,
+        circuit_breaker: Option<
+            Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
+        >,
+        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
+    ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
             info!(
@@ -179,7 +199,56 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         self.secrets_manager = Some(manager);
         info!("Secrets manager attached to server");
     }
+}
 
+impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Create a server with relay pagination support enabled.
+    ///
+    /// The adapter must implement [`RelayDatabaseAdapter`]. Currently, only
+    /// `PostgresAdapter` and `CachedDatabaseAdapter<PostgresAdapter>` satisfy this bound.
+    ///
+    /// Relay queries issued against a server created with [`Server::new`] return a
+    /// `Validation` error at runtime; those issued against a server created with this
+    /// constructor succeed.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Server configuration
+    /// * `schema` - Compiled GraphQL schema
+    /// * `adapter` - Database adapter (must implement `RelayDatabaseAdapter`)
+    /// * `db_pool` - Database connection pool (optional, required for observers)
+    ///
+    /// # Errors
+    ///
+    /// Returns error if OIDC validator initialization fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
+    /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
+    /// server.serve().await?;
+    /// ```
+    pub async fn with_relay_pagination(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        db_pool: Option<sqlx::PgPool>,
+    ) -> Result<Self> {
+        // Read circuit breaker config from compiled schema BEFORE schema is moved.
+        let circuit_breaker = schema
+            .federation
+            .as_ref()
+            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+
+        let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
+        let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
+
+        Self::from_executor(config, executor, subscription_manager, circuit_breaker, db_pool).await
+    }
+}
+
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Create new server with pre-configured Arrow Flight service.
     ///
     /// Use this constructor when you want to provide a Flight service with a real database adapter.

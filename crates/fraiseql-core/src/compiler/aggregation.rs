@@ -187,6 +187,17 @@ pub struct HavingCondition {
 }
 
 /// ORDER BY clause
+///
+/// # Numeric field sorting
+///
+/// When sorting on a JSONB field via relay pagination, the value is
+/// extracted as `text` using `data->>'field'`. This means **numeric
+/// JSON fields sort lexicographically** (`"9" > "10"`), which is
+/// incorrect for integer and float data.
+///
+/// Workaround: expose integer sort keys as a dedicated typed column
+/// in the database view. String and ISO-8601 date/time fields sort
+/// correctly without this workaround.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrderByClause {
     /// Field to order by (can be dimension, aggregate, or temporal bucket)
@@ -205,6 +216,36 @@ pub enum OrderDirection {
 }
 
 impl OrderByClause {
+    /// Validate that a field name matches the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*`.
+    ///
+    /// This is a security boundary: field names are interpolated into SQL `data->>'field'`
+    /// expressions. Any character outside the GraphQL identifier set must be rejected before
+    /// the `OrderByClause` is constructed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the field contains invalid characters.
+    fn validate_field_name(field: &str) -> crate::error::Result<()> {
+        use crate::error::FraiseQLError;
+        let mut chars = field.chars();
+        let first_ok = chars
+            .next()
+            .map(|c| c.is_ascii_alphabetic() || c == '_')
+            .unwrap_or(false);
+        let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if first_ok && rest_ok {
+            Ok(())
+        } else {
+            Err(FraiseQLError::Validation {
+                message: format!(
+                    "orderBy field name '{field}' contains invalid characters; \
+                     only [_A-Za-z][_0-9A-Za-z]* is allowed"
+                ),
+                path:    None,
+            })
+        }
+    }
+
     /// Parse `orderBy` from a GraphQL variables JSON value.
     ///
     /// Accepts two formats:
@@ -239,6 +280,7 @@ impl OrderByClause {
                             })
                         },
                     };
+                    Self::validate_field_name(field)?;
                     Ok(Self {
                         field: field.clone(),
                         direction,
@@ -277,6 +319,7 @@ impl OrderByClause {
                             })
                         },
                     };
+                    Self::validate_field_name(&field)?;
                     Ok(Self { field, direction })
                 })
                 .collect()
@@ -902,6 +945,37 @@ mod tests {
     #[test]
     fn test_order_by_from_graphql_json_invalid_direction() {
         let json = serde_json::json!({ "name": "INVALID" });
+        assert!(OrderByClause::from_graphql_json(&json).is_err());
+    }
+
+    #[test]
+    fn test_order_by_rejects_sql_injection_in_field() {
+        let json = serde_json::json!({ "x' || pg_sleep(5) || '": "ASC" });
+        assert!(OrderByClause::from_graphql_json(&json).is_err());
+    }
+
+    #[test]
+    fn test_order_by_rejects_field_with_dot() {
+        let json = serde_json::json!({ "a.b": "ASC" });
+        assert!(OrderByClause::from_graphql_json(&json).is_err());
+    }
+
+    #[test]
+    fn test_order_by_rejects_empty_field() {
+        let json = serde_json::json!({ "": "ASC" });
+        assert!(OrderByClause::from_graphql_json(&json).is_err());
+    }
+
+    #[test]
+    fn test_order_by_accepts_valid_identifiers() {
+        let json = serde_json::json!({ "created_at": "DESC", "_score": "ASC" });
+        let clauses = OrderByClause::from_graphql_json(&json).unwrap();
+        assert_eq!(clauses.len(), 2);
+    }
+
+    #[test]
+    fn test_order_by_array_rejects_injection_field() {
+        let json = serde_json::json!([{ "field": "x' OR '1'='1", "direction": "ASC" }]);
         assert!(OrderByClause::from_graphql_json(&json).is_err());
     }
 }

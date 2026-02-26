@@ -7,11 +7,11 @@ use std::collections::HashSet;
 use anyhow::{Context, Result};
 use fraiseql_core::{
     schema::{
-        ArgumentDefinition, AutoParams, CompiledSchema, DirectiveDefinition, DirectiveLocationKind,
-        EnumDefinition, EnumValueDefinition, FieldDefinition, FieldType, InputFieldDefinition,
-        InputObjectDefinition, InterfaceDefinition, MutationDefinition, MutationOperation,
-        QueryDefinition, SubscriptionDefinition, SubscriptionFilter, TypeDefinition,
-        UnionDefinition,
+        ArgumentDefinition, AutoParams, CompiledSchema, CursorType, DirectiveDefinition,
+        DirectiveLocationKind, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldType,
+        InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
+        MutationOperation, QueryDefinition, SubscriptionDefinition, SubscriptionFilter,
+        TypeDefinition, UnionDefinition,
     },
     validation::{CustomTypeDef, CustomTypeRegistry},
 };
@@ -408,6 +408,7 @@ impl SchemaConverter {
             jsonb_column: intermediate.jsonb_column.unwrap_or_else(|| "data".to_string()),
             relay: intermediate.relay,
             relay_cursor_column,
+            relay_cursor_type: CursorType::default(),
         })
     }
 

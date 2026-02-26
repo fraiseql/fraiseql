@@ -317,6 +317,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
             sql_state: None,
         })
     }
+
 }
 
 #[cfg(test)]

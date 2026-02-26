@@ -66,6 +66,44 @@ pub fn decode_edge_cursor(cursor: &str) -> Option<i64> {
     s.parse::<i64>().ok()
 }
 
+/// Encode a UUID string as a Relay edge cursor.
+///
+/// The cursor is `base64(uuid_string)`, opaque to the client.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::runtime::relay::{decode_uuid_cursor, encode_uuid_cursor};
+///
+/// let uuid = "550e8400-e29b-41d4-a716-446655440000";
+/// let cursor = encode_uuid_cursor(uuid);
+/// assert_eq!(decode_uuid_cursor(&cursor), Some(uuid.to_string()));
+/// ```
+#[must_use]
+pub fn encode_uuid_cursor(uuid: &str) -> String {
+    BASE64.encode(uuid)
+}
+
+/// Decode a Relay edge cursor back to a UUID string.
+///
+/// Returns `None` if the cursor is not valid base64 or not valid UTF-8.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::runtime::relay::{decode_uuid_cursor, encode_uuid_cursor};
+///
+/// let uuid = "550e8400-e29b-41d4-a716-446655440000";
+/// let cursor = encode_uuid_cursor(uuid);
+/// assert_eq!(decode_uuid_cursor(&cursor), Some(uuid.to_string()));
+/// assert_eq!(decode_uuid_cursor("not-valid-base64!!"), None);
+/// ```
+#[must_use]
+pub fn decode_uuid_cursor(cursor: &str) -> Option<String> {
+    let bytes = BASE64.decode(cursor).ok()?;
+    std::str::from_utf8(&bytes).ok().map(str::to_owned)
+}
+
 /// Encode a global Node ID as a Relay-compatible opaque ID.
 ///
 /// The format is `base64("TypeName:uuid")`.

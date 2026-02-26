@@ -375,6 +375,7 @@ impl DatabaseAdapter for SqliteAdapter {
             sql_state: None,
         })
     }
+
 }
 
 #[cfg(test)]

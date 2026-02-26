@@ -11,14 +11,17 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
-    runtime::{Executor, relay::encode_node_id},
+    runtime::{
+        Executor,
+        relay::{decode_uuid_cursor, encode_node_id, encode_uuid_cursor},
+    },
     schema::{
-        AutoParams, CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition,
+        AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, InterfaceDefinition,
         QueryDefinition, TypeDefinition,
     },
 };
@@ -103,37 +106,6 @@ impl DatabaseAdapter for RelayMockAdapter {
         self.execute_where_query(view, where_clause, limit, None).await
     }
 
-    /// Keyset pagination: honour after/before/forward/limit.
-    async fn execute_relay_page(
-        &self,
-        _view: &str,
-        cursor_column: &str,
-        after: Option<i64>,
-        before: Option<i64>,
-        limit: u32,
-        forward: bool,
-    ) -> Result<Vec<JsonbValue>> {
-        let mut filtered: Vec<&JsonbValue> = self
-            .rows
-            .iter()
-            .filter(|r| {
-                let pk =
-                    r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
-                match (after, before) {
-                    (Some(a), _) if forward => pk > a,
-                    (_, Some(b)) if !forward => pk < b,
-                    _ => true,
-                }
-            })
-            .collect();
-
-        if !forward {
-            filtered.reverse();
-        }
-
-        Ok(filtered.into_iter().take(limit as usize).cloned().collect())
-    }
-
     async fn health_check(&self) -> Result<()> {
         Ok(())
     }
@@ -164,6 +136,60 @@ impl DatabaseAdapter for RelayMockAdapter {
         _args: &[serde_json::Value],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
+    }
+}
+
+#[async_trait]
+impl RelayDatabaseAdapter for RelayMockAdapter {
+    /// Keyset pagination with optional filter, sort, and totalCount.
+    ///
+    /// `where_clause` and `order_by` are intentionally ignored: the mock only applies
+    /// the cursor keyset filter.
+    ///
+    /// Per the Relay Cursor Connections spec, `totalCount` reflects the **full
+    /// connection** (all rows), ignoring cursor position. This matches the two-query
+    /// approach used by the PostgreSQL adapter.
+    async fn execute_relay_page(
+        &self,
+        _view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        _where_clause: Option<&fraiseql_core::db::WhereClause>,
+        _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
+        // totalCount: full connection size, cursor ignored (Relay spec).
+        let total_count = if include_total_count { Some(self.rows.len() as u64) } else { None };
+
+        // Apply cursor filter for the page rows (Int64 only in this mock).
+        let after_pk = after.and_then(|c| if let CursorValue::Int64(v) = c { Some(v) } else { None });
+        let before_pk =
+            before.and_then(|c| if let CursorValue::Int64(v) = c { Some(v) } else { None });
+
+        let mut filtered: Vec<&JsonbValue> = self
+            .rows
+            .iter()
+            .filter(|r| {
+                let pk =
+                    r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
+                match (after_pk, before_pk) {
+                    (Some(a), _) if forward => pk > a,
+                    (_, Some(b)) if !forward => pk < b,
+                    _ => true,
+                }
+            })
+            .collect();
+
+        if !forward {
+            filtered.reverse();
+        }
+
+        let rows = filtered.into_iter().take(limit as usize).cloned().collect();
+
+        Ok(fraiseql_core::db::traits::RelayPageResult { rows, total_count })
     }
 }
 
@@ -246,13 +272,14 @@ fn relay_schema() -> CompiledSchema {
         jsonb_column:        "data".to_string(),
         relay:               true,
         relay_cursor_column: Some("pk_user".to_string()),
+        relay_cursor_type:   Default::default(),
     });
 
     schema
 }
 
 fn executor() -> Executor<RelayMockAdapter> {
-    Executor::new(relay_schema(), Arc::new(RelayMockAdapter::new()))
+    Executor::new_with_relay(relay_schema(), Arc::new(RelayMockAdapter::new()))
 }
 
 // =============================================================================
@@ -545,4 +572,280 @@ async fn test_introspection_node_field_return_kind_is_interface() {
         "node return type kind should be INTERFACE");
     assert_eq!(node_field["type"]["name"], json!("Node"),
         "node return type name should be Node");
+}
+
+// =============================================================================
+// totalCount tests
+// =============================================================================
+
+/// Verify that `totalCount` reflects the **full connection** size, ignoring cursor
+/// position. This matches the Relay Cursor Connections spec, which defines
+/// `totalCount` as the count of all objects in the connection, regardless of
+/// pagination arguments (`first`, `after`, `last`, `before`).
+///
+/// Dataset: Alice(pk=1), Bob(pk=2), Carol(pk=3)
+/// Request: after=Alice, first=1 → page=[Bob], totalCount=3 (all users, cursor ignored)
+#[tokio::test]
+async fn test_relay_total_count_ignores_cursor_position() {
+    use fraiseql_core::runtime::relay::encode_edge_cursor;
+    let exec = executor();
+
+    let after = encode_edge_cursor(PK_ALICE);
+    let result = exec
+        .execute_json(
+            "{ users { totalCount edges { cursor node { name } } } }",
+            Some(&json!({"first": 1, "after": after})),
+        )
+        .await
+        .unwrap();
+
+    let edges = result["data"]["users"]["edges"].as_array().unwrap();
+    assert_eq!(edges.len(), 1, "page should contain exactly 1 row (Bob)");
+    assert_eq!(
+        result["data"]["users"]["totalCount"],
+        json!(3),
+        "totalCount must be 3 (all users in the connection), not 2 (rows after cursor)"
+    );
+}
+
+/// Verify that `totalCount` is absent (null) when the client does not select it.
+#[tokio::test]
+async fn test_relay_total_count_absent_when_not_requested() {
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "{ users { edges { cursor node { name } } } }",
+            Some(&json!({"first": 2})),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        result["data"]["users"]["totalCount"].is_null(),
+        "totalCount should be null when not requested"
+    );
+}
+
+// =============================================================================
+// UUID cursor tests
+// =============================================================================
+
+/// Mock adapter for UUID-keyed relay pagination.
+///
+/// Rows have `id` (UUID string) as cursor column, sorted in lexicographic order.
+struct UuidRelayMockAdapter {
+    rows: Vec<JsonbValue>,
+}
+
+impl UuidRelayMockAdapter {
+    fn new() -> Self {
+        Self {
+            rows: vec![
+                JsonbValue::new(json!({"id": "aaa00000-0000-0000-0000-000000000001", "name": "Alice"})),
+                JsonbValue::new(json!({"id": "bbb00000-0000-0000-0000-000000000002", "name": "Bob"})),
+                JsonbValue::new(json!({"id": "ccc00000-0000-0000-0000-000000000003", "name": "Carol"})),
+            ],
+        }
+    }
+}
+
+#[async_trait]
+impl DatabaseAdapter for UuidRelayMockAdapter {
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(vec![])
+    }
+
+    async fn execute_with_projection(
+        &self,
+        _view: &str,
+        _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(vec![])
+    }
+
+    fn database_type(&self) -> DatabaseType { DatabaseType::PostgreSQL }
+
+    async fn health_check(&self) -> Result<()> { Ok(()) }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics { total_connections: 1, idle_connections: 1, active_connections: 0, waiting_requests: 0 }
+    }
+
+    async fn execute_raw_query(&self, _sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+}
+
+#[async_trait]
+impl RelayDatabaseAdapter for UuidRelayMockAdapter {
+    async fn execute_relay_page(
+        &self,
+        _view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        _where_clause: Option<&fraiseql_core::db::WhereClause>,
+        _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
+        let total_count = if include_total_count { Some(self.rows.len() as u64) } else { None };
+
+        let after_uuid =
+            after.and_then(|c| if let CursorValue::Uuid(v) = c { Some(v) } else { None });
+        let before_uuid =
+            before.and_then(|c| if let CursorValue::Uuid(v) = c { Some(v) } else { None });
+
+        let mut filtered: Vec<&JsonbValue> = self
+            .rows
+            .iter()
+            .filter(|r| {
+                let uuid = r.data.get(cursor_column).and_then(|v| v.as_str()).unwrap_or("");
+                match (&after_uuid, &before_uuid) {
+                    (Some(a), _) if forward => uuid > a.as_str(),
+                    (_, Some(b)) if !forward => uuid < b.as_str(),
+                    _ => true,
+                }
+            })
+            .collect();
+
+        if !forward {
+            filtered.reverse();
+        }
+
+        let rows = filtered.into_iter().take(limit as usize).cloned().collect();
+        Ok(fraiseql_core::db::traits::RelayPageResult { rows, total_count })
+    }
+}
+
+/// Build a schema with a relay-enabled `items` query that uses a UUID cursor column.
+fn uuid_relay_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+
+    let item_type = TypeDefinition {
+        name:                "Item".to_string(),
+        sql_source:          "v_item".to_string(),
+        jsonb_column:        "data".to_string(),
+        fields:              vec![
+            FieldDefinition {
+                name:           "id".to_string(),
+                field_type:     FieldType::Uuid,
+                nullable:       false,
+                default_value:  None,
+                description:    None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                encryption:     None,
+            },
+            FieldDefinition {
+                name:           "name".to_string(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                default_value:  None,
+                description:    None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                encryption:     None,
+            },
+        ],
+        is_error:            false,
+        description:         None,
+        sql_projection_hint: None,
+        implements:          vec!["Node".to_string()],
+        relay:               true,
+    };
+    schema.types.push(item_type);
+
+    schema.queries.push(QueryDefinition {
+        name: "items".to_string(),
+        return_type: "Item".to_string(),
+        returns_list: true,
+        nullable: false,
+        arguments: vec![],
+        sql_source: Some("v_item".to_string()),
+        description: None,
+        auto_params: AutoParams::default(),
+        deprecation: None,
+        jsonb_column: "data".to_string(),
+        relay: true,
+        relay_cursor_column: Some("id".to_string()),
+        relay_cursor_type: CursorType::Uuid,
+    });
+
+    schema
+}
+
+fn uuid_executor() -> Executor<UuidRelayMockAdapter> {
+    Executor::new_with_relay(uuid_relay_schema(), Arc::new(UuidRelayMockAdapter::new()))
+}
+
+#[tokio::test]
+async fn test_uuid_cursor_encode_decode_roundtrip() {
+    let uuid = "aaa00000-0000-0000-0000-000000000001";
+    let cursor = encode_uuid_cursor(uuid);
+    assert_eq!(decode_uuid_cursor(&cursor), Some(uuid.to_string()));
+}
+
+#[tokio::test]
+async fn test_uuid_relay_forward_first_page() {
+    let exec = uuid_executor();
+    let result = exec
+        .execute_json(
+            "{ items { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }",
+            Some(&json!({"first": 2})),
+        )
+        .await
+        .unwrap();
+
+    let edges = result["data"]["items"]["edges"].as_array().unwrap();
+    assert_eq!(edges.len(), 2);
+    assert_eq!(result["data"]["items"]["pageInfo"]["hasNextPage"], json!(true));
+    assert_eq!(result["data"]["items"]["pageInfo"]["hasPreviousPage"], json!(false));
+
+    // Cursors should be valid base64-encoded UUIDs
+    let cursor_str = edges[0]["cursor"].as_str().unwrap();
+    let decoded = decode_uuid_cursor(cursor_str);
+    assert!(decoded.is_some(), "cursor should decode to a UUID string");
+    assert_eq!(decoded.unwrap(), "aaa00000-0000-0000-0000-000000000001");
+}
+
+#[tokio::test]
+async fn test_uuid_relay_forward_with_after_cursor() {
+    let exec = uuid_executor();
+    let after = encode_uuid_cursor("aaa00000-0000-0000-0000-000000000001");
+    let result = exec
+        .execute_json(
+            "{ items { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }",
+            Some(&json!({"first": 10, "after": after})),
+        )
+        .await
+        .unwrap();
+
+    let edges = result["data"]["items"]["edges"].as_array().unwrap();
+    assert_eq!(edges.len(), 2, "should return Bob and Carol after Alice's cursor");
+    assert_eq!(result["data"]["items"]["pageInfo"]["hasPreviousPage"], json!(true));
+
+    let first_name = &edges[0]["node"]["name"];
+    assert_eq!(first_name, &json!("Bob"));
 }

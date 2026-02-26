@@ -318,7 +318,9 @@ mod tests {
     use std::collections::HashMap;
 
     use fraiseql_core::{
-        schema::{ArgumentDefinition, AutoParams, FieldDefinition, FieldType, TypeDefinition},
+        schema::{
+            ArgumentDefinition, AutoParams, CursorType, FieldDefinition, FieldType, TypeDefinition,
+        },
         validation::CustomTypeRegistry,
     };
 
@@ -377,6 +379,7 @@ mod tests {
                 jsonb_column: "data".to_string(),
                 relay: false,
                 relay_cursor_column: None,
+                relay_cursor_type: CursorType::default(),
             }],
             mutations:      vec![],
             subscriptions:  vec![],
@@ -422,6 +425,7 @@ mod tests {
                 jsonb_column: "data".to_string(),
                 relay: false,
                 relay_cursor_column: None,
+                relay_cursor_type: CursorType::default(),
             }],
             mutations:      vec![],
             subscriptions:  vec![],

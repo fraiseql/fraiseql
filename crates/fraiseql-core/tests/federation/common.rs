@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, DatabaseCapabilities},
+        traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -104,9 +104,6 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         Ok(vec![])
     }
 
-    fn capabilities(&self) -> DatabaseCapabilities {
-        DatabaseCapabilities::from_database_type(self.database_type())
-    }
 }
 
 /// Mock database adapter for mutation tests (returns empty results).
@@ -174,9 +171,6 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         Ok(vec![])
     }
 
-    fn capabilities(&self) -> DatabaseCapabilities {
-        DatabaseCapabilities::from_database_type(self.database_type())
-    }
 }
 
 // =============================================================================

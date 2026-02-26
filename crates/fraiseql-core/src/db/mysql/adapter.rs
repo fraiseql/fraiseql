@@ -359,6 +359,7 @@ impl DatabaseAdapter for MySqlAdapter {
             sql_state: None,
         })
     }
+
 }
 
 #[cfg(all(test, feature = "test-mysql"))]

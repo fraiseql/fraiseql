@@ -135,6 +135,7 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, Value>>> {
         Ok(vec![])
     }
+
 }
 
 /// Create federation metadata for test entities

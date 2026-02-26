@@ -293,106 +293,6 @@ pub trait DatabaseAdapter: Send + Sync {
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
-    /// Execute a Relay cursor-based (keyset) pagination query.
-    ///
-    /// Builds and executes:
-    /// ```sql
-    /// -- Forward (after cursor):
-    /// SELECT data FROM {view}
-    /// WHERE {cursor_column} > $1          -- keyset condition
-    /// ORDER BY {cursor_column} ASC
-    /// LIMIT $2                             -- first + 1 to detect hasNextPage
-    ///
-    /// -- Backward (before cursor):
-    /// SELECT data FROM {view}
-    /// WHERE {cursor_column} < $1
-    /// ORDER BY {cursor_column} DESC
-    /// LIMIT $2
-    /// ```
-    ///
-    /// The `data` JSONB column in the view is expected to contain the entity
-    /// fields as well as `pk_{entity}` (the BIGINT cursor column value) so
-    /// the caller can build edge cursors without a second query.
-    ///
-    /// # Arguments
-    ///
-    /// * `view` - SQL view name (from `QueryDefinition.sql_source`)
-    /// * `cursor_column` - BIGINT column used for keyset ordering (e.g. `"pk_user"`)
-    /// * `after` - Decoded cursor value for forward pagination (`after` argument)
-    /// * `before` - Decoded cursor value for backward pagination (`before` argument)
-    /// * `limit` - Number of rows to return (should be `first + 1` to probe hasNextPage)
-    /// * `forward` - `true` for forward (ASC) pagination, `false` for backward (DESC)
-    ///
-    /// # Default implementation
-    ///
-    /// The default returns `FraiseQLError::Validation` with a "not supported" message.
-    /// Override in adapters that support relay pagination (e.g. PostgreSQL).
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` on SQL execution failure, or
-    /// `FraiseQLError::Validation` if the adapter does not support relay pagination.
-    async fn execute_relay_page(
-        &self,
-        view: &str,
-        cursor_column: &str,
-        after: Option<i64>,
-        before: Option<i64>,
-        limit: u32,
-        forward: bool,
-    ) -> Result<Vec<crate::db::types::JsonbValue>> {
-        let _ = (view, cursor_column, after, before, limit, forward);
-        Err(crate::error::FraiseQLError::Validation {
-            message: "Relay pagination is not supported by this database adapter".to_string(),
-            path:    None,
-        })
-    }
-
-    /// Extended relay pagination with filtering, sorting, and optional total count.
-    ///
-    /// This is the full-featured relay pagination method. It supports:
-    /// - `where_clause`: filter rows before pagination
-    /// - `order_by`: custom sort order (cursor column is always appended as tiebreaker)
-    /// - `include_total_count`: compute `COUNT(*) OVER()` for the `totalCount` field
-    ///
-    /// # Default implementation
-    ///
-    /// Ignores `where_clause`, `order_by`, and `include_total_count`, delegating to
-    /// `execute_relay_page`. Override in adapters that support the extended parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `view` - SQL view name
-    /// * `cursor_column` - BIGINT column for keyset pagination
-    /// * `after` - Decoded cursor for forward pagination
-    /// * `before` - Decoded cursor for backward pagination
-    /// * `limit` - Row count (should be `first + 1` to probe `hasNextPage`)
-    /// * `forward` - `true` for ASC, `false` for DESC
-    /// * `where_clause` - Optional filter condition
-    /// * `order_by` - Optional custom sort (cursor column appended as tiebreaker)
-    /// * `include_total_count` - Whether to compute total matching row count
-    async fn execute_relay_page_v2(
-        &self,
-        view: &str,
-        cursor_column: &str,
-        after: Option<i64>,
-        before: Option<i64>,
-        limit: u32,
-        forward: bool,
-        where_clause: Option<&WhereClause>,
-        order_by: Option<&[OrderByClause]>,
-        include_total_count: bool,
-    ) -> Result<RelayPageResult> {
-        let _ = (where_clause, order_by, include_total_count);
-        let rows = self
-            .execute_relay_page(view, cursor_column, after, before, limit, forward)
-            .await?;
-        Ok(RelayPageResult {
-            rows,
-            total_count: None,
-        })
-    }
-
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,
@@ -423,6 +323,7 @@ pub struct DatabaseCapabilities {
 
     /// Recommended collation provider.
     pub recommended_collation: Option<&'static str>,
+
 }
 
 impl DatabaseCapabilities {
@@ -467,4 +368,66 @@ impl DatabaseCapabilities {
             DatabaseType::SQLServer => "Language-specific collations",
         }
     }
+}
+
+/// A typed cursor value for keyset (relay) pagination.
+///
+/// The cursor type is determined at compile time by `QueryDefinition::relay_cursor_type`
+/// and used at runtime to choose the correct SQL comparison and cursor
+/// encoding/decoding path.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CursorValue {
+    /// BIGINT primary key cursor (default, backward-compatible).
+    Int64(i64),
+    /// UUID cursor — bound as text and cast to `uuid` in SQL.
+    Uuid(String),
+}
+
+/// Database adapter supertrait for adapters that implement Relay cursor pagination.
+///
+/// Only adapters that genuinely support keyset pagination need to implement this trait.
+/// Non-implementing adapters carry no relay code at all — no stubs, no flags.
+///
+/// # Implementors
+///
+/// Currently: [`PostgresAdapter`](crate::db::postgres::PostgresAdapter) and
+/// [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) when the inner `A`
+/// implements this trait.
+///
+/// # Usage
+///
+/// Construct an [`Executor`](crate::runtime::Executor) with
+/// [`Executor::new_with_relay`](crate::runtime::Executor::new_with_relay) to enable relay
+/// query execution. The bound `A: RelayDatabaseAdapter` is enforced at that call site.
+#[async_trait]
+pub trait RelayDatabaseAdapter: DatabaseAdapter {
+    /// Execute keyset (cursor-based) pagination against a JSONB view.
+    ///
+    /// # Arguments
+    ///
+    /// * `view`                — SQL view name (will be quoted before use)
+    /// * `cursor_column`       — column used as the pagination key (e.g. `pk_user`, `id`)
+    /// * `after`               — forward cursor: return rows where `cursor_column > after`
+    /// * `before`              — backward cursor: return rows where `cursor_column < before`
+    /// * `limit`               — row fetch count (pass `page_size + 1` to detect `hasNextPage`)
+    /// * `forward`             — `true` → ASC order; `false` → DESC (re-sorted ASC via subquery)
+    /// * `where_clause`        — optional user-supplied filter applied after the cursor condition
+    /// * `order_by`            — optional custom sort; cursor column appended as tiebreaker
+    /// * `include_total_count` — when `true`, compute the matching row count before LIMIT
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on SQL execution failure.
+    async fn execute_relay_page(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult>;
 }

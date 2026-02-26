@@ -172,6 +172,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+
 }
 
 // ============================================================================
