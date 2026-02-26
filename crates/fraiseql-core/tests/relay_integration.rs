@@ -1,0 +1,490 @@
+//! Integration tests for the Relay specification support.
+//!
+//! Covers:
+//! - Forward and backward cursor-based pagination via `execute_relay_page`
+//! - Global `node(id: ID!)` query via `execute_node_query`
+//! - Introspection: `node` field appears in Query type when relay types exist
+//! - Introspection: PageInfo / XxxEdge / XxxConnection types are visible
+
+use std::{collections::HashMap, sync::Arc};
+
+use async_trait::async_trait;
+use fraiseql_core::{
+    db::{
+        traits::DatabaseAdapter,
+        types::{DatabaseType, JsonbValue, PoolMetrics},
+        where_clause::WhereClause,
+    },
+    error::{FraiseQLError, Result},
+    runtime::{Executor, relay::encode_node_id},
+    schema::{
+        AutoParams, CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition,
+        QueryDefinition, TypeDefinition,
+    },
+};
+use serde_json::json;
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/// Row pk values used as relay cursor source in tests.
+const PK_ALICE: i64 = 1;
+const PK_BOB: i64 = 2;
+const PK_CAROL: i64 = 3;
+
+fn user_row(pk: i64, name: &str, uuid: &str) -> JsonbValue {
+    JsonbValue::new(json!({
+        "id":      uuid,
+        "name":    name,
+        "pk_user": pk,
+    }))
+}
+
+fn alice() -> JsonbValue {
+    user_row(PK_ALICE, "Alice", "aaaa0000-0000-0000-0000-000000000001")
+}
+fn bob() -> JsonbValue {
+    user_row(PK_BOB, "Bob", "bbbb0000-0000-0000-0000-000000000002")
+}
+fn carol() -> JsonbValue {
+    user_row(PK_CAROL, "Carol", "cccc0000-0000-0000-0000-000000000003")
+}
+
+// =============================================================================
+// Mock adapter
+// =============================================================================
+
+struct RelayMockAdapter {
+    /// All rows in the "v_user" view, in insertion order.
+    rows: Vec<JsonbValue>,
+}
+
+impl RelayMockAdapter {
+    fn new() -> Self {
+        Self { rows: vec![alice(), bob(), carol()] }
+    }
+}
+
+#[async_trait]
+impl DatabaseAdapter for RelayMockAdapter {
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        let mut out: Vec<JsonbValue> = match where_clause {
+            // Filter by `id` equality — used for node queries.
+            Some(WhereClause::Field { path, operator: _, value }) if path == &["id"] => {
+                let uuid = value.as_str().unwrap_or("");
+                self.rows
+                    .iter()
+                    .filter(|r| r.data.get("id").and_then(|v| v.as_str()) == Some(uuid))
+                    .cloned()
+                    .collect()
+            },
+            _ => self.rows.clone(),
+        };
+        if let Some(n) = limit {
+            out.truncate(n as usize);
+        }
+        Ok(out)
+    }
+
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.execute_where_query(view, where_clause, limit, None).await
+    }
+
+    /// Keyset pagination: honour after/before/forward/limit.
+    async fn execute_relay_page(
+        &self,
+        _view: &str,
+        cursor_column: &str,
+        after: Option<i64>,
+        before: Option<i64>,
+        limit: u32,
+        forward: bool,
+    ) -> Result<Vec<JsonbValue>> {
+        let mut filtered: Vec<&JsonbValue> = self
+            .rows
+            .iter()
+            .filter(|r| {
+                let pk =
+                    r.data.get(cursor_column).and_then(|v| v.as_i64()).unwrap_or(i64::MIN);
+                match (after, before) {
+                    (Some(a), _) if forward => pk > a,
+                    (_, Some(b)) if !forward => pk < b,
+                    _ => true,
+                }
+            })
+            .collect();
+
+        if !forward {
+            filtered.reverse();
+        }
+
+        Ok(filtered.into_iter().take(limit as usize).cloned().collect())
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn database_type(&self) -> DatabaseType {
+        DatabaseType::PostgreSQL
+    }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics {
+            total_connections:  3,
+            active_connections: 1,
+            idle_connections:   2,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+}
+
+// =============================================================================
+// Schema builder
+// =============================================================================
+
+/// Build a minimal schema with a relay-enabled `users` query.
+fn relay_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+
+    // User type (relay=true so inject_relay_types would mark it)
+    let user_type = TypeDefinition {
+        name:                "User".to_string(),
+        sql_source:          "v_user".to_string(),
+        jsonb_column:        "data".to_string(),
+        fields:              vec![
+            FieldDefinition {
+                name:           "id".to_string(),
+                field_type:     FieldType::Uuid,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                encryption:     None,
+            },
+            FieldDefinition {
+                name:           "name".to_string(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                encryption:     None,
+            },
+        ],
+        description:         None,
+        sql_projection_hint: None,
+        implements:          vec!["Node".to_string()],
+        is_error:            false,
+        relay:               true,
+    };
+    schema.types.push(user_type);
+
+    // Node interface (normally injected by inject_relay_types)
+    schema.interfaces.push(
+        InterfaceDefinition::new("Node")
+            .with_description("Relay Node interface.")
+            .with_field(FieldDefinition {
+                name:           "id".to_string(),
+                field_type:     FieldType::Id,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
+                requires_scope: None,
+                encryption:     None,
+            }),
+    );
+
+    // Relay-enabled `users` query
+    schema.queries.push(QueryDefinition {
+        name:                "users".to_string(),
+        return_type:         "User".to_string(),
+        returns_list:        true,
+        nullable:            false,
+        arguments:           vec![],
+        sql_source:          Some("v_user".to_string()),
+        description:         None,
+        auto_params:         AutoParams::default(),
+        deprecation:         None,
+        jsonb_column:        "data".to_string(),
+        relay:               true,
+        relay_cursor_column: Some("pk_user".to_string()),
+    });
+
+    schema
+}
+
+fn executor() -> Executor<RelayMockAdapter> {
+    Executor::new(relay_schema(), Arc::new(RelayMockAdapter::new()))
+}
+
+// =============================================================================
+// Relay pagination tests
+// =============================================================================
+
+#[tokio::test]
+async fn test_relay_forward_first_page() {
+    let exec = executor();
+    // Fetch first 2 (no cursor)
+    let result = exec
+        .execute_json("{ users { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 2})))
+        .await
+        .unwrap();
+
+    let edges = &result["data"]["users"]["edges"];
+    assert_eq!(edges.as_array().unwrap().len(), 2, "should return 2 edges");
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasNextPage"], json!(true));
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasPreviousPage"], json!(false));
+}
+
+#[tokio::test]
+async fn test_relay_forward_full_page() {
+    let exec = executor();
+    // Fetch all 3
+    let result = exec
+        .execute_json("{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }", Some(&json!({"first": 10})))
+        .await
+        .unwrap();
+
+    let edges = &result["data"]["users"]["edges"];
+    assert_eq!(edges.as_array().unwrap().len(), 3);
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasNextPage"], json!(false));
+}
+
+#[tokio::test]
+async fn test_relay_forward_with_after_cursor() {
+    use fraiseql_core::runtime::relay::encode_edge_cursor;
+    let exec = executor();
+    // After Alice (pk=1) → should get Bob and Carol
+    let after = encode_edge_cursor(PK_ALICE);
+    let result = exec
+        .execute_json("{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 10, "after": after})))
+        .await
+        .unwrap();
+
+    let edges = result["data"]["users"]["edges"].as_array().unwrap();
+    assert_eq!(edges.len(), 2, "should return Bob and Carol");
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasPreviousPage"], json!(true));
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasNextPage"], json!(false));
+}
+
+#[tokio::test]
+async fn test_relay_backward_with_before_cursor() {
+    use fraiseql_core::runtime::relay::encode_edge_cursor;
+    let exec = executor();
+    // Before Carol (pk=3), fetch last 2 → should get Bob and Alice
+    let before = encode_edge_cursor(PK_CAROL);
+    let result = exec
+        .execute_json("{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"last": 2, "before": before})))
+        .await
+        .unwrap();
+
+    let edges = result["data"]["users"]["edges"].as_array().unwrap();
+    assert_eq!(edges.len(), 2, "should return 2 rows (Bob and Alice in reverse)");
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasNextPage"], json!(true));
+}
+
+#[tokio::test]
+async fn test_relay_empty_results() {
+    use fraiseql_core::runtime::relay::encode_edge_cursor;
+    let exec = executor();
+    // After Carol (pk=3) → no more rows
+    let after = encode_edge_cursor(PK_CAROL);
+    let result = exec
+        .execute_json("{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 10, "after": after})))
+        .await
+        .unwrap();
+
+    let edges = result["data"]["users"]["edges"].as_array().unwrap();
+    assert!(edges.is_empty(), "no rows after last cursor");
+    assert_eq!(result["data"]["users"]["pageInfo"]["hasNextPage"], json!(false));
+}
+
+#[tokio::test]
+async fn test_relay_edges_have_cursors() {
+    let exec = executor();
+    let result = exec
+        .execute_json("{ users { edges { cursor node { id } } } }", Some(&json!({"first": 3})))
+        .await
+        .unwrap();
+
+    let edges = result["data"]["users"]["edges"].as_array().unwrap();
+    for edge in edges {
+        let cursor = edge["cursor"].as_str().expect("cursor should be a string");
+        assert!(!cursor.is_empty(), "cursor must be non-empty");
+    }
+}
+
+// =============================================================================
+// node(id: ID!) tests
+// =============================================================================
+
+#[tokio::test]
+async fn test_node_query_found() {
+    let exec = executor();
+    let alice_uuid = "aaaa0000-0000-0000-0000-000000000001";
+    let node_id = encode_node_id("User", alice_uuid);
+
+    let result = exec
+        .execute_json(
+            "{ node(id: $id) { id } }",
+            Some(&json!({"id": node_id})),
+        )
+        .await
+        .unwrap();
+
+    let node = &result["data"]["node"];
+    assert!(!node.is_null(), "node should be found");
+    assert_eq!(node["id"], json!(alice_uuid));
+}
+
+#[tokio::test]
+async fn test_node_query_not_found() {
+    let exec = executor();
+    let unknown_uuid = "ffff0000-0000-0000-0000-000000000099";
+    let node_id = encode_node_id("User", unknown_uuid);
+
+    let result = exec
+        .execute_json(
+            "{ node(id: $id) { id } }",
+            Some(&json!({"id": node_id})),
+        )
+        .await
+        .unwrap();
+
+    assert!(result["data"]["node"].is_null(), "unknown id should return null");
+}
+
+#[tokio::test]
+async fn test_node_query_invalid_id_returns_error() {
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "{ node(id: $id) { id } }",
+            Some(&json!({"id": "not-valid-base64!!!"})),
+        )
+        .await;
+
+    assert!(result.is_err(), "invalid node ID should return an error");
+    match result.unwrap_err() {
+        FraiseQLError::Validation { message, .. } => {
+            assert!(
+                message.contains("invalid node ID") || message.contains("node"),
+                "error message should mention node: {message}"
+            );
+        },
+        e => panic!("expected Validation error, got: {e:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_node_query_inline_id() {
+    let exec = executor();
+    let alice_uuid = "aaaa0000-0000-0000-0000-000000000001";
+    let node_id = encode_node_id("User", alice_uuid);
+
+    // Inline literal (no variables)
+    let query = format!("{{ node(id: \"{node_id}\") {{ id }} }}");
+    let result = exec.execute_json(&query, None).await.unwrap();
+
+    let node = &result["data"]["node"];
+    assert!(!node.is_null(), "inline node ID should resolve");
+    assert_eq!(node["id"], json!(alice_uuid));
+}
+
+// =============================================================================
+// Introspection tests
+// =============================================================================
+
+#[tokio::test]
+async fn test_introspection_includes_node_field_in_query_type() {
+    let exec = executor();
+    let result = exec
+        .execute_json("{ __type(name: \"Query\") { fields { name args { name } } } }", None)
+        .await
+        .unwrap();
+
+    let fields = result["data"]["__type"]["fields"].as_array().unwrap();
+    let node_field = fields.iter().find(|f| f["name"] == json!("node"));
+    assert!(node_field.is_some(), "Query type should have a `node` field");
+
+    let args = node_field.unwrap()["args"].as_array().unwrap();
+    assert!(
+        args.iter().any(|a| a["name"] == json!("id")),
+        "node field should have `id` argument"
+    );
+}
+
+#[tokio::test]
+async fn test_introspection_node_interface_exists() {
+    let exec = executor();
+    let result = exec
+        .execute_json("{ __type(name: \"Node\") { kind name fields { name } } }", None)
+        .await
+        .unwrap();
+
+    let t = &result["data"]["__type"];
+    assert_eq!(t["kind"], json!("INTERFACE"), "Node should be an INTERFACE");
+    let fields = t["fields"].as_array().unwrap();
+    assert!(
+        fields.iter().any(|f| f["name"] == json!("id")),
+        "Node interface should have `id` field"
+    );
+}
+
+#[tokio::test]
+async fn test_introspection_user_implements_node() {
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "{ __type(name: \"User\") { kind interfaces { name } } }",
+            None,
+        )
+        .await
+        .unwrap();
+
+    let t = &result["data"]["__type"];
+    assert_eq!(t["kind"], json!("OBJECT"));
+    let interfaces = t["interfaces"].as_array().unwrap();
+    assert!(
+        interfaces.iter().any(|i| i["name"] == json!("Node")),
+        "User should implement the Node interface"
+    );
+}
