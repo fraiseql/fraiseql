@@ -204,6 +204,91 @@ pub enum OrderDirection {
     Desc,
 }
 
+impl OrderByClause {
+    /// Parse `orderBy` from a GraphQL variables JSON value.
+    ///
+    /// Accepts two formats:
+    /// - Object: `{ "name": "DESC", "created_at": "ASC" }`
+    /// - Array:  `[{ "field": "name", "direction": "DESC" }]`
+    ///
+    /// Direction strings are case-insensitive.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` for invalid structure or direction values.
+    pub fn from_graphql_json(value: &serde_json::Value) -> crate::error::Result<Vec<Self>> {
+        use crate::error::FraiseQLError;
+
+        if let Some(obj) = value.as_object() {
+            // Object format: { "name": "DESC", "created_at": "ASC" }
+            obj.iter()
+                .map(|(field, dir_val)| {
+                    let dir_str = dir_val.as_str().ok_or_else(|| FraiseQLError::Validation {
+                        message: format!("orderBy direction for '{field}' must be a string"),
+                        path:    None,
+                    })?;
+                    let direction = match dir_str.to_ascii_uppercase().as_str() {
+                        "ASC" => OrderDirection::Asc,
+                        "DESC" => OrderDirection::Desc,
+                        _ => {
+                            return Err(FraiseQLError::Validation {
+                                message: format!(
+                                    "orderBy direction '{dir_str}' must be ASC or DESC"
+                                ),
+                                path: None,
+                            })
+                        },
+                    };
+                    Ok(Self {
+                        field: field.clone(),
+                        direction,
+                    })
+                })
+                .collect()
+        } else if let Some(arr) = value.as_array() {
+            // Array format: [{ "field": "name", "direction": "DESC" }]
+            arr.iter()
+                .map(|item| {
+                    let obj = item.as_object().ok_or_else(|| FraiseQLError::Validation {
+                        message: "orderBy array items must be objects".to_string(),
+                        path:    None,
+                    })?;
+                    let field = obj
+                        .get("field")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| FraiseQLError::Validation {
+                            message: "orderBy item missing 'field' string".to_string(),
+                            path:    None,
+                        })?
+                        .to_string();
+                    let dir_str = obj
+                        .get("direction")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("ASC");
+                    let direction = match dir_str.to_ascii_uppercase().as_str() {
+                        "ASC" => OrderDirection::Asc,
+                        "DESC" => OrderDirection::Desc,
+                        _ => {
+                            return Err(FraiseQLError::Validation {
+                                message: format!(
+                                    "orderBy direction '{dir_str}' must be ASC or DESC"
+                                ),
+                                path: None,
+                            })
+                        },
+                    };
+                    Ok(Self { field, direction })
+                })
+                .collect()
+        } else {
+            Err(FraiseQLError::Validation {
+                message: "orderBy must be an object or array".to_string(),
+                path:    None,
+            })
+        }
+    }
+}
+
 /// Validated and optimized aggregation execution plan
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregationPlan {
@@ -785,5 +870,38 @@ mod tests {
         let result = AggregationPlanner::plan(request, metadata);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_order_by_from_graphql_json_object_format() {
+        let json = serde_json::json!({ "name": "DESC", "created_at": "ASC" });
+        let clauses = OrderByClause::from_graphql_json(&json).unwrap();
+        assert_eq!(clauses.len(), 2);
+        assert!(clauses.iter().any(|c| c.field == "name" && c.direction == OrderDirection::Desc));
+        assert!(
+            clauses
+                .iter()
+                .any(|c| c.field == "created_at" && c.direction == OrderDirection::Asc)
+        );
+    }
+
+    #[test]
+    fn test_order_by_from_graphql_json_array_format() {
+        let json = serde_json::json!([
+            { "field": "name", "direction": "DESC" },
+            { "field": "age" }
+        ]);
+        let clauses = OrderByClause::from_graphql_json(&json).unwrap();
+        assert_eq!(clauses.len(), 2);
+        assert_eq!(clauses[0].field, "name");
+        assert_eq!(clauses[0].direction, OrderDirection::Desc);
+        assert_eq!(clauses[1].field, "age");
+        assert_eq!(clauses[1].direction, OrderDirection::Asc); // default
+    }
+
+    #[test]
+    fn test_order_by_from_graphql_json_invalid_direction() {
+        let json = serde_json::json!({ "name": "INVALID" });
+        assert!(OrderByClause::from_graphql_json(&json).is_err());
     }
 }

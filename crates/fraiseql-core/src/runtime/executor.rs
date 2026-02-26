@@ -794,7 +794,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
-        use crate::runtime::relay::{decode_edge_cursor, encode_edge_cursor};
+        use crate::{
+            compiler::aggregation::OrderByClause,
+            runtime::relay::{decode_edge_cursor, encode_edge_cursor},
+        };
 
         let query_def = &query_match.query_def;
 
@@ -848,14 +851,50 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Fetch page_size + 1 rows to detect hasNextPage/hasPreviousPage.
         let fetch_limit = page_size + 1;
 
-        let raw_rows = self
+        // Parse optional `where` filter from variables.
+        let where_clause = if query_def.auto_params.has_where {
+            vars.and_then(|v| v.get("where"))
+                .map(WhereClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
+        // Parse optional `orderBy` from variables.
+        let order_by = if query_def.auto_params.has_order_by {
+            vars.and_then(|v| v.get("orderBy"))
+                .map(OrderByClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
+        // Detect whether the client selected `totalCount` in the connection.
+        // Walk the selection set: the connection is the root field, and
+        // `totalCount` appears as a direct child of the connection selection.
+        let include_total_count = query_match
+            .selections
+            .iter()
+            .any(|sel| sel.name == "totalCount");
+
+        let result = self
             .adapter
-            .execute_relay_page(sql_source, cursor_column, after_pk, before_pk, fetch_limit, forward)
+            .execute_relay_page_v2(
+                sql_source,
+                cursor_column,
+                after_pk,
+                before_pk,
+                fetch_limit,
+                forward,
+                where_clause.as_ref(),
+                order_by.as_deref(),
+                include_total_count,
+            )
             .await?;
 
         // Detect whether there are more pages.
-        let has_extra = raw_rows.len() > page_size as usize;
-        let rows: Vec<_> = raw_rows.into_iter().take(page_size as usize).collect();
+        let has_extra = result.rows.len() > page_size as usize;
+        let rows: Vec<_> = result.rows.into_iter().take(page_size as usize).collect();
 
         let (has_next_page, has_previous_page) = if forward {
             (has_extra, after_pk.is_some())
@@ -869,10 +908,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let mut end_cursor_str: Option<String> = None;
 
         for (i, row) in rows.iter().enumerate() {
-            // `data` is the JSONB serde_json::Value from the `SELECT data FROM view` result.
             let data = &row.data;
 
-            // Extract pk for cursor from inside the JSONB (view must expose pk_{entity} in data).
             let pk_val = data
                 .as_object()
                 .and_then(|obj| obj.get(cursor_column))
@@ -907,10 +944,19 @@ impl<A: DatabaseAdapter> Executor<A> {
             "endCursor": end_cursor_str,
         });
 
-        let connection = serde_json::json!({
+        let mut connection = serde_json::json!({
             "edges": edges,
             "pageInfo": page_info,
         });
+
+        // Include totalCount when the client requested it and the adapter provided it.
+        if include_total_count {
+            if let Some(count) = result.total_count {
+                connection["totalCount"] = serde_json::json!(count);
+            } else {
+                connection["totalCount"] = serde_json::Value::Null;
+            }
+        }
 
         let response = ResultProjector::wrap_in_data_envelope(connection, &query_def.name);
         Ok(serde_json::to_string(&response)?)

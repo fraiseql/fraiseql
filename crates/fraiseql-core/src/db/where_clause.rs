@@ -66,6 +66,88 @@ impl WhereClause {
             Self::Not(_) | Self::Field { .. } => false,
         }
     }
+
+    /// Parse a `WhereClause` from a nested GraphQL JSON `where` variable.
+    ///
+    /// Expected format (nested object with field → operator → value):
+    /// ```json
+    /// {
+    ///   "status": { "eq": "active" },
+    ///   "name": { "icontains": "john" },
+    ///   "_and": [ { "age": { "gte": 18 } }, { "age": { "lte": 65 } } ],
+    ///   "_or": [ { "role": { "eq": "admin" } } ],
+    ///   "_not": { "deleted": { "eq": true } }
+    /// }
+    /// ```
+    ///
+    /// Each top-level key is either a field name (mapped to `WhereClause::Field`
+    /// with operator sub-keys) or a logical combinator (`_and`, `_or`, `_not`).
+    /// Multiple top-level keys are combined with AND.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the JSON structure is invalid or
+    /// contains unknown operators.
+    pub fn from_graphql_json(value: &serde_json::Value) -> Result<Self> {
+        let Some(obj) = value.as_object() else {
+            return Err(FraiseQLError::Validation {
+                message: "where clause must be a JSON object".to_string(),
+                path:    None,
+            });
+        };
+
+        let mut conditions = Vec::new();
+
+        for (key, val) in obj {
+            match key.as_str() {
+                "_and" => {
+                    let arr = val.as_array().ok_or_else(|| FraiseQLError::Validation {
+                        message: "_and must be an array".to_string(),
+                        path:    None,
+                    })?;
+                    let sub: Result<Vec<Self>> =
+                        arr.iter().map(Self::from_graphql_json).collect();
+                    conditions.push(Self::And(sub?));
+                },
+                "_or" => {
+                    let arr = val.as_array().ok_or_else(|| FraiseQLError::Validation {
+                        message: "_or must be an array".to_string(),
+                        path:    None,
+                    })?;
+                    let sub: Result<Vec<Self>> =
+                        arr.iter().map(Self::from_graphql_json).collect();
+                    conditions.push(Self::Or(sub?));
+                },
+                "_not" => {
+                    let sub = Self::from_graphql_json(val)?;
+                    conditions.push(Self::Not(Box::new(sub)));
+                },
+                field_name => {
+                    // Field → { operator: value } or { op1: val1, op2: val2 }
+                    let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
+                        message: format!(
+                            "where field '{field_name}' must be an object of {{operator: value}}"
+                        ),
+                        path: None,
+                    })?;
+                    for (op_str, op_val) in ops {
+                        let operator = WhereOperator::from_str(op_str)?;
+                        conditions.push(Self::Field {
+                            path:     vec![field_name.to_string()],
+                            operator,
+                            value:    op_val.clone(),
+                        });
+                    }
+                },
+            }
+        }
+
+        if conditions.len() == 1 {
+            Ok(conditions.into_iter().next().expect("checked len == 1"))
+        } else {
+            Ok(Self::And(conditions))
+        }
+    }
 }
 
 /// WHERE operators (FraiseQL v1 compatibility).
@@ -467,5 +549,60 @@ mod tests {
     fn test_where_clause_empty() {
         let clause = WhereClause::And(vec![]);
         assert!(clause.is_empty());
+    }
+
+    #[test]
+    fn test_from_graphql_json_simple_field() {
+        let json = json!({ "status": { "eq": "active" } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("active"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_graphql_json_multiple_fields() {
+        let json = json!({
+            "status": { "eq": "active" },
+            "age": { "gte": 18 }
+        });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        match clause {
+            WhereClause::And(conditions) => assert_eq!(conditions.len(), 2),
+            _ => panic!("expected And"),
+        }
+    }
+
+    #[test]
+    fn test_from_graphql_json_logical_combinators() {
+        let json = json!({
+            "_or": [
+                { "role": { "eq": "admin" } },
+                { "role": { "eq": "superadmin" } }
+            ]
+        });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        match clause {
+            WhereClause::Or(conditions) => assert_eq!(conditions.len(), 2),
+            _ => panic!("expected Or"),
+        }
+    }
+
+    #[test]
+    fn test_from_graphql_json_not() {
+        let json = json!({ "_not": { "deleted": { "eq": true } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert!(matches!(clause, WhereClause::Not(_)));
+    }
+
+    #[test]
+    fn test_from_graphql_json_invalid_operator() {
+        let json = json!({ "field": { "nonexistent_op": 42 } });
+        assert!(WhereClause::from_graphql_json(&json).is_err());
     }
 }
