@@ -221,6 +221,14 @@ fn test_user_connection_has_edges_and_page_info() {
 
     assert!(field_names.contains(&"edges"), "UserConnection should have edges field");
     assert!(field_names.contains(&"pageInfo"), "UserConnection should have pageInfo field");
+    assert!(
+        field_names.contains(&"totalCount"),
+        "UserConnection should have totalCount field"
+    );
+
+    // totalCount must be nullable (null when not requested or not computed)
+    let total_count_field = conn.fields.iter().find(|f| f.name == "totalCount").unwrap();
+    assert!(total_count_field.nullable, "totalCount should be nullable");
 }
 
 // =============================================================================

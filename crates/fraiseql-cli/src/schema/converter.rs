@@ -916,6 +916,12 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
                         false,
                         "Pagination metadata.",
                     ),
+                    make_field(
+                        "totalCount",
+                        FieldType::Int,
+                        true,
+                        "Total number of items matching the filter.",
+                    ),
                 ],
                 description:         Some(format!(
                     "A Relay connection for paginating {type_name} records."
