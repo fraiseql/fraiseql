@@ -116,6 +116,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Add Rust target (explicit, for cross-compilation)
+        if: '!matrix.use_cross'
+        run: rustup target add ${{ matrix.target }}
+
       - name: Install cross for cross-compiled targets
         if: matrix.use_cross
         run: cargo install cross
