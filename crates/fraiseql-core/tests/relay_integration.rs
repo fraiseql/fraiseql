@@ -317,7 +317,8 @@ async fn test_relay_backward_with_before_cursor() {
         .unwrap();
 
     let edges = result["data"]["users"]["edges"].as_array().unwrap();
-    assert_eq!(edges.len(), 2, "should return 2 rows (Bob and Alice in reverse)");
+    assert_eq!(edges.len(), 2, "should return 2 rows before Carol");
+    // hasNextPage=true because there is a before cursor (Carol exists after this slice)
     assert_eq!(result["data"]["users"]["pageInfo"]["hasNextPage"], json!(true));
 }
 
@@ -487,4 +488,61 @@ async fn test_introspection_user_implements_node() {
         interfaces.iter().any(|i| i["name"] == json!("Node")),
         "User should implement the Node interface"
     );
+}
+
+#[tokio::test]
+async fn test_introspection_relay_query_returns_connection_type() {
+    let exec = executor();
+    // Relay queries must expose `UsersConnection!` as return type, not `[User!]!`.
+    // This is what Relay's own code generator looks for to identify connection fields.
+    let result = exec
+        .execute_json(
+            "{ __type(name: \"Query\") { fields { name type { kind name ofType { name } } args { name } } } }",
+            None,
+        )
+        .await
+        .unwrap();
+
+    let fields = result["data"]["__type"]["fields"].as_array().unwrap();
+    let users_field = fields.iter().find(|f| f["name"] == json!("users"))
+        .expect("Query type should have a `users` field");
+
+    // Return type should be NON_NULL wrapping UserConnection
+    assert_eq!(users_field["type"]["kind"], json!("NON_NULL"),
+        "relay field return type should be NON_NULL");
+    assert_eq!(users_field["type"]["ofType"]["name"], json!("UserConnection"),
+        "relay field should return UserConnection");
+
+    // Arguments should include first/after/last/before
+    let args = users_field["args"].as_array().unwrap();
+    let arg_names: Vec<&str> = args.iter()
+        .filter_map(|a| a["name"].as_str())
+        .collect();
+    assert!(arg_names.contains(&"first"), "relay field should have `first` arg");
+    assert!(arg_names.contains(&"after"), "relay field should have `after` arg");
+    assert!(arg_names.contains(&"last"),  "relay field should have `last` arg");
+    assert!(arg_names.contains(&"before"), "relay field should have `before` arg");
+}
+
+#[tokio::test]
+async fn test_introspection_node_field_return_kind_is_interface() {
+    let exec = executor();
+    // `node(id: ID!): Node` — the return type kind must be INTERFACE, not OBJECT.
+    // Relay's fragment dispatch (`... on User`) relies on this being an interface.
+    let result = exec
+        .execute_json(
+            "{ __type(name: \"Query\") { fields { name type { kind name } } } }",
+            None,
+        )
+        .await
+        .unwrap();
+
+    let fields = result["data"]["__type"]["fields"].as_array().unwrap();
+    let node_field = fields.iter().find(|f| f["name"] == json!("node"))
+        .expect("Query type should have a `node` field");
+
+    assert_eq!(node_field["type"]["kind"], json!("INTERFACE"),
+        "node return type kind should be INTERFACE");
+    assert_eq!(node_field["type"]["name"], json!("Node"),
+        "node return type name should be Node");
 }

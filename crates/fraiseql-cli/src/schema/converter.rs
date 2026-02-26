@@ -880,10 +880,12 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
                         false,
                         "Opaque pagination cursor (base64-encoded BIGINT pk).",
                     ),
+                    // nullable: true — per Relay spec an edge node may be null
+                    // when the underlying object is deleted or access is denied.
                     make_field(
                         "node",
                         FieldType::Object(type_name.clone()),
-                        false,
+                        true,
                         "The item at this edge.",
                     ),
                 ],

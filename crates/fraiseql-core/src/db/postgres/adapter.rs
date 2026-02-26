@@ -432,23 +432,53 @@ impl DatabaseAdapter for PostgresAdapter {
         let mut typed_params: Vec<QueryParam> = Vec::new();
         let mut param_count = 0_usize;
 
-        let mut sql = format!("SELECT data FROM {quoted_view}");
-
-        // Cursor keyset condition.
-        let cursor_val = if forward { after } else { before };
-        if let Some(pk) = cursor_val {
+        // Backward pagination fetches rows in DESC order, then re-sorts ASC so
+        // the caller always receives edges in ascending (oldest-first) sequence,
+        // as required by the Relay Cursor Connections spec.
+        let sql = if forward {
+            // ── Forward pagination ──────────────────────────────────────────
+            //   SELECT data FROM {view}
+            //   [WHERE {col} > $1]
+            //   ORDER BY {col} ASC
+            //   LIMIT $n
+            let mut s = format!("SELECT data FROM {quoted_view}");
+            if let Some(pk) = after {
+                param_count += 1;
+                s.push_str(&format!(" WHERE {quoted_col} > ${param_count}"));
+                typed_params.push(QueryParam::BigInt(pk));
+            }
+            s.push_str(&format!(" ORDER BY {quoted_col} ASC"));
             param_count += 1;
-            let op = if forward { ">" } else { "<" };
-            sql.push_str(&format!(" WHERE {quoted_col} {op} ${param_count}"));
-            typed_params.push(QueryParam::BigInt(pk));
-        }
-
-        let direction = if forward { "ASC" } else { "DESC" };
-        sql.push_str(&format!(" ORDER BY {quoted_col} {direction}"));
-
-        param_count += 1;
-        sql.push_str(&format!(" LIMIT ${param_count}"));
-        typed_params.push(QueryParam::BigInt(i64::from(limit)));
+            s.push_str(&format!(" LIMIT ${param_count}"));
+            typed_params.push(QueryParam::BigInt(i64::from(limit)));
+            s
+        } else {
+            // ── Backward pagination ─────────────────────────────────────────
+            //   SELECT data FROM (
+            //     SELECT data, {col} AS _relay_cursor FROM {view}
+            //     [WHERE {col} < $1]
+            //     ORDER BY {col} DESC
+            //     LIMIT $n
+            //   ) _relay_page
+            //   ORDER BY _relay_cursor ASC
+            //
+            // The inner query fetches the N closest rows *before* the cursor in
+            // reverse order; the outer query re-sorts them ascending so clients
+            // see edges in natural sequence.
+            let mut inner = format!(
+                "SELECT data, {quoted_col} AS _relay_cursor FROM {quoted_view}"
+            );
+            if let Some(pk) = before {
+                param_count += 1;
+                inner.push_str(&format!(" WHERE {quoted_col} < ${param_count}"));
+                typed_params.push(QueryParam::BigInt(pk));
+            }
+            inner.push_str(&format!(" ORDER BY {quoted_col} DESC"));
+            param_count += 1;
+            inner.push_str(&format!(" LIMIT ${param_count}"));
+            typed_params.push(QueryParam::BigInt(i64::from(limit)));
+            format!("SELECT data FROM ({inner}) _relay_page ORDER BY _relay_cursor ASC")
+        };
 
         let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
             .iter()

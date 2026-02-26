@@ -1051,6 +1051,12 @@ impl IntrospectionBuilder {
 
     /// Build query field introspection.
     fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
+        // Relay connection queries expose `XxxConnection` as their return type
+        // (always non-null) and add the four standard cursor arguments.
+        if query.relay {
+            return Self::build_relay_query_field(query);
+        }
+
         let return_type = Self::type_ref(&query.return_type);
         let return_type = if query.returns_list {
             IntrospectionType {
@@ -1111,13 +1117,112 @@ impl IntrospectionBuilder {
         }
     }
 
+    /// Build introspection for a Relay connection query.
+    ///
+    /// Relay connection queries differ from normal list queries:
+    /// - Return type is `XxxConnection!` (non-null), not `[Xxx!]!`
+    /// - Arguments are `first: Int, after: String, last: Int, before: String`
+    ///   (instead of `limit`/`offset`)
+    fn build_relay_query_field(query: &QueryDefinition) -> IntrospectionField {
+        let connection_type = format!("{}Connection", query.return_type);
+
+        // Return type: XxxConnection! (always non-null)
+        let return_type = IntrospectionType {
+            kind:               TypeKind::NonNull,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(Self::type_ref(&connection_type))),
+            specified_by_u_r_l: None,
+        };
+
+        // Standard Relay cursor arguments.
+        let nullable_int = || IntrospectionType {
+            kind:               TypeKind::Scalar,
+            name:               Some("Int".to_string()),
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
+            specified_by_u_r_l: None,
+        };
+        let nullable_string = || IntrospectionType {
+            kind:               TypeKind::Scalar,
+            name:               Some("String".to_string()),
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
+            specified_by_u_r_l: None,
+        };
+        let relay_args = vec![
+            IntrospectionInputValue {
+                name:               "first".to_string(),
+                description:        Some("Return the first N items.".to_string()),
+                input_type:         nullable_int(),
+                default_value:      None,
+                is_deprecated:      false,
+                deprecation_reason: None,
+                validation_rules:   vec![],
+            },
+            IntrospectionInputValue {
+                name:               "after".to_string(),
+                description:        Some("Cursor: return items after this position.".to_string()),
+                input_type:         nullable_string(),
+                default_value:      None,
+                is_deprecated:      false,
+                deprecation_reason: None,
+                validation_rules:   vec![],
+            },
+            IntrospectionInputValue {
+                name:               "last".to_string(),
+                description:        Some("Return the last N items.".to_string()),
+                input_type:         nullable_int(),
+                default_value:      None,
+                is_deprecated:      false,
+                deprecation_reason: None,
+                validation_rules:   vec![],
+            },
+            IntrospectionInputValue {
+                name:               "before".to_string(),
+                description:        Some("Cursor: return items before this position.".to_string()),
+                input_type:         nullable_string(),
+                default_value:      None,
+                is_deprecated:      false,
+                deprecation_reason: None,
+                validation_rules:   vec![],
+            },
+        ];
+
+        IntrospectionField {
+            name:               query.name.clone(),
+            description:        query.description.clone(),
+            args:               relay_args,
+            field_type:         return_type,
+            is_deprecated:      query.is_deprecated(),
+            deprecation_reason: query.deprecation_reason().map(ToString::to_string),
+        }
+    }
+
     /// Build the synthetic `node(id: ID!): Node` field for the Query root type.
     ///
     /// Injected automatically when the schema contains Relay types (relay=true).
     fn build_node_query_field() -> IntrospectionField {
-        // Return type: Node (nullable per Relay spec — unknown id returns null)
+        // Return type: Node (nullable per Relay spec — unknown id returns null).
+        // Kind must be INTERFACE because Node is declared as an interface type,
+        // not an OBJECT. Relay's compiler uses this to dispatch `... on User` fragments.
         let return_type = IntrospectionType {
-            kind:               TypeKind::Object,
+            kind:               TypeKind::Interface,
             name:               Some("Node".to_string()),
             description:        None,
             fields:             None,

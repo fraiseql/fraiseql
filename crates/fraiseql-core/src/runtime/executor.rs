@@ -878,9 +878,16 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .and_then(|obj| obj.get(cursor_column))
                 .and_then(|v| v.as_i64());
 
-            let cursor_str = pk_val
-                .map(encode_edge_cursor)
-                .unwrap_or_else(|| encode_edge_cursor(i as i64));
+            let cursor_str = pk_val.map(encode_edge_cursor).ok_or_else(|| {
+                FraiseQLError::Validation {
+                    message: format!(
+                        "Relay query '{}': cursor column '{}' not found in result JSONB. \
+                         Ensure the view exposes this column inside the `data` object.",
+                        query_def.name, cursor_column
+                    ),
+                    path: None,
+                }
+            })?;
 
             if i == 0 {
                 start_cursor_str = Some(cursor_str.clone());
@@ -1154,7 +1161,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             return None;
         }
         let inner = &after_colon[1..];
-        let end = inner.find(|c| c == quote_char)?;
+        let end = inner.find(quote_char)?;
         Some(inner[..end].to_string())
     }
 
