@@ -59,6 +59,10 @@ enum QueryType {
     /// GraphQL mutation.
     /// Contains the root field name (e.g., "createMachine").
     Mutation(String),
+
+    /// Relay global node lookup: `node(id: ID!)`.
+    /// Resolves any type that implements the Node interface by global opaque ID.
+    NodeQuery,
 }
 
 /// Query executor - executes compiled GraphQL queries.
@@ -252,6 +256,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation(mutation_name) => {
                 self.execute_mutation_query(&mutation_name, variables).await
             },
+            QueryType::NodeQuery => self.execute_node_query(query, variables).await,
         }
     }
 
@@ -314,6 +319,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation(mutation_name) => {
                 self.execute_mutation_query(&mutation_name, variables).await
             },
+            QueryType::NodeQuery => self.execute_node_query(query, variables).await,
         }
     }
 
@@ -514,6 +520,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation(mutation_name) => {
                 self.execute_mutation_query(&mutation_name, variables).await
             },
+            QueryType::NodeQuery => self.execute_node_query(query, variables).await,
         }
     }
 
@@ -1029,6 +1036,128 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::to_string(&response)?)
     }
 
+    /// Detect whether a query is a Relay `node(id: "...")` global lookup.
+    ///
+    /// Matches queries whose root selection is the `node` field with an `id` argument,
+    /// either inline or via a variable.  A simple text scan is sufficient because
+    /// `classify_query` is only called after all other classifiers have already
+    /// rejected the query.
+    fn is_node_query(query: &str) -> bool {
+        let q = query.trim();
+        // Must contain `node(` (opening argument list) and some form of `id`
+        // argument.  We intentionally avoid full parsing here for speed.
+        q.contains("node(") && (q.contains("id:") || q.contains("id :"))
+    }
+
+    /// Execute a Relay global `node(id: ID!)` query.
+    ///
+    /// Decodes the opaque node ID (`base64("TypeName:uuid")`), locates the
+    /// appropriate SQL view by searching the compiled schema for a query that
+    /// returns that type, and fetches the matching row.
+    ///
+    /// Returns `{ "data": { "node": <object> } }` on success, or
+    /// `{ "data": { "node": null } }` when the object is not found.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` when:
+    /// - The `id` argument is missing or malformed
+    /// - No SQL view is registered for the requested type
+    async fn execute_node_query(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        use crate::{
+            db::{WhereClause, where_clause::WhereOperator},
+            runtime::relay::decode_node_id,
+        };
+
+        // 1. Extract the raw opaque ID.
+        //    Priority: $variables.id > inline literal in query text.
+        let raw_id: String = if let Some(id_val) = variables
+            .and_then(|v| v.as_object())
+            .and_then(|obj| obj.get("id"))
+            .and_then(|v| v.as_str())
+        {
+            id_val.to_string()
+        } else {
+            // Fall back to extracting inline literal, e.g. node(id: "NDI=")
+            Self::extract_inline_node_id(query).ok_or_else(|| FraiseQLError::Validation {
+                message: "node query: missing or unresolvable 'id' argument".to_string(),
+                path:    Some("node.id".to_string()),
+            })?
+        };
+
+        // 2. Decode base64("TypeName:uuid") → (type_name, uuid).
+        let (type_name, uuid) = decode_node_id(&raw_id).ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: format!("node query: invalid node ID '{raw_id}'"),
+                path:    Some("node.id".to_string()),
+            }
+        })?;
+
+        // 3. Find the SQL view for this type.
+        //    Convention: look for the first query whose return_type matches.
+        let sql_source = self
+            .schema
+            .queries
+            .iter()
+            .find(|q| q.return_type == type_name && q.sql_source.is_some())
+            .and_then(|q| q.sql_source.as_deref())
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "node query: no registered SQL view for type '{type_name}'"
+                ),
+                path: Some("node.id".to_string()),
+            })?
+            .to_string();
+
+        // 4. Build WHERE clause: data->>'id' = uuid
+        let where_clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    serde_json::Value::String(uuid),
+        };
+
+        // 5. Execute the query (limit 1).
+        let rows = self
+            .adapter
+            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None)
+            .await?;
+
+        // 6. Return the first matching row (or null).
+        let node_value = rows
+            .into_iter()
+            .next()
+            .map(|row| row.data)
+            .unwrap_or(serde_json::Value::Null);
+
+        let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
+        Ok(serde_json::to_string(&response)?)
+    }
+
+    /// Extract an inline node ID literal from a `node(id: "...")` query string.
+    ///
+    /// Used as a fallback when the ID is not provided via variables.
+    /// Returns `None` if no inline string literal can be found.
+    fn extract_inline_node_id(query: &str) -> Option<String> {
+        // Look for  node(  ...  id:  "value"  or  id: 'value'
+        let after_node = query.find("node(")?;
+        let args_region = &query[after_node..];
+        // Find `id:` within the argument region.
+        let after_id = args_region.find("id:")?;
+        let after_colon = args_region[after_id + 3..].trim_start();
+        // Expect a quoted string.
+        let quote_char = after_colon.chars().next()?;
+        if quote_char != '"' && quote_char != '\'' {
+            return None;
+        }
+        let inner = &after_colon[1..];
+        let end = inner.find(|c| c == quote_char)?;
+        Some(inner[..end].to_string())
+    }
+
     /// Classify query type based on operation name.
     fn classify_query(&self, query: &str) -> Result<QueryType> {
         // Check for introspection queries first (highest priority)
@@ -1039,6 +1168,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Check for federation queries (higher priority than regular queries)
         if let Some(federation_type) = self.detect_federation(query) {
             return Ok(federation_type);
+        }
+
+        // Check for Relay global node query.
+        if Self::is_node_query(query) {
+            return Ok(QueryType::NodeQuery);
         }
 
         // Parse the query to extract the root field name and operation type
