@@ -710,6 +710,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 1. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
 
+        // Route relay queries to dedicated handler.
+        if query_match.query_def.relay {
+            return self.execute_relay_query(&query_match, variables).await;
+        }
+
         // 2. Create execution plan
         let plan = self.planner.plan(&query_match)?;
 
@@ -756,6 +761,144 @@ impl<A: DatabaseAdapter> Executor<A> {
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
         // 6. Serialize to JSON string
+        Ok(serde_json::to_string(&response)?)
+    }
+
+    /// Execute a Relay connection query with cursor-based (keyset) pagination.
+    ///
+    /// Reads `first`, `after`, `last`, `before` from `variables`, fetches a page
+    /// of rows using `pk_{type}` keyset ordering, and wraps the result in the
+    /// Relay `XxxConnection` format:
+    /// ```json
+    /// {
+    ///   "data": {
+    ///     "users": {
+    ///       "edges": [{ "cursor": "NDI=", "node": { "id": "...", ... } }],
+    ///       "pageInfo": {
+    ///         "hasNextPage": true, "hasPreviousPage": false,
+    ///         "startCursor": "NDI=", "endCursor": "Mw=="
+    ///       }
+    ///     }
+    ///   }
+    /// }
+    /// ```
+    async fn execute_relay_query(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        use crate::runtime::relay::{decode_edge_cursor, encode_edge_cursor};
+
+        let query_def = &query_match.query_def;
+
+        let sql_source = query_def.sql_source.as_deref().ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: format!(
+                    "Relay query '{}' has no sql_source configured",
+                    query_def.name
+                ),
+                path: None,
+            }
+        })?;
+
+        let cursor_column = query_def.relay_cursor_column.as_deref().ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: format!(
+                    "Relay query '{}' has no relay_cursor_column derived",
+                    query_def.name
+                ),
+                path: None,
+            }
+        })?;
+
+        // Extract relay pagination arguments from variables.
+        let vars = variables.and_then(|v| v.as_object());
+        let first: Option<u32> = vars
+            .and_then(|v| v.get("first"))
+            .and_then(|v| v.as_u64())
+            .map(|n| n as u32);
+        let last: Option<u32> = vars
+            .and_then(|v| v.get("last"))
+            .and_then(|v| v.as_u64())
+            .map(|n| n as u32);
+        let after_cursor: Option<&str> =
+            vars.and_then(|v| v.get("after")).and_then(|v| v.as_str());
+        let before_cursor: Option<&str> =
+            vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
+
+        // Decode base64 cursors.
+        let after_pk: Option<i64> = after_cursor.and_then(decode_edge_cursor);
+        let before_pk: Option<i64> = before_cursor.and_then(decode_edge_cursor);
+
+        // Determine direction and limit.
+        // Forward pagination takes priority; fallback to 20 if neither first/last given.
+        let (forward, page_size) = if last.is_some() && first.is_none() {
+            (false, last.unwrap_or(20))
+        } else {
+            (true, first.unwrap_or(20))
+        };
+
+        // Fetch page_size + 1 rows to detect hasNextPage/hasPreviousPage.
+        let fetch_limit = page_size + 1;
+
+        let raw_rows = self
+            .adapter
+            .execute_relay_page(sql_source, cursor_column, after_pk, before_pk, fetch_limit, forward)
+            .await?;
+
+        // Detect whether there are more pages.
+        let has_extra = raw_rows.len() > page_size as usize;
+        let rows: Vec<_> = raw_rows.into_iter().take(page_size as usize).collect();
+
+        let (has_next_page, has_previous_page) = if forward {
+            (has_extra, after_pk.is_some())
+        } else {
+            (before_pk.is_some(), has_extra)
+        };
+
+        // Build edges: each edge has { cursor, node }.
+        let mut edges = Vec::with_capacity(rows.len());
+        let mut start_cursor_str: Option<String> = None;
+        let mut end_cursor_str: Option<String> = None;
+
+        for (i, row) in rows.iter().enumerate() {
+            // `data` is the JSONB serde_json::Value from the `SELECT data FROM view` result.
+            let data = &row.data;
+
+            // Extract pk for cursor from inside the JSONB (view must expose pk_{entity} in data).
+            let pk_val = data
+                .as_object()
+                .and_then(|obj| obj.get(cursor_column))
+                .and_then(|v| v.as_i64());
+
+            let cursor_str = pk_val
+                .map(encode_edge_cursor)
+                .unwrap_or_else(|| encode_edge_cursor(i as i64));
+
+            if i == 0 {
+                start_cursor_str = Some(cursor_str.clone());
+            }
+            end_cursor_str = Some(cursor_str.clone());
+
+            edges.push(serde_json::json!({
+                "cursor": cursor_str,
+                "node": data,
+            }));
+        }
+
+        let page_info = serde_json::json!({
+            "hasNextPage": has_next_page,
+            "hasPreviousPage": has_previous_page,
+            "startCursor": start_cursor_str,
+            "endCursor": end_cursor_str,
+        });
+
+        let connection = serde_json::json!({
+            "edges": edges,
+            "pageInfo": page_info,
+        });
+
+        let response = ResultProjector::wrap_in_data_envelope(connection, &query_def.name);
         Ok(serde_json::to_string(&response)?)
     }
 

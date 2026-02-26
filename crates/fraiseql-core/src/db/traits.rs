@@ -284,6 +284,61 @@ pub trait DatabaseAdapter: Send + Sync {
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
+    /// Execute a Relay cursor-based (keyset) pagination query.
+    ///
+    /// Builds and executes:
+    /// ```sql
+    /// -- Forward (after cursor):
+    /// SELECT data FROM {view}
+    /// WHERE {cursor_column} > $1          -- keyset condition
+    /// ORDER BY {cursor_column} ASC
+    /// LIMIT $2                             -- first + 1 to detect hasNextPage
+    ///
+    /// -- Backward (before cursor):
+    /// SELECT data FROM {view}
+    /// WHERE {cursor_column} < $1
+    /// ORDER BY {cursor_column} DESC
+    /// LIMIT $2
+    /// ```
+    ///
+    /// The `data` JSONB column in the view is expected to contain the entity
+    /// fields as well as `pk_{entity}` (the BIGINT cursor column value) so
+    /// the caller can build edge cursors without a second query.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - SQL view name (from `QueryDefinition.sql_source`)
+    /// * `cursor_column` - BIGINT column used for keyset ordering (e.g. `"pk_user"`)
+    /// * `after` - Decoded cursor value for forward pagination (`after` argument)
+    /// * `before` - Decoded cursor value for backward pagination (`before` argument)
+    /// * `limit` - Number of rows to return (should be `first + 1` to probe hasNextPage)
+    /// * `forward` - `true` for forward (ASC) pagination, `false` for backward (DESC)
+    ///
+    /// # Default implementation
+    ///
+    /// The default returns `FraiseQLError::Validation` with a "not supported" message.
+    /// Override in adapters that support relay pagination (e.g. PostgreSQL).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on SQL execution failure, or
+    /// `FraiseQLError::Validation` if the adapter does not support relay pagination.
+    async fn execute_relay_page(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<i64>,
+        before: Option<i64>,
+        limit: u32,
+        forward: bool,
+    ) -> Result<Vec<crate::db::types::JsonbValue>> {
+        let _ = (view, cursor_column, after, before, limit, forward);
+        Err(crate::error::FraiseQLError::Validation {
+            message: "Relay pagination is not supported by this database adapter".to_string(),
+            path:    None,
+        })
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

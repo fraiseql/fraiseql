@@ -417,6 +417,47 @@ impl DatabaseAdapter for PostgresAdapter {
         self.execute_raw(&sql, &param_refs).await
     }
 
+    async fn execute_relay_page(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<i64>,
+        before: Option<i64>,
+        limit: u32,
+        forward: bool,
+    ) -> Result<Vec<crate::db::types::JsonbValue>> {
+        let quoted_view = quote_postgres_identifier(view);
+        let quoted_col = quote_postgres_identifier(cursor_column);
+
+        let mut typed_params: Vec<QueryParam> = Vec::new();
+        let mut param_count = 0_usize;
+
+        let mut sql = format!("SELECT data FROM {quoted_view}");
+
+        // Cursor keyset condition.
+        let cursor_val = if forward { after } else { before };
+        if let Some(pk) = cursor_val {
+            param_count += 1;
+            let op = if forward { ">" } else { "<" };
+            sql.push_str(&format!(" WHERE {quoted_col} {op} ${param_count}"));
+            typed_params.push(QueryParam::BigInt(pk));
+        }
+
+        let direction = if forward { "ASC" } else { "DESC" };
+        sql.push_str(&format!(" ORDER BY {quoted_col} {direction}"));
+
+        param_count += 1;
+        sql.push_str(&format!(" LIMIT ${param_count}"));
+        typed_params.push(QueryParam::BigInt(i64::from(limit)));
+
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        self.execute_raw(&sql, &param_refs).await
+    }
+
     fn database_type(&self) -> DatabaseType {
         DatabaseType::PostgreSQL
     }
