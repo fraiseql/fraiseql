@@ -50,6 +50,7 @@ pub mod mutation_result;
 mod planner;
 mod projection;
 pub mod query_tracing;
+pub mod relay;
 pub mod sql_logger;
 pub mod subscription;
 pub mod tenant_enforcer;
