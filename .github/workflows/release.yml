@@ -95,7 +95,7 @@ jobs:
             binary: fraiseql
             archive_ext: tar.gz
             use_cross: true
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             binary: fraiseql
             archive_ext: tar.gz
