@@ -163,8 +163,11 @@ pub async fn compile_to_schema(
         serde_json::from_str(&schema_json).context("Failed to parse schema.json")?
     };
 
-    // 2a. Load and apply security configuration from fraiseql.toml if it exists
-    if Path::new("fraiseql.toml").exists() {
+    // 2a. Load and apply security configuration from fraiseql.toml if it exists.
+    // Skip when the input itself is a TomlSchema file: in that case the security
+    // settings are embedded in the TomlSchema, and the CWD fraiseql.toml uses a
+    // different TOML format (TomlSchema vs FraiseQLConfig) that is not compatible.
+    if !is_toml && Path::new("fraiseql.toml").exists() {
         info!("Loading security configuration from fraiseql.toml...");
         match FraiseQLConfig::from_file("fraiseql.toml") {
             Ok(config) => {
