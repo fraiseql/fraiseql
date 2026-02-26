@@ -5,6 +5,38 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-rc.13] - 2026-02-26
+
+### Added
+
+- **`[server]` and `[database]` runtime config** (issue #44): `fraiseql.toml` now accepts
+  `[fraiseql.server]` (host, port, workers, request timeouts, body size limits) and
+  `[fraiseql.database]` (pool size, connect/idle timeouts, max lifetime) sections.
+  Configuration follows a correct precedence chain: CLI flags > environment variables >
+  TOML > built-in defaults.
+- **Mutation error types with scalar fields** (issue #294): `@fraiseql.error` types whose
+  fields are scalars (`str`, `int`, `datetime`, `UUID`, etc.) are now correctly populated
+  from `mutation_response.metadata` JSONB. Previously only nested dict-backed entity fields
+  were populated; scalar primitives were silently dropped. Both camelCase and snake_case
+  metadata keys are tried for each field.
+- **`auto_params` inferred from return type** (issue #45): List queries (`-> list[T]`) no
+  longer require the boilerplate
+  `auto_params={"limit": True, "offset": True, "where": True, "order_by": True}`.
+  When `auto_params` is omitted, the compiler infers `AutoParams::all()` for list queries
+  and `AutoParams::none()` for single-item queries. Explicit values are always respected;
+  opt out with `auto_params=False`.
+
+### Fixed
+
+- `parse_mutation_row` generalized over `BuildHasher` (`implicit_hasher` clippy lint).
+- Two `manual_let_else` rewrites in `mutation_result.rs`.
+- `.map(String::clone)` → `.cloned()` in `executor.rs` (`map_clone` clippy lint).
+
+### Verification
+
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: zero warnings
+- `cargo test --workspace --lib`: all tests pass
+
 ## [2.0.0-beta.3] - 2026-02-20
 
 ### Added
