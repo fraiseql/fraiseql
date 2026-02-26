@@ -1364,6 +1364,18 @@ pub struct QueryDefinition {
     /// pagination on `pk_{snake_case(return_type)}` (BIGINT).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
+
+    /// Keyset pagination column for relay queries.
+    ///
+    /// Derived from the return type name: `User` → `pk_user`.
+    /// This BIGINT column lives in the view (`sql_source`) and is used as the
+    /// stable sort key for cursor-based keyset pagination:
+    /// - Forward: `WHERE {col} > $cursor ORDER BY {col} ASC LIMIT $first`
+    /// - Backward: `WHERE {col} < $cursor ORDER BY {col} DESC LIMIT $last`
+    ///
+    /// Only set when `relay = true`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relay_cursor_column: Option<String>,
 }
 
 impl QueryDefinition {
@@ -1371,17 +1383,18 @@ impl QueryDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:         name.into(),
-            return_type:  return_type.into(),
-            returns_list: false,
-            nullable:     false,
-            arguments:    Vec::new(),
-            sql_source:   None,
-            description:  None,
-            auto_params:  AutoParams::default(),
-            deprecation:  None,
-            jsonb_column: "data".to_string(),
-            relay:        false,
+            name:                name.into(),
+            return_type:         return_type.into(),
+            returns_list:        false,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          None,
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
         }
     }
 

@@ -190,6 +190,7 @@ mod tests {
                 deprecation:  None,
                 jsonb_column: "data".to_string(),
                 relay: false,
+                relay_cursor_column: None,
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {

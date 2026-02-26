@@ -508,6 +508,7 @@ mod tests {
             deprecation:  None,
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -535,6 +536,7 @@ mod tests {
             deprecation:  None,
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         };
 
         let views = extract_accessed_views(&query_def);

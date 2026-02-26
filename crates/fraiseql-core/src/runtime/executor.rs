@@ -1455,6 +1455,7 @@ mod tests {
             deprecation:  None,
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         });
         schema
     }

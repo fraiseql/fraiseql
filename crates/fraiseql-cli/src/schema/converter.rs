@@ -387,6 +387,14 @@ impl SchemaConverter {
             .deprecated
             .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
+        // Derive the keyset pagination column from the return type name.
+        // Convention: User → pk_user, BlogPost → pk_blog_post (snake_case).
+        let relay_cursor_column = if intermediate.relay {
+            Some(format!("pk_{}", fraiseql_core::utils::to_snake_case(&intermediate.return_type)))
+        } else {
+            None
+        };
+
         Ok(QueryDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -399,6 +407,7 @@ impl SchemaConverter {
             deprecation,
             jsonb_column: intermediate.jsonb_column.unwrap_or_else(|| "data".to_string()),
             relay: intermediate.relay,
+            relay_cursor_column,
         })
     }
 
@@ -721,6 +730,11 @@ impl SchemaConverter {
         }
     }
 }
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
 
 // =============================================================================
 // Relay synthetic type injection

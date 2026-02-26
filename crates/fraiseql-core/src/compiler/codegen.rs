@@ -143,6 +143,7 @@ impl CodeGenerator {
                     deprecation:  None, // Note: IR doesn't have deprecation info yet
                     jsonb_column: "data".to_string(), // Default to "data" column
                     relay:        false,
+                    relay_cursor_column: None,
                 }
             })
             .collect();

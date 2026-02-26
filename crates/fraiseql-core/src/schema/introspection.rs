@@ -1388,6 +1388,7 @@ mod tests {
             deprecation:  None,
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         });
 
         // Add a user query with argument
@@ -1410,6 +1411,7 @@ mod tests {
             deprecation:  None,
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         });
 
         schema
@@ -2062,6 +2064,7 @@ mod tests {
             }),
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -2096,6 +2099,7 @@ mod tests {
             deprecation:  None,
             jsonb_column: "data".to_string(),
             relay: false,
+            relay_cursor_column: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);
