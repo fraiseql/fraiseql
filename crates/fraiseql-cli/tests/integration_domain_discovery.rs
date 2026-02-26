@@ -122,9 +122,9 @@ database_target = "postgresql"
 
 [database]
 url = "postgresql://localhost/test"
-pool_size = 10
+pool_max = 20
 ssl_mode = "prefer"
-timeout_seconds = 30
+connect_timeout_ms = 5000
 
 [domain_discovery]
 enabled = true
@@ -217,9 +217,9 @@ database_target = "postgresql"
 
 [database]
 url = "postgresql://localhost/test"
-pool_size = 10
+pool_max = 20
 ssl_mode = "prefer"
-timeout_seconds = 30
+connect_timeout_ms = 5000
 
 [domain_discovery]
 enabled = true
@@ -300,9 +300,9 @@ database_target = "postgresql"
 
 [database]
 url = "postgresql://localhost/test"
-pool_size = 10
+pool_max = 20
 ssl_mode = "prefer"
-timeout_seconds = 30
+connect_timeout_ms = 5000
 
 [domain_discovery]
 enabled = true
@@ -354,9 +354,9 @@ database_target = "postgresql"
 
 [database]
 url = "postgresql://localhost/test"
-pool_size = 10
+pool_max = 20
 ssl_mode = "prefer"
-timeout_seconds = 30
+connect_timeout_ms = 5000
 
 [domain_discovery]
 enabled = false

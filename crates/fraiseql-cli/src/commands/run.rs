@@ -3,6 +3,15 @@
 //! This command compiles the schema without writing any artifacts to disk and
 //! immediately starts the HTTP server.  With `--watch`, the schema file is
 //! monitored for changes and the server is hot-reloaded on every save.
+//!
+//! ## Configuration resolution
+//!
+//! Settings are resolved in descending priority order:
+//!
+//! 1. CLI flags (`--port`, `--bind`, `--database`)
+//! 2. Environment variables (`DATABASE_URL`, `FRAISEQL_PORT`, `FRAISEQL_HOST`)
+//! 3. `fraiseql.toml` `[server]` / `[database]` sections
+//! 4. Built-in defaults (`0.0.0.0:8080`, pool 2-20)
 
 use std::{
     net::SocketAddr,
@@ -17,43 +26,46 @@ use std::{
 use anyhow::{Context, Result};
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{Server, ServerConfig};
+use fraiseql_server::server_config::TlsServerConfig;
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
 use tracing::info;
 
 use super::compile::{CompileOptions, compile_to_schema};
+use crate::config::{
+    DatabaseRuntimeConfig, FraiseQLConfig, ServerRuntimeConfig, TomlSchema,
+    runtime::TlsRuntimeConfig,
+};
 
 /// Run the `fraiseql run` command.
 ///
 /// # Arguments
 ///
 /// * `input`         - Path to input file; `None` triggers auto-detection.
-/// * `database`      - Database URL; falls back to `DATABASE_URL` env var.
-/// * `port`          - TCP port to listen on.
-/// * `bind`          - Bind address (e.g. `"0.0.0.0"`).
+/// * `database`      - Database URL override; falls back to `DATABASE_URL` env var,
+///   then to `[database].url` in `fraiseql.toml`.
+/// * `port`          - TCP port override; `None` means fall back to TOML / default.
+/// * `bind`          - Bind host override; `None` means fall back to TOML / default.
 /// * `watch`         - Watch input file for changes and hot-reload.
 /// * `introspection` - Enable the `/introspection` endpoint (no auth).
 ///
 /// # Errors
 ///
 /// Returns error if the input file cannot be found, the schema fails to compile,
-/// the database URL is missing, or the server cannot bind to the requested address.
+/// the database URL is missing from all sources, or the server cannot bind.
 pub async fn run(
     input: Option<&str>,
     database: Option<String>,
-    port: u16,
-    bind: String,
+    port: Option<u16>,
+    bind: Option<String>,
     watch: bool,
     introspection: bool,
 ) -> Result<()> {
     let input_path = resolve_input(input)?;
 
-    let db_url = database.or_else(|| std::env::var("DATABASE_URL").ok()).ok_or_else(|| {
-        anyhow::anyhow!("No database URL provided. Use --database or set DATABASE_URL env var.")
-    })?;
-
-    let bind_addr: SocketAddr = format!("{bind}:{port}").parse().context("Invalid bind address")?;
+    let (db_url, bind_addr, server_cfg, db_cfg) =
+        resolve_runtime_config(&input_path, database, port, bind)?;
 
     println!("FraiseQL");
     println!("   Schema: {}", input_path.display());
@@ -61,9 +73,9 @@ pub async fn run(
     println!();
 
     if watch {
-        run_watch_loop(&input_path, &db_url, bind_addr, introspection).await
+        run_watch_loop(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg).await
     } else {
-        run_once(&input_path, &db_url, bind_addr, introspection).await
+        run_once(&input_path, &db_url, bind_addr, introspection, &server_cfg, &db_cfg).await
     }
 }
 
@@ -75,9 +87,11 @@ async fn run_once(
     db_url: &str,
     bind_addr: SocketAddr,
     introspection: bool,
+    server_cfg: &ServerRuntimeConfig,
+    db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
     let schema = compile_schema(input_path).await?;
-    let config = build_config(db_url, bind_addr, introspection);
+    let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
 
     let adapter = Arc::new(
         PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
@@ -102,10 +116,12 @@ async fn run_watch_loop(
     db_url: &str,
     bind_addr: SocketAddr,
     introspection: bool,
+    server_cfg: &ServerRuntimeConfig,
+    db_cfg: &DatabaseRuntimeConfig,
 ) -> Result<()> {
     loop {
         let schema = compile_schema(input_path).await?;
-        let config = build_config(db_url, bind_addr, introspection);
+        let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
 
         let adapter = Arc::new(
             PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
@@ -162,6 +178,139 @@ async fn run_watch_loop(
     Ok(())
 }
 
+/// Resolve all runtime configuration, applying the override precedence chain.
+///
+/// Priority (highest first):
+/// 1. CLI flags (`db_cli`, `port_cli`, `bind_cli`)
+/// 2. Standard environment variables (`DATABASE_URL`, `FRAISEQL_PORT`, `FRAISEQL_HOST`)
+/// 3. `fraiseql.toml` `[server]` / `[database]` sections
+/// 4. Built-in defaults
+///
+/// Returns `(db_url, bind_addr, server_runtime_config, database_runtime_config)`.
+pub(crate) fn resolve_runtime_config(
+    input_path: &Path,
+    db_cli: Option<String>,
+    port_cli: Option<u16>,
+    bind_cli: Option<String>,
+) -> Result<(String, SocketAddr, ServerRuntimeConfig, DatabaseRuntimeConfig)> {
+    // 1. Load [server] and [database] from TOML (fatal for primary .toml, best-effort otherwise)
+    let (server_cfg, db_cfg) = load_runtime_config_from_toml(input_path)?;
+
+    // 2. Resolve database URL
+    //    Priority: CLI flag > DATABASE_URL env > TOML [database].url
+    let db_url = db_cli
+        .or_else(|| std::env::var("DATABASE_URL").ok())
+        .or_else(|| db_cfg.url.clone())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "No database URL provided. Use --database, set DATABASE_URL env var, \
+                 or set [database].url in fraiseql.toml."
+            )
+        })?;
+
+    // 3. Resolve host and port
+    //    Priority: CLI flags > FRAISEQL_HOST/FRAISEQL_PORT env > TOML [server].*
+    let host = bind_cli
+        .or_else(|| std::env::var("FRAISEQL_HOST").ok())
+        .unwrap_or_else(|| server_cfg.host.clone());
+
+    let port = port_cli
+        .or_else(|| {
+            std::env::var("FRAISEQL_PORT")
+                .ok()
+                .and_then(|v| v.parse::<u16>().ok())
+        })
+        .unwrap_or(server_cfg.port);
+
+    let bind_addr: SocketAddr =
+        format!("{host}:{port}").parse().context("Invalid bind address")?;
+
+    server_cfg.validate()?;
+    db_cfg.validate()?;
+
+    Ok((db_url, bind_addr, server_cfg, db_cfg))
+}
+
+/// Load `[server]` and `[database]` runtime config from the input file.
+///
+/// For `.toml` input files the sections are embedded directly.  For `.json`
+/// input files we look for a sibling `fraiseql.toml` and load it as
+/// `FraiseQLConfig`.  Falls back to defaults if no config is found.
+fn load_runtime_config_from_toml(
+    input_path: &Path,
+) -> Result<(ServerRuntimeConfig, DatabaseRuntimeConfig)> {
+    let ext = input_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+    if ext == "toml" {
+        // Workflow A: the input IS the fraiseql.toml — parse errors are fatal
+        let schema = TomlSchema::from_file(input_path.to_str().unwrap_or(""))
+            .with_context(|| {
+                format!("Failed to load runtime config from {}", input_path.display())
+            })?;
+        info!("Loaded [server] and [database] config from {}", input_path.display());
+        return Ok((schema.server, schema.database));
+    }
+
+    // Workflow B: input is schema.json — look for fraiseql.toml in the same directory
+    let toml_path = input_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("fraiseql.toml");
+
+    if toml_path.exists() {
+        match FraiseQLConfig::from_file(toml_path.to_str().unwrap_or("fraiseql.toml")) {
+            Ok(cfg) => {
+                info!("Loaded [server] and [database] config from {}", toml_path.display());
+                return Ok((cfg.server, cfg.database));
+            },
+            Err(e) => {
+                info!("Could not parse FraiseQLConfig for runtime config: {e}");
+            },
+        }
+    }
+
+    Ok((ServerRuntimeConfig::default(), DatabaseRuntimeConfig::default()))
+}
+
+/// Build a `ServerConfig` from resolved runtime parameters.
+fn build_config_from(
+    db_url: &str,
+    bind_addr: SocketAddr,
+    server: &ServerRuntimeConfig,
+    db_cfg: &DatabaseRuntimeConfig,
+    introspection: bool,
+) -> ServerConfig {
+    let tls = server.tls.enabled.then(|| build_tls_config(&server.tls));
+
+    ServerConfig {
+        database_url: db_url.to_string(),
+        bind_addr,
+        cors_enabled: true,
+        cors_origins: server.cors.origins.clone(),
+        tls,
+        pool_min_size: db_cfg.pool_min,
+        pool_max_size: db_cfg.pool_max,
+        pool_timeout_secs: db_cfg.connect_timeout_ms / 1000,
+        introspection_enabled: introspection,
+        // When introspection is requested via CLI flag, serve it without requiring auth
+        // (development convenience; production setups use fraiseql-server directly).
+        introspection_require_auth: false,
+        ..ServerConfig::default()
+    }
+}
+
+/// Convert `TlsRuntimeConfig` → `TlsServerConfig`.
+fn build_tls_config(tls: &TlsRuntimeConfig) -> TlsServerConfig {
+    TlsServerConfig {
+        enabled:             true,
+        cert_path:           tls.cert_file.clone().into(),
+        key_path:            tls.key_file.clone().into(),
+        min_version:         tls.min_version.clone(),
+        require_client_cert: false,
+        client_ca_path:      None,
+    }
+}
+
 /// Compile the schema at `path`, printing progress to stdout.
 async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSchema> {
     let input = path.to_str().ok_or_else(|| anyhow::anyhow!("Input path is not valid UTF-8"))?;
@@ -181,19 +330,6 @@ async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSc
     println!();
 
     Ok(schema)
-}
-
-/// Build a `ServerConfig` for the `run` command.
-fn build_config(db_url: &str, bind_addr: SocketAddr, introspection: bool) -> ServerConfig {
-    ServerConfig {
-        database_url: db_url.to_string(),
-        bind_addr,
-        introspection_enabled: introspection,
-        // When introspection is requested via CLI flag, serve it without requiring auth
-        // (development convenience; production setups use fraiseql-server directly).
-        introspection_require_auth: false,
-        ..ServerConfig::default()
-    }
 }
 
 /// Spawn a file watcher that calls `on_change` once when a write event is detected.
@@ -327,26 +463,44 @@ mod tests {
         assert!(msg.contains("fraiseql run <INPUT>"), "expected usage in: {msg}");
     }
 
-    // ── build_config ─────────────────────────────────────────────────────────
+    // ── build_config_from ─────────────────────────────────────────────────────
 
     #[test]
     fn test_build_config_sets_db_url() {
         let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let config = build_config("postgres://localhost/test", addr, false);
+        let config = build_config_from(
+            "postgres://localhost/test",
+            addr,
+            &ServerRuntimeConfig::default(),
+            &DatabaseRuntimeConfig::default(),
+            false,
+        );
         assert_eq!(config.database_url, "postgres://localhost/test");
     }
 
     #[test]
     fn test_build_config_sets_bind_addr() {
         let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
-        let config = build_config("postgres://localhost/test", addr, false);
+        let config = build_config_from(
+            "postgres://localhost/test",
+            addr,
+            &ServerRuntimeConfig::default(),
+            &DatabaseRuntimeConfig::default(),
+            false,
+        );
         assert_eq!(config.bind_addr, addr);
     }
 
     #[test]
     fn test_build_config_introspection_enabled() {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
-        let config = build_config("postgres://localhost/test", addr, true);
+        let config = build_config_from(
+            "postgres://localhost/test",
+            addr,
+            &ServerRuntimeConfig::default(),
+            &DatabaseRuntimeConfig::default(),
+            true,
+        );
         assert!(config.introspection_enabled);
         // Must not require auth — this is a dev-convenience flag
         assert!(!config.introspection_require_auth);
@@ -355,7 +509,293 @@ mod tests {
     #[test]
     fn test_build_config_introspection_disabled() {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
-        let config = build_config("postgres://localhost/test", addr, false);
+        let config = build_config_from(
+            "postgres://localhost/test",
+            addr,
+            &ServerRuntimeConfig::default(),
+            &DatabaseRuntimeConfig::default(),
+            false,
+        );
         assert!(!config.introspection_enabled);
+    }
+
+    #[test]
+    fn test_build_config_pool_sizes_from_db_cfg() {
+        let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
+        let db_cfg = DatabaseRuntimeConfig { pool_min: 5, pool_max: 50, ..Default::default() };
+        let config = build_config_from(
+            "postgres://localhost/test",
+            addr,
+            &ServerRuntimeConfig::default(),
+            &db_cfg,
+            false,
+        );
+        assert_eq!(config.pool_min_size, 5);
+        assert_eq!(config.pool_max_size, 50);
+    }
+
+    #[test]
+    fn test_build_config_cors_origins_from_server_cfg() {
+        let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
+        let server_cfg = ServerRuntimeConfig {
+            cors: crate::config::runtime::CorsRuntimeConfig {
+                origins:     vec!["https://example.com".to_string()],
+                credentials: false,
+            },
+            ..Default::default()
+        };
+        let config = build_config_from(
+            "postgres://localhost/test",
+            addr,
+            &server_cfg,
+            &DatabaseRuntimeConfig::default(),
+            false,
+        );
+        assert_eq!(config.cors_origins, ["https://example.com"]);
+    }
+
+    // ── resolve_runtime_config ───────────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_runtime_config_database_url_from_toml() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://toml-host/testdb"
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [("DATABASE_URL", None::<&str>)],
+            || {
+                let (db_url, _addr, _srv, _db) =
+                    resolve_runtime_config(&toml_path, None, None, None).unwrap();
+                assert_eq!(db_url, "postgresql://toml-host/testdb");
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_cli_db_overrides_toml() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://toml-host/testdb"
+"#,
+        )
+        .unwrap();
+
+        let (db_url, _addr, _srv, _db) = resolve_runtime_config(
+            &toml_path,
+            Some("postgresql://cli-host/clidb".to_string()),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(db_url, "postgresql://cli-host/clidb");
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_env_var_overrides_toml() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://toml-host/testdb"
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [("DATABASE_URL", Some("postgresql://env-host/envdb"))],
+            || {
+                let (db_url, _addr, _srv, _db) =
+                    resolve_runtime_config(&toml_path, None, None, None).unwrap();
+                assert_eq!(db_url, "postgresql://env-host/envdb");
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_toml_port_used_when_cli_absent() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/db"
+
+[server]
+host = "127.0.0.1"
+port = 9999
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [
+                ("DATABASE_URL", None::<&str>),
+                ("FRAISEQL_HOST", None::<&str>),
+                ("FRAISEQL_PORT", None::<&str>),
+            ],
+            || {
+                let (_db_url, addr, _srv, _db) =
+                    resolve_runtime_config(&toml_path, None, None, None).unwrap();
+                assert_eq!(addr.port(), 9999);
+                assert_eq!(addr.ip().to_string(), "127.0.0.1");
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_cli_port_overrides_toml() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/db"
+
+[server]
+port = 9999
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [("DATABASE_URL", None::<&str>), ("FRAISEQL_PORT", None::<&str>)],
+            || {
+                let (_db_url, addr, _srv, _db) =
+                    resolve_runtime_config(&toml_path, None, Some(7777), None).unwrap();
+                assert_eq!(addr.port(), 7777);
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_invalid_primary_toml_is_fatal() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(&toml_path, "this is [not valid toml !!!").unwrap();
+
+        let result = resolve_runtime_config(&toml_path, None, None, None);
+        assert!(result.is_err(), "invalid primary TOML must be fatal");
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_port_zero_rejected() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/db"
+
+[server]
+port = 0
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [("DATABASE_URL", None::<&str>), ("FRAISEQL_PORT", None::<&str>)],
+            || {
+                let result = resolve_runtime_config(&toml_path, None, None, None);
+                assert!(result.is_err());
+                let msg = result.unwrap_err().to_string();
+                assert!(msg.contains("port"), "got: {msg}");
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_pool_range_rejected() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/db"
+pool_min = 50
+pool_max = 10
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [("DATABASE_URL", None::<&str>)],
+            || {
+                let result = resolve_runtime_config(&toml_path, None, None, None);
+                assert!(result.is_err());
+                let msg = result.unwrap_err().to_string();
+                assert!(msg.contains("pool_min"), "got: {msg}");
+            },
+        );
+    }
+
+    #[test]
+    fn test_resolve_runtime_config_no_db_url_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("fraiseql.toml");
+        std::fs::write(
+            &toml_path,
+            r#"
+[schema]
+name = "test"
+database_target = "postgresql"
+"#,
+        )
+        .unwrap();
+
+        temp_env::with_vars(
+            [("DATABASE_URL", None::<&str>)],
+            || {
+                let result = resolve_runtime_config(&toml_path, None, None, None);
+                assert!(result.is_err());
+                let msg = result.unwrap_err().to_string();
+                assert!(msg.contains("database URL"), "got: {msg}");
+            },
+        );
     }
 }

@@ -8,6 +8,9 @@ use std::{collections::BTreeMap, path::PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use super::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
+use super::expand_env_vars;
+
 /// Domain-based schema organization
 ///
 /// Automatically discovers schema files in domain directories:
@@ -201,9 +204,17 @@ pub struct TomlSchema {
     #[serde(rename = "schema")]
     pub schema: SchemaMetadata,
 
-    /// Database configuration
+    /// Database connection pool configuration (optional — all fields have defaults).
+    ///
+    /// Supports `${VAR}` environment variable interpolation in the `url` field.
     #[serde(rename = "database")]
-    pub database: DatabaseConfig,
+    pub database: DatabaseRuntimeConfig,
+
+    /// HTTP server runtime configuration (optional — all fields have defaults).
+    ///
+    /// CLI flags (`--port`, `--bind`) take precedence over these settings.
+    #[serde(rename = "server")]
+    pub server: ServerRuntimeConfig,
 
     /// Type definitions
     #[serde(rename = "types")]
@@ -271,31 +282,6 @@ impl Default for SchemaMetadata {
             version:         "1.0.0".to_string(),
             description:     None,
             database_target: "postgresql".to_string(),
-        }
-    }
-}
-
-/// Database configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct DatabaseConfig {
-    /// Database connection URL
-    pub url:             String,
-    /// Connection pool size
-    pub pool_size:       u32,
-    /// SSL mode (disable, allow, prefer, require)
-    pub ssl_mode:        String,
-    /// Connection timeout in seconds
-    pub timeout_seconds: u32,
-}
-
-impl Default for DatabaseConfig {
-    fn default() -> Self {
-        Self {
-            url:             "postgresql://localhost/mydb".to_string(),
-            pool_size:       10,
-            ssl_mode:        "prefer".to_string(),
-            timeout_seconds: 30,
         }
     }
 }
@@ -774,9 +760,12 @@ impl TomlSchema {
         Self::parse_toml(&content)
     }
 
-    /// Parse schema from TOML string
+    /// Parse schema from TOML string.
+    ///
+    /// Expands `${VAR}` environment variable placeholders before parsing.
     pub fn parse_toml(content: &str) -> Result<Self> {
-        toml::from_str(content).context("Failed to parse TOML schema")
+        let expanded = expand_env_vars(content);
+        toml::from_str(&expanded).context("Failed to parse TOML schema")
     }
 
     /// Validate schema
@@ -815,6 +804,9 @@ impl TomlSchema {
                 anyhow::bail!("Federation entity '{}' references undefined type", entity.name);
             }
         }
+
+        self.server.validate()?;
+        self.database.validate()?;
 
         // Validate federation circuit breaker configuration
         if let Some(cb) = &self.federation.circuit_breaker {
@@ -1178,5 +1170,84 @@ recovery_timeout_secs = 15
         assert_eq!(cb.per_database[0].database, "Product");
         assert_eq!(cb.per_database[0].failure_threshold, Some(3));
         assert_eq!(cb.per_database[0].recovery_timeout_secs, Some(15));
+    }
+
+    #[test]
+    fn test_toml_schema_parses_server_section() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[server]
+host = "127.0.0.1"
+port = 9999
+
+[server.cors]
+origins = ["https://example.com"]
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert_eq!(schema.server.host, "127.0.0.1");
+        assert_eq!(schema.server.port, 9999);
+        assert_eq!(schema.server.cors.origins, ["https://example.com"]);
+    }
+
+    #[test]
+    fn test_toml_schema_database_uses_runtime_config() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url      = "postgresql://localhost/mydb"
+pool_min = 5
+pool_max = 30
+ssl_mode = "require"
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        assert_eq!(schema.database.url, Some("postgresql://localhost/mydb".to_string()));
+        assert_eq!(schema.database.pool_min, 5);
+        assert_eq!(schema.database.pool_max, 30);
+        assert_eq!(schema.database.ssl_mode, "require");
+    }
+
+    #[test]
+    fn test_env_var_expansion_in_toml_schema() {
+        temp_env::with_var("SCHEMA_TEST_DB_URL", Some("postgres://test/fraiseql"), || {
+            let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "${SCHEMA_TEST_DB_URL}"
+"#;
+            let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+            assert_eq!(
+                schema.database.url,
+                Some("postgres://test/fraiseql".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn test_toml_schema_defaults_without_server_section() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+"#;
+        let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+        // Defaults should apply
+        assert_eq!(schema.server.host, "0.0.0.0");
+        assert_eq!(schema.server.port, 8080);
+        assert_eq!(schema.database.pool_min, 2);
+        assert_eq!(schema.database.pool_max, 20);
+        assert!(schema.database.url.is_none());
     }
 }

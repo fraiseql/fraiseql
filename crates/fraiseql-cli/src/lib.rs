@@ -454,28 +454,46 @@ EXAMPLES:
     ///
     /// Compiles the schema in-memory (no disk artifact) and starts the HTTP server.
     /// With --watch, the server hot-reloads whenever the schema file changes.
+    ///
+    /// Server and database settings can be declared in fraiseql.toml under [server]
+    /// and [database] sections.  CLI flags take precedence over TOML settings, which
+    /// take precedence over defaults.  The database URL is resolved in this order:
+    /// --database flag > DATABASE_URL env var > [database].url in fraiseql.toml.
     #[command(after_help = "\
 EXAMPLES:
     fraiseql run
     fraiseql run fraiseql.toml --database postgres://localhost/mydb
     fraiseql run --port 3000 --watch
-    fraiseql run schema.json --introspection")]
+    fraiseql run schema.json --introspection
+
+TOML CONFIG:
+    [server]
+    host = \"127.0.0.1\"
+    port = 9000
+
+    [server.cors]
+    origins = [\"https://app.example.com\"]
+
+    [database]
+    url      = \"${DATABASE_URL}\"
+    pool_min = 2
+    pool_max = 20")]
     Run {
         /// Input file path (fraiseql.toml or schema.json); auto-detected if omitted
         #[arg(value_name = "INPUT")]
         input: Option<String>,
 
-        /// Database URL (falls back to DATABASE_URL env var)
+        /// Database URL (overrides [database].url in fraiseql.toml and DATABASE_URL env var)
         #[arg(short, long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
-        /// Port to listen on
-        #[arg(short, long, default_value = "8080")]
-        port: u16,
+        /// Port to listen on (overrides [server].port in fraiseql.toml)
+        #[arg(short, long, value_name = "PORT")]
+        port: Option<u16>,
 
-        /// Bind address
-        #[arg(long, default_value = "0.0.0.0")]
-        bind: String,
+        /// Bind address (overrides [server].host in fraiseql.toml)
+        #[arg(long, value_name = "HOST")]
+        bind: Option<String>,
 
         /// Watch input file for changes and hot-reload the server
         #[arg(short, long)]
@@ -900,7 +918,9 @@ pub async fn run() {
             bind,
             watch,
             introspection,
-        } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
+        } => {
+            commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await
+        },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
     };
