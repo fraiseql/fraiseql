@@ -96,6 +96,14 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         Ok(Vec::new())
     }
 
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, Value>>> {
+        Ok(vec![])
+    }
+
     fn capabilities(&self) -> DatabaseCapabilities {
         DatabaseCapabilities::from_database_type(self.database_type())
     }
@@ -156,6 +164,14 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
 
     async fn execute_raw_query(&self, _sql: &str) -> Result<Vec<HashMap<String, Value>>> {
         Ok(Vec::new())
+    }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, Value>>> {
+        Ok(vec![])
     }
 
     fn capabilities(&self) -> DatabaseCapabilities {

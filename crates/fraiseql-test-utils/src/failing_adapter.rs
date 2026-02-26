@@ -335,6 +335,15 @@ impl DatabaseAdapter for FailingAdapter {
         self.check_failure(sql)?;
         Ok(vec![])
     }
+
+    async fn execute_function_call(
+        &self,
+        function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        self.check_failure(function_name)?;
+        Ok(vec![])
+    }
 }
 
 #[cfg(test)]

@@ -46,6 +46,7 @@ pub mod field_filter;
 pub mod input_validator;
 pub mod jsonb_strategy;
 mod matcher;
+pub mod mutation_result;
 mod planner;
 mod projection;
 pub mod query_tracing;

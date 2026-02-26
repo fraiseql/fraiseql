@@ -346,6 +346,19 @@ impl DatabaseAdapter for MySqlAdapter {
 
         Ok(results)
     }
+
+    async fn execute_function_call(
+        &self,
+        function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Err(FraiseQLError::Database {
+            message:   format!(
+                "MySQL adapter does not support function calls (attempted: {function_name})"
+            ),
+            sql_state: None,
+        })
+    }
 }
 
 #[cfg(all(test, feature = "test-mysql"))]

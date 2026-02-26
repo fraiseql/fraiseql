@@ -601,6 +601,7 @@ mod tests {
             description:         None,
             sql_projection_hint: None,
             implements:          vec![],
+            is_error:            false,
         }
     }
 
@@ -1006,6 +1007,7 @@ mod tests {
                 description:         None,
                 sql_projection_hint: None,
                 implements:          vec!["Node".to_string()],
+                is_error:            false,
             }],
             interfaces: vec![InterfaceDefinition {
                 name:        "Node".to_string(),

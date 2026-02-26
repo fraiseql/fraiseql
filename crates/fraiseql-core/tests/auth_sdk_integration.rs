@@ -86,6 +86,14 @@ impl DatabaseAdapter for MockAdapter {
         result.insert("revenue_sum".to_string(), json!(1500.50));
         Ok(vec![result])
     }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
 }
 
 /// Test that schema with fact tables can be parsed and validated

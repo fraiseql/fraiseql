@@ -393,6 +393,7 @@ impl SchemaExtractor for PythonExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -484,6 +485,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     fields,
                     description: None,
                     implements: Vec::new(),
+                    is_error: false,
                 });
             }
         }
@@ -642,6 +644,7 @@ impl SchemaExtractor for RustExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -729,6 +732,7 @@ impl SchemaExtractor for JavaExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -844,6 +848,7 @@ impl SchemaExtractor for KotlinExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -956,6 +961,7 @@ impl SchemaExtractor for GoExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -1065,6 +1071,7 @@ impl SchemaExtractor for CSharpExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -1194,6 +1201,7 @@ impl SchemaExtractor for SwiftExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 
@@ -1278,6 +1286,7 @@ impl SchemaExtractor for ScalaExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                is_error: false,
             });
         }
 

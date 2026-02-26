@@ -259,6 +259,31 @@ pub trait DatabaseAdapter: Send + Sync {
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
+    /// Execute a PostgreSQL function call and return all columns as rows.
+    ///
+    /// Builds `SELECT * FROM {function_name}($1, $2, ...)` with one positional placeholder per
+    /// argument, executes it with the provided JSON values, and returns each result row as a
+    /// `HashMap<column_name, json_value>`.
+    ///
+    /// Used by the mutation execution pathway to call stored procedures that return the
+    /// `app.mutation_response` composite type
+    /// `(status, message, entity_id, entity_type, entity jsonb, updated_fields text[],
+    ///   cascade jsonb, metadata jsonb)`.
+    ///
+    /// # Arguments
+    ///
+    /// * `function_name` - Fully-qualified PostgreSQL function name (e.g. `fn_create_machine`)
+    /// * `args` - Positional JSON arguments passed as `$1, $2, …` bind parameters
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on query execution failure.
+    async fn execute_function_call(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

@@ -127,6 +127,14 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
             Ok(vec![])
         }
     }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, Value>>> {
+        Ok(vec![])
+    }
 }
 
 /// Create federation metadata for test entities

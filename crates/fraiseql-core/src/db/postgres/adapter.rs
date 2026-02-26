@@ -493,6 +493,66 @@ impl DatabaseAdapter for PostgresAdapter {
 
         Ok(results)
     }
+
+    async fn execute_function_call(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Build: SELECT * FROM fn_name($1, $2, ...)
+        let placeholders: Vec<String> =
+            (1..=args.len()).map(|i| format!("${i}")).collect();
+        let sql = format!(
+            "SELECT * FROM {function_name}({})",
+            placeholders.join(", ")
+        );
+
+        let client = self.acquire_connection_with_retry().await?;
+
+        // Bind each JSON argument as a text parameter (PostgreSQL can cast text→jsonb)
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = args
+            .iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        let rows: Vec<Row> =
+            client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+                FraiseQLError::Database {
+                    message:   format!("Function call {function_name} failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                }
+            })?;
+
+        let results = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+                for (idx, column) in row.columns().iter().enumerate() {
+                    let column_name = column.name().to_string();
+                    let value: serde_json::Value =
+                        if let Ok(v) = row.try_get::<_, i32>(idx) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+                            v
+                        } else if let Ok(v) = row.try_get::<_, String>(idx) {
+                            serde_json::json!(v)
+                        } else {
+                            serde_json::Value::Null
+                        };
+                    map.insert(column_name, value);
+                }
+                map
+            })
+            .collect();
+
+        Ok(results)
+    }
 }
 
 /// PostgreSQL integration tests.

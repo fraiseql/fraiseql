@@ -180,6 +180,7 @@ impl SchemaConverter {
             jsonb_column: String::new(), // Not used for regular types (empty string)
             sql_projection_hint: None, // Will be populated by optimizer in
             implements: intermediate.implements,
+            is_error: intermediate.is_error,
         })
     }
 
@@ -378,12 +379,13 @@ impl SchemaConverter {
             .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(MutationDefinition {
-            name: intermediate.name,
+            name:        intermediate.name,
             return_type: intermediate.return_type,
             arguments,
             description: intermediate.description,
             operation,
             deprecation,
+            sql_source:  intermediate.sql_source,
         })
     }
 
@@ -738,6 +740,7 @@ mod tests {
                 ],
                 description: Some("User type".to_string()),
                 implements:  vec![],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -813,6 +816,7 @@ mod tests {
                 fields:      vec![],
                 description: None,
                 implements:  vec![],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -892,6 +896,7 @@ mod tests {
                 ],
                 description: None,
                 implements:  vec![],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1354,6 +1359,7 @@ mod tests {
                 ],
                 description: None,
                 implements:  vec!["Node".to_string()],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1413,6 +1419,7 @@ mod tests {
                 }],
                 description: None,
                 implements:  vec!["UnknownInterface".to_string()],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1460,6 +1467,7 @@ mod tests {
                 ],
                 description: None,
                 implements:  vec!["Node".to_string()],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],
@@ -1514,6 +1522,7 @@ mod tests {
                     }],
                     description: None,
                     implements:  vec![],
+                    is_error:    false,
                 },
                 IntermediateType {
                     name:        "Post".to_string(),
@@ -1527,6 +1536,7 @@ mod tests {
                     }],
                     description: None,
                     implements:  vec![],
+                    is_error:    false,
                 },
             ],
             enums:             vec![],
@@ -1607,6 +1617,7 @@ mod tests {
                 ],
                 description: None,
                 implements:  vec![],
+                is_error:    false,
             }],
             enums:             vec![],
             input_types:       vec![],

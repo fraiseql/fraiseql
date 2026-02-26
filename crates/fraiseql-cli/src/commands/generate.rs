@@ -1194,6 +1194,7 @@ mod tests {
                 ],
                 description: None,
                 implements:  Vec::new(),
+                is_error:    false,
             }],
             queries: vec![
                 IntermediateQuery {

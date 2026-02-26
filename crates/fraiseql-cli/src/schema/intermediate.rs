@@ -114,6 +114,10 @@ pub struct IntermediateType {
     /// Interfaces this type implements (GraphQL spec §3.6)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
+
+    /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_error: bool,
 }
 
 /// Field definition in intermediate format

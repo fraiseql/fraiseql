@@ -700,6 +700,15 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // Use the aggregation caching method which handles fact table versioning
         self.execute_aggregation_query(sql).await
     }
+
+    async fn execute_function_call(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Mutations are never cached — always delegate to the underlying adapter
+        self.adapter.execute_function_call(function_name, args).await
+    }
 }
 
 #[cfg(test)]
@@ -790,6 +799,14 @@ mod tests {
             let mut row = std::collections::HashMap::new();
             row.insert("count".to_string(), json!(42));
             Ok(vec![row])
+        }
+
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
         }
     }
 

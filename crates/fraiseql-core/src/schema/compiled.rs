@@ -687,6 +687,13 @@ pub struct TypeDefinition {
     /// Interfaces this type implements.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
+
+    /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
+    ///
+    /// Error types are populated from `mutation_response.metadata` JSONB rather than
+    /// the `entity` field.  Both scalar primitives and nested objects are supported.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_error: bool,
 }
 
 /// SQL projection hint for database-specific field projection optimization.
@@ -724,6 +731,7 @@ impl TypeDefinition {
             description:         None,
             sql_projection_hint: None,
             implements:          Vec::new(),
+            is_error:            false,
         }
     }
 
@@ -1442,6 +1450,14 @@ pub struct MutationDefinition {
     /// When set, this mutation is marked as deprecated in the schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<super::field_type::DeprecationInfo>,
+
+    /// PostgreSQL function name to call for this mutation.
+    ///
+    /// When set, the runtime calls `SELECT * FROM {sql_source}($1, $2, ...)` with the
+    /// mutation arguments in `ArgumentDefinition` order, and parses the result as an
+    /// `app.mutation_response` composite row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql_source: Option<String>,
 }
 
 impl MutationDefinition {
@@ -1455,6 +1471,7 @@ impl MutationDefinition {
             description: None,
             operation:   MutationOperation::default(),
             deprecation: None,
+            sql_source:  None,
         }
     }
 

@@ -19,6 +19,7 @@ use std::{sync::Arc, time::Duration};
 use super::{
     ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
     filter_fields,
+    mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
 };
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
@@ -54,6 +55,10 @@ enum QueryType {
     /// Introspection query (`__type(name: "...")`).
     /// Contains the requested type name.
     IntrospectionType(String),
+
+    /// GraphQL mutation.
+    /// Contains the root field name (e.g., "createMachine").
+    Mutation(String),
 }
 
 /// Query executor - executes compiled GraphQL queries.
@@ -244,6 +249,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.introspection.get_type_response(&type_name))
             },
+            QueryType::Mutation(mutation_name) => {
+                self.execute_mutation_query(&mutation_name, variables).await
+            },
         }
     }
 
@@ -302,6 +310,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
+            },
+            QueryType::Mutation(mutation_name) => {
+                self.execute_mutation_query(&mutation_name, variables).await
             },
         }
     }
@@ -499,6 +510,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
+            },
+            QueryType::Mutation(mutation_name) => {
+                self.execute_mutation_query(&mutation_name, variables).await
             },
         }
     }
@@ -745,6 +759,133 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::to_string(&response)?)
     }
 
+    /// Execute a GraphQL mutation by calling the configured PostgreSQL function.
+    ///
+    /// Looks up the `MutationDefinition`, calls `execute_function_call` on the adapter,
+    /// parses the returned `mutation_response` row, and builds the GraphQL response
+    /// (either the success entity or a populated error-type object).
+    async fn execute_mutation_query(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // 1. Locate the mutation definition
+        let mutation_def =
+            self.schema.find_mutation(mutation_name).ok_or_else(|| {
+                FraiseQLError::Validation {
+                    message: format!("Unknown mutation: {mutation_name}"),
+                    path:    None,
+                }
+            })?;
+
+        // 2. Require a sql_source (PostgreSQL function name)
+        let sql_source = mutation_def.sql_source.as_deref().ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: format!("Mutation '{mutation_name}' has no sql_source configured"),
+                path:    None,
+            }
+        })?;
+
+        // 3. Build positional args Vec from variables in ArgumentDefinition order
+        let vars_obj = variables.and_then(|v| v.as_object());
+        let args: Vec<serde_json::Value> = mutation_def
+            .arguments
+            .iter()
+            .map(|arg| {
+                vars_obj
+                    .and_then(|obj| obj.get(&arg.name))
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null)
+            })
+            .collect();
+
+        // 4. Call the database function
+        let rows = self.adapter.execute_function_call(sql_source, &args).await?;
+
+        // 5. Expect at least one row
+        let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "Mutation '{mutation_name}': function returned no rows"
+            ),
+            path: None,
+        })?;
+
+        // 6. Parse the mutation_response row
+        let outcome = parse_mutation_row(&row)?;
+
+        // Clone name and return_type to avoid borrow issues after schema lookups
+        let mutation_return_type = mutation_def.return_type.clone();
+        let mutation_name_owned = mutation_name.to_string();
+
+        let result_json = match outcome {
+            MutationOutcome::Success { entity, entity_type, .. } => {
+                // Determine the GraphQL __typename
+                let typename = entity_type
+                    .or_else(|| {
+                        // Fall back to first non-error union member
+                        self.schema
+                            .find_union(&mutation_return_type)
+                            .and_then(|u| {
+                                u.member_types.iter().find(|t| {
+                                    self.schema
+                                        .find_type(t)
+                                        .map(|td| !td.is_error)
+                                        .unwrap_or(true)
+                                })
+                            })
+                            .map(std::string::String::clone)
+                    })
+                    .unwrap_or_else(|| mutation_return_type.clone());
+
+                let mut obj = entity
+                    .as_object()
+                    .cloned()
+                    .unwrap_or_default();
+                obj.insert(
+                    "__typename".to_string(),
+                    serde_json::Value::String(typename),
+                );
+                serde_json::Value::Object(obj)
+            },
+            MutationOutcome::Error { status, metadata, .. } => {
+                // Find the matching error type from the return union
+                let error_type = self
+                    .schema
+                    .find_union(&mutation_return_type)
+                    .and_then(|u| {
+                        u.member_types.iter().find_map(|t| {
+                            let td = self.schema.find_type(t)?;
+                            if td.is_error { Some(td) } else { None }
+                        })
+                    });
+
+                match error_type {
+                    Some(td) => {
+                        let mut fields =
+                            populate_error_fields(&td.fields, &metadata);
+                        fields.insert(
+                            "__typename".to_string(),
+                            serde_json::Value::String(td.name.clone()),
+                        );
+                        // Include status so the client can act on it
+                        fields.insert(
+                            "status".to_string(),
+                            serde_json::Value::String(status),
+                        );
+                        serde_json::Value::Object(fields)
+                    },
+                    None => {
+                        // No error type defined: surface the status as a plain object
+                        serde_json::json!({ "__typename": mutation_return_type, "status": status })
+                    },
+                }
+            },
+        };
+
+        let response = ResultProjector::wrap_in_data_envelope(result_json, &mutation_name_owned);
+        Ok(serde_json::to_string(&response)?)
+    }
+
     /// Classify query type based on operation name.
     fn classify_query(&self, query: &str) -> Result<QueryType> {
         // Check for introspection queries first (highest priority)
@@ -757,13 +898,18 @@ impl<A: DatabaseAdapter> Executor<A> {
             return Ok(federation_type);
         }
 
-        // Parse the query to extract the root field name
+        // Parse the query to extract the root field name and operation type
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
             message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
         let root_field = &parsed.root_field;
+
+        // Mutations are routed by operation type
+        if parsed.operation_type == "mutation" {
+            return Ok(QueryType::Mutation(root_field.clone()));
+        }
 
         // Check if it's an aggregate query (ends with _aggregate)
         if root_field.ends_with("_aggregate") {
@@ -1283,6 +1429,14 @@ mod tests {
             _sql: &str,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             // Mock implementation: return empty results
+            Ok(vec![])
+        }
+
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
     }

@@ -424,6 +424,7 @@ mod tests {
                 jsonb_column:        String::new(),
                 sql_projection_hint: None,
                 implements:          vec![],
+                is_error:            false,
             }],
             queries:          vec![QueryDefinition {
                 name:         "users".to_string(),

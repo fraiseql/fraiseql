@@ -71,6 +71,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
+        is_error:            false,
     };
 
     let mut security_config = SecurityConfig::new();

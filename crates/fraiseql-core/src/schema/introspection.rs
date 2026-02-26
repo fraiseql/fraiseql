@@ -1525,6 +1525,7 @@ mod tests {
             description:         None,
             sql_projection_hint: None,
             implements:          vec![],
+            is_error:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
@@ -1770,6 +1771,7 @@ mod tests {
             description:         Some("A user".to_string()),
             sql_projection_hint: None,
             implements:          vec!["Node".to_string()],
+            is_error:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
@@ -1783,6 +1785,7 @@ mod tests {
             description:         Some("A blog post".to_string()),
             sql_projection_hint: None,
             implements:          vec!["Node".to_string()],
+            is_error:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("title", FieldType::String),
@@ -1844,6 +1847,7 @@ mod tests {
             description:         None,
             sql_projection_hint: None,
             implements:          vec!["Node".to_string(), "Timestamped".to_string()],
+            is_error:            false,
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("createdAt", FieldType::DateTime),

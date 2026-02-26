@@ -95,6 +95,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
+        is_error:            false,
     }
 }
 

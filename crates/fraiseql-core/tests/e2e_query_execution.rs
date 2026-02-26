@@ -164,6 +164,14 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+
+    async fn execute_function_call(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
 }
 
 // ============================================================================

@@ -116,6 +116,7 @@ impl CodeGenerator {
                     sql_projection_hint: None, // Populated during optimization pass
                     implements:          Vec::new(), /* Note: IR doesn't have interface
                                                 * implementation yet */
+                    is_error:            false,
                 }
             })
             .collect();
@@ -277,12 +278,13 @@ impl CodeGenerator {
         };
 
         MutationDefinition {
-            name: m.name.clone(),
+            name:        m.name.clone(),
             return_type: m.return_type.clone(),
-            arguments: Self::map_arguments(&m.arguments, known_types),
+            arguments:   Self::map_arguments(&m.arguments, known_types),
             description: m.description.clone(),
             operation,
             deprecation: None, // Note: IR mutations don't have deprecation yet
+            sql_source:  None,
         }
     }
 
