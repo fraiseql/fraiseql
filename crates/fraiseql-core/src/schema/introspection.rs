@@ -987,8 +987,15 @@ impl IntrospectionBuilder {
 
     /// Build Query root type.
     fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
-        let fields: Vec<IntrospectionField> =
+        let mut fields: Vec<IntrospectionField> =
             schema.queries.iter().map(|q| Self::build_query_field(q)).collect();
+
+        // Inject synthetic `node(id: ID!): Node` field when relay types exist.
+        let has_relay_types = schema.types.iter().any(|t| t.relay)
+            || schema.interfaces.iter().any(|i| i.name == "Node");
+        if has_relay_types {
+            fields.push(Self::build_node_query_field());
+        }
 
         IntrospectionType {
             kind:               TypeKind::Object,
@@ -1101,6 +1108,58 @@ impl IntrospectionBuilder {
             field_type: return_type,
             is_deprecated: query.is_deprecated(),
             deprecation_reason: query.deprecation_reason().map(ToString::to_string),
+        }
+    }
+
+    /// Build the synthetic `node(id: ID!): Node` field for the Query root type.
+    ///
+    /// Injected automatically when the schema contains Relay types (relay=true).
+    fn build_node_query_field() -> IntrospectionField {
+        // Return type: Node (nullable per Relay spec — unknown id returns null)
+        let return_type = IntrospectionType {
+            kind:               TypeKind::Object,
+            name:               Some("Node".to_string()),
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            None,
+            specified_by_u_r_l: None,
+        };
+
+        // Argument: id: ID! (non-null)
+        let id_arg = IntrospectionInputValue {
+            name:               "id".to_string(),
+            description:        Some("Globally unique opaque identifier.".to_string()),
+            input_type:         IntrospectionType {
+                kind:               TypeKind::NonNull,
+                name:               None,
+                description:        None,
+                fields:             None,
+                interfaces:         None,
+                possible_types:     None,
+                enum_values:        None,
+                input_fields:       None,
+                of_type:            Some(Box::new(Self::type_ref("ID"))),
+                specified_by_u_r_l: None,
+            },
+            default_value:      None,
+            is_deprecated:      false,
+            deprecation_reason: None,
+            validation_rules:   vec![],
+        };
+
+        IntrospectionField {
+            name:               "node".to_string(),
+            description:        Some(
+                "Fetch any object that implements the Node interface by its global ID.".to_string(),
+            ),
+            args:               vec![id_arg],
+            field_type:         return_type,
+            is_deprecated:      false,
+            deprecation_reason: None,
         }
     }
 
