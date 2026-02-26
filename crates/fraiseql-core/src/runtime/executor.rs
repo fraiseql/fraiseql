@@ -1043,18 +1043,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(serde_json::to_string(&response)?)
     }
 
-    /// Detect whether a query is a Relay `node(id: "...")` global lookup.
-    ///
-    /// Matches queries whose root selection is the `node` field with an `id` argument,
-    /// either inline or via a variable.  A simple text scan is sufficient because
-    /// `classify_query` is only called after all other classifiers have already
-    /// rejected the query.
-    fn is_node_query(query: &str) -> bool {
-        let q = query.trim();
-        // Must contain `node(` (opening argument list) and some form of `id`
-        // argument.  We intentionally avoid full parsing here for speed.
-        q.contains("node(") && (q.contains("id:") || q.contains("id :"))
-    }
 
     /// Execute a Relay global `node(id: ID!)` query.
     ///
@@ -1167,28 +1155,31 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Classify query type based on operation name.
     fn classify_query(&self, query: &str) -> Result<QueryType> {
-        // Check for introspection queries first (highest priority)
+        // Check for introspection queries first (highest priority).
+        // These use a cheap text scan to avoid parsing queries that only
+        // need the built-in introspection response.
         if let Some(introspection_type) = self.detect_introspection(query) {
             return Ok(introspection_type);
         }
 
-        // Check for federation queries (higher priority than regular queries)
+        // Check for federation queries (higher priority than regular queries).
+        // Also a text scan — federation queries bypass normal execution.
         if let Some(federation_type) = self.detect_federation(query) {
             return Ok(federation_type);
         }
 
-        // Check for Relay global node query.
-        if Self::is_node_query(query) {
-            return Ok(QueryType::NodeQuery);
-        }
-
-        // Parse the query to extract the root field name and operation type
+        // Parse the query to extract the root field name and operation type.
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
             message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
         let root_field = &parsed.root_field;
+
+        // Relay global node lookup: root field is exactly "node" on a query operation.
+        if parsed.operation_type == "query" && root_field == "node" {
+            return Ok(QueryType::NodeQuery);
+        }
 
         // Mutations are routed by operation type
         if parsed.operation_type == "mutation" {
@@ -1869,6 +1860,40 @@ mod tests {
         let query = r#"{ __type(name: "User") { fields { name } } }"#;
         let query_type = executor.classify_query(query).unwrap();
         assert_eq!(query_type, QueryType::IntrospectionType("User".to_string()));
+    }
+
+    #[test]
+    fn test_classify_node_query_inline_id() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name } } }"#;
+        let query_type = executor.classify_query(query).unwrap();
+        assert_eq!(query_type, QueryType::NodeQuery);
+    }
+
+    #[test]
+    fn test_classify_node_query_with_variable() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"query GetNode($id: ID!) { node(id: $id) { id } }";
+        let query_type = executor.classify_query(query).unwrap();
+        assert_eq!(query_type, QueryType::NodeQuery);
+    }
+
+    #[test]
+    fn test_classify_node_query_rejects_substring_match() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // "nodeCounts" contains "node(" as a substring — must NOT match
+        let query = r#"{ nodeCounts(id: "x") { total } }"#;
+        let query_type = executor.classify_query(query).unwrap();
+        assert_eq!(query_type, QueryType::Regular);
     }
 
     #[test]
