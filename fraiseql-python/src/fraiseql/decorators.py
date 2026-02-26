@@ -115,6 +115,7 @@ def type(
     cls: type[T] | None = None,
     *,
     implements: list[str] | None = None,
+    relay: bool = False,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -180,6 +181,7 @@ def type(
             fields=fields,
             description=c.__doc__,
             implements=implements or [],
+            relay=relay,
         )
 
         # Return original class unmodified (no runtime behavior)
@@ -187,7 +189,7 @@ def type(
 
     # Support both @type and @type(...)
     if cls is None:
-        # Called with arguments: @type(implements=["Node"])
+        # Called with arguments: @type(implements=["Node"]) or @type(relay=True)
         return decorator
     # Called without arguments: @type
     return decorator(cls)
@@ -236,6 +238,31 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         # Extract function signature
         signature = extract_function_signature(f)
 
+        # Work with a local copy so we can safely modify it
+        cfg = dict(config_kwargs)
+
+        # Relay validation — fail fast at authoring time
+        if cfg.get("relay"):
+            if not signature["return_type"]["is_list"]:
+                msg = (
+                    f"@fraiseql.query relay=True on {f.__name__!r} requires a list return type "
+                    f"(got {signature['return_type']['type']!r}). "
+                    "Relay connections only apply to list queries."
+                )
+                raise ValueError(msg)
+            if not cfg.get("sql_source"):
+                msg = (
+                    f"@fraiseql.query relay=True on {f.__name__!r} requires sql_source to be set. "
+                    "The compiler needs the view name to derive the cursor column."
+                )
+                raise ValueError(msg)
+            # Strip limit/offset from auto_params — relay uses first/after/last/before instead
+            if "auto_params" in cfg:
+                ap = dict(cfg["auto_params"])
+                ap.pop("limit", None)
+                ap.pop("offset", None)
+                cfg["auto_params"] = ap
+
         # Register query with schema registry
         SchemaRegistry.register_query(
             name=f.__name__,
@@ -244,7 +271,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
             nullable=signature["return_type"]["nullable"],
             arguments=signature["arguments"],
             description=f.__doc__,
-            **config_kwargs,
+            **cfg,
         )
 
         # Return original function unmodified

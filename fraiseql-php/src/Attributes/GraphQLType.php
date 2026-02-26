@@ -33,6 +33,7 @@ final readonly class GraphQLType
         public ?string $name = null,
         public ?string $description = null,
         public bool $isInput = false,
+        public bool $relay = false,
     ) {
     }
 }

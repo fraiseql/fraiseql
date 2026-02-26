@@ -64,7 +64,8 @@ public class SchemaRegistry {
             name,
             typeClass,
             fields,
-            annotation.description()
+            annotation.description(),
+            annotation.relay()
         );
 
         types.put(name, typeInfo);
@@ -80,6 +81,11 @@ public class SchemaRegistry {
      */
     public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description) {
         QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description);
+        queries.put(queryName, queryInfo);
+    }
+
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description, boolean relay) {
+        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay);
         queries.put(queryName, queryInfo);
     }
 
@@ -352,12 +358,22 @@ public class SchemaRegistry {
         public final Class<?> javaClass;
         public final Map<String, TypeConverter.GraphQLFieldInfo> fields;
         public final String description;
+        public final boolean relay;
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
             this.description = description;
+            this.relay = false;
+        }
+
+        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description, boolean relay) {
+            this.name = name;
+            this.javaClass = javaClass;
+            this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
+            this.description = description;
+            this.relay = relay;
         }
 
         @Override
@@ -378,12 +394,22 @@ public class SchemaRegistry {
         public final String returnType;
         public final Map<String, String> arguments;
         public final String description;
+        public final boolean relay;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
             this.description = description;
+            this.relay = false;
+        }
+
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
+            this.name = name;
+            this.returnType = returnType;
+            this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
+            this.description = description;
+            this.relay = relay;
         }
 
         @Override

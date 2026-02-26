@@ -105,6 +105,11 @@ public class SchemaFormatter {
                 typeNode.put("description", typeInfo.description);
             }
 
+            // Add relay flag if set
+            if (typeInfo.relay) {
+                typeNode.put("relay", true);
+            }
+
             // Format fields
             ObjectNode fieldsNode = mapper.createObjectNode();
             for (TypeConverter.GraphQLFieldInfo fieldInfo : typeInfo.fields.values()) {
@@ -163,6 +168,10 @@ public class SchemaFormatter {
 
             if (!queryInfo.description.isEmpty()) {
                 queryNode.put("description", queryInfo.description);
+            }
+
+            if (queryInfo.relay) {
+                queryNode.put("relay", true);
             }
 
             queriesNode.set(queryInfo.name, queryNode);

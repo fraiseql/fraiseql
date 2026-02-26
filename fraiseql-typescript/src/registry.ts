@@ -31,6 +31,7 @@ export interface TypeDefinition {
   name: string;
   fields: Field[];
   description?: string;
+  relay?: boolean;
 }
 
 /**
@@ -281,17 +282,17 @@ export class SchemaRegistry {
    * @param fields - List of field definitions
    * @param description - Optional type description
    */
-  static registerType(name: string, fields: Field[], description?: string): void {
+  static registerType(name: string, fields: Field[], description?: string, options?: { relay?: boolean }): void {
     if (this.types.has(name)) {
       throw new Error(
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
-    this.types.set(name, {
-      name,
-      fields,
-      description,
-    });
+    const typeDef: TypeDefinition = { name, fields, description };
+    if (options?.relay) {
+      typeDef.relay = true;
+    }
+    this.types.set(name, typeDef);
   }
 
   /**
@@ -320,6 +321,29 @@ export class SchemaRegistry {
       );
     }
     const cleanType = returnsList ? returnType.replace(/[[\]!]/g, "") : returnType;
+
+    // Relay validation — fail fast at authoring time
+    if (config?.relay) {
+      if (!returnsList) {
+        throw new Error(
+          `registerQuery('${name}'): relay: true requires returns_list to be true. ` +
+          "Relay connections only apply to list queries."
+        );
+      }
+      if (!config.sqlSource) {
+        throw new Error(
+          `registerQuery('${name}'): relay: true requires sqlSource to be set. ` +
+          "The compiler needs the view name to derive the cursor column."
+        );
+      }
+      // Strip limit/offset from autoParams — relay uses first/after/last/before instead
+      if (config.autoParams) {
+        const ap = { ...(config.autoParams as Record<string, boolean>) };
+        delete ap["limit"];
+        delete ap["offset"];
+        config = { ...config, autoParams: ap };
+      }
+    }
 
     // Normalise camelCase config keys to snake_case for the compiler
     const normalisedConfig = config ? normaliseConfig(config) : undefined;

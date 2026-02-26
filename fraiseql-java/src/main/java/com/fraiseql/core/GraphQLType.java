@@ -30,4 +30,12 @@ public @interface GraphQLType {
      * Optional description for the GraphQL type.
      */
     String description() default "";
+
+    /**
+     * Whether this type implements the Relay Node interface.
+     * When true, the type participates in global object identification via node(id: ID!)
+     * and can be used as the return type of relay-enabled list queries.
+     * Requires pk_{entity} (BIGINT) to be present in the view's data JSONB.
+     */
+    boolean relay() default false;
 }

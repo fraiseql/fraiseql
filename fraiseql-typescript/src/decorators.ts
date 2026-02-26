@@ -47,6 +47,7 @@ export function field(options: FieldMetadata): FieldMetadata {
  */
 export interface TypeConfig {
   description?: string;
+  relay?: boolean;
 }
 
 /**
@@ -106,6 +107,7 @@ export interface OperationConfig {
   autoParams?: Record<string, boolean>;
   operation?: string;
   jsonbColumn?: string;
+  relay?: boolean;
   [key: string]: unknown;
 }
 
@@ -438,8 +440,8 @@ export function input(
  * ]);
  * ```
  */
-export function registerTypeFields(typeName: string, fields: Field[], description?: string): void {
-  SchemaRegistry.registerType(typeName, fields, description);
+export function registerTypeFields(typeName: string, fields: Field[], description?: string, options?: { relay?: boolean }): void {
+  SchemaRegistry.registerType(typeName, fields, description, options);
 }
 
 /**

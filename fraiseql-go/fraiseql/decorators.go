@@ -1,6 +1,9 @@
 package fraiseql
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 // operationBuilder holds the common fields and shared logic for QueryBuilder and MutationBuilder.
 type operationBuilder struct {
@@ -58,15 +61,18 @@ func (b *operationBuilder) setDescription(desc string) {
 // QueryBuilder provides a fluent interface for building GraphQL queries
 type QueryBuilder struct {
 	operationBuilder
+	relay bool
 }
 
 // NewQuery creates a new query builder
 func NewQuery(name string) *QueryBuilder {
-	return &QueryBuilder{operationBuilder{
-		name:      name,
-		config:    make(map[string]interface{}),
-		arguments: []ArgumentDefinition{},
-	}}
+	return &QueryBuilder{
+		operationBuilder: operationBuilder{
+			name:      name,
+			config:    make(map[string]interface{}),
+			arguments: []ArgumentDefinition{},
+		},
+	}
 }
 
 // ReturnType sets the return type for the query
@@ -106,9 +112,32 @@ func (qb *QueryBuilder) Description(desc string) *QueryBuilder {
 	return qb
 }
 
+// Relay marks the query as a Relay connection query.
+// Requires ReturnsArray(true) and a sql_source in Config.
+// The compiler derives the cursor column from the return type name (e.g. User -> pk_user).
+func (qb *QueryBuilder) Relay(relay bool) *QueryBuilder {
+	qb.relay = relay
+	return qb
+}
+
 // Register registers the query with the global schema registry.
 // Returns an error if a query with the same name is already registered.
 func (qb *QueryBuilder) Register() error {
+	if qb.relay {
+		if !qb.returnsList {
+			return fmt.Errorf(
+				"query %q: Relay(true) requires ReturnsArray(true); relay connections only apply to list queries",
+				qb.name,
+			)
+		}
+		if qb.config["sql_source"] == "" || qb.config["sql_source"] == nil {
+			return fmt.Errorf(
+				"query %q: Relay(true) requires sql_source to be set via Config; the compiler needs the view name to derive the cursor column",
+				qb.name,
+			)
+		}
+	}
+
 	definition := QueryDefinition{
 		Name:        qb.name,
 		ReturnType:  qb.returnType,
@@ -116,6 +145,7 @@ func (qb *QueryBuilder) Register() error {
 		Nullable:    qb.nullable,
 		Arguments:   qb.arguments,
 		Description: qb.description,
+		Relay:       qb.relay,
 	}
 
 	if len(qb.config) > 0 {

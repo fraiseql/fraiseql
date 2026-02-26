@@ -49,7 +49,7 @@ final class Schema
         $types = [];
         foreach ($typeNames as $typeName) {
             $fields = $registry->getTypeFields($typeName);
-            $types[] = [
+            $typeDef = [
                 'name' => $typeName,
                 'fields' => array_map(function (FieldDefinition $field) {
                     return [
@@ -59,6 +59,12 @@ final class Schema
                     ];
                 }, $fields),
             ];
+            // Emit relay flag when the type implements the Relay Node interface
+            $typeAttr = $registry->getType($typeName);
+            if ($typeAttr !== null && $typeAttr->relay) {
+                $typeDef['relay'] = true;
+            }
+            $types[] = $typeDef;
         }
 
         $minimalSchema = [

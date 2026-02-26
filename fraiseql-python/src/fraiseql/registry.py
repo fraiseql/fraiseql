@@ -43,6 +43,7 @@ class SchemaRegistry:
         fields: dict[str, dict[str, Any]],
         description: str | None = None,
         implements: list[str] | None = None,
+        relay: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -51,6 +52,9 @@ class SchemaRegistry:
             fields: Dictionary of field_name -> {"type": str, "nullable": bool}
             description: Optional type description from docstring
             implements: List of interface names this type implements
+            relay: Whether this type implements the Relay Node interface. When True,
+                the compiler generates global node IDs and validates pk_{entity} exists
+                in the view's data JSONB.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -68,6 +72,9 @@ class SchemaRegistry:
         # Add implements if specified
         if implements:
             type_def["implements"] = implements
+
+        if relay:
+            type_def["relay"] = True
 
         cls._types[name] = type_def
 

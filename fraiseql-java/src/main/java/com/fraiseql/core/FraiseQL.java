@@ -152,6 +152,7 @@ public class FraiseQL {
         private boolean returnsArray = false;
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
+        private boolean relay = false;
 
         private QueryBuilder(String name) {
             this.name = name;
@@ -227,11 +228,32 @@ public class FraiseQL {
         }
 
         /**
+         * Mark this query as a Relay connection query.
+         * Requires returnsArray(true). The compiler derives the cursor column from the
+         * return type name (e.g. User -> pk_user) and generates Connection/Edge types.
+         *
+         * @param relay true to enable Relay connection wrapping
+         * @return this builder for chaining
+         */
+        public QueryBuilder relay(boolean relay) {
+            this.relay = relay;
+            return this;
+        }
+
+        /**
          * Register this query in the schema.
+         *
+         * @throws IllegalStateException if relay(true) is set without returnsArray(true)
          */
         public void register() {
+            if (relay && !returnsArray) {
+                throw new IllegalStateException(
+                    "Query '" + name + "': relay(true) requires returnsArray(true). " +
+                    "Relay connections only apply to list queries."
+                );
+            }
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
-            registry.registerQuery(name, finalReturnType, arguments, description);
+            registry.registerQuery(name, finalReturnType, arguments, description, relay);
         }
     }
 

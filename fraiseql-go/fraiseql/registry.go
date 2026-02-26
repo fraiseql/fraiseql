@@ -21,6 +21,7 @@ type TypeDefinition struct {
 	Name        string      `json:"name"`
 	Fields      []FieldInfo `json:"fields"`
 	Description string      `json:"description,omitempty"`
+	Relay       bool        `json:"relay,omitempty"`
 }
 
 // QueryDefinition represents a GraphQL query
@@ -32,6 +33,7 @@ type QueryDefinition struct {
 	Arguments   []ArgumentDefinition   `json:"arguments"`
 	Description string                 `json:"description,omitempty"`
 	SqlSource   string                 `json:"sql_source,omitempty"`
+	Relay       bool                   `json:"relay,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
@@ -124,7 +126,7 @@ func getInstance() *SchemaRegistry {
 
 // RegisterType registers a type with the schema registry.
 // Returns an error if a type with the same name is already registered.
-func RegisterType(name string, fields []FieldInfo, description string) error {
+func RegisterType(name string, fields []FieldInfo, description string, relay ...bool) error {
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()
@@ -132,10 +134,12 @@ func RegisterType(name string, fields []FieldInfo, description string) error {
 	if _, exists := reg.types[name]; exists {
 		return fmt.Errorf("type %q is already registered; each name must be unique within a schema", name)
 	}
+	isRelay := len(relay) > 0 && relay[0]
 	reg.types[name] = TypeDefinition{
 		Name:        name,
 		Fields:      fields,
 		Description: description,
+		Relay:       isRelay,
 	}
 	return nil
 }
