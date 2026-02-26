@@ -6,7 +6,16 @@ use super::{
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
-use crate::{error::Result, schema::SqlProjectionHint};
+use crate::{compiler::aggregation::OrderByClause, error::Result, schema::SqlProjectionHint};
+
+/// Result from a relay pagination query, containing rows and an optional total count.
+#[derive(Debug, Clone)]
+pub struct RelayPageResult {
+    /// The page of JSONB rows (already trimmed to the requested page size).
+    pub rows:        Vec<JsonbValue>,
+    /// Total count of matching rows (only populated when requested via `include_total_count`).
+    pub total_count: Option<u64>,
+}
 
 /// Database adapter for executing queries against views.
 ///
@@ -336,6 +345,51 @@ pub trait DatabaseAdapter: Send + Sync {
         Err(crate::error::FraiseQLError::Validation {
             message: "Relay pagination is not supported by this database adapter".to_string(),
             path:    None,
+        })
+    }
+
+    /// Extended relay pagination with filtering, sorting, and optional total count.
+    ///
+    /// This is the full-featured relay pagination method. It supports:
+    /// - `where_clause`: filter rows before pagination
+    /// - `order_by`: custom sort order (cursor column is always appended as tiebreaker)
+    /// - `include_total_count`: compute `COUNT(*) OVER()` for the `totalCount` field
+    ///
+    /// # Default implementation
+    ///
+    /// Ignores `where_clause`, `order_by`, and `include_total_count`, delegating to
+    /// `execute_relay_page`. Override in adapters that support the extended parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - SQL view name
+    /// * `cursor_column` - BIGINT column for keyset pagination
+    /// * `after` - Decoded cursor for forward pagination
+    /// * `before` - Decoded cursor for backward pagination
+    /// * `limit` - Row count (should be `first + 1` to probe `hasNextPage`)
+    /// * `forward` - `true` for ASC, `false` for DESC
+    /// * `where_clause` - Optional filter condition
+    /// * `order_by` - Optional custom sort (cursor column appended as tiebreaker)
+    /// * `include_total_count` - Whether to compute total matching row count
+    async fn execute_relay_page_v2(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<i64>,
+        before: Option<i64>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        let _ = (where_clause, order_by, include_total_count);
+        let rows = self
+            .execute_relay_page(view, cursor_column, after, before, limit, forward)
+            .await?;
+        Ok(RelayPageResult {
+            rows,
+            total_count: None,
         })
     }
 
