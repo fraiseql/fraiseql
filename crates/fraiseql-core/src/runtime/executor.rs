@@ -833,7 +833,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                                         .unwrap_or(true)
                                 })
                             })
-                            .map(std::string::String::clone)
+                            .cloned()
                     })
                     .unwrap_or_else(|| mutation_return_type.clone());
 

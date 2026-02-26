@@ -339,8 +339,16 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert query '{}'", intermediate.name))?;
 
-        let auto_params =
-            intermediate.auto_params.map(Self::convert_auto_params).unwrap_or_default();
+        let auto_params = intermediate.auto_params.map_or_else(
+            || {
+                if intermediate.returns_list {
+                    AutoParams::all()
+                } else {
+                    AutoParams::default()
+                }
+            },
+            Self::convert_auto_params,
+        );
 
         let deprecation = intermediate
             .deprecated
@@ -862,6 +870,102 @@ mod tests {
         assert_eq!(compiled.queries[0].arguments.len(), 1);
         assert_eq!(compiled.queries[0].arguments[0].arg_type, FieldType::Int);
         assert!(compiled.queries[0].auto_params.has_limit);
+    }
+
+    #[test]
+    fn test_list_query_without_auto_params_defaults_to_all() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Item".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+                is_error:    false,
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:         "items".to_string(),
+                return_type:  "Item".to_string(),
+                returns_list: true,
+                nullable:     false,
+                arguments:    vec![],
+                description:  None,
+                sql_source:   Some("v_item".to_string()),
+                auto_params:  None,
+                deprecated:   None,
+                jsonb_column: None,
+            }],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+            custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let params = &compiled.queries[0].auto_params;
+        assert!(params.has_limit);
+        assert!(params.has_offset);
+        assert!(params.has_where);
+        assert!(params.has_order_by);
+    }
+
+    #[test]
+    fn test_single_item_query_without_auto_params_defaults_to_none() {
+        let intermediate = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "Item".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+                is_error:    false,
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:         "item".to_string(),
+                return_type:  "Item".to_string(),
+                returns_list: false,
+                nullable:     true,
+                arguments:    vec![],
+                description:  None,
+                sql_source:   Some("v_item".to_string()),
+                auto_params:  None,
+                deprecated:   None,
+                jsonb_column: None,
+            }],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+            custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
+        };
+
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let params = &compiled.queries[0].auto_params;
+        assert!(!params.has_limit);
+        assert!(!params.has_offset);
+        assert!(!params.has_where);
+        assert!(!params.has_order_by);
     }
 
     #[test]

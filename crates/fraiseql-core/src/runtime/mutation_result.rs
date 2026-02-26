@@ -49,8 +49,8 @@ pub enum MutationOutcome {
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` if the `status` column is missing.
-pub fn parse_mutation_row(
-    row: &HashMap<String, JsonValue>,
+pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
+    row: &HashMap<String, JsonValue, S>,
 ) -> Result<MutationOutcome> {
     let status = row
         .get("status")
@@ -110,20 +110,14 @@ pub fn populate_error_fields(
 ) -> Map<String, JsonValue> {
     let mut output = Map::new();
 
-    let obj = match metadata.as_object() {
-        Some(o) => o,
-        None => return output,
-    };
+    let Some(obj) = metadata.as_object() else { return output };
 
     for field in fields {
         // Try camelCase first, then the raw field name (snake_case)
         let camel = to_camel_case(&field.name);
         let raw_val = obj.get(&camel).or_else(|| obj.get(&field.name));
 
-        let raw_val = match raw_val {
-            Some(v) => v,
-            None => continue,
-        };
+        let Some(raw_val) = raw_val else { continue };
 
         let base_type = strip_list_and_bang(&field.field_type.to_string());
 
