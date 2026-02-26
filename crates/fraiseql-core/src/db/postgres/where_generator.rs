@@ -166,7 +166,25 @@ impl PostgresWhereGenerator {
     ///
     /// Returns `FraiseQLError::Validation` if clause is invalid.
     pub fn generate(&self, clause: &WhereClause) -> Result<(String, Vec<serde_json::Value>)> {
-        self.param_counter.set(0);
+        self.generate_with_param_offset(clause, 0)
+    }
+
+    /// Generate SQL WHERE clause with a parameter index offset.
+    ///
+    /// Like `generate`, but starts parameter numbering at `offset` instead of 0.
+    /// Use this when the WHERE clause must be appended to a query that already
+    /// has bound parameters (e.g. cursor values in relay pagination).
+    ///
+    /// # Arguments
+    ///
+    /// * `clause` - WHERE clause AST
+    /// * `offset` - Number of parameters already bound (e.g. 1 if `$1` is taken)
+    pub fn generate_with_param_offset(
+        &self,
+        clause: &WhereClause,
+        offset: usize,
+    ) -> Result<(String, Vec<serde_json::Value>)> {
+        self.param_counter.set(offset);
         let mut params = Vec::new();
         let sql = self.generate_clause(clause, &mut params)?;
         Ok((sql, params))

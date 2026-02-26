@@ -6,9 +6,10 @@ use tokio_postgres::{NoTls, Row};
 
 use super::where_generator::PostgresWhereGenerator;
 use crate::{
+    compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_postgres_identifier,
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, RelayPageResult},
         types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
         where_clause::WhereClause,
     },
@@ -486,6 +487,166 @@ impl DatabaseAdapter for PostgresAdapter {
             .collect();
 
         self.execute_raw(&sql, &param_refs).await
+    }
+
+    async fn execute_relay_page_v2(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<i64>,
+        before: Option<i64>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        let quoted_view = quote_postgres_identifier(view);
+        let quoted_col = quote_postgres_identifier(cursor_column);
+
+        let mut typed_params: Vec<QueryParam> = Vec::new();
+        let mut param_count = 0_usize;
+
+        // ── SELECT clause ──────────────────────────────────────────────
+        let select_expr = if include_total_count {
+            format!("SELECT data, COUNT(*) OVER() AS _total_count FROM {quoted_view}")
+        } else {
+            format!("SELECT data FROM {quoted_view}")
+        };
+
+        // ── WHERE clause ───────────────────────────────────────────────
+        // Start with the cursor keyset condition, then AND the user filter.
+        let mut where_parts: Vec<String> = Vec::new();
+
+        if forward {
+            if let Some(pk) = after {
+                param_count += 1;
+                where_parts.push(format!("{quoted_col} > ${param_count}"));
+                typed_params.push(QueryParam::BigInt(pk));
+            }
+        } else if let Some(pk) = before {
+            param_count += 1;
+            where_parts.push(format!("{quoted_col} < ${param_count}"));
+            typed_params.push(QueryParam::BigInt(pk));
+        }
+
+        // Append user-provided WHERE clause (parameter indices offset by param_count).
+        let mut where_json_params: Vec<serde_json::Value> = Vec::new();
+        if let Some(clause) = where_clause {
+            let generator = PostgresWhereGenerator::new();
+            let (where_sql, params) = generator.generate_with_param_offset(clause, param_count)?;
+            param_count += params.len();
+            where_parts.push(format!("({where_sql})"));
+            where_json_params = params;
+        }
+
+        let where_sql = if where_parts.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", where_parts.join(" AND "))
+        };
+
+        // ── ORDER BY clause ────────────────────────────────────────────
+        // Custom sort columns first, then cursor column as tiebreaker.
+        let order_sql = if let Some(clauses) = order_by {
+            let mut parts: Vec<String> = clauses
+                .iter()
+                .map(|c| {
+                    let dir = match c.direction {
+                        OrderDirection::Asc => "ASC",
+                        OrderDirection::Desc => "DESC",
+                    };
+                    // Order by JSONB field extraction, then tiebreaker by cursor col
+                    format!("data->>'{field}' {dir}", field = c.field)
+                })
+                .collect();
+            // Always append cursor column as tiebreaker for stable keyset pagination
+            let primary_dir = if forward { "ASC" } else { "DESC" };
+            parts.push(format!("{quoted_col} {primary_dir}"));
+            format!(" ORDER BY {}", parts.join(", "))
+        } else {
+            let dir = if forward { "ASC" } else { "DESC" };
+            format!(" ORDER BY {quoted_col} {dir}")
+        };
+
+        // ── LIMIT ──────────────────────────────────────────────────────
+        param_count += 1;
+        let limit_sql = format!(" LIMIT ${param_count}");
+        typed_params.push(QueryParam::BigInt(i64::from(limit)));
+
+        // ── Assemble and execute ───────────────────────────────────────
+        // Backward pagination: wrap in subquery for re-sort to ascending.
+        let sql = if forward {
+            format!("{select_expr}{where_sql}{order_sql}{limit_sql}")
+        } else {
+            // For backward, we need to include cursor col in the inner select
+            // for the outer re-sort.
+            let inner_select = if include_total_count {
+                format!("SELECT data, {quoted_col} AS _relay_cursor, COUNT(*) OVER() AS _total_count FROM {quoted_view}")
+            } else {
+                format!("SELECT data, {quoted_col} AS _relay_cursor FROM {quoted_view}")
+            };
+            let inner = format!("{inner_select}{where_sql}{order_sql}{limit_sql}");
+            if include_total_count {
+                format!("SELECT data, _total_count FROM ({inner}) _relay_page ORDER BY _relay_cursor ASC")
+            } else {
+                format!("SELECT data FROM ({inner}) _relay_page ORDER BY _relay_cursor ASC")
+            }
+        };
+
+        // Merge typed_params and where_json_params into final param list.
+        // typed_params has cursor + limit as QueryParam; where_json_params are serde Values.
+        // We need to interleave them in the correct order:
+        // cursor param(s) first, then where params, then limit param.
+        // Since we built typed_params with cursor first and limit last, we need to
+        // insert where params before the limit.
+        let limit_param = typed_params.pop(); // remove LIMIT param temporarily
+        // Add where params as QueryParam
+        for v in where_json_params {
+            typed_params.push(QueryParam::from(v));
+        }
+        // Re-add LIMIT param
+        if let Some(lp) = limit_param {
+            typed_params.push(lp);
+        }
+
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        // Execute query
+        let client = self.acquire_connection_with_retry().await?;
+        let rows = client
+            .query(&sql, &param_refs)
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   e.to_string(),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        // Extract total_count from the first row (if requested).
+        let total_count = if include_total_count {
+            rows.first().and_then(|row| {
+                row.try_get::<_, i64>("_total_count").ok().map(|c| c as u64)
+            })
+        } else {
+            None
+        };
+
+        // Extract JSONB data from each row.
+        let results = rows
+            .iter()
+            .map(|row| {
+                let data: serde_json::Value = row.get("data");
+                JsonbValue::new(data)
+            })
+            .collect();
+
+        Ok(RelayPageResult {
+            rows: results,
+            total_count,
+        })
     }
 
     fn database_type(&self) -> DatabaseType {
