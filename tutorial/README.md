@@ -302,7 +302,7 @@ This helps users understand:
 }
 ```
 
-3. Restart tutorial server
+1. Restart tutorial server
 
 ### Styling
 
