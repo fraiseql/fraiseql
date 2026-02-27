@@ -204,6 +204,14 @@ impl GraphQLError {
     }
 
     /// Execution error during GraphQL resolver execution.
+    ///
+    /// # Deprecation
+    ///
+    /// Prefer [`GraphQLError::from_fraiseql_error`] on the hot path; it preserves
+    /// the specific error variant so clients and the sanitizer receive the correct code.
+    /// This method remains for ad-hoc internal errors that do not originate from a
+    /// `FraiseQLError`.
+    #[doc(hidden)]
     #[must_use]
     pub fn execution(message: &str) -> Self {
         Self::new(message, ErrorCode::InternalServerError)
@@ -234,6 +242,30 @@ impl GraphQLError {
     /// Rate limit error - too many requests from client.
     pub fn rate_limited(message: impl Into<String>) -> Self {
         Self::new(message, ErrorCode::RateLimitExceeded)
+    }
+
+    /// Construct a typed [`GraphQLError`] from a [`fraiseql_core::error::FraiseQLError`] executor error.
+    ///
+    /// Maps specific core error variants to their closest HTTP-semantic equivalent,
+    /// preserving type information for correct client handling and sanitizer routing.
+    #[must_use]
+    pub fn from_fraiseql_error(err: &fraiseql_core::error::FraiseQLError) -> Self {
+        use fraiseql_core::error::FraiseQLError as E;
+        match err {
+            E::Database { .. } | E::ConnectionPool { .. } => Self::database(err.to_string()),
+            E::Parse { .. } => Self::parse(err.to_string()),
+            E::Validation { .. } | E::UnknownField { .. } | E::UnknownType { .. } => {
+                Self::validation(err.to_string())
+            },
+            E::NotFound { .. } => Self::not_found(err.to_string()),
+            E::Conflict { .. } => Self::new(err.to_string(), ErrorCode::Conflict),
+            E::Authorization { .. } => Self::forbidden(),
+            E::Authentication { .. } => Self::unauthenticated(),
+            E::Timeout { .. } => Self::new(err.to_string(), ErrorCode::Timeout),
+            E::RateLimited { message, .. } => Self::rate_limited(message.clone()),
+            // Cancelled, Configuration, Internal, and any future variants
+            _ => Self::internal(err.to_string()),
+        }
     }
 
     /// Circuit breaker open — federation entity temporarily unavailable.
@@ -363,6 +395,61 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         let retry_after = response.headers().get(axum::http::header::RETRY_AFTER);
         assert_eq!(retry_after.and_then(|v| v.to_str().ok()), Some("60"));
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_database_maps_to_database_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Database {
+            message:   "relation \"users\" does not exist".into(),
+            sql_state: None,
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::DatabaseError);
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_validation_maps_to_validation_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Validation {
+            message: "field 'id' is required".into(),
+            path:    None,
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::ValidationError);
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_not_found_maps_to_not_found_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::NotFound {
+            resource_type: "User".into(),
+            identifier:    "123".into(),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_authorization_maps_to_forbidden() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Authorization {
+            message:  "insufficient permissions".into(),
+            action:   Some("write".into()),
+            resource: Some("User".into()),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::Forbidden);
+    }
+
+    #[test]
+    fn test_from_fraiseql_error_authentication_maps_to_unauthenticated() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Authentication {
+            message: "token expired".into(),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::Unauthenticated);
     }
 
     #[test]

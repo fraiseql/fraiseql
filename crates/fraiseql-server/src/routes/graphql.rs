@@ -510,7 +510,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
         // Record duration even for failed queries
         metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-        let err = state.error_sanitizer.sanitize(GraphQLError::execution(&e.to_string()));
+        let err = state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e));
         ErrorResponse::from_error(err)
     })?;
 
