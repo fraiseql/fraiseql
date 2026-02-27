@@ -15,7 +15,7 @@ use fraiseql_core::{
     security::OidcValidator,
 };
 use tokio::net::TcpListener;
-#[cfg(feature = "observers")]
+#[cfg(any(feature = "observers", feature = "redis-rate-limiting"))]
 use tracing::error;
 use tracing::{info, warn};
 #[cfg(feature = "observers")]
@@ -68,13 +68,21 @@ pub struct Server<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build a `StateEncryptionService` from `security.state_encryption` in the compiled
     /// schema, if the section is present and `enabled = true`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` when `enabled = true` but the key environment
+    /// variable is absent or invalid.  The server must not start in this state.
     fn state_encryption_from_schema(
         schema: &CompiledSchema,
-    ) -> Option<Arc<crate::auth::state_encryption::StateEncryptionService>> {
-        schema
-            .security
-            .as_ref()
-            .and_then(|s| crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(s))
+    ) -> crate::Result<Option<Arc<crate::auth::state_encryption::StateEncryptionService>>> {
+        match schema.security.as_ref() {
+            None => Ok(None),
+            Some(s) => {
+                crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(s)
+                    .map_err(|e| ServerError::ConfigError(e.to_string()))
+            },
+        }
     }
 
     /// Build a `PkceStateStore` from the compiled schema if `security.pkce.enabled = true`.
@@ -145,9 +153,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build a `RateLimiter` from the `security.rate_limiting` key embedded in the
     /// compiled schema, if present and `enabled = true`.
     ///
-    /// Logs a warning when `redis_url` is configured, since the Redis backend is not
-    /// yet implemented and the in-memory backend will be used instead.
-    fn rate_limiter_from_schema(schema: &CompiledSchema) -> Option<Arc<RateLimiter>> {
+    /// When `redis_url` is set and the `redis-rate-limiting` feature is compiled in,
+    /// initialises a Redis-backed distributed limiter; otherwise falls back to the
+    /// in-memory backend (with a warning when `redis_url` is set but the feature is
+    /// absent).
+    async fn rate_limiter_from_schema(schema: &CompiledSchema) -> Option<Arc<RateLimiter>> {
         let sec: crate::middleware::RateLimitingSecurityConfig = schema
             .security
             .as_ref()
@@ -158,21 +168,49 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return None;
         }
 
-        if sec.redis_url.is_some() {
-            warn!(
-                "rate_limiting.redis_url is configured but the Redis backend is not yet \
-                 implemented. Falling back to in-memory rate limiting. Redis backend will \
-                 be available in Phase 06."
-            );
-        }
-
         let config = crate::middleware::RateLimitConfig::from_security_config(&sec);
-        info!(
-            rps_per_ip = config.rps_per_ip,
-            burst_size = config.burst_size,
-            "Initializing rate limiting from compiled schema"
-        );
-        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+
+        let limiter: RateLimiter = if let Some(ref redis_url) = sec.redis_url {
+            #[cfg(feature = "redis-rate-limiting")]
+            {
+                match RateLimiter::new_redis(redis_url, config.clone()).await {
+                    Ok(rl) => {
+                        info!(
+                            url = redis_url.as_str(),
+                            rps_per_ip = config.rps_per_ip,
+                            burst_size = config.burst_size,
+                            "Rate limiting: using Redis distributed backend"
+                        );
+                        rl.with_path_rules_from_security(&sec)
+                    },
+                    Err(e) => {
+                        error!(
+                            error = %e,
+                            "Failed to connect to Redis for rate limiting — \
+                             falling back to in-memory backend"
+                        );
+                        RateLimiter::new(config).with_path_rules_from_security(&sec)
+                    },
+                }
+            }
+            #[cfg(not(feature = "redis-rate-limiting"))]
+            {
+                let _ = redis_url;
+                warn!(
+                    "rate_limiting.redis_url is set but the server was compiled without the \
+                     'redis-rate-limiting' feature. Using in-memory backend."
+                );
+                RateLimiter::new(config).with_path_rules_from_security(&sec)
+            }
+        } else {
+            info!(
+                rps_per_ip = config.rps_per_ip,
+                burst_size = config.burst_size,
+                "Rate limiting: using in-memory backend"
+            );
+            RateLimiter::new(config).with_path_rules_from_security(&sec)
+        };
+
         Some(Arc::new(limiter))
     }
 
@@ -236,10 +274,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption   = Self::state_encryption_from_schema(&schema);
+        let state_encryption   = Self::state_encryption_from_schema(&schema)?;
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
-        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema);
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -433,10 +471,10 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption   = Self::state_encryption_from_schema(&schema);
+        let state_encryption   = Self::state_encryption_from_schema(&schema)?;
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
-        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema);
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -487,10 +525,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer     = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption    = Self::state_encryption_from_schema(&schema);
+        let state_encryption    = Self::state_encryption_from_schema(&schema)?;
         let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
         let oidc_server_client  = Self::oidc_server_client_from_schema(&schema);
-        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema);
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -639,9 +677,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Attach state encryption service if configured
-        if let Some(ref svc) = self.state_encryption {
-            state = state.with_state_encryption(svc.clone());
-            info!("State encryption service attached to AppState");
+        match &self.state_encryption {
+            Some(svc) => {
+                state = state.with_state_encryption(svc.clone());
+                info!("State encryption: enabled");
+            },
+            None => {
+                info!("State encryption: disabled (no key configured)");
+            },
         }
 
         let metrics = state.metrics.clone();

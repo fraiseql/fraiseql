@@ -303,29 +303,31 @@ impl StateEncryptionService {
 
     /// Build from the `security` blob of a compiled schema, if enabled.
     ///
-    /// Returns `None` when:
-    /// - the `state_encryption` key is absent,
-    /// - `enabled` is `false`, or
-    /// - the env-var key cannot be loaded (an error is logged).
-    pub fn from_compiled_schema(security_json: &serde_json::Value) -> Option<Arc<Self>> {
-        let cfg: StateEncryptionConfig = security_json
-            .get("state_encryption")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+    /// Returns `Ok(None)` when the `state_encryption` key is absent or `enabled = false`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` when `enabled = true` but the key environment variable is absent
+    /// or contains an invalid value.  The server must refuse to start in this case.
+    pub fn from_compiled_schema(
+        security_json: &serde_json::Value,
+    ) -> std::result::Result<Option<Arc<Self>>, anyhow::Error> {
+        let cfg: StateEncryptionConfig = match security_json.get("state_encryption") {
+            None => return Ok(None),
+            Some(v) => serde_json::from_value(v.clone())
+                .map_err(|e| anyhow::anyhow!("invalid state_encryption config: {e}"))?,
+        };
 
         if !cfg.enabled {
-            return None;
+            return Ok(None);
         }
 
         let key_env = cfg.key_env.as_deref().unwrap_or("STATE_ENCRYPTION_KEY");
-        match Self::new_from_env(key_env, cfg.algorithm) {
-            Ok(svc) => Some(Arc::new(svc)),
-            Err(e) => {
-                tracing::error!(
-                    "state_encryption enabled but key init failed (env var '{key_env}'): {e}"
-                );
-                None
-            }
-        }
+        Self::new_from_env(key_env, cfg.algorithm)
+            .map(|svc| Some(Arc::new(svc)))
+            .map_err(|e| anyhow::anyhow!(
+                "state_encryption enabled but key env var '{}' failed: {e}", key_env
+            ))
     }
 
     /// Encrypt `plaintext` to a URL-safe base64 string.
@@ -533,6 +535,23 @@ mod service_tests {
     }
 
     #[test]
+    fn test_from_compiled_schema_enabled_missing_key_returns_error() {
+        // Use a unique env var name that is guaranteed absent
+        std::env::remove_var("FRAISEQL_TEST_MISSING_ENC_KEY_B1");
+        let json = serde_json::json!({
+            "state_encryption": {
+                "enabled": true,
+                "algorithm": "chacha20-poly1305",
+                "key_env": "FRAISEQL_TEST_MISSING_ENC_KEY_B1"
+            }
+        });
+        let result = StateEncryptionService::from_compiled_schema(&json);
+        assert!(result.is_err(), "should error when enabled=true but env var absent");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("FRAISEQL_TEST_MISSING_ENC_KEY_B1"));
+    }
+
+    #[test]
     fn test_from_compiled_schema_enabled() {
         let key_hex = "aa".repeat(32);
         std::env::set_var("TEST_SVC_ENC_KEY_P3", &key_hex);
@@ -543,7 +562,8 @@ mod service_tests {
                 "key_env": "TEST_SVC_ENC_KEY_P3"
             }
         });
-        let svc = StateEncryptionService::from_compiled_schema(&json);
+        let svc = StateEncryptionService::from_compiled_schema(&json)
+            .expect("should succeed when env var is set");
         assert!(svc.is_some());
         std::env::remove_var("TEST_SVC_ENC_KEY_P3");
     }
@@ -551,12 +571,16 @@ mod service_tests {
     #[test]
     fn test_from_compiled_schema_disabled() {
         let json = serde_json::json!({"state_encryption": {"enabled": false}});
-        assert!(StateEncryptionService::from_compiled_schema(&json).is_none());
+        assert!(StateEncryptionService::from_compiled_schema(&json)
+            .expect("disabled should be ok")
+            .is_none());
     }
 
     #[test]
     fn test_from_compiled_schema_missing() {
-        assert!(StateEncryptionService::from_compiled_schema(&serde_json::json!({})).is_none());
+        assert!(StateEncryptionService::from_compiled_schema(&serde_json::json!({}))
+            .expect("missing should be ok")
+            .is_none());
     }
 
     #[test]
