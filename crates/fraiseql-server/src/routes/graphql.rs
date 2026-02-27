@@ -21,6 +21,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig},
+    config::error_sanitization::ErrorSanitizer,
     error::{ErrorResponse, GraphQLError},
     extractors::OptionalSecurityContext,
     metrics_server::MetricsCollector,
@@ -99,6 +100,8 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Federation circuit breaker manager (optional, enabled via `fraiseql.toml`).
     pub circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
+    /// Error sanitizer — strips internal details before sending responses to clients.
+    pub error_sanitizer: Arc<ErrorSanitizer>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -116,6 +119,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             secrets_manager: None,
             field_encryption: None,
             circuit_breaker: None,
+            error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
         }
     }
 
@@ -199,6 +203,18 @@ impl<A: DatabaseAdapter> AppState<A> {
     ) -> Self {
         self.circuit_breaker = Some(circuit_breaker);
         self
+    }
+
+    /// Attach an error sanitizer (loaded from `compiled.security.error_sanitization`).
+    #[must_use]
+    pub fn with_error_sanitizer(mut self, sanitizer: Arc<ErrorSanitizer>) -> Self {
+        self.error_sanitizer = sanitizer;
+        self
+    }
+
+    /// Sanitize a batch of errors before sending them to the client.
+    pub fn sanitize_errors(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {
+        self.error_sanitizer.sanitize_all(errors)
     }
 }
 
@@ -480,7 +496,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
         // Record duration even for failed queries
         metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-        ErrorResponse::from_error(GraphQLError::execution(&e.to_string()))
+        let err = state.error_sanitizer.sanitize(GraphQLError::execution(&e.to_string()));
+        ErrorResponse::from_error(err)
     })?;
 
     let elapsed = start_time.elapsed();
@@ -511,9 +528,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             response_length = result.len(),
             "Failed to deserialize executor response"
         );
-        ErrorResponse::from_error(GraphQLError::internal(format!(
-            "Failed to process response: {e}"
-        )))
+        let err = state
+            .error_sanitizer
+            .sanitize(GraphQLError::internal(format!("Failed to process response: {e}")));
+        ErrorResponse::from_error(err)
     })?;
 
     // Decrypt encrypted fields if field encryption is configured
@@ -521,9 +539,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         if encryption.has_encrypted_fields() {
             encryption.decrypt_response(&mut response_json).await.map_err(|e| {
                 error!(error = %e, "Field decryption failed");
-                ErrorResponse::from_error(GraphQLError::internal(
-                    "Field decryption failed".to_string(),
-                ))
+                let err = state
+                    .error_sanitizer
+                    .sanitize(GraphQLError::internal("Field decryption failed".to_string()));
+                ErrorResponse::from_error(err)
             })?;
         }
     }

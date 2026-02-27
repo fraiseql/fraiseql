@@ -174,6 +174,7 @@ fn test_database_error_sanitized() {
             status:           Some(503),
             request_id:       Some("req-001".to_string()),
             retry_after_secs: None,
+            detail:           None,
         },
     );
 
@@ -194,6 +195,7 @@ fn test_query_during_outage_returns_503_error() {
                 status:           Some(503),
                 request_id:       Some("req-002".to_string()),
                 retry_after_secs: None,
+                detail:           None,
             });
 
     assert_eq!(error.code, ErrorCode::InternalServerError);

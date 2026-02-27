@@ -49,6 +49,7 @@ pub struct Server<A: DatabaseAdapter> {
     secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
     circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
+    error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -61,6 +62,26 @@ pub struct Server<A: DatabaseAdapter> {
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
+    /// compiled schema's security blob (if present), falling back to a disabled sanitizer.
+    fn error_sanitizer_from_schema(
+        schema: &CompiledSchema,
+    ) -> Arc<crate::config::error_sanitization::ErrorSanitizer> {
+        let sanitizer = schema
+            .security
+            .as_ref()
+            .and_then(|s| s.get("error_sanitization"))
+            .and_then(|v| {
+                serde_json::from_value::<
+                    crate::config::error_sanitization::ErrorSanitizationConfig,
+                >(v.clone())
+                .ok()
+            })
+            .map(crate::config::error_sanitization::ErrorSanitizer::new)
+            .unwrap_or_else(crate::config::error_sanitization::ErrorSanitizer::disabled);
+        Arc::new(sanitizer)
+    }
+
     /// Create new server.
     ///
     /// Relay pagination queries will return a `Validation` error at runtime. Use
@@ -95,16 +116,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         adapter: Arc<A>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // Read circuit breaker config from compiled schema BEFORE schema is moved.
+        // Read security configs from compiled schema BEFORE schema is moved.
         let circuit_breaker = schema
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        Self::from_executor(config, executor, subscription_manager, circuit_breaker, db_pool).await
+        Self::from_executor(
+            config,
+            executor,
+            subscription_manager,
+            circuit_breaker,
+            error_sanitizer,
+            db_pool,
+        )
+        .await
     }
 
     /// Shared initialization path used by both `new` and `with_relay_pagination`.
@@ -118,6 +148,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         circuit_breaker: Option<
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
+        error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
@@ -183,6 +214,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             rate_limiter,
             secrets_manager: None,
             circuit_breaker,
+            error_sanitizer,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -235,16 +267,25 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // Read circuit breaker config from compiled schema BEFORE schema is moved.
+        // Read security configs from compiled schema BEFORE schema is moved.
         let circuit_breaker = schema
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        Self::from_executor(config, executor, subscription_manager, circuit_breaker, db_pool).await
+        Self::from_executor(
+            config,
+            executor,
+            subscription_manager,
+            circuit_breaker,
+            error_sanitizer,
+            db_pool,
+        )
+        .await
     }
 }
 
@@ -272,11 +313,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
-        // Read circuit breaker config from compiled schema BEFORE schema is moved.
+        // Read security configs from compiled schema BEFORE schema is moved.
         let circuit_breaker = schema
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -331,6 +373,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             rate_limiter,
             secrets_manager: None,
             circuit_breaker,
+            error_sanitizer,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -387,6 +430,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let Some(ref cb) = self.circuit_breaker {
             state = state.with_circuit_breaker(cb.clone());
             info!("Federation circuit breaker attached to AppState");
+        }
+
+        // Attach error sanitizer (always present; disabled by default)
+        state = state.with_error_sanitizer(self.error_sanitizer.clone());
+        if self.error_sanitizer.is_enabled() {
+            info!("Error sanitizer enabled — internal error details will be stripped from responses");
         }
 
         let metrics = state.metrics.clone();
