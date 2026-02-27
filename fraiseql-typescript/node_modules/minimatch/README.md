@@ -7,7 +7,7 @@ This is the matching library used internally by npm.
 It works by converting glob expressions into JavaScript `RegExp`
 objects.
 
-## Important Security Consideration!
+## Important Security Consideration
 
 > [!WARNING]  
 > This library uses JavaScript regular expressions. Please read

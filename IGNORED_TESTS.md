@@ -5,6 +5,7 @@ This document explains which tests are marked with `#[ignore]` and why, and how 
 ## Overview
 
 Certain tests in FraiseQL are marked with the `#[ignore]` attribute and are excluded from the default test run. These tests are:
+
 - **Resource-intensive** - They require external services (TLS, databases)
 - **Integration-only** - They test interaction with real systems
 - **Manual trigger** - They should only run when explicitly requested
@@ -20,6 +21,7 @@ Certain tests in FraiseQL are marked with the `#[ignore]` attribute and are excl
 **Environment**: `TLS_TEST_DB_URL` environment variable must be set to a PostgreSQL connection string that supports TLS.
 
 **How to run**:
+
 ```bash
 TLS_TEST_DB_URL="postgres://user:password@localhost/db" cargo test --test tls_integration -- --ignored
 ```
@@ -33,6 +35,7 @@ TLS_TEST_DB_URL="postgres://user:password@localhost/db" cargo test --test tls_in
 **Environment**: `TEST_DATABASE_URL` environment variable must be set to a PostgreSQL connection string.
 
 **How to run**:
+
 ```bash
 TEST_DATABASE_URL="postgres://user:password@localhost/db" cargo test --lib -- --ignored
 ```
@@ -46,6 +49,7 @@ TEST_DATABASE_URL="postgres://user:password@localhost/db" cargo test --lib -- --
 **Environment**: `DATABASE_URL` environment variable must be set to a PostgreSQL connection string.
 
 **How to run**:
+
 ```bash
 DATABASE_URL="postgres://user:password@localhost/db" cargo test --test database_query_test -- --ignored
 ```
@@ -65,6 +69,7 @@ Use GitHub's workflow dispatch to manually trigger the `Ignored Tests` job:
 To run all ignored tests locally, you'll need:
 
 1. **PostgreSQL running** (can use Docker):
+
    ```bash
    docker run -d \
      --name fraiseql-test-db \
@@ -76,6 +81,7 @@ To run all ignored tests locally, you'll need:
    ```
 
 2. **Set environment variables**:
+
    ```bash
    export DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
    export TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
@@ -83,6 +89,7 @@ To run all ignored tests locally, you'll need:
    ```
 
 3. **Run tests**:
+
    ```bash
    # All ignored tests
    cargo test -- --ignored --test-threads=1
@@ -110,6 +117,7 @@ When adding a new ignored test:
 4. Add a section to this file
 
 Example:
+
 ```rust
 /// Tests PostgreSQL NOTIFY/LISTEN functionality.
 ///
@@ -135,15 +143,18 @@ async fn test_postgres_notify() {
 ## Troubleshooting
 
 ### Tests fail with "database connection refused"
+
 - Ensure PostgreSQL is running on the configured host/port
 - Verify credentials in the connection string
 - Check that the database exists and the user has access
 
 ### Tests timeout
+
 - TLS tests may timeout if certificates aren't properly configured
 - Increase test timeout: `cargo test -- --test-threads=1` (runs sequentially)
 
 ### Tests pass locally but fail in CI
+
 - Verify environment variables are set in CI job (see `ci.yml` `env` sections)
 - Check CI job logs for detailed error messages
 - Some tests may require specific PostgreSQL versions/extensions
@@ -151,6 +162,7 @@ async fn test_postgres_notify() {
 ## Future Work
 
 As FraiseQL evolves, we may:
+
 - Add more comprehensive integration test coverage
 - Move some ignored tests to non-ignored when infrastructure is standardized
 - Add test fixtures/mocking to eliminate some external dependencies
