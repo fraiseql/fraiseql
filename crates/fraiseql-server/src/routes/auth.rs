@@ -340,4 +340,89 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
+
+    /// Full HTTP-level PKCE round-trip: `/auth/start` → extract state → `/auth/callback`.
+    ///
+    /// Verifies that the state token embedded in the `/auth/start` redirect can be
+    /// submitted to `/auth/callback`, proving the PKCE store correctly survives the
+    /// round-trip through the HTTP layer (including encryption when enabled).
+    ///
+    /// The callback will fail at token exchange (no real OIDC provider) and return 502,
+    /// but NOT 400 — a 400 would indicate the state was not found in the store.
+    #[tokio::test]
+    async fn test_auth_start_to_callback_state_roundtrip_with_encryption() {
+        use crate::auth::{EncryptionAlgorithm, StateEncryptionService};
+
+        let enc = Arc::new(StateEncryptionService::from_raw_key(
+            &[0u8; 32],
+            EncryptionAlgorithm::Chacha20Poly1305,
+        ));
+        let pkce_store = Arc::new(PkceStateStore::new(600, Some(enc)));
+
+        let auth_state = Arc::new(AuthPkceState {
+            pkce_store,
+            oidc_client:             mock_oidc_client(),
+            http_client:             Arc::new(reqwest::Client::new()),
+            post_login_redirect_uri: None,
+        });
+
+        let app = Router::new()
+            .route("/auth/start",    get(auth_start))
+            .route("/auth/callback", get(auth_callback))
+            .with_state(auth_state);
+
+        // Step 1 — /auth/start: receive redirect containing the encrypted state token.
+        let req = Request::builder()
+            .uri("/auth/start?redirect_uri=https%3A%2F%2Fapp.example.com%2Fcb")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+
+        assert!(
+            resp.status().is_redirection(),
+            "expected redirect from /auth/start, got {}",
+            resp.status(),
+        );
+
+        let location = resp
+            .headers()
+            .get(header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .expect("Location header must be set")
+            .to_string();
+
+        // Extract the state= token from the redirect URL.
+        // URL-safe base64 characters (A-Za-z0-9, -, _) are unreserved in query strings
+        // and are not percent-encoded by the OIDC client, so no decoding step is needed.
+        let state_token = location
+            .split("state=")
+            .nth(1)
+            .map(|s| s.split('&').next().unwrap_or(s))
+            .expect("state= must appear in the redirect Location URL");
+
+        assert!(!state_token.is_empty(), "extracted state token must not be empty");
+
+        // Step 2 — /auth/callback: submit the real state token from step 1.
+        // Expected result: 502 Bad Gateway (token exchange fails — no real OIDC provider).
+        // A 400 would mean the PKCE state was not found, which would be a regression.
+        let callback_uri = format!("/auth/callback?code=test_code&state={state_token}");
+        let req2 = Request::builder()
+            .uri(&callback_uri)
+            .body(Body::empty())
+            .unwrap();
+        let resp2 = app.clone().oneshot(req2).await.unwrap();
+
+        assert_ne!(
+            resp2.status(),
+            StatusCode::BAD_REQUEST,
+            "state from /auth/start must be accepted by /auth/callback; \
+             400 means the PKCE state was not found or decryption failed",
+        );
+        assert_eq!(
+            resp2.status(),
+            StatusCode::BAD_GATEWAY,
+            "token exchange should fail 502 (no real OIDC provider); got {}",
+            resp2.status(),
+        );
+    }
 }

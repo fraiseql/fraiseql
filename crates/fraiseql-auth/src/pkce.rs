@@ -65,6 +65,7 @@ pub enum PkceError {
 // ---------------------------------------------------------------------------
 
 /// The data recovered after consuming a valid PKCE state token.
+#[derive(Debug)]
 pub struct ConsumedPkceState {
     /// The `code_verifier` generated during `create_state`, needed for the
     /// PKCE code exchange at `/token`.
