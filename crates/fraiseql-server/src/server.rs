@@ -142,6 +142,40 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         crate::auth::OidcServerClient::from_compiled_schema(&schema_json)
     }
 
+    /// Build a `RateLimiter` from the `security.rate_limiting` key embedded in the
+    /// compiled schema, if present and `enabled = true`.
+    ///
+    /// Logs a warning when `redis_url` is configured, since the Redis backend is not
+    /// yet implemented and the in-memory backend will be used instead.
+    fn rate_limiter_from_schema(schema: &CompiledSchema) -> Option<Arc<RateLimiter>> {
+        let sec: crate::middleware::RateLimitingSecurityConfig = schema
+            .security
+            .as_ref()
+            .and_then(|s| s.get("rate_limiting"))
+            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+
+        if !sec.enabled {
+            return None;
+        }
+
+        if sec.redis_url.is_some() {
+            warn!(
+                "rate_limiting.redis_url is configured but the Redis backend is not yet \
+                 implemented. Falling back to in-memory rate limiting. Redis backend will \
+                 be available in Phase 06."
+            );
+        }
+
+        let config = crate::middleware::RateLimitConfig::from_security_config(&sec);
+        info!(
+            rps_per_ip = config.rps_per_ip,
+            burst_size = config.burst_size,
+            "Initializing rate limiting from compiled schema"
+        );
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        Some(Arc::new(limiter))
+    }
+
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
     /// compiled schema's security blob (if present), falling back to a disabled sanitizer.
     fn error_sanitizer_from_schema(
@@ -205,6 +239,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let state_encryption   = Self::state_encryption_from_schema(&schema);
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -218,6 +253,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             state_encryption,
             pkce_store,
             oidc_server_client,
+            schema_rate_limiter,
             db_pool,
         )
         .await
@@ -242,6 +278,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
         pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
         oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
+        schema_rate_limiter:  Option<Arc<RateLimiter>>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
@@ -258,13 +295,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
-        // Initialize rate limiter if configured
-        let rate_limiter = if let Some(ref rate_config) = config.rate_limiting {
+        // Initialize rate limiter: compiled schema config takes priority over server config.
+        let rate_limiter = if let Some(rl) = schema_rate_limiter {
+            Some(rl)
+        } else if let Some(ref rate_config) = config.rate_limiting {
             if rate_config.enabled {
                 info!(
                     rps_per_ip = rate_config.rps_per_ip,
                     rps_per_user = rate_config.rps_per_user,
-                    "Initializing rate limiting"
+                    "Initializing rate limiting from server config"
                 );
                 let limiter_config = crate::middleware::RateLimitConfig {
                     enabled:               true,
@@ -397,6 +436,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         let state_encryption   = Self::state_encryption_from_schema(&schema);
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema);
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -410,6 +450,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             state_encryption,
             pkce_store,
             oidc_server_client,
+            schema_rate_limiter,
             db_pool,
         )
         .await
@@ -445,10 +486,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
-        let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption   = Self::state_encryption_from_schema(&schema);
-        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
-        let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
+        let error_sanitizer     = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption    = Self::state_encryption_from_schema(&schema);
+        let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let oidc_server_client  = Self::oidc_server_client_from_schema(&schema);
+        let schema_rate_limiter = Self::rate_limiter_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -467,13 +509,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
-        // Initialize rate limiter if configured
-        let rate_limiter = if let Some(ref rate_config) = config.rate_limiting {
+        // Initialize rate limiter: compiled schema config takes priority over server config.
+        let rate_limiter = if let Some(rl) = schema_rate_limiter {
+            Some(rl)
+        } else if let Some(ref rate_config) = config.rate_limiting {
             if rate_config.enabled {
                 info!(
                     rps_per_ip = rate_config.rps_per_ip,
                     rps_per_user = rate_config.rps_per_user,
-                    "Initializing rate limiting"
+                    "Initializing rate limiting from server config"
                 );
                 let limiter_config = crate::middleware::RateLimitConfig {
                     enabled:               true,

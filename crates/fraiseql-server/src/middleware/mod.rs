@@ -14,6 +14,6 @@ pub use cors::{cors_layer, cors_layer_restricted, security_headers_middleware};
 pub use logging::logging_middleware;
 pub use metrics::metrics_middleware;
 pub use oidc_auth::{AuthUser, OidcAuthState, oidc_auth_middleware};
-pub use rate_limit::{RateLimitConfig, RateLimiter, rate_limit_middleware};
+pub use rate_limit::{RateLimitConfig, RateLimitingSecurityConfig, RateLimiter, rate_limit_middleware};
 pub use tenant::{TenantContext, tenant_middleware};
 pub use trace::trace_layer;

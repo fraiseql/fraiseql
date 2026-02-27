@@ -3,6 +3,7 @@
 //! Implements request rate limiting with:
 //! - Per-IP rate limiting
 //! - Per-user rate limiting (if authenticated)
+//! - Per-path rate limiting (for auth endpoints)
 //! - Token bucket algorithm
 //! - Configurable burst capacity
 //! - X-RateLimit headers
@@ -19,6 +20,33 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, warn};
+
+/// Minimal mirror of the `[security.rate_limiting]` TOML section, deserialized
+/// from the compiled schema's `security.rate_limiting` JSON key.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct RateLimitingSecurityConfig {
+    /// Enable rate limiting.
+    pub enabled: bool,
+    /// Global request rate cap (requests per second, per IP).
+    pub requests_per_second: u32,
+    /// Burst allowance above the steady-state rate.
+    pub burst_size: u32,
+    /// Auth initiation endpoint — max requests per window.
+    pub auth_start_max_requests: u32,
+    /// Auth initiation window in seconds.
+    pub auth_start_window_secs: u64,
+    /// OAuth callback endpoint — max requests per window.
+    pub auth_callback_max_requests: u32,
+    /// OAuth callback window in seconds.
+    pub auth_callback_window_secs: u64,
+    /// Token refresh endpoint — max requests per window.
+    pub auth_refresh_max_requests: u32,
+    /// Token refresh window in seconds.
+    pub auth_refresh_window_secs: u64,
+    /// Redis URL for distributed rate limiting (not yet implemented).
+    pub redis_url: Option<String>,
+}
 
 /// Rate limiting configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +77,32 @@ impl Default for RateLimitConfig {
             cleanup_interval_secs: 300,  // Clean up every 5 minutes
         }
     }
+}
+
+impl RateLimitConfig {
+    /// Build from the `[security.rate_limiting]` config embedded in the compiled schema.
+    ///
+    /// Maps `requests_per_second` → `rps_per_ip` / `rps_per_user` and `burst_size` directly.
+    pub fn from_security_config(sec: &RateLimitingSecurityConfig) -> Self {
+        Self {
+            enabled:               sec.enabled,
+            rps_per_ip:            sec.requests_per_second,
+            rps_per_user:          sec.requests_per_second.saturating_mul(10),
+            burst_size:            sec.burst_size,
+            cleanup_interval_secs: 300,
+        }
+    }
+}
+
+/// A per-path rate limit rule, derived from `[security.rate_limiting]` auth endpoint fields.
+#[derive(Debug, Clone)]
+struct PathRateLimit {
+    /// Path prefix to match (exact prefix, e.g., `/auth/start`).
+    path_prefix:    String,
+    /// Token refill rate (tokens per second = max_requests / window_secs).
+    tokens_per_sec: f64,
+    /// Maximum burst (= max_requests).
+    burst:          f64,
 }
 
 /// Token bucket for rate limiting.
@@ -107,11 +161,15 @@ impl TokenBucket {
 
 /// Rate limiter state tracker.
 pub struct RateLimiter {
-    config:       RateLimitConfig,
-    // IP -> TokenBucket
-    ip_buckets:   Arc<RwLock<HashMap<String, TokenBucket>>>,
+    config:          RateLimitConfig,
+    // IP -> TokenBucket (global limit)
+    ip_buckets:      Arc<RwLock<HashMap<String, TokenBucket>>>,
     // User ID -> TokenBucket
-    user_buckets: Arc<RwLock<HashMap<String, TokenBucket>>>,
+    user_buckets:    Arc<RwLock<HashMap<String, TokenBucket>>>,
+    // Per-path rules (from [security.rate_limiting] auth endpoint fields)
+    path_rules:      Vec<PathRateLimit>,
+    // (path_prefix, ip) -> TokenBucket
+    path_ip_buckets: Arc<RwLock<HashMap<(String, String), TokenBucket>>>,
 }
 
 impl RateLimiter {
@@ -119,9 +177,74 @@ impl RateLimiter {
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
             config,
-            ip_buckets: Arc::new(RwLock::new(HashMap::new())),
-            user_buckets: Arc::new(RwLock::new(HashMap::new())),
+            ip_buckets:      Arc::new(RwLock::new(HashMap::new())),
+            user_buckets:    Arc::new(RwLock::new(HashMap::new())),
+            path_rules:      Vec::new(),
+            path_ip_buckets: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Attach per-path rules derived from `[security.rate_limiting]` auth endpoint fields.
+    ///
+    /// Converts max-requests-per-window into token-per-second refill rates.
+    #[must_use]
+    pub fn with_path_rules_from_security(mut self, sec: &RateLimitingSecurityConfig) -> Self {
+        let mut rules = Vec::new();
+
+        if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/start".to_string(),
+                tokens_per_sec: f64::from(sec.auth_start_max_requests)
+                    / sec.auth_start_window_secs as f64,
+                burst:          f64::from(sec.auth_start_max_requests),
+            });
+        }
+        if sec.auth_callback_max_requests > 0 && sec.auth_callback_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/callback".to_string(),
+                tokens_per_sec: f64::from(sec.auth_callback_max_requests)
+                    / sec.auth_callback_window_secs as f64,
+                burst:          f64::from(sec.auth_callback_max_requests),
+            });
+        }
+        if sec.auth_refresh_max_requests > 0 && sec.auth_refresh_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/refresh".to_string(),
+                tokens_per_sec: f64::from(sec.auth_refresh_max_requests)
+                    / sec.auth_refresh_window_secs as f64,
+                burst:          f64::from(sec.auth_refresh_max_requests),
+            });
+        }
+
+        self.path_rules = rules;
+        self
+    }
+
+    /// Check if request to `path` from `ip` is within the per-path limit.
+    ///
+    /// Returns `true` if allowed (or if no rule matches the path). Returns
+    /// `false` only when a matching per-path rule exists and the bucket is empty.
+    pub async fn check_path_limit(&self, path: &str, ip: &str) -> bool {
+        if !self.config.enabled {
+            return true;
+        }
+
+        let rule = self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()));
+        let Some(rule) = rule else { return true };
+
+        let key = (rule.path_prefix.clone(), ip.to_string());
+        let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
+
+        let mut buckets = self.path_ip_buckets.write().await;
+        let bucket = buckets
+            .entry(key)
+            .or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
+
+        let allowed = bucket.try_consume(1.0);
+        if !allowed {
+            debug!(ip = ip, path = path, "Per-path rate limit exceeded");
+        }
+        allowed
     }
 
     /// Get rate limiter configuration.
@@ -231,10 +354,17 @@ pub async fn rate_limit_middleware(
         .unwrap_or_else(|| Arc::new(RateLimiter::new(RateLimitConfig::default())));
 
     let ip = addr.ip().to_string();
+    let path = req.uri().path().to_string();
 
-    // Check IP rate limit
+    // Check global IP rate limit
     if !limiter.check_ip_limit(&ip).await {
         warn!(ip = %ip, "IP rate limit exceeded");
+        return Err(RateLimitExceeded);
+    }
+
+    // Check per-path rate limit (e.g., /auth/start stricter than global)
+    if !limiter.check_path_limit(&path, &ip).await {
+        warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
         return Err(RateLimitExceeded);
     }
 
@@ -393,5 +523,111 @@ mod tests {
 
         limiter.check_ip_limit("127.0.0.1").await;
         limiter.cleanup().await; // Should not panic
+    }
+
+    // --- Phase 05: from_security_config() tests ---
+
+    #[test]
+    fn test_from_security_config_maps_fields() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:             true,
+            requests_per_second: 50,
+            burst_size:          150,
+            ..Default::default()
+        };
+        let cfg = RateLimitConfig::from_security_config(&sec);
+        assert!(cfg.enabled);
+        assert_eq!(cfg.rps_per_ip, 50);
+        assert_eq!(cfg.burst_size, 150);
+    }
+
+    #[test]
+    fn test_from_security_config_disabled() {
+        let sec = RateLimitingSecurityConfig { enabled: false, ..Default::default() };
+        let cfg = RateLimitConfig::from_security_config(&sec);
+        assert!(!cfg.enabled);
+    }
+
+    #[test]
+    fn test_from_security_config_user_limit_is_higher() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:             true,
+            requests_per_second: 100,
+            ..Default::default()
+        };
+        let cfg = RateLimitConfig::from_security_config(&sec);
+        assert!(cfg.rps_per_user > cfg.rps_per_ip);
+    }
+
+    #[test]
+    fn test_with_path_rules_generates_auth_start_rule() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     100,
+            burst_size:              200,
+            auth_start_max_requests: 5,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        // Verify a path rule was registered (indirectly, by checking path limiting works)
+        assert_eq!(limiter.path_rules.len(), 1);
+        assert_eq!(limiter.path_rules[0].path_prefix, "/auth/start");
+    }
+
+    #[tokio::test]
+    async fn test_check_path_limit_allows_unknown_path() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     10,
+            burst_size:              10,
+            auth_start_max_requests: 1,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        // GraphQL path has no path rule → always allowed
+        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await);
+        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await);
+        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await);
+    }
+
+    #[tokio::test]
+    async fn test_check_path_limit_enforces_auth_start() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     1000,
+            burst_size:              1000,
+            auth_start_max_requests: 1,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        // First request: allowed (burst = 1)
+        assert!(limiter.check_path_limit("/auth/start", "1.2.3.4").await);
+        // Second request: blocked (bucket empty)
+        assert!(!limiter.check_path_limit("/auth/start", "1.2.3.4").await);
+    }
+
+    #[tokio::test]
+    async fn test_check_path_limit_different_ips_independent() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     1000,
+            burst_size:              1000,
+            auth_start_max_requests: 1,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        // Exhaust bucket for IP1
+        assert!(limiter.check_path_limit("/auth/start", "1.1.1.1").await);
+        assert!(!limiter.check_path_limit("/auth/start", "1.1.1.1").await);
+        // IP2 still gets its full allowance
+        assert!(limiter.check_path_limit("/auth/start", "2.2.2.2").await);
     }
 }
