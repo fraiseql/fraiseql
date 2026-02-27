@@ -39,7 +39,7 @@ A complete documentation review system with 7 files in one dedicated directory:
 
 ### Reference Files (2 files for documentation info)
 
-5. **COMPLETE_DOCUMENTATION_INVENTORY.md** (12 KB)
+1. **COMPLETE_DOCUMENTATION_INVENTORY.md** (12 KB)
    - **👉 THE MOST IMPORTANT FILE**
    - Lists 200+ documentation files in FraiseQL
    - Organized by priority (1-5)
@@ -47,14 +47,14 @@ A complete documentation review system with 7 files in one dedicated directory:
    - Shows recently updated files
    - Shows file sizes and line counts
 
-6. **documentation_files_to_review.md** (2 KB)
+2. **documentation_files_to_review.md** (2 KB)
    - Initial prioritized file list
    - Now superseded by #5 above
    - Kept for reference
 
 ### Utility Files (1 file)
 
-7. **QUICK_ACCESS.sh** (3.3 KB)
+1. **QUICK_ACCESS.sh** (3.3 KB)
    - Executable quick reference script
    - Run with: `bash QUICK_ACCESS.sh`
    - Shows quick commands and next steps
@@ -136,16 +136,16 @@ bash QUICK_ACCESS.sh
 
 ### Priority 2 (SHOULD REVIEW - 45 min - 1 hour)
 
-5. DEVELOPMENT.md - Setup & workflow
-6. CONTRIBUTING.md - Contributing guidelines
-7. TESTING.md - Testing documentation
-8. TROUBLESHOOTING.md - Troubleshooting guide
-9. SECURITY.md - Security policy
+1. DEVELOPMENT.md - Setup & workflow
+2. CONTRIBUTING.md - Contributing guidelines
+3. TESTING.md - Testing documentation
+4. TROUBLESHOOTING.md - Troubleshooting guide
+5. SECURITY.md - Security policy
 
 ### Priority 3 (NICE TO HAVE - optional)
 
-10. RELEASE_NOTES_v2.1.0-agent.md
-11. DESIGN_QUALITY_VISION.md
+1. RELEASE_NOTES_v2.1.0-agent.md
+2. DESIGN_QUALITY_VISION.md
 
 ### Priority 4 (SPECIALIZED - optional)
 

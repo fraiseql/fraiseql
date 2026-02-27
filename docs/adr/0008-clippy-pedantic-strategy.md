@@ -24,12 +24,14 @@ Every `#[allow(clippy::...)]` must include `// Reason:` comment explaining the s
 ## Consequences
 
 **Positive:**
+
 - Catches real bugs while maintaining velocity
 - Every suppression documented and auditable
 - Prevents silent accumulation of warnings
 - Future maintainers understand rationale
 
 **Negative:**
+
 - Requires discipline; developers must write rationale
 - Slightly more annotation noise
 - Temptation to over-suppress rather than refactor
