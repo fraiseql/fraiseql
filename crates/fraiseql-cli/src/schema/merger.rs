@@ -439,6 +439,24 @@ impl SchemaMerger {
             "mutations": mutations_array,
         });
 
+        // Warn when PKCE is enabled without state encryption (insecure configuration).
+        if let Some(pkce) = &toml_schema.security.pkce {
+            if pkce.enabled {
+                let enc_enabled = toml_schema
+                    .security
+                    .state_encryption
+                    .as_ref()
+                    .is_some_and(|e| e.enabled);
+                if !enc_enabled {
+                    tracing::warn!(
+                        "pkce.enabled = true but state_encryption.enabled = false. \
+                         PKCE state will be stored unencrypted. \
+                         Set [security.state_encryption] enabled = true for production."
+                    );
+                }
+            }
+        }
+
         // Add security configuration if available in TOML
         merged["security"] = json!({
             "default_policy": toml_schema.security.default_policy,
@@ -476,6 +494,10 @@ impl SchemaMerger {
                 "constant_time_comparison": toml_schema.security.enterprise.constant_time_comparison,
                 "pkce_enabled": toml_schema.security.enterprise.pkce_enabled,
             }),
+            "error_sanitization": toml_schema.security.error_sanitization,
+            "rate_limiting": toml_schema.security.rate_limiting,
+            "state_encryption": toml_schema.security.state_encryption,
+            "pkce": toml_schema.security.pkce,
         });
 
         // Embed observers configuration if enabled or if any backend URL is set

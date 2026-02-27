@@ -3,7 +3,7 @@
 //!
 //! This module extends FraiseQLConfig to support the full TOML-based schema definition.
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -528,25 +528,37 @@ pub struct FederationEntity {
 #[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
     /// Default policy to apply if none specified
-    pub default_policy: Option<String>,
+    pub default_policy:      Option<String>,
     /// Custom authorization rules
-    pub rules:          Vec<AuthorizationRule>,
+    pub rules:               Vec<AuthorizationRule>,
     /// Authorization policies
-    pub policies:       Vec<AuthorizationPolicy>,
+    pub policies:            Vec<AuthorizationPolicy>,
     /// Field-level authorization rules
-    pub field_auth:     Vec<FieldAuthRule>,
-    /// Enterprise security configuration
-    pub enterprise:     EnterpriseSecurityConfig,
+    pub field_auth:          Vec<FieldAuthRule>,
+    /// Enterprise security configuration (legacy flags)
+    pub enterprise:          EnterpriseSecurityConfig,
+    /// Error sanitization — controls what detail clients see in error responses
+    pub error_sanitization:  Option<ErrorSanitizationTomlConfig>,
+    /// Rate limiting — per-endpoint request caps
+    pub rate_limiting:       Option<RateLimitingSecurityConfig>,
+    /// State encryption — AEAD encryption for OAuth state and PKCE blobs
+    pub state_encryption:    Option<StateEncryptionConfig>,
+    /// PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows
+    pub pkce:                Option<PkceConfig>,
 }
 
 impl Default for SecuritySettings {
     fn default() -> Self {
         Self {
-            default_policy: Some("authenticated".to_string()),
-            rules:          vec![],
-            policies:       vec![],
-            field_auth:     vec![],
-            enterprise:     EnterpriseSecurityConfig::default(),
+            default_policy:     Some("authenticated".to_string()),
+            rules:              vec![],
+            policies:           vec![],
+            field_auth:         vec![],
+            enterprise:         EnterpriseSecurityConfig::default(),
+            error_sanitization: None,
+            rate_limiting:      None,
+            state_encryption:   None,
+            pkce:               None,
         }
     }
 }
@@ -643,6 +655,182 @@ impl Default for EnterpriseSecurityConfig {
             hide_implementation_details:  true,
             constant_time_comparison:     true,
             pkce_enabled:                 true,
+        }
+    }
+}
+
+/// Controls how much error detail is exposed to API clients.
+/// When enabled, internal error messages, SQL, and stack traces are stripped.
+///
+/// Note: named `ErrorSanitizationTomlConfig` to avoid collision with the identically-named
+/// struct in `config::security` which serves `FraiseQLConfig`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ErrorSanitizationTomlConfig {
+    /// Enable error sanitization (default: false — opt-in)
+    pub enabled: bool,
+    /// Strip stack traces, SQL fragments, file paths (default: true)
+    #[serde(default = "default_true")]
+    pub hide_implementation_details: bool,
+    /// Replace raw database error messages with a generic message (default: true)
+    #[serde(default = "default_true")]
+    pub sanitize_database_errors: bool,
+    /// Replacement message shown to clients when an internal error is sanitized
+    pub custom_error_message: Option<String>,
+}
+
+impl Default for ErrorSanitizationTomlConfig {
+    fn default() -> Self {
+        Self {
+            enabled:                     false,
+            hide_implementation_details: true,
+            sanitize_database_errors:    true,
+            custom_error_message:        None,
+        }
+    }
+}
+
+/// Per-endpoint and global rate limiting configuration for `[security.rate_limiting]`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RateLimitingSecurityConfig {
+    /// Enable rate limiting
+    pub enabled: bool,
+    /// Global request rate cap (requests per second, per IP)
+    pub requests_per_second: u32,
+    /// Burst allowance above the steady-state rate
+    pub burst_size: u32,
+    /// Auth initiation endpoint — max requests per window
+    pub auth_start_max_requests: u32,
+    /// Auth initiation window in seconds
+    pub auth_start_window_secs: u64,
+    /// OAuth callback endpoint — max requests per window
+    pub auth_callback_max_requests: u32,
+    /// OAuth callback window in seconds
+    pub auth_callback_window_secs: u64,
+    /// Token refresh endpoint — max requests per window
+    pub auth_refresh_max_requests: u32,
+    /// Token refresh window in seconds
+    pub auth_refresh_window_secs: u64,
+    /// Logout endpoint — max requests per window
+    pub auth_logout_max_requests: u32,
+    /// Logout window in seconds
+    pub auth_logout_window_secs: u64,
+    /// Failed login attempts before lockout
+    pub failed_login_max_attempts: u32,
+    /// Duration of failed-login lockout in seconds
+    pub failed_login_lockout_secs: u64,
+    /// Redis URL for distributed rate limiting (optional — falls back to in-memory)
+    pub redis_url: Option<String>,
+}
+
+impl Default for RateLimitingSecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled:                    false,
+            requests_per_second:        100,
+            burst_size:                 200,
+            auth_start_max_requests:    5,
+            auth_start_window_secs:     60,
+            auth_callback_max_requests: 10,
+            auth_callback_window_secs:  60,
+            auth_refresh_max_requests:  20,
+            auth_refresh_window_secs:   300,
+            auth_logout_max_requests:   30,
+            auth_logout_window_secs:    60,
+            failed_login_max_attempts:  10,
+            failed_login_lockout_secs:  900,
+            redis_url:                  None,
+        }
+    }
+}
+
+/// AEAD algorithm for OAuth state and PKCE state blobs.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum EncryptionAlgorithm {
+    /// ChaCha20-Poly1305 (recommended — constant-time, software-friendly)
+    #[default]
+    #[serde(rename = "chacha20-poly1305")]
+    Chacha20Poly1305,
+    /// AES-256-GCM (hardware-accelerated on modern CPUs)
+    #[serde(rename = "aes-256-gcm")]
+    Aes256Gcm,
+}
+
+impl fmt::Display for EncryptionAlgorithm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Chacha20Poly1305 => f.write_str("chacha20-poly1305"),
+            Self::Aes256Gcm        => f.write_str("aes-256-gcm"),
+        }
+    }
+}
+
+/// Where the encryption key is sourced from.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum KeySource {
+    /// Read key from an environment variable
+    #[default]
+    Env,
+}
+
+/// AEAD encryption for OAuth state parameter and PKCE code challenges.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StateEncryptionConfig {
+    /// Enable state encryption
+    pub enabled: bool,
+    /// AEAD algorithm to use
+    pub algorithm: EncryptionAlgorithm,
+    /// Where to source the encryption key
+    pub key_source: KeySource,
+    /// Environment variable holding the 32-byte hex-encoded key
+    pub key_env: Option<String>,
+}
+
+impl Default for StateEncryptionConfig {
+    fn default() -> Self {
+        Self {
+            enabled:    false,
+            algorithm:  EncryptionAlgorithm::default(),
+            key_source: KeySource::Env,
+            key_env:    Some("STATE_ENCRYPTION_KEY".to_string()),
+        }
+    }
+}
+
+/// PKCE code challenge method.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum CodeChallengeMethod {
+    /// SHA-256 (required in production)
+    #[default]
+    #[serde(rename = "S256")]
+    S256,
+    /// Plain (spec-allowed but insecure — warns at runtime)
+    #[serde(rename = "plain")]
+    Plain,
+}
+
+/// PKCE (Proof Key for Code Exchange) configuration.
+/// Requires `state_encryption` to be enabled for secure state storage.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PkceConfig {
+    /// Enable PKCE for OAuth Authorization Code flows
+    pub enabled: bool,
+    /// Code challenge method (`S256` recommended)
+    pub code_challenge_method: CodeChallengeMethod,
+    /// How long the PKCE state is valid before the auth flow expires (seconds)
+    pub state_ttl_secs: u64,
+}
+
+impl Default for PkceConfig {
+    fn default() -> Self {
+        Self {
+            enabled:               false,
+            code_challenge_method: CodeChallengeMethod::S256,
+            state_ttl_secs:        600,
         }
     }
 }
