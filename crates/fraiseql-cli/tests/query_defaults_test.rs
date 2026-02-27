@@ -241,6 +241,113 @@ fn test_empty_auto_params_dict_inherits_toml() {
 }
 
 // =============================================================================
+// Cross-concern priority tests — explicit priority chain interactions
+//
+// These tests pin the three-tier resolution order:
+//   1. Per-query Some(v)  — highest priority (explicit decorator flag)
+//   2. Project defaults   — middle priority ([query_defaults] in fraiseql.toml)
+//   3. Hardcoded all-true — lowest priority (no [query_defaults] section)
+//
+// Each test targets a specific cross-tier interaction so that regressions in
+// the priority chain are caught with a minimal, named failing test.
+// =============================================================================
+
+#[test]
+fn test_cross_concern_per_query_some_true_wins_over_project_false() {
+    // Scenario: project disables where and limit; one query re-enables where
+    // while inheriting the limit=false default from the project.
+    let defaults = IntermediateQueryDefaults {
+        where_clause: false,
+        order_by:     false,
+        limit:        false,
+        offset:       true,
+    };
+    let per_query = IntermediateAutoParams {
+        where_clause: Some(true), // explicit per-query enable
+        order_by:     None,       // inherits project false
+        limit:        None,       // inherits project false
+        offset:       None,       // inherits project true
+    };
+    let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
+    let compiled = SchemaConverter::convert(schema).unwrap();
+    let params = &compiled.queries[0].auto_params;
+
+    assert!(params.has_where,    "Some(true) per-query must win over project false");
+    assert!(!params.has_order_by,"None per-query must inherit project false");
+    assert!(!params.has_limit,   "None per-query must inherit project false");
+    assert!(params.has_offset,   "None per-query must inherit project true");
+}
+
+#[test]
+fn test_cross_concern_per_query_none_inherits_project_default() {
+    // Scenario: per-query has no overrides at all (all None); project controls
+    // the outcome for every field independently.
+    let defaults = IntermediateQueryDefaults {
+        where_clause: true,
+        order_by:     false,
+        limit:        true,
+        offset:       false,
+    };
+    let per_query = IntermediateAutoParams {
+        where_clause: None,
+        order_by:     None,
+        limit:        None,
+        offset:       None,
+    };
+    let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
+    let compiled = SchemaConverter::convert(schema).unwrap();
+    let params = &compiled.queries[0].auto_params;
+
+    assert!(params.has_where,    "None → inherits project true");
+    assert!(!params.has_order_by,"None → inherits project false");
+    assert!(params.has_limit,    "None → inherits project true");
+    assert!(!params.has_offset,  "None → inherits project false");
+}
+
+#[test]
+fn test_cross_concern_hardcoded_fallback_when_no_project_defaults() {
+    // Scenario: no [query_defaults] in the compiled schema at all.
+    // Every field must fall back to the hardcoded all-true default.
+    let schema = base_schema_with_query(list_query("items", None), None);
+    let compiled = SchemaConverter::convert(schema).unwrap();
+    let params = &compiled.queries[0].auto_params;
+
+    assert!(params.has_where,    "hardcoded fallback: where = true");
+    assert!(params.has_order_by, "hardcoded fallback: order_by = true");
+    assert!(params.has_limit,    "hardcoded fallback: limit = true");
+    assert!(params.has_offset,   "hardcoded fallback: offset = true");
+}
+
+#[test]
+fn test_cross_concern_per_query_some_false_wins_over_project_true() {
+    // Scenario: project enables everything; a specific query disables some
+    // fields with explicit Some(false) decorators.
+    //
+    // This is the most common production pattern: a security-sensitive query
+    // opts out of automatic where/limit while inheriting the rest.
+    let defaults = IntermediateQueryDefaults {
+        where_clause: true,
+        order_by:     true,
+        limit:        true,
+        offset:       true,
+    };
+    let per_query = IntermediateAutoParams {
+        where_clause: Some(false), // explicit disable
+        order_by:     Some(false), // explicit disable
+        limit:        None,        // inherits project true
+        offset:       None,        // inherits project true
+    };
+    let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
+    let compiled = SchemaConverter::convert(schema).unwrap();
+    let params = &compiled.queries[0].auto_params;
+
+    assert!(!params.has_where,   "Some(false) per-query must win over project true");
+    assert!(!params.has_order_by,"Some(false) per-query must win over project true");
+    assert!(params.has_limit,    "None per-query must inherit project true");
+    assert!(params.has_offset,   "None per-query must inherit project true");
+}
+
+// =============================================================================
 // TOML parse tests — QueryDefaults struct
 // =============================================================================
 
