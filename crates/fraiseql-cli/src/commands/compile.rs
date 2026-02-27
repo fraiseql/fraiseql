@@ -388,6 +388,7 @@ mod tests {
         },
         validation::CustomTypeRegistry,
     };
+    use indexmap::IndexMap;
 
     #[test]
     fn test_validate_schema_success() {
@@ -442,6 +443,7 @@ mod tests {
                 relay: false,
                 relay_cursor_column: None,
                 relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
             }],
             enums:            vec![],
             input_types:      vec![],
@@ -487,6 +489,7 @@ mod tests {
                 relay: false,
                 relay_cursor_column: None,
                 relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
             }],
             mutations:        vec![],
             subscriptions:    vec![],

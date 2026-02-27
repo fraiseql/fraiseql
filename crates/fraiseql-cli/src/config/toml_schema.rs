@@ -196,6 +196,45 @@ pub struct ResolvedIncludes {
     pub mutations: Vec<PathBuf>,
 }
 
+/// Global defaults for list-query auto-params.
+///
+/// Applied when a per-query `auto_params` does not specify a given flag.
+/// Relay queries and single-item queries are never affected.
+///
+/// ```toml
+/// [query_defaults]
+/// where    = true
+/// order_by = true
+/// limit    = false  # e.g. Relay-first project
+/// offset   = false
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct QueryDefaults {
+    /// Enable automatic `where` filter parameter (default: true)
+    #[serde(rename = "where", default = "default_true")]
+    pub where_clause: bool,
+    /// Enable automatic `order_by` parameter (default: true)
+    #[serde(default = "default_true")]
+    pub order_by: bool,
+    /// Enable automatic `limit` parameter (default: true)
+    #[serde(default = "default_true")]
+    pub limit: bool,
+    /// Enable automatic `offset` parameter (default: true)
+    #[serde(default = "default_true")]
+    pub offset: bool,
+}
+
+impl Default for QueryDefaults {
+    fn default() -> Self {
+        Self { where_clause: true, order_by: true, limit: true, offset: true }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -259,6 +298,15 @@ pub struct TomlSchema {
     /// Domain discovery configuration for domain-based organization
     #[serde(default)]
     pub domain_discovery: DomainDiscovery,
+
+    /// Global defaults for list-query auto-params.
+    ///
+    /// Provides project-wide defaults for `where`, `order_by`, `limit`, and `offset`
+    /// parameters on list queries. Per-query `auto_params` overrides are partial —
+    /// only the specified flags override the defaults. Relay queries and single-item
+    /// queries are never affected.
+    #[serde(default)]
+    pub query_defaults: QueryDefaults,
 }
 
 /// Schema metadata

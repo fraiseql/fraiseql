@@ -273,6 +273,7 @@ fn relay_schema() -> CompiledSchema {
         relay:               true,
         relay_cursor_column: Some("pk_user".to_string()),
         relay_cursor_type:   Default::default(),
+        inject_params:       Default::default(),
     });
 
     schema
@@ -791,6 +792,7 @@ fn uuid_relay_schema() -> CompiledSchema {
         relay: true,
         relay_cursor_column: Some("id".to_string()),
         relay_cursor_type: CursorType::Uuid,
+        inject_params: Default::default(),
     });
 
     schema

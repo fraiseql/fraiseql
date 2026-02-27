@@ -124,19 +124,6 @@ sql_source = "SELECT * FROM v_{}"
 [security]
 default_policy = "public"
 
-[security.error_sanitization]
-enabled = true
-hide_implementation_details = false
-
-[security.rate_limiting]
-enabled = false
-
-[security.state_encryption]
-enabled = false
-
-[security.pkce]
-enabled = false
-
 [security.enterprise]
 rate_limiting_enabled = false
 audit_logging_enabled = false
@@ -257,19 +244,6 @@ required = true
 [security]
 default_policy = "public"
 
-[security.error_sanitization]
-enabled = true
-hide_implementation_details = false
-
-[security.rate_limiting]
-enabled = false
-
-[security.state_encryption]
-enabled = false
-
-[security.pkce]
-enabled = false
-
 [security.enterprise]
 rate_limiting_enabled = false
 audit_logging_enabled = false
@@ -370,19 +344,6 @@ cache_ttl_seconds = 600
 type_name = "SecureData"
 field_name = "secret"
 policy = "admin_only"
-
-[security.error_sanitization]
-enabled = true
-hide_implementation_details = false
-
-[security.rate_limiting]
-enabled = false
-
-[security.state_encryption]
-enabled = false
-
-[security.pkce]
-enabled = false
 
 [security.enterprise]
 rate_limiting_enabled = false

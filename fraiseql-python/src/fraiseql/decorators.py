@@ -7,9 +7,52 @@ from enum import Enum as PythonEnum
 from types import FunctionType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
+import re
+
 from fraiseql.registry import SchemaRegistry
 from fraiseql.scope import validate_scope
 from fraiseql.types import extract_field_info, extract_function_signature
+
+_INJECT_SOURCE_RE = re.compile(r"^jwt:[A-Za-z_][A-Za-z0-9_]*$")
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_inject(
+    inject: dict[str, str],
+    arg_names: set[str],
+    context: str,
+) -> None:
+    """Validate the ``inject`` mapping supplied to @query/@mutation.
+
+    Args:
+        inject: Mapping of SQL parameter name → source expression.
+        arg_names: Names of the declared GraphQL arguments (must not overlap).
+        context: Human-readable description of the decorator (for error messages).
+
+    Raises:
+        ValueError: If any key or value fails validation, or a name collision is found.
+    """
+    for param_name, source in inject.items():
+        if not _IDENTIFIER_RE.match(param_name):
+            msg = (
+                f"{context}: inject key {param_name!r} is not a valid identifier. "
+                "Keys must start with a letter or underscore and contain only "
+                "letters, digits, and underscores."
+            )
+            raise ValueError(msg)
+        if param_name in arg_names:
+            msg = (
+                f"{context}: inject key {param_name!r} conflicts with a declared "
+                "GraphQL argument of the same name. Use a different parameter name."
+            )
+            raise ValueError(msg)
+        if not _INJECT_SOURCE_RE.match(source):
+            msg = (
+                f"{context}: inject source {source!r} for param {param_name!r} is "
+                "invalid. Supported format: 'jwt:<claim_name>' "
+                "(e.g. 'jwt:org_id', 'jwt:sub')."
+            )
+            raise ValueError(msg)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -241,6 +284,17 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         # Work with a local copy so we can safely modify it
         cfg = dict(config_kwargs)
 
+        # Inject validation — fail fast at authoring time
+        if inject := cfg.get("inject"):
+            if not isinstance(inject, dict):
+                msg = (
+                    f"@fraiseql.query inject= on {f.__name__!r} must be a dict "
+                    f"(got {inject.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            arg_names = {arg["name"] for arg in signature["arguments"]}
+            _validate_inject(inject, arg_names, f"@fraiseql.query {f.__name__!r}")
+
         # Relay validation — fail fast at authoring time
         if cfg.get("relay"):
             if not signature["return_type"]["is_list"]:
@@ -327,6 +381,17 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
     def decorator(f: F) -> F:
         # Extract function signature
         signature = extract_function_signature(f)
+
+        # Inject validation — fail fast at authoring time
+        if inject := config_kwargs.get("inject"):
+            if not isinstance(inject, dict):
+                msg = (
+                    f"@fraiseql.mutation inject= on {f.__name__!r} must be a dict "
+                    f"(got {inject.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            arg_names = {arg["name"] for arg in signature["arguments"]}
+            _validate_inject(inject, arg_names, f"@fraiseql.mutation {f.__name__!r}")
 
         # Register mutation with schema registry
         SchemaRegistry.register_mutation(

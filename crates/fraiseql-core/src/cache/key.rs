@@ -510,6 +510,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+        inject_params:     Default::default(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -539,6 +540,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+        inject_params:     Default::default(),
         };
 
         let views = extract_accessed_views(&query_def);

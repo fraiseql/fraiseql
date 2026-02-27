@@ -497,6 +497,8 @@ impl ValidationReport {
 
 #[cfg(test)]
 mod tests {
+    use indexmap::IndexMap;
+
     use super::*;
     use crate::schema::intermediate::{IntermediateQuery, IntermediateType};
 
@@ -521,6 +523,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -549,6 +552,7 @@ mod tests {
                 deprecated:   None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -560,6 +564,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -598,6 +603,7 @@ mod tests {
                     deprecated:   None,
                     jsonb_column: None,
                     relay: false,
+                     inject: IndexMap::default(),
                 },
                 IntermediateQuery {
                     name:         "users".to_string(), // Duplicate!
@@ -611,6 +617,7 @@ mod tests {
                     deprecated:   None,
                     jsonb_column: None,
                     relay: false,
+                     inject: IndexMap::default(),
                 },
             ],
             mutations:         vec![],
@@ -623,6 +630,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -659,6 +667,7 @@ mod tests {
                 deprecated:   None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -670,6 +679,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -725,6 +735,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -769,6 +780,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -820,6 +832,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -871,6 +884,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();
@@ -922,6 +936,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let report = SchemaValidator::validate(&schema).unwrap();

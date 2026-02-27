@@ -350,14 +350,71 @@ impl DatabaseAdapter for MySqlAdapter {
     async fn execute_function_call(
         &self,
         function_name: &str,
-        _args: &[serde_json::Value],
+        args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Database {
-            message:   format!(
-                "MySQL adapter does not support function calls (attempted: {function_name})"
-            ),
-            sql_state: None,
-        })
+        // Build: CALL `schema`.`sp_name`(?, ?, ...)
+        let placeholders = vec!["?"; args.len()].join(", ");
+        let sql = format!(
+            "CALL {}({})",
+            quote_mysql_identifier(function_name),
+            placeholders
+        );
+
+        let mut query = sqlx::query(&sql);
+
+        for arg in args {
+            query = match arg {
+                serde_json::Value::String(s) => query.bind(s.clone()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f)
+                    } else {
+                        query.bind(n.to_string())
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<String>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(arg.to_string())
+                },
+            };
+        }
+
+        let rows: Vec<MySqlRow> =
+            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("MySQL stored procedure call failed ({function_name}): {e}"),
+                sql_state: None,
+            })?;
+
+        let results = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+                for column in row.columns() {
+                    let col = column.name().to_string();
+                    let value: serde_json::Value =
+                        if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
+                            v
+                        } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
+                            serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                        } else {
+                            serde_json::Value::Null
+                        };
+                    map.insert(col, value);
+                }
+                map
+            })
+            .collect();
+
+        Ok(results)
     }
 
 }

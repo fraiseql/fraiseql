@@ -48,10 +48,10 @@ mod scalar_types;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, CursorType, DirectiveDefinition,
     DirectiveLocationKind, EnumDefinition, EnumValueDefinition, FilterOperator,
-    InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
-    MutationOperation, ObserverDefinition, QueryDefinition, RetryConfig, RoleDefinition,
-    SecurityConfig, SqlProjectionHint, StaticFilterCondition, SubscriptionDefinition,
-    SubscriptionFilter, TypeDefinition, UnionDefinition,
+    InjectedParamSource, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
+    MutationDefinition, MutationOperation, ObserverDefinition, QueryDefinition, RetryConfig,
+    RoleDefinition, SecurityConfig, SqlProjectionHint, StaticFilterCondition,
+    SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,

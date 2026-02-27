@@ -28,13 +28,16 @@ use crate::db::types::{DatabaseType, PoolMetrics};
 use crate::{
     compiler::aggregation::OrderByClause,
     db::{
-        CursorValue, RelayDatabaseAdapter, WhereClause,
+        CursorValue, RelayDatabaseAdapter, WhereClause, WhereOperator,
         projection_generator::PostgresProjectionGenerator,
         traits::{DatabaseAdapter, RelayPageResult},
     },
     error::{FraiseQLError, Result},
     graphql::parse_query,
-    schema::{CompiledSchema, IntrospectionResponses, SecurityConfig, SqlProjectionHint},
+    schema::{
+        CompiledSchema, InjectedParamSource, IntrospectionResponses, SecurityConfig,
+        SqlProjectionHint,
+    },
     security::{FieldAccessError, SecurityContext},
 };
 
@@ -636,7 +639,12 @@ impl<A: DatabaseAdapter> Executor<A> {
                 Ok(self.introspection.get_type_response(&type_name))
             },
             QueryType::Mutation(mutation_name) => {
-                self.execute_mutation_query(&mutation_name, variables).await
+                self.execute_mutation_query_with_security(
+                    &mutation_name,
+                    variables,
+                    Some(security_context),
+                )
+                .await
             },
             QueryType::NodeQuery => self.execute_node_query(query, variables).await,
         }
@@ -794,20 +802,48 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // 7. Execute query with RLS WHERE clause filter
-        // The database adapter handles composition of RLS filter with user filters
-        // and generates the final SQL with both constraints applied
+        // 7. AND inject conditions onto the RLS WHERE clause.
+        //    Inject conditions always come after RLS so they cannot bypass it.
+        let combined_where: Option<WhereClause> =
+            if query_match.query_def.inject_params.is_empty() {
+                rls_where_clause // common path: no-op
+            } else {
+                let mut conditions: Vec<WhereClause> = query_match
+                    .query_def
+                    .inject_params
+                    .iter()
+                    .map(|(col, source)| {
+                        let value = resolve_inject_value(col, source, security_context)?;
+                        Ok(WhereClause::Field {
+                            path:     vec![col.clone()],
+                            operator: WhereOperator::Eq,
+                            value,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                if let Some(rls) = rls_where_clause {
+                    conditions.insert(0, rls);
+                }
+                match conditions.len() {
+                    0 => None,
+                    1 => Some(conditions.remove(0)),
+                    _ => Some(WhereClause::And(conditions)),
+                }
+            };
+
+        // 8. Execute query with combined WHERE clause filter
         let results = self
             .adapter
             .execute_with_projection(
                 sql_source,
                 projection_hint.as_ref(),
-                rls_where_clause.as_ref(),
+                combined_where.as_ref(),
                 None,
             )
             .await?;
 
-        // 8. Apply field-level RBAC filtering
+        // 9. Apply field-level RBAC filtering
         // Filter projection fields based on user roles and field scope requirements
         let filtered_projection_fields = self.apply_field_rbac_filtering(
             &query_match.query_def.return_type,
@@ -834,6 +870,17 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         // 1. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
+
+        // Guard: queries with inject params require a security context.
+        if !query_match.query_def.inject_params.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_match.query_def.name
+                ),
+                path: None,
+            });
+        }
 
         // Route relay queries to dedicated handler.
         if query_match.query_def.relay {
@@ -1138,6 +1185,15 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        self.execute_mutation_query_with_security(mutation_name, variables, None).await
+    }
+
+    async fn execute_mutation_query_with_security(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+        security_ctx: Option<&SecurityContext>,
+    ) -> Result<String> {
         // 1. Locate the mutation definition
         let mutation_def =
             self.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -1157,7 +1213,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Build positional args Vec from variables in ArgumentDefinition order
         let vars_obj = variables.and_then(|v| v.as_object());
-        let args: Vec<serde_json::Value> = mutation_def
+        let mut args: Vec<serde_json::Value> = mutation_def
             .arguments
             .iter()
             .map(|arg| {
@@ -1167,6 +1223,21 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .unwrap_or(serde_json::Value::Null)
             })
             .collect();
+
+        // 3a. Append server-injected parameters (after client args, in injection order).
+        if !mutation_def.inject_params.is_empty() {
+            let ctx = security_ctx.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Mutation '{}' requires inject params but no security context is available \
+                     (unauthenticated request)",
+                    mutation_name
+                ),
+                path: None,
+            })?;
+            for (param_name, source) in &mutation_def.inject_params {
+                args.push(resolve_inject_value(param_name, source, ctx)?);
+            }
+        }
 
         // 4. Call the database function
         let rows = self.adapter.execute_function_call(sql_source, &args).await?;
@@ -1849,6 +1920,34 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 }
 
+/// Resolve a single injected parameter value from the security context.
+///
+/// Returns `FraiseQLError::Validation` if the source claim is required but absent.
+fn resolve_inject_value(
+    param_name: &str,
+    source: &InjectedParamSource,
+    security_ctx: &SecurityContext,
+) -> Result<serde_json::Value> {
+    match source {
+        InjectedParamSource::Jwt(claim) => {
+            let value = match claim.as_str() {
+                "sub" => Some(serde_json::Value::String(security_ctx.user_id.clone())),
+                "tenant_id" | "org_id" => security_ctx
+                    .tenant_id
+                    .as_deref()
+                    .map(|s| serde_json::Value::String(s.to_owned())),
+                other => security_ctx.attributes.get(other).cloned(),
+            };
+            value.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Inject param '{param_name}': JWT claim '{claim}' not present in token"
+                ),
+                path: None,
+            })
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
@@ -1945,6 +2044,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+            inject_params:     Default::default(),
         });
         schema
     }
@@ -2283,5 +2383,122 @@ mod tests {
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
         assert_eq!(config.jsonb_optimization.auto_threshold_percent, 50);
+    }
+
+    // =========================================================================
+    // resolve_inject_value unit tests
+    // =========================================================================
+
+    fn make_security_ctx(
+        user_id: &str,
+        tenant_id: Option<&str>,
+        extra: &[(&str, serde_json::Value)],
+    ) -> SecurityContext {
+        use chrono::Utc;
+        let now = Utc::now();
+        SecurityContext {
+            user_id:          user_id.to_string(),
+            roles:            vec![],
+            tenant_id:        tenant_id.map(str::to_string),
+            scopes:           vec![],
+            attributes:       extra.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect(),
+            request_id:       "test-req".to_string(),
+            ip_address:       None,
+            authenticated_at: now,
+            expires_at:       now + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    #[test]
+    fn test_resolve_inject_sub_maps_to_user_id() {
+        let ctx = make_security_ctx("user-42", None, &[]);
+        let source = InjectedParamSource::Jwt("sub".to_string());
+        let result = resolve_inject_value("user_id", &source, &ctx).unwrap();
+        assert_eq!(result, serde_json::Value::String("user-42".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_inject_tenant_id_claim() {
+        let ctx = make_security_ctx("user-1", Some("tenant-abc"), &[]);
+        let source = InjectedParamSource::Jwt("tenant_id".to_string());
+        let result = resolve_inject_value("tenant_id", &source, &ctx).unwrap();
+        assert_eq!(result, serde_json::Value::String("tenant-abc".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_inject_org_id_alias() {
+        let ctx = make_security_ctx("user-1", Some("org-xyz"), &[]);
+        let source = InjectedParamSource::Jwt("org_id".to_string());
+        let result = resolve_inject_value("org_id", &source, &ctx).unwrap();
+        assert_eq!(result, serde_json::Value::String("org-xyz".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_inject_custom_attribute() {
+        let ctx = make_security_ctx(
+            "user-1",
+            None,
+            &[("department", serde_json::json!("engineering"))],
+        );
+        let source = InjectedParamSource::Jwt("department".to_string());
+        let result = resolve_inject_value("dept", &source, &ctx).unwrap();
+        assert_eq!(result, serde_json::Value::String("engineering".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_inject_missing_claim_returns_error() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        let source = InjectedParamSource::Jwt("org_id".to_string());
+        let err = resolve_inject_value("org_id", &source, &ctx).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Validation { .. }));
+        let msg = err.to_string();
+        assert!(msg.contains("org_id"), "Error should mention claim name");
+    }
+
+    #[test]
+    fn test_resolve_inject_missing_tenant_id_returns_error() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        let source = InjectedParamSource::Jwt("tenant_id".to_string());
+        let err = resolve_inject_value("tenant_id", &source, &ctx).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Validation { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_query_with_inject_rejects_unauthenticated() {
+        use indexmap::IndexMap;
+
+        let mut schema = test_schema();
+        // Add a query that requires inject
+        let mut inject_params = IndexMap::new();
+        inject_params.insert("org_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
+        schema.queries.push(QueryDefinition {
+            name:                "org_items".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_org_items".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   Default::default(),
+            inject_params,
+        });
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        // Execute without security context — should fail with Validation error
+        let result = executor.execute("{ org_items { id } }", None).await;
+        assert!(result.is_err(), "Expected Err for unauthenticated inject query");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "Expected Validation error, got: {err:?}"
+        );
     }
 }

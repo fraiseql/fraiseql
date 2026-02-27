@@ -11,6 +11,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use indexmap::IndexMap;
 use regex::Regex;
 use tracing::info;
 
@@ -422,6 +423,7 @@ impl SchemaExtractor for PythonExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -515,6 +517,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     deprecated: None,
                     jsonb_column: None,
                     relay: false,
+                     inject: IndexMap::default(),
                 });
             }
         }
@@ -674,6 +677,7 @@ impl SchemaExtractor for RustExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -765,6 +769,7 @@ impl SchemaExtractor for JavaExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -882,6 +887,7 @@ impl SchemaExtractor for KotlinExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -997,6 +1003,7 @@ impl SchemaExtractor for GoExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -1110,6 +1117,7 @@ impl SchemaExtractor for CSharpExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -1241,6 +1249,7 @@ impl SchemaExtractor for SwiftExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 
@@ -1328,6 +1337,7 @@ impl SchemaExtractor for ScalaExtractor {
                 deprecated: None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             });
         }
 

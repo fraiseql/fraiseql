@@ -3,6 +3,7 @@
 //! Language-agnostic schema representation that all language libraries output.
 //! See .`claude/INTERMEDIATE_SCHEMA_FORMAT.md` for full specification.
 
+use indexmap::IndexMap;
 use fraiseql_core::validation::ValidationRule;
 use serde::{Deserialize, Serialize};
 
@@ -92,6 +93,13 @@ pub struct IntermediateSchema {
     /// from the `[federation]` TOML section. Embedded verbatim into the compiled schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub federation_config: Option<serde_json::Value>,
+
+    /// Global auto-param defaults for list queries (injected from TOML by the merger).
+    ///
+    /// Never present in `schema.json` — populated at compile time from `[query_defaults]`
+    /// in `fraiseql.toml`. Used by the converter to resolve per-query `auto_params`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_defaults: Option<IntermediateQueryDefaults>,
 }
 
 fn default_version() -> String {
@@ -410,6 +418,11 @@ pub struct IntermediateQuery {
     /// Requires `returns_list = true` and `sql_source` to be set.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
+
+    /// Server-injected parameters: SQL column name → source expression (e.g. `"jwt:org_id"`).
+    /// Not exposed as GraphQL arguments.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub inject: IndexMap<String, String>,
 }
 
 /// Mutation definition in intermediate format
@@ -448,6 +461,11 @@ pub struct IntermediateMutation {
     /// Deprecation info (from @deprecated directive)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
+
+    /// Server-injected parameters: SQL parameter name → source expression (e.g. `"jwt:org_id"`).
+    /// Not exposed as GraphQL arguments.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub inject: IndexMap<String, String>,
 }
 
 // =============================================================================
@@ -539,21 +557,49 @@ pub struct IntermediateUnion {
     pub description: Option<String>,
 }
 
-/// Auto-params configuration in intermediate format
+/// Auto-params configuration in intermediate format.
+///
+/// Each field is `Option<bool>`: `None` means "not specified — inherit from
+/// `[query_defaults]`"; `Some(v)` means explicitly set by the Python/TS decorator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAutoParams {
-    /// Enable automatic limit parameter
-    #[serde(default)]
-    pub limit:        bool,
-    /// Enable automatic offset parameter
-    #[serde(default)]
-    pub offset:       bool,
-    /// Enable automatic where clause parameter
-    #[serde(rename = "where", default)]
+    /// Enable automatic limit parameter (None = inherit from query_defaults)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit:        Option<bool>,
+    /// Enable automatic offset parameter (None = inherit from query_defaults)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset:       Option<bool>,
+    /// Enable automatic where clause parameter (None = inherit from query_defaults)
+    #[serde(rename = "where", default, skip_serializing_if = "Option::is_none")]
+    pub where_clause: Option<bool>,
+    /// Enable automatic order_by parameter (None = inherit from query_defaults)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_by:     Option<bool>,
+}
+
+/// Global auto-param defaults for list queries (injected from TOML by the merger).
+///
+/// Never present in `schema.json` — set only at compile time via `[query_defaults]`
+/// in `fraiseql.toml`.
+///
+/// The `Default` implementation returns all-`true`, matching the historical behaviour
+/// when no `[query_defaults]` section is present in TOML.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntermediateQueryDefaults {
+    /// Default for `where` parameter
     pub where_clause: bool,
-    /// Enable automatic order_by parameter
-    #[serde(default)]
+    /// Default for `order_by` parameter
     pub order_by:     bool,
+    /// Default for `limit` parameter
+    pub limit:        bool,
+    /// Default for `offset` parameter
+    pub offset:       bool,
+}
+
+impl Default for IntermediateQueryDefaults {
+    fn default() -> Self {
+        Self { where_clause: true, order_by: true, limit: true, offset: true }
+    }
 }
 
 // =============================================================================

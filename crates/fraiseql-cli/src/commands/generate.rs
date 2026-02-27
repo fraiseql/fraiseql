@@ -1052,6 +1052,8 @@ fn infer_sql_source(type_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use indexmap::IndexMap;
+
     use super::*;
     use crate::schema::intermediate::{
         IntermediateArgument, IntermediateEnum, IntermediateEnumValue, IntermediateField,
@@ -1123,6 +1125,7 @@ mod tests {
             deprecated:   None,
             jsonb_column: None,
             relay: false,
+             inject: IndexMap::default(),
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -1144,6 +1147,7 @@ mod tests {
             deprecated:   None,
             jsonb_column: None,
             relay: false,
+             inject: IndexMap::default(),
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
     }
@@ -1212,6 +1216,7 @@ mod tests {
                     deprecated:   None,
                     jsonb_column: None,
                     relay: false,
+                     inject: IndexMap::default(),
                 },
                 IntermediateQuery {
                     name:         "author".to_string(),
@@ -1231,6 +1236,7 @@ mod tests {
                     deprecated:   None,
                     jsonb_column: None,
                     relay: false,
+                     inject: IndexMap::default(),
                 },
             ],
             enums: vec![IntermediateEnum {

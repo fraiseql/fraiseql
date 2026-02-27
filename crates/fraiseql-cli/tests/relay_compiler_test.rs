@@ -62,6 +62,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             deprecated:  None,
             jsonb_column: None,
             relay:       true,
+             inject: Default::default(),
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -74,6 +75,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     }
 }
 

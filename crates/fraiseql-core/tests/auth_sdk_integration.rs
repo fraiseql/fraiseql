@@ -400,6 +400,7 @@ fn create_test_schema() -> CompiledSchema {
         relay: false,
         relay_cursor_column: None,
         relay_cursor_type: Default::default(),
+        inject_params: Default::default(),
     });
 
     schema

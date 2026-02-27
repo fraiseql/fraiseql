@@ -4,14 +4,14 @@
 
 use std::collections::HashSet;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use fraiseql_core::{
     schema::{
         ArgumentDefinition, AutoParams, CompiledSchema, CursorType, DirectiveDefinition,
         DirectiveLocationKind, EnumDefinition, EnumValueDefinition, FieldDefinition, FieldType,
-        InputFieldDefinition, InputObjectDefinition, InterfaceDefinition, MutationDefinition,
-        MutationOperation, QueryDefinition, SubscriptionDefinition, SubscriptionFilter,
-        TypeDefinition, UnionDefinition,
+        InjectedParamSource, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
+        MutationDefinition, MutationOperation, QueryDefinition, SubscriptionDefinition,
+        SubscriptionFilter, TypeDefinition, UnionDefinition,
     },
     validation::{CustomTypeDef, CustomTypeRegistry},
 };
@@ -21,8 +21,9 @@ use super::{
     intermediate::{
         IntermediateArgument, IntermediateAutoParams, IntermediateDirective, IntermediateEnum,
         IntermediateEnumValue, IntermediateField, IntermediateInputField, IntermediateInputObject,
-        IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateScalar,
-        IntermediateSchema, IntermediateSubscription, IntermediateType, IntermediateUnion,
+        IntermediateInterface, IntermediateMutation, IntermediateQuery, IntermediateQueryDefaults,
+        IntermediateScalar, IntermediateSchema, IntermediateSubscription, IntermediateType,
+        IntermediateUnion,
     },
     rich_filters::{RichFilterConfig, compile_rich_filters},
 };
@@ -54,11 +55,16 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert types")?;
 
+        // Extract query_defaults before consuming intermediate.queries.
+        // unwrap_or_default() → all-true, matching historical behaviour when no
+        // [query_defaults] section is present in fraiseql.toml.
+        let defaults = intermediate.query_defaults.unwrap_or_default();
+
         // Convert queries
         let queries = intermediate
             .queries
             .into_iter()
-            .map(Self::convert_query)
+            .map(|q| Self::convert_query(q, &defaults))
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert queries")?;
 
@@ -334,8 +340,45 @@ impl SchemaConverter {
         }
     }
 
+    /// Parse an inject source string like `"jwt:org_id"` into an `InjectedParamSource`.
+    fn parse_inject_source(raw: &str) -> Result<InjectedParamSource> {
+        if let Some(claim) = raw.strip_prefix("jwt:") {
+            if claim.is_empty() {
+                bail!("inject source 'jwt:' requires a claim name (e.g. 'jwt:org_id')");
+            }
+            return Ok(InjectedParamSource::Jwt(claim.to_owned()));
+        }
+        bail!(
+            "Unknown inject source prefix in {raw:?}. \
+             Supported: 'jwt:<claim_name>' (e.g. 'jwt:org_id', 'jwt:sub')"
+        )
+    }
+
+    /// Convert inject map from intermediate format (raw strings) to compiled format.
+    fn convert_inject_params(
+        op_name: &str,
+        arg_names: &HashSet<&str>,
+        inject: indexmap::IndexMap<String, String>,
+    ) -> Result<indexmap::IndexMap<String, InjectedParamSource>> {
+        inject
+            .into_iter()
+            .map(|(name, source)| {
+                if arg_names.contains(name.as_str()) {
+                    bail!(
+                        "Operation '{op_name}': inject param '{name}' conflicts with an explicit \
+                         argument name. Rename either the inject param or the argument."
+                    );
+                }
+                Ok((name, Self::parse_inject_source(&source)?))
+            })
+            .collect()
+    }
+
     /// Convert `IntermediateQuery` to `QueryDefinition`
-    fn convert_query(intermediate: IntermediateQuery) -> Result<QueryDefinition> {
+    fn convert_query(
+        intermediate: IntermediateQuery,
+        defaults: &IntermediateQueryDefaults,
+    ) -> Result<QueryDefinition> {
         // Validate relay constraints before conversion.
         if intermediate.relay {
             if !intermediate.returns_list {
@@ -362,7 +405,18 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert query '{}'", intermediate.name))?;
 
-        // Relay queries use cursor-based pagination; disable limit/offset auto_params.
+        let arg_names: HashSet<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
+        let inject_params = Self::convert_inject_params(
+            &intermediate.name,
+            &arg_names,
+            intermediate.inject,
+        )
+        .context(format!("Failed to convert inject params for query '{}'", intermediate.name))?;
+
+        // Determine auto_params using the priority chain:
+        //   1. Relay:       always {where:T, order_by:T, limit:F, offset:F} (spec-mandated)
+        //   2. Single-item: always all-false (no auto-params)
+        //   3. List:        resolve per-query override on top of TOML defaults
         let auto_params = if intermediate.relay {
             AutoParams {
                 has_where:    true,
@@ -370,17 +424,13 @@ impl SchemaConverter {
                 has_limit:    false,
                 has_offset:   false,
             }
+        } else if intermediate.returns_list {
+            let resolved =
+                Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults);
+            Self::warn_auto_params(&intermediate.name, &resolved);
+            resolved
         } else {
-            intermediate.auto_params.map_or_else(
-                || {
-                    if intermediate.returns_list {
-                        AutoParams::all()
-                    } else {
-                        AutoParams::default()
-                    }
-                },
-                Self::convert_auto_params,
-            )
+            AutoParams::default()
         };
 
         let deprecation = intermediate
@@ -409,6 +459,7 @@ impl SchemaConverter {
             relay: intermediate.relay,
             relay_cursor_column,
             relay_cursor_type: CursorType::default(),
+            inject_params,
         })
     }
 
@@ -421,6 +472,17 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert mutation '{}'", intermediate.name))?;
 
+        let arg_names: HashSet<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
+        let inject_params = Self::convert_inject_params(
+            &intermediate.name,
+            &arg_names,
+            intermediate.inject,
+        )
+        .context(format!(
+            "Failed to convert inject params for mutation '{}'",
+            intermediate.name
+        ))?;
+
         let operation = Self::parse_mutation_operation(
             intermediate.operation.as_deref(),
             intermediate.sql_source.as_deref(),
@@ -431,13 +493,14 @@ impl SchemaConverter {
             .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
         Ok(MutationDefinition {
-            name:        intermediate.name,
-            return_type: intermediate.return_type,
+            name:          intermediate.name,
+            return_type:   intermediate.return_type,
             arguments,
-            description: intermediate.description,
+            description:   intermediate.description,
             operation,
             deprecation,
-            sql_source:  intermediate.sql_source,
+            sql_source:    intermediate.sql_source,
+            inject_params,
         })
     }
 
@@ -487,13 +550,53 @@ impl SchemaConverter {
         })
     }
 
-    /// Convert `IntermediateAutoParams` to `AutoParams`
-    const fn convert_auto_params(intermediate: IntermediateAutoParams) -> AutoParams {
-        AutoParams {
-            has_limit:    intermediate.limit,
-            has_offset:   intermediate.offset,
-            has_where:    intermediate.where_clause,
-            has_order_by: intermediate.order_by,
+    /// Resolve the final `AutoParams` for a list query using the priority chain:
+    ///
+    /// - `per_query`: flags explicitly set by the Python/TS decorator (`Some(v)`)
+    ///   or absent (`None` → inherit from defaults)
+    /// - `defaults`:  project-wide values from `[query_defaults]` in `fraiseql.toml`
+    ///
+    /// Relay queries and single-item queries are handled separately in `convert_query`
+    /// and never reach this function.
+    fn resolve_auto_params(
+        per_query: Option<&IntermediateAutoParams>,
+        defaults: &IntermediateQueryDefaults,
+    ) -> AutoParams {
+        match per_query {
+            None => AutoParams {
+                has_where:    defaults.where_clause,
+                has_order_by: defaults.order_by,
+                has_limit:    defaults.limit,
+                has_offset:   defaults.offset,
+            },
+            Some(p) => AutoParams {
+                has_where:    p.where_clause.unwrap_or(defaults.where_clause),
+                has_order_by: p.order_by.unwrap_or(defaults.order_by),
+                has_limit:    p.limit.unwrap_or(defaults.limit),
+                has_offset:   p.offset.unwrap_or(defaults.offset),
+            },
+        }
+    }
+
+    /// Emit compile-time warnings for problematic auto-param combinations.
+    ///
+    /// Called for non-relay list queries after resolving their final `AutoParams`.
+    fn warn_auto_params(name: &str, params: &AutoParams) {
+        if !params.has_limit {
+            warn!(
+                query = name,
+                "List query '{name}' has limit disabled and is not a Relay query. \
+                 This query is unbounded and may scan the full table. \
+                 Consider a SQL-level LIMIT in the view, or use relay=true."
+            );
+        }
+        if params.has_limit && !params.has_order_by {
+            warn!(
+                query = name,
+                "List query '{name}' paginates (limit=true) without ordering \
+                 (order_by=false). Results may be non-deterministic across pages. \
+                 Enable order_by or add ORDER BY in the SQL view."
+            );
         }
     }
 
@@ -940,6 +1043,8 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
 
 #[cfg(test)]
 mod tests {
+    use indexmap::IndexMap;
+
     use super::*;
 
     #[test]
@@ -963,6 +1068,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1016,6 +1122,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1048,6 +1155,7 @@ mod tests {
                 deprecated:   None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1059,6 +1167,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1098,14 +1207,15 @@ mod tests {
                 description:  Some("Get users".to_string()),
                 sql_source:   Some("v_user".to_string()),
                 auto_params:  Some(IntermediateAutoParams {
-                    limit:        true,
-                    offset:       true,
-                    where_clause: false,
-                    order_by:     false,
+                    limit:        Some(true),
+                    offset:       Some(true),
+                    where_clause: Some(false),
+                    order_by:     Some(false),
                 }),
                 deprecated:   None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1117,6 +1227,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1155,6 +1266,7 @@ mod tests {
                 deprecated:   None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1166,6 +1278,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1205,6 +1318,7 @@ mod tests {
                 deprecated:   None,
                 jsonb_column: None,
                 relay: false,
+                 inject: IndexMap::default(),
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1216,6 +1330,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1276,6 +1391,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1342,6 +1458,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1424,6 +1541,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1473,6 +1591,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1526,6 +1645,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1591,6 +1711,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1678,6 +1799,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1751,6 +1873,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -1801,6 +1924,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1861,6 +1985,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let result = SchemaConverter::convert(intermediate);
@@ -1926,6 +2051,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();
@@ -2003,6 +2129,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             federation_config: None,
+            query_defaults:    None,
         };
 
         let compiled = SchemaConverter::convert(intermediate).unwrap();

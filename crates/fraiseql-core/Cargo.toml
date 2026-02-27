@@ -34,6 +34,7 @@ deadpool = {workspace = true}
 # fraiseql-wire backend (optional)
 fraiseql-wire = {workspace = true, optional = true}
 futures = {workspace = true}
+indexmap = {workspace = true}
 # GraphQL
 graphql-parser = {workspace = true}
 hex = {workspace = true}

@@ -11,7 +11,13 @@ use std::fs;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 
-use crate::{config::TomlSchema, schema::IntermediateSchema};
+use crate::{
+    config::TomlSchema,
+    schema::{
+        IntermediateSchema,
+        intermediate::IntermediateQueryDefaults,
+    },
+};
 
 /// Schema merger combining language types and TOML config
 pub struct SchemaMerger;
@@ -297,6 +303,15 @@ impl SchemaMerger {
 
     /// Merge JSON types with TOML schema
     fn merge_values(types_value: &Value, toml_schema: &TomlSchema) -> Result<IntermediateSchema> {
+        // Typo guard: [queries.defaults] is a common mistake for [query_defaults].
+        if toml_schema.queries.contains_key("defaults") {
+            anyhow::bail!(
+                "Found a query definition named 'defaults' under [queries.defaults]. \
+                 Did you mean [query_defaults] to set global auto-param defaults?\n\
+                 If you intended a query called 'defaults', rename it to avoid confusion."
+            );
+        }
+
         // Start with arrays for types, queries, mutations (not objects!)
         // This matches IntermediateSchema structure which uses Vec<T>
         let mut types_array: Vec<Value> = Vec::new();
@@ -498,8 +513,19 @@ impl SchemaMerger {
         }
 
         // Convert to IntermediateSchema
-        serde_json::from_value::<IntermediateSchema>(merged)
-            .context("Failed to convert merged schema to IntermediateSchema")
+        let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
+            .context("Failed to convert merged schema to IntermediateSchema")?;
+
+        // Inject TOML [query_defaults] into the schema so the converter can apply
+        // them as project-wide fallbacks for list-query auto-params.
+        schema.query_defaults = Some(IntermediateQueryDefaults {
+            where_clause: toml_schema.query_defaults.where_clause,
+            order_by:     toml_schema.query_defaults.order_by,
+            limit:        toml_schema.query_defaults.limit,
+            offset:       toml_schema.query_defaults.offset,
+        });
+
+        Ok(schema)
     }
 }
 

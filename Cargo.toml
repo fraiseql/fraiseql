@@ -65,6 +65,7 @@ fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version 
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.0.0-rc.13"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.0.0-rc.13"}
 futures = "0.3"
+indexmap = {version = "2", features = ["serde"]}
 # GraphQL parsing
 graphql-parser = "0.4"
 hex = "0.4"

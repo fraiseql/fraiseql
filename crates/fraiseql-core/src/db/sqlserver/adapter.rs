@@ -432,14 +432,89 @@ impl DatabaseAdapter for SqlServerAdapter {
     async fn execute_function_call(
         &self,
         function_name: &str,
-        _args: &[serde_json::Value],
+        args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Database {
-            message:   format!(
-                "SQL Server adapter does not support function calls (attempted: {function_name})"
-            ),
+        // Build: SELECT * FROM [schema].[fn_name](@p1, @p2, ...)
+        let placeholders: Vec<String> =
+            (1..=args.len()).map(|i| format!("@p{i}")).collect();
+        let sql = format!(
+            "SELECT * FROM {}({})",
+            quote_sqlserver_identifier(function_name),
+            placeholders.join(", ")
+        );
+
+        let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let mut query = tiberius::Query::new(sql);
+
+        // Bind args; non-primitive types are serialised to JSON strings
+        let string_params: Vec<String> = args
+            .iter()
+            .filter(|v| {
+                matches!(v, serde_json::Value::Array(_) | serde_json::Value::Object(_))
+            })
+            .map(|v| v.to_string())
+            .collect();
+
+        let mut string_idx = 0usize;
+        for arg in args {
+            match arg {
+                serde_json::Value::String(s) => query.bind(s.as_str()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i);
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f);
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<&str>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(string_params[string_idx].as_str());
+                    string_idx += 1;
+                },
+            }
+        }
+
+        let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("SQL Server function call failed ({function_name}): {e}"),
             sql_state: None,
-        })
+        })?;
+
+        let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to get result set from {function_name}: {e}"),
+            sql_state: None,
+        })?;
+
+        let results = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+                for (idx, column) in row.columns().iter().enumerate() {
+                    let col = column.name().to_string();
+                    let value: serde_json::Value =
+                        if let Some(v) = row.try_get::<i32, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(v) = row.try_get::<i64, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(v) = row.try_get::<f64, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(v) = row.try_get::<bool, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(s) = row.try_get::<&str, _>(idx).ok().flatten() {
+                            serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!(s))
+                        } else {
+                            serde_json::Value::Null
+                        };
+                    map.insert(col, value);
+                }
+                map
+            })
+            .collect();
+
+        Ok(results)
     }
 
 }

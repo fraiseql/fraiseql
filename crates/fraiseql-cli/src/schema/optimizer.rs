@@ -323,6 +323,7 @@ mod tests {
         },
         validation::CustomTypeRegistry,
     };
+    use indexmap::IndexMap;
 
     use super::*;
 
@@ -380,6 +381,7 @@ mod tests {
                 relay: false,
                 relay_cursor_column: None,
                 relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
             }],
             mutations:      vec![],
             subscriptions:  vec![],
@@ -426,6 +428,7 @@ mod tests {
                 relay: false,
                 relay_cursor_column: None,
                 relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
             }],
             mutations:      vec![],
             subscriptions:  vec![],

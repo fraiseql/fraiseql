@@ -16,10 +16,28 @@
 
 use std::collections::HashMap;
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use super::field_type::{FieldDefinition, FieldType};
 use crate::validation::{CustomTypeRegistry, ValidationRule};
+
+/// Source from which an injected SQL parameter is resolved at runtime.
+///
+/// Injected parameters are not exposed in the GraphQL schema. They are
+/// silently added to SQL queries and function calls, resolved from the
+/// authenticated request context.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "source", content = "claim", rename_all = "snake_case")]
+pub enum InjectedParamSource {
+    /// Extract a value from the JWT claims.
+    ///
+    /// Special aliases resolved before attribute lookup:
+    /// - `"sub"` → `SecurityContext.user_id`
+    /// - `"tenant_id"` / `"org_id"` → `SecurityContext.tenant_id`
+    /// - any other name → `SecurityContext.attributes.get(name)`
+    Jwt(String),
+}
 
 /// Role definition for field-level RBAC.
 ///
@@ -1394,6 +1412,18 @@ pub struct QueryDefinition {
     /// Only meaningful when `relay = true`.
     #[serde(default, skip_serializing_if = "is_default_cursor_type")]
     pub relay_cursor_type: CursorType,
+
+    /// Server-side parameters injected from JWT claims at runtime.
+    ///
+    /// Keys are SQL column names. Values describe where to source the runtime value.
+    /// These params are NOT exposed as GraphQL arguments.
+    ///
+    /// For queries: adds a `WHERE key = $value` condition per entry using the same
+    /// `WhereClause` mechanism as `TenantEnforcer`. Works on all adapters.
+    ///
+    /// Clients cannot override these values.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub inject_params: IndexMap<String, InjectedParamSource>,
 }
 
 impl QueryDefinition {
@@ -1414,6 +1444,7 @@ impl QueryDefinition {
             relay:               false,
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::Int64,
+            inject_params:       IndexMap::new(),
         }
     }
 
@@ -1471,14 +1502,7 @@ impl QueryDefinition {
 /// ```
 /// use fraiseql_core::schema::{MutationDefinition, MutationOperation};
 ///
-/// let mutation = MutationDefinition {
-///     name: "createUser".to_string(),
-///     return_type: "User".to_string(),
-///     arguments: vec![],
-///     description: Some("Create a new user".to_string()),
-///     operation: MutationOperation::Insert { table: "users".to_string() },
-///     deprecation: None,
-/// };
+/// let mutation = MutationDefinition::new("createUser", "User");
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MutationDefinition {
@@ -1512,6 +1536,20 @@ pub struct MutationDefinition {
     /// `app.mutation_response` composite row.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
+
+    /// Server-side parameters injected from JWT claims at runtime.
+    ///
+    /// Keys are SQL parameter names. Values describe where to source the runtime value.
+    /// These params are NOT exposed as GraphQL arguments.
+    ///
+    /// For mutations: injected params are appended to the positional function call args
+    /// **after** client-provided arguments, in map insertion order. The SQL function
+    /// signature must declare the injected parameters last.
+    ///
+    /// Works on PostgreSQL, SQL Server, and MySQL. SQLite has no stored-routine mechanism
+    /// and will return an error if inject is configured on a mutation.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub inject_params: IndexMap<String, InjectedParamSource>,
 }
 
 impl MutationDefinition {
@@ -1519,13 +1557,14 @@ impl MutationDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:        name.into(),
-            return_type: return_type.into(),
-            arguments:   Vec::new(),
-            description: None,
-            operation:   MutationOperation::default(),
-            deprecation: None,
-            sql_source:  None,
+            name:          name.into(),
+            return_type:   return_type.into(),
+            arguments:     Vec::new(),
+            description:   None,
+            operation:     MutationOperation::default(),
+            deprecation:   None,
+            sql_source:    None,
+            inject_params: IndexMap::new(),
         }
     }
 

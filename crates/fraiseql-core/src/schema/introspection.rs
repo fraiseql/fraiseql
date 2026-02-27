@@ -1554,6 +1554,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+            inject_params:     Default::default(),
         });
 
         // Add a user query with argument
@@ -1578,6 +1579,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+            inject_params:     Default::default(),
         });
 
         schema
@@ -2232,6 +2234,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+            inject_params:     Default::default(),
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -2268,6 +2271,7 @@ mod tests {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
+            inject_params:     Default::default(),
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

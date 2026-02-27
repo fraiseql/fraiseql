@@ -38,6 +38,7 @@ fn test_compile_schema_with_single_custom_scalar() {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -90,6 +91,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -139,6 +141,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -175,6 +178,7 @@ fn test_custom_scalar_preserves_all_metadata() {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -207,6 +211,7 @@ fn test_empty_custom_scalars_list() {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -243,6 +248,7 @@ fn test_custom_scalar_with_no_validation_rules() {
         security:          None,
         observers_config:  None,
         federation_config: None,
+        query_defaults:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");

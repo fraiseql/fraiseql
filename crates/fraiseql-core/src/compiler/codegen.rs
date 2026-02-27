@@ -145,6 +145,7 @@ impl CodeGenerator {
                     relay:        false,
                     relay_cursor_column: None,
                     relay_cursor_type: Default::default(),
+                    inject_params:     Default::default(),
                 }
             })
             .collect();
@@ -288,7 +289,8 @@ impl CodeGenerator {
             description: m.description.clone(),
             operation,
             deprecation: None, // Note: IR mutations don't have deprecation yet
-            sql_source:  None,
+            sql_source:    None,
+            inject_params: Default::default(),
         }
     }
 

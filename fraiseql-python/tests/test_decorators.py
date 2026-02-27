@@ -527,3 +527,137 @@ def test_duplicate_mutation_registration_raises_error() -> None:
         @fraiseql.mutation(operation="CREATE")
         def create_user(name: str) -> User:  # noqa: F811
             pass
+
+
+# ---------------------------------------------------------------------------
+# inject validation tests
+# ---------------------------------------------------------------------------
+
+
+def test_query_inject_valid_passes_through() -> None:
+    """Valid inject mapping on @fraiseql.query is accepted and forwarded."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+        name: str
+
+    @fraiseql.query(sql_source="v_item", inject={"org_id": "jwt:org_id"})
+    def items() -> list[Item]:
+        """Get items for the current org."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][0]
+    assert q["name"] == "items"
+    assert q["inject"] == {"org_id": "jwt:org_id"}
+
+
+def test_mutation_inject_valid_passes_through() -> None:
+    """Valid inject mapping on @fraiseql.mutation is accepted and forwarded."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_item", inject={"tenant_id": "jwt:tenant_id"})
+    def create_item(name: str) -> Item:
+        """Create an item."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    m = schema["mutations"][0]
+    assert m["name"] == "create_item"
+    assert m["inject"] == {"tenant_id": "jwt:tenant_id"}
+
+
+def test_query_inject_invalid_source_raises() -> None:
+    """inject source that doesn't match 'jwt:<claim>' raises ValueError."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    with pytest.raises(ValueError, match="jwt:"):
+
+        @fraiseql.query(sql_source="v_item", inject={"org_id": "header:X-Org-Id"})
+        def items() -> list[Item]:
+            pass
+
+
+def test_query_inject_empty_claim_raises() -> None:
+    """inject source 'jwt:' with no claim name raises ValueError."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    with pytest.raises(ValueError, match="jwt:"):
+
+        @fraiseql.query(sql_source="v_item", inject={"org_id": "jwt:"})
+        def items() -> list[Item]:
+            pass
+
+
+def test_query_inject_invalid_key_raises() -> None:
+    """inject key that is not a valid identifier raises ValueError."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    with pytest.raises(ValueError, match="valid identifier"):
+
+        @fraiseql.query(sql_source="v_item", inject={"123bad": "jwt:org_id"})
+        def items() -> list[Item]:
+            pass
+
+
+def test_query_inject_key_conflicts_with_arg_raises() -> None:
+    """inject key that duplicates a GraphQL argument name raises ValueError."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    with pytest.raises(ValueError, match="conflicts"):
+
+        @fraiseql.query(sql_source="v_item", inject={"name": "jwt:org_id"})
+        def items(name: str) -> list[Item]:
+            pass
+
+
+def test_mutation_inject_not_dict_raises() -> None:
+    """Passing a non-dict value for inject raises TypeError."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    with pytest.raises(TypeError, match="dict"):
+
+        @fraiseql.mutation(sql_source="fn_item", inject="jwt:org_id")
+        def create_item(name: str) -> Item:
+            pass
+
+
+def test_query_inject_multiple_params() -> None:
+    """Multiple inject params are all validated and forwarded."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.query(
+        sql_source="v_item",
+        inject={
+            "org_id": "jwt:org_id",
+            "user_id": "jwt:sub",
+        },
+    )
+    def items() -> list[Item]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][0]
+    assert q["inject"] == {"org_id": "jwt:org_id", "user_id": "jwt:sub"}
