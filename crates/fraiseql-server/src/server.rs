@@ -49,7 +49,8 @@ pub struct Server<A: DatabaseAdapter> {
     secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
     circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
-    error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -62,6 +63,17 @@ pub struct Server<A: DatabaseAdapter> {
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    /// Build a `StateEncryptionService` from `security.state_encryption` in the compiled
+    /// schema, if the section is present and `enabled = true`.
+    fn state_encryption_from_schema(
+        schema: &CompiledSchema,
+    ) -> Option<Arc<crate::auth::state_encryption::StateEncryptionService>> {
+        schema
+            .security
+            .as_ref()
+            .and_then(|s| crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(s))
+    }
+
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
     /// compiled schema's security blob (if present), falling back to a disabled sanitizer.
     fn error_sanitizer_from_schema(
@@ -122,6 +134,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption = Self::state_encryption_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -132,6 +145,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_manager,
             circuit_breaker,
             error_sanitizer,
+            state_encryption,
             db_pool,
         )
         .await
@@ -149,6 +163,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
         error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
+        state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
@@ -215,6 +230,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             secrets_manager: None,
             circuit_breaker,
             error_sanitizer,
+            state_encryption,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -273,6 +289,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption = Self::state_encryption_from_schema(&schema);
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -283,6 +300,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             subscription_manager,
             circuit_breaker,
             error_sanitizer,
+            state_encryption,
             db_pool,
         )
         .await
@@ -319,6 +337,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption = Self::state_encryption_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -374,6 +393,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             secrets_manager: None,
             circuit_breaker,
             error_sanitizer,
+            state_encryption,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -436,6 +456,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {
             info!("Error sanitizer enabled — internal error details will be stripped from responses");
+        }
+
+        // Attach state encryption service if configured
+        if let Some(ref svc) = self.state_encryption {
+            state = state.with_state_encryption(svc.clone());
+            info!("State encryption service attached to AppState");
         }
 
         let metrics = state.metrics.clone();

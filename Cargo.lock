@@ -2600,6 +2600,7 @@ dependencies = [
 name = "fraiseql-auth"
 version = "2.0.0-rc.13"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "async-trait",
  "axum",

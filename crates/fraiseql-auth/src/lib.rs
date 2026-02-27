@@ -124,5 +124,8 @@ pub use security_init::{
 };
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;
-pub use state_encryption::{EncryptedState, StateEncryption, generate_state_encryption_key};
+pub use state_encryption::{
+    DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
+    StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,
+};
 pub use state_store::{InMemoryStateStore, StateStore};

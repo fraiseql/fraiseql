@@ -1,11 +1,18 @@
 // State encryption for PKCE protection
 // Encrypts OAuth state parameters using ChaCha20-Poly1305 AEAD
 
+use std::{fmt, sync::Arc};
+
+// aes_gcm and chacha20poly1305 both re-export the same underlying `aead` traits.
+// We import them once from chacha20poly1305 and reuse for both cipher types.
+use aes_gcm::Aes256Gcm;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
-    aead::{Aead, KeyInit, Payload},
+    aead::{Aead, AeadCore, KeyInit, OsRng, Payload},
 };
 use rand::RngCore;
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 use crate::{AuthError, error::Result};
@@ -157,6 +164,408 @@ pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
     let mut key = [0u8; 32];
     rand::rngs::OsRng.fill_bytes(&mut key);
     Zeroizing::new(key)
+}
+
+// ── StateEncryptionService ────────────────────────────────────────────────────
+//
+// A higher-level service that wraps the low-level `StateEncryption` struct.
+// Differences from `StateEncryption`:
+//   - Supports both ChaCha20-Poly1305 AND AES-256-GCM (runtime-selectable)
+//   - Wire format: URL-safe base64 of `[12-byte nonce || ciphertext || tag]`
+//   - Accepts keys as 64-char hex strings or env-var names
+//   - Can be constructed from the compiled schema JSON
+//   - Key never appears in `Debug` output
+//
+// This is the service used by Phase 04 (PKCE) and wired into `Server`.
+
+/// Errors that can occur during decryption by `StateEncryptionService`.
+#[derive(Debug, thiserror::Error)]
+pub enum DecryptionError {
+    /// Ciphertext was tampered with or encrypted with a different key.
+    #[error("authentication failed — ciphertext may be tampered or key is wrong")]
+    AuthenticationFailed,
+    /// Input is malformed (empty, too short, bad base64, etc.).
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
+}
+
+/// Errors that can occur when constructing a `StateEncryptionService` key.
+#[derive(Debug, thiserror::Error)]
+pub enum KeyError {
+    /// Hex string was not 64 characters (32 bytes).
+    #[error("hex key must be 64 chars (32 bytes); got {0} chars")]
+    WrongLength(usize),
+    /// Hex string contained a non-hex character.
+    #[error("invalid hex character in key")]
+    InvalidHex,
+}
+
+/// AEAD algorithm selection for `StateEncryptionService`.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum EncryptionAlgorithm {
+    /// ChaCha20-Poly1305 (recommended — constant-time, software-friendly).
+    #[default]
+    #[serde(rename = "chacha20-poly1305")]
+    Chacha20Poly1305,
+    /// AES-256-GCM (hardware-accelerated on modern CPUs).
+    #[serde(rename = "aes-256-gcm")]
+    Aes256Gcm,
+}
+
+impl fmt::Display for EncryptionAlgorithm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Chacha20Poly1305 => f.write_str("chacha20-poly1305"),
+            Self::Aes256Gcm => f.write_str("aes-256-gcm"),
+        }
+    }
+}
+
+/// Deserialized from `compiled.security.state_encryption`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct StateEncryptionConfig {
+    /// Enable the service; when `false`, `from_compiled_schema` returns `None`.
+    pub enabled:   bool,
+    /// AEAD algorithm to use.
+    pub algorithm: EncryptionAlgorithm,
+    /// Name of the environment variable holding the 64-char hex key.
+    pub key_env:   Option<String>,
+}
+
+impl Default for StateEncryptionConfig {
+    fn default() -> Self {
+        Self {
+            enabled:   false,
+            algorithm: EncryptionAlgorithm::default(),
+            key_env:   Some("STATE_ENCRYPTION_KEY".to_string()),
+        }
+    }
+}
+
+/// AEAD encryption service for OAuth state and PKCE blobs.
+///
+/// Wire format: URL-safe base64 of `[12-byte nonce || ciphertext || 16-byte tag]`.
+///
+/// The 32-byte key is never printed in [`fmt::Debug`] output.
+pub struct StateEncryptionService {
+    algorithm: EncryptionAlgorithm,
+    key:       [u8; 32],
+}
+
+impl fmt::Debug for StateEncryptionService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StateEncryptionService")
+            .field("algorithm", &self.algorithm)
+            .field("key", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl StateEncryptionService {
+    /// Construct from a raw 32-byte key slice.
+    pub fn from_raw_key(key: &[u8; 32], algorithm: EncryptionAlgorithm) -> Self {
+        Self { algorithm, key: *key }
+    }
+
+    /// Construct from a 64-character hex string (= 32 bytes).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`KeyError::WrongLength`] if `hex` is not 64 chars.
+    /// Returns [`KeyError::InvalidHex`] if `hex` contains non-hex chars.
+    pub fn from_hex_key(
+        hex: &str,
+        algorithm: EncryptionAlgorithm,
+    ) -> std::result::Result<Self, KeyError> {
+        if hex.len() != 64 {
+            return Err(KeyError::WrongLength(hex.len()));
+        }
+        let bytes = hex::decode(hex).map_err(|_| KeyError::InvalidHex)?;
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes);
+        Ok(Self { algorithm, key })
+    }
+
+    /// Load the key from an environment variable containing a 64-char hex string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the env var is absent or the value is not valid hex/length.
+    pub fn new_from_env(
+        var: &str,
+        algorithm: EncryptionAlgorithm,
+    ) -> std::result::Result<Self, anyhow::Error> {
+        let hex = std::env::var(var)
+            .map_err(|_| anyhow::anyhow!("env var {var} not set"))?;
+        Ok(Self::from_hex_key(&hex, algorithm)?)
+    }
+
+    /// Build from the `security` blob of a compiled schema, if enabled.
+    ///
+    /// Returns `None` when:
+    /// - the `state_encryption` key is absent,
+    /// - `enabled` is `false`, or
+    /// - the env-var key cannot be loaded (an error is logged).
+    pub fn from_compiled_schema(security_json: &serde_json::Value) -> Option<Arc<Self>> {
+        let cfg: StateEncryptionConfig = security_json
+            .get("state_encryption")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+
+        if !cfg.enabled {
+            return None;
+        }
+
+        let key_env = cfg.key_env.as_deref().unwrap_or("STATE_ENCRYPTION_KEY");
+        match Self::new_from_env(key_env, cfg.algorithm) {
+            Ok(svc) => Some(Arc::new(svc)),
+            Err(e) => {
+                tracing::error!(
+                    "state_encryption enabled but key init failed (env var '{key_env}'): {e}"
+                );
+                None
+            }
+        }
+    }
+
+    /// Encrypt `plaintext` to a URL-safe base64 string.
+    ///
+    /// A fresh random nonce is generated on every call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only on internal cipher failure (essentially never).
+    pub fn encrypt(
+        &self,
+        plaintext: &[u8],
+    ) -> std::result::Result<String, anyhow::Error> {
+        let combined = match self.algorithm {
+            EncryptionAlgorithm::Chacha20Poly1305 => {
+                let cipher = ChaCha20Poly1305::new_from_slice(&self.key)
+                    .map_err(|_| anyhow::anyhow!("invalid key for ChaCha20-Poly1305"))?;
+                let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+                let ct = cipher
+                    .encrypt(&nonce, plaintext)
+                    .map_err(|_| anyhow::anyhow!("ChaCha20-Poly1305 encryption failed"))?;
+                let mut out = nonce.to_vec();
+                out.extend_from_slice(&ct);
+                out
+            }
+            EncryptionAlgorithm::Aes256Gcm => {
+                let cipher = Aes256Gcm::new_from_slice(&self.key)
+                    .map_err(|_| anyhow::anyhow!("invalid key for AES-256-GCM"))?;
+                let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+                let ct = cipher
+                    .encrypt(&nonce, plaintext)
+                    .map_err(|_| anyhow::anyhow!("AES-256-GCM encryption failed"))?;
+                let mut out = nonce.to_vec();
+                out.extend_from_slice(&ct);
+                out
+            }
+        };
+        Ok(URL_SAFE_NO_PAD.encode(&combined))
+    }
+
+    /// Decrypt a URL-safe base64 string produced by [`Self::encrypt`].
+    ///
+    /// # Errors
+    ///
+    /// - [`DecryptionError::InvalidInput`] — empty / too-short / bad base64
+    /// - [`DecryptionError::AuthenticationFailed`] — tampered or wrong-key
+    pub fn decrypt(&self, encoded: &str) -> std::result::Result<Vec<u8>, DecryptionError> {
+        if encoded.is_empty() {
+            return Err(DecryptionError::InvalidInput("empty input".into()));
+        }
+        let combined = URL_SAFE_NO_PAD
+            .decode(encoded)
+            .map_err(|_| DecryptionError::InvalidInput("invalid base64".into()))?;
+
+        const NONCE_SIZE: usize = 12;
+        if combined.len() < NONCE_SIZE {
+            return Err(DecryptionError::InvalidInput(format!(
+                "too short: {} bytes (minimum {NONCE_SIZE})",
+                combined.len()
+            )));
+        }
+        let (nonce_bytes, ct) = combined.split_at(NONCE_SIZE);
+
+        match self.algorithm {
+            EncryptionAlgorithm::Chacha20Poly1305 => {
+                let cipher = ChaCha20Poly1305::new_from_slice(&self.key)
+                    .map_err(|_| DecryptionError::InvalidInput("invalid key".into()))?;
+                let nonce = chacha20poly1305::Nonce::from_slice(nonce_bytes);
+                cipher.decrypt(nonce, ct).map_err(|_| DecryptionError::AuthenticationFailed)
+            }
+            EncryptionAlgorithm::Aes256Gcm => {
+                let cipher = Aes256Gcm::new_from_slice(&self.key)
+                    .map_err(|_| DecryptionError::InvalidInput("invalid key".into()))?;
+                let nonce = aes_gcm::Nonce::from_slice(nonce_bytes);
+                cipher.decrypt(nonce, ct).map_err(|_| DecryptionError::AuthenticationFailed)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod service_tests {
+    use super::*;
+
+    fn chacha_svc() -> StateEncryptionService {
+        StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305)
+    }
+    fn aes_svc() -> StateEncryptionService {
+        StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Aes256Gcm)
+    }
+
+    #[test]
+    fn test_chacha_encrypt_decrypt_roundtrip() {
+        let svc = chacha_svc();
+        let pt = b"oauth_state_nonce_12345";
+        assert_eq!(svc.decrypt(&svc.encrypt(pt).unwrap()).unwrap(), pt);
+    }
+
+    #[test]
+    fn test_chacha_two_encryptions_differ() {
+        let svc = chacha_svc();
+        assert_ne!(svc.encrypt(b"hello").unwrap(), svc.encrypt(b"hello").unwrap());
+    }
+
+    #[test]
+    fn test_chacha_tampered_fails() {
+        let svc = chacha_svc();
+        let ct = svc.encrypt(b"secret").unwrap();
+        let mut bytes = URL_SAFE_NO_PAD.decode(&ct).unwrap();
+        bytes[15] ^= 0xFF;
+        let tampered = URL_SAFE_NO_PAD.encode(&bytes);
+        assert!(matches!(svc.decrypt(&tampered), Err(DecryptionError::AuthenticationFailed)));
+    }
+
+    #[test]
+    fn test_chacha_wrong_key_fails() {
+        let a = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
+        let b = StateEncryptionService::from_raw_key(&[1u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
+        let ct = a.encrypt(b"secret").unwrap();
+        assert!(matches!(b.decrypt(&ct), Err(DecryptionError::AuthenticationFailed)));
+    }
+
+    #[test]
+    fn test_aes_encrypt_decrypt_roundtrip() {
+        let svc = aes_svc();
+        let pt = b"pkce_code_challenge";
+        assert_eq!(svc.decrypt(&svc.encrypt(pt).unwrap()).unwrap(), pt);
+    }
+
+    #[test]
+    fn test_aes_two_encryptions_differ() {
+        let svc = aes_svc();
+        assert_ne!(svc.encrypt(b"hello").unwrap(), svc.encrypt(b"hello").unwrap());
+    }
+
+    #[test]
+    fn test_aes_tampered_fails() {
+        let svc = aes_svc();
+        let ct = svc.encrypt(b"secret").unwrap();
+        let mut bytes = URL_SAFE_NO_PAD.decode(&ct).unwrap();
+        bytes[15] ^= 0xFF;
+        let tampered = URL_SAFE_NO_PAD.encode(&bytes);
+        assert!(matches!(svc.decrypt(&tampered), Err(DecryptionError::AuthenticationFailed)));
+    }
+
+    #[test]
+    fn test_aes_wrong_key_fails() {
+        let a = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Aes256Gcm);
+        let b = StateEncryptionService::from_raw_key(&[1u8; 32], EncryptionAlgorithm::Aes256Gcm);
+        let ct = a.encrypt(b"secret").unwrap();
+        assert!(matches!(b.decrypt(&ct), Err(DecryptionError::AuthenticationFailed)));
+    }
+
+    #[test]
+    fn test_empty_ciphertext_invalid_input() {
+        assert!(matches!(chacha_svc().decrypt(""), Err(DecryptionError::InvalidInput(_))));
+    }
+
+    #[test]
+    fn test_too_short_invalid_input() {
+        let short = URL_SAFE_NO_PAD.encode([0u8; 11]);
+        assert!(matches!(chacha_svc().decrypt(&short), Err(DecryptionError::InvalidInput(_))));
+    }
+
+    #[test]
+    fn test_bad_base64_invalid_input() {
+        assert!(matches!(
+            chacha_svc().decrypt("not!valid@base64#"),
+            Err(DecryptionError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_from_hex_key_valid() {
+        let hex = "00".repeat(32);
+        assert!(
+            StateEncryptionService::from_hex_key(&hex, EncryptionAlgorithm::Chacha20Poly1305)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_from_hex_key_wrong_length() {
+        assert!(matches!(
+            StateEncryptionService::from_hex_key("deadbeef", EncryptionAlgorithm::Chacha20Poly1305),
+            Err(KeyError::WrongLength(_))
+        ));
+    }
+
+    #[test]
+    fn test_from_hex_key_invalid_hex() {
+        let bad = "zz".repeat(32);
+        assert!(matches!(
+            StateEncryptionService::from_hex_key(&bad, EncryptionAlgorithm::Chacha20Poly1305),
+            Err(KeyError::InvalidHex)
+        ));
+    }
+
+    #[test]
+    fn test_debug_redacts_key() {
+        let svc = chacha_svc();
+        let s = format!("{svc:?}");
+        assert!(!s.contains("00000000"), "key bytes must not appear in debug output");
+        assert!(s.contains("REDACTED"));
+    }
+
+    #[test]
+    fn test_from_compiled_schema_enabled() {
+        let key_hex = "aa".repeat(32);
+        std::env::set_var("TEST_SVC_ENC_KEY_P3", &key_hex);
+        let json = serde_json::json!({
+            "state_encryption": {
+                "enabled": true,
+                "algorithm": "chacha20-poly1305",
+                "key_env": "TEST_SVC_ENC_KEY_P3"
+            }
+        });
+        let svc = StateEncryptionService::from_compiled_schema(&json);
+        assert!(svc.is_some());
+        std::env::remove_var("TEST_SVC_ENC_KEY_P3");
+    }
+
+    #[test]
+    fn test_from_compiled_schema_disabled() {
+        let json = serde_json::json!({"state_encryption": {"enabled": false}});
+        assert!(StateEncryptionService::from_compiled_schema(&json).is_none());
+    }
+
+    #[test]
+    fn test_from_compiled_schema_missing() {
+        assert!(StateEncryptionService::from_compiled_schema(&serde_json::json!({})).is_none());
+    }
+
+    #[test]
+    fn test_cross_algorithm_fails() {
+        let chacha = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Chacha20Poly1305);
+        let aes = StateEncryptionService::from_raw_key(&[0u8; 32], EncryptionAlgorithm::Aes256Gcm);
+        let ct = chacha.encrypt(b"cross").unwrap();
+        assert!(matches!(aes.decrypt(&ct), Err(DecryptionError::AuthenticationFailed)));
+    }
 }
 
 #[cfg(test)]

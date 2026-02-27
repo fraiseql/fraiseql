@@ -101,7 +101,10 @@ pub struct AppState<A: DatabaseAdapter> {
     pub circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
     /// Error sanitizer — strips internal details before sending responses to clients.
-    pub error_sanitizer: Arc<ErrorSanitizer>,
+    pub error_sanitizer:  Arc<ErrorSanitizer>,
+    /// State encryption service (optional, enabled via `[security.state_encryption]`).
+    pub state_encryption:
+        Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -120,6 +123,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             field_encryption: None,
             circuit_breaker: None,
             error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
+            state_encryption: None,
         }
     }
 
@@ -209,6 +213,16 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_error_sanitizer(mut self, sanitizer: Arc<ErrorSanitizer>) -> Self {
         self.error_sanitizer = sanitizer;
+        self
+    }
+
+    /// Attach a state encryption service (loaded from `compiled.security.state_encryption`).
+    #[must_use]
+    pub fn with_state_encryption(
+        mut self,
+        svc: Arc<crate::auth::state_encryption::StateEncryptionService>,
+    ) -> Self {
+        self.state_encryption = Some(svc);
         self
     }
 

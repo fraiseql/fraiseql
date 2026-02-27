@@ -1,4 +1,5 @@
 [dependencies]
+aes-gcm = "0.10"
 anyhow = "1.0"
 async-trait = "0.1"
 axum = {version = "0.8", features = ["macros"]}
