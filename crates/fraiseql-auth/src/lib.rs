@@ -56,6 +56,8 @@ pub mod monitoring;
 pub mod oauth;
 pub mod oidc_provider;
 pub mod operation_rbac;
+pub mod oidc_server_client;
+pub mod pkce;
 pub mod provider;
 pub mod providers;
 pub mod proxy;
@@ -124,6 +126,8 @@ pub use security_init::{
 };
 pub use session::{SessionData, SessionStore, TokenPair};
 pub use session_postgres::PostgresSessionStore;
+pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
+pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
     StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,

@@ -31,9 +31,10 @@ use crate::{
         metrics_middleware, oidc_auth_middleware, trace_layer,
     },
     routes::{
-        PlaygroundState, SubscriptionState, api, graphql::AppState, graphql_get_handler,
-        graphql_handler, health_handler, introspection_handler, metrics_handler,
-        metrics_json_handler, playground_handler, subscription_handler,
+        AuthPkceState, PlaygroundState, SubscriptionState, api, auth_callback, auth_start,
+        graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
+        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
+        subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
@@ -51,6 +52,8 @@ pub struct Server<A: DatabaseAdapter> {
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
     error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
     state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
+    oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -72,6 +75,71 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .security
             .as_ref()
             .and_then(|s| crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(s))
+    }
+
+    /// Build a `PkceStateStore` from the compiled schema if `security.pkce.enabled = true`.
+    ///
+    /// Logs startup warnings for:
+    /// - in-memory store (multi-instance limitation),
+    /// - `state_encryption` disabled while PKCE is enabled,
+    /// - `plain` code challenge method.
+    fn pkce_store_from_schema(
+        schema: &CompiledSchema,
+        state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    ) -> Option<Arc<crate::auth::PkceStateStore>> {
+        let security = schema.security.as_ref()?;
+        let pkce_cfg = security.get("pkce")?;
+
+        #[derive(serde::Deserialize)]
+        struct PkceCfgMinimal {
+            #[serde(default)]
+            enabled:        bool,
+            #[serde(default = "default_ttl")]
+            state_ttl_secs: u64,
+            #[serde(default = "default_method")]
+            code_challenge_method: String,
+        }
+        fn default_ttl()    -> u64    { 600 }
+        fn default_method() -> String { "S256".into() }
+
+        let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone()).ok()?;
+        if !cfg.enabled {
+            return None;
+        }
+
+        warn!(
+            "PKCE state store is in-memory. In-flight auth flows will fail on server restart \
+             or across multiple replicas. A Redis-backed PKCE store is planned for a future release."
+        );
+
+        if state_encryption.is_none() {
+            warn!(
+                "pkce.enabled = true but state_encryption is disabled. \
+                 PKCE state tokens are sent to the OIDC provider unencrypted. \
+                 Enable [security.state_encryption] in production for full protection."
+            );
+        }
+
+        if cfg.code_challenge_method.eq_ignore_ascii_case("plain") {
+            warn!(
+                "pkce.code_challenge_method = \"plain\" is insecure. \
+                 Use \"S256\" in all production environments."
+            );
+        }
+
+        let enc = state_encryption.cloned();
+        Some(Arc::new(crate::auth::PkceStateStore::new(cfg.state_ttl_secs, enc)))
+    }
+
+    /// Build an `OidcServerClient` from the compiled schema JSON, if `[auth]` is present.
+    fn oidc_server_client_from_schema(
+        schema: &CompiledSchema,
+    ) -> Option<Arc<crate::auth::OidcServerClient>> {
+        // The full schema JSON lives in the executor's compiled schema.
+        // Access it via the security Value (which contains the embedded JSON blob).
+        // We expose the root schema JSON here.
+        let schema_json = serde_json::to_value(schema).ok()?;
+        crate::auth::OidcServerClient::from_compiled_schema(&schema_json)
     }
 
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
@@ -133,8 +201,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
-        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption = Self::state_encryption_from_schema(&schema);
+        let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption   = Self::state_encryption_from_schema(&schema);
+        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -146,6 +216,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             circuit_breaker,
             error_sanitizer,
             state_encryption,
+            pkce_store,
+            oidc_server_client,
             db_pool,
         )
         .await
@@ -155,6 +227,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
     /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
+    #[allow(clippy::too_many_arguments)]
+    // Reason: internal constructor that collects all pre-built subsystems; callers pass
+    // already-constructed values rather than building them here, so grouping into a
+    // builder struct would not reduce call-site clarity.
     async fn from_executor(
         config: ServerConfig,
         executor: Arc<Executor<A>>,
@@ -162,8 +238,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         circuit_breaker: Option<
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
-        error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
-        state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+        error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
+        state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+        pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
+        oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
@@ -221,6 +299,31 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             Some(service)
         };
 
+        // Warn if PKCE is configured but [auth] is missing (no OidcServerClient).
+        if pkce_store.is_some() && oidc_server_client.is_none() {
+            tracing::error!(
+                "pkce.enabled = true but [auth] is not configured or OIDC client init failed. \
+                 Auth routes (/auth/start, /auth/callback) will NOT be mounted. \
+                 Add [auth] with discovery_url, client_id, client_secret_env, and \
+                 server_redirect_uri to fraiseql.toml and recompile the schema."
+            );
+        }
+
+        // Spawn background PKCE state cleanup task (every 5 minutes).
+        if let Some(ref store) = pkce_store {
+            use std::time::Duration;
+            use tokio::time::MissedTickBehavior;
+            let store_clone = Arc::clone(store);
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(300));
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                loop {
+                    ticker.tick().await;
+                    store_clone.cleanup_expired();
+                }
+            });
+        }
+
         Ok(Self {
             config,
             executor,
@@ -231,6 +334,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             circuit_breaker,
             error_sanitizer,
             state_encryption,
+            pkce_store,
+            oidc_server_client,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -288,8 +393,10 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
-        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption = Self::state_encryption_from_schema(&schema);
+        let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption   = Self::state_encryption_from_schema(&schema);
+        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -301,6 +408,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             circuit_breaker,
             error_sanitizer,
             state_encryption,
+            pkce_store,
+            oidc_server_client,
             db_pool,
         )
         .await
@@ -336,8 +445,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .federation
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
-        let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
-        let state_encryption = Self::state_encryption_from_schema(&schema);
+        let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        let state_encryption   = Self::state_encryption_from_schema(&schema);
+        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -384,6 +495,29 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
 
+        // Warn if PKCE is configured but [auth] is missing.
+        if pkce_store.is_some() && oidc_server_client.is_none() {
+            tracing::error!(
+                "pkce.enabled = true but [auth] is not configured or OIDC client init failed. \
+                 Auth routes will NOT be mounted."
+            );
+        }
+
+        // Spawn background PKCE state cleanup task (every 5 minutes).
+        if let Some(ref store) = pkce_store {
+            use std::time::Duration;
+            use tokio::time::MissedTickBehavior;
+            let store_clone = Arc::clone(store);
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(300));
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                loop {
+                    ticker.tick().await;
+                    store_clone.cleanup_expired();
+                }
+            });
+        }
+
         Ok(Self {
             config,
             executor,
@@ -394,6 +528,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             circuit_breaker,
             error_sanitizer,
             state_encryption,
+            pkce_store,
+            oidc_server_client,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -687,6 +823,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
                 .with_state(state.clone());
             app = app.nest("/api/v1", design_router);
+        }
+
+        // PKCE OAuth2 auth routes — mounted only when both pkce and [auth] are configured.
+        if let (Some(store), Some(client)) = (&self.pkce_store, &self.oidc_server_client) {
+            let auth_state = Arc::new(AuthPkceState {
+                pkce_store:              Arc::clone(store),
+                oidc_client:             Arc::clone(client),
+                http_client:             Arc::new(reqwest::Client::new()),
+                post_login_redirect_uri: None,
+            });
+            let auth_router = Router::new()
+                .route("/auth/start",    get(auth_start))
+                .route("/auth/callback", get(auth_callback))
+                .with_state(auth_state);
+            app = app.merge(auth_router);
+            info!("PKCE auth routes mounted: GET /auth/start, GET /auth/callback");
         }
 
         // Remaining API routes (query intelligence, federation)

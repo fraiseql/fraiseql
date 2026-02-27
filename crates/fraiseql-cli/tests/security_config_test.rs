@@ -1,8 +1,8 @@
-//! Unit tests for the four [security.*] TOML subsection structs added in Phase 01.
+//! Unit tests for the four [security.*] TOML subsection structs added in Phase 01,
+//! and the `[auth]` `OidcClientConfig` added in Phase 04 (Cycle 0).
 
 use fraiseql_cli::config::toml_schema::{
-    CodeChallengeMethod, ErrorSanitizationTomlConfig, PkceConfig, RateLimitingSecurityConfig,
-    StateEncryptionConfig, TomlSchema,
+    CodeChallengeMethod, ErrorSanitizationTomlConfig, RateLimitingSecurityConfig, TomlSchema,
 };
 
 // ---------------------------------------------------------------------------
@@ -240,4 +240,75 @@ fn test_existing_enterprise_field_not_broken() {
     // New fields should be None when omitted
     assert!(schema.security.error_sanitization.is_none());
     assert!(schema.security.rate_limiting.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// Cycle 0 (Phase 04): OidcClientConfig / [auth]
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_auth_config_parses() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [database]
+        url = "postgresql://localhost/test"
+
+        [auth]
+        discovery_url       = "https://accounts.google.com"
+        client_id           = "my-client-id"
+        client_secret_env   = "OIDC_CLIENT_SECRET"
+        server_redirect_uri = "https://api.example.com/auth/callback"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    let auth = schema.auth.expect("auth section should be present");
+    assert_eq!(auth.discovery_url, "https://accounts.google.com");
+    assert_eq!(auth.client_id, "my-client-id");
+    assert_eq!(auth.client_secret_env, "OIDC_CLIENT_SECRET");
+    assert_eq!(auth.server_redirect_uri, "https://api.example.com/auth/callback");
+}
+
+#[test]
+fn test_auth_absent_by_default() {
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [database]
+        url = "postgresql://localhost/test"
+    "#;
+    let schema: TomlSchema = toml::from_str(toml).unwrap();
+    assert!(schema.auth.is_none(), "[auth] should be absent when not specified");
+}
+
+#[test]
+fn test_auth_client_secret_field_rejected() {
+    // SECURITY: `client_secret` must NEVER appear in the TOML config.
+    // `deny_unknown_fields` on OidcClientConfig must reject it.
+    let toml = r#"
+        [schema]
+        name = "test"
+        version = "1.0.0"
+        database_target = "postgresql"
+
+        [database]
+        url = "postgresql://localhost/test"
+
+        [auth]
+        discovery_url       = "https://accounts.example.com"
+        client_id           = "x"
+        client_secret_env   = "MY_SECRET"
+        server_redirect_uri = "https://example.com/auth/callback"
+        client_secret       = "this-must-fail"
+    "#;
+    let result = toml::from_str::<TomlSchema>(toml);
+    assert!(
+        result.is_err(),
+        "client_secret in TOML must be rejected — secrets belong in env vars, not config files"
+    );
 }

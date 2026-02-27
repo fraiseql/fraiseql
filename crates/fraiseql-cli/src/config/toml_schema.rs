@@ -307,6 +307,14 @@ pub struct TomlSchema {
     /// queries are never affected.
     #[serde(default)]
     pub query_defaults: QueryDefaults,
+
+    /// OAuth2 client identity for server-side PKCE flows.
+    ///
+    /// Required when `[security.pkce] enabled = true`.
+    /// Holds the OIDC provider discovery URL, client_id, and a reference to
+    /// the env var containing the client secret. Never stores the secret itself.
+    #[serde(default)]
+    pub auth: Option<OidcClientConfig>,
 }
 
 /// Schema metadata
@@ -833,6 +841,34 @@ impl Default for PkceConfig {
             state_ttl_secs:        600,
         }
     }
+}
+
+/// OAuth2 client configuration for server-side PKCE flows.
+///
+/// The client secret is intentionally absent — use `client_secret_env` to
+/// name the environment variable that holds the secret at runtime.
+///
+/// ```toml
+/// [auth]
+/// discovery_url       = "https://accounts.google.com"
+/// client_id           = "my-fraiseql-client"
+/// client_secret_env   = "OIDC_CLIENT_SECRET"
+/// server_redirect_uri = "https://api.example.com/auth/callback"
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OidcClientConfig {
+    /// OIDC provider discovery URL (e.g. `"https://accounts.google.com"`).
+    /// Used to fetch `authorization_endpoint` and `token_endpoint` at compile time.
+    pub discovery_url:       String,
+    /// OAuth2 `client_id` registered with the provider.
+    pub client_id:           String,
+    /// Name of the environment variable that holds the client secret.
+    /// The secret itself must never appear in TOML or the compiled schema.
+    pub client_secret_env:   String,
+    /// The full URL of this server's `/auth/callback` endpoint,
+    /// e.g. `"https://api.example.com/auth/callback"`.
+    pub server_redirect_uri: String,
 }
 
 /// Observers/event system configuration
