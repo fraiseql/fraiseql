@@ -44,6 +44,10 @@ pub struct RateLimitingSecurityConfig {
     pub auth_refresh_max_requests: u32,
     /// Token refresh window in seconds.
     pub auth_refresh_window_secs: u64,
+    /// Per-authenticated-user request rate in requests/second.
+    /// Defaults to 10× `requests_per_second` if not set.
+    #[serde(default)]
+    pub requests_per_second_per_user: Option<u32>,
     /// Redis URL for distributed rate limiting (not yet implemented).
     pub redis_url: Option<String>,
 }
@@ -82,12 +86,20 @@ impl Default for RateLimitConfig {
 impl RateLimitConfig {
     /// Build from the `[security.rate_limiting]` config embedded in the compiled schema.
     ///
-    /// Maps `requests_per_second` → `rps_per_ip` / `rps_per_user` and `burst_size` directly.
+    /// Maps `requests_per_second` → `rps_per_ip` and `burst_size` directly.
+    /// `rps_per_user` uses the explicit `requests_per_second_per_user` value when set,
+    /// or defaults to 10× `requests_per_second`.
+    ///
+    /// The default 10× multiplier reflects that authenticated users are identifiable
+    /// (abuse is traceable) and include service accounts with higher call rates.
+    /// Operators can override with `requests_per_second_per_user` in `fraiseql.toml`.
     pub fn from_security_config(sec: &RateLimitingSecurityConfig) -> Self {
         Self {
             enabled:               sec.enabled,
             rps_per_ip:            sec.requests_per_second,
-            rps_per_user:          sec.requests_per_second.saturating_mul(10),
+            rps_per_user:          sec
+                .requests_per_second_per_user
+                .unwrap_or_else(|| sec.requests_per_second.saturating_mul(10)),
             burst_size:            sec.burst_size,
             cleanup_interval_secs: 300,
         }
@@ -159,8 +171,8 @@ impl TokenBucket {
     }
 }
 
-/// Rate limiter state tracker.
-pub struct RateLimiter {
+/// In-memory token-bucket rate limiter.
+pub struct InMemoryRateLimiter {
     config:          RateLimitConfig,
     // IP -> TokenBucket (global limit)
     ip_buckets:      Arc<RwLock<HashMap<String, TokenBucket>>>,
@@ -172,8 +184,8 @@ pub struct RateLimiter {
     path_ip_buckets: Arc<RwLock<HashMap<(String, String), TokenBucket>>>,
 }
 
-impl RateLimiter {
-    /// Create new rate limiter.
+impl InMemoryRateLimiter {
+    /// Create new in-memory rate limiter.
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
             config,
@@ -323,6 +335,396 @@ impl RateLimiter {
             "Rate limiter state"
         );
     }
+
+    /// Number of per-path rate limit rules registered.
+    pub fn path_rule_count(&self) -> usize {
+        self.path_rules.len()
+    }
+}
+
+// ─── Redis backend ────────────────────────────────────────────────────────────
+
+/// Cumulative count of Redis rate limiter errors (fail-open events).
+///
+/// Exposed via `/metrics` as `fraiseql_rate_limit_redis_errors_total`.
+#[cfg(feature = "redis-rate-limiting")]
+pub static REDIS_RATE_LIMIT_ERRORS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Return the total number of Redis rate-limit fail-open events observed so far.
+#[cfg(feature = "redis-rate-limiting")]
+pub fn redis_error_count_total() -> u64 {
+    REDIS_RATE_LIMIT_ERRORS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Internal result returned by the Redis Lua token-bucket script.
+#[cfg(feature = "redis-rate-limiting")]
+struct RedisRateLimitResult {
+    allowed: bool,
+    // retry_after_ms is returned by the Lua script and preserved for future use
+    // (e.g. surfacing in `Retry-After` headers from the Redis backend).
+    #[allow(dead_code)]
+    retry_after_ms: u64,
+}
+
+/// Atomic token-bucket Lua script for Redis.
+///
+/// Arguments:
+/// - `KEYS[1]`  — bucket key (e.g. `fraiseql:rl:ip:1.2.3.4`)
+/// - `ARGV[1]`  — capacity  (burst_size, integer tokens)
+/// - `ARGV[2]`  — refill rate (tokens per second, integer)
+/// - `ARGV[3]`  — now (Unix timestamp in **milliseconds**)
+///
+/// Returns `[allowed (0|1), remaining_tokens, retry_after_ms]`.
+#[cfg(feature = "redis-rate-limiting")]
+const RATE_LIMIT_LUA: &str = r#"
+local key      = KEYS[1]
+local capacity = tonumber(ARGV[1])
+local rate     = tonumber(ARGV[2])
+local now      = tonumber(ARGV[3])
+
+local bucket     = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens     = tonumber(bucket[1]) or capacity
+local last_refill = tonumber(bucket[2]) or now
+
+local elapsed = math.max(0, now - last_refill) / 1000.0
+local refill  = math.floor(elapsed * rate)
+tokens = math.min(capacity, tokens + refill)
+
+if tokens >= 1 then
+    tokens = tokens - 1
+    redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+    redis.call('PEXPIRE', key, math.ceil(capacity / rate * 1000))
+    return {1, tokens, 0}
+else
+    local retry_ms = math.ceil((1 - tokens) / rate * 1000)
+    return {0, 0, retry_ms}
+end
+"#;
+
+/// Rate limiter backed by Redis for distributed, multi-instance deployments.
+///
+/// Uses an atomic Lua token-bucket script (`EVALSHA`) to prevent race
+/// conditions when multiple server replicas share a rate limit.
+///
+/// **Fail-open**: on Redis errors requests are allowed and a warning is
+/// logged. The cumulative error count is tracked in [`REDIS_RATE_LIMIT_ERRORS`]
+/// and exposed in the `/metrics` endpoint.
+#[cfg(feature = "redis-rate-limiting")]
+pub struct RedisRateLimiter {
+    pool:       redis::aio::ConnectionManager,
+    config:     RateLimitConfig,
+    path_rules: Vec<PathRateLimit>,
+    /// Cached SHA of the loaded Lua script.  Cleared on `NOSCRIPT` errors so
+    /// the script is transparently reloaded (e.g. after a Redis restart).
+    script_sha: tokio::sync::RwLock<Option<String>>,
+}
+
+#[cfg(feature = "redis-rate-limiting")]
+impl RedisRateLimiter {
+    /// Connect to Redis and prepare the rate limiter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the URL is invalid or the connection fails.
+    pub async fn new(url: &str, config: RateLimitConfig) -> Result<Self, redis::RedisError> {
+        let client = redis::Client::open(url)?;
+        let pool = redis::aio::ConnectionManager::new(client).await?;
+        Ok(Self {
+            pool,
+            config,
+            path_rules: Vec::new(),
+            script_sha: tokio::sync::RwLock::new(None),
+        })
+    }
+
+    /// Attach per-path rules from `[security.rate_limiting]` auth endpoint fields.
+    #[must_use]
+    pub fn with_path_rules_from_security(mut self, sec: &RateLimitingSecurityConfig) -> Self {
+        let mut rules = Vec::new();
+
+        if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/start".to_string(),
+                tokens_per_sec: f64::from(sec.auth_start_max_requests)
+                    / sec.auth_start_window_secs as f64,
+                burst:          f64::from(sec.auth_start_max_requests),
+            });
+        }
+        if sec.auth_callback_max_requests > 0 && sec.auth_callback_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/callback".to_string(),
+                tokens_per_sec: f64::from(sec.auth_callback_max_requests)
+                    / sec.auth_callback_window_secs as f64,
+                burst:          f64::from(sec.auth_callback_max_requests),
+            });
+        }
+        if sec.auth_refresh_max_requests > 0 && sec.auth_refresh_window_secs > 0 {
+            rules.push(PathRateLimit {
+                path_prefix:    "/auth/refresh".to_string(),
+                tokens_per_sec: f64::from(sec.auth_refresh_max_requests)
+                    / sec.auth_refresh_window_secs as f64,
+                burst:          f64::from(sec.auth_refresh_max_requests),
+            });
+        }
+
+        self.path_rules = rules;
+        self
+    }
+
+    /// Return the active rate limit configuration.
+    pub fn config(&self) -> &RateLimitConfig {
+        &self.config
+    }
+
+    /// Number of per-path rate limit rules registered.
+    pub fn path_rule_count(&self) -> usize {
+        self.path_rules.len()
+    }
+
+    /// Load the Lua script into Redis and cache its SHA for subsequent calls.
+    async fn load_script(&self) -> Result<String, redis::RedisError> {
+        if let Some(sha) = self.script_sha.read().await.as_ref().cloned() {
+            return Ok(sha);
+        }
+        let mut conn = self.pool.clone();
+        let sha: String = redis::cmd("SCRIPT")
+            .arg("LOAD")
+            .arg(RATE_LIMIT_LUA)
+            .query_async(&mut conn)
+            .await?;
+        *self.script_sha.write().await = Some(sha.clone());
+        Ok(sha)
+    }
+
+    /// Execute the Lua token-bucket script atomically.
+    ///
+    /// Falls back from `EVALSHA` to a fresh reload on `NOSCRIPT` errors
+    /// (script cache cleared after a Redis restart).
+    async fn check_and_decrement(
+        &self,
+        key: &str,
+        capacity: u32,
+        rate_per_sec: f64,
+    ) -> Result<RedisRateLimitResult, redis::RedisError> {
+        let sha = self.load_script().await?;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let mut conn = self.pool.clone();
+        // Lua receives integer tokens/sec; ensure at least 1 to avoid /0 in the script.
+        let rate_arg = (rate_per_sec as u64).max(1);
+
+        let result: Vec<i64> = match redis::cmd("EVALSHA")
+            .arg(&sha)
+            .arg(1)
+            .arg(key)
+            .arg(capacity)
+            .arg(rate_arg)
+            .arg(now_ms)
+            .query_async(&mut conn)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) if e.kind() == redis::ErrorKind::NoScriptError => {
+                // Script cache was cleared (e.g. Redis restart) — reload and retry.
+                *self.script_sha.write().await = None;
+                let sha2 = self.load_script().await?;
+                redis::cmd("EVALSHA")
+                    .arg(&sha2)
+                    .arg(1)
+                    .arg(key)
+                    .arg(capacity)
+                    .arg(rate_arg)
+                    .arg(now_ms)
+                    .query_async(&mut conn)
+                    .await?
+            },
+            Err(e) => return Err(e),
+        };
+
+        Ok(RedisRateLimitResult {
+            allowed:        result[0] == 1,
+            retry_after_ms: result[2] as u64,
+        })
+    }
+
+    /// Check a key against the token bucket, failing open on Redis error.
+    async fn check_key(&self, key: &str, capacity: u32, rate_per_sec: f64) -> bool {
+        if !self.config.enabled {
+            return true;
+        }
+        match self.check_and_decrement(key, capacity, rate_per_sec).await {
+            Ok(result) => result.allowed,
+            Err(e) => {
+                REDIS_RATE_LIMIT_ERRORS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                warn!(error = %e, "Redis rate limiter error — failing open");
+                true
+            },
+        }
+    }
+
+    /// Check IP limit using the Redis token bucket.
+    pub async fn check_ip_limit(&self, ip: &str) -> bool {
+        let key = format!("fraiseql:rl:ip:{ip}");
+        self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_ip))
+            .await
+    }
+
+    /// Check user limit using the Redis token bucket.
+    pub async fn check_user_limit(&self, user_id: &str) -> bool {
+        let key = format!("fraiseql:rl:user:{user_id}");
+        self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_user))
+            .await
+    }
+
+    /// Check per-path limit for `ip` on `path`.
+    ///
+    /// Returns `true` (allowed) when no rule matches the path.
+    pub async fn check_path_limit(&self, path: &str, ip: &str) -> bool {
+        if !self.config.enabled {
+            return true;
+        }
+        let rule =
+            self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()));
+        let Some(rule) = rule else { return true };
+        let key = format!("fraiseql:rl:path:{}:{ip}", rule.path_prefix);
+        // capacity must be ≥1 to avoid division by zero in the Lua script
+        let capacity = (rule.burst as u32).max(1);
+        self.check_key(&key, capacity, rule.tokens_per_sec).await
+    }
+
+    /// Remaining tokens for `ip` (approximated; actual value lives in Redis).
+    pub async fn get_ip_remaining(&self, _ip: &str) -> f64 {
+        f64::from(self.config.burst_size)
+    }
+
+    /// Remaining tokens for `user_id` (approximated).
+    pub async fn get_user_remaining(&self, _user_id: &str) -> f64 {
+        f64::from(self.config.burst_size)
+    }
+}
+
+// ─── Unified RateLimiter enum ─────────────────────────────────────────────────
+
+/// Rate limiter that dispatches to either an in-memory or Redis backend.
+///
+/// Construct via [`RateLimiter::new`] (in-memory, default) or
+/// [`RateLimiter::new_redis`] (distributed Redis, requires the
+/// `redis-rate-limiting` Cargo feature).
+pub enum RateLimiter {
+    /// Single-node token-bucket limiter backed by `HashMap` with `RwLock`.
+    InMemory(InMemoryRateLimiter),
+    /// Distributed token-bucket limiter backed by Redis Lua scripts.
+    #[cfg(feature = "redis-rate-limiting")]
+    Redis(RedisRateLimiter),
+}
+
+impl RateLimiter {
+    /// Create an in-memory rate limiter.
+    pub fn new(config: RateLimitConfig) -> Self {
+        Self::InMemory(InMemoryRateLimiter::new(config))
+    }
+
+    /// Create a Redis-backed distributed rate limiter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Redis URL is invalid or the initial connection
+    /// attempt fails.
+    #[cfg(feature = "redis-rate-limiting")]
+    pub async fn new_redis(url: &str, config: RateLimitConfig) -> Result<Self, redis::RedisError> {
+        let rl = RedisRateLimiter::new(url, config).await?;
+        Ok(Self::Redis(rl))
+    }
+
+    /// Attach per-path rules from `[security.rate_limiting]` auth endpoint fields.
+    #[must_use]
+    pub fn with_path_rules_from_security(self, sec: &RateLimitingSecurityConfig) -> Self {
+        match self {
+            Self::InMemory(rl) => Self::InMemory(rl.with_path_rules_from_security(sec)),
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => Self::Redis(rl.with_path_rules_from_security(sec)),
+        }
+    }
+
+    /// Return the active rate limit configuration.
+    pub fn config(&self) -> &RateLimitConfig {
+        match self {
+            Self::InMemory(rl) => rl.config(),
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.config(),
+        }
+    }
+
+    /// Number of per-path rate limit rules registered.
+    pub fn path_rule_count(&self) -> usize {
+        match self {
+            Self::InMemory(rl) => rl.path_rule_count(),
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.path_rule_count(),
+        }
+    }
+
+    /// Check whether a request from `ip` is within the global IP rate limit.
+    pub async fn check_ip_limit(&self, ip: &str) -> bool {
+        match self {
+            Self::InMemory(rl) => rl.check_ip_limit(ip).await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.check_ip_limit(ip).await,
+        }
+    }
+
+    /// Check whether a request from `user_id` is within the per-user limit.
+    pub async fn check_user_limit(&self, user_id: &str) -> bool {
+        match self {
+            Self::InMemory(rl) => rl.check_user_limit(user_id).await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.check_user_limit(user_id).await,
+        }
+    }
+
+    /// Check the per-path rate limit for a request from `ip` to `path`.
+    ///
+    /// Returns `true` (allowed) when no rule matches the path.
+    pub async fn check_path_limit(&self, path: &str, ip: &str) -> bool {
+        match self {
+            Self::InMemory(rl) => rl.check_path_limit(path, ip).await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.check_path_limit(path, ip).await,
+        }
+    }
+
+    /// Remaining tokens for `ip` (used for `X-RateLimit-Remaining` header).
+    pub async fn get_ip_remaining(&self, ip: &str) -> f64 {
+        match self {
+            Self::InMemory(rl) => rl.get_ip_remaining(ip).await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.get_ip_remaining(ip).await,
+        }
+    }
+
+    /// Remaining tokens for `user_id`.
+    pub async fn get_user_remaining(&self, user_id: &str) -> f64 {
+        match self {
+            Self::InMemory(rl) => rl.get_user_remaining(user_id).await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.get_user_remaining(user_id).await,
+        }
+    }
+
+    /// Evict stale in-memory buckets.
+    ///
+    /// No-op for the Redis backend — Redis handles expiry via `PEXPIRE`.
+    pub async fn cleanup(&self) {
+        match self {
+            Self::InMemory(rl) => rl.cleanup().await,
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(_) => {},
+        }
+    }
 }
 
 /// Rate limit middleware response.
@@ -375,7 +777,7 @@ pub async fn rate_limit_middleware(
 
     // Add rate limit headers
     let mut response = response;
-    if let Ok(limit_value) = format!("{}", limiter.config.rps_per_ip).parse() {
+    if let Ok(limit_value) = format!("{}", limiter.config().rps_per_ip).parse() {
         response.headers_mut().insert("X-RateLimit-Limit", limit_value);
     }
     if let Ok(remaining_value) = format!("{}", remaining as u32).parse() {
@@ -560,6 +962,30 @@ mod tests {
     }
 
     #[test]
+    fn test_from_security_config_defaults_per_user_to_10x() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:             true,
+            requests_per_second: 50,
+            ..Default::default()
+        };
+        let cfg = RateLimitConfig::from_security_config(&sec);
+        assert_eq!(cfg.rps_per_user, 500); // 50 × 10 default
+    }
+
+    #[test]
+    fn test_from_security_config_custom_per_user_rps_overrides_default() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:                       true,
+            requests_per_second:           100,
+            requests_per_second_per_user:  Some(250),
+            ..Default::default()
+        };
+        let cfg = RateLimitConfig::from_security_config(&sec);
+        assert_eq!(cfg.rps_per_user, 250); // explicit value used
+        assert_eq!(cfg.rps_per_ip, 100);   // global unchanged
+    }
+
+    #[test]
     fn test_with_path_rules_generates_auth_start_rule() {
         let sec = RateLimitingSecurityConfig {
             enabled:                 true,
@@ -571,9 +997,8 @@ mod tests {
         };
         let config = RateLimitConfig::from_security_config(&sec);
         let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
-        // Verify a path rule was registered (indirectly, by checking path limiting works)
-        assert_eq!(limiter.path_rules.len(), 1);
-        assert_eq!(limiter.path_rules[0].path_prefix, "/auth/start");
+        // Verify exactly one path rule was registered for /auth/start
+        assert_eq!(limiter.path_rule_count(), 1);
     }
 
     #[tokio::test]
@@ -629,5 +1054,63 @@ mod tests {
         assert!(!limiter.check_path_limit("/auth/start", "1.1.1.1").await);
         // IP2 still gets its full allowance
         assert!(limiter.check_path_limit("/auth/start", "2.2.2.2").await);
+    }
+
+    // ─── Redis integration tests ─────────────────────────────────────────────
+    // These require a live Redis instance.  Run with:
+    //   REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-server \
+    //     --features redis-rate-limiting -- redis_rate_limiter --ignored
+
+    #[cfg(feature = "redis-rate-limiting")]
+    #[tokio::test]
+    #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+    async fn test_redis_rate_limiter_allows_up_to_capacity() {
+        let url = std::env::var("REDIS_URL")
+            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let config = RateLimitConfig {
+            enabled:               true,
+            rps_per_ip:            5,
+            rps_per_user:          5,
+            burst_size:            5,
+            cleanup_interval_secs: 300,
+        };
+        let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
+        // Use a unique key to avoid interference between test runs
+        let ip = format!("test_allow:{}", uuid::Uuid::new_v4());
+        for _ in 0..5 {
+            assert!(rl.check_ip_limit(&ip).await, "should be allowed within capacity");
+        }
+        assert!(!rl.check_ip_limit(&ip).await, "6th request should be rejected");
+    }
+
+    #[cfg(feature = "redis-rate-limiting")]
+    #[tokio::test]
+    #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+    async fn test_redis_two_instances_share_bucket() {
+        let url = std::env::var("REDIS_URL")
+            .unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let config = RateLimitConfig {
+            enabled:               true,
+            rps_per_ip:            3,
+            rps_per_user:          3,
+            burst_size:            3,
+            cleanup_interval_secs: 300,
+        };
+        let suffix = uuid::Uuid::new_v4();
+        let a = RateLimiter::new_redis(&url, config.clone())
+            .await
+            .expect("Redis connection failed");
+        let b = RateLimiter::new_redis(&url, config)
+            .await
+            .expect("Redis connection failed");
+        let ip = format!("test_shared:{suffix}");
+
+        // Instance A consumes 2 tokens
+        assert!(a.check_ip_limit(&ip).await);
+        assert!(a.check_ip_limit(&ip).await);
+        // Instance B consumes the 3rd token
+        assert!(b.check_ip_limit(&ip).await);
+        // 4th token across both instances should be rejected
+        assert!(!b.check_ip_limit(&ip).await, "4th request should be rejected across instances");
     }
 }

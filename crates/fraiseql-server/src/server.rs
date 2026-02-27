@@ -15,7 +15,7 @@ use fraiseql_core::{
     security::OidcValidator,
 };
 use tokio::net::TcpListener;
-#[cfg(any(feature = "observers", feature = "redis-rate-limiting"))]
+#[cfg(any(feature = "observers", feature = "redis-rate-limiting", feature = "redis-pkce"))]
 use tracing::error;
 use tracing::{info, warn};
 #[cfg(feature = "observers")]
@@ -87,11 +87,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Build a `PkceStateStore` from the compiled schema if `security.pkce.enabled = true`.
     ///
-    /// Logs startup warnings for:
-    /// - in-memory store (multi-instance limitation),
-    /// - `state_encryption` disabled while PKCE is enabled,
-    /// - `plain` code challenge method.
-    fn pkce_store_from_schema(
+    /// When `redis_url` is set and the `redis-pkce` feature is compiled in, initialises
+    /// a Redis-backed distributed store; otherwise falls back to the in-memory backend
+    /// with a warning.
+    async fn pkce_store_from_schema(
         schema: &CompiledSchema,
         state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
     ) -> Option<Arc<crate::auth::PkceStateStore>> {
@@ -106,6 +105,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             state_ttl_secs: u64,
             #[serde(default = "default_method")]
             code_challenge_method: String,
+            redis_url: Option<String>,
         }
         fn default_ttl()    -> u64    { 600 }
         fn default_method() -> String { "S256".into() }
@@ -114,11 +114,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if !cfg.enabled {
             return None;
         }
-
-        warn!(
-            "PKCE state store is in-memory. In-flight auth flows will fail on server restart \
-             or across multiple replicas. A Redis-backed PKCE store is planned for a future release."
-        );
 
         if state_encryption.is_none() {
             warn!(
@@ -136,7 +131,79 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         let enc = state_encryption.cloned();
+
+        // Prefer the Redis backend when redis_url is configured and the feature is compiled in.
+        #[cfg(feature = "redis-pkce")]
+        if let Some(ref url) = cfg.redis_url {
+            match crate::auth::PkceStateStore::new_redis(url, cfg.state_ttl_secs, enc.clone())
+                .await
+            {
+                Ok(store) => {
+                    info!(redis_url = %url, "PKCE state store: Redis backend");
+                    return Some(Arc::new(store));
+                }
+                Err(e) => {
+                    error!(
+                        error = %e,
+                        redis_url = %url,
+                        "Failed to connect to Redis PKCE store — falling back to in-memory"
+                    );
+                }
+            }
+        }
+
+        #[cfg(not(feature = "redis-pkce"))]
+        if cfg.redis_url.is_some() {
+            warn!(
+                "pkce.redis_url is set but the `redis-pkce` Cargo feature is not compiled in. \
+                 Rebuild with `--features redis-pkce` to enable the Redis PKCE backend. \
+                 Falling back to in-memory storage."
+            );
+        }
+
+        warn!(
+            "PKCE state store: in-memory. In a multi-replica deployment, auth flows will fail \
+             if /auth/start and /auth/callback hit different replicas. \
+             Set [security.pkce] redis_url to enable the Redis backend, \
+             or FRAISEQL_REQUIRE_REDIS=1 to enforce it at startup."
+        );
+
         Some(Arc::new(crate::auth::PkceStateStore::new(cfg.state_ttl_secs, enc)))
+    }
+
+    /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is set.
+    ///
+    /// When `FRAISEQL_REQUIRE_REDIS=1` is present in the environment, the server refuses
+    /// to start if the PKCE state store is using in-memory storage.  This prevents silent
+    /// per-replica state isolation in multi-instance deployments.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` with an operator-actionable message when the
+    /// constraint is violated.
+    fn check_redis_requirement(
+        pkce_store: Option<&Arc<crate::auth::PkceStateStore>>,
+    ) -> crate::Result<()> {
+        if std::env::var("FRAISEQL_REQUIRE_REDIS").is_ok() {
+            let pkce_in_memory = pkce_store.is_some_and(|s| s.is_in_memory());
+            if pkce_in_memory {
+                return Err(ServerError::ConfigError(concat!(
+                    "FraiseQL failed to start\n\n",
+                    "  FRAISEQL_REQUIRE_REDIS is set but PKCE auth state is using in-memory storage.\n",
+                    "  In a multi-replica deployment, auth callbacks can fail if they hit a\n",
+                    "  different replica than the one that handled /auth/start.\n\n",
+                    "  To fix:\n",
+                    "    [security.pkce]\n",
+                    "    redis_url = \"redis://localhost:6379\"\n\n",
+                    "    [security.rate_limiting]\n",
+                    "    redis_url = \"redis://localhost:6379\"\n\n",
+                    "  To allow in-memory (single-replica only):\n",
+                    "    Unset FRAISEQL_REQUIRE_REDIS",
+                )
+                .into()));
+            }
+        }
+        Ok(())
     }
 
     /// Build an `OidcServerClient` from the compiled schema JSON, if `[auth]` is present.
@@ -275,7 +342,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
         let state_encryption   = Self::state_encryption_from_schema(&schema)?;
-        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
@@ -386,6 +453,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and PKCE store is in-memory.
+        Self::check_redis_requirement(pkce_store.as_ref())?;
+
         // Spawn background PKCE state cleanup task (every 5 minutes).
         if let Some(ref store) = pkce_store {
             use std::time::Duration;
@@ -396,7 +466,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
                 loop {
                     ticker.tick().await;
-                    store_clone.cleanup_expired();
+                    store_clone.cleanup_expired().await;
                 }
             });
         }
@@ -472,7 +542,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
         let state_encryption   = Self::state_encryption_from_schema(&schema)?;
-        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
@@ -526,7 +596,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer     = Self::error_sanitizer_from_schema(&schema);
         let state_encryption    = Self::state_encryption_from_schema(&schema)?;
-        let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref());
+        let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         let oidc_server_client  = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
@@ -585,6 +655,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and PKCE store is in-memory.
+        Self::check_redis_requirement(pkce_store.as_ref())?;
+
         // Spawn background PKCE state cleanup task (every 5 minutes).
         if let Some(ref store) = pkce_store {
             use std::time::Duration;
@@ -595,7 +668,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
                 loop {
                     ticker.tick().await;
-                    store_clone.cleanup_expired();
+                    store_clone.cleanup_expired().await;
                 }
             });
         }

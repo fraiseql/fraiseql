@@ -728,6 +728,10 @@ pub struct RateLimitingSecurityConfig {
     pub failed_login_max_attempts: u32,
     /// Duration of failed-login lockout in seconds
     pub failed_login_lockout_secs: u64,
+    /// Per-authenticated-user request rate in requests/second.
+    /// Defaults to 10× `requests_per_second` if not set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_per_second_per_user: Option<u32>,
     /// Redis URL for distributed rate limiting (optional — falls back to in-memory)
     pub redis_url: Option<String>,
 }
@@ -735,20 +739,21 @@ pub struct RateLimitingSecurityConfig {
 impl Default for RateLimitingSecurityConfig {
     fn default() -> Self {
         Self {
-            enabled:                    false,
-            requests_per_second:        100,
-            burst_size:                 200,
-            auth_start_max_requests:    5,
-            auth_start_window_secs:     60,
-            auth_callback_max_requests: 10,
-            auth_callback_window_secs:  60,
-            auth_refresh_max_requests:  20,
-            auth_refresh_window_secs:   300,
-            auth_logout_max_requests:   30,
-            auth_logout_window_secs:    60,
-            failed_login_max_attempts:  10,
-            failed_login_lockout_secs:  900,
-            redis_url:                  None,
+            enabled:                      false,
+            requests_per_second:          100,
+            requests_per_second_per_user: None,
+            burst_size:                   200,
+            auth_start_max_requests:      5,
+            auth_start_window_secs:       60,
+            auth_callback_max_requests:   10,
+            auth_callback_window_secs:    60,
+            auth_refresh_max_requests:    20,
+            auth_refresh_window_secs:     300,
+            auth_logout_max_requests:     30,
+            auth_logout_window_secs:      60,
+            failed_login_max_attempts:    10,
+            failed_login_lockout_secs:    900,
+            redis_url:                    None,
         }
     }
 }
@@ -831,6 +836,16 @@ pub struct PkceConfig {
     pub code_challenge_method: CodeChallengeMethod,
     /// How long the PKCE state is valid before the auth flow expires (seconds)
     pub state_ttl_secs: u64,
+    /// Redis URL for distributed PKCE state storage across multiple replicas.
+    ///
+    /// Required for multi-replica deployments (Kubernetes, ECS, fly.io with
+    /// multiple instances). Without Redis, `/auth/start` and `/auth/callback`
+    /// must hit the same replica.
+    ///
+    /// Requires the `redis-pkce` Cargo feature to be compiled in.
+    /// Example: `"redis://localhost:6379"` or `"${REDIS_URL}"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url: Option<String>,
 }
 
 impl Default for PkceConfig {
@@ -839,6 +854,7 @@ impl Default for PkceConfig {
             enabled:               false,
             code_challenge_method: CodeChallengeMethod::S256,
             state_ttl_secs:        600,
+            redis_url:             None,
         }
     }
 }
@@ -1521,5 +1537,30 @@ database_target = "postgresql"
         assert_eq!(schema.database.pool_min, 2);
         assert_eq!(schema.database.pool_max, 20);
         assert!(schema.database.url.is_none());
+    }
+
+    #[test]
+    fn test_rate_limiting_config_parses_per_user_rps() {
+        let toml = r#"
+[security.rate_limiting]
+enabled = true
+requests_per_second = 100
+requests_per_second_per_user = 250
+"#;
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        let rl = schema.security.rate_limiting.unwrap();
+        assert_eq!(rl.requests_per_second_per_user, Some(250));
+    }
+
+    #[test]
+    fn test_rate_limiting_config_per_user_rps_defaults_to_none() {
+        let toml = r#"
+[security.rate_limiting]
+enabled = true
+requests_per_second = 50
+"#;
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        let rl = schema.security.rate_limiting.unwrap();
+        assert_eq!(rl.requests_per_second_per_user, None);
     }
 }

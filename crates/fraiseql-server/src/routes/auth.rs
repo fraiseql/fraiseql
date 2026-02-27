@@ -119,7 +119,7 @@ pub async fn auth_start(
         return auth_error(StatusCode::BAD_REQUEST, "redirect_uri is required");
     }
 
-    let (outbound_token, verifier) = match state.pkce_store.create_state(&q.redirect_uri) {
+    let (outbound_token, verifier) = match state.pkce_store.create_state(&q.redirect_uri).await {
         Ok(v) => v,
         Err(e) => {
             tracing::error!("pkce create_state failed: {e}");
@@ -182,7 +182,7 @@ pub async fn auth_callback(
     };
 
     // ── Consume PKCE state (atomic remove) ───────────────────────────────
-    let pkce = match state.pkce_store.consume_state(&state_token) {
+    let pkce = match state.pkce_store.consume_state(&state_token).await {
         Ok(s) => s,
         Err(e) => {
             // Both StateNotFound and StateExpired are client errors.

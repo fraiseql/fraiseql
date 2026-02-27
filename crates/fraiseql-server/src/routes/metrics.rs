@@ -79,6 +79,36 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         }
     }
 
+    // Append Redis rate-limiter error counter when the feature is compiled in.
+    #[cfg(feature = "redis-rate-limiting")]
+    {
+        let errors = crate::middleware::rate_limit::redis_error_count_total();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_rate_limit_redis_errors_total ",
+                "Total Redis rate limiter fail-open events (Redis unreachable)\n",
+                "# TYPE fraiseql_rate_limit_redis_errors_total counter\n",
+                "fraiseql_rate_limit_redis_errors_total {errors}\n",
+            ),
+            errors = errors
+        ));
+    }
+
+    // Append Redis PKCE store error counter when the feature is compiled in.
+    #[cfg(feature = "redis-pkce")]
+    {
+        let errors = fraiseql_auth::pkce::redis_pkce_error_count_total();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_pkce_redis_errors_total ",
+                "Total Redis PKCE store errors (connection failures, etc.)\n",
+                "# TYPE fraiseql_pkce_redis_errors_total counter\n",
+                "fraiseql_pkce_redis_errors_total {errors}\n",
+            ),
+            errors = errors
+        ));
+    }
+
     (axum::http::StatusCode::OK, [("Content-Type", "text/plain; version=0.0.4")], output)
 }
 
