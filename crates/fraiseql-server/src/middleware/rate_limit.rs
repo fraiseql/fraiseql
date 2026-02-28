@@ -50,6 +50,13 @@ pub struct RateLimitingSecurityConfig {
     pub requests_per_second_per_user: Option<u32>,
     /// Redis URL for distributed rate limiting (not yet implemented).
     pub redis_url: Option<String>,
+    /// Trust `X-Real-IP` / `X-Forwarded-For` headers for the client IP.
+    ///
+    /// Enable only when FraiseQL is deployed behind a trusted reverse proxy
+    /// (e.g. nginx, Cloudflare, AWS ALB) that sets these headers.  Enabling
+    /// without a trusted proxy allows clients to spoof their IP address.
+    #[serde(default)]
+    pub trust_proxy_headers: bool,
 }
 
 /// Rate limiting configuration.
@@ -69,6 +76,11 @@ pub struct RateLimitConfig {
 
     /// Cleanup interval in seconds (remove stale entries)
     pub cleanup_interval_secs: u64,
+
+    /// Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.
+    ///
+    /// Must only be enabled when behind a trusted reverse proxy.
+    pub trust_proxy_headers: bool,
 }
 
 impl Default for RateLimitConfig {
@@ -79,6 +91,7 @@ impl Default for RateLimitConfig {
             rps_per_user:          1000, // 1000 req/sec per user
             burst_size:            500,  // Allow bursts up to 500 requests
             cleanup_interval_secs: 300,  // Clean up every 5 minutes
+            trust_proxy_headers:   false,
         }
     }
 }
@@ -102,6 +115,7 @@ impl RateLimitConfig {
                 .unwrap_or_else(|| sec.requests_per_second.saturating_mul(10)),
             burst_size:            sec.burst_size,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   sec.trust_proxy_headers,
         }
     }
 }
@@ -340,6 +354,22 @@ impl InMemoryRateLimiter {
     pub fn path_rule_count(&self) -> usize {
         self.path_rules.len()
     }
+
+    /// Seconds a client should wait before retrying after a per-path rate limit rejection.
+    ///
+    /// Returns `ceil(1 / tokens_per_sec)` for the rule matching `path`, or 1 if no rule
+    /// matches (which shouldn't happen in practice — callers only invoke this after a
+    /// rejection).
+    pub fn retry_after_for_path(&self, path: &str) -> u32 {
+        if let Some(rule) =
+            self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()))
+        {
+            if rule.tokens_per_sec > 0.0 {
+                return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
+            }
+        }
+        1
+    }
 }
 
 // ─── Redis backend ────────────────────────────────────────────────────────────
@@ -480,6 +510,18 @@ impl RedisRateLimiter {
     /// Number of per-path rate limit rules registered.
     pub fn path_rule_count(&self) -> usize {
         self.path_rules.len()
+    }
+
+    /// Seconds a client should wait before retrying after a per-path rate limit rejection.
+    pub fn retry_after_for_path(&self, path: &str) -> u32 {
+        if let Some(rule) =
+            self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()))
+        {
+            if rule.tokens_per_sec > 0.0 {
+                return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
+            }
+        }
+        1
     }
 
     /// Load the Lua script into Redis and cache its SHA for subsequent calls.
@@ -668,6 +710,18 @@ impl RateLimiter {
         }
     }
 
+    /// Seconds a client should wait before retrying after a per-path rate limit rejection.
+    ///
+    /// Returns the window duration for the matching path rule (e.g. 60s for an
+    /// auth/start rule with 5 req/60s), not the IP token-bucket interval.
+    pub fn retry_after_for_path(&self, path: &str) -> u32 {
+        match self {
+            Self::InMemory(rl) => rl.retry_after_for_path(path),
+            #[cfg(feature = "redis-rate-limiting")]
+            Self::Redis(rl) => rl.retry_after_for_path(path),
+        }
+    }
+
     /// Check whether a request from `ip` is within the global IP rate limit.
     pub async fn check_ip_limit(&self, ip: &str) -> bool {
         match self {
@@ -778,7 +832,63 @@ impl IntoResponse for RateLimitExceeded {
     }
 }
 
+/// Extract the real client IP from request headers when behind a trusted reverse proxy.
+///
+/// Checks `X-Real-IP` first, then the first address in `X-Forwarded-For` (set by
+/// the proxy to the original client).  Falls back to the TCP peer address when
+/// neither header is present or `trust_proxy` is false.
+///
+/// **Security**: only enable `trust_proxy` when the server is guaranteed to sit
+/// behind a proxy that sets these headers; otherwise clients can spoof the IP.
+fn extract_real_ip(
+    req: &Request<Body>,
+    trust_proxy: bool,
+    addr: &SocketAddr,
+) -> String {
+    if trust_proxy {
+        if let Some(real_ip) = req
+            .headers()
+            .get("x-real-ip")
+            .and_then(|v| v.to_str().ok())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return real_ip.to_string();
+        }
+        if let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+            if let Some(first) = xff.split(',').next().map(str::trim).filter(|s| !s.is_empty()) {
+                return first.to_string();
+            }
+        }
+    }
+    addr.ip().to_string()
+}
+
+/// Decode a JWT bearer token's payload section and extract the `sub` claim
+/// without performing cryptographic signature verification.
+///
+/// Signature verification is intentionally omitted: rate limiting is a
+/// best-effort control that degrades gracefully — an invalid or forged JWT
+/// simply returns `None`, falling back to IP-based limiting.  Verified
+/// identity is handled by the auth middleware upstream.
+fn extract_jwt_subject(authorization: &str) -> Option<String> {
+    use base64::Engine as _;
+    let token = authorization.strip_prefix("Bearer ")?;
+    let payload_b64 = token.split('.').nth(1)?;
+    let decoded =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    json.get("sub").and_then(|v| v.as_str()).map(String::from)
+}
+
 /// Rate limiting middleware for GraphQL requests.
+///
+/// Decision order:
+/// 1. Per-path limit (auth endpoints) — always checked, uses path-specific window.
+/// 2. Per-user limit (authenticated requests) — checked when a JWT `sub` claim is
+///    present in the `Authorization` header; authenticated users get `rps_per_user`
+///    (default 10× `rps_per_ip`) instead of the shared IP bucket.
+/// 3. Per-IP limit (unauthenticated or no bearer token) — fallback.
 pub async fn rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request<Body>,
@@ -791,29 +901,51 @@ pub async fn rate_limit_middleware(
         .cloned()
         .unwrap_or_else(|| Arc::new(RateLimiter::new(RateLimitConfig::default())));
 
-    let ip = addr.ip().to_string();
+    let ip = extract_real_ip(&req, limiter.config().trust_proxy_headers, &addr);
     let path = req.uri().path().to_string();
 
-    // Check global IP rate limit
-    if !limiter.check_ip_limit(&ip).await {
-        warn!(ip = %ip, "IP rate limit exceeded");
-        return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
-    }
+    // Extract JWT subject for per-user limiting (no signature verification needed here).
+    let user_id = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(extract_jwt_subject);
 
-    // Check per-path rate limit (e.g., /auth/start stricter than global)
+    // ── Per-path limit (strictest, always enforced) ───────────────────────
     if !limiter.check_path_limit(&path, &ip).await {
         warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
-        return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
+        return Err(RateLimitExceeded {
+            retry_after_secs: limiter.retry_after_for_path(&path),
+        });
     }
 
-    // Get remaining tokens for response headers
-    let remaining = limiter.get_ip_remaining(&ip).await;
+    // ── Per-user or per-IP limit ──────────────────────────────────────────
+    let remaining = if let Some(ref uid) = user_id {
+        // Authenticated: apply the higher per-user bucket.
+        if !limiter.check_user_limit(uid).await {
+            warn!(user_id = %uid, "Per-user rate limit exceeded");
+            return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
+        }
+        limiter.get_user_remaining(uid).await
+    } else {
+        // Unauthenticated: apply the shared IP bucket.
+        if !limiter.check_ip_limit(&ip).await {
+            warn!(ip = %ip, "IP rate limit exceeded");
+            return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
+        }
+        limiter.get_ip_remaining(&ip).await
+    };
 
     let response = next.run(req).await;
 
     // Add rate limit headers
     let mut response = response;
-    if let Ok(limit_value) = format!("{}", limiter.config().rps_per_ip).parse() {
+    let limit = if user_id.is_some() {
+        limiter.config().rps_per_user
+    } else {
+        limiter.config().rps_per_ip
+    };
+    if let Ok(limit_value) = format!("{limit}").parse() {
         response.headers_mut().insert("X-RateLimit-Limit", limit_value);
     }
     if let Ok(remaining_value) = format!("{}", remaining as u32).parse() {
@@ -1130,6 +1262,126 @@ mod tests {
         assert_eq!(header, "5");
     }
 
+    // ─── retry_after_for_path tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_retry_after_for_path_uses_path_window() {
+        // 5 req per 60s → tokens_per_sec = 5/60 ≈ 0.083 → ceil(1/0.083) = 12s
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     100,
+            burst_size:              200,
+            auth_start_max_requests: 5,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        // Should be 12s (ceil(60/5) = 12), NOT 1s from the IP rate
+        assert_eq!(limiter.retry_after_for_path("/auth/start"), 12);
+    }
+
+    #[test]
+    fn test_retry_after_for_path_unknown_path_returns_one() {
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     100,
+            burst_size:              200,
+            auth_start_max_requests: 5,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+        assert_eq!(limiter.retry_after_for_path("/graphql"), 1);
+    }
+
+    // ─── extract_jwt_subject tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_jwt_subject_returns_sub_claim() {
+        use base64::Engine as _;
+        // Build a minimal JWT payload with a sub claim
+        let payload = serde_json::json!({"sub": "user-42", "exp": 9999999999u64});
+        let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(payload.to_string().as_bytes());
+        let token = format!("Bearer header.{b64}.sig");
+        assert_eq!(extract_jwt_subject(&token), Some("user-42".to_string()));
+    }
+
+    #[test]
+    fn test_extract_jwt_subject_no_bearer_prefix_returns_none() {
+        assert_eq!(extract_jwt_subject("Basic dXNlcjpwYXNz"), None);
+    }
+
+    #[test]
+    fn test_extract_jwt_subject_malformed_token_returns_none() {
+        assert_eq!(extract_jwt_subject("Bearer notajwt"), None);
+    }
+
+    #[test]
+    fn test_extract_jwt_subject_missing_sub_returns_none() {
+        use base64::Engine as _;
+        let payload = serde_json::json!({"iss": "provider", "exp": 9999999999u64});
+        let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(payload.to_string().as_bytes());
+        let token = format!("Bearer header.{b64}.sig");
+        assert_eq!(extract_jwt_subject(&token), None);
+    }
+
+    // ─── extract_real_ip tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_real_ip_without_proxy_returns_peer() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let req = Request::builder().body(Body::empty()).unwrap();
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1234);
+        assert_eq!(extract_real_ip(&req, false, &addr), "1.2.3.4");
+    }
+
+    #[test]
+    fn test_extract_real_ip_with_proxy_prefers_x_real_ip() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let req = Request::builder()
+            .header("x-real-ip", "10.20.30.40")
+            .header("x-forwarded-for", "5.5.5.5")
+            .body(Body::empty())
+            .unwrap();
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        assert_eq!(extract_real_ip(&req, true, &addr), "10.20.30.40");
+    }
+
+    #[test]
+    fn test_extract_real_ip_with_proxy_falls_back_to_xff() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let req = Request::builder()
+            .header("x-forwarded-for", "203.0.113.7, 10.0.0.1")
+            .body(Body::empty())
+            .unwrap();
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        assert_eq!(extract_real_ip(&req, true, &addr), "203.0.113.7");
+    }
+
+    #[test]
+    fn test_extract_real_ip_trust_disabled_ignores_headers() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let req = Request::builder()
+            .header("x-real-ip", "evil.attacker.ip")
+            .header("x-forwarded-for", "6.6.6.6")
+            .body(Body::empty())
+            .unwrap();
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 5678);
+        assert_eq!(extract_real_ip(&req, false, &addr), "1.2.3.4");
+    }
+
     // ─── Redis integration tests ─────────────────────────────────────────────
     // These require a live Redis instance.  Run with:
     //   REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-server \
@@ -1147,6 +1399,7 @@ mod tests {
             rps_per_user:          5,
             burst_size:            5,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         };
         let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
         // Use a unique key to avoid interference between test runs
@@ -1169,6 +1422,7 @@ mod tests {
             rps_per_user:          3,
             burst_size:            3,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         };
         let suffix = uuid::Uuid::new_v4();
         let a = RateLimiter::new_redis(&url, config.clone())

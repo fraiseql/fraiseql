@@ -118,6 +118,11 @@ pub async fn auth_start(
     if q.redirect_uri.is_empty() {
         return auth_error(StatusCode::BAD_REQUEST, "redirect_uri is required");
     }
+    // Enforce a length cap to prevent memory amplification via the PKCE state store
+    // (in-memory or Redis) and to limit encrypted state blob size.
+    if q.redirect_uri.len() > 2048 {
+        return auth_error(StatusCode::BAD_REQUEST, "redirect_uri exceeds maximum length");
+    }
 
     let (outbound_token, verifier) = match state.pkce_store.create_state(&q.redirect_uri).await {
         Ok(v) => v,
@@ -168,11 +173,18 @@ pub async fn auth_callback(
     // ── Surface OIDC provider errors immediately ──────────────────────────
     if let Some(err) = q.error {
         let desc = q.error_description.unwrap_or_default();
+        // Log the full provider response for debugging, but return only a
+        // fixed allowlisted message to the client to avoid leaking internal
+        // provider details (tenant info, stack traces) or enabling injection.
         tracing::warn!(oidc_error = %err, description = %desc, "OIDC provider returned error");
-        return auth_error(
-            StatusCode::BAD_REQUEST,
-            &format!("{err}: {desc}"),
-        );
+        let client_message = match err.as_str() {
+            "access_denied"                  => "Access was denied",
+            "login_required"                 => "Authentication is required",
+            "invalid_request" | "invalid_scope" => "Invalid authorization request",
+            "server_error" | "temporarily_unavailable" => "Authorization server error",
+            _                                => "Authorization failed",
+        };
+        return auth_error(StatusCode::BAD_REQUEST, client_message);
     }
 
     // ── Validate required parameters ──────────────────────────────────────
@@ -208,15 +220,35 @@ pub async fn auth_callback(
     // ── Return tokens ─────────────────────────────────────────────────────
     if let Some(redirect_uri) = &state.post_login_redirect_uri {
         // Browser flow: redirect to frontend, set token in HttpOnly cookie.
-        // The redirect target is server-configured (no open-redirect risk).
-        let max_age = tokens.expires_in.unwrap_or(3600);
-        let cookie  = format!(
-            "access_token={}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age={max_age}",
-            tokens.access_token,
+        // The redirect target is server-configured (not from pkce.redirect_uri —
+        // IMPORTANT: pkce.redirect_uri MUST NOT be used to construct an HTTP
+        // redirect without allowlist validation; its value is caller-supplied
+        // and could be attacker-controlled).
+        //
+        // Cookie notes:
+        // - `__Host-` prefix mandates Secure, Path=/, no Domain, blocking subdomain override.
+        // - Token value is double-quoted (RFC 6265 quoted-string) to safely embed any
+        //   printable ASCII that OAuth servers may include.
+        // - Max-Age uses 300s when expires_in is absent — a conservative default that
+        //   prevents the cookie outliving a short-lived token by a large margin.
+        let max_age = tokens.expires_in.unwrap_or(300);
+        // Escape '"' and '\' inside the token value per RFC 6265 quoted-string rules.
+        let token_escaped = tokens.access_token.replace('\\', r"\\").replace('"', r#"\""#);
+        let cookie = format!(
+            r#"__Host-access_token="{token_escaped}"; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age={max_age}"#,
         );
         let mut resp = Redirect::to(redirect_uri).into_response();
-        if let Ok(value) = cookie.parse() {
-            resp.headers_mut().insert(header::SET_COOKIE, value);
+        match cookie.parse() {
+            Ok(value) => {
+                resp.headers_mut().insert(header::SET_COOKIE, value);
+            },
+            Err(e) => {
+                tracing::error!("Failed to parse Set-Cookie header: {e}");
+                return auth_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "session cookie could not be set",
+                );
+            },
         }
         resp
     } else {
@@ -341,6 +373,60 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
+    #[tokio::test]
+    async fn test_auth_start_oversized_redirect_uri_returns_400() {
+        let app = auth_router();
+        let long_uri = "https://example.com/".to_string() + &"a".repeat(2100);
+        let encoded = urlencoding::encode(&long_uri);
+        let req = Request::builder()
+            .uri(format!("/auth/start?redirect_uri={encoded}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            json["error"].as_str().unwrap_or("").contains("maximum length"),
+            "error must mention length: {json}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_auth_callback_oidc_error_returns_mapped_message() {
+        let app = auth_router();
+        // access_denied should map to a fixed message, not reflect provider strings
+        let req = Request::builder()
+            .uri("/auth/callback?error=access_denied&error_description=internal+tenant+info")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let error_msg = json["error"].as_str().unwrap_or("");
+        // Must not contain the raw provider description
+        assert!(
+            !error_msg.contains("internal tenant info"),
+            "provider description must not be reflected to client: {error_msg}"
+        );
+        assert_eq!(error_msg, "Access was denied");
+    }
+
+    #[tokio::test]
+    async fn test_auth_callback_unknown_oidc_error_returns_generic_message() {
+        let app = auth_router();
+        let req = Request::builder()
+            .uri("/auth/callback?error=unknown_vendor_error&error_description=secret+details")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"].as_str().unwrap_or(""), "Authorization failed");
+    }
+
     /// Full HTTP-level PKCE round-trip: `/auth/start` → extract state → `/auth/callback`.
     ///
     /// Verifies that the state token embedded in the `/auth/start` redirect can be
@@ -391,13 +477,15 @@ mod tests {
             .expect("Location header must be set")
             .to_string();
 
-        // Extract the state= token from the redirect URL.
-        // URL-safe base64 characters (A-Za-z0-9, -, _) are unreserved in query strings
-        // and are not percent-encoded by the OIDC client, so no decoding step is needed.
-        let state_token = location
-            .split("state=")
-            .nth(1)
-            .map(|s| s.split('&').next().unwrap_or(s))
+        // Extract the state= token from the redirect URL using proper URL parsing to
+        // avoid false matches when "state=" appears elsewhere in the URL (e.g. in path
+        // or other parameters).
+        let parsed_location = reqwest::Url::parse(&location)
+            .expect("Location header must be a valid URL");
+        let state_token = parsed_location
+            .query_pairs()
+            .find(|(k, _)| k == "state")
+            .map(|(_, v)| v.into_owned())
             .expect("state= must appear in the redirect Location URL");
 
         assert!(!state_token.is_empty(), "extracted state token must not be empty");

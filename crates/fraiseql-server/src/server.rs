@@ -416,6 +416,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     rps_per_user:          rate_config.rps_per_user,
                     burst_size:            rate_config.burst_size,
                     cleanup_interval_secs: rate_config.cleanup_interval_secs,
+                    trust_proxy_headers:   false,
                 };
                 Some(Arc::new(RateLimiter::new(limiter_config)))
             } else {
@@ -633,6 +634,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     rps_per_user:          rate_config.rps_per_user,
                     burst_size:            rate_config.burst_size,
                     cleanup_interval_secs: rate_config.cleanup_interval_secs,
+                    trust_proxy_headers:   false,
                 };
                 Some(Arc::new(RateLimiter::new(limiter_config)))
             } else {

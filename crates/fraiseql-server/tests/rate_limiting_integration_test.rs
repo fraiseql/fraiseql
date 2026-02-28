@@ -10,11 +10,12 @@ mod tests {
     /// Helper to create a rate limiter with configurable limits.
     fn create_test_limiter(rps_per_ip: u32, burst_size: u32) -> RateLimiter {
         RateLimiter::new(RateLimitConfig {
-            enabled: true,
+            enabled:             true,
             rps_per_ip,
-            rps_per_user: 1000,
+            rps_per_user:        1000,
             burst_size,
             cleanup_interval_secs: 300,
+            trust_proxy_headers: false,
         })
     }
 
@@ -66,6 +67,7 @@ mod tests {
             rps_per_user:          1,
             burst_size:            1,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         });
 
         // Even with extremely low limits, should allow through when disabled
@@ -96,6 +98,7 @@ mod tests {
             rps_per_user:          3,
             burst_size:            3,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         });
 
         // Should allow 3 requests for authenticated user
@@ -115,6 +118,7 @@ mod tests {
             rps_per_user:          2,
             burst_size:            2,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         });
 
         // User 1 gets 2 requests
@@ -136,6 +140,7 @@ mod tests {
             rps_per_user:          10,
             burst_size:            10,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         });
 
         let remaining_before = limiter.get_user_remaining("user123").await;
@@ -167,6 +172,7 @@ mod tests {
             rps_per_user:          100,
             burst_size:            5,
             cleanup_interval_secs: 300,
+            trust_proxy_headers:   false,
         });
 
         // Should be able to get initial burst_size worth of tokens

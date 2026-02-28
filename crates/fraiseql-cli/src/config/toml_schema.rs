@@ -734,6 +734,13 @@ pub struct RateLimitingSecurityConfig {
     pub requests_per_second_per_user: Option<u32>,
     /// Redis URL for distributed rate limiting (optional — falls back to in-memory)
     pub redis_url: Option<String>,
+    /// Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.
+    ///
+    /// Set to `true` only when FraiseQL is deployed behind a trusted reverse proxy
+    /// (e.g. nginx, Cloudflare, AWS ALB) that sets these headers.
+    /// Enabling without a trusted proxy allows clients to spoof their IP address.
+    #[serde(default)]
+    pub trust_proxy_headers: bool,
 }
 
 impl Default for RateLimitingSecurityConfig {
@@ -754,6 +761,7 @@ impl Default for RateLimitingSecurityConfig {
             failed_login_max_attempts:    10,
             failed_login_lockout_secs:    900,
             redis_url:                    None,
+            trust_proxy_headers:          false,
         }
     }
 }
