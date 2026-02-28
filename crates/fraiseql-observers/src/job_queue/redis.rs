@@ -4,6 +4,13 @@
 //! - Pending job queue (FIFO via Redis list)
 //! - Processing set with timeout (Redis sorted set with expiry timestamps)
 //! - Dead letter queue (Redis list for failed jobs)
+//!
+//! # Atomicity
+//!
+//! `enqueue` uses a Lua script (`JOB_ENQUEUE_SCRIPT`) to atomically `SET` the job
+//! data and `LPUSH` the job ID onto the pending queue in a single round-trip.
+//! Without this, a crash between the two commands would leave the job stored but
+//! never scheduled for execution.
 
 use chrono::Utc;
 use redis::aio::ConnectionManager;
@@ -11,6 +18,20 @@ use uuid::Uuid;
 
 use super::{Job, traits::JobQueue};
 use crate::error::Result;
+
+// ── Lua scripts ───────────────────────────────────────────────────────────────
+
+/// Atomically store job data and enqueue the job ID onto the pending list.
+///
+/// - `KEYS[1]` — `job:{uuid}` (job data string key)
+/// - `KEYS[2]` — `queue:pending` (the pending FIFO list)
+/// - `ARGV[1]` — serialised job JSON
+/// - `ARGV[2]` — job UUID string (the value pushed onto the list)
+const JOB_ENQUEUE_SCRIPT: &str = r"
+redis.call('SET', KEYS[1], ARGV[1])
+redis.call('LPUSH', KEYS[2], ARGV[2])
+return 1
+";
 
 /// Redis-backed job queue.
 ///
@@ -79,18 +100,15 @@ impl JobQueue for RedisJobQueue {
         let json = serde_json::to_string(&job)
             .map_err(|e| crate::error::ObserverError::SerializationError(e.to_string()))?;
 
-        // Store job data
-        redis::cmd("SET")
-            .arg(Self::job_key(job_id))
-            .arg(&json)
-            .query_async::<()>(&mut self.conn.clone())
-            .await?;
-
-        // Add to pending queue
-        redis::cmd("LPUSH")
-            .arg(Self::pending_key())
-            .arg(job_id.to_string())
-            .query_async::<()>(&mut self.conn.clone())
+        // Atomically store job data and push onto the pending queue.
+        // A crash between a separate SET and LPUSH would leave the job stored but
+        // never scheduled; the Lua script eliminates that window.
+        redis::Script::new(JOB_ENQUEUE_SCRIPT)
+            .key(Self::job_key(job_id))  // KEYS[1]
+            .key(Self::pending_key())    // KEYS[2]
+            .arg(&json)                  // ARGV[1]
+            .arg(job_id.to_string())     // ARGV[2]
+            .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
 
         Ok(())

@@ -2,12 +2,49 @@
 //!
 //! The DLQ stores jobs that have failed permanently (exhausted all retry attempts).
 //! This allows manual inspection and recovery of failed jobs.
+//!
+//! # Atomicity
+//!
+//! Multi-step Redis operations use Lua scripts executed via `redis::Script`,
+//! which provides EVALSHA + NOSCRIPT fallback automatically:
+//!
+//! - **`remove`**: `LREM` + `DEL` in a single script — no orphaned list entries
+//! - **`clear`**: `LRANGE` + N×`DEL` + `DEL list` in a single script — consistent
+//!   snapshot; jobs added concurrently are either fully included or fully excluded
 
 use redis::aio::ConnectionManager;
 use uuid::Uuid;
 
 use super::Job;
 use crate::error::Result;
+
+// ── Lua scripts ───────────────────────────────────────────────────────────────
+
+/// Atomically remove one job from the DLQ list and delete its data key.
+///
+/// - `KEYS[1]` — `queue:dlq` (the DLQ list)
+/// - `KEYS[2]` — `job:{uuid}` (the job data hash)
+/// - `ARGV[1]` — `dlq:{uuid}` (the list member value to remove)
+const DLQ_REMOVE_SCRIPT: &str = r"
+redis.call('LREM', KEYS[1], 0, ARGV[1])
+redis.call('DEL', KEYS[2])
+return 1
+";
+
+/// Atomically clear the entire DLQ: delete every job data key then remove the list.
+///
+/// - `KEYS[1]` — `queue:dlq` (the DLQ list)
+///
+/// Returns the number of jobs that were removed.
+const DLQ_CLEAR_SCRIPT: &str = r"
+local members = redis.call('LRANGE', KEYS[1], 0, -1)
+for _, member in ipairs(members) do
+    local job_id = string.sub(member, 5)
+    redis.call('DEL', 'job:' .. job_id)
+end
+redis.call('DEL', KEYS[1])
+return #members
+";
 
 /// Dead Letter Queue operations
 #[derive(Clone)]
@@ -117,7 +154,11 @@ impl DeadLetterQueueManager {
         self.count().await
     }
 
-    /// Remove a job from the DLQ (for manual retry or cleanup)
+    /// Remove a job from the DLQ atomically.
+    ///
+    /// Uses a Lua script (`DLQ_REMOVE_SCRIPT`) to `LREM` the list entry and
+    /// `DEL` the job data key in a single round-trip, eliminating the window
+    /// where the list entry could exist without its backing data.
     ///
     /// # Arguments
     ///
@@ -125,57 +166,31 @@ impl DeadLetterQueueManager {
     ///
     /// # Errors
     ///
-    /// Returns error if Redis operation fails
+    /// Returns error if Redis operation fails.
     pub async fn remove(&self, job_id: Uuid) -> Result<()> {
-        // Remove from DLQ list
-        redis::cmd("LREM")
-            .arg(Self::dlq_key())
-            .arg(0) // Remove all occurrences
-            .arg(Self::dlq_member(job_id))
-            .query_async::<()>(&mut self.conn.clone())
+        redis::Script::new(DLQ_REMOVE_SCRIPT)
+            .key(Self::dlq_key())          // KEYS[1]
+            .key(Self::job_key(job_id))    // KEYS[2]
+            .arg(Self::dlq_member(job_id)) // ARGV[1]
+            .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
-
-        // Remove job data
-        redis::cmd("DEL")
-            .arg(Self::job_key(job_id))
-            .query_async::<()>(&mut self.conn.clone())
-            .await?;
-
         Ok(())
     }
 
-    /// Clear all jobs from the DLQ (dangerous operation)
+    /// Clear all jobs from the DLQ atomically.
+    ///
+    /// Uses a Lua script (`DLQ_CLEAR_SCRIPT`) to read the list and delete all
+    /// backing job keys in one atomic operation, preventing partial clears when
+    /// jobs are concurrently enqueued to the DLQ.
     ///
     /// # Errors
     ///
-    /// Returns error if Redis operation fails
+    /// Returns error if Redis operation fails.
     pub async fn clear(&self) -> Result<()> {
-        // Get all members to also delete job data
-        let members: Vec<String> = redis::cmd("LRANGE")
-            .arg(Self::dlq_key())
-            .arg(0)
-            .arg(-1)
-            .query_async(&mut self.conn.clone())
+        redis::Script::new(DLQ_CLEAR_SCRIPT)
+            .key(Self::dlq_key()) // KEYS[1]
+            .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
-
-        // Delete job data for each member
-        for member in members {
-            if let Some(job_id_str) = member.strip_prefix("dlq:") {
-                if let Ok(job_id) = Uuid::parse_str(job_id_str) {
-                    redis::cmd("DEL")
-                        .arg(Self::job_key(job_id))
-                        .query_async::<()>(&mut self.conn.clone())
-                        .await?;
-                }
-            }
-        }
-
-        // Clear the DLQ list
-        redis::cmd("DEL")
-            .arg(Self::dlq_key())
-            .query_async::<()>(&mut self.conn.clone())
-            .await?;
-
         Ok(())
     }
 
