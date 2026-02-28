@@ -219,7 +219,7 @@ impl From<sqlx::Error> for ObserverError {
     }
 }
 
-#[cfg(any(feature = "dedup", feature = "caching", feature = "queue"))]
+#[cfg(any(feature = "dedup", feature = "caching", feature = "queue", feature = "redis-lease"))]
 impl From<redis::RedisError> for ObserverError {
     fn from(err: redis::RedisError) -> Self {
         Self::DatabaseError {

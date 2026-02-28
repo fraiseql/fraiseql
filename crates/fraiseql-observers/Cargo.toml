@@ -62,6 +62,7 @@ phase9 = ["macros", "arrow"]
 # Database backends (enable sqlx features)
 postgres = ["sqlx/postgres"]
 queue = ["redis"]
+redis-lease = ["redis"]
 search = []
 sqlite = ["sqlx/sqlite"]
 testing = []
