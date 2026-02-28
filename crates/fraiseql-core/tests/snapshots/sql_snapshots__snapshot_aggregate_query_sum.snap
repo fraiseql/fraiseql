@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT SUM((data->>'amount')::NUMERIC) as total FROM "tf_sales"

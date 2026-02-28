@@ -562,11 +562,34 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Build WHERE clause SQL
+    /// Build a SQL `WHERE` clause string from a [`WhereClause`] AST node.
     ///
-    /// Handles two types of filterable fields:
-    /// 1. Denormalized filters (direct columns): WHERE customer_id = $1
-    /// 2. Dimensions (JSONB paths): WHERE data->>'category' = $1
+    /// Returns an empty string when `where_clause` is empty (no filtering needed),
+    /// or a `WHERE ...` fragment otherwise.  The fragment is database-dialect-aware:
+    /// the SQL generator held by `self` determines parameter placeholder style
+    /// (`$1` for PostgreSQL, `?` for MySQL/SQLite) and JSON accessor syntax.
+    ///
+    /// Handles two categories of filterable fields:
+    /// 1. **Denormalized filters** (direct columns): `WHERE customer_id = $1`
+    /// 2. **JSONB dimensions** (path into the `data` column): `WHERE data->>'category' = $1`
+    ///
+    /// Compound clauses (`And` / `Or`) are rendered recursively with parentheses.
+    ///
+    /// # Arguments
+    ///
+    /// * `where_clause` - The [`WhereClause`] AST to convert; may be empty
+    /// * `metadata` - [`FactTableMetadata`] describing which fields are denormalized
+    ///   columns vs. JSONB dimensions
+    ///
+    /// # Returns
+    ///
+    /// An owned `String` containing either an empty string or a complete `WHERE …`
+    /// SQL fragment (without a trailing newline or semicolon).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::FraiseQLError::Validation`] if an unknown operator or
+    /// unsupported field path is encountered during SQL generation.
     pub fn build_where_clause(
         &self,
         where_clause: &WhereClause,

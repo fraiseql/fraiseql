@@ -109,9 +109,26 @@ impl QueryMatcher {
         let query_def = self
             .schema
             .find_query(&parsed.root_field)
-            .ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Query '{}' not found in schema", parsed.root_field),
-                path:    None,
+            .ok_or_else(|| {
+                let candidates: Vec<&str> =
+                    self.schema.queries.iter().map(|q| q.name.as_str()).collect();
+                let suggestion = suggest_similar(&parsed.root_field, &candidates);
+                let message = match suggestion.as_slice() {
+                    [s] => format!(
+                        "Query '{}' not found in schema. Did you mean '{s}'?",
+                        parsed.root_field
+                    ),
+                    [a, b] => format!(
+                        "Query '{}' not found in schema. Did you mean '{a}' or '{b}'?",
+                        parsed.root_field
+                    ),
+                    [a, b, c, ..] => format!(
+                        "Query '{}' not found in schema. Did you mean '{a}', '{b}', or '{c}'?",
+                        parsed.root_field
+                    ),
+                    _ => format!("Query '{}' not found in schema", parsed.root_field),
+                };
+                FraiseQLError::Validation { message, path: None }
             })?
             .clone();
 
@@ -165,6 +182,58 @@ impl QueryMatcher {
     pub const fn schema(&self) -> &CompiledSchema {
         &self.schema
     }
+}
+
+/// Return candidates from `haystack` whose edit distance to `needle` is ≤ 2.
+///
+/// Uses a simple iterative Levenshtein implementation with a `2 * threshold`
+/// early-exit so cost stays proportional to the length of the candidates rather
+/// than `O(n * m)` for every comparison. At most three suggestions are returned,
+/// ordered by increasing edit distance.
+fn suggest_similar<'a>(needle: &str, haystack: &[&'a str]) -> Vec<&'a str> {
+    const MAX_DISTANCE: usize = 2;
+    const MAX_SUGGESTIONS: usize = 3;
+
+    let mut ranked: Vec<(usize, &str)> = haystack
+        .iter()
+        .filter_map(|&candidate| {
+            let d = levenshtein(needle, candidate);
+            if d <= MAX_DISTANCE { Some((d, candidate)) } else { None }
+        })
+        .collect();
+
+    ranked.sort_unstable_by_key(|&(d, _)| d);
+    ranked.into_iter().take(MAX_SUGGESTIONS).map(|(_, s)| s).collect()
+}
+
+/// Compute the Levenshtein edit distance between two strings.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let m = a.len();
+    let n = b.len();
+
+    // Early exit: length difference alone exceeds threshold.
+    if m.abs_diff(n) > 2 {
+        return m.abs_diff(n);
+    }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0usize; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            curr[j] = if a[i - 1] == b[j - 1] {
+                prev[j - 1]
+            } else {
+                1 + prev[j - 1].min(prev[j]).min(curr[j - 1])
+            };
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[n]
 }
 
 #[cfg(test)]
@@ -312,5 +381,84 @@ mod tests {
         assert_eq!(args.len(), 2);
         assert_eq!(args.get("id"), Some(&serde_json::json!("123")));
         assert_eq!(args.get("limit"), Some(&serde_json::json!(10)));
+    }
+
+    // =========================================================================
+    // suggest_similar / levenshtein tests
+    // =========================================================================
+
+    #[test]
+    fn test_suggest_similar_exact_typo() {
+        let suggestions = suggest_similar("userr", &["users", "posts", "comments"]);
+        assert_eq!(suggestions, vec!["users"]);
+    }
+
+    #[test]
+    fn test_suggest_similar_transposition() {
+        let suggestions = suggest_similar("suers", &["users", "posts"]);
+        assert_eq!(suggestions, vec!["users"]);
+    }
+
+    #[test]
+    fn test_suggest_similar_no_match() {
+        // "zzz" is far from everything — no suggestion expected.
+        let suggestions = suggest_similar("zzz", &["users", "posts", "comments"]);
+        assert!(suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_suggest_similar_capped_at_three() {
+        // All four candidates are within distance 2 of "us".
+        let suggestions =
+            suggest_similar("us", &["users", "user", "uses", "usher", "something_far"]);
+        assert!(suggestions.len() <= 3);
+    }
+
+    #[test]
+    fn test_levenshtein_identical() {
+        assert_eq!(levenshtein("foo", "foo"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_insertion() {
+        assert_eq!(levenshtein("foo", "fooo"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_deletion() {
+        assert_eq!(levenshtein("fooo", "foo"), 1);
+    }
+
+    #[test]
+    fn test_levenshtein_substitution() {
+        assert_eq!(levenshtein("foo", "bar"), 3);
+    }
+
+    #[test]
+    fn test_unknown_query_error_includes_suggestion() {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(QueryDefinition {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   Default::default(),
+            inject_params:       Default::default(),
+        });
+        let matcher = QueryMatcher::new(schema);
+
+        // "userr" is one edit away from "users" — should suggest it.
+        let result = matcher.match_query("{ userr { id } }", None);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("Did you mean 'users'?"), "expected suggestion in: {msg}");
     }
 }

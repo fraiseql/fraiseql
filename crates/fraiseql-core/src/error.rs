@@ -28,10 +28,114 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 /// All errors in the core library are converted to this type.
 /// Language bindings convert this to their native error types.
 ///
+/// # Error Categories
+///
+/// Errors are organized by domain:
+///
+/// ## GraphQL Errors
+/// - `Parse` — Malformed GraphQL syntax
+/// - `Validation` — Schema validation failures
+/// - `UnknownField` — Field doesn't exist on type
+/// - `UnknownType` — Type doesn't exist in schema
+///
+/// ## Database Errors
+/// - `Database` — PostgreSQL/MySQL/SQLite errors (includes SQL state code)
+/// - `ConnectionPool` — Connection pool exhausted or unavailable
+/// - `Timeout` — Query exceeded configured timeout
+/// - `Cancelled` — Query was cancelled by caller
+///
+/// ## Authorization/Security Errors
+/// - `Authorization` — User lacks permission for operation
+/// - `Authentication` — Invalid/expired JWT token
+/// - `RateLimited` — Too many requests (includes retry-after)
+///
+/// ## Resource Errors
+/// - `NotFound` — Resource doesn't exist (404)
+/// - `Conflict` — Operation would violate constraints (409)
+///
+/// ## Configuration Errors
+/// - `Configuration` — Invalid setup/configuration
+///
+/// ## Internal Errors
+/// - `Internal` — Unexpected internal failures
+///
+/// # Error Construction Helpers
+///
+/// Use constructor methods for common errors:
+///
+/// ```rust,ignore
+/// use fraiseql_core::error::FraiseQLError;
+///
+/// // Parse error
+/// let err = FraiseQLError::parse("Unexpected token '}'");
+/// let err = FraiseQLError::parse_at("Invalid identifier", "line 5, col 10");
+///
+/// // Validation error
+/// let err = FraiseQLError::validation("Unknown field 'createdAtx'");
+/// let err = FraiseQLError::validation_at("Type mismatch", "user.posts");
+///
+/// // Database error
+/// let err = FraiseQLError::database("Connection refused");
+///
+/// // Authorization error
+/// let err = FraiseQLError::unauthorized("User lacks admin role");
+///
+/// // Not found
+/// let err = FraiseQLError::not_found("User", "user-123");
+///
+/// // Configuration error
+/// let err = FraiseQLError::config("Missing database URL");
+/// ```
+///
 /// # Stability
 ///
 /// This enum is marked `#[non_exhaustive]` to allow adding new error variants
 /// in future minor versions without breaking backward compatibility.
+///
+/// # Example: Error Handling
+///
+/// ```rust,ignore
+/// use fraiseql_core::error::FraiseQLError;
+///
+/// async fn execute_query(executor: &Executor, query: &str) -> Result<String> {
+///     executor.execute(query, None).await.map_err(|e| {
+///         match e {
+///             FraiseQLError::Parse { message, location } => {
+///                 eprintln!("Syntax error: {} at {}", message, location);
+///             }
+///             FraiseQLError::Validation { message, path } => {
+///                 eprintln!("Validation error: {}", message);
+///                 if let Some(path) = path {
+///                     eprintln!("  at {}", path);
+///                 }
+///             }
+///             FraiseQLError::Database { message, sql_state } => {
+///                 eprintln!("Database error: {}", message);
+///                 if let Some(code) = sql_state {
+///                     eprintln!("  SQL state: {}", code);
+///                 }
+///             }
+///             FraiseQLError::Timeout { timeout_ms, query } => {
+///                 eprintln!("Query timed out after {}ms", timeout_ms);
+///                 if let Some(q) = query {
+///                     eprintln!("  Query: {}", q);
+///                 }
+///             }
+///             FraiseQLError::Authorization { message, action, resource } => {
+///                 eprintln!("Access denied: {}", message);
+///                 if let (Some(a), Some(r)) = (action, resource) {
+///                     eprintln!("  Cannot {} {}", a, r);
+///                 }
+///             }
+///             _ => {
+///                 eprintln!("Error: {}", e);
+///             }
+///         }
+///         e
+///     })?;
+///     Ok(response)
+/// }
+/// ```
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum FraiseQLError {
@@ -392,6 +496,139 @@ impl FraiseQLError {
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
+        }
+    }
+
+    // ========================================================================
+    // Error Message Enhancement Helpers
+    // ========================================================================
+
+    /// Create an unknown field error with helpful suggestions.
+    ///
+    /// Uses Levenshtein distance to suggest similar field names when available.
+    /// Suggestions are only shown if they're within 2 characters of the requested field.
+    #[must_use]
+    pub fn unknown_field_with_suggestion(
+        field: impl Into<String>,
+        type_name: impl Into<String>,
+        available_fields: &[&str],
+    ) -> Self {
+        let field = field.into();
+        let type_name = type_name.into();
+
+        // Find closest match using Levenshtein distance
+        let suggestion = available_fields
+            .iter()
+            .map(|f| (*f, Self::levenshtein_distance(&field, f)))
+            .filter(|(_, distance)| *distance <= 2)
+            .min_by_key(|(_, distance)| *distance)
+            .map(|(f, _)| f);
+
+        if let Some(suggested_field) = suggestion {
+            Self::UnknownField {
+                field: format!("{} (did you mean '{}'?)", field, suggested_field),
+                type_name,
+            }
+        } else {
+            Self::UnknownField { field, type_name }
+        }
+    }
+
+    /// Levenshtein distance between two strings for fuzzy matching.
+    fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+        let len1 = s1.len();
+        let len2 = s2.len();
+
+        if len1 == 0 {
+            return len2;
+        }
+        if len2 == 0 {
+            return len1;
+        }
+
+        let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
+
+        for (i, row) in matrix.iter_mut().enumerate() {
+            row[0] = i;
+        }
+        for (j, val) in matrix[0].iter_mut().enumerate() {
+            *val = j;
+        }
+
+        for (i, c1) in s1.chars().enumerate() {
+            for (j, c2) in s2.chars().enumerate() {
+                let cost = if c1 == c2 { 0 } else { 1 };
+                matrix[i + 1][j + 1] = std::cmp::min(
+                    std::cmp::min(
+                        matrix[i][j + 1] + 1,      // deletion
+                        matrix[i + 1][j] + 1,      // insertion
+                    ),
+                    matrix[i][j] + cost,           // substitution
+                );
+            }
+        }
+
+        matrix[len1][len2]
+    }
+
+    /// Create a database error from PostgreSQL error code.
+    ///
+    /// Maps PostgreSQL SQLSTATE codes to user-friendly messages.
+    #[must_use]
+    pub fn from_postgres_code(code: &str, message: impl Into<String>) -> Self {
+        let message = message.into();
+        match code {
+            "42P01" => Self::Database {
+                message: "The table or view you're querying doesn't exist. \
+                          Check that the schema is compiled and the database is initialized."
+                    .to_string(),
+                sql_state: Some(code.to_string()),
+            },
+            "42703" => Self::Database {
+                message: "A column referenced in the query doesn't exist in the table. \
+                          This may indicate the database schema is out of sync with the compiled schema."
+                    .to_string(),
+                sql_state: Some(code.to_string()),
+            },
+            "23505" => Self::Conflict {
+                message: "A unique constraint was violated. This value already exists in the database.".to_string(),
+            },
+            "23503" => Self::Conflict {
+                message: "A foreign key constraint was violated. The referenced record doesn't exist."
+                    .to_string(),
+            },
+            "23502" => Self::Conflict {
+                message: "A NOT NULL constraint was violated. The field cannot be empty.".to_string(),
+            },
+            "22P02" => Self::Validation {
+                message: "Invalid input value. The provided value doesn't match the expected data type.".to_string(),
+                path: None,
+            },
+            _ => Self::Database {
+                message,
+                sql_state: Some(code.to_string()),
+            },
+        }
+    }
+
+    /// Create a rate limit error with retry information.
+    #[must_use]
+    pub fn rate_limited_with_retry(retry_after_secs: u64) -> Self {
+        Self::RateLimited {
+            message: format!(
+                "Rate limit exceeded. Please try again in {} seconds. \
+                 For permanent increases, contact support.",
+                retry_after_secs
+            ),
+            retry_after_secs,
+        }
+    }
+
+    /// Create an authentication error with context.
+    #[must_use]
+    pub fn auth_error(reason: impl Into<String>) -> Self {
+        Self::Authentication {
+            message: reason.into(),
         }
     }
 }

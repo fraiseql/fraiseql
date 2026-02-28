@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT [data] FROM [v_post] ORDER BY JSON_VALUE([data], '$.id') ASC OFFSET 10 ROWS FETCH NEXT 11 ROWS ONLY

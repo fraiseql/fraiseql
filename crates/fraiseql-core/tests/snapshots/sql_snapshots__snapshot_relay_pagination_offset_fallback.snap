@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT `data` FROM `v_post` ORDER BY `data`->>'id' ASC LIMIT 11 OFFSET 10

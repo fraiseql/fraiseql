@@ -697,6 +697,25 @@ impl RateLimiter {
         }
     }
 
+    /// Return the number of seconds a client must wait before the next request
+    /// is likely to be accepted under the IP-level token-bucket rate limit.
+    ///
+    /// Computed as `ceil(1 / rps_per_ip)` — the time for the bucket to refill
+    /// one token at the configured rate.  Minimum value is 1 second.
+    ///
+    /// This value is used for the `Retry-After` HTTP response header so clients
+    /// always receive an accurate back-off hint instead of a hardcoded constant.
+    #[must_use]
+    pub fn retry_after_secs(&self) -> u32 {
+        let rps = self.config().rps_per_ip;
+        if rps == 0 {
+            return 1;
+        }
+        // ceil(1.0 / rps): e.g. 100 rps → 1s, 1 rps → 1s, 0.5 rps → 2s
+        let secs = (1.0_f64 / f64::from(rps)).ceil() as u32;
+        secs.max(1)
+    }
+
     /// Remaining tokens for `ip` (used for `X-RateLimit-Remaining` header).
     pub async fn get_ip_remaining(&self, ip: &str) -> f64 {
         match self {
@@ -728,15 +747,32 @@ impl RateLimiter {
 }
 
 /// Rate limit middleware response.
+///
+/// Carries the number of seconds the client should wait before retrying,
+/// derived from the active rate-limit configuration at the time the request
+/// was rejected.  This value is emitted as both the `Retry-After` HTTP header
+/// and in the GraphQL error message body.
 #[derive(Debug)]
-pub struct RateLimitExceeded;
+pub struct RateLimitExceeded {
+    /// Seconds until the token bucket refills by at least one token.
+    pub retry_after_secs: u32,
+}
 
 impl IntoResponse for RateLimitExceeded {
     fn into_response(self) -> Response {
+        let retry = self.retry_after_secs;
+        let retry_str = retry.to_string();
+        let body = format!(
+            r#"{{"errors":[{{"message":"Rate limit exceeded. Please retry after {retry} second{s}."}}]}}"#,
+            s = if retry == 1 { "" } else { "s" }
+        );
         (
             StatusCode::TOO_MANY_REQUESTS,
-            [("Content-Type", "application/json"), ("Retry-After", "60")],
-            r#"{"errors":[{"message":"Rate limit exceeded. Please retry after 60 seconds."}]}"#,
+            [
+                ("Content-Type", "application/json"),
+                ("Retry-After", retry_str.as_str()),
+            ],
+            body,
         )
             .into_response()
     }
@@ -761,13 +797,13 @@ pub async fn rate_limit_middleware(
     // Check global IP rate limit
     if !limiter.check_ip_limit(&ip).await {
         warn!(ip = %ip, "IP rate limit exceeded");
-        return Err(RateLimitExceeded);
+        return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
     }
 
     // Check per-path rate limit (e.g., /auth/start stricter than global)
     if !limiter.check_path_limit(&path, &ip).await {
         warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
-        return Err(RateLimitExceeded);
+        return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
     }
 
     // Get remaining tokens for response headers
@@ -1054,6 +1090,44 @@ mod tests {
         assert!(!limiter.check_path_limit("/auth/start", "1.1.1.1").await);
         // IP2 still gets its full allowance
         assert!(limiter.check_path_limit("/auth/start", "2.2.2.2").await);
+    }
+
+    // ─── retry_after_secs ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_retry_after_secs_high_rps() {
+        // 100 rps → 1 token per 0.01s → ceil = 1s
+        let config = RateLimitConfig { rps_per_ip: 100, ..RateLimitConfig::default() };
+        let limiter = RateLimiter::new(config);
+        assert_eq!(limiter.retry_after_secs(), 1);
+    }
+
+    #[test]
+    fn test_retry_after_secs_one_rps() {
+        // 1 rps → 1 token per 1s → ceil = 1s
+        let config = RateLimitConfig { rps_per_ip: 1, ..RateLimitConfig::default() };
+        let limiter = RateLimiter::new(config);
+        assert_eq!(limiter.retry_after_secs(), 1);
+    }
+
+    #[test]
+    fn test_retry_after_secs_zero_rps_fallback() {
+        // 0 rps (disabled / misconfigured) → safe fallback of 1s
+        let config = RateLimitConfig { rps_per_ip: 0, ..RateLimitConfig::default() };
+        let limiter = RateLimiter::new(config);
+        assert_eq!(limiter.retry_after_secs(), 1);
+    }
+
+    #[test]
+    fn test_rate_limit_exceeded_response_uses_config_retry_after() {
+        use axum::response::IntoResponse;
+        let resp = RateLimitExceeded { retry_after_secs: 5 }.into_response();
+        let header = resp
+            .headers()
+            .get("Retry-After")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert_eq!(header, "5");
     }
 
     // ─── Redis integration tests ─────────────────────────────────────────────

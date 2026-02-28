@@ -21,33 +21,159 @@ pub struct RelayPageResult {
 ///
 /// This trait abstracts over different database backends (PostgreSQL, MySQL, SQLite, SQL Server).
 /// All implementations must support:
-/// - Executing simple WHERE queries against views
+/// - Executing parameterized WHERE queries against views
 /// - Returning JSONB data from the `data` column
 /// - Connection pooling and health checks
+/// - Row-level security (RLS) WHERE clauses
 ///
-/// # Example
+/// # Architecture
+///
+/// The adapter is the runtime interface to the database. It receives:
+/// - View/table name (e.g., "v_user", "tf_sales")
+/// - Parameterized WHERE clauses (AST form, not strings)
+/// - Projection hints (for performance optimization)
+/// - Pagination parameters (LIMIT/OFFSET)
+///
+/// And returns:
+/// - JSONB rows from the `data` column (most operations)
+/// - Arbitrary rows as HashMap (for aggregation queries)
+/// - Mutation results from stored procedures
+///
+/// # Implementing a New Adapter
+///
+/// To add support for a new database (e.g., Oracle, Snowflake):
+///
+/// 1. **Create a new module** in `src/db/your_database/`
+/// 2. **Implement the trait**:
+///    ```rust,ignore
+///    pub struct YourDatabaseAdapter { /* fields */ }
+///
+///    #[async_trait]
+///    impl DatabaseAdapter for YourDatabaseAdapter {
+///        async fn execute_where_query(&self, ...) -> Result<Vec<JsonbValue>> {
+///            // 1. Build parameterized SQL from WhereClause AST
+///            // 2. Execute with bound parameters (NO string concatenation)
+///            // 3. Return JSONB from data column
+///        }
+///        // Implement other required methods...
+///    }
+///    ```
+/// 3. **Add feature flag** to `Cargo.toml` (e.g., `feature = "your-database"`)
+/// 4. **Copy structure from PostgreSQL adapter** — see `src/db/postgres/adapter.rs`
+/// 5. **Add tests** in `tests/integration/your_database_test.rs`
+///
+/// # Security Requirements
+///
+/// All implementations MUST:
+/// - **Never concatenate user input into SQL strings**
+/// - **Always use parameterized queries** with bind parameters
+/// - **Validate parameter types** before binding
+/// - **Preserve RLS WHERE clauses** (never filter them out)
+/// - **Return errors, not silently fail** (e.g., connection loss)
+///
+/// # Connection Management
+///
+/// - Use a connection pool (recommended: 20 connections default)
+/// - Implement `health_check()` for ping-based monitoring
+/// - Provide `pool_metrics()` for observability
+/// - Handle stale connections gracefully
+///
+/// # Performance Characteristics
+///
+/// Expected throughput when properly implemented:
+/// - **Simple queries** (single table, no WHERE): 250+ Kelem/s
+/// - **Complex queries** (JOINs, multiple conditions): 50+ Kelem/s
+/// - **Mutations** (stored procedures): 1-10 RPS (depends on procedure)
+/// - **Relay pagination** (keyset cursors): 15-30ms latency
+///
+/// # Example: PostgreSQL Implementation
+///
+/// ```rust,ignore
+/// use sqlx::postgres::PgPool;
+/// use async_trait::async_trait;
+///
+/// pub struct PostgresAdapter {
+///     pool: PgPool,
+/// }
+///
+/// #[async_trait]
+/// impl DatabaseAdapter for PostgresAdapter {
+///     async fn execute_where_query(
+///         &self,
+///         view: &str,
+///         where_clause: Option<&WhereClause>,
+///         limit: Option<u32>,
+///         offset: Option<u32>,
+///     ) -> Result<Vec<JsonbValue>> {
+///         // 1. Build SQL: SELECT data FROM {view} WHERE {where_clause} LIMIT {limit}
+///         let mut sql = format!(r#"SELECT data FROM "{}""#, view);
+///
+///         // 2. Add WHERE clause (converts AST to parameterized SQL)
+///         let params = if let Some(where_clause) = where_clause {
+///             sql.push_str(" WHERE ");
+///             let (where_sql, params) = build_where_sql(where_clause)?;
+///             sql.push_str(&where_sql);
+///             params
+///         } else {
+///             vec![]
+///         };
+///
+///         // 3. Add LIMIT and OFFSET
+///         if let Some(limit) = limit {
+///             sql.push_str(" LIMIT ");
+///             sql.push_str(&limit.to_string());
+///         }
+///         if let Some(offset) = offset {
+///             sql.push_str(" OFFSET ");
+///             sql.push_str(&offset.to_string());
+///         }
+///
+///         // 4. Execute with bound parameters (NO string interpolation)
+///         let rows: Vec<(serde_json::Value,)> = sqlx::query_as(&sql)
+///             .bind(&params[0])
+///             .bind(&params[1])
+///             // ... bind all parameters
+///             .fetch_all(&self.pool)
+///             .await?;
+///
+///         // 5. Extract JSONB and return
+///         Ok(rows.into_iter().map(|(data,)| data).collect())
+///     }
+///
+///     // Implement other required methods...
+/// }
+/// ```
+///
+/// # Example: Basic Usage
 ///
 /// ```rust,no_run
 /// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
 /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
-/// // Build WHERE clause
+/// // Build WHERE clause (AST, not string)
 /// let where_clause = WhereClause::Field {
 ///     path: vec!["email".to_string()],
 ///     operator: WhereOperator::Icontains,
 ///     value: json!("example.com"),
 /// };
 ///
-/// // Execute query
+/// // Execute query with parameters
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), None, None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None)
 ///     .await?;
 ///
-/// println!("Found {} users", results.len());
+/// println!("Found {} users matching filter", results.len());
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # See Also
+///
+/// - `WhereClause` — AST for parameterized WHERE clauses
+/// - `RelayDatabaseAdapter` — Optional trait for keyset pagination
+/// - `DatabaseCapabilities` — Feature detection for the adapter
+/// - [Performance Guide](https://docs.fraiseql.rs/performance/database-adapters.md)
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a WHERE query against a view and return JSONB rows.

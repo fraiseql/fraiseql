@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT data FROM "v_post" WHERE data->>'published' = true AND data->>'tenant_id' = current_setting('app.tenant_id')::UUID

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email') FROM "v_user" LIMIT 10

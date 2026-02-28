@@ -6,10 +6,12 @@ pub enum AuthError {
     #[error("Invalid token: {reason}")]
     InvalidToken { reason: String },
 
-    #[error("Token expired")]
+    #[error("Token expired. Obtain a new token by re-authenticating.")]
     TokenExpired,
 
-    #[error("Invalid signature")]
+    #[error(
+        "Token signature is invalid. Ensure the token was issued by the expected provider."
+    )]
     InvalidSignature,
 
     #[error("Missing required claim: {claim}")]
@@ -39,7 +41,9 @@ pub enum AuthError {
     #[error("State validation failed")]
     InvalidState,
 
-    #[error("Token not found")]
+    #[error(
+        "No authentication token provided. Include a Bearer token in the Authorization header."
+    )]
     TokenNotFound,
 
     #[error("Session revoked")]

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT `data` FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.name')) LIKE ?
