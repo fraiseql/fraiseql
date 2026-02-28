@@ -8,9 +8,11 @@
 //! Multi-step Redis operations use Lua scripts executed via `redis::Script`,
 //! which provides EVALSHA + NOSCRIPT fallback automatically:
 //!
-//! - **`remove`**: `LREM` + `DEL` in a single script — no orphaned list entries
-//! - **`clear`**: `LRANGE` + N×`DEL` + `DEL list` in a single script — consistent
-//!   snapshot; jobs added concurrently are either fully included or fully excluded
+//! - **`remove`**: `LREM` + `DEL` + `HDEL` (status hash) in a single script —
+//!   no orphaned list entries and the status hash stays in sync.
+//! - **`clear`**: `LRANGE` + N×(`DEL` + `HDEL`) + `DEL list` in a single script —
+//!   consistent snapshot; jobs added concurrently are either fully included or fully
+//!   excluded, and the status hash is kept in sync throughout.
 
 use redis::aio::ConnectionManager;
 use uuid::Uuid;
@@ -20,20 +22,26 @@ use crate::error::Result;
 
 // ── Lua scripts ───────────────────────────────────────────────────────────────
 
-/// Atomically remove one job from the DLQ list and delete its data key.
+/// Atomically remove one job from the DLQ list, delete its data key, and remove
+/// its entry from the status hash.
 ///
 /// - `KEYS[1]` — `queue:dlq` (the DLQ list)
-/// - `KEYS[2]` — `job:{uuid}` (the job data hash)
+/// - `KEYS[2]` — `job:{uuid}` (the job data key)
+/// - `KEYS[3]` — `queue:status` (the status hash)
 /// - `ARGV[1]` — `dlq:{uuid}` (the list member value to remove)
+/// - `ARGV[2]` — job UUID string (status hash field)
 const DLQ_REMOVE_SCRIPT: &str = r"
 redis.call('LREM', KEYS[1], 0, ARGV[1])
 redis.call('DEL', KEYS[2])
+redis.call('HDEL', KEYS[3], ARGV[2])
 return 1
 ";
 
-/// Atomically clear the entire DLQ: delete every job data key then remove the list.
+/// Atomically clear the entire DLQ: delete every job data key, remove every entry
+/// from the status hash, then remove the list itself.
 ///
 /// - `KEYS[1]` — `queue:dlq` (the DLQ list)
+/// - `KEYS[2]` — `queue:status` (the status hash)
 ///
 /// Returns the number of jobs that were removed.
 const DLQ_CLEAR_SCRIPT: &str = r"
@@ -41,6 +49,7 @@ local members = redis.call('LRANGE', KEYS[1], 0, -1)
 for _, member in ipairs(members) do
     local job_id = string.sub(member, 5)
     redis.call('DEL', 'job:' .. job_id)
+    redis.call('HDEL', KEYS[2], job_id)
 end
 redis.call('DEL', KEYS[1])
 return #members
@@ -62,6 +71,11 @@ impl DeadLetterQueueManager {
     /// DLQ key in Redis
     const fn dlq_key() -> &'static str {
         "queue:dlq"
+    }
+
+    /// Status hash key — shared with `RedisJobQueue`
+    const fn status_key() -> &'static str {
+        "queue:status"
     }
 
     /// Job storage key
@@ -171,7 +185,9 @@ impl DeadLetterQueueManager {
         redis::Script::new(DLQ_REMOVE_SCRIPT)
             .key(Self::dlq_key())          // KEYS[1]
             .key(Self::job_key(job_id))    // KEYS[2]
+            .key(Self::status_key())       // KEYS[3]
             .arg(Self::dlq_member(job_id)) // ARGV[1]
+            .arg(job_id.to_string())       // ARGV[2]
             .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
         Ok(())
@@ -188,7 +204,8 @@ impl DeadLetterQueueManager {
     /// Returns error if Redis operation fails.
     pub async fn clear(&self) -> Result<()> {
         redis::Script::new(DLQ_CLEAR_SCRIPT)
-            .key(Self::dlq_key()) // KEYS[1]
+            .key(Self::dlq_key())  // KEYS[1]
+            .key(Self::status_key()) // KEYS[2]
             .invoke_async::<i64>(&mut self.conn.clone())
             .await?;
         Ok(())
