@@ -5,6 +5,61 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Per-user rate limiting now operative**: `check_user_limit` was never called from
+  `rate_limit_middleware`; authenticated requests were limited by the shared IP bucket instead
+  of the per-user bucket. The middleware now extracts the `sub` claim from the `Authorization:
+  Bearer` header (base64 decode without signature verification — sufficient for rate limiting)
+  and routes authenticated requests through the per-user token bucket (`rps_per_user`, default
+  10× `rps_per_ip`). Unauthenticated requests continue to use the IP bucket.
+- **Proxy-aware IP extraction**: `rate_limit_middleware` previously used the TCP peer address
+  (`ConnectInfo<SocketAddr>`) for all IP lookups, making IP-based rate limiting inoperative
+  behind any reverse proxy. A new `trust_proxy_headers` boolean in `[security.rate_limiting]`
+  (default `false`) reads `X-Real-IP` then the first address from `X-Forwarded-For` when
+  enabled. Set to `true` only when FraiseQL is deployed behind a trusted proxy.
+- **`Retry-After` accuracy for path-limited responses**: path limit rejections (e.g.
+  `/auth/start`) previously emitted `Retry-After: 1` (from the IP token-bucket rate), causing
+  clients to retry immediately and exhaust the auth endpoint's small budget. The header now
+  reflects the path rule's actual window: `ceil(window_secs / max_requests)` (e.g. 12s for
+  5 req/60s).
+- **Cookie charset safety**: the `Set-Cookie` access token value is now double-quoted per RFC
+  6265 quoted-string syntax, with `"` and `\` escaped. Previously, tokens containing those
+  characters (non-standard but spec-permitted) would produce a malformed `Set-Cookie` header
+  silently omitted by the browser.
+- **Silent `Set-Cookie` omission**: `cookie.parse()` failure in `auth_callback` now returns
+  HTTP 500 with an actionable error instead of silently dropping the header and leaving the
+  user with a session at the OIDC provider but no application cookie.
+- **`__Host-` cookie prefix**: access token cookie renamed from `access_token` to
+  `__Host-access_token`, blocking subdomain override attacks. The `__Host-` prefix mandates
+  `Secure`, `Path=/`, and no `Domain` attribute — all of which were already set.
+- **Conservative cookie `Max-Age` default**: when the OIDC provider omits `expires_in`, the
+  cookie lifetime now defaults to 300s instead of 3600s, preventing the session cookie from
+  outliving a short-lived token by up to 55 minutes.
+- **`redirect_uri` length cap**: `auth_start` now rejects `redirect_uri` values longer than
+  2048 bytes with HTTP 400, preventing memory amplification via the PKCE state store. An
+  explicit safety comment documents that `pkce.redirect_uri` must not be used to construct
+  HTTP redirects without allowlist validation.
+- **OIDC provider error strings no longer reflected to clients**: `auth_callback` previously
+  forwarded raw provider `error_description` values (which may include internal tenant details
+  or stack traces) directly to the browser. Provider error codes are now mapped to a fixed
+  allowlist (`access_denied` → "Access was denied", `invalid_request` / `invalid_scope` →
+  "Invalid authorization request", etc.); the full provider response is still logged at `warn`.
+- **Test: URL-safe state token extraction**: the PKCE round-trip test replaced fragile
+  `split("state=")` string parsing with `reqwest::Url::parse().query_pairs()`, eliminating
+  false matches when `state=` appears in other parts of the authorization URL.
+
+### Verification
+
+- `cargo check`: clean
+- `cargo clippy --all-targets -- -D warnings`: zero warnings
+- Rate limit module: 34 tests pass (10 new — `extract_jwt_subject`, `extract_real_ip`,
+  `retry_after_for_path`)
+- Auth routes: 8 tests pass (4 new — oversized `redirect_uri`, OIDC error mapping ×2,
+  round-trip with URL parsing)
+
 ## [2.0.0-rc.14] - 2026-02-28
 
 ### Added
