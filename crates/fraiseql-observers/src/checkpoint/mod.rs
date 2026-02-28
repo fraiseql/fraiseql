@@ -303,8 +303,7 @@ impl CheckpointStore for InMemoryCheckpointStore {
 pub fn check_checkpoint_requirement(mode: CheckpointMode) -> Result<()> {
     if mode == CheckpointMode::DevOnly {
         let required = std::env::var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT")
-            .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"))
-            .unwrap_or(false);
+            .is_ok_and(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"));
 
         if required {
             return Err(ObserverError::InvalidConfig {

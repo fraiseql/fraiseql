@@ -396,7 +396,7 @@ mod tests {
         assert_eq!(config.retention_max_bytes, 1_073_741_824);
     }
 
-    // Note: Integration tests with embedded NATS server will be added in tests/ directory
-    // Unit tests for NatsTransport require a running NATS server, so they are deferred
-    // to the integration test phase.
+    // Note: Integration tests with an embedded NATS server live in the tests/ directory.
+    // Unit tests for NatsTransport require a running NATS server and are therefore
+    // deferred to integration tests.
 }

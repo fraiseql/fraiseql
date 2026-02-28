@@ -174,13 +174,23 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
     /// * `dedup_store` - Deduplication store implementation (e.g., `RedisDeduplicationStore`)
     /// * `tenant_scope` - Tenant boundary policy (see [`TenantScope`])
     pub fn new_with_scope(executor: ObserverExecutor, dedup_store: D, tenant_scope: TenantScope) -> Self {
-        if matches!(tenant_scope, TenantScope::Unrestricted) {
-            warn!(
-                "DedupedObserverExecutor configured with TenantScope::Unrestricted — \
-                 events from ALL tenants (including those without a tenant_id) will be \
-                 processed. Consider using TenantScope::Single or TenantScope::AllowList \
-                 in multi-tenant deployments."
-            );
+        match &tenant_scope {
+            TenantScope::Unrestricted => {
+                warn!(
+                    "DedupedObserverExecutor configured with TenantScope::Unrestricted — \
+                     events from ALL tenants (including those without a tenant_id) will be \
+                     processed. Consider using TenantScope::Single or TenantScope::AllowList \
+                     in multi-tenant deployments."
+                );
+            },
+            TenantScope::AllowList(ids) if ids.is_empty() => {
+                warn!(
+                    "DedupedObserverExecutor configured with an empty TenantScope::AllowList \
+                     — every event will be rejected as a tenant violation. \
+                     Add at least one tenant ID to the allow list."
+                );
+            },
+            _ => {},
         }
         Self {
             inner: Arc::new(executor),
