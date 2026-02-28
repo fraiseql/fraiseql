@@ -2,7 +2,7 @@
 //!
 //! # Overview
 //!
-//! The compiler transforms GraphQL schema definitions (from Python/TypeScript decorators)
+//! The compiler transforms GraphQL schema definitions (from authoring-language decorators)
 //! into optimized, executable `CompiledSchema` with pre-generated SQL templates.
 //!
 //! ## Compilation Pipeline
@@ -220,7 +220,7 @@ impl Compiler {
     ///
     /// # Arguments
     ///
-    /// * `schema_json` - JSON schema from Python/TypeScript decorators
+    /// * `schema_json` - JSON schema emitted by the authoring-language decorators
     ///
     /// # Returns
     ///
@@ -263,7 +263,7 @@ impl Compiler {
         let compiled = self.codegen.generate(&validated_ir, &sql_templates)?;
 
         // Note: Fact table metadata will be added by external tools or
-        // through explicit API calls (e.g., from Python decorators)
+        // through explicit API calls (e.g., from authoring-language decorators)
 
         tracing::debug!("Compilation complete!");
 

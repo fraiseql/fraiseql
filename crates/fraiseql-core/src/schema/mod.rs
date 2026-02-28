@@ -1,33 +1,33 @@
 //! Compiled Schema Types
 //!
-//! This module defines the Rust-owned schema representation that is compiled
-//! from Python/TypeScript decorators at startup time.
+//! This module defines the Rust-owned schema representation loaded from a compiled
+//! schema at startup time.
 //!
 //! # Architecture
 //!
 //! ```text
-//! Python/TypeScript                    Rust
-//! ─────────────────                    ────
+//! Authoring language                   Rust
+//! (Python, TS, Go, …)                 ────
 //! @fraiseql.type    ─┐
-//! @fraiseql.query    ├─→ SchemaCompiler ─→ JSON ─→ CompiledSchema
-//! @fraiseql.mutation─┘                              (Rust-owned)
-//!                                                        │
-//!                                                        ▼
-//!                                              Axum serves requests
-//!                                              (Python/TS irrelevant)
+//! @fraiseql.query    ├─→ schema.json ─→ fraiseql-cli compile ─→ CompiledSchema
+//! @fraiseql.mutation─┘                                           (Rust-owned)
+//!                                                                      │
+//!                                                                      ▼
+//!                                                            Axum serves requests
+//!                                                    (authoring language not involved)
 //! ```
 //!
 //! # Key Invariant
 //!
 //! After `CompiledSchema::from_json()`, all data is **Rust-owned**.
-//! No Python/TypeScript objects are referenced during request handling.
+//! No authoring-language objects are referenced during request handling.
 //!
 //! # Usage
 //!
 //! ```ignore
 //! use fraiseql_core::schema::CompiledSchema;
 //!
-//! // From Python-compiled JSON
+//! // From schema.compiled.json produced by `fraiseql-cli compile`
 //! let schema = CompiledSchema::from_json(json_str)?;
 //!
 //! // From CLI config file

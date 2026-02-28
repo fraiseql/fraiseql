@@ -1304,7 +1304,9 @@ impl WindowPlanner {
     /// Priority:
     /// 1. Check if it's a measure (direct column)
     /// 2. Check if it's a filter column (direct column)
-    /// 3. Assume it's a dimension path (JSONB extraction)
+    /// 3. Treat as a dimension path (JSONB extraction) — only if the name is a valid
+    ///    GraphQL identifier (`[_A-Za-z][_0-9A-Za-z]*`), to prevent SQL injection via
+    ///    the single-quoted key in `data->>'field'` expressions.
     fn resolve_field_to_sql(field: &str, metadata: &FactTableMetadata) -> Result<String> {
         // Check if it's a measure
         if metadata.measures.iter().any(|m| m.name == field) {
@@ -1316,8 +1318,35 @@ impl WindowPlanner {
             return Ok(field.to_string());
         }
 
-        // Assume it's a dimension path
+        // Validate identifier before embedding in JSONB extraction expression.
+        // Without this check, a field like "x'; DROP TABLE t; --" would produce
+        // `data->>'x'; DROP TABLE t; --'`, breaking the SQL structure.
+        Self::validate_field_identifier(field)?;
+
+        // Dimension path
         Ok(format!("{}->>'{}'", metadata.dimensions.name, field))
+    }
+
+    /// Validate that `field` is a safe GraphQL identifier: `[_A-Za-z][_0-9A-Za-z]*`.
+    ///
+    /// Field names are embedded as single-quoted string keys in JSONB extraction
+    /// expressions (`data->>'field'`). Any character outside this set must be rejected.
+    fn validate_field_identifier(field: &str) -> Result<()> {
+        let mut chars = field.chars();
+        let first_ok =
+            chars.next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false);
+        let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if first_ok && rest_ok {
+            Ok(())
+        } else {
+            Err(crate::error::FraiseQLError::Validation {
+                message: format!(
+                    "window field '{field}' contains invalid characters; \
+                     only [_A-Za-z][_0-9A-Za-z]* is allowed"
+                ),
+                path:    None,
+            })
+        }
     }
 
     /// Validate that a measure exists in metadata.
@@ -1864,5 +1893,34 @@ mod tests {
         let json2 = serialize_json(&spec2);
         assert!(json2.contains("ntile"));
         assert!(json2.contains("4"));
+    }
+
+    /// `resolve_field_to_sql` must reject fields whose names contain characters outside the
+    /// GraphQL identifier set (`[_A-Za-z][_0-9A-Za-z]*`).  Such names are embedded as
+    /// single-quoted JSONB keys and would break the SQL structure if accepted.
+    #[test]
+    fn test_resolve_field_rejects_injection_in_order_by() {
+        let metadata = create_test_metadata();
+        let request = WindowRequest {
+            table_name:   "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![],
+            where_clause: None,
+            order_by:     vec![WindowOrderBy {
+                // Contains a single quote — must be rejected.
+                field:     "x'; DROP TABLE t; --".to_string(),
+                direction: OrderDirection::Asc,
+            }],
+            limit:        None,
+            offset:       None,
+        };
+
+        let result = WindowPlanner::plan(request, metadata);
+        assert!(result.is_err(), "injection attempt in orderBy field must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("invalid characters"),
+            "error should mention invalid characters: {msg}"
+        );
     }
 }

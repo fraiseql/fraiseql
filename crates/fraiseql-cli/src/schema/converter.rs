@@ -552,7 +552,7 @@ impl SchemaConverter {
 
     /// Resolve the final `AutoParams` for a list query using the priority chain:
     ///
-    /// - `per_query`: flags explicitly set by the Python/TS decorator (`Some(v)`)
+    /// - `per_query`: flags explicitly set by the authoring-language decorator (`Some(v)`)
     ///   or absent (`None` → inherit from defaults)
     /// - `defaults`:  project-wide values from `[query_defaults]` in `fraiseql.toml`
     ///

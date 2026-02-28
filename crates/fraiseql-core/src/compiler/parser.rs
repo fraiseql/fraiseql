@@ -1,6 +1,6 @@
 //! Schema parser - JSON → Authoring IR.
 //!
-//! Parses JSON schema definitions from Python/TypeScript decorators
+//! Parses JSON schema definitions emitted by authoring-language decorators
 //! into internal Intermediate Representation.
 //!
 //! Supports parsing all GraphQL schema elements:

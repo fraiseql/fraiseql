@@ -1,11 +1,12 @@
 //! Field name case conversion (camelCase → `snake_case`).
 //!
 //! This module handles converting GraphQL field names (typically camelCase)
-//! to `PostgreSQL` column names (typically `snake_case`) to match Python behavior.
+//! to PostgreSQL column names (typically `snake_case`).
 
 /// Convert camelCase or `PascalCase` to `snake_case`.
 ///
-/// This implementation matches Python's behavior for field name conversion.
+/// Follows the standard GraphQL-to-SQL field name convention used across all
+/// authoring languages: `camelCase` GraphQL names → `snake_case` column names.
 ///
 /// # Examples
 ///

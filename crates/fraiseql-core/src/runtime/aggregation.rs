@@ -59,6 +59,9 @@ use crate::{
         fact_table::FactTableMetadata,
     },
     db::{
+        identifier::{
+            quote_mysql_identifier, quote_postgres_identifier, quote_sqlserver_identifier,
+        },
         types::DatabaseType,
         where_clause::{WhereClause, WhereOperator},
     },
@@ -486,7 +489,7 @@ impl AggregationSqlGenerator {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
                 };
-                format!("{} {}", clause.field, direction)
+                format!("{} {}", self.quote_identifier(&clause.field), direction)
             })
             .collect::<Vec<_>>()
             .join(", ")
@@ -782,20 +785,48 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Format LIKE pattern based on operator
+    /// Format LIKE pattern based on operator.
+    ///
+    /// For semantic wildcard operators (`contains`, `startswith`, `endswith` and their
+    /// case-insensitive variants) the user's value is treated as a literal string —
+    /// `%` and `_` characters are **not** wildcards.  These are escaped using `!` as
+    /// the LIKE ESCAPE character (supported by PostgreSQL, MySQL, SQLite, and SQL Server).
+    ///
+    /// For the bare `like`/`ilike` operators the caller explicitly intends to pass
+    /// wildcard characters, so only the SQL string delimiter is escaped.
     fn format_like_pattern(&self, operator: &WhereOperator, value: &str) -> String {
         match operator {
             WhereOperator::Contains | WhereOperator::Icontains => {
-                format!("'%{}%'", value.replace('\'', "''"))
+                let escaped = self.escape_like_value(value);
+                format!("'%{escaped}%' ESCAPE '!'")
             },
             WhereOperator::Startswith | WhereOperator::Istartswith => {
-                format!("'{}%'", value.replace('\'', "''"))
+                let escaped = self.escape_like_value(value);
+                format!("'{escaped}%' ESCAPE '!'")
             },
             WhereOperator::Endswith | WhereOperator::Iendswith => {
-                format!("'%{}'", value.replace('\'', "''"))
+                let escaped = self.escape_like_value(value);
+                format!("'%{escaped}' ESCAPE '!'")
             },
-            _ => format!("'{}'", value.replace('\'', "''")),
+            _ => {
+                // Like/Ilike: intentional wildcards — only escape the SQL string delimiter.
+                let escaped = self.escape_sql_string(value);
+                format!("'{escaped}'")
+            },
         }
+    }
+
+    /// Escape a string for use as a LIKE pattern literal where `!` is the ESCAPE character.
+    ///
+    /// Doubles the ESCAPE character `!` first, then escapes LIKE wildcards `%` and `_`.
+    /// SQL string delimiter escaping (via [`Self::escape_sql_string`]) is applied last so
+    /// that the backslash doubling required for MySQL does not interact with `!` escaping.
+    fn escape_like_value(&self, s: &str) -> String {
+        // Escape LIKE metacharacters using '!' as the ESCAPE character.
+        // '!' is doubled first to avoid double-escaping the newly inserted '!' prefixes.
+        let like_escaped = s.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+        // Then apply SQL string literal escaping (handles MySQL backslash, standard '' quoting).
+        self.escape_sql_string(&like_escaped)
     }
 
     /// Format array values for IN/NOT IN clauses
@@ -809,14 +840,56 @@ impl AggregationSqlGenerator {
         Ok(formatted.join(", "))
     }
 
+    /// Quote a validated field alias/column name using the database-appropriate identifier syntax.
+    ///
+    /// Field names arrive here after `OrderByClause::validate_field_name` has verified they
+    /// match `[_A-Za-z][_0-9A-Za-z]*`, so no delimiter-escaping is required — but quoting
+    /// still protects against SQL reserved words (`order`, `count`, `group`, `select`, …)
+    /// that would break unquoted ORDER BY clauses.
+    fn quote_identifier(&self, name: &str) -> String {
+        match self.database_type {
+            DatabaseType::MySQL => quote_mysql_identifier(name),
+            DatabaseType::SQLServer => quote_sqlserver_identifier(name),
+            // PostgreSQL and SQLite both use double-quote syntax.
+            DatabaseType::PostgreSQL | DatabaseType::SQLite => quote_postgres_identifier(name),
+        }
+    }
+
     /// Format a single SQL value
     fn format_sql_value(&self, value: &serde_json::Value) -> String {
         match value {
             serde_json::Value::Null => "NULL".to_string(),
-            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Bool(b) => match self.database_type {
+                // SQL Server has no boolean literal; use 1/0.
+                DatabaseType::SQLServer => if *b { "1" } else { "0" }.to_string(),
+                _ => b.to_string(),
+            },
             serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
-            _ => "NULL".to_string(), // Fallback for arrays/objects
+            serde_json::Value::String(s) => {
+                let escaped = self.escape_sql_string(s);
+                format!("'{escaped}'")
+            },
+            // Arrays and objects cannot be represented as a scalar SQL literal.
+            // They are mapped to NULL so that the generated WHERE/HAVING clause
+            // evaluates to a no-match condition rather than a syntax error.
+            // The calling layer (GraphQL argument validation) is responsible for
+            // rejecting array/object values before they reach this function.
+            _ => "NULL".to_string(),
+        }
+    }
+
+    /// Escape a string value for embedding inside a SQL string literal.
+    ///
+    /// MySQL treats backslash as an escape character in string literals by default
+    /// (unless `NO_BACKSLASH_ESCAPES` sql_mode is set). Backslashes must be doubled
+    /// before single-quote escaping to prevent injection via sequences like `\';`.
+    fn escape_sql_string(&self, s: &str) -> String {
+        if matches!(self.database_type, DatabaseType::MySQL) {
+            // Escape backslashes first, then single quotes.
+            s.replace('\\', "\\\\").replace('\'', "''")
+        } else {
+            // Standard SQL: only double single quotes.
+            s.replace('\'', "''")
         }
     }
 
@@ -846,7 +919,7 @@ impl AggregationSqlGenerator {
             // Format value based on type
             let value_sql = match &condition.value {
                 serde_json::Value::Number(n) => n.to_string(),
-                serde_json::Value::String(s) => format!("'{}'", s),
+                serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
                 serde_json::Value::Bool(b) => b.to_string(),
                 _ => {
                     return Err(FraiseQLError::Validation {
@@ -871,7 +944,7 @@ impl AggregationSqlGenerator {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
                 };
-                format!("{} {}", clause.field, direction)
+                format!("{} {}", self.quote_identifier(&clause.field), direction)
             })
             .collect();
 
@@ -1079,7 +1152,7 @@ mod tests {
         let sql = generator.generate(&plan).unwrap();
 
         assert!(sql.order_by.is_some());
-        assert!(sql.order_by.as_ref().unwrap().contains("ORDER BY revenue_sum DESC"));
+        assert!(sql.order_by.as_ref().unwrap().contains("ORDER BY \"revenue_sum\" DESC"));
     }
 
     // ========================================
@@ -1100,7 +1173,7 @@ mod tests {
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_array_agg_sql("product_id", Some(&order_by));
-        assert_eq!(sql, "ARRAY_AGG(product_id ORDER BY revenue DESC)");
+        assert_eq!(sql, "ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)");
     }
 
     #[test]
@@ -1133,7 +1206,7 @@ mod tests {
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
-        assert_eq!(sql, "STRING_AGG(product_name, ', ' ORDER BY revenue DESC)");
+        assert_eq!(sql, "STRING_AGG(product_name, ', ' ORDER BY \"revenue\" DESC)");
     }
 
     #[test]
@@ -1145,7 +1218,7 @@ mod tests {
             direction: OrderDirection::Desc,
         }];
         let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
-        assert_eq!(sql, "GROUP_CONCAT(product_name ORDER BY revenue DESC SEPARATOR ', ')");
+        assert_eq!(sql, "GROUP_CONCAT(product_name ORDER BY `revenue` DESC SEPARATOR ', ')");
     }
 
     #[test]
@@ -1158,7 +1231,7 @@ mod tests {
         }];
         let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
         assert!(sql.contains("STRING_AGG(CAST(product_name AS NVARCHAR(MAX)), ', ')"));
-        assert!(sql.contains("WITHIN GROUP (ORDER BY revenue DESC)"));
+        assert!(sql.contains("WITHIN GROUP (ORDER BY [revenue] DESC)"));
     }
 
     #[test]
@@ -1172,7 +1245,7 @@ mod tests {
             direction: OrderDirection::Asc,
         }];
         let sql = generator.generate_json_agg_sql("data", Some(&order_by));
-        assert_eq!(sql, "JSON_AGG(data ORDER BY created_at ASC)");
+        assert_eq!(sql, "JSON_AGG(data ORDER BY \"created_at\" ASC)");
     }
 
     #[test]
@@ -1247,7 +1320,84 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("ARRAY_AGG(product_id ORDER BY revenue DESC)"));
+        assert!(sql.complete_sql.contains("ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)"));
         assert!(sql.complete_sql.contains("STRING_AGG(product_name, ', ')"));
+    }
+
+    // ========================================
+    // Security / Escaping Tests
+    // ========================================
+
+    #[test]
+    fn test_having_clause_escapes_single_quote_in_string() {
+        use crate::compiler::aggregate_types::AggregateFunction;
+
+        let mut plan = create_test_plan();
+        plan.having_conditions = vec![ValidatedHavingCondition {
+            aggregate: AggregateExpression::MeasureAggregate {
+                column:   "label".to_string(),
+                function: AggregateFunction::Max,
+                alias:    "label_max".to_string(),
+            },
+            operator:  HavingOperator::Eq,
+            value:     serde_json::json!("O'Reilly"),
+        }];
+
+        let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = generator.generate(&plan).unwrap();
+
+        // Single quote in the value must be doubled, not left bare.
+        let having = sql.having.unwrap();
+        assert!(having.contains("'O''Reilly'"), "expected doubled quote, got: {having}");
+    }
+
+    #[test]
+    fn test_escape_sql_string_mysql_doubles_backslash() {
+        // MySQL treats backslash as an escape character in string literals.
+        // A bare backslash before the closing quote would consume it, breaking the SQL.
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        assert_eq!(gen.escape_sql_string("test\\"), "test\\\\");
+        assert_eq!(gen.escape_sql_string("te'st"), "te''st");
+        // Backslash followed by a quote: escape backslash first (→ \\), then double the
+        // quote (→ '').  Result for te\'st is te\\''st.
+        assert_eq!(gen.escape_sql_string("te\\'st"), "te\\\\''st");
+    }
+
+    #[test]
+    fn test_escape_sql_string_postgres_only_doubles_quote() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        // Backslash is not special in standard SQL string literals.
+        assert_eq!(gen.escape_sql_string("test\\"), "test\\");
+        assert_eq!(gen.escape_sql_string("te'st"), "te''st");
+    }
+
+    #[test]
+    fn test_format_like_pattern_escapes_wildcards_for_contains() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let pattern = gen.format_like_pattern(&WhereOperator::Contains, "50%_off");
+        // % and _ must be escaped with '!'; ESCAPE clause required.
+        assert!(pattern.contains("!%"), "% must be escaped: {pattern}");
+        assert!(pattern.contains("!_"), "_ must be escaped: {pattern}");
+        assert!(pattern.contains("ESCAPE '!'"), "ESCAPE clause required: {pattern}");
+        // The LIKE anchors must still be present.
+        assert!(pattern.starts_with("'%"), "starts with wildcard anchor: {pattern}");
+        assert!(pattern.contains("%' ESCAPE"), "ends with wildcard anchor: {pattern}");
+    }
+
+    #[test]
+    fn test_format_like_pattern_like_operator_passes_wildcards_through() {
+        // The bare `like` operator is for explicit wildcard use — % and _ are intentional.
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let pattern = gen.format_like_pattern(&WhereOperator::Like, "50%_off");
+        assert!(pattern.contains('%'), "% should be preserved for Like operator: {pattern}");
+        assert!(!pattern.contains("ESCAPE"), "no ESCAPE clause for Like: {pattern}");
+    }
+
+    #[test]
+    fn test_escape_like_value_escapes_escape_char_itself() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        // A literal '!' in the value must be doubled so it is not mistaken for ESCAPE prefix.
+        let escaped = gen.escape_like_value("hello!world");
+        assert!(escaped.contains("!!"), "! must be escaped: {escaped}");
     }
 }

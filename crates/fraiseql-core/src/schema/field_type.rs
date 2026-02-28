@@ -205,7 +205,7 @@ impl DistanceMetric {
 /// A field within a GraphQL type.
 ///
 /// This represents a single field definition after compilation from
-/// Python/TypeScript decorators. All data is Rust-owned.
+/// authoring-language decorators. All data is Rust-owned.
 ///
 /// # JSONB Architecture Note
 ///

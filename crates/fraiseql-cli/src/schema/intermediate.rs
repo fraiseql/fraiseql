@@ -560,7 +560,7 @@ pub struct IntermediateUnion {
 /// Auto-params configuration in intermediate format.
 ///
 /// Each field is `Option<bool>`: `None` means "not specified — inherit from
-/// `[query_defaults]`"; `Some(v)` means explicitly set by the Python/TS decorator.
+/// `[query_defaults]`"; `Some(v)` means explicitly set by the authoring-language decorator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAutoParams {
     /// Enable automatic limit parameter (None = inherit from query_defaults)

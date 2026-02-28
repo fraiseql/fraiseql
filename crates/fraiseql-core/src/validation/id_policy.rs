@@ -119,8 +119,9 @@ pub fn validate_id(id: &str, policy: IDPolicy) -> Result<(), IDValidationError> 
 
 /// Validate that an ID is a valid UUID string
 ///
-/// **Security Note**: This validation happens at the Rust layer for defense-in-depth.
-/// Python layer validation via `IDPolicy` is the primary enforcement mechanism.
+/// **Security Note**: This is a defense-in-depth check at the Rust runtime layer.
+/// The primary enforcement point is the CLI compiler (`fraiseql-cli compile`), which
+/// validates ID policy rules when producing `schema.compiled.json`.
 ///
 /// UUID format validation requires:
 /// - 36 characters total

@@ -171,7 +171,7 @@ impl CompilationCache {
     /// # Arguments
     ///
     /// * `compiler` - Schema compiler
-    /// * `schema_json` - JSON schema from Python/TypeScript decorators
+    /// * `schema_json` - JSON schema emitted by the authoring-language decorators
     ///
     /// # Returns
     ///

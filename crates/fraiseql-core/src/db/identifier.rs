@@ -26,7 +26,7 @@
 pub fn quote_postgres_identifier(identifier: &str) -> String {
     identifier
         .split('.')
-        .map(|part| format!("\"{}\"", part))
+        .map(|part| format!("\"{}\"", part.replace('"', "\"\"")))
         .collect::<Vec<_>>()
         .join(".")
 }
@@ -51,7 +51,7 @@ pub fn quote_postgres_identifier(identifier: &str) -> String {
 pub fn quote_mysql_identifier(identifier: &str) -> String {
     identifier
         .split('.')
-        .map(|part| format!("`{}`", part))
+        .map(|part| format!("`{}`", part.replace('`', "``")))
         .collect::<Vec<_>>()
         .join(".")
 }
@@ -76,7 +76,7 @@ pub fn quote_mysql_identifier(identifier: &str) -> String {
 pub fn quote_sqlite_identifier(identifier: &str) -> String {
     identifier
         .split('.')
-        .map(|part| format!("\"{}\"", part))
+        .map(|part| format!("\"{}\"", part.replace('"', "\"\"")))
         .collect::<Vec<_>>()
         .join(".")
 }
@@ -101,7 +101,7 @@ pub fn quote_sqlite_identifier(identifier: &str) -> String {
 pub fn quote_sqlserver_identifier(identifier: &str) -> String {
     identifier
         .split('.')
-        .map(|part| format!("[{}]", part))
+        .map(|part| format!("[{}]", part.replace(']', "]]")))
         .collect::<Vec<_>>()
         .join(".")
 }
@@ -177,5 +177,33 @@ mod tests {
             quote_sqlserver_identifier("catalog.schema.table"),
             "[catalog].[schema].[table]"
         );
+    }
+
+    // Delimiter-escape tests — the delimiter character must be doubled inside the quoted name.
+
+    #[test]
+    fn test_postgres_escapes_embedded_double_quote() {
+        // A double-quote inside a PostgreSQL quoted identifier must be doubled ("").
+        assert_eq!(quote_postgres_identifier("evil\"inject"), "\"evil\"\"inject\"");
+    }
+
+    #[test]
+    fn test_sqlite_escapes_embedded_double_quote() {
+        assert_eq!(quote_sqlite_identifier("evil\"inject"), "\"evil\"\"inject\"");
+    }
+
+    #[test]
+    fn test_mysql_escapes_embedded_backtick() {
+        // A backtick inside a MySQL quoted identifier must be doubled (``).
+        assert_eq!(quote_mysql_identifier("evil`inject"), "`evil``inject`");
+    }
+
+    #[test]
+    fn test_sqlserver_escapes_embedded_bracket() {
+        // A closing bracket ']' inside a SQL Server quoted identifier must be doubled ']]'.
+        // Single identifier component containing ']':
+        assert_eq!(quote_sqlserver_identifier("evil]inject"), "[evil]]inject]");
+        // Schema-qualified name where each part escapes its own ']':
+        assert_eq!(quote_sqlserver_identifier("dbo.evil]inject"), "[dbo].[evil]]inject]");
     }
 }

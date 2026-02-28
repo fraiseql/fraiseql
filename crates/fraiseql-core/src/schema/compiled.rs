@@ -1,18 +1,17 @@
-//! Compiled schema types - pure Rust, no Python/TypeScript references.
+//! Compiled schema types - pure Rust, no authoring-language references.
 //!
 //! These types represent GraphQL schemas after compilation from authoring languages.
-//! All data is owned by Rust - no `Py<T>` or foreign object references.
+//! All data is owned by Rust - no foreign object references.
 //!
 //! # Schema Freeze Invariant
 //!
 //! After `CompiledSchema::from_json()`, the schema is frozen:
 //! - All data is Rust-owned
-//! - No Python/TypeScript callbacks
-//! - No foreign object references
+//! - No authoring-language callbacks or object references
 //! - Safe to use from any Tokio worker thread
 //!
 //! This enables the Axum server to handle requests without any
-//! interaction with Python/TypeScript runtimes.
+//! interaction with the authoring-language runtime.
 
 use std::collections::HashMap;
 
@@ -173,7 +172,7 @@ impl SecurityConfig {
 /// Complete compiled schema - all type information for serving.
 ///
 /// This is the central type that holds the entire GraphQL schema
-/// after compilation from Python/TypeScript decorators.
+/// after compilation from any supported authoring language.
 ///
 /// # Example
 ///
@@ -296,8 +295,9 @@ impl CompiledSchema {
 
     /// Deserialize from JSON string.
     ///
-    /// This is the primary way to create a schema from Python/TypeScript.
-    /// The authoring language compiles to JSON, Rust deserializes and owns it.
+    /// This is the primary way to create a schema from any authoring language.
+    /// The authoring language emits `schema.json`; `fraiseql-cli compile` produces
+    /// `schema.compiled.json`; Rust deserializes and owns the result.
     ///
     /// # Errors
     ///

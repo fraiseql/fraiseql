@@ -34,7 +34,13 @@
 //! - Generate SQL field projections for optimization (40-55% network reduction)
 //!
 //! All user input (variables, WHERE operators) is sent as prepared statement parameters.
-//! **Zero SQL string concatenation** — complete protection against SQL injection.
+//! **Zero SQL string concatenation for regular queries and mutations** — complete
+//! protection against SQL injection on the standard execution paths.
+//!
+//! > **Note on aggregate and window queries**: These paths use `execute_raw_query` with
+//! > pre-assembled SQL strings rather than prepared statement parameters. All user-supplied
+//! > values are escaped via `format_sql_value` / `escape_sql_string`, but the guarantee
+//! > of parameterised execution does not extend to these paths.
 //!
 //! ## 3. Execution Phase — Run and Process Results
 //! The `DatabaseAdapter` executes the parameterized SQL:
@@ -73,7 +79,9 @@
 //! - WHERE operators (`eq`, `like`, `in`) → parameterized operators
 //! - Inject values → bound parameters
 //!
-//! **No string concatenation** — SQL injection is prevented at the driver level.
+//! **No string concatenation for regular queries and mutations** — SQL injection is
+//! prevented at the driver level. Aggregate and window queries escape values in-process
+//! before embedding them in the SQL string; see the note in the SQL Generation section.
 //!
 //! ## APQ Cache Isolation
 //! Automatic Persisted Query (APQ) cache keys include:
@@ -1442,20 +1450,47 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // 3. Build positional args Vec from variables in ArgumentDefinition order
+        // 3. Build positional args Vec from variables in ArgumentDefinition order.
+        //    Validate that every required (non-nullable, no default) argument is present.
         let vars_obj = variables.and_then(|v| v.as_object());
+
+        let mut missing_required: Vec<&str> = Vec::new();
         let mut args: Vec<serde_json::Value> = mutation_def
             .arguments
             .iter()
             .map(|arg| {
-                vars_obj
-                    .and_then(|obj| obj.get(&arg.name))
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null)
+                let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
+                match value {
+                    Some(v) => v,
+                    None => {
+                        if !arg.nullable && arg.default_value.is_none() {
+                            missing_required.push(&arg.name);
+                        }
+                        arg.default_value.clone().unwrap_or(serde_json::Value::Null)
+                    },
+                }
             })
             .collect();
 
+        if !missing_required.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation '{mutation_name}' is missing required argument(s): {}",
+                    missing_required.join(", ")
+                ),
+                path: None,
+            });
+        }
+
         // 3a. Append server-injected parameters (after client args, in injection order).
+        //
+        // CONTRACT: inject params are always the *last* positional parameters of the SQL
+        // function, in the order they appear in `inject_params` (insertion-ordered IndexMap).
+        // The SQL function signature in the database MUST declare injected parameters after
+        // all client-supplied parameters. Violating this order silently passes inject values
+        // to the wrong SQL parameters. The CLI compiler (`fraiseql-cli compile`) validates
+        // inject key names and source syntax when producing `schema.compiled.json`, but
+        // cannot verify SQL function arity — that remains a developer responsibility.
         if !mutation_def.inject_params.is_empty() {
             let ctx = security_ctx.ok_or_else(|| FraiseQLError::Validation {
                 message: format!(

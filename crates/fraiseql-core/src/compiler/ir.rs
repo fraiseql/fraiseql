@@ -83,7 +83,7 @@ pub struct AuthoringIR {
     /// Subscription definitions.
     pub subscriptions: Vec<IRSubscription>,
 
-    /// Fact table metadata (from Python decorators).
+    /// Fact table metadata (from authoring-language decorators).
     /// Key: table name (e.g., "tf_sales")
     /// Value: FactTableMetadata as JSON
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]

@@ -297,49 +297,55 @@ impl DatabaseAdapter for MySqlAdapter {
         &self,
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        let rows: Vec<MySqlRow> =
-            sqlx::query(sql)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| FraiseQLError::Database {
-                    message:   format!("MySQL query execution failed: {e}"),
-                    sql_state: None,
-                })?;
+        let rows: Vec<MySqlRow> = sqlx::query(sql).fetch_all(&self.pool).await.map_err(|e| {
+            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
+                db_err.code().map(|c| c.into_owned())
+            } else {
+                None
+            };
+            FraiseQLError::Database {
+                message: format!("MySQL query execution failed: {e}"),
+                sql_state,
+            }
+        })?;
 
-        // Convert each row to HashMap<String, Value>
+        // Convert each row to HashMap<String, Value>.
+        //
+        // Type-probe order is chosen to minimise false positives:
+        //   1. serde_json::Value — MySQL JSON columns decode directly; avoids returning JSON
+        //      blobs as escaped string literals.
+        //   2. bool — TINYINT(1)/BIT(1) must come before i64; otherwise MySQL returns "0"/"1"
+        //      as strings because String succeeds on TINYINT first.
+        //   3. i64 — covers BIGINT, INT, MEDIUMINT, SMALLINT, TINYINT(>1).  Using i64
+        //      throughout avoids the asymmetry of i32 succeeding for values in [−2³¹, 2³¹)
+        //      and i64 for larger values on the same column.
+        //   4. f64 — DOUBLE, FLOAT.
+        //   5. String — TEXT, VARCHAR, CHAR, DECIMAL (rendered as decimal string by sqlx),
+        //      DATE, DATETIME, TIMESTAMP.  Attempt JSON parse so that TEXT columns storing
+        //      JSON blobs (e.g. `entity` in mutation_response) return proper objects.
         let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
             .into_iter()
             .map(|row| {
                 let mut map = std::collections::HashMap::new();
-
-                // Iterate over all columns in the row
                 for column in row.columns() {
-                    let column_name = column.name().to_string();
-
-                    // Try to extract value based on MySQL type
-                    let value: serde_json::Value = if let Ok(v) =
-                        row.try_get::<i32, _>(column_name.as_str())
-                    {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<i64, _>(column_name.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<f64, _>(column_name.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<String, _>(column_name.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<bool, _>(column_name.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<serde_json::Value, _>(column_name.as_str())
-                    {
-                        v
-                    } else {
-                        // Fallback: NULL
-                        serde_json::Value::Null
-                    };
-
-                    map.insert(column_name, value);
+                    let col = column.name().to_string();
+                    let value: serde_json::Value =
+                        if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
+                            v
+                        } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
+                            // Try to deserialise as JSON (handles DECIMAL, DATE, JSON-in-TEXT).
+                            serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                        } else {
+                            serde_json::Value::Null
+                        };
+                    map.insert(col, value);
                 }
-
                 map
             })
             .collect();
@@ -382,11 +388,17 @@ impl DatabaseAdapter for MySqlAdapter {
             };
         }
 
-        let rows: Vec<MySqlRow> =
-            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("MySQL stored procedure call failed ({function_name}): {e}"),
-                sql_state: None,
-            })?;
+        let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
+            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
+                db_err.code().map(|c| c.into_owned())
+            } else {
+                None
+            };
+            FraiseQLError::Database {
+                message: format!("MySQL stored procedure call failed ({function_name}): {e}"),
+                sql_state,
+            }
+        })?;
 
         let results = rows
             .into_iter()
