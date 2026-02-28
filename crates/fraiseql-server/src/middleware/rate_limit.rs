@@ -120,6 +120,61 @@ impl RateLimitConfig {
     }
 }
 
+/// Result returned by all `check_*` rate-limit methods.
+///
+/// Carries the allow/deny decision, the approximate remaining token count
+/// (used for the `X-RateLimit-Remaining` response header), and the
+/// recommended `Retry-After` interval in seconds (0 when the request was
+/// allowed).
+#[derive(Debug, Clone)]
+pub struct CheckResult {
+    /// Whether the request should be allowed.
+    pub allowed:           bool,
+    /// Tokens remaining in the bucket after this request (≥ 0).
+    pub remaining:         f64,
+    /// Seconds the client should wait before retrying (0 when allowed).
+    pub retry_after_secs: u32,
+}
+
+impl CheckResult {
+    fn allow(remaining: f64) -> Self {
+        Self { allowed: true, remaining, retry_after_secs: 0 }
+    }
+
+    fn deny(retry_after_secs: u32) -> Self {
+        Self { allowed: false, remaining: 0.0, retry_after_secs }
+    }
+}
+
+/// Returns `true` if `ip` is a loopback or RFC 1918 private address.
+///
+/// Used to warn operators that rate limiting may be inoperative when running
+/// behind a reverse proxy without `trust_proxy_headers = true`.
+fn is_private_or_loopback(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
+        std::net::IpAddr::V6(v6) => v6.is_loopback(),
+    }
+}
+
+/// Returns `true` if `path` is governed by the rule whose canonical prefix is
+/// `prefix`.
+///
+/// Requires that `path` equals `prefix` exactly, or that it is followed
+/// immediately by `/` or `?`. This prevents `/auth/start` from matching
+/// `/auth/startover` (DoS vector: exhausting the `/auth/start` bucket via an
+/// unrelated path).
+fn path_matches_rule(path: &str, prefix: &str) -> bool {
+    if path == prefix {
+        return true;
+    }
+    let rest = match path.strip_prefix(prefix) {
+        Some(r) => r,
+        None => return false,
+    };
+    rest.starts_with('/') || rest.starts_with('?')
+}
+
 /// A per-path rate limit rule, derived from `[security.rate_limiting]` auth endpoint fields.
 #[derive(Debug, Clone)]
 struct PathRateLimit {
@@ -248,15 +303,19 @@ impl InMemoryRateLimiter {
 
     /// Check if request to `path` from `ip` is within the per-path limit.
     ///
-    /// Returns `true` if allowed (or if no rule matches the path). Returns
-    /// `false` only when a matching per-path rule exists and the bucket is empty.
-    pub async fn check_path_limit(&self, path: &str, ip: &str) -> bool {
+    /// Returns an allowed [`CheckResult`] when no rule governs the path.
+    /// Returns a denied result only when a matching rule exists and the bucket
+    /// is empty.  `CheckResult::retry_after_secs` is set to the path-window
+    /// interval (`ceil(1 / tokens_per_sec)`).
+    pub async fn check_path_limit(&self, path: &str, ip: &str) -> CheckResult {
         if !self.config.enabled {
-            return true;
+            return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
-        let rule = self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()));
-        let Some(rule) = rule else { return true };
+        let rule = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix));
+        let Some(rule) = rule else {
+            return CheckResult::allow(f64::from(self.config.burst_size));
+        };
 
         let key = (rule.path_prefix.clone(), ip.to_string());
         let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
@@ -267,10 +326,20 @@ impl InMemoryRateLimiter {
             .or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
 
         let allowed = bucket.try_consume(1.0);
-        if !allowed {
+        let remaining = bucket.token_count();
+        drop(buckets);
+
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
             debug!(ip = ip, path = path, "Per-path rate limit exceeded");
+            let retry = if tokens_per_sec > 0.0 {
+                ((1.0_f64 / tokens_per_sec).ceil() as u32).max(1)
+            } else {
+                1
+            };
+            CheckResult::deny(retry)
         }
-        allowed
     }
 
     /// Get rate limiter configuration.
@@ -279,75 +348,102 @@ impl InMemoryRateLimiter {
     }
 
     /// Check if request is allowed for given IP.
-    pub async fn check_ip_limit(&self, ip: &str) -> bool {
+    pub async fn check_ip_limit(&self, ip: &str) -> CheckResult {
         if !self.config.enabled {
-            return true;
+            return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
         let mut buckets = self.ip_buckets.write().await;
         let bucket = buckets.entry(ip.to_string()).or_insert_with(|| {
-            TokenBucket::new(self.config.burst_size as f64, self.config.rps_per_ip as f64)
+            TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_ip))
         });
 
         let allowed = bucket.try_consume(1.0);
+        let remaining = bucket.token_count();
+        drop(buckets);
 
-        if !allowed {
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
             debug!(ip = ip, "Rate limit exceeded for IP");
+            let rps = self.config.rps_per_ip;
+            let retry = if rps == 0 { 1 } else { ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1) };
+            CheckResult::deny(retry)
         }
-
-        allowed
     }
 
     /// Check if request is allowed for given user.
-    pub async fn check_user_limit(&self, user_id: &str) -> bool {
+    pub async fn check_user_limit(&self, user_id: &str) -> CheckResult {
         if !self.config.enabled {
-            return true;
+            return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
         let mut buckets = self.user_buckets.write().await;
         let bucket = buckets.entry(user_id.to_string()).or_insert_with(|| {
-            TokenBucket::new(self.config.burst_size as f64, self.config.rps_per_user as f64)
+            TokenBucket::new(
+                f64::from(self.config.burst_size),
+                f64::from(self.config.rps_per_user),
+            )
         });
 
         let allowed = bucket.try_consume(1.0);
+        let remaining = bucket.token_count();
+        drop(buckets);
 
-        if !allowed {
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
             debug!(user_id = user_id, "Rate limit exceeded for user");
+            let rps = self.config.rps_per_user;
+            let retry =
+                if rps == 0 { 1 } else { ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1) };
+            CheckResult::deny(retry)
         }
-
-        allowed
     }
 
-    /// Get remaining tokens for IP (for X-RateLimit headers).
-    pub async fn get_ip_remaining(&self, ip: &str) -> f64 {
-        let buckets = self.ip_buckets.read().await;
-        buckets
-            .get(ip)
-            .map(|b| b.token_count())
-            .unwrap_or(self.config.burst_size as f64)
-    }
-
-    /// Get remaining tokens for user (for X-RateLimit headers).
-    pub async fn get_user_remaining(&self, user_id: &str) -> f64 {
-        let buckets = self.user_buckets.read().await;
-        buckets
-            .get(user_id)
-            .map(|b| b.token_count())
-            .unwrap_or(self.config.burst_size as f64)
-    }
-
-    /// Cleanup stale entries (should be called periodically).
+    /// Evict stale in-memory buckets (called by background cleanup task).
+    ///
+    /// A bucket is stale once it has been idle for longer than the time required
+    /// to fully refill from empty (`burst_size / rps_per_ip`).  At that point the
+    /// next request would start a fresh full bucket anyway, so the entry is safe
+    /// to remove.
     pub async fn cleanup(&self) {
-        let ip_buckets = self.ip_buckets.read().await;
-        let user_buckets = self.user_buckets.read().await;
+        let ip_refill_secs = if self.config.rps_per_ip == 0 {
+            self.config.cleanup_interval_secs as f64
+        } else {
+            f64::from(self.config.burst_size) / f64::from(self.config.rps_per_ip)
+        };
+        let user_refill_secs = if self.config.rps_per_user == 0 {
+            self.config.cleanup_interval_secs as f64
+        } else {
+            f64::from(self.config.burst_size) / f64::from(self.config.rps_per_user)
+        };
 
-        // Keep entries that have been accessed recently
-        // For now, keep all (cleanup is optional)
-        debug!(
-            ip_buckets = ip_buckets.len(),
-            user_buckets = user_buckets.len(),
-            "Rate limiter state"
-        );
+        let now = std::time::Instant::now();
+        let ip_threshold = now
+            .checked_sub(std::time::Duration::from_secs_f64(ip_refill_secs))
+            .unwrap_or(now);
+        let user_threshold = now
+            .checked_sub(std::time::Duration::from_secs_f64(user_refill_secs))
+            .unwrap_or(now);
+
+        let mut ip_buckets = self.ip_buckets.write().await;
+        let before_ip = ip_buckets.len();
+        ip_buckets.retain(|_, b| b.last_refill >= ip_threshold);
+        let evicted_ip = before_ip - ip_buckets.len();
+        drop(ip_buckets);
+
+        let mut user_buckets = self.user_buckets.write().await;
+        let before_user = user_buckets.len();
+        user_buckets.retain(|_, b| b.last_refill >= user_threshold);
+        let evicted_user = before_user - user_buckets.len();
+        drop(user_buckets);
+
+        let mut path_buckets = self.path_ip_buckets.write().await;
+        path_buckets.retain(|_, b| b.last_refill >= ip_threshold);
+        drop(path_buckets);
+
+        debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }
 
     /// Number of per-path rate limit rules registered.
@@ -362,7 +458,7 @@ impl InMemoryRateLimiter {
     /// rejection).
     pub fn retry_after_for_path(&self, path: &str) -> u32 {
         if let Some(rule) =
-            self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()))
+            self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
         {
             if rule.tokens_per_sec > 0.0 {
                 return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
@@ -370,6 +466,16 @@ impl InMemoryRateLimiter {
         }
         1
     }
+}
+
+/// Convert a Redis Lua `retry_after_ms` value to a `Retry-After` header value
+/// in whole seconds.
+///
+/// Rounds up so clients never retry before the bucket has refilled.
+/// Clamps to a minimum of 1 second.
+#[cfg(feature = "redis-rate-limiting")]
+fn retry_after_ms_to_secs(ms: u64) -> u32 {
+    ((ms + 999) / 1000).max(1) as u32
 }
 
 // ─── Redis backend ────────────────────────────────────────────────────────────
@@ -390,22 +496,26 @@ pub fn redis_error_count_total() -> u64 {
 /// Internal result returned by the Redis Lua token-bucket script.
 #[cfg(feature = "redis-rate-limiting")]
 struct RedisRateLimitResult {
-    allowed: bool,
-    // retry_after_ms is returned by the Lua script and preserved for future use
-    // (e.g. surfacing in `Retry-After` headers from the Redis backend).
-    #[allow(dead_code)]
-    retry_after_ms: u64,
+    allowed:          bool,
+    /// Remaining tokens after this request (in whole tokens, not milli-tokens).
+    remaining_tokens: f64,
+    /// Milliseconds until the next token becomes available; 0 when allowed.
+    retry_after_ms:   u64,
 }
 
 /// Atomic token-bucket Lua script for Redis.
 ///
+/// Tokens are stored as **milli-tokens** (integer × 1000) so that sub-1-rps
+/// rates (e.g. 10 req/60 s = 0.1667 req/s = 167 milli-tokens/s) are handled
+/// with integer arithmetic without floating-point in Lua.
+///
 /// Arguments:
 /// - `KEYS[1]`  — bucket key (e.g. `fraiseql:rl:ip:1.2.3.4`)
-/// - `ARGV[1]`  — capacity  (burst_size, integer tokens)
-/// - `ARGV[2]`  — refill rate (tokens per second, integer)
+/// - `ARGV[1]`  — capacity  (burst_size × 1000, milli-tokens)
+/// - `ARGV[2]`  — refill rate (tokens_per_sec × 1000, milli-tokens per second)
 /// - `ARGV[3]`  — now (Unix timestamp in **milliseconds**)
 ///
-/// Returns `[allowed (0|1), remaining_tokens, retry_after_ms]`.
+/// Returns `[allowed (0|1), remaining_milli_tokens, retry_after_ms]`.
 #[cfg(feature = "redis-rate-limiting")]
 const RATE_LIMIT_LUA: &str = r"
 local key      = KEYS[1]
@@ -413,21 +523,21 @@ local capacity = tonumber(ARGV[1])
 local rate     = tonumber(ARGV[2])
 local now      = tonumber(ARGV[3])
 
-local bucket     = redis.call('HMGET', key, 'tokens', 'last_refill')
-local tokens     = tonumber(bucket[1]) or capacity
+local bucket      = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens      = tonumber(bucket[1]) or capacity
 local last_refill = tonumber(bucket[2]) or now
 
 local elapsed = math.max(0, now - last_refill) / 1000.0
 local refill  = math.floor(elapsed * rate)
 tokens = math.min(capacity, tokens + refill)
 
-if tokens >= 1 then
-    tokens = tokens - 1
-    redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+if tokens >= 1000 then
+    tokens = tokens - 1000
+    redis.call('HSET', key, 'tokens', tokens, 'last_refill', now)
     redis.call('PEXPIRE', key, math.ceil(capacity / rate * 1000))
     return {1, tokens, 0}
 else
-    local retry_ms = math.ceil((1 - tokens) / rate * 1000)
+    local retry_ms = math.ceil((1000 - tokens) / rate * 1000)
     return {0, 0, retry_ms}
 end
 ";
@@ -541,6 +651,11 @@ impl RedisRateLimiter {
 
     /// Execute the Lua token-bucket script atomically.
     ///
+    /// Tokens and capacity are passed as **milli-tokens** (× 1000) so that
+    /// sub-1-rps rates are represented without truncation.  The Lua script
+    /// stores milli-tokens internally; `remaining_tokens` in the returned
+    /// result is converted back to whole tokens by dividing by 1 000.
+    ///
     /// Falls back from `EVALSHA` to a fresh reload on `NOSCRIPT` errors
     /// (script cache cleared after a Redis restart).
     async fn check_and_decrement(
@@ -556,96 +671,114 @@ impl RedisRateLimiter {
             .as_millis() as u64;
 
         let mut conn = self.pool.clone();
-        // Lua receives integer tokens/sec; ensure at least 1 to avoid /0 in the script.
-        let rate_arg = (rate_per_sec as u64).max(1);
 
-        let result: Vec<i64> = match redis::cmd("EVALSHA")
-            .arg(&sha)
-            .arg(1)
-            .arg(key)
-            .arg(capacity)
-            .arg(rate_arg)
-            .arg(now_ms)
-            .query_async(&mut conn)
-            .await
-        {
+        // Convert to milli-token precision so fractional rates (e.g. 0.167 req/s)
+        // are not truncated.  Minimum rate_millis = 1 (0.001 req/s) to avoid /0.
+        let capacity_millis = u64::from(capacity) * 1000;
+        let rate_millis = ((rate_per_sec * 1000.0) as u64).max(1);
+
+        let do_evalsha = |sha: &str| {
+            redis::cmd("EVALSHA")
+                .arg(sha)
+                .arg(1)
+                .arg(key)
+                .arg(capacity_millis)
+                .arg(rate_millis)
+                .arg(now_ms)
+                .to_owned()
+        };
+
+        let result: Vec<i64> = match do_evalsha(&sha).query_async(&mut conn).await {
             Ok(r) => r,
             Err(e) if e.kind() == redis::ErrorKind::NoScriptError => {
                 // Script cache was cleared (e.g. Redis restart) — reload and retry.
                 *self.script_sha.write().await = None;
                 let sha2 = self.load_script().await?;
-                redis::cmd("EVALSHA")
-                    .arg(&sha2)
-                    .arg(1)
-                    .arg(key)
-                    .arg(capacity)
-                    .arg(rate_arg)
-                    .arg(now_ms)
-                    .query_async(&mut conn)
-                    .await?
+                do_evalsha(&sha2).query_async(&mut conn).await?
             },
             Err(e) => return Err(e),
         };
 
         Ok(RedisRateLimitResult {
-            allowed:        result[0] == 1,
-            retry_after_ms: result[2] as u64,
+            allowed:          result[0] == 1,
+            // Convert milli-tokens back to whole tokens for the header.
+            remaining_tokens: result[1] as f64 / 1000.0,
+            retry_after_ms:   result[2] as u64,
         })
     }
 
     /// Check a key against the token bucket, failing open on Redis error.
-    async fn check_key(&self, key: &str, capacity: u32, rate_per_sec: f64) -> bool {
+    ///
+    /// Returns `(allowed, remaining_tokens, retry_after_ms)`.
+    async fn check_key(
+        &self,
+        key: &str,
+        capacity: u32,
+        rate_per_sec: f64,
+    ) -> (bool, f64, u64) {
         if !self.config.enabled {
-            return true;
+            return (true, f64::from(self.config.burst_size), 0);
         }
         match self.check_and_decrement(key, capacity, rate_per_sec).await {
-            Ok(result) => result.allowed,
+            Ok(r) => (r.allowed, r.remaining_tokens, r.retry_after_ms),
             Err(e) => {
                 REDIS_RATE_LIMIT_ERRORS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 warn!(error = %e, "Redis rate limiter error — failing open");
-                true
+                (true, f64::from(self.config.burst_size), 0)
             },
         }
     }
 
     /// Check IP limit using the Redis token bucket.
-    pub async fn check_ip_limit(&self, ip: &str) -> bool {
+    pub async fn check_ip_limit(&self, ip: &str) -> CheckResult {
         let key = format!("fraiseql:rl:ip:{ip}");
-        self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_ip))
-            .await
+        let (allowed, remaining, retry_after_ms) =
+            self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_ip))
+                .await;
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
+            debug!(ip = ip, "Redis rate limit exceeded for IP");
+            CheckResult::deny(retry_after_ms_to_secs(retry_after_ms))
+        }
     }
 
     /// Check user limit using the Redis token bucket.
-    pub async fn check_user_limit(&self, user_id: &str) -> bool {
+    pub async fn check_user_limit(&self, user_id: &str) -> CheckResult {
         let key = format!("fraiseql:rl:user:{user_id}");
-        self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_user))
-            .await
+        let (allowed, remaining, retry_after_ms) =
+            self.check_key(&key, self.config.burst_size, f64::from(self.config.rps_per_user))
+                .await;
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
+            debug!(user_id = user_id, "Redis rate limit exceeded for user");
+            CheckResult::deny(retry_after_ms_to_secs(retry_after_ms))
+        }
     }
 
     /// Check per-path limit for `ip` on `path`.
     ///
-    /// Returns `true` (allowed) when no rule matches the path.
-    pub async fn check_path_limit(&self, path: &str, ip: &str) -> bool {
+    /// Returns an allowed [`CheckResult`] when no rule governs the path.
+    pub async fn check_path_limit(&self, path: &str, ip: &str) -> CheckResult {
         if !self.config.enabled {
-            return true;
+            return CheckResult::allow(f64::from(self.config.burst_size));
         }
-        let rule =
-            self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()));
-        let Some(rule) = rule else { return true };
+        let rule = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix));
+        let Some(rule) = rule else {
+            return CheckResult::allow(f64::from(self.config.burst_size));
+        };
         let key = format!("fraiseql:rl:path:{}:{ip}", rule.path_prefix);
-        // capacity must be ≥1 to avoid division by zero in the Lua script
+        // Capacity must be ≥ 1 (milli-token precision handles sub-1 rates).
         let capacity = (rule.burst as u32).max(1);
-        self.check_key(&key, capacity, rule.tokens_per_sec).await
-    }
-
-    /// Remaining tokens for `ip` (approximated; actual value lives in Redis).
-    pub async fn get_ip_remaining(&self, _ip: &str) -> f64 {
-        f64::from(self.config.burst_size)
-    }
-
-    /// Remaining tokens for `user_id` (approximated).
-    pub async fn get_user_remaining(&self, _user_id: &str) -> f64 {
-        f64::from(self.config.burst_size)
+        let (allowed, remaining, retry_after_ms) =
+            self.check_key(&key, capacity, rule.tokens_per_sec).await;
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
+            debug!(ip = ip, path = path, "Redis per-path rate limit exceeded");
+            CheckResult::deny(retry_after_ms_to_secs(retry_after_ms))
+        }
     }
 }
 
@@ -723,7 +856,7 @@ impl RateLimiter {
     }
 
     /// Check whether a request from `ip` is within the global IP rate limit.
-    pub async fn check_ip_limit(&self, ip: &str) -> bool {
+    pub async fn check_ip_limit(&self, ip: &str) -> CheckResult {
         match self {
             Self::InMemory(rl) => rl.check_ip_limit(ip).await,
             #[cfg(feature = "redis-rate-limiting")]
@@ -732,7 +865,7 @@ impl RateLimiter {
     }
 
     /// Check whether a request from `user_id` is within the per-user limit.
-    pub async fn check_user_limit(&self, user_id: &str) -> bool {
+    pub async fn check_user_limit(&self, user_id: &str) -> CheckResult {
         match self {
             Self::InMemory(rl) => rl.check_user_limit(user_id).await,
             #[cfg(feature = "redis-rate-limiting")]
@@ -742,49 +875,14 @@ impl RateLimiter {
 
     /// Check the per-path rate limit for a request from `ip` to `path`.
     ///
-    /// Returns `true` (allowed) when no rule matches the path.
-    pub async fn check_path_limit(&self, path: &str, ip: &str) -> bool {
+    /// Returns an allowed [`CheckResult`] when no rule governs the path.
+    /// `CheckResult::retry_after_secs` reflects the actual per-path window, not
+    /// the global IP rate.
+    pub async fn check_path_limit(&self, path: &str, ip: &str) -> CheckResult {
         match self {
             Self::InMemory(rl) => rl.check_path_limit(path, ip).await,
             #[cfg(feature = "redis-rate-limiting")]
             Self::Redis(rl) => rl.check_path_limit(path, ip).await,
-        }
-    }
-
-    /// Return the number of seconds a client must wait before the next request
-    /// is likely to be accepted under the IP-level token-bucket rate limit.
-    ///
-    /// Computed as `ceil(1 / rps_per_ip)` — the time for the bucket to refill
-    /// one token at the configured rate.  Minimum value is 1 second.
-    ///
-    /// This value is used for the `Retry-After` HTTP response header so clients
-    /// always receive an accurate back-off hint instead of a hardcoded constant.
-    #[must_use]
-    pub fn retry_after_secs(&self) -> u32 {
-        let rps = self.config().rps_per_ip;
-        if rps == 0 {
-            return 1;
-        }
-        // ceil(1.0 / rps): e.g. 100 rps → 1s, 1 rps → 1s, 0.5 rps → 2s
-        let secs = (1.0_f64 / f64::from(rps)).ceil() as u32;
-        secs.max(1)
-    }
-
-    /// Remaining tokens for `ip` (used for `X-RateLimit-Remaining` header).
-    pub async fn get_ip_remaining(&self, ip: &str) -> f64 {
-        match self {
-            Self::InMemory(rl) => rl.get_ip_remaining(ip).await,
-            #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.get_ip_remaining(ip).await,
-        }
-    }
-
-    /// Remaining tokens for `user_id`.
-    pub async fn get_user_remaining(&self, user_id: &str) -> f64 {
-        match self {
-            Self::InMemory(rl) => rl.get_user_remaining(user_id).await,
-            #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.get_user_remaining(user_id).await,
         }
     }
 
@@ -797,6 +895,21 @@ impl RateLimiter {
             #[cfg(feature = "redis-rate-limiting")]
             Self::Redis(_) => {},
         }
+    }
+
+    /// Conservative static estimate of how long (in seconds) a client must wait
+    /// before the IP-level bucket refills one token: `ceil(1 / rps_per_ip)`.
+    ///
+    /// Used when no backend-computed `retry_after_ms` is available (e.g., the
+    /// in-memory backend before the precise value is plumbed end-to-end, or as
+    /// a fallback on Redis errors).  Minimum 1 second.
+    #[must_use]
+    pub fn retry_after_secs(&self) -> u32 {
+        let rps = self.config().rps_per_ip;
+        if rps == 0 {
+            return 1;
+        }
+        ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
     }
 }
 
@@ -832,6 +945,12 @@ impl IntoResponse for RateLimitExceeded {
     }
 }
 
+/// Emitted at most once when the server appears to be behind a proxy but
+/// `trust_proxy_headers` is `false` — rate limiting would bucket all requests
+/// under the proxy's IP in that configuration.
+static PROXY_WARNING_LOGGED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 /// Extract the real client IP from request headers when behind a trusted reverse proxy.
 ///
 /// Checks `X-Real-IP` first, then the first address in `X-Forwarded-For` (set by
@@ -860,6 +979,16 @@ fn extract_real_ip(
                 return first.to_string();
             }
         }
+    } else if is_private_or_loopback(addr.ip())
+        && !PROXY_WARNING_LOGGED.load(std::sync::atomic::Ordering::Relaxed)
+        && !PROXY_WARNING_LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed)
+    {
+        warn!(
+            peer_ip = %addr.ip(),
+            "Rate limiter: peer address is loopback/RFC-1918 — server appears to be \
+             behind a reverse proxy. All requests will share a single rate-limit bucket \
+             unless you set `trust_proxy_headers = true` in [security.rate_limiting]."
+        );
     }
     addr.ip().to_string()
 }
@@ -912,29 +1041,31 @@ pub async fn rate_limit_middleware(
         .and_then(extract_jwt_subject);
 
     // ── Per-path limit (strictest, always enforced) ───────────────────────
-    if !limiter.check_path_limit(&path, &ip).await {
+    let path_result = limiter.check_path_limit(&path, &ip).await;
+    if !path_result.allowed {
         warn!(ip = %ip, path = %path, "Per-path rate limit exceeded");
-        return Err(RateLimitExceeded {
-            retry_after_secs: limiter.retry_after_for_path(&path),
-        });
+        return Err(RateLimitExceeded { retry_after_secs: path_result.retry_after_secs });
     }
 
     // ── Per-user or per-IP limit ──────────────────────────────────────────
-    let remaining = if let Some(ref uid) = user_id {
+    let limit_result = if let Some(ref uid) = user_id {
         // Authenticated: apply the higher per-user bucket.
-        if !limiter.check_user_limit(uid).await {
-            warn!(user_id = %uid, "Per-user rate limit exceeded");
-            return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
-        }
-        limiter.get_user_remaining(uid).await
+        limiter.check_user_limit(uid).await
     } else {
         // Unauthenticated: apply the shared IP bucket.
-        if !limiter.check_ip_limit(&ip).await {
-            warn!(ip = %ip, "IP rate limit exceeded");
-            return Err(RateLimitExceeded { retry_after_secs: limiter.retry_after_secs() });
-        }
-        limiter.get_ip_remaining(&ip).await
+        limiter.check_ip_limit(&ip).await
     };
+
+    if !limit_result.allowed {
+        if let Some(ref uid) = user_id {
+            warn!(user_id = %uid, "Per-user rate limit exceeded");
+        } else {
+            warn!(ip = %ip, "IP rate limit exceeded");
+        }
+        return Err(RateLimitExceeded { retry_after_secs: limit_result.retry_after_secs });
+    }
+
+    let remaining = limit_result.remaining;
 
     let response = next.run(req).await;
 
@@ -979,14 +1110,15 @@ mod tests {
 
     #[test]
     fn test_token_bucket_refill() {
-        let mut bucket = TokenBucket::new(10.0, 5.0);
-        assert!(bucket.try_consume(10.0)); // Consume all
-        assert_eq!(bucket.tokens, 0.0);
-
-        // Simulate time passing and refilling
-        std::thread::sleep(std::time::Duration::from_millis(200));
-
-        // After 0.2 seconds with 5 tokens/sec, should have 1 token
+        // Fabricate a bucket whose last_refill is 200 ms in the past — no sleep needed.
+        let mut bucket = TokenBucket {
+            tokens:      0.0,
+            capacity:    10.0,
+            refill_rate: 5.0,
+            last_refill: std::time::Instant::now()
+                - std::time::Duration::from_millis(200),
+        };
+        // After 0.2 s at 5 tokens/s → 1 token refilled; should allow one consume.
         assert!(bucket.try_consume(1.0));
     }
 
@@ -1007,8 +1139,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("127.0.0.1").await);
-        assert!(limiter.check_ip_limit("127.0.0.1").await);
+        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
     }
 
     #[tokio::test]
@@ -1021,8 +1153,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("127.0.0.1").await);
-        assert!(!limiter.check_ip_limit("127.0.0.1").await);
+        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+        assert!(!limiter.check_ip_limit("127.0.0.1").await.allowed);
     }
 
     #[tokio::test]
@@ -1035,8 +1167,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("127.0.0.1").await);
-        assert!(limiter.check_ip_limit("127.0.0.1").await); // Should allow despite limit
+        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed); // Should allow despite limit
     }
 
     #[tokio::test]
@@ -1049,8 +1181,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("192.168.1.1").await);
-        assert!(limiter.check_ip_limit("192.168.1.2").await);
+        assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.2").await.allowed);
     }
 
     #[tokio::test]
@@ -1063,9 +1195,9 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_user_limit("user123").await);
-        assert!(limiter.check_user_limit("user123").await);
-        assert!(!limiter.check_user_limit("user123").await);
+        assert!(limiter.check_user_limit("user123").await.allowed);
+        assert!(limiter.check_user_limit("user123").await.allowed);
+        assert!(!limiter.check_user_limit("user123").await.allowed);
     }
 
     #[tokio::test]
@@ -1078,12 +1210,13 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        let before = limiter.get_ip_remaining("127.0.0.1").await;
-        assert_eq!(before, 10.0);
+        // First check: bucket full — remaining should equal burst_size - 1
+        let first = limiter.check_ip_limit("127.0.0.1").await;
+        assert!(first.allowed);
+        assert!(first.remaining < 10.0, "remaining should be 9 after first token consumed");
 
-        limiter.check_ip_limit("127.0.0.1").await;
-        let after = limiter.get_ip_remaining("127.0.0.1").await;
-        assert!(after < before);
+        let second = limiter.check_ip_limit("127.0.0.1").await;
+        assert!(second.remaining < first.remaining, "remaining must decrease per request");
     }
 
     #[tokio::test]
@@ -1182,9 +1315,9 @@ mod tests {
         let config = RateLimitConfig::from_security_config(&sec);
         let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
         // GraphQL path has no path rule → always allowed
-        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await);
-        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await);
-        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await);
+        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await.allowed);
+        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await.allowed);
+        assert!(limiter.check_path_limit("/graphql", "1.2.3.4").await.allowed);
     }
 
     #[tokio::test]
@@ -1200,9 +1333,9 @@ mod tests {
         let config = RateLimitConfig::from_security_config(&sec);
         let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
         // First request: allowed (burst = 1)
-        assert!(limiter.check_path_limit("/auth/start", "1.2.3.4").await);
+        assert!(limiter.check_path_limit("/auth/start", "1.2.3.4").await.allowed);
         // Second request: blocked (bucket empty)
-        assert!(!limiter.check_path_limit("/auth/start", "1.2.3.4").await);
+        assert!(!limiter.check_path_limit("/auth/start", "1.2.3.4").await.allowed);
     }
 
     #[tokio::test]
@@ -1218,10 +1351,43 @@ mod tests {
         let config = RateLimitConfig::from_security_config(&sec);
         let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
         // Exhaust bucket for IP1
-        assert!(limiter.check_path_limit("/auth/start", "1.1.1.1").await);
-        assert!(!limiter.check_path_limit("/auth/start", "1.1.1.1").await);
+        assert!(limiter.check_path_limit("/auth/start", "1.1.1.1").await.allowed);
+        assert!(!limiter.check_path_limit("/auth/start", "1.1.1.1").await.allowed);
         // IP2 still gets its full allowance
-        assert!(limiter.check_path_limit("/auth/start", "2.2.2.2").await);
+        assert!(limiter.check_path_limit("/auth/start", "2.2.2.2").await.allowed);
+    }
+
+    #[tokio::test]
+    async fn test_path_prefix_does_not_match_superset_paths() {
+        // Regression: /auth/startover must NOT consume the /auth/start bucket (DoS vector).
+        let sec = RateLimitingSecurityConfig {
+            enabled:                 true,
+            requests_per_second:     1000,
+            burst_size:              1000,
+            auth_start_max_requests: 1,
+            auth_start_window_secs:  60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig::from_security_config(&sec);
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+
+        // Exhaust the /auth/start bucket for this IP.
+        assert!(limiter.check_path_limit("/auth/start", "1.2.3.4").await.allowed);
+        assert!(!limiter.check_path_limit("/auth/start", "1.2.3.4").await.allowed);
+
+        // /auth/startover is not governed by the /auth/start rule — must be allowed.
+        assert!(
+            limiter.check_path_limit("/auth/startover", "1.2.3.4").await.allowed,
+            "/auth/startover must not share the /auth/start bucket"
+        );
+        // /auth/start-session likewise.
+        assert!(
+            limiter.check_path_limit("/auth/start-session", "1.2.3.4").await.allowed,
+            "/auth/start-session must not share the /auth/start bucket"
+        );
+        // /auth/start/extra (sub-path) should be governed by the rule.
+        assert!(!limiter.check_path_limit("/auth/start/extra", "1.2.3.4").await.allowed,
+            "/auth/start/extra SHOULD share the /auth/start bucket (sub-path)");
     }
 
     // ─── retry_after_secs ────────────────────────────────────────────────────
@@ -1302,7 +1468,7 @@ mod tests {
     fn test_extract_jwt_subject_returns_sub_claim() {
         use base64::Engine as _;
         // Build a minimal JWT payload with a sub claim
-        let payload = serde_json::json!({"sub": "user-42", "exp": 9999999999u64});
+        let payload = serde_json::json!({"sub": "user-42", "exp": 9_999_999_999_u64});
         let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .encode(payload.to_string().as_bytes());
         let token = format!("Bearer header.{b64}.sig");
@@ -1322,7 +1488,7 @@ mod tests {
     #[test]
     fn test_extract_jwt_subject_missing_sub_returns_none() {
         use base64::Engine as _;
-        let payload = serde_json::json!({"iss": "provider", "exp": 9999999999u64});
+        let payload = serde_json::json!({"iss": "provider", "exp": 9_999_999_999_u64});
         let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .encode(payload.to_string().as_bytes());
         let token = format!("Bearer header.{b64}.sig");
@@ -1351,7 +1517,7 @@ mod tests {
             .header("x-forwarded-for", "5.5.5.5")
             .body(Body::empty())
             .unwrap();
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
         assert_eq!(extract_real_ip(&req, true, &addr), "10.20.30.40");
     }
 
@@ -1364,7 +1530,7 @@ mod tests {
             .header("x-forwarded-for", "203.0.113.7, 10.0.0.1")
             .body(Body::empty())
             .unwrap();
-        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
         assert_eq!(extract_real_ip(&req, true, &addr), "203.0.113.7");
     }
 
@@ -1405,9 +1571,12 @@ mod tests {
         // Use a unique key to avoid interference between test runs
         let ip = format!("test_allow:{}", uuid::Uuid::new_v4());
         for _ in 0..5 {
-            assert!(rl.check_ip_limit(&ip).await, "should be allowed within capacity");
+            assert!(
+                rl.check_ip_limit(&ip).await.allowed,
+                "should be allowed within capacity"
+            );
         }
-        assert!(!rl.check_ip_limit(&ip).await, "6th request should be rejected");
+        assert!(!rl.check_ip_limit(&ip).await.allowed, "6th request should be rejected");
     }
 
     #[cfg(feature = "redis-rate-limiting")]
@@ -1434,11 +1603,14 @@ mod tests {
         let ip = format!("test_shared:{suffix}");
 
         // Instance A consumes 2 tokens
-        assert!(a.check_ip_limit(&ip).await);
-        assert!(a.check_ip_limit(&ip).await);
+        assert!(a.check_ip_limit(&ip).await.allowed);
+        assert!(a.check_ip_limit(&ip).await.allowed);
         // Instance B consumes the 3rd token
-        assert!(b.check_ip_limit(&ip).await);
+        assert!(b.check_ip_limit(&ip).await.allowed);
         // 4th token across both instances should be rejected
-        assert!(!b.check_ip_limit(&ip).await, "4th request should be rejected across instances");
+        assert!(
+            !b.check_ip_limit(&ip).await.allowed,
+            "4th request should be rejected across instances"
+        );
     }
 }

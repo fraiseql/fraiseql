@@ -1063,19 +1063,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     let ip = addr.ip().to_string();
 
                     // Check rate limit
-                    if !limiter.check_ip_limit(&ip).await {
+                    let check = limiter.check_ip_limit(&ip).await;
+                    if !check.allowed {
                         warn!(ip = %ip, "IP rate limit exceeded");
                         use axum::http::StatusCode;
                         use axum::response::IntoResponse;
+                        let retry = check.retry_after_secs;
+                        let retry_str = retry.to_string();
+                        let body = format!(
+                            r#"{{"errors":[{{"message":"Rate limit exceeded. Please retry after {retry} second{s}."}}]}}"#,
+                            s = if retry == 1 { "" } else { "s" }
+                        );
                         return (
                             StatusCode::TOO_MANY_REQUESTS,
-                            [("Content-Type", "application/json"), ("Retry-After", "60")],
-                            r#"{"errors":[{"message":"Rate limit exceeded. Please retry after 60 seconds."}]}"#,
+                            [("Content-Type", "application/json"), ("Retry-After", retry_str.as_str())],
+                            body,
                         ).into_response();
                     }
 
                     // Get remaining tokens for headers
-                    let remaining = limiter.get_ip_remaining(&ip).await;
+                    let remaining = check.remaining;
                     let mut response = next.run(req).await;
 
                     // Add rate limit headers
