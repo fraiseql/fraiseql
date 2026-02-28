@@ -365,14 +365,13 @@ impl DatabaseAdapter for SqliteAdapter {
 
     async fn execute_function_call(
         &self,
-        function_name: &str,
+        _function_name: &str,
         _args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Database {
-            message:   format!(
-                "SQLite adapter does not support function calls (attempted: {function_name})"
-            ),
-            sql_state: None,
+        Err(FraiseQLError::Validation {
+            message: "SQLite does not support mutations in FraiseQL v2. \
+                      Use PostgreSQL, MySQL, or SQL Server for write operations.".into(),
+            path: None,
         })
     }
 

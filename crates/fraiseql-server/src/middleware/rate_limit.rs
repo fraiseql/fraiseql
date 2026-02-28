@@ -377,7 +377,7 @@ struct RedisRateLimitResult {
 ///
 /// Returns `[allowed (0|1), remaining_tokens, retry_after_ms]`.
 #[cfg(feature = "redis-rate-limiting")]
-const RATE_LIMIT_LUA: &str = r#"
+const RATE_LIMIT_LUA: &str = r"
 local key      = KEYS[1]
 local capacity = tonumber(ARGV[1])
 local rate     = tonumber(ARGV[2])
@@ -400,7 +400,7 @@ else
     local retry_ms = math.ceil((1 - tokens) / rate * 1000)
     return {0, 0, retry_ms}
 end
-"#;
+";
 
 /// Rate limiter backed by Redis for distributed, multi-instance deployments.
 ///

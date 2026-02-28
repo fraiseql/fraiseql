@@ -5,6 +5,42 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-rc.14] - 2026-02-28
+
+### Added
+
+- **`nats_url` in ObserversConfig** (issue #38): `nats_url: Option<String>` added to observers
+  configuration for NATS backend connectivity.
+- **Federation circuit breaker** (issue #39): Per-entity circuit breaker for federation calls with
+  configurable failure thresholds, success recovery windows, and half-open state validation.
+- **Typed mutation error variants** (issue #294): `@fraiseql.error` types with scalar fields
+  (`str`, `int`, `datetime`, `UUID`, etc.) are now correctly populated from
+  `mutation_response.metadata` JSONB. Both camelCase and snake_case metadata keys are supported.
+- **Server-side context injection** (issue #47): `inject={"param": "jwt:<claim>"}` on
+  `@fraiseql.query` and `@fraiseql.mutation` for injecting authenticated user context as
+  query/mutation parameters. Unauthenticated requests with injected parameters fail with
+  validation error.
+- **PKCE OAuth routes** (Phase B): `GET /auth/start` and `GET /auth/callback` for OIDC flows
+  with encrypted state tokens and configurable session backends.
+- **Redis PKCE and rate limit backends** (Phases C-D):
+  - `RedisPkceStateStore` behind `redis-pkce` feature flag for distributed state management
+  - `RedisRateLimiter` behind `redis-rate-limiting` feature flag for cluster-wide rate limiting
+  - `FRAISEQL_REQUIRE_REDIS` environment variable enforces Redis for production deployments
+  - `requests_per_second_per_user` configuration multiplier (10× default)
+- **Database support documentation**: Comprehensive matrix showing PostgreSQL as primary,
+  MySQL/SQL Server as secondary, and SQLite as development-only with explicit mutation errors.
+
+### Fixed
+
+- SQLite mutation errors now return `Unsupported` with clear message instead of database error.
+- APQ cache isolation dependency on RLS documented in code and README.
+
+### Verification
+
+- `cargo test --workspace --lib`: all tests pass
+- `cargo clippy --all-targets --all-features -- -D warnings`: zero warnings
+- `cargo build --release`: release build succeeds
+
 ## [2.0.0-rc.13] - 2026-02-26
 
 ### Added

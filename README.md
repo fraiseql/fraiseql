@@ -73,14 +73,24 @@ Authoring (Python/TS)     Compilation (Rust)        Runtime (Rust)
 
 Python and TypeScript are authoring languages only. The runtime is pure Rust with zero language bridge overhead.
 
-## Supported Databases
+## Database Support
 
-| Database | Status | Feature Flag |
-|----------|--------|-------------|
-| PostgreSQL | Primary | `postgres` (default) |
-| MySQL | Supported | `mysql` |
-| SQLite | Supported | `sqlite` |
-| SQL Server | Supported | `sqlserver` |
+| Feature          | PostgreSQL | MySQL | SQL Server | SQLite |
+|------------------|:----------:|:-----:|:----------:|:------:|
+| Queries          | ✅         | ✅    | ✅         | ✅     |
+| Mutations        | ✅         | ✅    | ✅         | ❌     |
+| Relay pagination | ✅         | ❌    | ❌         | ❌     |
+| Production use   | ✅         | ✅    | ✅         | ❌     |
+
+**PostgreSQL** is the primary platform with full feature support.
+
+**MySQL and SQL Server** support queries and mutations. Relay pagination falls back to offset-based pagination.
+
+**SQLite** is for local development and testing only. Mutations return an explicit error. Not recommended for production.
+
+## Wire Protocol
+
+`fraiseql-wire` is a separate read-only Rust crate for streaming bulk reads directly from PostgreSQL views. It is not part of the FraiseQL server. Mutations go through the GraphQL HTTP endpoint.
 
 ## Schema Authoring SDKs
 
@@ -127,6 +137,10 @@ All queries are parameterized at compile time. Zero unsafe code (forbidden). Add
 - Rate limiting on auth endpoints
 - Error sanitization (no implementation details leaked)
 - Constant-time token comparison
+
+### APQ Cache RLS Dependency
+
+Automatic Persisted Query (APQ) caching isolates results per user via Row-Level Security. Different users must generate different WHERE clauses through their RLS policies. If RLS is disabled or generates an empty WHERE clause, two users with the same query and variables will receive the same cached response. Always verify RLS is active in multi-tenant deployments with caching enabled.
 
 See [Security Checklist](docs/guides/production-security-checklist.md) for production hardening.
 

@@ -3,6 +3,16 @@
 //! Provides transparent caching for `DatabaseAdapter` implementations by wrapping
 //! `execute_where_query()` calls with cache lookup and storage.
 //!
+//! # Security: Cache Isolation via RLS
+//!
+//! Automatic Persisted Query (APQ) caching provides no user-level isolation on its own.
+//! Cache key isolation derives entirely from Row-Level Security: different users MUST
+//! produce different WHERE clauses via their RLS policies. If RLS is disabled or
+//! returns an empty WHERE clause, two users with the same query and variables will
+//! receive the same cached response.
+//!
+//! **Always verify RLS is active when caching is enabled in multi-tenant deployments.**
+//!
 //! # Architecture
 //!
 //! ```text
