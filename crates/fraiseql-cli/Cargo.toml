@@ -28,7 +28,7 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 walkdir = "2"
 
 [[bin]]
-name = "fraiseql"
+name = "fraiseql-cli"
 path = "src/main.rs"
 
 [dev-dependencies]
