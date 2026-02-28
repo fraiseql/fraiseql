@@ -110,6 +110,14 @@ impl ObserverExecutor {
         }
     }
 
+    /// Get a shared reference to the dead letter queue.
+    ///
+    /// Used by wrappers (e.g. `DedupedObserverExecutor`) to route violation
+    /// events to the same DLQ without requiring a separate DLQ reference.
+    pub fn dlq(&self) -> Arc<dyn DeadLetterQueue> {
+        Arc::clone(&self.dlq)
+    }
+
     /// Process an event through all matching observers
     ///
     /// This is the main entry point. For each matching observer:
@@ -831,6 +839,8 @@ pub struct ExecutionSummary {
     pub errors:             Vec<String>,
     /// Whether this event was skipped due to deduplication
     pub duplicate_skipped:  bool,
+    /// Whether this event was rejected due to a tenant scope violation
+    pub tenant_rejected:    bool,
     /// Number of cache hits during action execution
     pub cache_hits:         usize,
     /// Number of cache misses during action execution
@@ -955,6 +965,7 @@ mod tests {
             dlq_errors:         0,
             errors:             vec![],
             duplicate_skipped:  false,
+            tenant_rejected:    false,
             cache_hits:         0,
             cache_misses:       0,
         };
@@ -973,6 +984,7 @@ mod tests {
             dlq_errors:         0,
             errors:             vec![],
             duplicate_skipped:  false,
+            tenant_rejected:    false,
             cache_hits:         0,
             cache_misses:       0,
         };

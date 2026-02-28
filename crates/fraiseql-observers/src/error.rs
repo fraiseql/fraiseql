@@ -153,6 +153,21 @@ pub enum ObserverError {
         /// Human-readable reason (e.g. the serde_json error message)
         reason: String,
     },
+
+    /// OB021: Event tenant does not match the configured scope.
+    ///
+    /// The event carried a `tenant_id` that is not permitted by the executor's
+    /// `TenantScope`, or the event lacked a `tenant_id` when one is required.
+    #[error(
+        "OB021: Tenant violation — event tenant {event_tenant:?} not permitted by scope \
+         '{required_scope}'"
+    )]
+    TenantViolation {
+        /// The `tenant_id` carried by the event (`None` if absent)
+        event_tenant:   Option<String>,
+        /// Human-readable description of the configured scope (e.g. `"Single(acme)"`)
+        required_scope: String,
+    },
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -198,6 +213,8 @@ pub enum ObserverErrorCode {
     StorageError,
     /// OB020: Event deserialization failed
     DeserializationError,
+    /// OB021: Tenant scope violation
+    TenantViolation,
 }
 
 impl ObserverErrorCode {
@@ -284,6 +301,7 @@ impl ObserverError {
             },
             ObserverError::StorageError { .. } => ObserverErrorCode::StorageError,
             ObserverError::DeserializationError { .. } => ObserverErrorCode::DeserializationError,
+            ObserverError::TenantViolation { .. } => ObserverErrorCode::TenantViolation,
         }
     }
 
@@ -372,5 +390,28 @@ mod tests {
     fn test_deserialization_error_should_dlq_code() {
         assert!(ObserverErrorCode::DeserializationError.should_dlq());
         assert!(!ObserverErrorCode::DeserializationError.is_transient());
+    }
+
+    #[test]
+    fn test_tenant_violation_error_code() {
+        let err = ObserverError::TenantViolation {
+            event_tenant:   Some("other-tenant".to_string()),
+            required_scope: "Single(acme)".to_string(),
+        };
+        assert_eq!(err.code(), ObserverErrorCode::TenantViolation);
+        // Not retryable — the tenant policy won't change between attempts.
+        assert!(!err.is_transient());
+        // Handled internally by DedupedObserverExecutor; not routed via should_dlq().
+        assert!(!err.should_dlq());
+    }
+
+    #[test]
+    fn test_tenant_violation_none_tenant() {
+        let err = ObserverError::TenantViolation {
+            event_tenant:   None,
+            required_scope: "Single(acme)".to_string(),
+        };
+        assert_eq!(err.code(), ObserverErrorCode::TenantViolation);
+        assert!(!err.is_transient());
     }
 }

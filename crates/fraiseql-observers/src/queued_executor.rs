@@ -212,6 +212,7 @@ impl QueuedExecutionSummary {
             dlq_errors:         0,
             errors:             self.errors.clone(),
             duplicate_skipped:  false,
+            tenant_rejected:    false,
             cache_hits:         0,
             cache_misses:       0,
         }

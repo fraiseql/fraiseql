@@ -22,6 +22,7 @@ pub struct MetricsRegistry {
     events_processed_total:                IntCounter,
     events_failed_total:                   IntCounterVec,
     events_deserialization_failures_total: IntCounter,
+    events_tenant_violations_total:        IntCounter,
 
     // Cache metrics
     cache_hits_total:      IntCounter,
@@ -76,6 +77,12 @@ impl MetricsRegistry {
             "Total events dropped because the raw payload could not be deserialized",
         )?;
         registry.register(Box::new(events_deserialization_failures_total.clone()))?;
+
+        let events_tenant_violations_total = IntCounter::new(
+            "fraiseql_observer_events_tenant_violations_total",
+            "Total events rejected because the tenant_id did not match the configured scope",
+        )?;
+        registry.register(Box::new(events_tenant_violations_total.clone()))?;
 
         // Cache metrics
         let cache_hits_total =
@@ -190,6 +197,7 @@ impl MetricsRegistry {
             events_processed_total,
             events_failed_total,
             events_deserialization_failures_total,
+            events_tenant_violations_total,
             cache_hits_total,
             cache_misses_total,
             cache_evictions_total,
@@ -223,6 +231,11 @@ impl MetricsRegistry {
     /// Record an event dropped due to deserialization failure
     pub fn deserialization_failure(&self) {
         self.events_deserialization_failures_total.inc();
+    }
+
+    /// Record an event rejected due to tenant scope violation
+    pub fn tenant_violation(&self) {
+        self.events_tenant_violations_total.inc();
     }
 
     /// Record a cache hit
