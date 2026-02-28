@@ -1549,12 +1549,12 @@ database_target = "postgresql"
 
     #[test]
     fn test_rate_limiting_config_parses_per_user_rps() {
-        let toml = r#"
+        let toml = r"
 [security.rate_limiting]
 enabled = true
 requests_per_second = 100
 requests_per_second_per_user = 250
-"#;
+";
         let schema: TomlSchema = toml::from_str(toml).unwrap();
         let rl = schema.security.rate_limiting.unwrap();
         assert_eq!(rl.requests_per_second_per_user, Some(250));
@@ -1562,11 +1562,11 @@ requests_per_second_per_user = 250
 
     #[test]
     fn test_rate_limiting_config_per_user_rps_defaults_to_none() {
-        let toml = r#"
+        let toml = r"
 [security.rate_limiting]
 enabled = true
 requests_per_second = 50
-"#;
+";
         let schema: TomlSchema = toml::from_str(toml).unwrap();
         let rl = schema.security.rate_limiting.unwrap();
         assert_eq!(rl.requests_per_second_per_user, None);

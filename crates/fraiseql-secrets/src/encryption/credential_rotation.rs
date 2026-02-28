@@ -1,5 +1,17 @@
 //! Credential rotation and key lifecycle management including versioning,
 //! TTL tracking, automatic refresh, and multi-version decryption support.
+//!
+//! # Architecture Note
+//!
+//! [`CredentialRotationManager`] is a **metadata tracker** for key version
+//! lifecycle. It records version numbers, TTLs, expiry status, and compromise
+//! flags — it does **not** store key bytes, generate cryptographic material,
+//! or re-encrypt database data.
+//!
+//! Key bytes are managed by [`crate::secrets_manager::SecretsManager`]
+//! (Vault, env, or file backends). Data re-encryption on key rotation must
+//! be implemented at the application layer; see [`CredentialRotationManager::rotate_key`]
+//! for the expected workflow.
 
 use std::{
     collections::HashMap,
@@ -397,7 +409,26 @@ impl CredentialRotationManager {
         Ok(version)
     }
 
-    /// Trigger key rotation
+    /// Trigger key rotation: register a new key version and make it current.
+    ///
+    /// # IMPORTANT — Data re-encryption is the caller's responsibility
+    ///
+    /// This method updates version metadata only. It does **not** re-encrypt
+    /// any existing database records. After calling `rotate_key()`:
+    ///
+    /// - New records will be encrypted under the new version.
+    /// - Existing records remain encrypted under the previous version.
+    /// - The previous version must remain accessible via the secrets backend
+    ///   until all records have been migrated.
+    ///
+    /// To complete a full rotation:
+    /// 1. Call `rotate_key()` to activate the new version.
+    /// 2. Query all rows still encrypted under the old version.
+    /// 3. Decrypt each row with the old key, re-encrypt with the new key, UPDATE.
+    /// 4. Once all rows are migrated, the old version may be retired.
+    ///
+    /// If step 3 crashes mid-flight, rows will be in a mixed state. Resume by
+    /// re-querying all rows still carrying the old version marker.
     pub fn rotate_key(&self) -> Result<KeyVersion, String> {
         let start = std::time::Instant::now();
 
@@ -434,15 +465,6 @@ impl CredentialRotationManager {
     pub fn get_current_metadata(&self) -> Result<Option<KeyVersionMetadata>, String> {
         let current_version = self.storage.get_current_version()?;
         self.storage.get_version(current_version)
-    }
-
-    /// Get version from ciphertext (first 2 bytes as big-endian u16)
-    pub fn extract_version_from_ciphertext(ciphertext: &[u8]) -> Result<KeyVersion, String> {
-        if ciphertext.len() < 2 {
-            return Err("Ciphertext too short for version".to_string());
-        }
-        let version = u16::from_be_bytes([ciphertext[0], ciphertext[1]]);
-        Ok(version)
     }
 
     /// Check if version exists and is usable for decryption
@@ -681,21 +703,6 @@ mod tests {
         let new_version = manager.rotate_key().unwrap();
         assert_eq!(new_version, 2);
         assert_eq!(manager.get_current_version().unwrap(), 2);
-    }
-
-    #[test]
-    fn test_credential_rotation_manager_extract_version() {
-        let version_bytes = [0u8, 5u8]; // Version 5 in big-endian
-        let version =
-            CredentialRotationManager::extract_version_from_ciphertext(&version_bytes).unwrap();
-        assert_eq!(version, 5);
-    }
-
-    #[test]
-    fn test_credential_rotation_manager_extract_version_short() {
-        let version_bytes = [0u8]; // Too short
-        let result = CredentialRotationManager::extract_version_from_ciphertext(&version_bytes);
-        assert!(result.is_err());
     }
 
     #[test]

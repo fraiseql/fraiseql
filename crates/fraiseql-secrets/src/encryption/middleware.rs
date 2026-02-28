@@ -577,17 +577,6 @@ mod tests {
     }
 
     #[test]
-    fn test_version_extraction_from_ciphertext() {
-        use super::super::credential_rotation::CredentialRotationManager;
-
-        // Version 42 as big-endian u16: [0x00, 0x2A]
-        let ciphertext = vec![0x00, 0x2A, 0xFF, 0xFF];
-        let version =
-            CredentialRotationManager::extract_version_from_ciphertext(&ciphertext).unwrap();
-        assert_eq!(version, 42);
-    }
-
-    #[test]
     fn test_emergency_rotation_marks_compromised() {
         use super::super::credential_rotation::KeyVersionStatus;
 

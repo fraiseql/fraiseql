@@ -45,7 +45,7 @@ mod mock_dlq {
     pub struct MockDeadLetterQueue;
 
     impl MockDeadLetterQueue {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self
         }
     }

@@ -64,9 +64,15 @@ pub trait EncryptedFieldAdapter: Send + Sync {
     ) -> Result<String, SecretsError>;
 }
 
-/// Encryption context for audit trail inclusion
+/// Encryption context for audit trail inclusion in AES-GCM AAD.
 ///
-/// Format: "user:{user_id}:field:{field_name}:timestamp:{timestamp}"
+/// The context string is included as Additional Authenticated Data (AAD)
+/// during encryption and **must be reproduced exactly at decrypt time**.
+/// For this reason the context only contains stable identifiers (user ID,
+/// field name, operation) — never wall-clock timestamps or other mutable
+/// values that would differ between the encrypt and decrypt calls.
+///
+/// Format produced by `to_aad_string()`: `"user:{id}:field:{name}:op:{op}"`
 #[derive(Debug, Clone)]
 pub struct EncryptionContext {
     /// User ID performing the operation
@@ -75,39 +81,42 @@ pub struct EncryptionContext {
     pub field_name: String,
     /// Operation type (insert, update, select)
     pub operation:  String,
-    /// Timestamp of operation
-    pub timestamp:  String,
 }
 
 impl EncryptionContext {
-    /// Create new encryption context
+    /// Create new encryption context.
+    ///
+    /// The produced `to_aad_string()` must be stored or reconstructed
+    /// identically when decrypting the corresponding ciphertext.
     pub fn new(
         user_id: impl Into<String>,
         field_name: impl Into<String>,
         operation: impl Into<String>,
-        timestamp: impl Into<String>,
     ) -> Self {
         Self {
             user_id:    user_id.into(),
             field_name: field_name.into(),
             operation:  operation.into(),
-            timestamp:  timestamp.into(),
         }
     }
 
-    /// Convert context to string for authenticated data
+    /// Convert context to stable AAD string.
+    ///
+    /// This value is bound into the AES-GCM authentication tag. It must be
+    /// supplied unchanged to `decrypt_with_context`; any difference causes
+    /// authentication failure.
     pub fn to_aad_string(&self) -> String {
-        format!(
-            "user:{}:field:{}:op:{}:ts:{}",
-            self.user_id, self.field_name, self.operation, self.timestamp
-        )
+        format!("user:{}:field:{}:op:{}", self.user_id, self.field_name, self.operation)
     }
 }
 
 /// Cached encryption cipher for a field
+///
+/// Holds the cipher behind an `Arc` so all concurrent callers share a single
+/// heap allocation. The key schedule is zeroed when the last `Arc` is dropped.
 #[derive(Clone)]
 struct CachedEncryption {
-    cipher: FieldEncryption,
+    cipher: Arc<FieldEncryption>,
 }
 
 /// Basic implementation of EncryptedFieldAdapter
@@ -148,12 +157,15 @@ impl DatabaseFieldAdapter {
         }
     }
 
-    /// Get or create cached cipher for field
-    async fn get_cipher(&self, field_name: &str) -> Result<FieldEncryption, SecretsError> {
+    /// Get or create cached cipher for field.
+    ///
+    /// Returns an `Arc` so callers share the single heap allocation; no key
+    /// bytes are duplicated on each request.
+    async fn get_cipher(&self, field_name: &str) -> Result<Arc<FieldEncryption>, SecretsError> {
         // Check cache first
         let cache = self.ciphers.read().await;
         if let Some(cached) = cache.get(field_name) {
-            return Ok(cached.cipher.clone());
+            return Ok(Arc::clone(&cached.cipher));
         }
         drop(cache);
 
@@ -168,24 +180,17 @@ impl DatabaseFieldAdapter {
         let key_str = self.secrets_manager.get_secret(key_name).await?;
         let key_bytes = key_str.as_bytes().to_vec();
 
-        if key_bytes.len() != 32 {
-            return Err(SecretsError::ValidationError(format!(
-                "Encryption key for field '{}' must be 32 bytes, got {}",
-                field_name,
-                key_bytes.len()
-            )));
-        }
-
-        let cipher = FieldEncryption::new(&key_bytes);
+        // FieldEncryption::new() validates the key length and returns Err on mismatch.
+        let cipher = Arc::new(FieldEncryption::new(&key_bytes).map_err(|e| {
+            SecretsError::ValidationError(format!(
+                "Invalid encryption key for field '{}': {}",
+                field_name, e
+            ))
+        })?);
 
         // Cache for future use
         let mut cache = self.ciphers.write().await;
-        cache.insert(
-            field_name.to_string(),
-            CachedEncryption {
-                cipher: cipher.clone(),
-            },
-        );
+        cache.insert(field_name.to_string(), CachedEncryption { cipher: Arc::clone(&cipher) });
 
         Ok(cipher)
     }
@@ -321,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_encryption_context_creation() {
-        let ctx = EncryptionContext::new("user123", "email", "insert", "2024-01-01T00:00:00Z");
+        let ctx = EncryptionContext::new("user123", "email", "insert");
         assert_eq!(ctx.user_id, "user123");
         assert_eq!(ctx.field_name, "email");
         assert_eq!(ctx.operation, "insert");
@@ -329,11 +334,18 @@ mod tests {
 
     #[test]
     fn test_encryption_context_aad_string() {
-        let ctx = EncryptionContext::new("user456", "phone", "update", "2024-01-02T12:00:00Z");
+        let ctx = EncryptionContext::new("user456", "phone", "update");
         let aad = ctx.to_aad_string();
         assert!(aad.contains("user:user456"));
         assert!(aad.contains("field:phone"));
         assert!(aad.contains("op:update"));
-        assert!(aad.contains("ts:2024-01-02T12:00:00Z"));
+    }
+
+    /// AAD must be stable across calls so decrypt can reproduce it
+    #[test]
+    fn test_encryption_context_aad_is_stable() {
+        let ctx1 = EncryptionContext::new("u1", "email", "insert");
+        let ctx2 = EncryptionContext::new("u1", "email", "insert");
+        assert_eq!(ctx1.to_aad_string(), ctx2.to_aad_string());
     }
 }

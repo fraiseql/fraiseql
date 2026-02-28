@@ -40,14 +40,18 @@ const KEY_SIZE: usize = 32; // 256 bits for AES-256
 /// Each encryption uses a random nonce, preventing identical plaintexts
 /// from producing identical ciphertexts.
 ///
+/// `FieldEncryption` does not implement `Clone`. Shared access should use
+/// `Arc<FieldEncryption>` so the key schedule is held in exactly one heap
+/// allocation and zeroed on drop (requires `aes-gcm` `zeroize` feature,
+/// which is enabled in this crate's `Cargo.toml`).
+///
 /// # Example
 /// ```ignore
-/// let cipher = FieldEncryption::new("encryption-key".as_bytes());
+/// let cipher = FieldEncryption::new("encryption-key-32b".as_bytes())?;
 /// let encrypted = cipher.encrypt("user@example.com")?;
 /// let decrypted = cipher.decrypt(&encrypted)?;
 /// assert_eq!(decrypted, "user@example.com");
 /// ```
-#[derive(Clone)]
 pub struct FieldEncryption {
     cipher: Aes256Gcm,
 }
@@ -61,27 +65,26 @@ impl std::fmt::Debug for FieldEncryption {
 }
 
 impl FieldEncryption {
-    /// Create new field encryption cipher
+    /// Create new field encryption cipher.
     ///
     /// # Arguments
     /// * `key` - Encryption key bytes (must be exactly 32 bytes for AES-256)
     ///
-    /// # Returns
-    /// FieldEncryption cipher ready for encrypt/decrypt operations
-    ///
-    /// # Panics
-    /// If key length is not exactly 32 bytes
-    pub fn new(key: &[u8]) -> Self {
-        assert!(
-            key.len() == KEY_SIZE,
-            "Encryption key must be exactly {} bytes, got {}",
-            KEY_SIZE,
-            key.len()
-        );
+    /// # Errors
+    /// Returns `SecretsError::ValidationError` if `key` is not exactly 32 bytes.
+    pub fn new(key: &[u8]) -> Result<Self, SecretsError> {
+        if key.len() != KEY_SIZE {
+            return Err(SecretsError::ValidationError(format!(
+                "Encryption key must be exactly {} bytes, got {}",
+                KEY_SIZE,
+                key.len()
+            )));
+        }
 
-        let cipher = Aes256Gcm::new_from_slice(key).expect("Key size already validated");
+        let cipher = Aes256Gcm::new_from_slice(key)
+            .map_err(|e| SecretsError::EncryptionError(format!("Failed to create cipher: {e}")))?;
 
-        FieldEncryption { cipher }
+        Ok(FieldEncryption { cipher })
     }
 
     /// Generate random nonce for encryption
@@ -179,7 +182,11 @@ impl FieldEncryption {
         let plaintext_bytes = self
             .cipher
             .decrypt(nonce, ciphertext)
-            .map_err(|e| SecretsError::EncryptionError(format!("Decryption failed: {}", e)))?;
+            .map_err(|_| SecretsError::EncryptionError(
+                "Decryption failed: authentication tag mismatch. \
+                 Possible causes: wrong key, corrupted data, or data was encrypted \
+                 with context (use decrypt_with_context instead).".to_string()
+            ))?;
 
         Self::bytes_to_utf8(plaintext_bytes, "decrypted data")
     }
@@ -243,8 +250,13 @@ impl FieldEncryption {
             aad: context.as_bytes(),
         };
 
-        let plaintext_bytes = self.cipher.decrypt(nonce, payload).map_err(|e| {
-            SecretsError::EncryptionError(format!("Decryption with context failed: {}", e))
+        let plaintext_bytes = self.cipher.decrypt(nonce, payload).map_err(|_| {
+            SecretsError::EncryptionError(
+                "Decryption with context failed: authentication tag mismatch. \
+                 Ensure the context string supplied here exactly matches the one \
+                 used during encryption. This can also indicate key mismatch \
+                 or data corruption.".to_string()
+            )
         })?;
 
         Self::bytes_to_utf8(plaintext_bytes, "decrypted data with context")
@@ -259,15 +271,14 @@ mod tests {
     #[test]
     fn test_field_encryption_creation() {
         let key = [0u8; KEY_SIZE];
-        let _cipher = FieldEncryption::new(&key);
-        // Successful construction is the test
+        let _cipher = FieldEncryption::new(&key).unwrap();
     }
 
     /// Test basic encryption/decryption roundtrip
     #[test]
     fn test_field_encrypt_decrypt_roundtrip() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let plaintext = "user@example.com";
         let encrypted = cipher.encrypt(plaintext).unwrap();
@@ -281,7 +292,7 @@ mod tests {
     #[test]
     fn test_field_encrypt_random_nonce() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let plaintext = "sensitive@data.com";
         let encrypted1 = cipher.encrypt(plaintext).unwrap();
@@ -299,7 +310,7 @@ mod tests {
     #[test]
     fn test_field_encrypt_decrypt_with_context() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let plaintext = "secret123";
         let context = "user:456:password";
@@ -314,7 +325,7 @@ mod tests {
     #[test]
     fn test_field_decrypt_with_wrong_context_fails() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let plaintext = "secret123";
         let correct_context = "user:456:password";
@@ -331,7 +342,7 @@ mod tests {
     #[test]
     fn test_field_encrypt_various_types() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let test_cases = vec![
             "email@example.com",
@@ -352,19 +363,19 @@ mod tests {
         }
     }
 
-    /// Test invalid key size panics
+    /// Test invalid key size returns Err
     #[test]
-    #[should_panic(expected = "must be exactly 32 bytes")]
-    fn test_field_encryption_invalid_key_size() {
+    fn test_field_encryption_invalid_key_size_returns_err() {
         let invalid_key = [0u8; 16]; // Too short
-        let _cipher = FieldEncryption::new(&invalid_key);
+        let result = FieldEncryption::new(&invalid_key);
+        assert!(result.is_err());
     }
 
     /// Test corrupted ciphertext fails to decrypt
     #[test]
     fn test_field_decrypt_corrupted_data_fails() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let plaintext = "data";
         let mut encrypted = cipher.encrypt(plaintext).unwrap();
@@ -382,7 +393,7 @@ mod tests {
     #[test]
     fn test_field_decrypt_short_data_fails() {
         let key = [0u8; KEY_SIZE];
-        let cipher = FieldEncryption::new(&key);
+        let cipher = FieldEncryption::new(&key).unwrap();
 
         let short_data = vec![0u8; 5]; // Too short for nonce
         let result = cipher.decrypt(&short_data);
