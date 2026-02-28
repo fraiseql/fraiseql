@@ -52,34 +52,48 @@ use crate::error::Result;
 /// This trait is object-safe and can be used as `Arc<dyn DeduplicationStore>`.
 #[async_trait::async_trait]
 pub trait DeduplicationStore: Send + Sync + Clone {
-    /// Check if event was recently processed (is duplicate).
+    /// Atomically claim an event for processing.
     ///
-    /// Returns `true` if the event was seen recently (should skip processing).
-    /// Returns `false` if the event is new (should process).
+    /// This is a single round-trip operation that checks whether the event has
+    /// already been claimed and, if not, marks it as claimed — all atomically.
+    /// This replaces the non-atomic `is_duplicate` + `mark_processed` two-step
+    /// pattern, which is susceptible to a race condition when multiple workers
+    /// process the same event concurrently.
     ///
-    /// # Arguments
+    /// Returns `true` when the caller successfully claimed the event and should
+    /// proceed with processing.
+    /// Returns `false` when another worker already claimed it (treat as duplicate).
     ///
-    /// * `event_key` - Unique event identifier (typically `event_type` + `entity_id`)
+    /// If the subsequent processing fails, call [`Self::remove`] to un-claim the
+    /// key so the event can be retried.
     ///
     /// # Errors
     ///
-    /// Returns error if:
-    /// - Redis connection fails
-    /// - Key operations fail
+    /// Returns an error only if the underlying store is unavailable.
+    /// Callers should **fail-open** (i.e. process anyway) on error to avoid
+    /// dropping events.
+    async fn claim_event(&self, event_key: &str) -> Result<bool>;
+
+    /// Check if event was recently processed (is duplicate).
+    ///
+    /// **Prefer [`Self::claim_event`]** for new code — this method is provided
+    /// for backward compatibility and read-only inspection only. Calling
+    /// `is_duplicate` followed by `mark_processed` is not atomic.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the store is unavailable.
     async fn is_duplicate(&self, event_key: &str) -> Result<bool>;
 
     /// Mark event as processed (for deduplication).
     ///
-    /// Stores the event key with TTL so future occurrences within the window
-    /// are considered duplicates. This is called after processing.
-    ///
-    /// # Arguments
-    ///
-    /// * `event_key` - Unique event identifier
+    /// **Prefer [`Self::claim_event`]** for new code — this method is not
+    /// atomic with `is_duplicate` and can result in duplicate processing under
+    /// concurrent load.
     ///
     /// # Errors
     ///
-    /// Returns error if Redis operation fails.
+    /// Returns error if the store is unavailable.
     async fn mark_processed(&self, event_key: &str) -> Result<()>;
 
     /// Get the deduplication time window in seconds.
@@ -88,15 +102,13 @@ pub trait DeduplicationStore: Send + Sync + Clone {
     /// Set the deduplication time window in seconds.
     fn set_window_seconds(&mut self, seconds: u64);
 
-    /// Remove a deduplication key (for manual intervention/reset).
+    /// Remove a deduplication key.
     ///
-    /// # Arguments
-    ///
-    /// * `event_key` - Unique event identifier
+    /// Used to un-claim an event when processing failed so it can be retried.
     ///
     /// # Errors
     ///
-    /// Returns error if Redis operation fails.
+    /// Returns error if the store is unavailable.
     async fn remove(&self, event_key: &str) -> Result<()>;
 }
 

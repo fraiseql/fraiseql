@@ -120,106 +120,76 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
         }
     }
 
-    /// Process event with deduplication check.
+    /// Process event with atomic deduplication.
     ///
     /// # Flow
     ///
-    /// 1. Generate dedup key from event.id (UUIDv4)
-    /// 2. Check if already processed (within time window)
-    /// 3. If duplicate → return early with `duplicate_skipped=true`
-    /// 4. If new → process event
-    /// 5. If all actions succeeded → mark as processed
-    /// 6. If any action failed → don't mark (allow retry)
+    /// 1. Generate dedup key from `event.id` (UUIDv4)
+    /// 2. `claim_event()` — atomic `SET NX EX`: only one worker wins the claim
+    /// 3. If not claimed (duplicate) → return early with `duplicate_skipped=true`
+    /// 4. If claimed → process event
+    /// 5. If processing failed → `remove()` the claim key so the event can be retried
     ///
-    /// # Arguments
-    ///
-    /// * `event` - The entity event to process
-    ///
-    /// # Returns
-    ///
-    /// `ExecutionSummary` with `duplicate_skipped=true` if event was duplicate,
-    /// otherwise summary from inner executor.
+    /// Using a single atomic claim eliminates the race condition that existed when
+    /// `is_duplicate` and `mark_processed` were called as separate operations.
     ///
     /// # Errors
     ///
-    /// Returns error if:
-    /// - Deduplication store check fails
-    /// - Inner executor fails
-    /// - Marking as processed fails
+    /// Returns error if the inner executor fails. A failed `claim_event` causes
+    /// fail-open behaviour (event is processed anyway) to avoid silent event loss.
     pub async fn process_event(&self, event: &EntityEvent) -> Result<ExecutionSummary> {
-        // Generate deduplication key from event.id (UUIDv4)
         let event_key = format!("event:{}", event.id);
 
-        // Check if already processed
-        match self.dedup_store.is_duplicate(&event_key).await {
-            Ok(true) => {
-                // Event is duplicate - skip processing
-                debug!(
-                    "Event {} is duplicate (within {}-second window), skipping",
-                    event.id,
-                    self.dedup_store.window_seconds()
-                );
-
-                // Record deduplication metrics
-                #[cfg(feature = "metrics")]
-                {
-                    self.metrics.dedup_detected();
-                    self.metrics.dedup_processing_skipped();
-                }
-
-                return Ok(ExecutionSummary {
-                    successful_actions: 0,
-                    failed_actions:     0,
-                    conditions_skipped: 0,
-                    total_duration_ms:  0.0,
-                    dlq_errors:         0,
-                    errors:             Vec::new(),
-                    duplicate_skipped:  true,
-                    cache_hits:         0,
-                    cache_misses:       0,
-                });
-            },
-            Ok(false) => {
-                // Event is new - proceed with processing
-                debug!("Event {} is new (not in dedup store), processing", event.id);
-            },
+        // Atomically claim the event; fail-open if the store is unavailable.
+        let claimed = match self.dedup_store.claim_event(&event_key).await {
+            Ok(claimed) => claimed,
             Err(e) => {
-                // Deduplication check failed - log warning and process anyway
-                // (fail-open: better to process duplicate than miss event)
                 warn!(
-                    "Deduplication check failed for event {}: {}. Processing anyway (fail-open).",
+                    "Dedup claim failed for event {}: {}. Processing anyway (fail-open).",
                     event.id, e
                 );
+                true // treat as claimed so we proceed
             },
+        };
+
+        if !claimed {
+            debug!(
+                "Event {} already claimed (within {}-second window), skipping",
+                event.id,
+                self.dedup_store.window_seconds()
+            );
+
+            #[cfg(feature = "metrics")]
+            {
+                self.metrics.dedup_detected();
+                self.metrics.dedup_processing_skipped();
+            }
+
+            return Ok(ExecutionSummary {
+                successful_actions: 0,
+                failed_actions:     0,
+                conditions_skipped: 0,
+                total_duration_ms:  0.0,
+                dlq_errors:         0,
+                errors:             Vec::new(),
+                duplicate_skipped:  true,
+                cache_hits:         0,
+                cache_misses:       0,
+            });
         }
 
-        // Process event (not a duplicate or check failed)
+        debug!("Event {} claimed, processing", event.id);
         let summary = self.inner.process_event(event).await?;
 
-        // Mark as processed (only if all actions succeeded)
-        if summary.failed_actions == 0 && summary.dlq_errors == 0 {
-            match self.dedup_store.mark_processed(&event_key).await {
-                Ok(()) => {
-                    debug!(
-                        "Marked event {} as processed (TTL: {} seconds)",
-                        event.id,
-                        self.dedup_store.window_seconds()
-                    );
-                },
-                Err(e) => {
-                    // Failed to mark as processed - log warning but don't fail the request
-                    // (event was processed successfully, just couldn't record it)
-                    warn!(
-                        "Failed to mark event {} as processed: {}. Event executed successfully but may be reprocessed if delivered again.",
-                        event.id, e
-                    );
-                },
-            }
-        } else {
+        // Un-claim on failure so the event can be retried.
+        if summary.failed_actions > 0 || summary.dlq_errors > 0 {
             warn!(
-                "Event {} had {} failed actions and {} DLQ errors. NOT marking as processed (will allow retry).",
+                "Event {} had {} failed actions and {} DLQ errors — un-claiming for retry.",
                 event.id, summary.failed_actions, summary.dlq_errors
             );
+            if let Err(e) = self.dedup_store.remove(&event_key).await {
+                warn!("Failed to un-claim event {} after failure: {}", event.id, e);
+            }
         }
 
         Ok(summary)
@@ -249,7 +219,9 @@ mod tests {
     use super::*;
     use crate::{event::EventKind, matcher::EventMatcher, testing::mocks::MockDeadLetterQueue};
 
-    // Simple in-memory dedup store for testing
+    // Simple in-memory dedup store for testing.
+    // `claim_event` uses DashMap's vacant-entry insertion which is atomic at
+    // the shard level, matching the SET NX semantics of the Redis backend.
     #[derive(Clone)]
     struct InMemoryDedupStore {
         store:          Arc<dashmap::DashMap<String, bool>>,
@@ -267,6 +239,17 @@ mod tests {
 
     #[async_trait::async_trait]
     impl DeduplicationStore for InMemoryDedupStore {
+        async fn claim_event(&self, event_key: &str) -> Result<bool> {
+            use dashmap::Entry;
+            match self.store.entry(event_key.to_string()) {
+                Entry::Vacant(e) => {
+                    e.insert(true);
+                    Ok(true) // claimed by us
+                },
+                Entry::Occupied(_) => Ok(false), // already claimed
+            }
+        }
+
         async fn is_duplicate(&self, event_key: &str) -> Result<bool> {
             Ok(self.store.contains_key(event_key))
         }
@@ -370,8 +353,46 @@ mod tests {
         let dedup_store = InMemoryDedupStore::new(300);
         let deduped = DedupedObserverExecutor::new(executor, dedup_store);
 
-        // Should be able to access inner executor
         let _inner = deduped.inner();
         let _store = deduped.dedup_store();
+    }
+
+    /// Verify that concurrent `claim_event` calls for the same key result in
+    /// exactly one winner — the core property that eliminates the TOCTOU race.
+    #[tokio::test]
+    async fn test_claim_event_concurrent_only_one_winner() {
+        let store = InMemoryDedupStore::new(300);
+        let store = Arc::new(store);
+
+        let tasks: Vec<_> = (0..16)
+            .map(|_| {
+                let s = store.clone();
+                tokio::spawn(async move { s.claim_event("event:concurrent-key").await.unwrap() })
+            })
+            .collect();
+
+        let results: Vec<bool> =
+            futures::future::join_all(tasks).await.into_iter().map(|r| r.unwrap()).collect();
+
+        let winners = results.iter().filter(|&&v| v).count();
+        assert_eq!(winners, 1, "exactly one worker must win the claim");
+    }
+
+    /// Verify that un-claiming (remove) after a processing failure allows
+    /// the same event to be claimed again on the next attempt.
+    #[tokio::test]
+    async fn test_claim_event_unclaim_on_failure_allows_retry() {
+        let store = InMemoryDedupStore::new(300);
+
+        // First claim succeeds.
+        assert!(store.claim_event("event:retry-key").await.unwrap());
+        // Key is now held — second claim fails.
+        assert!(!store.claim_event("event:retry-key").await.unwrap());
+
+        // Simulate processing failure: un-claim the key.
+        store.remove("event:retry-key").await.unwrap();
+
+        // Event can be claimed again for retry.
+        assert!(store.claim_event("event:retry-key").await.unwrap());
     }
 }

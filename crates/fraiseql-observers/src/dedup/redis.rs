@@ -49,6 +49,24 @@ impl RedisDeduplicationStore {
 
 #[async_trait::async_trait]
 impl DeduplicationStore for RedisDeduplicationStore {
+    /// Atomically claim the event via `SET key "1" NX EX window_secs`.
+    ///
+    /// Redis `SET NX` is atomic: only one concurrent caller will receive `OK`;
+    /// all others receive `nil` and must skip the event.
+    async fn claim_event(&self, event_key: &str) -> Result<bool> {
+        let key = Self::dedup_key(event_key);
+        // SET key "1" NX EX <ttl> → "OK" if we claimed it, nil if already claimed.
+        let result: Option<String> = redis::cmd("SET")
+            .arg(&key)
+            .arg("1")
+            .arg("NX")
+            .arg("EX")
+            .arg(self.window_seconds as i64)
+            .query_async(&mut self.conn.clone())
+            .await?;
+        Ok(result.is_some())
+    }
+
     async fn is_duplicate(&self, event_key: &str) -> Result<bool> {
         let key = Self::dedup_key(event_key);
         let exists: bool =
