@@ -19,8 +19,9 @@ static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
 #[derive(Clone)]
 pub struct MetricsRegistry {
     // Event processing metrics
-    events_processed_total: IntCounter,
-    events_failed_total:    IntCounterVec,
+    events_processed_total:                IntCounter,
+    events_failed_total:                   IntCounterVec,
+    events_deserialization_failures_total: IntCounter,
 
     // Cache metrics
     cache_hits_total:      IntCounter,
@@ -69,6 +70,12 @@ impl MetricsRegistry {
             &["error_type"],
         )?;
         registry.register(Box::new(events_failed_total.clone()))?;
+
+        let events_deserialization_failures_total = IntCounter::new(
+            "fraiseql_observer_events_deserialization_failures_total",
+            "Total events dropped because the raw payload could not be deserialized",
+        )?;
+        registry.register(Box::new(events_deserialization_failures_total.clone()))?;
 
         // Cache metrics
         let cache_hits_total =
@@ -182,6 +189,7 @@ impl MetricsRegistry {
         Ok(MetricsRegistry {
             events_processed_total,
             events_failed_total,
+            events_deserialization_failures_total,
             cache_hits_total,
             cache_misses_total,
             cache_evictions_total,
@@ -210,6 +218,11 @@ impl MetricsRegistry {
     /// Record an event processing failure
     pub fn event_failed(&self, error_type: &str) {
         self.events_failed_total.with_label_values(&[error_type]).inc();
+    }
+
+    /// Record an event dropped due to deserialization failure
+    pub fn deserialization_failure(&self) {
+        self.events_deserialization_failures_total.inc();
     }
 
     /// Record a cache hit

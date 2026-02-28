@@ -582,6 +582,21 @@ impl ObserverExecutor {
                     // Note: Transport ACKs message internally after we return from process_event()
                     // This ensures at-least-once delivery semantics
                 },
+                Err(ObserverError::DeserializationError { ref raw, ref reason }) => {
+                    // Unparseable payload: preserve raw bytes in DLQ and bump counter.
+                    // The message was already ACKed by the transport to prevent infinite
+                    // redelivery of permanently broken payloads.
+                    error!(
+                        bytes = raw.len(),
+                        %reason,
+                        "Unparseable event from transport — routing raw bytes to DLQ"
+                    );
+                    #[cfg(feature = "metrics")]
+                    self.metrics.deserialization_failure();
+                    if let Err(dlq_err) = self.dlq.push_raw(raw, reason).await {
+                        error!("Failed to route unparseable event to DLQ: {}", dlq_err);
+                    }
+                },
                 Err(e) => {
                     error!("Transport error: {}", e);
                     // Transport handles retry/backoff internally

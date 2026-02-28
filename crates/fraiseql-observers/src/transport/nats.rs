@@ -179,12 +179,15 @@ impl NatsTransport {
     /// # Message Format
     ///
     /// Messages are expected to be JSON-encoded `EntityEvent` objects.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::DeserializationError` with the raw bytes preserved so
+    /// the caller can route the unparseable payload to a dead-letter queue.
     fn parse_message(msg: &jetstream::Message) -> Result<EntityEvent> {
-        let payload = msg.payload.clone();
-
-        // Deserialize EntityEvent from JSON
-        serde_json::from_slice(&payload).map_err(|e| ObserverError::TransportSubscribeFailed {
-            reason: format!("Failed to deserialize EntityEvent: {e}"),
+        serde_json::from_slice(&msg.payload).map_err(|e| ObserverError::DeserializationError {
+            raw:    msg.payload.to_vec(),
+            reason: format!("Failed to deserialize EntityEvent from NATS message: {e}"),
         })
     }
 

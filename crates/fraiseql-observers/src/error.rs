@@ -141,6 +141,18 @@ pub enum ObserverError {
         /// Reason for storage operation failure
         reason: String,
     },
+
+    /// OB020: Event payload could not be deserialized.
+    ///
+    /// The raw bytes are preserved so the caller can route the message to a
+    /// dead-letter queue without losing the original payload.
+    #[error("OB020: Event deserialization failed: {reason}")]
+    DeserializationError {
+        /// Raw bytes of the unparseable message
+        raw: Vec<u8>,
+        /// Human-readable reason (e.g. the serde_json error message)
+        reason: String,
+    },
 }
 
 /// Error code with classification for retry/DLQ decisions.
@@ -184,6 +196,8 @@ pub enum ObserverErrorCode {
     TransportSubscribeFailed,
     /// OB019: Event storage operation failed
     StorageError,
+    /// OB020: Event deserialization failed
+    DeserializationError,
 }
 
 impl ObserverErrorCode {
@@ -209,6 +223,7 @@ impl ObserverErrorCode {
             ObserverErrorCode::ActionPermanentlyFailed
                 | ObserverErrorCode::TemplateRenderingFailed
                 | ObserverErrorCode::InvalidActionConfig
+                | ObserverErrorCode::DeserializationError
         )
     }
 }
@@ -268,6 +283,7 @@ impl ObserverError {
                 ObserverErrorCode::TransportSubscribeFailed
             },
             ObserverError::StorageError { .. } => ObserverErrorCode::StorageError,
+            ObserverError::DeserializationError { .. } => ObserverErrorCode::DeserializationError,
         }
     }
 
@@ -337,5 +353,24 @@ mod tests {
         };
         assert!(!err.is_transient());
         assert!(err.should_dlq());
+    }
+
+    #[test]
+    fn test_deserialization_error_routes_to_dlq() {
+        let err = ObserverError::DeserializationError {
+            raw:    b"not valid json {{".to_vec(),
+            reason: "invalid json: expected value at line 1 column 1".to_string(),
+        };
+        // Not transient — retrying the same broken bytes cannot succeed.
+        assert!(!err.is_transient());
+        // Should be routed to DLQ so the raw payload is preserved.
+        assert!(err.should_dlq());
+        assert_eq!(err.code(), ObserverErrorCode::DeserializationError);
+    }
+
+    #[test]
+    fn test_deserialization_error_should_dlq_code() {
+        assert!(ObserverErrorCode::DeserializationError.should_dlq());
+        assert!(!ObserverErrorCode::DeserializationError.is_transient());
     }
 }

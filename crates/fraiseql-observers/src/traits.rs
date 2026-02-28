@@ -75,6 +75,24 @@ pub trait DeadLetterQueue: Send + Sync {
 
     /// Mark a DLQ item as permanently failed
     async fn mark_retry_failed(&self, id: Uuid, error: &str) -> Result<()>;
+
+    /// Route an unparseable raw event payload to the dead letter queue.
+    ///
+    /// Called when event deserialization fails — no `EntityEvent` is available.
+    /// The default implementation logs a warning and discards the bytes;
+    /// override this method to persist the raw payload for later inspection.
+    ///
+    /// # Arguments
+    /// * `raw`    — raw bytes that could not be deserialized
+    /// * `reason` — the deserialization error message
+    async fn push_raw(&self, raw: &[u8], reason: &str) -> Result<()> {
+        tracing::warn!(
+            bytes = raw.len(),
+            %reason,
+            "Unparseable event dropped (this DLQ implementation does not support raw storage)"
+        );
+        Ok(())
+    }
 }
 
 /// Item in the dead letter queue
