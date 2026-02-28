@@ -304,6 +304,26 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                 )
                 raise TypeError(msg)
 
+        # additional_views validation — fail fast at authoring time
+        if (av := cfg.get("additional_views")) is not None:
+            if not isinstance(av, list):
+                msg = (
+                    f"@fraiseql.query additional_views= on {f.__name__!r} must be a list "
+                    f"(got {av.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            import re
+            _sql_ident = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+            for entry in av:
+                if not isinstance(entry, str) or not _sql_ident.match(entry):
+                    msg = (
+                        f"@fraiseql.query additional_views= on {f.__name__!r}: "
+                        f"entry {entry!r} is not a valid SQL identifier. "
+                        "Use only letters, digits, and underscores (must start with a letter "
+                        "or underscore)."
+                    )
+                    raise ValueError(msg)
+
         # Relay validation — fail fast at authoring time
         if cfg.get("relay"):
             if not signature["return_type"]["is_list"]:
@@ -401,6 +421,24 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                 raise TypeError(msg)
             arg_names = {arg["name"] for arg in signature["arguments"]}
             _validate_inject(inject, arg_names, f"@fraiseql.mutation {f.__name__!r}")
+
+        # invalidates_fact_tables validation — fail fast at authoring time
+        if (ift := config_kwargs.get("invalidates_fact_tables")) is not None:
+            if not isinstance(ift, list):
+                msg = (
+                    f"@fraiseql.mutation invalidates_fact_tables= on {f.__name__!r} "
+                    f"must be a list (got {ift.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            for entry in ift:
+                if not isinstance(entry, str) or not _IDENTIFIER_RE.match(entry):
+                    msg = (
+                        f"@fraiseql.mutation invalidates_fact_tables= on {f.__name__!r}: "
+                        f"entry {entry!r} is not a valid SQL identifier. "
+                        "Use only letters, digits, and underscores (must start with a "
+                        "letter or underscore)."
+                    )
+                    raise ValueError(msg)
 
         # Register mutation with schema registry
         SchemaRegistry.register_mutation(

@@ -419,6 +419,31 @@ pub trait DatabaseAdapter: Send + Sync {
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
+    /// Bump fact table version counters after a successful mutation.
+    ///
+    /// Called by the executor when a mutation definition declares
+    /// `invalidates_fact_tables`. For each listed table the version counter is
+    /// incremented so that subsequent aggregation queries miss the cache and
+    /// re-fetch fresh data.
+    ///
+    /// The default implementation is a **no-op**: adapters that are not cache-
+    /// aware (e.g. `PostgresAdapter`, `SqliteAdapter`) simply return `Ok(())`.
+    /// `CachedDatabaseAdapter` overrides this to call `bump_tf_version($1)` for
+    /// every `FactTableVersionStrategy::VersionTable` table and update the
+    /// in-process version cache.
+    ///
+    /// # Arguments
+    ///
+    /// * `tables` - Fact table names declared by the mutation (validated SQL
+    ///   identifiers; originate from `MutationDefinition.invalidates_fact_tables`)
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the version-bump SQL function fails.
+    async fn bump_fact_table_versions(&self, _tables: &[String]) -> Result<()> {
+        Ok(())
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

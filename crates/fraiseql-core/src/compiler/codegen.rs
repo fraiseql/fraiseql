@@ -147,6 +147,7 @@ impl CodeGenerator {
                     relay_cursor_type: Default::default(),
                     inject_params:     Default::default(),
                     cache_ttl_seconds:   None,
+                    additional_views: vec![],
                 }
             })
             .collect();
@@ -292,6 +293,7 @@ impl CodeGenerator {
             deprecation: None, // Note: IR mutations don't have deprecation yet
             sql_source:    None,
             inject_params: Default::default(),
+            invalidates_fact_tables: vec![],
         }
     }
 

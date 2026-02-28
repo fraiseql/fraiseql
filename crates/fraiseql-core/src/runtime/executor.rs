@@ -1519,6 +1519,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 6. Parse the mutation_response row
         let outcome = parse_mutation_row(&row)?;
 
+        // 6a. Bump fact table versions after a successful mutation.
+        //
+        // This invalidates cached aggregation results for any fact tables listed
+        // in `MutationDefinition.invalidates_fact_tables`.  We bump versions on
+        // Success only — an Error outcome means no data was written, so caches
+        // remain valid.  Non-cached adapters return Ok(()) from the default trait
+        // implementation (no-op); only `CachedDatabaseAdapter` performs actual work.
+        if matches!(outcome, MutationOutcome::Success { .. })
+            && !mutation_def.invalidates_fact_tables.is_empty()
+        {
+            self.adapter
+                .bump_fact_table_versions(&mutation_def.invalidates_fact_tables)
+                .await?;
+        }
+
         // Clone name and return_type to avoid borrow issues after schema lookups
         let mutation_return_type = mutation_def.return_type.clone();
         let mutation_name_owned = mutation_name.to_string();
@@ -2222,6 +2237,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     pub fn adapter(&self) -> &Arc<A> {
         &self.adapter
     }
+
 }
 
 /// Resolve a single injected parameter value from the security context.
@@ -2410,6 +2426,7 @@ mod tests {
             relay_cursor_type: Default::default(),
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
+            additional_views: vec![],
         });
         schema
     }
@@ -2854,6 +2871,7 @@ mod tests {
             relay_cursor_type:   Default::default(),
             inject_params,
             cache_ttl_seconds:   None,
+            additional_views: vec![],
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);

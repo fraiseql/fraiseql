@@ -64,6 +64,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             relay:       true,
              inject: Default::default(),
              cache_ttl_seconds: None,
+             additional_views: vec![],
         }],
         mutations:         vec![],
         subscriptions:     vec![],

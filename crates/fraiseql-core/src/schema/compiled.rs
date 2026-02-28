@@ -543,6 +543,64 @@ impl CompiledSchema {
             .unwrap_or(false)
     }
 
+    /// Returns a 32-character hex SHA-256 content hash of this schema's canonical JSON.
+    ///
+    /// Use as `schema_version` when constructing `CachedDatabaseAdapter` to guarantee
+    /// cache invalidation on any schema change, regardless of whether the package
+    /// version was bumped.
+    ///
+    /// Two schemas that differ by even one field will produce different hashes.
+    /// The same schema serialised twice always produces the same hash (stable).
+    ///
+    /// # Panics
+    ///
+    /// Does not panic — `CompiledSchema` always serialises to valid JSON.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::CompiledSchema;
+    ///
+    /// let schema = CompiledSchema::default();
+    /// let hash = schema.content_hash();
+    /// assert_eq!(hash.len(), 32); // 16 bytes → 32 hex chars
+    /// ```
+    #[must_use]
+    pub fn content_hash(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let json = self
+            .to_json()
+            .expect("CompiledSchema always serialises — BUG if this fails");
+        let digest = Sha256::digest(json.as_bytes());
+        hex::encode(&digest[..16]) // 32 hex chars — sufficient collision resistance
+    }
+
+    /// Returns `true` if Row-Level Security policies are declared in this schema.
+    ///
+    /// Used at server startup to validate that caching is safe for multi-tenant
+    /// deployments. When caching is enabled and no RLS policies are configured,
+    /// the server emits a startup warning about potential data leakage.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::CompiledSchema;
+    ///
+    /// let schema = CompiledSchema::default();
+    /// assert!(!schema.has_rls_configured());
+    /// ```
+    #[must_use]
+    pub fn has_rls_configured(&self) -> bool {
+        self.security
+            .as_ref()
+            .map(|s| {
+                !s.get("policies")
+                    .and_then(|p| p.as_array())
+                    .map_or(true, |a| a.is_empty())
+            })
+            .unwrap_or(false)
+    }
+
     /// Get raw GraphQL schema SDL.
     ///
     /// # Returns
@@ -1435,6 +1493,31 @@ pub struct QueryDefinition {
     /// `None` → use the global cache TTL.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_ttl_seconds: Option<u64>,
+
+    /// Additional database views this query reads beyond the primary `sql_source`.
+    ///
+    /// When this query JOINs or queries multiple views, list all secondary views here
+    /// so that mutations touching those views correctly invalidate this query's cache
+    /// entries.
+    ///
+    /// Without this list, only `sql_source` is registered for invalidation. Any mutation
+    /// that modifies a secondary view will NOT invalidate this query's cache — silently
+    /// serving stale data.
+    ///
+    /// Each entry must be a valid SQL identifier (letters, digits, `_`) validated by the
+    /// CLI compiler at schema compile time.
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// @fraiseql.query(
+    ///     sql_source="v_user_with_posts",
+    ///     additional_views=["v_post"],
+    /// )
+    /// def users_with_posts() -> list[UserWithPosts]: ...
+    /// ```
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub additional_views: Vec<String>,
 }
 
 impl QueryDefinition {
@@ -1457,6 +1540,7 @@ impl QueryDefinition {
             relay_cursor_type:   CursorType::Int64,
             inject_params:       IndexMap::new(),
             cache_ttl_seconds:   None,
+            additional_views:    Vec::new(),
         }
     }
 
@@ -1562,6 +1646,27 @@ pub struct MutationDefinition {
     /// and will return an error if inject is configured on a mutation.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject_params: IndexMap<String, InjectedParamSource>,
+
+    /// Fact tables whose version counter should be bumped after this mutation succeeds.
+    ///
+    /// When the mutation PostgreSQL function returns successfully, the runtime calls
+    /// `SELECT bump_tf_version($1)` for each listed table, incrementing the version used
+    /// in fact-table cache keys. This ensures that analytic/aggregate queries backed by
+    /// `FactTableVersionStrategy::VersionTable` are automatically invalidated.
+    ///
+    /// Each entry must be a valid SQL identifier validated at compile time.
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// @fraiseql.mutation(
+    ///     sql_source="fn_create_order",
+    ///     invalidates_fact_tables=["tf_sales", "tf_order_count"],
+    /// )
+    /// def create_order(amount: Decimal) -> Order: ...
+    /// ```
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invalidates_fact_tables: Vec<String>,
 }
 
 impl MutationDefinition {
@@ -1569,14 +1674,15 @@ impl MutationDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:          name.into(),
-            return_type:   return_type.into(),
-            arguments:     Vec::new(),
-            description:   None,
-            operation:     MutationOperation::default(),
-            deprecation:   None,
-            sql_source:    None,
-            inject_params: IndexMap::new(),
+            name:                   name.into(),
+            return_type:            return_type.into(),
+            arguments:              Vec::new(),
+            description:            None,
+            operation:              MutationOperation::default(),
+            deprecation:            None,
+            sql_source:             None,
+            inject_params:          IndexMap::new(),
+            invalidates_fact_tables: Vec::new(),
         }
     }
 
@@ -2490,5 +2596,70 @@ mod tests {
         assert!(fixed.is_fixed());
         assert_eq!(fixed.initial_delay_ms, 5000);
         assert_eq!(fixed.max_delay_ms, 5000);
+    }
+
+    // =========================================================================
+    // content_hash tests
+    // =========================================================================
+
+    #[test]
+    fn test_content_hash_stable() {
+        let schema = CompiledSchema::default();
+        assert_eq!(schema.content_hash(), schema.content_hash(), "Same schema must produce same hash");
+    }
+
+    #[test]
+    fn test_content_hash_length() {
+        let hash = CompiledSchema::default().content_hash();
+        assert_eq!(hash.len(), 32, "Hash must be 32 hex chars (16 bytes)");
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()), "Hash must be valid hex");
+    }
+
+    #[test]
+    fn test_content_hash_changes_on_field_rename() {
+        let mut schema_a = CompiledSchema::default();
+        schema_a.queries.push(QueryDefinition::new("users", "User").with_sql_source("v_user"));
+
+        let mut schema_b = CompiledSchema::default();
+        schema_b.queries.push(QueryDefinition::new("users", "User").with_sql_source("v_account")); // different view
+
+        assert_ne!(
+            schema_a.content_hash(),
+            schema_b.content_hash(),
+            "Schemas with different view names must produce different hashes"
+        );
+    }
+
+    // =========================================================================
+    // has_rls_configured tests
+    // =========================================================================
+
+    #[test]
+    fn test_has_rls_configured_no_security() {
+        let schema = CompiledSchema::default();
+        assert!(!schema.has_rls_configured(), "Schema with no security section must return false");
+    }
+
+    #[test]
+    fn test_has_rls_configured_with_empty_policies() {
+        let mut schema = CompiledSchema::default();
+        schema.security = Some(serde_json::json!({"policies": []}));
+        assert!(!schema.has_rls_configured(), "Empty policies array must return false");
+    }
+
+    #[test]
+    fn test_has_rls_configured_with_policies() {
+        let mut schema = CompiledSchema::default();
+        schema.security = Some(serde_json::json!({
+            "policies": [{"name": "tenant_isolation", "condition": "tenant_id = $1"}]
+        }));
+        assert!(schema.has_rls_configured(), "Non-empty policies array must return true");
+    }
+
+    #[test]
+    fn test_has_rls_configured_no_policies_key() {
+        let mut schema = CompiledSchema::default();
+        schema.security = Some(serde_json::json!({"rate_limiting": {"enabled": true}}));
+        assert!(!schema.has_rls_configured(), "Security without policies key must return false");
     }
 }

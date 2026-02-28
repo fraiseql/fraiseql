@@ -425,6 +425,7 @@ impl SchemaExtractor for PythonExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -520,6 +521,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     relay: false,
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
                 });
             }
         }
@@ -681,6 +683,7 @@ impl SchemaExtractor for RustExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -774,6 +777,7 @@ impl SchemaExtractor for JavaExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -893,6 +897,7 @@ impl SchemaExtractor for KotlinExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -1010,6 +1015,7 @@ impl SchemaExtractor for GoExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -1125,6 +1131,7 @@ impl SchemaExtractor for CSharpExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -1258,6 +1265,7 @@ impl SchemaExtractor for SwiftExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 
@@ -1347,6 +1355,7 @@ impl SchemaExtractor for ScalaExtractor {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             });
         }
 

@@ -346,6 +346,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
 
+        // Warn when query-result caching is active but no RLS policies are declared.
+        // Cache isolation relies on per-user WHERE clauses in the cache key.  Without RLS,
+        // all users share the same (empty) WHERE clause and therefore share cache entries,
+        // which can leak data between tenants in multi-tenant deployments.
+        if config.cache_enabled && !schema.has_rls_configured() {
+            warn!(
+                "Query-result caching is enabled but no Row-Level Security policies are declared \
+                 in the compiled schema. Cache isolation relies on per-user WHERE clauses in cache \
+                 keys. Without RLS, users with the same query and variables will receive the same \
+                 cached response. This is safe for single-tenant deployments but WILL LEAK DATA \
+                 between tenants in multi-tenant deployments. Declare policies in fraiseql.toml \
+                 or set cache_enabled = false if you are using PostgreSQL-native RLS without \
+                 FraiseQL policy injection."
+            );
+        }
+
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 

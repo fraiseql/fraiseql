@@ -427,6 +427,13 @@ pub struct IntermediateQuery {
     /// Per-query result cache TTL in seconds. Overrides the global cache TTL for this query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_ttl_seconds: Option<u64>,
+
+    /// Additional database views this query reads beyond the primary `sql_source`.
+    ///
+    /// Used for correct cache invalidation when a query JOINs or reads multiple views.
+    /// Each entry is validated as a safe SQL identifier at schema compile time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub additional_views: Vec<String>,
 }
 
 /// Mutation definition in intermediate format
@@ -470,6 +477,12 @@ pub struct IntermediateMutation {
     /// Not exposed as GraphQL arguments.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject: IndexMap<String, String>,
+
+    /// Fact tables whose version counter should be bumped after this mutation succeeds.
+    ///
+    /// Used for correct invalidation of analytic/aggregate cache entries.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invalidates_fact_tables: Vec<String>,
 }
 
 // =============================================================================

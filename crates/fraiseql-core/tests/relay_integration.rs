@@ -275,6 +275,7 @@ fn relay_schema() -> CompiledSchema {
         relay_cursor_type:   Default::default(),
         inject_params:       Default::default(),
         cache_ttl_seconds:   None,
+        additional_views: vec![],
     });
 
     schema
@@ -795,6 +796,7 @@ fn uuid_relay_schema() -> CompiledSchema {
         relay_cursor_type: CursorType::Uuid,
         inject_params: Default::default(),
         cache_ttl_seconds:   None,
+        additional_views: vec![],
     });
 
     schema

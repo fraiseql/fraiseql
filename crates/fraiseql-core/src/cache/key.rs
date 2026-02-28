@@ -222,11 +222,13 @@ pub fn extract_accessed_views(query_def: &QueryDefinition) -> Vec<String> {
     let mut views = Vec::new();
 
     // Add primary SQL source
-    // Note: FraiseQL uses single-table compiled templates (no JOINs or resolver chains),
-    // so the sql_source is the complete set of accessed views for cache invalidation.
     if let Some(sql_source) = &query_def.sql_source {
         views.push(sql_source.clone());
     }
+
+    // Add developer-declared secondary views (JOINs, nested queries, etc.)
+    // Required for correct invalidation when a query reads from multiple views.
+    views.extend(query_def.additional_views.iter().cloned());
 
     views
 }
@@ -517,6 +519,7 @@ mod tests {
             relay_cursor_type: Default::default(),
         inject_params:     Default::default(),
         cache_ttl_seconds:   None,
+        additional_views: vec![],
         };
 
         let views = extract_accessed_views(&query_def);
@@ -548,10 +551,38 @@ mod tests {
             relay_cursor_type: Default::default(),
         inject_params:     Default::default(),
         cache_ttl_seconds:   None,
+        additional_views: vec![],
         };
 
         let views = extract_accessed_views(&query_def);
         assert_eq!(views, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_extract_accessed_views_with_additional_views() {
+        use crate::schema::AutoParams;
+
+        let query_def = QueryDefinition {
+            name:             "usersWithPosts".to_string(),
+            return_type:      "UserWithPosts".to_string(),
+            returns_list:     true,
+            nullable:         false,
+            arguments:        vec![],
+            sql_source:       Some("v_user_with_posts".to_string()),
+            description:      None,
+            auto_params:      AutoParams::default(),
+            deprecation:      None,
+            jsonb_column:     "data".to_string(),
+            relay:            false,
+            relay_cursor_column: None,
+            relay_cursor_type: Default::default(),
+            inject_params:    Default::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec!["v_post".to_string(), "v_tag".to_string()],
+        };
+
+        let views = extract_accessed_views(&query_def);
+        assert_eq!(views, vec!["v_user_with_posts", "v_post", "v_tag"]);
     }
 
     // ========================================================================

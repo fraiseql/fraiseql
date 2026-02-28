@@ -1127,6 +1127,7 @@ mod tests {
             relay: false,
              inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -1150,6 +1151,7 @@ mod tests {
             relay: false,
              inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
     }
@@ -1220,6 +1222,7 @@ mod tests {
                     relay: false,
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
                 },
                 IntermediateQuery {
                     name:         "author".to_string(),
@@ -1241,6 +1244,7 @@ mod tests {
                     relay: false,
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
                 },
             ],
             enums: vec![IntermediateEnum {

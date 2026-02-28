@@ -720,3 +720,119 @@ def test_query_cache_ttl_non_int_raises() -> None:
         @fraiseql.query(sql_source="v_thingo", cache_ttl_seconds="300")
         def thingos() -> list[Thingo]:
             pass
+
+
+def test_query_additional_views_valid_passes_through() -> None:
+    """Valid additional_views list is passed through to schema."""
+
+    @fraiseql.type
+    class Post:
+        id: int
+
+    @fraiseql.query(sql_source="v_user_with_posts", additional_views=["v_post", "v_tag"])
+    def users_with_posts() -> list[Post]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][0]
+    assert q.get("additional_views") == ["v_post", "v_tag"]
+
+
+def test_query_additional_views_not_list_raises() -> None:
+    """Non-list additional_views raises TypeError."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a list"):
+
+        @fraiseql.query(sql_source="v_widget", additional_views="v_extra")
+        def widgets() -> list[Widget]:
+            pass
+
+
+def test_query_additional_views_invalid_identifier_raises() -> None:
+    """Invalid SQL identifier in additional_views raises ValueError."""
+
+    @fraiseql.type
+    class Gadget:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid SQL identifier"):
+
+        @fraiseql.query(sql_source="v_gadget", additional_views=["v_good", "bad identifier"])
+        def gadgets() -> list[Gadget]:
+            pass
+
+
+# ── @fraiseql.mutation invalidates_fact_tables tests ──────────────────────────
+
+
+def test_mutation_invalidates_fact_tables_valid_passes_through() -> None:
+    """Valid invalidates_fact_tables list is stored in schema output."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(
+        sql_source="fn_create_order",
+        invalidates_fact_tables=["tf_sales", "tf_order_count"],
+    )
+    def create_order(amount: float) -> Order:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_order")
+    assert mut["invalidates_fact_tables"] == ["tf_sales", "tf_order_count"]
+
+
+def test_mutation_invalidates_fact_tables_empty_list_passes_through() -> None:
+    """Empty invalidates_fact_tables is accepted and stored."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_item", invalidates_fact_tables=[])
+    def create_item(name: str) -> Item:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_item")
+    assert mut["invalidates_fact_tables"] == []
+
+
+def test_mutation_invalidates_fact_tables_not_list_raises() -> None:
+    """Non-list invalidates_fact_tables raises TypeError."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a list"):
+
+        @fraiseql.mutation(
+            sql_source="fn_create_widget",
+            invalidates_fact_tables="tf_sales",
+        )
+        def create_widget(name: str) -> Widget:
+            pass
+
+
+def test_mutation_invalidates_fact_tables_invalid_identifier_raises() -> None:
+    """Invalid SQL identifier in invalidates_fact_tables raises ValueError."""
+
+    @fraiseql.type
+    class Sprocket:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid SQL identifier"):
+
+        @fraiseql.mutation(
+            sql_source="fn_create_sprocket",
+            invalidates_fact_tables=["tf_sales", "bad name"],
+        )
+        def create_sprocket(name: str) -> Sprocket:
+            pass

@@ -340,6 +340,23 @@ impl SchemaConverter {
         }
     }
 
+    /// Check whether a string is a safe SQL identifier.
+    ///
+    /// Accepts identifiers matching `[A-Za-z_][A-Za-z0-9_]*` (no spaces, dots, or
+    /// special characters).  This prevents SQL injection via view names supplied in
+    /// `additional_views` or `invalidates_fact_tables`.
+    fn is_safe_sql_identifier(s: &str) -> bool {
+        if s.is_empty() {
+            return false;
+        }
+        let mut chars = s.chars();
+        let first = chars.next().expect("non-empty checked above");
+        if !first.is_ascii_alphabetic() && first != '_' {
+            return false;
+        }
+        chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    }
+
     /// Parse an inject source string like `"jwt:org_id"` into an `InjectedParamSource`.
     fn parse_inject_source(raw: &str) -> Result<InjectedParamSource> {
         if let Some(claim) = raw.strip_prefix("jwt:") {
@@ -445,6 +462,19 @@ impl SchemaConverter {
             None
         };
 
+        // Validate additional_views entries as safe SQL identifiers.
+        for view in &intermediate.additional_views {
+            if !Self::is_safe_sql_identifier(view) {
+                anyhow::bail!(
+                    "Query '{}': additional_views entry {:?} is not a valid SQL identifier. \
+                     Use only letters, digits, and underscores (must start with a letter or \
+                     underscore).",
+                    intermediate.name,
+                    view
+                );
+            }
+        }
+
         Ok(QueryDefinition {
             name: intermediate.name,
             return_type: intermediate.return_type,
@@ -461,6 +491,7 @@ impl SchemaConverter {
             relay_cursor_type: CursorType::default(),
             inject_params,
             cache_ttl_seconds: intermediate.cache_ttl_seconds,
+            additional_views: intermediate.additional_views,
         })
     }
 
@@ -493,15 +524,29 @@ impl SchemaConverter {
             .deprecated
             .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
+        // Validate invalidates_fact_tables entries as safe SQL identifiers.
+        for table in &intermediate.invalidates_fact_tables {
+            if !Self::is_safe_sql_identifier(table) {
+                anyhow::bail!(
+                    "Mutation '{}': invalidates_fact_tables entry {:?} is not a valid SQL \
+                     identifier. Use only letters, digits, and underscores (must start with \
+                     a letter or underscore).",
+                    intermediate.name,
+                    table
+                );
+            }
+        }
+
         Ok(MutationDefinition {
-            name:          intermediate.name,
-            return_type:   intermediate.return_type,
+            name:                    intermediate.name,
+            return_type:             intermediate.return_type,
             arguments,
-            description:   intermediate.description,
+            description:             intermediate.description,
             operation,
             deprecation,
-            sql_source:    intermediate.sql_source,
+            sql_source:              intermediate.sql_source,
             inject_params,
+            invalidates_fact_tables: intermediate.invalidates_fact_tables,
         })
     }
 
@@ -1158,6 +1203,7 @@ mod tests {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1219,6 +1265,7 @@ mod tests {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1271,6 +1318,7 @@ mod tests {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1324,6 +1372,7 @@ mod tests {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             }],
             mutations:         vec![],
             subscriptions:     vec![],

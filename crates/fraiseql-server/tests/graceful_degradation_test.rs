@@ -37,7 +37,8 @@ fn test_health_reports_unhealthy_when_database_disconnected() {
             active_connections: Some(0),
             idle_connections:   Some(0),
         },
-        version:  env!("CARGO_PKG_VERSION").to_string(),
+        version:     env!("CARGO_PKG_VERSION").to_string(),
+        schema_hash: None,
     };
 
     assert_eq!(response.status, "unhealthy");
@@ -61,7 +62,8 @@ fn test_health_response_does_not_leak_connection_details() {
             active_connections: None,
             idle_connections:   None,
         },
-        version:  env!("CARGO_PKG_VERSION").to_string(),
+        version:     env!("CARGO_PKG_VERSION").to_string(),
+        schema_hash: None,
     };
 
     let json_str = serde_json::to_string(&response).unwrap();
@@ -255,14 +257,15 @@ fn test_degradation_identifies_database_type() {
 
     for db_type in databases {
         let response = HealthResponse {
-            status:   "unhealthy".to_string(),
-            database: DatabaseStatus {
+            status:      "unhealthy".to_string(),
+            database:    DatabaseStatus {
                 connected:          false,
                 database_type:      db_type.to_string(),
                 active_connections: Some(0),
                 idle_connections:   Some(0),
             },
-            version:  env!("CARGO_PKG_VERSION").to_string(),
+            version:     env!("CARGO_PKG_VERSION").to_string(),
+            schema_hash: None,
         };
 
         let json: serde_json::Value = serde_json::to_value(&response).unwrap();
@@ -282,7 +285,8 @@ fn test_pool_metrics_available_during_degradation() {
             active_connections: Some(20),
             idle_connections:   Some(0),
         },
-        version:  env!("CARGO_PKG_VERSION").to_string(),
+        version:     env!("CARGO_PKG_VERSION").to_string(),
+        schema_hash: None,
     };
 
     // Pool saturation visible even when unhealthy

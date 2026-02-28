@@ -18,6 +18,14 @@ pub struct HealthResponse {
 
     /// Server version.
     pub version: String,
+
+    /// 32-character hex SHA-256 content hash of the compiled schema.
+    ///
+    /// Operators can compare this value across server instances to verify
+    /// all instances are running the same schema. Different values indicate
+    /// a schema mismatch (e.g. partial rollout or stale deployment).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_hash: Option<String>,
 }
 
 /// Database status.
@@ -91,10 +99,13 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let status = if db_healthy { "healthy" } else { "unhealthy" };
 
+    let schema_hash = Some(state.executor.schema().content_hash());
+
     let response = HealthResponse {
         status: status.to_string(),
         database,
         version: env!("CARGO_PKG_VERSION").to_string(),
+        schema_hash,
     };
 
     let status_code = if db_healthy {
@@ -137,14 +148,15 @@ mod tests {
     #[test]
     fn test_health_response_serialization() {
         let response = HealthResponse {
-            status:   "healthy".to_string(),
-            database: DatabaseStatus {
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
                 connected:          true,
                 database_type:      "PostgreSQL".to_string(),
                 active_connections: Some(2),
                 idle_connections:   Some(8),
             },
-            version:  "2.0.0-a1".to_string(),
+            version:     "2.0.0-a1".to_string(),
+            schema_hash: Some("abc123def456abc1".to_string()),
         };
 
         let json = serde_json::to_string(&response).unwrap();

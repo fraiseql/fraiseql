@@ -61,6 +61,7 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
         relay:        false,
         inject:       indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
+        additional_views: vec![],
     }
 }
 
@@ -79,6 +80,7 @@ fn single_query(name: &str) -> IntermediateQuery {
         relay:        false,
         inject:       indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
+        additional_views: vec![],
     }
 }
 
@@ -97,6 +99,7 @@ fn relay_query(name: &str) -> IntermediateQuery {
         relay:        true,
         inject:       indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
+        additional_views: vec![],
     }
 }
 

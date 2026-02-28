@@ -169,21 +169,25 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// * `adapter` - Underlying database adapter to wrap
     /// * `cache` - Query result cache instance
-    /// * `schema_version` - Current schema version (e.g., git hash, semver)
+    /// * `schema_version` - Uniquely identifies the compiled schema. Use
+    ///   `schema.content_hash()` (NOT `env!("CARGO_PKG_VERSION")`) so that any schema
+    ///   content change automatically invalidates cached entries across deploys.
     ///
     /// # Example
     ///
     /// ```rust,no_run
     /// use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
     /// use fraiseql_core::db::postgres::PostgresAdapter;
+    /// use fraiseql_core::schema::CompiledSchema;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let schema = CompiledSchema::default();
     /// let db = PostgresAdapter::new("postgresql://localhost/db").await?;
     /// let cache = QueryResultCache::new(CacheConfig::default());
     /// let adapter = CachedDatabaseAdapter::new(
     ///     db,
     ///     cache,
-    ///     env!("CARGO_PKG_VERSION").to_string()  // Use package version
+    ///     schema.content_hash()  // Use content hash for automatic invalidation
     /// );
     /// # Ok(())
     /// # }
@@ -831,6 +835,40 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Mutations are never cached — always delegate to the underlying adapter
         self.adapter.execute_function_call(function_name, args).await
+    }
+
+    async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
+        for table in tables {
+            // Only act when this table uses the version-table strategy.
+            // TimeBased and SchemaVersion strategies are invalidated by their own
+            // mechanisms (clock / schema hash); no runtime bump is needed.
+            if !matches!(
+                self.fact_table_config.get_strategy(table),
+                FactTableVersionStrategy::VersionTable
+            ) {
+                continue;
+            }
+
+            // Call the PostgreSQL function that increments the counter and returns
+            // the new version.  The table name originates from
+            // `MutationDefinition.invalidates_fact_tables`, which the CLI compiler
+            // validates as a safe SQL identifier — no string interpolation needed.
+            let rows = self
+                .adapter
+                .execute_function_call("bump_tf_version", &[serde_json::json!(table)])
+                .await?;
+
+            // Extract the new version number from the function result.
+            // The function must return a single-column row with the incremented
+            // integer.  Accept whatever column name the function uses.
+            if let Some(new_version) = rows
+                .first()
+                .and_then(|row| row.values().find_map(serde_json::Value::as_i64))
+            {
+                self.version_provider.set_cached_version(table, new_version);
+            }
+        }
+        Ok(())
     }
 
 }
@@ -1970,5 +2008,156 @@ mod tests {
         adapter.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
         adapter.execute_where_query("v_user_stats", Some(&where_clause), None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 3, "Only v_user should be a miss; v_user_stats is still cached");
+    }
+
+    // ── bump_fact_table_versions tests ─────────────────────────────────────
+
+    /// Adapter whose execute_function_call simulates bump_tf_version by returning
+    /// the incremented version (starting at 2).
+    struct BumpAdapter {
+        bump_call_count: std::sync::atomic::AtomicU32,
+    }
+
+    impl BumpAdapter {
+        fn new() -> Self {
+            Self { bump_call_count: std::sync::atomic::AtomicU32::new(0) }
+        }
+
+        fn bump_call_count(&self) -> u32 {
+            self.bump_call_count.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseAdapter for BumpAdapter {
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                idle_connections:   1,
+                active_connections: 0,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            if function_name == "bump_tf_version" {
+                let n = self.bump_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let new_version = i64::from(n) + 2; // start at 2, then 3, 4, ...
+                let mut row = std::collections::HashMap::new();
+                row.insert("bump_tf_version".to_string(), json!(new_version));
+                Ok(vec![row])
+            } else {
+                Ok(vec![])
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bump_fact_table_versions_updates_version_cache() {
+        let mut ft_config = FactTableCacheConfig::default();
+        ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
+
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            BumpAdapter::new(),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // Version not yet cached
+        assert!(adapter.version_provider().get_cached_version("tf_sales").is_none());
+
+        // Bump
+        adapter
+            .bump_fact_table_versions(&["tf_sales".to_string()])
+            .await
+            .unwrap();
+
+        // bump_tf_version was called once
+        assert_eq!(adapter.inner().bump_call_count(), 1);
+
+        // Version is now cached (inner returned 2)
+        assert_eq!(adapter.version_provider().get_cached_version("tf_sales"), Some(2));
+    }
+
+    #[tokio::test]
+    async fn test_bump_fact_table_versions_skips_non_version_table_strategy() {
+        let mut ft_config = FactTableCacheConfig::default();
+        ft_config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
+        ft_config.set_strategy("tf_events", FactTableVersionStrategy::TimeBased { ttl_seconds: 300 });
+        ft_config.set_strategy("tf_hist", FactTableVersionStrategy::SchemaVersion);
+
+        let adapter = CachedDatabaseAdapter::with_fact_table_config(
+            BumpAdapter::new(),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1.0.0".to_string(),
+            ft_config,
+        );
+
+        // Mix of strategies — only tf_sales should trigger a bump_tf_version call
+        adapter
+            .bump_fact_table_versions(&[
+                "tf_sales".to_string(),
+                "tf_events".to_string(),
+                "tf_hist".to_string(),
+            ])
+            .await
+            .unwrap();
+
+        assert_eq!(adapter.inner().bump_call_count(), 1, "Only VersionTable strategy calls bump_tf_version");
+        assert!(adapter.version_provider().get_cached_version("tf_sales").is_some());
+        assert!(adapter.version_provider().get_cached_version("tf_events").is_none());
+        assert!(adapter.version_provider().get_cached_version("tf_hist").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_bump_fact_table_versions_empty_list_is_noop() {
+        let adapter = CachedDatabaseAdapter::new(
+            BumpAdapter::new(),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1.0.0".to_string(),
+        );
+
+        adapter.bump_fact_table_versions(&[]).await.unwrap();
+        assert_eq!(adapter.inner().bump_call_count(), 0);
     }
 }

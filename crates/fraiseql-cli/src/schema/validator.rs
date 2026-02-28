@@ -554,6 +554,7 @@ mod tests {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -606,6 +607,7 @@ mod tests {
                     relay: false,
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
                 },
                 IntermediateQuery {
                     name:         "users".to_string(), // Duplicate!
@@ -621,6 +623,7 @@ mod tests {
                     relay: false,
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
                 },
             ],
             mutations:         vec![],
@@ -672,6 +675,7 @@ mod tests {
                 relay: false,
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
+                additional_views: vec![],
             }],
             mutations:         vec![],
             subscriptions:     vec![],

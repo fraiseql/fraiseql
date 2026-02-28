@@ -259,6 +259,7 @@ mod tests {
             relay_cursor_type: Default::default(),
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
+            additional_views: vec![],
         });
         schema
     }
@@ -454,6 +455,7 @@ mod tests {
             relay_cursor_type:   Default::default(),
             inject_params:       Default::default(),
             cache_ttl_seconds:   None,
+            additional_views: vec![],
         });
         let matcher = QueryMatcher::new(schema);
 
