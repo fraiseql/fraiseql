@@ -120,7 +120,10 @@ pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 #[cfg(feature = "caching")]
 pub use cache::redis::RedisCacheBackend;
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
-pub use checkpoint::{CheckpointState, CheckpointStore, postgres::PostgresCheckpointStore};
+pub use checkpoint::{
+    CheckpointMode, CheckpointState, CheckpointStore, InMemoryCheckpointStore,
+    PostgresCheckpointStore, check_checkpoint_requirement,
+};
 pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{

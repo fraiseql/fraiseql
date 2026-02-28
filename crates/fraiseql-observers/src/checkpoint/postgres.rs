@@ -92,6 +92,7 @@ impl CheckpointStore for PostgresCheckpointStore {
         expected_id: i64,
         new_id: i64,
     ) -> Result<bool> {
+        // Fast path: update an existing row atomically.
         let result = sqlx::query(
             r"
             UPDATE observer_checkpoints
@@ -105,7 +106,31 @@ impl CheckpointStore for PostgresCheckpointStore {
         .execute(&self.pool)
         .await?;
 
-        Ok(result.rows_affected() > 0)
+        if result.rows_affected() > 0 {
+            return Ok(true);
+        }
+
+        // Edge-case: first-ever checkpoint (expected_id == 0, no row exists yet).
+        // INSERT ... ON CONFLICT DO NOTHING ensures concurrent callers are safe:
+        // exactly one INSERT wins; all others return rows_affected = 0.
+        if expected_id == 0 {
+            let inserted = sqlx::query(
+                r"
+                INSERT INTO observer_checkpoints
+                    (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
+                VALUES ($1, $2, NOW(), 0, 0, NOW())
+                ON CONFLICT (listener_id) DO NOTHING
+                ",
+            )
+            .bind(listener_id)
+            .bind(new_id)
+            .execute(&self.pool)
+            .await?;
+
+            return Ok(inserted.rows_affected() > 0);
+        }
+
+        Ok(false)
     }
 
     async fn delete(&self, listener_id: &str) -> Result<()> {
