@@ -2409,6 +2409,7 @@ mod tests {
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
             inject_params:     Default::default(),
+            cache_ttl_seconds:   None,
         });
         schema
     }
@@ -2852,6 +2853,7 @@ mod tests {
             relay_cursor_column: None,
             relay_cursor_type:   Default::default(),
             inject_params,
+            cache_ttl_seconds:   None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);

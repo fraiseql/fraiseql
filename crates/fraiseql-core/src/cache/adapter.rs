@@ -62,13 +62,17 @@
 //! # }
 //! ```
 
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
 use super::{
+    cascade_invalidator::CascadeInvalidator,
     fact_table_version::{
         FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy,
         generate_version_key_component,
@@ -79,6 +83,7 @@ use super::{
 use crate::{
     db::{DatabaseAdapter, DatabaseType, PoolMetrics, RelayDatabaseAdapter, WhereClause, types::JsonbValue},
     error::Result,
+    schema::CompiledSchema,
 };
 
 /// Cached database adapter wrapper.
@@ -137,11 +142,24 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// with old version become invalid automatically.
     schema_version: String,
 
+    /// Per-view TTL overrides in seconds.
+    ///
+    /// Populated from `QueryDefinition::cache_ttl_seconds` at server startup:
+    /// view name → TTL seconds.  `None` for a view falls back to the global
+    /// `CacheConfig::ttl_seconds`.
+    view_ttl_overrides: HashMap<String, u64>,
+
     /// Configuration for fact table aggregation caching.
     fact_table_config: FactTableCacheConfig,
 
     /// Version provider for fact tables (caches version lookups).
     version_provider: Arc<FactTableVersionProvider>,
+
+    /// Optional cascade invalidator for transitive view dependency expansion.
+    ///
+    /// When set, `invalidate_views()` uses BFS to expand the initial view list
+    /// to include all transitively dependent views before clearing cache entries.
+    cascade_invalidator: Option<Arc<Mutex<CascadeInvalidator>>>,
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -176,9 +194,97 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             adapter,
             cache: Arc::new(cache),
             schema_version,
+            view_ttl_overrides: HashMap::new(),
             fact_table_config: FactTableCacheConfig::default(),
             version_provider: Arc::new(FactTableVersionProvider::default()),
+            cascade_invalidator: None,
         }
+    }
+
+    /// Set per-view TTL overrides.
+    ///
+    /// Maps `sql_source` (view name) → TTL in seconds.  Built at server startup
+    /// from compiled `QueryDefinition::cache_ttl_seconds` entries.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let db = PostgresAdapter::new("postgresql://localhost/db").await?;
+    /// # let cache = QueryResultCache::new(CacheConfig::default());
+    /// let overrides = std::collections::HashMap::from([
+    ///     ("v_country".to_string(), 3600_u64),   // 1 h for reference data
+    ///     ("v_live_price".to_string(), 0_u64),   // never cache live data
+    /// ]);
+    /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string())
+    ///     .with_view_ttl_overrides(overrides);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn with_view_ttl_overrides(mut self, overrides: HashMap<String, u64>) -> Self {
+        self.view_ttl_overrides = overrides;
+        self
+    }
+
+    /// Set a cascade invalidator for transitive view dependency expansion.
+    ///
+    /// When set, `invalidate_views()` uses BFS to expand the initial view list
+    /// to include all views that transitively depend on the invalidated views.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, CascadeInvalidator};
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let db = PostgresAdapter::new("postgresql://localhost/db").await?;
+    /// # let cache = QueryResultCache::new(CacheConfig::default());
+    /// let mut cascade = CascadeInvalidator::new();
+    /// cascade.add_dependency("v_user_stats", "v_user")?;
+    /// cascade.add_dependency("v_dashboard", "v_user_stats")?;
+    /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string())
+    ///     .with_cascade_invalidator(cascade);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn with_cascade_invalidator(mut self, invalidator: CascadeInvalidator) -> Self {
+        self.cascade_invalidator = Some(Arc::new(Mutex::new(invalidator)));
+        self
+    }
+
+    /// Populate per-view TTL overrides from a compiled schema.
+    ///
+    /// For each query that has `cache_ttl_seconds` set and a non-null `sql_source`,
+    /// this maps the view name → TTL so the cache adapter uses the per-query TTL
+    /// instead of the global default.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let db = PostgresAdapter::new("postgresql://localhost/db").await?;
+    /// # let cache = QueryResultCache::new(CacheConfig::default());
+    /// # let schema = CompiledSchema::default();
+    /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string())
+    ///     .with_ttl_overrides_from_schema(&schema);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn with_ttl_overrides_from_schema(mut self, schema: &CompiledSchema) -> Self {
+        for query in &schema.queries {
+            if let (Some(view), Some(ttl)) = (&query.sql_source, query.cache_ttl_seconds) {
+                self.view_ttl_overrides.insert(view.clone(), ttl);
+            }
+        }
+        self
     }
 
     /// Create new cached database adapter with fact table caching configuration.
@@ -228,8 +334,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             adapter,
             cache: Arc::new(cache),
             schema_version,
+            view_ttl_overrides: HashMap::new(),
             fact_table_config,
             version_provider: Arc::new(FactTableVersionProvider::default()),
+            cascade_invalidator: None,
         }
     }
 
@@ -263,6 +371,24 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # }
     /// ```
     pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+        // Expand the view list with transitive dependents when a cascade
+        // invalidator is configured.
+        if let Some(cascader) = &self.cascade_invalidator {
+            let mut expanded: std::collections::HashSet<String> =
+                views.iter().cloned().collect();
+            let mut guard = cascader.lock().map_err(|e| {
+                crate::error::FraiseQLError::Internal {
+                    message: format!("Cascade invalidator lock poisoned: {e}"),
+                    source:  None,
+                }
+            })?;
+            for view in views {
+                let transitive = guard.cascade_invalidate(view)?;
+                expanded.extend(transitive);
+            }
+            let expanded_views: Vec<String> = expanded.into_iter().collect();
+            return self.cache.invalidate_views(&expanded_views);
+        }
         self.cache.invalidate_views(views)
     }
 
@@ -579,6 +705,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cache_key,
             cached_values,
             vec![table_name], // Track which fact table this query reads
+            None,             // Fact-table queries use the global TTL
         )?;
 
         Ok(result)
@@ -625,7 +752,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await?;
 
         // Store in cache
-        self.cache.put(cache_key, result.clone(), vec![view.to_string()])?;
+        let ttl = self.view_ttl_overrides.get(view).copied();
+        self.cache.put(cache_key, result.clone(), vec![view.to_string()], ttl)?;
 
         Ok(result)
     }
@@ -639,24 +767,6 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<JsonbValue>> {
         // Short-circuit when cache is disabled: skip SHA-256 key generation and result clone.
         if !self.cache.is_enabled() {
-            return self.adapter.execute_where_query(view, where_clause, limit, offset).await;
-        }
-
-        // Optimization: Skip caching for simple queries that execute faster than cache overhead
-        // These are queries that:
-        // 1. Have no WHERE clause (full table scan is fast for small tables)
-        // 2. Have small LIMIT (< 1000 rows)
-        // 3. Simple view lookups that complete in < 5ms
-        //
-        // The SHA-256 hash computation (~50-100μs) + cache lookup (~20-50μs) +
-        // result clone overhead exceeds the query execution time for these cases.
-        //
-        // Fixes Issue #40: Cache was hurting performance by -35% for simple queries
-        let is_simple_query = where_clause.is_none() && limit.is_none_or(|l| l <= 1000);
-
-        if is_simple_query {
-            // Fast path: Execute directly without cache overhead
-            // This restores performance for Q1/Q2/Q2b queries in benchmarks
             return self.adapter.execute_where_query(view, where_clause, limit, offset).await;
         }
 
@@ -680,12 +790,15 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         let result = self.adapter.execute_where_query(view, where_clause, limit, offset).await?;
 
         // Store in cache
-        // Simple view tracking (single view name)
-        // Future: Extract all views from compiled SQL (including JOINs)
+        // View-level tracking (single view name).
+        // Cascade invalidation via CascadeInvalidator expands this to transitively
+        // dependent views when invalidate_views() is called.
+        let ttl = self.view_ttl_overrides.get(view).copied();
         self.cache.put(
             cache_key,
             result.clone(),
             vec![view.to_string()], // accessed views
+            ttl,
         )?;
 
         Ok(result)
@@ -859,7 +972,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["active".to_string()],
             operator: WhereOperator::Eq,
@@ -916,7 +1029,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -970,7 +1083,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::disabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -992,34 +1105,36 @@ mod tests {
         assert_eq!(adapter.inner().call_count(), 2);
     }
 
-    /// Test that simple queries bypass cache (Issue #40 fix).
+    /// Test that ALL queries are cached — including those with no WHERE clause or small LIMIT.
     ///
-    /// Simple queries (no WHERE clause, small LIMIT) execute faster than
-    /// the cache overhead (SHA-256 hash + lookup), so they bypass the cache
-    /// to improve performance.
+    /// The previous "simple query bypass" (Issue #40 workaround) was removed.
+    /// It skipped caching for `where_clause.is_none() && limit <= 1000`, which
+    /// prevented caching for public / unauthenticated endpoints.  The cache
+    /// overhead (SHA-256 + LRU lookup ≈ 100-150 µs) is negligible relative to a
+    /// database round-trip; the bypass was a premature optimisation.
     #[tokio::test]
-    async fn test_simple_queries_bypass_cache() {
+    async fn test_all_queries_are_cached() {
         let mock = MockAdapter::new();
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Simple query 1: no WHERE, no LIMIT — bypasses cache entirely
+        // Query with no WHERE, no LIMIT — first call misses the cache
         adapter.execute_where_query("v_user", None, None, None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 1);
 
-        // Same simple query again — still bypasses cache (no cache benefit for trivial queries)
+        // Identical query — now a cache hit, DB not called again
         adapter.execute_where_query("v_user", None, None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 1); // Still 1 - cache hit!
+
+        // Query with small LIMIT — different cache key (different limit), so a miss
+        adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
         assert_eq!(adapter.inner().call_count(), 2);
 
-        // Simple query 2: no WHERE, small LIMIT (1000)
+        // Identical small-limit query — cache hit
         adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
-        assert_eq!(adapter.inner().call_count(), 3);
+        assert_eq!(adapter.inner().call_count(), 2); // Still 2 - cache hit!
 
-        // Same query again - still bypasses cache
-        adapter.execute_where_query("v_user", None, Some(1000), None).await.unwrap();
-        assert_eq!(adapter.inner().call_count(), 4);
-
-        // Complex query: with WHERE clause - should use cache
+        // Query with WHERE clause — cached normally
         let where_clause = WhereClause::Field {
             path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
@@ -1029,22 +1144,14 @@ mod tests {
             .execute_where_query("v_user", Some(&where_clause), None, None)
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 5);
+        assert_eq!(adapter.inner().call_count(), 3);
 
-        // Same complex query - should hit cache
+        // Identical WHERE query — cache hit
         adapter
             .execute_where_query("v_user", Some(&where_clause), None, None)
             .await
             .unwrap();
-        assert_eq!(adapter.inner().call_count(), 5); // Still 5 - cache hit!
-
-        // Large limit (> 1000) should also use cache
-        adapter.execute_where_query("v_user", None, Some(1001), None).await.unwrap();
-        assert_eq!(adapter.inner().call_count(), 6);
-
-        // Same large limit query - should hit cache
-        adapter.execute_where_query("v_user", None, Some(1001), None).await.unwrap();
-        assert_eq!(adapter.inner().call_count(), 6); // Still 6 - cache hit!
+        assert_eq!(adapter.inner().call_count(), 3); // Still 3 - cache hit!
     }
 
     #[tokio::test]
@@ -1055,11 +1162,13 @@ mod tests {
         // Adapter with version 1.0.0
         let mock1 = MockAdapter::new();
         let adapter_v1 = CachedDatabaseAdapter {
-            adapter:           mock1,
-            cache:             Arc::clone(&cache),
-            schema_version:    "1.0.0".to_string(),
-            fact_table_config: FactTableCacheConfig::default(),
-            version_provider:  Arc::clone(&version_provider),
+            adapter:              mock1,
+            cache:                Arc::clone(&cache),
+            schema_version:       "1.0.0".to_string(),
+            view_ttl_overrides:   HashMap::new(),
+            fact_table_config:    FactTableCacheConfig::default(),
+            version_provider:     Arc::clone(&version_provider),
+            cascade_invalidator:  None,
         };
 
         // Query with v1
@@ -1068,11 +1177,13 @@ mod tests {
         // Create new adapter with version 2.0.0 (same cache!)
         let mock2 = MockAdapter::new();
         let adapter_v2 = CachedDatabaseAdapter {
-            adapter:           mock2,
-            cache:             Arc::clone(&cache),
-            schema_version:    "2.0.0".to_string(),
-            fact_table_config: FactTableCacheConfig::default(),
-            version_provider:  Arc::clone(&version_provider),
+            adapter:              mock2,
+            cache:                Arc::clone(&cache),
+            schema_version:       "2.0.0".to_string(),
+            view_ttl_overrides:   HashMap::new(),
+            fact_table_config:    FactTableCacheConfig::default(),
+            version_provider:     Arc::clone(&version_provider),
+            cascade_invalidator:  None,
         };
 
         // Query with v2 - should miss cache (different schema version)
@@ -1136,7 +1247,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -1192,7 +1303,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -1311,7 +1422,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -1355,7 +1466,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -1411,7 +1522,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -1515,7 +1626,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
         let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
 
-        // Use WHERE clause to ensure query uses cache (simple queries bypass cache per Issue #40)
+        // WHERE clause present (exercises the cache path)
         let where_clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
@@ -1796,5 +1907,68 @@ mod tests {
             adapter.fact_table_config().get_strategy("tf_other"),
             &FactTableVersionStrategy::Disabled
         );
+    }
+
+    // ===== Cascade Invalidator Tests =====
+
+    #[tokio::test]
+    async fn test_cascade_invalidator_expands_transitive_views() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        let mut cascade = CascadeInvalidator::new();
+        cascade.add_dependency("v_user_stats", "v_user").unwrap();
+        cascade.add_dependency("v_dashboard", "v_user_stats").unwrap();
+
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
+            .with_cascade_invalidator(cascade);
+
+        let where_clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(1),
+        };
+
+        // Populate cache with all three views
+        adapter.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user_stats", Some(&where_clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_dashboard", Some(&where_clause), None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 3);
+
+        // Invalidate only the base view; cascade should evict dependents too
+        let count = adapter.invalidate_views(&["v_user".to_string()]).unwrap();
+        assert_eq!(count, 3, "All three views should be invalidated via cascade");
+
+        // All three should now be cache misses
+        adapter.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user_stats", Some(&where_clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_dashboard", Some(&where_clause), None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 6, "All three should be cache misses after cascade");
+    }
+
+    #[tokio::test]
+    async fn test_no_cascade_invalidator_only_direct_views() {
+        let mock = MockAdapter::new();
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+        // No cascade invalidator — only direct view invalidation
+        let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+        let where_clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(1),
+        };
+
+        adapter.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user_stats", Some(&where_clause), None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 2);
+
+        // Only v_user is invalidated — v_user_stats remains cached
+        let count = adapter.invalidate_views(&["v_user".to_string()]).unwrap();
+        assert_eq!(count, 1);
+
+        adapter.execute_where_query("v_user", Some(&where_clause), None, None).await.unwrap();
+        adapter.execute_where_query("v_user_stats", Some(&where_clause), None, None).await.unwrap();
+        assert_eq!(adapter.inner().call_count(), 3, "Only v_user should be a miss; v_user_stats is still cached");
     }
 }

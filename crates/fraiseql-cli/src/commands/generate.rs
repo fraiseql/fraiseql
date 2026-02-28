@@ -1126,6 +1126,7 @@ mod tests {
             jsonb_column: None,
             relay: false,
              inject: IndexMap::default(),
+                cache_ttl_seconds: None,
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -1148,6 +1149,7 @@ mod tests {
             jsonb_column: None,
             relay: false,
              inject: IndexMap::default(),
+                cache_ttl_seconds: None,
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
     }
@@ -1217,6 +1219,7 @@ mod tests {
                     jsonb_column: None,
                     relay: false,
                      inject: IndexMap::default(),
+                cache_ttl_seconds: None,
                 },
                 IntermediateQuery {
                     name:         "author".to_string(),
@@ -1237,6 +1240,7 @@ mod tests {
                     jsonb_column: None,
                     relay: false,
                      inject: IndexMap::default(),
+                cache_ttl_seconds: None,
                 },
             ],
             enums: vec![IntermediateEnum {

@@ -423,6 +423,10 @@ pub struct IntermediateQuery {
     /// Not exposed as GraphQL arguments.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject: IndexMap<String, String>,
+
+    /// Per-query result cache TTL in seconds. Overrides the global cache TTL for this query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_ttl_seconds: Option<u64>,
 }
 
 /// Mutation definition in intermediate format

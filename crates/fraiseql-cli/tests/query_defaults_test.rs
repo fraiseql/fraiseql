@@ -60,6 +60,7 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
         jsonb_column: None,
         relay:        false,
         inject:       indexmap::IndexMap::default(),
+        cache_ttl_seconds: None,
     }
 }
 
@@ -77,6 +78,7 @@ fn single_query(name: &str) -> IntermediateQuery {
         jsonb_column: None,
         relay:        false,
         inject:       indexmap::IndexMap::default(),
+        cache_ttl_seconds: None,
     }
 }
 
@@ -94,6 +96,7 @@ fn relay_query(name: &str) -> IntermediateQuery {
         jsonb_column: None,
         relay:        true,
         inject:       indexmap::IndexMap::default(),
+        cache_ttl_seconds: None,
     }
 }
 

@@ -44,6 +44,13 @@ pub struct CachedResult {
     /// Used for TTL expiry check on access.
     pub cached_at: u64,
 
+    /// Per-entry TTL in seconds.
+    ///
+    /// Overrides `CacheConfig::ttl_seconds` when set via `put(..., Some(ttl))`.
+    /// Enables per-query cache lifetimes (e.g., reference data lives 1 h,
+    /// live prices are never cached with `ttl = 0`).
+    pub ttl_seconds: u64,
+
     /// Number of cache hits for this entry.
     ///
     /// Used for monitoring and optimization. Incremented on each `get()`.
@@ -213,9 +220,9 @@ impl QueryResultCache {
         })?;
 
         if let Some(cached) = cache.get_mut(cache_key) {
-            // Check TTL
+            // Check TTL: use per-entry override, fall back to global config.
             let now = current_timestamp();
-            if now - cached.cached_at > self.config.ttl_seconds {
+            if now - cached.cached_at > cached.ttl_seconds {
                 // Expired: remove and count as miss
                 cache.pop(cache_key);
                 let new_size = cache.len();
@@ -247,6 +254,7 @@ impl QueryResultCache {
     /// * `cache_key` - Cache key (from `generate_cache_key()`)
     /// * `result` - Query result to cache
     /// * `accessed_views` - List of views accessed by this query
+    /// * `ttl_override` - Per-entry TTL in seconds; `None` uses `CacheConfig::ttl_seconds`
     ///
     /// # Errors
     ///
@@ -262,11 +270,8 @@ impl QueryResultCache {
     /// let cache = QueryResultCache::new(CacheConfig::default());
     ///
     /// let result = vec![JsonbValue::new(json!({"id": 1}))];
-    /// cache.put(
-    ///     "cache_key_abc123".to_string(),
-    ///     result,
-    ///     vec!["v_user".to_string()]
-    /// )?;
+    /// // Use config-level TTL:
+    /// cache.put("cache_key_abc123".to_string(), result, vec!["v_user".to_string()], None)?;
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn put(
@@ -274,6 +279,7 @@ impl QueryResultCache {
         cache_key: String,
         result: Vec<JsonbValue>,
         accessed_views: Vec<String>,
+        ttl_override: Option<u64>,
     ) -> Result<()> {
         if !self.config.enabled {
             return Ok(());
@@ -281,11 +287,18 @@ impl QueryResultCache {
 
         let now = current_timestamp();
         let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
+        let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);
+
+        // TTL=0 means "never cache this entry" — skip storing it entirely.
+        if ttl_seconds == 0 {
+            return Ok(());
+        }
 
         let cached = CachedResult {
             result: Arc::new(result),
             accessed_views,
             cached_at: now,
+            ttl_seconds,
             hit_count: 0,
         };
 
@@ -526,7 +539,7 @@ mod tests {
 
         // Put
         cache
-            .put("key1".to_string(), result.clone(), vec!["v_user".to_string()])
+            .put("key1".to_string(), result.clone(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Get
@@ -545,7 +558,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // First hit
@@ -572,7 +585,7 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Wait for expiry
@@ -587,6 +600,44 @@ mod tests {
     }
 
     #[test]
+    fn test_per_entry_ttl_override_expires_early() {
+        // Global config has 1-hour TTL but entry overrides to 1 second
+        let config = CacheConfig {
+            ttl_seconds: 3600,
+            enabled: true,
+            ..Default::default()
+        };
+        let cache = QueryResultCache::new(config);
+
+        cache
+            .put(
+                "key1".to_string(),
+                test_result(),
+                vec!["v_ref".to_string()],
+                Some(1), // 1-second per-entry override
+            )
+            .unwrap();
+
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        let result = cache.get("key1").unwrap();
+        assert!(result.is_none(), "Entry with per-entry TTL=1s should have expired");
+    }
+
+    #[test]
+    fn test_per_entry_ttl_zero_never_cached() {
+        // TTL=0 means an entry is immediately expired on the first get()
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        cache
+            .put("key1".to_string(), test_result(), vec!["v_live".to_string()], Some(0))
+            .unwrap();
+
+        let result = cache.get("key1").unwrap();
+        assert!(result.is_none(), "Entry with TTL=0 should be immediately expired");
+    }
+
+    #[test]
     fn test_ttl_not_expired() {
         let config = CacheConfig {
             ttl_seconds: 3600, // 1 hour TTL
@@ -597,7 +648,7 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Should still be valid
@@ -621,13 +672,13 @@ mod tests {
 
         // Add 3 entries (max is 2)
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
         cache
-            .put("key2".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key2".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
         cache
-            .put("key3".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key3".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // key1 should be evicted (LRU)
@@ -650,10 +701,10 @@ mod tests {
         let cache = QueryResultCache::new(config);
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
         cache
-            .put("key2".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key2".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Access key1 (makes it recently used)
@@ -661,7 +712,7 @@ mod tests {
 
         // Add key3 (should evict key2, not key1)
         cache
-            .put("key3".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key3".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         assert!(cache.get("key1").unwrap().is_some(), "key1 should remain (recently used)");
@@ -680,7 +731,7 @@ mod tests {
 
         // Put should be no-op
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Get should return None
@@ -699,10 +750,10 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
         cache
-            .put("key2".to_string(), test_result(), vec!["v_post".to_string()])
+            .put("key2".to_string(), test_result(), vec!["v_post".to_string()], None)
             .unwrap();
 
         // Invalidate v_user
@@ -719,13 +770,13 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
         cache
-            .put("key2".to_string(), test_result(), vec!["v_post".to_string()])
+            .put("key2".to_string(), test_result(), vec!["v_post".to_string()], None)
             .unwrap();
         cache
-            .put("key3".to_string(), test_result(), vec!["v_product".to_string()])
+            .put("key3".to_string(), test_result(), vec!["v_product".to_string()], None)
             .unwrap();
 
         // Invalidate v_user and v_post
@@ -748,6 +799,7 @@ mod tests {
                 "key1".to_string(),
                 test_result(),
                 vec!["v_user".to_string(), "v_post".to_string()],
+                None,
             )
             .unwrap();
 
@@ -763,7 +815,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Invalidate view that doesn't exist
@@ -783,10 +835,10 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
         cache
-            .put("key2".to_string(), test_result(), vec!["v_post".to_string()])
+            .put("key2".to_string(), test_result(), vec!["v_post".to_string()], None)
             .unwrap();
 
         cache.clear().unwrap();
@@ -811,7 +863,7 @@ mod tests {
 
         // Put
         cache
-            .put("key1".to_string(), test_result(), vec!["v_user".to_string()])
+            .put("key1".to_string(), test_result(), vec!["v_user".to_string()], None)
             .unwrap();
 
         // Hit
@@ -894,7 +946,7 @@ mod tests {
                 thread::spawn(move || {
                     let key = format!("key{}", i);
                     cache_clone
-                        .put(key.clone(), test_result(), vec!["v_user".to_string()])
+                        .put(key.clone(), test_result(), vec!["v_user".to_string()], None)
                         .unwrap();
                     cache_clone.get(&key).unwrap();
                 })

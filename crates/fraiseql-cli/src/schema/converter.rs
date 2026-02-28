@@ -460,6 +460,7 @@ impl SchemaConverter {
             relay_cursor_column,
             relay_cursor_type: CursorType::default(),
             inject_params,
+            cache_ttl_seconds: intermediate.cache_ttl_seconds,
         })
     }
 
@@ -1156,6 +1157,7 @@ mod tests {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1216,6 +1218,7 @@ mod tests {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1267,6 +1270,7 @@ mod tests {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -1319,6 +1323,7 @@ mod tests {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],

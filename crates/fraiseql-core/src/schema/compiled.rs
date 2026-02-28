@@ -1424,6 +1424,17 @@ pub struct QueryDefinition {
     /// Clients cannot override these values.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject_params: IndexMap<String, InjectedParamSource>,
+
+    /// Per-query result cache TTL in seconds.
+    ///
+    /// Overrides the global `CacheConfig::ttl_seconds` for this query's view.
+    /// Common use-cases:
+    /// - Reference data (countries, currencies): `3600` (1 h)
+    /// - Live / real-time data: `0` (bypass cache entirely)
+    ///
+    /// `None` → use the global cache TTL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_ttl_seconds: Option<u64>,
 }
 
 impl QueryDefinition {
@@ -1445,6 +1456,7 @@ impl QueryDefinition {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::Int64,
             inject_params:       IndexMap::new(),
+            cache_ttl_seconds:   None,
         }
     }
 

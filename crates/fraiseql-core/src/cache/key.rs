@@ -60,7 +60,7 @@ use crate::{
 /// ```text
 /// SHA256(
 ///   hash_query_with_variables(query, variables) +
-///   WHERE_clause_structure +
+///   serde_json(WHERE_clause) +   ← JSON, not Debug, for refactor-stability
 ///   schema_version
 /// )
 /// ```
@@ -70,6 +70,7 @@ use crate::{
 /// - Different variables = different key (security)
 /// - Different WHERE clauses = different key (correctness)
 /// - Schema changes = different key (validity)
+/// - Renaming internal fields cannot silently shift a key (stability)
 ///
 /// # Arguments
 ///
@@ -144,9 +145,13 @@ pub fn generate_cache_key(
     let base_key = hash_query_with_variables(query, variables);
 
     // Step 2: Add WHERE clause structure if present
-    // Different WHERE clauses must produce different keys for correctness
-    // Using Debug format captures full structure including operators and values
-    let where_structure = where_clause.map(|w| format!("{:?}", w)).unwrap_or_default();
+    // Different WHERE clauses must produce different keys for correctness.
+    // Using serde_json serialization (not Debug) for a stable, refactor-proof
+    // representation: renaming fields or changing #[derive] attributes cannot
+    // silently shift the key and cause a stale-cache window on deploy.
+    let where_structure = where_clause
+        .and_then(|w| serde_json::to_string(w).ok())
+        .unwrap_or_default();
 
     // Step 3: Combine with schema version
     // Schema changes invalidate all cached queries automatically
@@ -511,6 +516,7 @@ mod tests {
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
         inject_params:     Default::default(),
+        cache_ttl_seconds:   None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -541,6 +547,7 @@ mod tests {
             relay_cursor_column: None,
             relay_cursor_type: Default::default(),
         inject_params:     Default::default(),
+        cache_ttl_seconds:   None,
         };
 
         let views = extract_accessed_views(&query_def);

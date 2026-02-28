@@ -661,3 +661,62 @@ def test_query_inject_multiple_params() -> None:
     schema = SchemaRegistry.get_schema()
     q = schema["queries"][0]
     assert q["inject"] == {"org_id": "jwt:org_id", "user_id": "jwt:sub"}
+
+def test_query_cache_ttl_valid_passes_through() -> None:
+    """cache_ttl_seconds is forwarded to the schema."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    @fraiseql.query(sql_source="v_widget", cache_ttl_seconds=300)
+    def widgets() -> list[Widget]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][0]
+    assert q["cache_ttl_seconds"] == 300
+
+
+def test_query_cache_ttl_zero_passes_through() -> None:
+    """cache_ttl_seconds=0 (disable caching for this query) is allowed."""
+
+    @fraiseql.type
+    class Gadget:
+        id: int
+
+    @fraiseql.query(sql_source="v_gadget", cache_ttl_seconds=0)
+    def gadgets() -> list[Gadget]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][0]
+    assert q["cache_ttl_seconds"] == 0
+
+
+def test_query_cache_ttl_negative_raises() -> None:
+    """Negative cache_ttl_seconds raises TypeError."""
+
+    @fraiseql.type
+    class Gizmo:
+        id: int
+
+    with pytest.raises(TypeError, match="non-negative integer"):
+
+        @fraiseql.query(sql_source="v_gizmo", cache_ttl_seconds=-1)
+        def gizmos() -> list[Gizmo]:
+            pass
+
+
+def test_query_cache_ttl_non_int_raises() -> None:
+    """Non-integer cache_ttl_seconds raises TypeError."""
+
+    @fraiseql.type
+    class Thingo:
+        id: int
+
+    with pytest.raises(TypeError, match="non-negative integer"):
+
+        @fraiseql.query(sql_source="v_thingo", cache_ttl_seconds="300")
+        def thingos() -> list[Thingo]:
+            pass

@@ -193,6 +193,7 @@ mod tests {
                 relay_cursor_column: None,
                 relay_cursor_type: Default::default(),
                 inject_params:         Default::default(),
+                cache_ttl_seconds:   None,
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {

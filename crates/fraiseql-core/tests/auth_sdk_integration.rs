@@ -401,6 +401,7 @@ fn create_test_schema() -> CompiledSchema {
         relay_cursor_column: None,
         relay_cursor_type: Default::default(),
         inject_params: Default::default(),
+        cache_ttl_seconds:   None,
     });
 
     schema

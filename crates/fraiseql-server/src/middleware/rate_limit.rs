@@ -475,7 +475,7 @@ impl InMemoryRateLimiter {
 /// Clamps to a minimum of 1 second.
 #[cfg(feature = "redis-rate-limiting")]
 fn retry_after_ms_to_secs(ms: u64) -> u32 {
-    ((ms + 999) / 1000).max(1) as u32
+    ms.div_ceil(1000).max(1) as u32
 }
 
 // ─── Redis backend ────────────────────────────────────────────────────────────

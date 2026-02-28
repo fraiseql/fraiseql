@@ -553,6 +553,7 @@ mod tests {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -604,6 +605,7 @@ mod tests {
                     jsonb_column: None,
                     relay: false,
                      inject: IndexMap::default(),
+                cache_ttl_seconds: None,
                 },
                 IntermediateQuery {
                     name:         "users".to_string(), // Duplicate!
@@ -618,6 +620,7 @@ mod tests {
                     jsonb_column: None,
                     relay: false,
                      inject: IndexMap::default(),
+                cache_ttl_seconds: None,
                 },
             ],
             mutations:         vec![],
@@ -668,6 +671,7 @@ mod tests {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],

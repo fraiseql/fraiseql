@@ -424,6 +424,7 @@ impl SchemaExtractor for PythonExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -518,6 +519,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     jsonb_column: None,
                     relay: false,
                      inject: IndexMap::default(),
+                cache_ttl_seconds: None,
                 });
             }
         }
@@ -678,6 +680,7 @@ impl SchemaExtractor for RustExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -770,6 +773,7 @@ impl SchemaExtractor for JavaExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -888,6 +892,7 @@ impl SchemaExtractor for KotlinExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -1004,6 +1009,7 @@ impl SchemaExtractor for GoExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -1118,6 +1124,7 @@ impl SchemaExtractor for CSharpExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -1250,6 +1257,7 @@ impl SchemaExtractor for SwiftExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 
@@ -1338,6 +1346,7 @@ impl SchemaExtractor for ScalaExtractor {
                 jsonb_column: None,
                 relay: false,
                  inject: IndexMap::default(),
+                cache_ttl_seconds: None,
             });
         }
 

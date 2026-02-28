@@ -63,6 +63,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             jsonb_column: None,
             relay:       true,
              inject: Default::default(),
+             cache_ttl_seconds: None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
