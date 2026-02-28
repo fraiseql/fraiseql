@@ -23,11 +23,22 @@ use crate::error::{ObserverError, Result};
 
 // ── In-process lease ──────────────────────────────────────────────────────────
 
+/// Combined state for the in-process lease, protected by a single mutex.
+///
+/// Merging `holder` and `acquired_at` into one struct under one lock eliminates
+/// the inconsistency window that existed when they were separate `Arc<Mutex<…>>`
+/// fields: `time_remaining_ms()` previously read `acquired_at` without holding
+/// `holder`, so a concurrent `release()` could clear `holder` while the caller
+/// still observed a non-zero remaining time.
+struct LeaseState {
+    holder:      Option<String>,
+    acquired_at: Option<Instant>,
+}
+
 struct InProcessLease {
     listener_id:       String,
     checkpoint_id:     i64,
-    lease_holder:      Arc<Mutex<Option<String>>>,
-    lease_acquired_at: Arc<Mutex<Option<Instant>>>,
+    state:             Arc<Mutex<LeaseState>>,
     lease_duration_ms: u64,
 }
 
@@ -36,51 +47,49 @@ impl InProcessLease {
         Self {
             listener_id,
             checkpoint_id,
-            lease_holder: Arc::new(Mutex::new(None)),
-            lease_acquired_at: Arc::new(Mutex::new(None)),
+            state: Arc::new(Mutex::new(LeaseState { holder: None, acquired_at: None })),
             lease_duration_ms,
         }
     }
 
     async fn acquire(&self) -> Result<bool> {
-        let mut holder = self.lease_holder.lock().await;
+        let mut state = self.state.lock().await;
 
-        if let Some(current_holder) = holder.as_ref() {
-            let acquired_at = *self.lease_acquired_at.lock().await;
-            if let Some(acquired_time) = acquired_at {
+        if let Some(ref current_holder) = state.holder {
+            if let Some(acquired_time) = state.acquired_at {
                 if acquired_time.elapsed().as_millis() < u128::from(self.lease_duration_ms) {
                     return Ok(current_holder == &self.listener_id);
                 }
             }
         }
 
-        *holder = Some(self.listener_id.clone());
-        *self.lease_acquired_at.lock().await = Some(Instant::now());
+        state.holder = Some(self.listener_id.clone());
+        state.acquired_at = Some(Instant::now());
         Ok(true)
     }
 
     async fn release(&self) -> Result<()> {
-        let mut holder = self.lease_holder.lock().await;
-        if let Some(current_holder) = holder.as_ref() {
+        let mut state = self.state.lock().await;
+        if let Some(ref current_holder) = state.holder {
             if current_holder == &self.listener_id {
-                *holder = None;
-                *self.lease_acquired_at.lock().await = None;
+                state.holder = None;
+                state.acquired_at = None;
                 return Ok(());
             }
         }
         Err(ObserverError::InvalidConfig {
             message: format!(
                 "Cannot release lease held by another listener: {:?}",
-                holder.as_ref()
+                state.holder.as_ref()
             ),
         })
     }
 
     async fn renew(&self) -> Result<bool> {
-        let holder = self.lease_holder.lock().await;
-        if let Some(current_holder) = holder.as_ref() {
+        let mut state = self.state.lock().await;
+        if let Some(ref current_holder) = state.holder {
             if current_holder == &self.listener_id {
-                *self.lease_acquired_at.lock().await = Some(Instant::now());
+                state.acquired_at = Some(Instant::now());
                 return Ok(true);
             }
         }
@@ -88,11 +97,10 @@ impl InProcessLease {
     }
 
     async fn is_valid(&self) -> Result<bool> {
-        let holder = self.lease_holder.lock().await;
-        if let Some(current_holder) = holder.as_ref() {
+        let state = self.state.lock().await;
+        if let Some(ref current_holder) = state.holder {
             if current_holder == &self.listener_id {
-                let acquired_at = *self.lease_acquired_at.lock().await;
-                if let Some(acquired_time) = acquired_at {
+                if let Some(acquired_time) = state.acquired_at {
                     return Ok(
                         acquired_time.elapsed().as_millis() < u128::from(self.lease_duration_ms)
                     );
@@ -103,12 +111,13 @@ impl InProcessLease {
     }
 
     async fn get_holder(&self) -> Result<Option<String>> {
-        Ok(self.lease_holder.lock().await.clone())
+        Ok(self.state.lock().await.holder.clone())
     }
 
     async fn time_remaining_ms(&self) -> Result<u64> {
-        let acquired_at = *self.lease_acquired_at.lock().await;
-        if let Some(acquired_time) = acquired_at {
+        let state = self.state.lock().await;
+        if let Some(acquired_time) = state.acquired_at {
+            // Consistent view: both holder and acquired_at are read under the same lock.
             let elapsed = acquired_time.elapsed().as_millis() as u64;
             if elapsed < self.lease_duration_ms {
                 return Ok(self.lease_duration_ms - elapsed);
