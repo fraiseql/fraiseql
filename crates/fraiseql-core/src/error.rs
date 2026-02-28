@@ -55,6 +55,7 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///
 /// ## Configuration Errors
 /// - `Configuration` — Invalid setup/configuration
+/// - `Unsupported` — Operation not supported by current database backend
 ///
 /// ## Internal Errors
 /// - `Internal` — Unexpected internal failures
@@ -301,6 +302,16 @@ pub enum FraiseQLError {
         message: String,
     },
 
+    /// Unsupported operation error.
+    ///
+    /// Returned when an operation is not supported by the current database backend.
+    /// For example, mutations on SQLite or vector operations on SQL Server.
+    #[error("Unsupported operation: {message}")]
+    Unsupported {
+        /// Error message describing what is not supported and which backend to use instead.
+        message: String,
+    },
+
     // ========================================================================
     // Internal Errors
     // ========================================================================
@@ -443,6 +454,7 @@ impl FraiseQLError {
                 | Self::Timeout { .. }
                 | Self::Cancelled { .. }
                 | Self::Configuration { .. }
+                | Self::Unsupported { .. }
                 | Self::Internal { .. }
         )
     }
@@ -474,6 +486,7 @@ impl FraiseQLError {
             | Self::ConnectionPool { .. }
             | Self::Configuration { .. }
             | Self::Internal { .. } => 500,
+            Self::Unsupported { .. } => 501,
         }
     }
 
@@ -495,6 +508,7 @@ impl FraiseQLError {
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
+            Self::Unsupported { .. } => "UNSUPPORTED_OPERATION",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
         }
     }
@@ -870,6 +884,16 @@ mod tests {
             .is_retryable()
         );
         assert!(!FraiseQLError::parse("bad query").is_retryable());
+    }
+
+    #[test]
+    fn test_unsupported_is_501() {
+        let err = FraiseQLError::Unsupported {
+            message: "execute_function_call not supported on SQLite".to_string(),
+        };
+        assert_eq!(err.status_code(), 501);
+        assert!(err.is_server_error());
+        assert_eq!(err.error_code(), "UNSUPPORTED_OPERATION");
     }
 
     #[test]

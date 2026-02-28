@@ -62,6 +62,43 @@ impl SqlServerWhereGenerator {
         Ok((sql, params))
     }
 
+    /// Generate SQL WHERE clause with a parameter index offset.
+    ///
+    /// Used when WHERE clause parameters must not start at `@p1` because
+    /// earlier parameters (e.g. a cursor value) already occupy lower indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `clause` - WHERE clause AST
+    /// * `offset` - number of parameters already bound before this clause
+    ///
+    /// # Returns
+    ///
+    /// Returns tuple of (SQL string, parameter values). Parameter placeholders
+    /// start at `@p{offset+1}`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if clause is invalid.
+    ///
+    /// # Pitfalls
+    ///
+    /// After this call, `param_counter` is left at `offset + params.len()`.
+    /// Calling `generate()` on the **same** instance afterwards will reset the counter
+    /// to 0, silently discarding that state.  Always create a fresh
+    /// `SqlServerWhereGenerator::new()` per query rather than reusing instances across
+    /// calls.
+    pub fn generate_with_param_offset(
+        &self,
+        clause: &WhereClause,
+        offset: usize,
+    ) -> Result<(String, Vec<serde_json::Value>)> {
+        self.param_counter.set(offset);
+        let mut params = Vec::new();
+        let sql = self.generate_clause(clause, &mut params)?;
+        Ok((sql, params))
+    }
+
     fn generate_clause(
         &self,
         clause: &WhereClause,
@@ -396,12 +433,10 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
             // Email domain extraction: extract part after @
             crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
                 params.push(serde_json::Value::String(domain.clone()));
-                let param_idx = self.param_counter.get() + 1;
-                self.param_counter.set(param_idx);
-                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) = @p_idx
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) = @pN
                 Ok(format!(
-                    "SUBSTRING({}, CHARINDEX('@', {}) + 1, LEN({})) = @p{}",
-                    field_sql, field_sql, field_sql, param_idx
+                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) = {param}"
                 ))
             },
 
@@ -409,58 +444,46 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
                 let mut placeholders = Vec::new();
                 for d in domains {
                     params.push(serde_json::Value::String(d.clone()));
-                    let param_idx = self.param_counter.get() + 1;
-                    self.param_counter.set(param_idx);
-                    placeholders.push(format!("@p{}", param_idx));
+                    placeholders.push(self.next_param());
                 }
                 Ok(format!(
-                    "SUBSTRING({}, CHARINDEX('@', {}) + 1, LEN({})) IN ({})",
-                    field_sql,
-                    field_sql,
-                    field_sql,
+                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) IN ({})",
                     placeholders.join(", ")
                 ))
             },
 
             crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));
-                let param_idx = self.param_counter.get() + 1;
-                self.param_counter.set(param_idx);
-                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' +
-                // @p_idx
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' + @pN
                 Ok(format!(
-                    "SUBSTRING({}, CHARINDEX('@', {}) + 1, LEN({})) LIKE '%' + @p{}",
-                    field_sql, field_sql, field_sql, param_idx
+                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) LIKE '%' + {param}"
                 ))
             },
 
             crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
                 params.push(serde_json::Value::String(prefix.clone()));
-                let param_idx = self.param_counter.get() + 1;
-                self.param_counter.set(param_idx);
-                // SQL Server: SUBSTRING(field, 1, CHARINDEX('@', field) - 1) LIKE @p_idx + '%'
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, 1, CHARINDEX('@', field) - 1) LIKE @pN + '%'
                 Ok(format!(
-                    "SUBSTRING({}, 1, CHARINDEX('@', {}) - 1) LIKE @p{} + '%'",
-                    field_sql, field_sql, param_idx
+                    "SUBSTRING({field_sql}, 1, CHARINDEX('@', {field_sql}) - 1) LIKE {param} + '%'"
                 ))
             },
 
             // VIN operations
             crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
                 params.push(serde_json::Value::String(wmi.clone()));
-                let param_idx = self.param_counter.get() + 1;
-                self.param_counter.set(param_idx);
-                // SQL Server: SUBSTRING(field, 1, 3) = @p_idx
-                Ok(format!("SUBSTRING({}, 1, 3) = @p{}", field_sql, param_idx))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, 1, 3) = @pN
+                Ok(format!("SUBSTRING({field_sql}, 1, 3) = {param}"))
             },
 
             // IBAN operations
             crate::filters::ExtendedOperator::IbanCountryEq(country) => {
                 params.push(serde_json::Value::String(country.clone()));
-                let param_idx = self.param_counter.get() + 1;
-                self.param_counter.set(param_idx);
-                // SQL Server: SUBSTRING(field, 1, 2) = @p_idx
-                Ok(format!("SUBSTRING({}, 1, 2) = @p{}", field_sql, param_idx))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, 1, 2) = @pN
+                Ok(format!("SUBSTRING({field_sql}, 1, 2) = {param}"))
             },
 
             // Fallback: not implemented

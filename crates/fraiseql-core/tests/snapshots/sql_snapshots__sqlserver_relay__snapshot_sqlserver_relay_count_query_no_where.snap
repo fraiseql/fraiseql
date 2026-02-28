@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT COUNT_BIG(*) AS cnt FROM [v_relay_item]

@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT data FROM (SELECT data, [id] AS _relay_cursor FROM [v_relay_item] ORDER BY [id] DESC OFFSET 0 ROWS FETCH NEXT @p1 ROWS ONLY) AS _relay_page ORDER BY _relay_cursor ASC

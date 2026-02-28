@@ -29,15 +29,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `requests_per_second_per_user` configuration multiplier (10× default)
 - **Database support documentation**: Comprehensive matrix showing PostgreSQL as primary,
   MySQL/SQL Server as secondary, and SQLite as development-only with explicit mutation errors.
+- **`FraiseQLError::Unsupported` variant**: New error variant for operations not supported by
+  the current database backend. Returns HTTP 501 Not Implemented with error code
+  `UNSUPPORTED_OPERATION`. (Corrected from the earlier 500 status code.)
+- **SQL Server Relay cursor pagination**: `SqlServerAdapter` now implements
+  `RelayDatabaseAdapter`. Forward and backward keyset pagination use
+  `OFFSET 0 ROWS FETCH NEXT N ROWS ONLY` with mandatory `ORDER BY`. UUID cursors compare via
+  `CONVERT(UNIQUEIDENTIFIER, @p1)`. Total count uses a separate `COUNT_BIG(*)` query per the
+  Relay Cursor Connections spec (`totalCount` ignores cursor position).
+- **SQL Server SQLSTATE error codes**: `execute_where_query`, `execute_function_call`, and
+  `execute_raw_query` now surface ANSI SQLSTATE codes on SQL Server errors:
+  2627/2601 → `23505` (unique violation), 515 → `23502` (NOT NULL violation),
+  547 → `23503` (FK violation), 1205 → `40001` (deadlock), 8152 → `22001` (string truncation).
+  Previously all SQL Server errors returned `sql_state: None`.
 
 ### Fixed
 
-- SQLite mutation errors now return `Unsupported` with clear message instead of database error.
+- **SQL Server relay backward pagination with custom `order_by`**: backward pagination now
+  correctly flips all sort directions in the inner query so the `FETCH NEXT` subquery retrieves
+  the correct rows before the cursor. The outer re-sort now restores all custom sort columns
+  (not just the cursor column), using `_relay_sort_N` projected aliases. Previously, backward
+  pages with a custom `order_by` returned wrong rows in the wrong order.
+- **SQL Server relay `totalCount` robustness**: a missing or empty `COUNT_BIG` result row now
+  surfaces as `FraiseQLError::Database` instead of silently producing `totalCount: 0`. Negative
+  count values (impossible in practice) are also caught with an explicit error.
+- **SQL Server SQLSTATE codes corrected**: unique constraint violations now map to `23505` (was
+  `23000`); NOT NULL violations now map to `23502` (was `23000`); deadlock now maps to `40001`
+  (was PostgreSQL-vendor `40P01`); out-of-memory (MSSQL 701) now returns `None` rather than
+  the PostgreSQL-vendor `53200`.
+- **HTTP 501 for `Unsupported`**: `FraiseQLError::Unsupported` now returns HTTP 501 Not
+  Implemented instead of 500 Internal Server Error. The operation is deterministic and expected
+  (e.g., calling `execute_function_call` on SQLite), so 500 was semantically incorrect.
+- **UUID cursor validation**: malformed UUID cursor values now return
+  `FraiseQLError::Validation` before reaching SQL Server, rather than producing an opaque
+  type-conversion error (MSSQL 8169).
+- **SQLite `execute_function_call`** now returns `FraiseQLError::Unsupported` naming the
+  function instead of a generic error, preventing silent data loss when mutation code is
+  accidentally routed to a SQLite backend.
 - APQ cache isolation dependency on RLS documented in code and README.
+
+### Notes
+
+- SQL Server `UNIQUEIDENTIFIER` comparison uses a non-standard byte ordering (bytes 10–15 have
+  highest priority). Pagination with UUID cursors is internally consistent within SQL Server,
+  but the ordering differs from PostgreSQL and standard UUID lexicographic order. Applications
+  using sequential UUIDs (UUID v7, ULID) may observe different pagination boundaries on SQL
+  Server than on PostgreSQL.
 
 ### Verification
 
 - `cargo test --workspace --lib`: all tests pass
+- `cargo test -p fraiseql-core --test sql_snapshots`: 60 snapshots accepted
 - `cargo clippy --all-targets --all-features -- -D warnings`: zero warnings
 - `cargo build --release`: release build succeeds
 

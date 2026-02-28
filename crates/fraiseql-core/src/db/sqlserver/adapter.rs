@@ -7,14 +7,47 @@ use tiberius::Config;
 
 use super::where_generator::SqlServerWhereGenerator;
 use crate::{
+    compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_sqlserver_identifier,
-        traits::DatabaseAdapter,
+        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
 };
+
+/// Map an MSSQL server error code to the closest ANSI SQLSTATE string.
+///
+/// Returns `None` for codes that don't have a clear ANSI SQLSTATE mapping (e.g. MSSQL 701
+/// "out of memory"), which is preferable to returning a vendor-namespaced or incorrect code.
+///
+/// | MSSQL Code | Meaning                         | SQLSTATE  |
+/// |------------|---------------------------------|-----------|
+/// | 2627       | Unique constraint violation     | 23505     |
+/// | 2601       | Duplicate key (unique index)    | 23505     |
+/// | 547        | Foreign key violation           | 23503     |
+/// | 515        | NOT NULL violation              | 23502     |
+/// | 1205       | Deadlock victim                 | 40001     |
+/// | 8152       | String or binary data truncation| 22001     |
+/// | 701        | Insufficient memory             | (unmapped)|
+fn map_mssql_error_code(code: u32) -> Option<String> {
+    let sqlstate = match code {
+        // Unique constraint / duplicate key → ANSI unique violation
+        2627 | 2601 => "23505",
+        // NOT NULL violation → ANSI not-null violation
+        515 => "23502",
+        // Foreign key violation → ANSI FK violation (unchanged)
+        547 => "23503",
+        // Deadlock → ANSI serialization failure (NOT PostgreSQL-vendor 40P01)
+        1205 => "40001",
+        // String truncation (unchanged)
+        8152 => "22001",
+        // 701 (out of memory) has no ANSI equivalent; emit None rather than a PostgreSQL code
+        _ => return None,
+    };
+    Some(sqlstate.to_string())
+}
 
 /// SQL Server database adapter with connection pooling.
 ///
@@ -165,59 +198,25 @@ impl SqlServerAdapter {
         let rows = if params.is_empty() {
             let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("SQL Server query execution failed: {e}"),
-                sql_state: None,
+                sql_state: e.code().and_then(map_mssql_error_code),
             })?;
             result.into_first_result().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to get result set: {e}"),
-                sql_state: None,
+                sql_state: e.code().and_then(map_mssql_error_code),
             })?
         } else {
-            // For parameterized queries, we need to use Query with bind
-            // This is simplified - in production you'd want proper parameter binding
+            // For parameterized queries, use typed parameter binding.
+            let string_params = serialise_complex_params(&params);
             let mut query = tiberius::Query::new(sql);
-
-            // We need to collect string representations for non-primitive types
-            // to ensure they live long enough
-            let mut string_params: Vec<String> = Vec::new();
-            for param in &params {
-                if !matches!(
-                    param,
-                    serde_json::Value::String(_)
-                        | serde_json::Value::Number(_)
-                        | serde_json::Value::Bool(_)
-                        | serde_json::Value::Null
-                ) {
-                    string_params.push(param.to_string());
-                }
-            }
-
-            let mut string_idx = 0;
-            for param in &params {
-                match param {
-                    serde_json::Value::String(s) => query.bind(s.as_str()),
-                    serde_json::Value::Number(n) => {
-                        if let Some(i) = n.as_i64() {
-                            query.bind(i);
-                        } else if let Some(f) = n.as_f64() {
-                            query.bind(f);
-                        }
-                    },
-                    serde_json::Value::Bool(b) => query.bind(*b),
-                    serde_json::Value::Null => query.bind(Option::<String>::None),
-                    _ => {
-                        query.bind(string_params[string_idx].as_str());
-                        string_idx += 1;
-                    },
-                }
-            }
+            bind_json_params(&mut query, &params, &string_params)?;
 
             let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
                 message:   format!("SQL Server query execution failed: {e}"),
-                sql_state: None,
+                sql_state: e.code().and_then(map_mssql_error_code),
             })?;
             result.into_first_result().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to get result set: {e}"),
-                sql_state: None,
+                sql_state: e.code().and_then(map_mssql_error_code),
             })?
         };
 
@@ -379,12 +378,12 @@ impl DatabaseAdapter for SqlServerAdapter {
 
         let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
             message:   format!("SQL Server query execution failed: {e}"),
-            sql_state: None,
+            sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
             message:   format!("Failed to get result set: {e}"),
-            sql_state: None,
+            sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         // Convert each row to HashMap<String, Value>
@@ -447,45 +446,19 @@ impl DatabaseAdapter for SqlServerAdapter {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
+        // Bind args; non-primitive types are serialised to JSON strings.
+        let string_params = serialise_complex_params(args);
         let mut query = tiberius::Query::new(sql);
-
-        // Bind args; non-primitive types are serialised to JSON strings
-        let string_params: Vec<String> = args
-            .iter()
-            .filter(|v| {
-                matches!(v, serde_json::Value::Array(_) | serde_json::Value::Object(_))
-            })
-            .map(|v| v.to_string())
-            .collect();
-
-        let mut string_idx = 0usize;
-        for arg in args {
-            match arg {
-                serde_json::Value::String(s) => query.bind(s.as_str()),
-                serde_json::Value::Number(n) => {
-                    if let Some(i) = n.as_i64() {
-                        query.bind(i);
-                    } else if let Some(f) = n.as_f64() {
-                        query.bind(f);
-                    }
-                },
-                serde_json::Value::Bool(b) => query.bind(*b),
-                serde_json::Value::Null => query.bind(Option::<&str>::None),
-                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                    query.bind(string_params[string_idx].as_str());
-                    string_idx += 1;
-                },
-            }
-        }
+        bind_json_params(&mut query, args, &string_params)?;
 
         let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
             message:   format!("SQL Server function call failed ({function_name}): {e}"),
-            sql_state: None,
+            sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
             message:   format!("Failed to get result set from {function_name}: {e}"),
-            sql_state: None,
+            sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         let results = rows
@@ -517,6 +490,546 @@ impl DatabaseAdapter for SqlServerAdapter {
         Ok(results)
     }
 
+}
+
+// ============================================================================
+// Parameter binding helpers
+// ============================================================================
+
+/// Pre-serialise `Array` and `Object` values so their string forms live long enough
+/// to be referenced by `bind_json_params`.
+fn serialise_complex_params(params: &[serde_json::Value]) -> Vec<String> {
+    params
+        .iter()
+        .filter(|v| matches!(v, serde_json::Value::Array(_) | serde_json::Value::Object(_)))
+        .map(|v| v.to_string())
+        .collect()
+}
+
+/// Bind `serde_json::Value` parameters to a tiberius `Query`.
+///
+/// `string_params` must be the output of `serialise_complex_params` for the same
+/// `params` slice.  The caller allocates this before creating the `Query` so the
+/// strings live long enough for the lifetime `'a`.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if a `Number` value cannot be represented
+/// as either `i64` or `f64` (this is extremely rare and indicates an out-of-range
+/// numeric literal in the GraphQL input).
+fn bind_json_params<'a>(
+    query: &mut tiberius::Query<'a>,
+    params: &'a [serde_json::Value],
+    string_params: &'a [String],
+) -> Result<()> {
+    let mut string_idx = 0usize;
+    for param in params {
+        match param {
+            serde_json::Value::String(s) => query.bind(s.as_str()),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    query.bind(i);
+                } else if let Some(f) = n.as_f64() {
+                    query.bind(f);
+                } else {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Cannot bind numeric value {n}: out of i64 and f64 range"
+                        ),
+                        path:    None,
+                    });
+                }
+            },
+            serde_json::Value::Bool(b) => query.bind(*b),
+            serde_json::Value::Null => query.bind(Option::<&str>::None),
+            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                query.bind(string_params[string_idx].as_str());
+                string_idx += 1;
+            },
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Relay cursor pagination
+// ============================================================================
+
+/// Build the ORDER BY clause for a relay page query.
+///
+/// Custom sort columns come first, then the cursor column as tiebreaker.
+/// For backward pagination every direction is flipped so the inner `FETCH NEXT` subquery
+/// retrieves the correct `N` rows before the cursor; the outer re-sort in
+/// `build_relay_backward_outer_order_sql` then restores the original order.
+fn build_relay_order_sql(
+    quoted_col: &str,
+    order_by: Option<&[OrderByClause]>,
+    forward: bool,
+) -> String {
+    if let Some(clauses) = order_by {
+        let mut parts: Vec<String> = clauses
+            .iter()
+            .map(|c| {
+                // Flip every custom sort direction for backward pages so the inner
+                // DESC subquery fetches the correct N rows before the cursor.
+                let dir = match (c.direction, forward) {
+                    (OrderDirection::Asc, true) => "ASC",
+                    (OrderDirection::Asc, false) => "DESC",
+                    (OrderDirection::Desc, true) => "DESC",
+                    (OrderDirection::Desc, false) => "ASC",
+                };
+                // Field names are validated as GraphQL identifiers (no single quotes).
+                format!("JSON_VALUE(data, '$.{}') {dir}", c.field)
+            })
+            .collect();
+        let primary_dir = if forward { "ASC" } else { "DESC" };
+        parts.push(format!("{quoted_col} {primary_dir}"));
+        format!(" ORDER BY {}", parts.join(", "))
+    } else {
+        let dir = if forward { "ASC" } else { "DESC" };
+        format!(" ORDER BY {quoted_col} {dir}")
+    }
+}
+
+/// Build the outer ORDER BY for the backward-page re-sort wrapper.
+///
+/// Uses the *original* (non-flipped) sort directions and references the aliased
+/// sort columns (`_relay_sort_0`, `_relay_sort_1`, …) projected by the inner query.
+/// The cursor column is always the final tiebreaker, re-sorted ASC to present rows
+/// in ascending cursor order as required by the Relay spec.
+fn build_relay_backward_outer_order_sql(order_by: Option<&[OrderByClause]>) -> String {
+    if let Some(clauses) = order_by {
+        let mut parts: Vec<String> = clauses
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let dir = match c.direction {
+                    OrderDirection::Asc => "ASC",
+                    OrderDirection::Desc => "DESC",
+                };
+                format!("_relay_sort_{i} {dir}")
+            })
+            .collect();
+        parts.push("_relay_cursor ASC".to_string());
+        format!(" ORDER BY {}", parts.join(", "))
+    } else {
+        " ORDER BY _relay_cursor ASC".to_string()
+    }
+}
+
+/// Validate that a string looks like a UUID without pulling in regex.
+///
+/// Accepts the canonical `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` form (36 chars).
+/// Returns `false` for any other format so callers can emit a clean
+/// `FraiseQLError::Validation` instead of letting SQL Server produce an opaque
+/// type-conversion error (MSSQL 8169).
+fn is_valid_uuid_format(uuid: &str) -> bool {
+    let parts: Vec<&str> = uuid.split('-').collect();
+    matches!(
+        parts.as_slice(),
+        [p0, p1, p2, p3, p4]
+            if p0.len() == 8
+            && p1.len() == 4
+            && p2.len() == 4
+            && p3.len() == 4
+            && p4.len() == 12
+            && uuid.chars().all(|ch| ch.is_ascii_hexdigit() || ch == '-')
+    )
+}
+
+/// Build the WHERE portion of a relay page query.
+fn build_relay_where_sql(
+    cursor_part: Option<&str>,
+    user_part: Option<&str>,
+) -> String {
+    match (cursor_part, user_part) {
+        (None, None) => String::new(),
+        (Some(c), None) => format!(" WHERE {c}"),
+        (None, Some(u)) => format!(" WHERE ({u})"),
+        (Some(c), Some(u)) => format!(" WHERE {c} AND ({u})"),
+    }
+}
+
+#[async_trait]
+impl RelayDatabaseAdapter for SqlServerAdapter {
+    /// Execute keyset (cursor-based) pagination against a JSONB view.
+    ///
+    /// Uses `OFFSET 0 ROWS FETCH NEXT n ROWS ONLY` with mandatory `ORDER BY`.
+    /// Backward pagination wraps a DESC inner query in an outer ASC sort.
+    ///
+    /// UUID cursors are compared via `CONVERT(UNIQUEIDENTIFIER, @pN)`.
+    async fn execute_relay_page(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        let quoted_view = quote_sqlserver_identifier(view);
+        let quoted_col = quote_sqlserver_identifier(cursor_column);
+
+        // ── Cursor condition ─────────────────────────────────────────────────
+        let active_cursor = if forward { after } else { before };
+        let (cursor_param, cursor_where_part): (Option<serde_json::Value>, Option<String>) =
+            match active_cursor {
+                None => (None, None),
+                Some(CursorValue::Int64(pk)) => {
+                    let op = if forward { ">" } else { "<" };
+                    (Some(serde_json::json!(pk)), Some(format!("{quoted_col} {op} @p1")))
+                },
+                Some(CursorValue::Uuid(uuid)) => {
+                    // Validate format before sending to SQL Server; malformed UUIDs produce an
+                    // opaque conversion error (MSSQL 8169) rather than a useful validation message.
+                    if !is_valid_uuid_format(&uuid) {
+                        return Err(FraiseQLError::Validation {
+                            message: format!("Invalid UUID cursor value: '{uuid}'"),
+                            path:    None,
+                        });
+                    }
+                    let op = if forward { ">" } else { "<" };
+                    (
+                        Some(serde_json::json!(uuid)),
+                        Some(format!(
+                            "{quoted_col} {op} CONVERT(UNIQUEIDENTIFIER, @p1)"
+                        )),
+                    )
+                },
+            };
+        let cursor_param_count: usize = if cursor_param.is_some() { 1 } else { 0 };
+
+        // ── User WHERE clause ────────────────────────────────────────────────
+        let mut user_where_params: Vec<serde_json::Value> = Vec::new();
+        let page_user_where_sql: Option<String> = if let Some(clause) = where_clause {
+            let generator = SqlServerWhereGenerator::new();
+            let (sql, params) =
+                generator.generate_with_param_offset(clause, cursor_param_count)?;
+            user_where_params = params;
+            Some(sql)
+        } else {
+            None
+        };
+        let user_param_count = user_where_params.len();
+
+        // ── ORDER BY and WHERE strings ────────────────────────────────────────
+        let order_sql = build_relay_order_sql(&quoted_col, order_by, forward);
+        let page_where_sql =
+            build_relay_where_sql(cursor_where_part.as_deref(), page_user_where_sql.as_deref());
+
+        // ── LIMIT parameter index ─────────────────────────────────────────────
+        let limit_idx = cursor_param_count + user_param_count + 1;
+
+        // ── Page SQL ──────────────────────────────────────────────────────────
+        //
+        // SQL Server requires ORDER BY for OFFSET…FETCH. The mandatory
+        // `OFFSET 0 ROWS` prelude cannot be elided.
+        //
+        // Backward pagination: the inner query uses flipped sort directions + FETCH so it
+        // retrieves the correct N rows before the cursor.  The inner query also projects each
+        // custom sort column under an alias (`_relay_sort_0`, …) so the outer re-sort can
+        // reference them.  The outer query restores the original (non-flipped) sort order.
+        let page_sql = if forward {
+            format!(
+                "SELECT data FROM {quoted_view}{page_where_sql}{order_sql} \
+                 OFFSET 0 ROWS FETCH NEXT @p{limit_idx} ROWS ONLY"
+            )
+        } else {
+            // Project each custom sort column under a stable alias for the outer re-sort.
+            let sort_aliases: String = order_by.unwrap_or(&[]).iter().enumerate().fold(
+                String::new(),
+                |mut acc, (i, c)| {
+                    use std::fmt::Write as _;
+                    let _ = write!(
+                        acc,
+                        ", JSON_VALUE(data, '$.{}') AS _relay_sort_{i}",
+                        c.field
+                    );
+                    acc
+                },
+            );
+
+            let inner = format!(
+                "SELECT data, {quoted_col} AS _relay_cursor{sort_aliases} \
+                 FROM {quoted_view}{page_where_sql}{order_sql} \
+                 OFFSET 0 ROWS FETCH NEXT @p{limit_idx} ROWS ONLY"
+            );
+            let outer_order = build_relay_backward_outer_order_sql(order_by);
+            format!("SELECT data FROM ({inner}) AS _relay_page{outer_order}")
+        };
+
+        // ── Page params: [cursor?, user_where..., limit] ──────────────────────
+        let mut page_params: Vec<serde_json::Value> = Vec::new();
+        if let Some(cp) = cursor_param {
+            page_params.push(cp);
+        }
+        page_params.extend_from_slice(&user_where_params);
+        page_params.push(serde_json::json!(limit));
+
+        // ── Execute page query ────────────────────────────────────────────────
+        let rows = self.execute_raw(&page_sql, page_params).await?;
+
+        // ── Count query (Relay spec: totalCount ignores cursor position) ──────
+        //
+        // Re-generates the WHERE clause with offset 0 (no cursor prefix) because
+        // the count is a standalone query.
+        let total_count = if include_total_count {
+            let (count_sql, count_params) = if let Some(clause) = where_clause {
+                let generator = SqlServerWhereGenerator::new();
+                let (where_sql, params) =
+                    generator.generate_with_param_offset(clause, 0)?;
+                (
+                    format!(
+                        "SELECT COUNT_BIG(*) AS cnt FROM {quoted_view} WHERE ({where_sql})"
+                    ),
+                    params,
+                )
+            } else {
+                (format!("SELECT COUNT_BIG(*) AS cnt FROM {quoted_view}"), vec![])
+            };
+
+            let mut conn =
+                self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+                    message: format!("Failed to acquire connection for relay count: {e}"),
+                })?;
+
+            // Serialise complex types up-front so their string refs live long enough.
+            let count_string_params = serialise_complex_params(&count_params);
+            let mut count_query = tiberius::Query::new(&count_sql);
+            bind_json_params(&mut count_query, &count_params, &count_string_params)?;
+
+            let count_result = count_query.query(&mut *conn).await.map_err(|e| {
+                FraiseQLError::Database {
+                    message:   format!("SQL Server relay count query failed: {e}"),
+                    sql_state: e.code().and_then(map_mssql_error_code),
+                }
+            })?;
+
+            let count_rows =
+                count_result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to get relay count result set: {e}"),
+                    sql_state: e.code().and_then(map_mssql_error_code),
+                })?;
+
+            // A missing or empty row must surface as an error rather than silently
+            // reporting `totalCount: 0`, which would be a misleading data-loss trap.
+            let n: i64 = count_rows
+                .first()
+                .and_then(|row| row.try_get::<i64, _>(0).ok().flatten())
+                .ok_or_else(|| FraiseQLError::Database {
+                    message:   format!(
+                        "Relay count query returned no rows for view '{view}'"
+                    ),
+                    sql_state: None,
+                })?;
+            let count = u64::try_from(n).map_err(|_| FraiseQLError::Database {
+                message:   format!(
+                    "Relay count query returned negative value ({n}) for view '{view}'"
+                ),
+                sql_state: None,
+            })?;
+
+            Some(count)
+        } else {
+            None
+        };
+
+        Ok(RelayPageResult { rows, total_count })
+    }
+}
+
+#[cfg(test)]
+mod error_code_tests {
+    use super::*;
+
+    #[test]
+    fn test_unique_constraint_violation_2627() {
+        // 2627 = unique constraint → ANSI unique violation 23505
+        assert_eq!(map_mssql_error_code(2627), Some("23505".to_string()));
+    }
+
+    #[test]
+    fn test_duplicate_key_2601() {
+        // 2601 = duplicate key in unique index → same ANSI code 23505
+        assert_eq!(map_mssql_error_code(2601), Some("23505".to_string()));
+    }
+
+    #[test]
+    fn test_not_null_violation_515() {
+        // 515 = NOT NULL violation → ANSI not-null violation 23502
+        assert_eq!(map_mssql_error_code(515), Some("23502".to_string()));
+    }
+
+    #[test]
+    fn test_foreign_key_violation_547() {
+        // 547 = FK violation → ANSI FK violation 23503 (unchanged)
+        assert_eq!(map_mssql_error_code(547), Some("23503".to_string()));
+    }
+
+    #[test]
+    fn test_deadlock_1205() {
+        // 1205 = deadlock victim → ANSI serialization failure 40001 (NOT PostgreSQL-vendor 40P01)
+        assert_eq!(map_mssql_error_code(1205), Some("40001".to_string()));
+    }
+
+    #[test]
+    fn test_string_truncation_8152() {
+        // 8152 = string truncation → ANSI value too long 22001 (unchanged)
+        assert_eq!(map_mssql_error_code(8152), Some("22001".to_string()));
+    }
+
+    #[test]
+    fn test_out_of_memory_701_returns_none() {
+        // 701 = insufficient memory — no ANSI equivalent; must return None
+        // (previously incorrectly returned the PostgreSQL-vendor code "53200")
+        assert_eq!(map_mssql_error_code(701), None);
+    }
+
+    #[test]
+    fn test_unknown_code_returns_none() {
+        assert_eq!(map_mssql_error_code(9999), None);
+        assert_eq!(map_mssql_error_code(0), None);
+        assert_eq!(map_mssql_error_code(u32::MAX), None);
+    }
+}
+
+#[cfg(test)]
+mod relay_sql_tests {
+    use super::*;
+    use crate::compiler::aggregation::{OrderByClause, OrderDirection};
+
+    // ── build_relay_order_sql ──────────────────────────────────────────────
+
+    #[test]
+    fn test_build_relay_order_sql_forward_no_order_by() {
+        let sql = build_relay_order_sql("[id]", None, true);
+        assert_eq!(sql, " ORDER BY [id] ASC");
+    }
+
+    #[test]
+    fn test_build_relay_order_sql_backward_no_order_by() {
+        let sql = build_relay_order_sql("[id]", None, false);
+        assert_eq!(sql, " ORDER BY [id] DESC");
+    }
+
+    #[test]
+    fn test_build_relay_order_sql_forward_custom_order_by_asc() {
+        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc }];
+        let sql = build_relay_order_sql("[id]", Some(&order_by), true);
+        assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') ASC, [id] ASC");
+    }
+
+    #[test]
+    fn test_build_relay_order_sql_backward_custom_order_by_asc_flips_to_desc() {
+        // KEY TEST: backward pagination must flip ASC → DESC so the inner
+        // FETCH NEXT subquery retrieves the correct N rows before the cursor.
+        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc }];
+        let sql = build_relay_order_sql("[id]", Some(&order_by), false);
+        assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') DESC, [id] DESC");
+    }
+
+    #[test]
+    fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
+        let order_by = vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Desc }];
+        let sql = build_relay_order_sql("[id]", Some(&order_by), false);
+        assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.created_at') ASC, [id] DESC");
+    }
+
+    #[test]
+    fn test_build_relay_order_sql_multi_column_forward() {
+        let order_by = vec![
+            OrderByClause { field: "a".to_string(), direction: OrderDirection::Asc },
+            OrderByClause { field: "b".to_string(), direction: OrderDirection::Desc },
+        ];
+        let sql = build_relay_order_sql("[id]", Some(&order_by), true);
+        assert_eq!(
+            sql,
+            " ORDER BY JSON_VALUE(data, '$.a') ASC, JSON_VALUE(data, '$.b') DESC, [id] ASC"
+        );
+    }
+
+    #[test]
+    fn test_build_relay_order_sql_multi_column_backward_all_flipped() {
+        let order_by = vec![
+            OrderByClause { field: "a".to_string(), direction: OrderDirection::Asc },
+            OrderByClause { field: "b".to_string(), direction: OrderDirection::Desc },
+        ];
+        let sql = build_relay_order_sql("[id]", Some(&order_by), false);
+        assert_eq!(
+            sql,
+            " ORDER BY JSON_VALUE(data, '$.a') DESC, JSON_VALUE(data, '$.b') ASC, [id] DESC"
+        );
+    }
+
+    // ── build_relay_backward_outer_order_sql ──────────────────────────────
+
+    #[test]
+    fn test_build_relay_backward_outer_order_sql_no_order_by() {
+        let sql = build_relay_backward_outer_order_sql(None);
+        assert_eq!(sql, " ORDER BY _relay_cursor ASC");
+    }
+
+    #[test]
+    fn test_build_relay_backward_outer_order_sql_with_custom_asc() {
+        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc }];
+        let sql = build_relay_backward_outer_order_sql(Some(&order_by));
+        assert_eq!(sql, " ORDER BY _relay_sort_0 ASC, _relay_cursor ASC");
+    }
+
+    #[test]
+    fn test_build_relay_backward_outer_order_sql_desc_preserved() {
+        let order_by = vec![OrderByClause { field: "score".to_string(), direction: OrderDirection::Desc }];
+        let sql = build_relay_backward_outer_order_sql(Some(&order_by));
+        assert_eq!(sql, " ORDER BY _relay_sort_0 DESC, _relay_cursor ASC");
+    }
+
+    // ── build_relay_where_sql ─────────────────────────────────────────────
+
+    #[test]
+    fn test_build_relay_where_sql_none_none() {
+        let sql = build_relay_where_sql(None, None);
+        assert_eq!(sql, "");
+    }
+
+    #[test]
+    fn test_build_relay_where_sql_cursor_only() {
+        let sql = build_relay_where_sql(Some("cur > @p1"), None);
+        assert_eq!(sql, " WHERE cur > @p1");
+    }
+
+    #[test]
+    fn test_build_relay_where_sql_user_only() {
+        let sql = build_relay_where_sql(None, Some("user_filter"));
+        assert_eq!(sql, " WHERE (user_filter)");
+    }
+
+    #[test]
+    fn test_build_relay_where_sql_both() {
+        let sql = build_relay_where_sql(Some("cur > @p1"), Some("user_filter"));
+        assert_eq!(sql, " WHERE cur > @p1 AND (user_filter)");
+    }
+
+    // ── is_valid_uuid_format ──────────────────────────────────────────────
+
+    #[test]
+    fn test_is_valid_uuid_format_accepts_valid_uuid() {
+        assert!(is_valid_uuid_format("550e8400-e29b-41d4-a716-446655440000"));
+    }
+
+    #[test]
+    fn test_is_valid_uuid_format_rejects_malformed() {
+        assert!(!is_valid_uuid_format("not-a-uuid"));
+        assert!(!is_valid_uuid_format("550e8400-e29b-41d4-a716")); // too short
+        assert!(!is_valid_uuid_format("550e8400-e29b-41d4-a716-44665544000Z")); // invalid char
+    }
+
+    #[test]
+    fn test_is_valid_uuid_format_rejects_empty() {
+        assert!(!is_valid_uuid_format(""));
+    }
 }
 
 #[cfg(all(test, feature = "test-sqlserver"))]

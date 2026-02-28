@@ -582,6 +582,304 @@ mod sqlserver_tests {
 }
 
 // ============================================================================
+// SQL Server Relay Pagination Integration Tests
+// ============================================================================
+
+#[cfg(feature = "test-sqlserver")]
+mod sqlserver_relay_tests {
+    use fraiseql_core::db::sqlserver::SqlServerAdapter;
+    use fraiseql_core::db::traits::{CursorValue, RelayDatabaseAdapter};
+    use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
+    use fraiseql_core::error::FraiseQLError;
+
+    const TEST_DB_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+
+    // UUID ids for v_relay_item rows (in ascending SQL Server UNIQUEIDENTIFIER order).
+    // These UUIDs are of the form 00000000-0000-0000-0000-00000000000N where N is 1–a.
+    // SQL Server compares bytes 10–15 first; for these UUIDs those bytes are
+    // 000000000001 … 00000000000a, giving standard ascending order.
+    const UUID_3:  &str = "00000000-0000-0000-0000-000000000003";
+    const UUID_5:  &str = "00000000-0000-0000-0000-000000000005";
+    const UUID_8:  &str = "00000000-0000-0000-0000-000000000008";
+    const UUID_10: &str = "00000000-0000-0000-0000-00000000000a";
+
+    async fn adapter() -> SqlServerAdapter {
+        SqlServerAdapter::new(TEST_DB_URL).await.expect("Failed to connect to SQL Server")
+    }
+
+    fn extract_label(row: &fraiseql_core::db::types::JsonbValue) -> String {
+        row.as_value()
+            .get("label")
+            .and_then(|v| v.as_str())
+            .expect("row must have 'label' field")
+            .to_string()
+    }
+
+    fn extract_score(row: &fraiseql_core::db::types::JsonbValue) -> i64 {
+        row.as_value()
+            .get("score")
+            .and_then(|v| v.as_i64())
+            .expect("row must have 'score' field")
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_forward_first_page() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
+            .await
+            .expect("forward first page");
+        assert_eq!(result.rows.len(), 3);
+        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        assert_eq!(labels, vec!["item-1", "item-2", "item-3"]);
+        assert_eq!(result.total_count, None);
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_forward_with_after_cursor() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                Some(CursorValue::Uuid(UUID_3.to_string())),
+                None,
+                3,
+                true,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect("forward with after cursor");
+        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        assert_eq!(labels, vec!["item-4", "item-5", "item-6"]);
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_forward_exhausted() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                Some(CursorValue::Uuid(UUID_8.to_string())),
+                None,
+                10,
+                true,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect("forward exhausted");
+        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        assert_eq!(labels, vec!["item-9", "item-10"]);
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_backward_with_before_cursor() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                None,
+                Some(CursorValue::Uuid(UUID_5.to_string())),
+                3,
+                false,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect("backward with before cursor");
+        // Rows before UUID-5 (exclusive), last 3, re-sorted ASC → items 2,3,4
+        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        assert_eq!(labels, vec!["item-2", "item-3", "item-4"]);
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_backward_first_page_no_cursor() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, false, None, None, false)
+            .await
+            .expect("backward first page no cursor");
+        // Last 3 rows in ascending cursor order → items 8,9,10
+        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        assert_eq!(labels, vec!["item-8", "item-9", "item-10"]);
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_total_count_is_10() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, true)
+            .await
+            .expect("total count");
+        assert_eq!(result.total_count, Some(10));
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_total_count_ignores_cursor() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                Some(CursorValue::Uuid(UUID_5.to_string())),
+                None,
+                3,
+                true,
+                None,
+                None,
+                true,
+            )
+            .await
+            .expect("total count ignores cursor");
+        // totalCount counts all matching rows, not just those after the cursor.
+        assert_eq!(result.total_count, Some(10));
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_total_count_absent_when_not_requested() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
+            .await
+            .expect("no total count");
+        assert_eq!(result.total_count, None);
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_forward_with_where_clause() {
+        let a = adapter().await;
+        let clause = WhereClause::Field {
+            path:     vec!["score".to_string()],
+            operator: WhereOperator::Gte,
+            value:    serde_json::json!(50),
+        };
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                None,
+                None,
+                10,
+                true,
+                Some(&clause),
+                None,
+                false,
+            )
+            .await
+            .expect("forward with where clause");
+        // Scores ≥ 50: items 1(50), 3(70), 5(90), 7(60), 9(80) → 5 rows
+        assert_eq!(result.rows.len(), 5);
+        for row in &result.rows {
+            let score = extract_score(row);
+            assert!(score >= 50, "All rows must have score >= 50, got {score}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_backward_custom_order_by_score_asc() {
+        use fraiseql_core::compiler::aggregation::{OrderByClause, OrderDirection};
+
+        let a = adapter().await;
+        let order_by = vec![
+            OrderByClause { field: "score".to_string(), direction: OrderDirection::Asc },
+        ];
+
+        // before = UUID-5 (score=90), limit=3, forward=false, order_by score ASC.
+        // Rows with UUID < UUID-5: item-1(50), item-2(30), item-3(70), item-4(10).
+        // Sorted by score ASC the last 3 are: item-4(10), item-2(30), item-1(50).
+        // After backward flip (inner DESC, outer ASC): returned in score ASC order.
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                None,
+                Some(CursorValue::Uuid(UUID_5.to_string())),
+                3,
+                false,
+                None,
+                Some(&order_by),
+                false,
+            )
+            .await
+            .expect("backward custom order_by score asc");
+
+        assert_eq!(result.rows.len(), 3, "Should return exactly 3 rows");
+
+        // Verify scores are in ascending order (proves backward direction flip is correct).
+        let scores: Vec<i64> = result.rows.iter().map(extract_score).collect();
+        assert_eq!(scores, vec![10, 30, 50], "Rows must be in score ASC order");
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_forward_empty_result() {
+        let a = adapter().await;
+        let result = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                Some(CursorValue::Uuid(UUID_10.to_string())),
+                None,
+                10,
+                true,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect("forward empty result");
+        assert!(result.rows.is_empty(), "Should return 0 rows after the last UUID");
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_missing_view_returns_error() {
+        // Validates count query robustness: a missing view must surface as
+        // FraiseQLError::Database, NOT as Ok(total_count: 0).
+        let a = adapter().await;
+        let err = a
+            .execute_relay_page("v_nonexistent", "id", None, None, 3, true, None, None, true)
+            .await
+            .expect_err("missing view must return Err");
+        assert!(
+            matches!(err, FraiseQLError::Database { .. }),
+            "Expected Database error, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sqlserver_relay_uuid_cursor_invalid_format_returns_validation_error() {
+        // Validates UUID validation: malformed UUID must return Validation error before
+        // reaching SQL Server, rather than an opaque type-conversion database error.
+        let a = adapter().await;
+        let err = a
+            .execute_relay_page(
+                "v_relay_item",
+                "id",
+                Some(CursorValue::Uuid("not-a-uuid".to_string())),
+                None,
+                3,
+                true,
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect_err("malformed UUID cursor must return Err");
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "Expected Validation error, got {err:?}"
+        );
+    }
+
+}
+
+// ============================================================================
 // Cross-Database Tests (Database-Agnostic)
 // ============================================================================
 

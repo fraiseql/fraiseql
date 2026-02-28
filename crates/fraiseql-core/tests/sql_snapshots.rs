@@ -418,3 +418,157 @@ fn snapshot_aggregate_query_with_group_by() {
     let sql = r#"SELECT data->>'category' as category, SUM((data->>'amount')::NUMERIC) as total FROM "tf_sales" GROUP BY data->>'category'"#;
     assert_snapshot!(sql);
 }
+
+// ============================================================================
+// SQL Server Relay Pagination SQL Snapshots
+//
+// These tests document the exact SQL emitted for each relay pagination scenario.
+// The backward-pagination tests are especially important: they verify that
+// sort directions are flipped in the inner query and then restored in the outer
+// re-sort wrapper — the critical correctness fix from rc.14.
+// ============================================================================
+
+mod sqlserver_relay {
+    use insta::assert_snapshot;
+
+    // Forward pagination — no cursor, no custom order_by
+    #[test]
+    fn snapshot_sqlserver_relay_forward_no_cursor_no_order() {
+        let sql = "SELECT data FROM [v_relay_item] \
+                   ORDER BY [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT @p1 ROWS ONLY";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — UUID cursor (used by v_relay_item since id is UNIQUEIDENTIFIER)
+    #[test]
+    fn snapshot_sqlserver_relay_forward_uuid_cursor() {
+        let sql = "SELECT data FROM [v_relay_item] \
+                   WHERE [id] > CONVERT(UNIQUEIDENTIFIER, @p1) \
+                   ORDER BY [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — Int64 cursor (for views with integer primary keys)
+    #[test]
+    fn snapshot_sqlserver_relay_forward_int64_cursor() {
+        let sql = "SELECT data FROM [v_relay_item] \
+                   WHERE [id] > @p1 \
+                   ORDER BY [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — custom ORDER BY (score ASC)
+    #[test]
+    fn snapshot_sqlserver_relay_forward_custom_order_by() {
+        let sql = "SELECT data FROM [v_relay_item] \
+                   ORDER BY JSON_VALUE(data, '$.score') ASC, [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT @p1 ROWS ONLY";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — with WHERE clause (score >= 50)
+    #[test]
+    fn snapshot_sqlserver_relay_forward_where_clause() {
+        let sql = "SELECT data FROM [v_relay_item] \
+                   WHERE (CAST(JSON_VALUE(data, '$.score') AS FLOAT) >= @p1) \
+                   ORDER BY [id] ASC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — no cursor, no custom order_by
+    #[test]
+    fn snapshot_sqlserver_relay_backward_no_cursor_no_order() {
+        // Inner: DESC to get last N rows; outer: ASC to restore cursor order
+        let sql = "SELECT data FROM (\
+                   SELECT data, [id] AS _relay_cursor \
+                   FROM [v_relay_item] \
+                   ORDER BY [id] DESC \
+                   OFFSET 0 ROWS FETCH NEXT @p1 ROWS ONLY\
+                   ) AS _relay_page \
+                   ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — UUID cursor (used by v_relay_item)
+    #[test]
+    fn snapshot_sqlserver_relay_backward_uuid_cursor() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, [id] AS _relay_cursor \
+                   FROM [v_relay_item] \
+                   WHERE [id] < CONVERT(UNIQUEIDENTIFIER, @p1) \
+                   ORDER BY [id] DESC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY\
+                   ) AS _relay_page \
+                   ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — Int64 cursor (for views with integer primary keys)
+    #[test]
+    fn snapshot_sqlserver_relay_backward_int64_cursor() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, [id] AS _relay_cursor \
+                   FROM [v_relay_item] \
+                   WHERE [id] < @p1 \
+                   ORDER BY [id] DESC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY\
+                   ) AS _relay_page \
+                   ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — custom ORDER BY (score ASC → inner flipped to DESC)
+    //
+    // KEY SNAPSHOT: verifies the rc.14 correctness fix.
+    // The inner query uses DESC for score (flipped from ASC) so FETCH NEXT
+    // retrieves the correct rows before the cursor.  The inner query also
+    // projects `_relay_sort_0` so the outer query can re-sort by the original
+    // ASC direction.
+    #[test]
+    fn snapshot_sqlserver_relay_backward_custom_order_by_asc() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, [id] AS _relay_cursor, JSON_VALUE(data, '$.score') AS _relay_sort_0 \
+                   FROM [v_relay_item] \
+                   WHERE [id] < CONVERT(UNIQUEIDENTIFIER, @p1) \
+                   ORDER BY JSON_VALUE(data, '$.score') DESC, [id] DESC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY\
+                   ) AS _relay_page \
+                   ORDER BY _relay_sort_0 ASC, _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — multi-column custom ORDER BY (score ASC, created_at DESC)
+    #[test]
+    fn snapshot_sqlserver_relay_backward_custom_order_by_multi_column() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, [id] AS _relay_cursor, \
+                   JSON_VALUE(data, '$.score') AS _relay_sort_0, \
+                   JSON_VALUE(data, '$.created_at') AS _relay_sort_1 \
+                   FROM [v_relay_item] \
+                   WHERE [id] < CONVERT(UNIQUEIDENTIFIER, @p1) \
+                   ORDER BY JSON_VALUE(data, '$.score') DESC, JSON_VALUE(data, '$.created_at') ASC, [id] DESC \
+                   OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY\
+                   ) AS _relay_page \
+                   ORDER BY _relay_sort_0 ASC, _relay_sort_1 DESC, _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // COUNT_BIG query — no WHERE clause
+    #[test]
+    fn snapshot_sqlserver_relay_count_query_no_where() {
+        let sql = "SELECT COUNT_BIG(*) AS cnt FROM [v_relay_item]";
+        assert_snapshot!(sql);
+    }
+
+    // COUNT_BIG query — with WHERE clause (score >= 50)
+    #[test]
+    fn snapshot_sqlserver_relay_count_query_with_where() {
+        let sql = "SELECT COUNT_BIG(*) AS cnt FROM [v_relay_item] \
+                   WHERE (CAST(JSON_VALUE(data, '$.score') AS FLOAT) >= @p1)";
+        assert_snapshot!(sql);
+    }
+}

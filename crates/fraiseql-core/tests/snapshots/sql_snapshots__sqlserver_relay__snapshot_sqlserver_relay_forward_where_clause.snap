@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT data FROM [v_relay_item] WHERE (CAST(JSON_VALUE(data, '$.score') AS FLOAT) >= @p1) ORDER BY [id] ASC OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY

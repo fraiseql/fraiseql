@@ -365,13 +365,15 @@ impl DatabaseAdapter for SqliteAdapter {
 
     async fn execute_function_call(
         &self,
-        _function_name: &str,
+        function_name: &str,
         _args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Validation {
-            message: "SQLite does not support mutations in FraiseQL v2. \
-                      Use PostgreSQL, MySQL, or SQL Server for write operations.".into(),
-            path: None,
+        Err(FraiseQLError::Unsupported {
+            message: format!(
+                "Mutations via function calls are not supported on SQLite. \
+                 Function '{function_name}' cannot be executed. \
+                 Use PostgreSQL or SQL Server for mutation support."
+            ),
         })
     }
 
@@ -509,5 +511,24 @@ mod tests {
             .expect("Failed to execute query");
 
         assert_eq!(results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_function_call_returns_unsupported_error() {
+        let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
+
+        let err = adapter
+            .execute_function_call("fn_create_user", &[serde_json::json!("alice")])
+            .await
+            .expect_err("Expected Unsupported error");
+
+        assert!(
+            matches!(err, FraiseQLError::Unsupported { .. }),
+            "Expected Unsupported error, got: {err:?}"
+        );
+        assert!(
+            err.to_string().contains("fn_create_user"),
+            "Error message should name the function"
+        );
     }
 }
