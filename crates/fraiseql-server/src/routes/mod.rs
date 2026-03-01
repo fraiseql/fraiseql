@@ -9,7 +9,10 @@ pub mod metrics;
 pub mod playground;
 pub mod subscriptions;
 
-pub use auth::{AuthPkceState, auth_callback, auth_start};
+pub use auth::{
+    AuthPkceState, RevocationRouteState, auth_callback, auth_start, revoke_all_tokens,
+    revoke_token,
+};
 pub use graphql::{graphql_get_handler, graphql_handler};
 pub use health::{federation_health_handler, health_handler};
 pub use introspection::introspection_handler;

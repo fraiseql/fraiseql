@@ -54,6 +54,8 @@ pub struct Server<A: DatabaseAdapter> {
     state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
     pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
     oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
+    api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -345,6 +347,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
+        let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
+        if api_key_authenticator.is_some() {
+            info!("API key authentication enabled");
+        }
+        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
+        if revocation_manager.is_some() {
+            info!("Token revocation enabled");
+        }
 
         // Warn when query-result caching is active but no RLS policies are declared.
         // Cache isolation relies on per-user WHERE clauses in the cache key.  Without RLS,
@@ -375,6 +385,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             pkce_store,
             oidc_server_client,
             schema_rate_limiter,
+            api_key_authenticator,
+            revocation_manager,
             db_pool,
         )
         .await
@@ -400,6 +412,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
         oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
         schema_rate_limiter:  Option<Arc<RateLimiter>>,
+        api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+        revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
@@ -500,6 +514,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             state_encryption,
             pkce_store,
             oidc_server_client,
+            api_key_authenticator,
+            revocation_manager,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -562,6 +578,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
+        let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
+        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -576,6 +594,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             pkce_store,
             oidc_server_client,
             schema_rate_limiter,
+            api_key_authenticator,
+            revocation_manager,
             db_pool,
         )
         .await
@@ -616,6 +636,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         let oidc_server_client  = Self::oidc_server_client_from_schema(&schema);
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
+        let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
+        let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -703,6 +725,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             state_encryption,
             pkce_store,
             oidc_server_client,
+            api_key_authenticator,
+            revocation_manager,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -765,6 +789,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {
             info!("Error sanitizer enabled — internal error details will be stripped from responses");
+        }
+
+        // Attach API key authenticator if configured
+        if let Some(ref api_key_auth) = self.api_key_authenticator {
+            state = state.with_api_key_authenticator(api_key_auth.clone());
+            info!("API key authenticator attached to AppState");
         }
 
         // Attach state encryption service if configured
@@ -1031,6 +1061,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_state(auth_state);
             app = app.merge(auth_router);
             info!("PKCE auth routes mounted: GET /auth/start, GET /auth/callback");
+        }
+
+        // Token revocation routes — mounted only when revocation is configured.
+        if let Some(ref rev_mgr) = self.revocation_manager {
+            let rev_state = Arc::new(crate::routes::RevocationRouteState {
+                revocation_manager: Arc::clone(rev_mgr),
+            });
+            let rev_router = Router::new()
+                .route("/auth/revoke",     post(crate::routes::revoke_token))
+                .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
+                .with_state(rev_state);
+            app = app.merge(rev_router);
+            info!("Token revocation routes mounted: POST /auth/revoke, POST /auth/revoke-all");
         }
 
         // Remaining API routes (query intelligence, federation)

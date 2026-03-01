@@ -264,6 +264,149 @@ pub async fn auth_callback(
 }
 
 // ---------------------------------------------------------------------------
+// POST /auth/revoke
+// ---------------------------------------------------------------------------
+
+/// Request body for token revocation.
+#[derive(Deserialize)]
+pub struct RevokeTokenRequest {
+    /// The JWT to revoke (we extract `jti` and `exp` from it).
+    pub token: String,
+}
+
+/// Response body for token revocation.
+#[derive(Serialize)]
+pub struct RevokeTokenResponse {
+    pub revoked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+}
+
+/// Shared state for revocation routes.
+pub struct RevocationRouteState {
+    pub revocation_manager: std::sync::Arc<crate::token_revocation::TokenRevocationManager>,
+}
+
+/// Revoke a single JWT by its `jti` claim.
+///
+/// The token is decoded (without verification — we only need the claims) to
+/// extract `jti` and `exp`.  The revocation entry TTL is set to the remaining
+/// token lifetime so the store auto-cleans.
+///
+/// # Responses
+///
+/// - `200` — token revoked successfully.
+/// - `400` — token is missing or has no `jti` claim.
+pub async fn revoke_token(
+    State(state): State<std::sync::Arc<RevocationRouteState>>,
+    Json(body): Json<RevokeTokenRequest>,
+) -> Response {
+    use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+
+    // Decode without verification — we only need the claims.
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.insecure_disable_signature_validation();
+    validation.validate_exp = false;
+    validation.validate_aud = false;
+    validation.required_spec_claims.clear();
+
+    #[derive(serde::Deserialize)]
+    struct MinimalClaims {
+        jti: Option<String>,
+        exp: Option<u64>,
+    }
+
+    let claims = match jsonwebtoken::decode::<MinimalClaims>(
+        &body.token,
+        &DecodingKey::from_secret(b"unused"),
+        &validation,
+    ) {
+        Ok(data) => data.claims,
+        Err(e) => {
+            return auth_error(StatusCode::BAD_REQUEST, &format!("Invalid token: {e}"));
+        }
+    };
+
+    let jti = match claims.jti {
+        Some(j) if !j.is_empty() => j,
+        _ => {
+            return auth_error(StatusCode::BAD_REQUEST, "Token has no jti claim");
+        }
+    };
+
+    // TTL = remaining token lifetime, or 24h if no exp.
+    let ttl_secs = claims
+        .exp
+        .and_then(|exp| {
+            let now = chrono::Utc::now().timestamp() as u64;
+            exp.checked_sub(now)
+        })
+        .unwrap_or(86400);
+
+    if let Err(e) = state.revocation_manager.revoke(&jti, ttl_secs).await {
+        tracing::error!(error = %e, "Failed to revoke token");
+        return auth_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to revoke token",
+        );
+    }
+
+    let expires_at = claims.exp.map(|exp| {
+        chrono::DateTime::from_timestamp(exp as i64, 0)
+            .map_or_else(|| exp.to_string(), |dt| dt.to_rfc3339())
+    });
+
+    Json(RevokeTokenResponse {
+        revoked: true,
+        expires_at,
+    })
+    .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/revoke-all
+// ---------------------------------------------------------------------------
+
+/// Request body for revoking all tokens for a user.
+#[derive(Deserialize)]
+pub struct RevokeAllRequest {
+    /// User subject (from JWT `sub` claim).
+    pub sub: String,
+}
+
+/// Response body for bulk revocation.
+#[derive(Serialize)]
+pub struct RevokeAllResponse {
+    pub revoked_count: u64,
+}
+
+/// Revoke all tokens for a user.
+///
+/// # Responses
+///
+/// - `200` — tokens revoked.
+/// - `400` — `sub` is missing or empty.
+pub async fn revoke_all_tokens(
+    State(state): State<std::sync::Arc<RevocationRouteState>>,
+    Json(body): Json<RevokeAllRequest>,
+) -> Response {
+    if body.sub.is_empty() {
+        return auth_error(StatusCode::BAD_REQUEST, "sub is required");
+    }
+
+    match state.revocation_manager.revoke_all_for_user(&body.sub).await {
+        Ok(count) => Json(RevokeAllResponse { revoked_count: count }).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, sub = %body.sub, "Failed to revoke tokens for user");
+            auth_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to revoke tokens",
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 

@@ -553,6 +553,10 @@ pub struct SecuritySettings {
     pub state_encryption:    Option<StateEncryptionConfig>,
     /// PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows
     pub pkce:                Option<PkceConfig>,
+    /// API key authentication — static or database-backed key-based auth
+    pub api_keys:            Option<ApiKeySecurityConfig>,
+    /// Token revocation — reject JWTs by `jti` after revocation
+    pub token_revocation:    Option<TokenRevocationSecurityConfig>,
 }
 
 impl Default for SecuritySettings {
@@ -567,6 +571,8 @@ impl Default for SecuritySettings {
             rate_limiting:      None,
             state_encryption:   None,
             pkce:               None,
+            api_keys:           None,
+            token_revocation:   None,
         }
     }
 }
@@ -863,6 +869,100 @@ impl Default for PkceConfig {
             code_challenge_method: CodeChallengeMethod::S256,
             state_ttl_secs:        600,
             redis_url:             None,
+        }
+    }
+}
+
+/// API key authentication configuration.
+///
+/// ```toml
+/// [security.api_keys]
+/// enabled = true
+/// header = "X-API-Key"
+/// hash_algorithm = "sha256"
+/// storage = "env"
+///
+/// [[security.api_keys.static]]
+/// key_hash = "sha256:abc123..."
+/// scopes = ["read:*"]
+/// name = "ci-readonly"
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ApiKeySecurityConfig {
+    /// Enable API key authentication
+    pub enabled: bool,
+    /// HTTP header name to read the API key from
+    pub header: String,
+    /// Hash algorithm for key verification (`sha256`)
+    pub hash_algorithm: String,
+    /// Storage backend: `"env"` for static keys, `"postgres"` for DB-backed
+    pub storage: String,
+    /// Static API key entries (only for `storage = "env"`)
+    #[serde(default, rename = "static")]
+    pub static_keys: Vec<StaticApiKeyEntry>,
+}
+
+impl Default for ApiKeySecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled:        false,
+            header:         "X-API-Key".to_string(),
+            hash_algorithm: "sha256".to_string(),
+            storage:        "env".to_string(),
+            static_keys:    vec![],
+        }
+    }
+}
+
+/// A single static API key entry.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticApiKeyEntry {
+    /// Hex-encoded hash, optionally prefixed with algorithm (e.g. `sha256:abc...`)
+    pub key_hash: String,
+    /// Scopes granted by this key
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    /// Human-readable name for audit logging
+    pub name: String,
+}
+
+/// Token revocation configuration.
+///
+/// ```toml
+/// [security.token_revocation]
+/// enabled = true
+/// backend = "redis"
+/// require_jti = true
+/// fail_open = false
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TokenRevocationSecurityConfig {
+    /// Enable token revocation
+    pub enabled: bool,
+    /// Backend: `"redis"`, `"postgres"`, or `"memory"`
+    pub backend: String,
+    /// Reject JWTs without a `jti` claim when revocation is enabled
+    #[serde(default = "default_true")]
+    pub require_jti: bool,
+    /// If revocation store is unreachable: `false` = reject (fail-closed), `true` = allow (fail-open)
+    #[serde(default)]
+    pub fail_open: bool,
+    /// Redis URL for distributed revocation (optional — inherited from `[fraiseql.redis]` if absent)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url: Option<String>,
+}
+
+impl Default for TokenRevocationSecurityConfig {
+    fn default() -> Self {
+        Self {
+            enabled:     false,
+            backend:     "memory".to_string(),
+            require_jti: true,
+            fail_open:   false,
+            redis_url:   None,
         }
     }
 }

@@ -105,6 +105,9 @@ pub struct AppState<A: DatabaseAdapter> {
     /// State encryption service (optional, enabled via `[security.state_encryption]`).
     pub state_encryption:
         Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    /// API key authenticator (optional, enabled via `[security.api_keys]`).
+    pub api_key_authenticator:
+        Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -124,6 +127,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             circuit_breaker: None,
             error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
             state_encryption: None,
+            api_key_authenticator: None,
         }
     }
 
@@ -223,6 +227,16 @@ impl<A: DatabaseAdapter> AppState<A> {
         svc: Arc<crate::auth::state_encryption::StateEncryptionService>,
     ) -> Self {
         self.state_encryption = Some(svc);
+        self
+    }
+
+    /// Attach an API key authenticator (loaded from `compiled.security.api_keys`).
+    #[must_use]
+    pub fn with_api_key_authenticator(
+        mut self,
+        authenticator: Arc<crate::api_key::ApiKeyAuthenticator>,
+    ) -> Self {
+        self.api_key_authenticator = Some(authenticator);
         self
     }
 
@@ -359,9 +373,29 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     state: AppState<A>,
     request: GraphQLRequest,
     _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
-    security_context: Option<SecurityContext>,
+    mut security_context: Option<SecurityContext>,
     headers: &HeaderMap,
 ) -> Result<GraphQLResponse, ErrorResponse> {
+    // API key auth: if configured, try it before falling through to JWT/OIDC.
+    if security_context.is_none() {
+        if let Some(ref api_key_auth) = state.api_key_authenticator {
+            match api_key_auth.authenticate(headers).await {
+                crate::api_key::ApiKeyResult::Authenticated(ctx) => {
+                    debug!("Authenticated via API key");
+                    security_context = Some(*ctx);
+                }
+                crate::api_key::ApiKeyResult::Invalid => {
+                    return Err(ErrorResponse::from_error(GraphQLError::new(
+                        "Invalid API key",
+                        crate::error::ErrorCode::Unauthenticated,
+                    )));
+                }
+                crate::api_key::ApiKeyResult::NotPresent => {
+                    // Fall through to JWT/OIDC (or unauthenticated).
+                }
+            }
+        }
+    }
     let start_time = Instant::now();
     let metrics = &state.metrics;
 

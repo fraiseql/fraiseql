@@ -71,6 +71,11 @@
 #![allow(clippy::useless_format)] // Reason: format!() used to satisfy String type requirements in some APIs
 #![allow(clippy::float_cmp)] // Reason: test assertions compare exact metric values, not computed floats
 
+// API key authentication
+pub mod api_key;
+// Token revocation
+pub mod token_revocation;
+
 // Original fraiseql-server modules
 pub mod api;
 pub mod error;
