@@ -15,7 +15,12 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
+use fraiseql_core::{
+    apq::{ApqMetrics, ApqStorage},
+    db::traits::DatabaseAdapter,
+    runtime::Executor,
+    security::SecurityContext,
+};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
@@ -26,15 +31,15 @@ use crate::{
     extractors::OptionalSecurityContext,
     metrics_server::MetricsCollector,
     tracing_utils,
-    validation::RequestValidator,
 };
 
 /// GraphQL request payload (for POST requests).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphQLRequest {
-    /// GraphQL query string.
-    pub query: String,
+    /// GraphQL query string (optional when using APQ with hash-only request).
+    #[serde(default)]
+    pub query: Option<String>,
 
     /// Query variables (optional).
     #[serde(default)]
@@ -43,6 +48,10 @@ pub struct GraphQLRequest {
     /// Operation name (optional).
     #[serde(default)]
     pub operation_name: Option<String>,
+
+    /// Protocol extensions (APQ, tracing, etc.).
+    #[serde(default)]
+    pub extensions: Option<serde_json::Value>,
 }
 
 /// GraphQL GET request parameters.
@@ -108,6 +117,12 @@ pub struct AppState<A: DatabaseAdapter> {
     /// API key authenticator (optional, enabled via `[security.api_keys]`).
     pub api_key_authenticator:
         Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    /// APQ persistent query store (optional, enabled via compiled schema config).
+    pub apq_store:   Option<Arc<dyn ApqStorage>>,
+    /// APQ metrics tracker.
+    pub apq_metrics: Arc<ApqMetrics>,
+    /// Request validator (depth/complexity limits, configured from compiled schema).
+    pub validator:   crate::validation::RequestValidator,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -128,6 +143,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
             state_encryption: None,
             api_key_authenticator: None,
+            apq_store: None,
+            apq_metrics: Arc::new(ApqMetrics::default()),
+            validator: crate::validation::RequestValidator::new(),
         }
     }
 
@@ -240,6 +258,20 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
+    /// Attach an APQ store for Automatic Persisted Queries.
+    #[must_use]
+    pub fn with_apq_store(mut self, store: Arc<dyn ApqStorage>) -> Self {
+        self.apq_store = Some(store);
+        self
+    }
+
+    /// Set the request validator (query depth/complexity limits).
+    #[must_use]
+    pub fn with_validator(mut self, validator: crate::validation::RequestValidator) -> Self {
+        self.validator = validator;
+        self
+    }
+
     /// Sanitize a batch of errors before sending them to the client.
     pub fn sanitize_errors(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {
         self.error_sanitizer.sanitize_all(errors)
@@ -344,9 +376,10 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     }
 
     let request = GraphQLRequest {
-        query: params.query,
+        query: Some(params.query),
         variables,
         operation_name: params.operation_name,
+        extensions: None,
     };
 
     // NOTE: SecurityContext extraction will be handled via middleware in next iteration
@@ -366,6 +399,64 @@ fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
     // SECURITY: Spoofable headers removed. Use ConnectInfo<SocketAddr> or
     // ProxyConfig::extract_client_ip() for validated IP extraction.
     "unknown".to_string()
+}
+
+/// Extract the APQ SHA-256 hash from the `extensions.persistedQuery` field, if present.
+fn extract_apq_hash(extensions: Option<&serde_json::Value>) -> Option<&str> {
+    extensions?
+        .get("persistedQuery")?
+        .get("sha256Hash")?
+        .as_str()
+}
+
+/// Resolve an APQ request: look up or register a persisted query.
+///
+/// Returns the resolved query body, or an error if the query is not found and no body was
+/// provided (the client should resend with the full body).
+async fn resolve_apq(
+    apq_store: &dyn ApqStorage,
+    apq_metrics: &ApqMetrics,
+    hash: &str,
+    query_body: Option<&str>,
+) -> Result<String, ErrorResponse> {
+    if let Some(body) = query_body {
+        // Hash + body present: verify and register.
+        if !fraiseql_core::apq::verify_hash(body, hash) {
+            apq_metrics.record_error();
+            return Err(ErrorResponse::from_error(
+                GraphQLError::persisted_query_mismatch(),
+            ));
+        }
+        // Store the query (best-effort; log on failure).
+        if let Err(e) = apq_store.set(hash.to_owned(), body.to_owned()).await {
+            warn!(error = %e, "Failed to store APQ query — proceeding without caching");
+            apq_metrics.record_error();
+        } else {
+            apq_metrics.record_store();
+        }
+        Ok(body.to_owned())
+    } else {
+        // Hash only: look up.
+        match apq_store.get(hash).await {
+            Ok(Some(stored)) => {
+                apq_metrics.record_hit();
+                Ok(stored)
+            }
+            Ok(None) => {
+                apq_metrics.record_miss();
+                Err(ErrorResponse::from_error(
+                    GraphQLError::persisted_query_not_found(),
+                ))
+            }
+            Err(e) => {
+                warn!(error = %e, "APQ store lookup failed — treating as miss");
+                apq_metrics.record_error();
+                Err(ErrorResponse::from_error(
+                    GraphQLError::persisted_query_not_found(),
+                ))
+            }
+        }
+    }
 }
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
@@ -396,6 +487,33 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             }
         }
     }
+
+    // Resolve query body — either from APQ or from the request payload.
+    let query = if let Some(hash) = extract_apq_hash(request.extensions.as_ref()) {
+        if let Some(ref store) = state.apq_store {
+            resolve_apq(
+                store.as_ref(),
+                &state.apq_metrics,
+                hash,
+                request.query.as_deref(),
+            )
+            .await?
+        } else {
+            // APQ extension present but no store configured — use the body if available.
+            request.query.ok_or_else(|| {
+                ErrorResponse::from_error(GraphQLError::request(
+                    "APQ is not enabled on this server and no query body was provided",
+                ))
+            })?
+        }
+    } else {
+        request.query.ok_or_else(|| {
+            ErrorResponse::from_error(GraphQLError::request(
+                "No query provided",
+            ))
+        })?
+    };
+
     let start_time = Instant::now();
     let metrics = &state.metrics;
 
@@ -403,17 +521,17 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     metrics.queries_total.fetch_add(1, Ordering::Relaxed);
 
     info!(
-        query_length = request.query.len(),
+        query_length = query.len(),
         has_variables = request.variables.is_some(),
         operation_name = ?request.operation_name,
         "Executing GraphQL query"
     );
 
     // Validate request
-    let validator = RequestValidator::new();
+    let validator = &state.validator;
 
     // Validate query
-    if let Err(e) = validator.validate_query(&request.query) {
+    if let Err(e) = validator.validate_query(&query) {
         error!(
             error = %e,
             operation_name = ?request.operation_name,
@@ -479,7 +597,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 
     // Check federation circuit breaker for _entities queries before execution
     let cb_entity_types: Vec<String> =
-        if fraiseql_core::federation::is_federation_query(&request.query) {
+        if fraiseql_core::federation::is_federation_query(&query) {
             if let Some(ref cb_manager) = state.circuit_breaker {
                 let entity_types = crate::federation::circuit_breaker::extract_entity_types(
                     request.variables.as_ref(),
@@ -510,10 +628,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let exec_result = if let Some(sec_ctx) = security_context {
         state
             .executor
-            .execute_with_security(&request.query, request.variables.as_ref(), &sec_ctx)
+            .execute_with_security(&query, request.variables.as_ref(), &sec_ctx)
             .await
     } else {
-        state.executor.execute(&request.query, request.variables.as_ref()).await
+        state.executor.execute(&query, request.variables.as_ref()).await
     };
 
     // Record circuit breaker outcome for federation entity queries
@@ -558,7 +676,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     metrics.db_queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
 
     // Record federation-specific metrics for federation queries
-    if fraiseql_core::federation::is_federation_query(&request.query) {
+    if fraiseql_core::federation::is_federation_query(&query) {
         metrics.record_entity_resolution(elapsed_us, true);
     }
 
@@ -608,8 +726,17 @@ mod tests {
     fn test_graphql_request_deserialize() {
         let json = r#"{"query": "{ users { id } }"}"#;
         let request: GraphQLRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.query, "{ users { id } }");
+        assert_eq!(request.query.as_deref(), Some("{ users { id } }"));
         assert!(request.variables.is_none());
+    }
+
+    #[test]
+    fn test_graphql_request_without_query() {
+        // APQ hash-only request: no query body.
+        let json = r#"{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"abc123"}}}"#;
+        let request: GraphQLRequest = serde_json::from_str(json).unwrap();
+        assert!(request.query.is_none());
+        assert!(request.extensions.is_some());
     }
 
     #[test]
@@ -899,5 +1026,68 @@ mod tests {
         // With 0 second window, the window should reset immediately
         // In practice, the window immediately expires and resets
         assert!(limiter.check("192.0.2.1").is_ok());
+    }
+
+    // APQ helper unit tests
+
+    #[test]
+    fn test_extract_apq_hash_present() {
+        let ext = serde_json::json!({
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": "abc123def456"
+            }
+        });
+        assert_eq!(extract_apq_hash(Some(&ext)), Some("abc123def456"));
+    }
+
+    #[test]
+    fn test_extract_apq_hash_absent() {
+        assert_eq!(extract_apq_hash(None), None);
+
+        let ext = serde_json::json!({"other": "value"});
+        assert_eq!(extract_apq_hash(Some(&ext)), None);
+    }
+
+    #[tokio::test]
+    async fn test_apq_miss_returns_not_found() {
+        let store = fraiseql_core::apq::InMemoryApqStorage::default();
+        let metrics = ApqMetrics::default();
+
+        let result = resolve_apq(&store, &metrics, "nonexistent_hash", None).await;
+        assert!(result.is_err());
+        assert_eq!(metrics.get_misses(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_apq_register_and_hit() {
+        let store = fraiseql_core::apq::InMemoryApqStorage::default();
+        let metrics = ApqMetrics::default();
+
+        let query = "{ users { id } }";
+        let hash = fraiseql_core::apq::hash_query(query);
+
+        // Register: hash + body
+        let result = resolve_apq(&store, &metrics, &hash, Some(query)).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), query);
+        assert_eq!(metrics.get_stored(), 1);
+
+        // Hit: hash only
+        let result = resolve_apq(&store, &metrics, &hash, None).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), query);
+        assert_eq!(metrics.get_hits(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_apq_hash_mismatch() {
+        let store = fraiseql_core::apq::InMemoryApqStorage::default();
+        let metrics = ApqMetrics::default();
+
+        let result =
+            resolve_apq(&store, &metrics, "wrong_hash", Some("{ users { id } }")).await;
+        assert!(result.is_err());
+        assert_eq!(metrics.get_errors(), 1);
     }
 }

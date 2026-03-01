@@ -49,6 +49,8 @@ postgres-native-tls = {workspace = true}
 rand = {workspace = true}
 # Kafka (optional)
 rdkafka = {workspace = true, optional = true}
+# Redis APQ backend (optional)
+redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 regex = {workspace = true}
 reqwest = {workspace = true}
 # Workspace dependencies
@@ -93,6 +95,7 @@ default = ["postgres", "rich-filters"]
 kafka = ["rdkafka"]
 mysql = ["sqlx/mysql"]
 postgres = []
+redis-apq = ["redis"]
 # Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
 # Includes specialized filter operators for 44 rich scalar types
 rich-filters = []

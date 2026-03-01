@@ -257,6 +257,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscriptions_config: Option<serde_json::Value>,
 
+    /// Query validation config (depth/complexity limits).
+    /// Compiled from the `[validation]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation_config: Option<serde_json::Value>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
@@ -1673,6 +1678,20 @@ pub struct MutationDefinition {
     /// ```
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_fact_tables: Vec<String>,
+
+    /// View names whose cached query results should be invalidated after this
+    /// mutation succeeds.
+    ///
+    /// When the `CachedDatabaseAdapter` is active, the runtime calls
+    /// `invalidate_views()` with these names, clearing all cache entries that
+    /// read from the specified views.
+    ///
+    /// If empty and the mutation return type has a `sql_source`, the runtime
+    /// infers the primary view from the return type.
+    ///
+    /// Each entry must be a valid SQL identifier validated at compile time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invalidates_views: Vec<String>,
 }
 
 impl MutationDefinition {
@@ -1689,6 +1708,7 @@ impl MutationDefinition {
             sql_source:             None,
             inject_params:          IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
+            invalidates_views:      Vec::new(),
         }
     }
 

@@ -132,7 +132,7 @@ fn test_graphql_request_deserialization() {
     let json_str = r#"{"query": "{ users { id } }"}"#;
     let request: GraphQLRequest = serde_json::from_str(json_str).unwrap();
 
-    assert_eq!(request.query, "{ users { id } }");
+    assert_eq!(request.query.as_deref(), Some("{ users { id } }"));
     assert_eq!(request.variables, None);
     assert_eq!(request.operation_name, None);
 }
@@ -144,7 +144,7 @@ fn test_graphql_request_with_variables_deserialization() {
         r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
     let request: GraphQLRequest = serde_json::from_str(json_str).unwrap();
 
-    assert_eq!(request.query, "query($id: ID!) { user(id: $id) { name } }");
+    assert_eq!(request.query.as_deref(), Some("query($id: ID!) { user(id: $id) { name } }"));
     let variables = request.variables.expect("variables should be present");
     assert_eq!(variables, json!({"id": "123"}));
 }
@@ -168,23 +168,25 @@ fn test_request_validation_integration() {
 
     // Test with valid request
     let valid_request = GraphQLRequest {
-        query:          "{ user { id } }".to_string(),
+        query:          Some("{ user { id } }".to_string()),
         variables:      None,
         operation_name: None,
+        extensions:     None,
     };
 
-    assert!(validator.validate_query(&valid_request.query).is_ok());
+    assert!(validator.validate_query(valid_request.query.as_deref().unwrap()).is_ok());
     assert!(validator.validate_variables(valid_request.variables.as_ref()).is_ok());
 
     // Test with invalid depth
     let deep_request = GraphQLRequest {
-        query:          "{ a { b { c { d { e { f } } } } } }".to_string(),
+        query:          Some("{ a { b { c { d { e { f } } } } } }".to_string()),
         variables:      None,
         operation_name: None,
+        extensions:     None,
     };
 
     let validator = validator.with_max_depth(2);
-    assert!(validator.validate_query(&deep_request.query).is_err());
+    assert!(validator.validate_query(deep_request.query.as_deref().unwrap()).is_err());
 }
 
 /// Test error response with multiple errors

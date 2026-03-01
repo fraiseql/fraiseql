@@ -221,7 +221,7 @@ fn test_graphql_request_deserializes_from_json() {
     });
 
     let request: GraphQLRequest = serde_json::from_value(json).unwrap();
-    assert_eq!(request.query, "query { user(id: \"123\") { id name email } }");
+    assert_eq!(request.query.as_deref(), Some("query { user(id: \"123\") { id name email } }"));
     assert!(request.variables.is_some());
     assert_eq!(request.operation_name, Some("GetUser".to_string()));
 }
@@ -229,13 +229,14 @@ fn test_graphql_request_deserializes_from_json() {
 #[test]
 fn test_graphql_request_minimal() {
     let request = GraphQLRequest {
-        query:          "{ user { id } }".to_string(),
+        query:          Some("{ user { id } }".to_string()),
         variables:      None,
         operation_name: None,
+        extensions:     None,
     };
 
     let validator = RequestValidator::new();
-    assert!(validator.validate_query(&request.query).is_ok());
+    assert!(validator.validate_query(request.query.as_deref().unwrap()).is_ok());
 }
 
 // =============================================================================

@@ -58,6 +58,7 @@ pub struct Server<A: DatabaseAdapter> {
     oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
     api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    apq_store:            Option<Arc<dyn fraiseql_core::apq::ApqStorage>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -396,6 +397,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         )
         .await?;
 
+        // Initialize APQ store when enabled.
+        if server.config.apq_enabled {
+            let apq_store: Arc<dyn fraiseql_core::apq::ApqStorage> =
+                Arc::new(fraiseql_core::apq::InMemoryApqStorage::default());
+            server.apq_store = Some(apq_store);
+            info!("APQ (Automatic Persisted Queries) enabled — in-memory backend");
+        }
+
         // Apply subscription lifecycle/limits from compiled schema.
         if let Some(ref subs_json) = subscriptions_config_json {
             if let Some(max) = subs_json.get("max_subscriptions_per_connection").and_then(|v| v.as_u64()) {
@@ -540,6 +549,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             oidc_server_client,
             api_key_authenticator,
             revocation_manager,
+            apq_store: None,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -625,7 +635,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        Self::from_executor(
+        let mut server = Self::from_executor(
             config,
             executor,
             subscription_manager,
@@ -639,7 +649,17 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             revocation_manager,
             db_pool,
         )
-        .await
+        .await?;
+
+        // Initialize APQ store when enabled.
+        if server.config.apq_enabled {
+            let apq_store: Arc<dyn fraiseql_core::apq::ApqStorage> =
+                Arc::new(fraiseql_core::apq::InMemoryApqStorage::default());
+            server.apq_store = Some(apq_store);
+            info!("APQ (Automatic Persisted Queries) enabled — in-memory backend");
+        }
+
+        Ok(server)
     }
 }
 
@@ -770,6 +790,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             oidc_server_client,
             api_key_authenticator,
             revocation_manager,
+            apq_store: if config.apq_enabled {
+                Some(Arc::new(fraiseql_core::apq::InMemoryApqStorage::default())
+                    as Arc<dyn fraiseql_core::apq::ApqStorage>)
+            } else {
+                None
+            },
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -849,6 +875,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None => {
                 info!("State encryption: disabled (no key configured)");
             },
+        }
+
+        // Build RequestValidator from compiled schema validation config
+        let mut validator = crate::validation::RequestValidator::new();
+        if let Some(ref vc) = self.executor.schema().validation_config {
+            if let Some(depth) = vc.get("max_query_depth").and_then(serde_json::Value::as_u64) {
+                validator = validator.with_max_depth(depth as usize);
+                info!(max_query_depth = depth, "Custom query depth limit configured");
+            }
+            if let Some(complexity) = vc.get("max_query_complexity").and_then(serde_json::Value::as_u64) {
+                validator = validator.with_max_complexity(complexity as usize);
+                info!(max_query_complexity = complexity, "Custom query complexity limit configured");
+            }
+        }
+        state = state.with_validator(validator);
+
+        // Attach APQ store if configured
+        if let Some(ref store) = self.apq_store {
+            state = state.with_apq_store(store.clone());
         }
 
         let metrics = state.metrics.clone();

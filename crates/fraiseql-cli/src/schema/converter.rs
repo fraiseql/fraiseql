@@ -143,6 +143,7 @@ impl SchemaConverter {
             security: intermediate.security,               // Security configuration from TOML
             observers_config: intermediate.observers_config,         // Observers config from TOML
             subscriptions_config: intermediate.subscriptions_config, // Subscriptions config from TOML
+            validation_config: intermediate.validation_config,       // Validation limits from TOML
             schema_sdl: None,                                        // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
         };
@@ -538,6 +539,19 @@ impl SchemaConverter {
             }
         }
 
+        // Validate invalidates_views entries as safe SQL identifiers.
+        for view in &intermediate.invalidates_views {
+            if !Self::is_safe_sql_identifier(view) {
+                anyhow::bail!(
+                    "Mutation '{}': invalidates_views entry {:?} is not a valid SQL \
+                     identifier. Use only letters, digits, and underscores (must start with \
+                     a letter or underscore).",
+                    intermediate.name,
+                    view
+                );
+            }
+        }
+
         Ok(MutationDefinition {
             name:                    intermediate.name,
             return_type:             intermediate.return_type,
@@ -548,6 +562,7 @@ impl SchemaConverter {
             sql_source:              intermediate.sql_source,
             inject_params,
             invalidates_fact_tables: intermediate.invalidates_fact_tables,
+            invalidates_views:       intermediate.invalidates_views,
         })
     }
 
@@ -1116,6 +1131,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1171,6 +1187,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1219,6 +1236,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1282,6 +1300,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1336,6 +1355,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1391,6 +1411,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1453,6 +1474,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1521,6 +1543,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1605,6 +1628,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1656,6 +1680,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1711,6 +1736,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1778,6 +1804,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1867,6 +1894,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1942,6 +1970,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1994,6 +2023,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -2056,6 +2086,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -2123,6 +2154,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -2202,6 +2234,7 @@ mod tests {
             custom_scalars:    None,
             observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
             federation_config: None,
             query_defaults:    None,
         };

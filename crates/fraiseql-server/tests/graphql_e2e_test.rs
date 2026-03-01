@@ -25,12 +25,13 @@ use serde_json::json;
 #[test]
 fn test_simple_query_structure() {
     let request = GraphQLRequest {
-        query:          "{ user { id } }".to_string(),
+        query:          Some("{ user { id } }".to_string()),
         variables:      None,
         operation_name: None,
+        extensions:     None,
     };
 
-    assert_eq!(request.query, "{ user { id } }");
+    assert_eq!(request.query.as_deref(), Some("{ user { id } }"));
     assert_eq!(request.variables, None);
     assert_eq!(request.operation_name, None);
 }
@@ -44,9 +45,10 @@ fn test_query_with_variables() {
     });
 
     let request = GraphQLRequest {
-        query: "query($userId: ID!, $limit: Int!) { user(id: $userId) { posts(limit: $limit) { id } } }".to_string(),
+        query: Some("query($userId: ID!, $limit: Int!) { user(id: $userId) { posts(limit: $limit) { id } } }".to_string()),
         variables: Some(variables),
         operation_name: Some("GetUserPosts".to_string()),
+        extensions: None,
     };
 
     assert_eq!(request.operation_name, Some("GetUserPosts".to_string()));
@@ -247,7 +249,7 @@ fn test_graphql_request_deserialization() {
 
     let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
 
-    assert_eq!(request.query, "{ users { id name } }");
+    assert_eq!(request.query.as_deref(), Some("{ users { id name } }"));
     let variables = request.variables.expect("variables should be present");
     assert_eq!(variables["limit"], 10);
     assert_eq!(request.operation_name, Some("GetUsers".to_string()));
@@ -260,7 +262,7 @@ fn test_minimal_graphql_request() {
 
     let request: GraphQLRequest = serde_json::from_str(json_request).unwrap();
 
-    assert_eq!(request.query, "{ users { id } }");
+    assert_eq!(request.query.as_deref(), Some("{ users { id } }"));
     assert_eq!(request.variables, None);
     assert_eq!(request.operation_name, None);
 }
@@ -287,13 +289,14 @@ fn test_validation_pipeline() {
 
     // Step 1: Parse request
     let request = GraphQLRequest {
-        query:          "{ users { id name } }".to_string(),
+        query:          Some("{ users { id name } }".to_string()),
         variables:      Some(json!({"limit": 10})),
         operation_name: None,
+        extensions:     None,
     };
 
     // Step 2: Validate query structure
-    assert!(validator.validate_query(&request.query).is_ok());
+    assert!(validator.validate_query(request.query.as_deref().unwrap()).is_ok());
 
     // Step 3: Validate variables format
     assert!(validator.validate_variables(request.variables.as_ref()).is_ok());

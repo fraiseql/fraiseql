@@ -101,6 +101,13 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscriptions_config: Option<serde_json::Value>,
 
+    /// Query validation config (depth/complexity limits).
+    ///
+    /// Compiled from `[validation]` in `fraiseql.toml`. Embedded into the compiled
+    /// schema for server-side consumption.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation_config: Option<serde_json::Value>,
+
     /// Global auto-param defaults for list queries (injected from TOML by the merger).
     ///
     /// Never present in `schema.json` — populated at compile time from `[query_defaults]`
@@ -490,6 +497,11 @@ pub struct IntermediateMutation {
     /// Used for correct invalidation of analytic/aggregate cache entries.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invalidates_fact_tables: Vec<String>,
+
+    /// View names whose cached query results should be invalidated after this
+    /// mutation succeeds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invalidates_views: Vec<String>,
 }
 
 // =============================================================================

@@ -109,6 +109,42 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Append APQ (Automatic Persisted Queries) counters.
+    {
+        let apq = &state.apq_metrics;
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_apq_hits_total Total APQ cache hits\n",
+                "# TYPE fraiseql_apq_hits_total counter\n",
+                "fraiseql_apq_hits_total {hits}\n",
+                "\n# HELP fraiseql_apq_misses_total Total APQ cache misses\n",
+                "# TYPE fraiseql_apq_misses_total counter\n",
+                "fraiseql_apq_misses_total {misses}\n",
+                "\n# HELP fraiseql_apq_stored_total Total APQ queries stored\n",
+                "# TYPE fraiseql_apq_stored_total counter\n",
+                "fraiseql_apq_stored_total {stored}\n",
+            ),
+            hits   = apq.get_hits(),
+            misses = apq.get_misses(),
+            stored = apq.get_stored(),
+        ));
+    }
+
+    // Append Redis APQ error counter when the feature is compiled in.
+    #[cfg(feature = "redis-apq")]
+    {
+        let errors = fraiseql_core::apq::redis_storage::redis_apq_error_count_total();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_apq_redis_errors_total ",
+                "Total Redis APQ fail-open events\n",
+                "# TYPE fraiseql_apq_redis_errors_total counter\n",
+                "fraiseql_apq_redis_errors_total {errors}\n",
+            ),
+            errors = errors
+        ));
+    }
+
     // Append subscription counters.
     let subs = crate::routes::subscription_metrics();
     output.push_str(&format!(

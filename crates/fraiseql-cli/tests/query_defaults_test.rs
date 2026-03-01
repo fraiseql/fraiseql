@@ -42,6 +42,7 @@ fn base_schema_with_query(query: IntermediateQuery, query_defaults: Option<Inter
         security:          None,
         observers_config:  None,
             subscriptions_config: None,
+            validation_config: None,
         federation_config: None,
         query_defaults,
     }

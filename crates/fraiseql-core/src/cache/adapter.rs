@@ -837,6 +837,12 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.execute_function_call(function_name, args).await
     }
 
+    async fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+        // Delegate to the inherent (synchronous) method which handles cascade
+        // expansion and cache eviction.
+        CachedDatabaseAdapter::invalidate_views(self, views)
+    }
+
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
         for table in tables {
             // Only act when this table uses the version-table strategy.

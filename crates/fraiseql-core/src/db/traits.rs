@@ -444,6 +444,19 @@ pub trait DatabaseAdapter: Send + Sync {
         Ok(())
     }
 
+    /// Invalidate cached query results for the specified views.
+    ///
+    /// Called by the executor after a mutation succeeds, so that stale cache
+    /// entries reading from modified views are evicted. The default
+    /// implementation is a no-op; `CachedDatabaseAdapter` overrides this.
+    ///
+    /// # Returns
+    ///
+    /// The number of cache entries evicted.
+    async fn invalidate_views(&self, _views: &[String]) -> Result<u64> {
+        Ok(0)
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

@@ -1534,6 +1534,27 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .await?;
         }
 
+        // Invalidate query result cache for views touched by this mutation.
+        // When invalidates_views is empty, infer the primary view from the
+        // mutation return type's sql_source (if any).
+        if matches!(outcome, MutationOutcome::Success { .. }) {
+            let views_to_invalidate = if mutation_def.invalidates_views.is_empty() {
+                self.schema
+                    .types
+                    .iter()
+                    .find(|t| t.name == mutation_def.return_type)
+                    .filter(|t| !t.sql_source.is_empty())
+                    .map(|t| t.sql_source.clone())
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            } else {
+                mutation_def.invalidates_views.clone()
+            };
+            if !views_to_invalidate.is_empty() {
+                self.adapter.invalidate_views(&views_to_invalidate).await?;
+            }
+        }
+
         // Clone name and return_type to avoid borrow issues after schema lookups
         let mutation_return_type = mutation_def.return_type.clone();
         let mutation_name_owned = mutation_name.to_string();

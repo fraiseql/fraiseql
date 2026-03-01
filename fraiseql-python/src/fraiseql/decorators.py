@@ -464,6 +464,24 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                     )
                     raise ValueError(msg)
 
+        # invalidates_views validation — fail fast at authoring time
+        if (iv := config_kwargs.get("invalidates_views")) is not None:
+            if not isinstance(iv, list):
+                msg = (
+                    f"@fraiseql.mutation invalidates_views= on {f.__name__!r} "
+                    f"must be a list (got {iv.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            for entry in iv:
+                if not isinstance(entry, str) or not _IDENTIFIER_RE.match(entry):
+                    msg = (
+                        f"@fraiseql.mutation invalidates_views= on {f.__name__!r}: "
+                        f"entry {entry!r} is not a valid SQL identifier. "
+                        "Use only letters, digits, and underscores (must start with a "
+                        "letter or underscore)."
+                    )
+                    raise ValueError(msg)
+
         # Register mutation with schema registry
         SchemaRegistry.register_mutation(
             name=f.__name__,

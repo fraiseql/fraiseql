@@ -838,6 +838,62 @@ def test_mutation_invalidates_fact_tables_invalid_identifier_raises() -> None:
             pass
 
 
+# ── @fraiseql.mutation invalidates_views tests ────────────────────────────────
+
+
+def test_mutation_invalidates_views_valid_passes_through() -> None:
+    """Valid invalidates_views list is stored in schema output."""
+
+    @fraiseql.type
+    class Invoice:
+        id: int
+
+    @fraiseql.mutation(
+        sql_source="fn_create_invoice",
+        invalidates_views=["v_invoice", "v_invoice_summary"],
+    )
+    def create_invoice(amount: float) -> Invoice:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "create_invoice")
+    assert mut["invalidates_views"] == ["v_invoice", "v_invoice_summary"]
+
+
+def test_mutation_invalidates_views_not_list_raises() -> None:
+    """Non-list invalidates_views raises TypeError."""
+
+    @fraiseql.type
+    class Gadget:
+        id: int
+
+    with pytest.raises(TypeError, match="must be a list"):
+
+        @fraiseql.mutation(
+            sql_source="fn_create_gadget",
+            invalidates_views="v_gadget",
+        )
+        def create_gadget(name: str) -> Gadget:
+            pass
+
+
+def test_mutation_invalidates_views_invalid_identifier_raises() -> None:
+    """Invalid SQL identifier in invalidates_views raises ValueError."""
+
+    @fraiseql.type
+    class Gizmo:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid SQL identifier"):
+
+        @fraiseql.mutation(
+            sql_source="fn_create_gizmo",
+            invalidates_views=["v_gizmo", "bad view"],
+        )
+        def create_gizmo(name: str) -> Gizmo:
+            pass
+
+
 # ============================================================================
 # sql_source identifier validation
 # ============================================================================

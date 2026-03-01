@@ -217,6 +217,7 @@ impl CodeGenerator {
             // Raw schema SDL: populated for federation _service query
             observers_config: None,
             subscriptions_config: None,
+            validation_config: None,
             schema_sdl: None,
             // Custom scalar types registry
             custom_scalars,
@@ -296,6 +297,7 @@ impl CodeGenerator {
             sql_source:    None,
             inject_params: Default::default(),
             invalidates_fact_tables: vec![],
+            invalidates_views:      vec![],
         }
     }
 

@@ -540,6 +540,12 @@ impl SchemaMerger {
             merged["subscriptions_config"] = subs_json;
         }
 
+        // Embed validation config (depth/complexity limits)
+        let val_json = serde_json::to_value(&toml_schema.validation).unwrap_or_default();
+        if val_json != serde_json::json!({}) {
+            merged["validation_config"] = val_json;
+        }
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;
@@ -798,5 +804,73 @@ root_dir = "{schema_dir_str}"
         assert_eq!(type_names[2], "ZEBRA");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_merge_toml_only_with_validation_config() {
+        let toml_content = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.fields.id]
+type = "ID"
+
+[validation]
+max_query_depth = 3
+max_query_complexity = 25
+"#;
+
+        let temp_path = "/tmp/test_fraiseql_validation.toml";
+        std::fs::write(temp_path, toml_content).unwrap();
+
+        let result = SchemaMerger::merge_toml_only(temp_path);
+        assert!(result.is_ok());
+        let schema = result.unwrap();
+
+        // validation_config should be populated
+        let vc = schema.validation_config.as_ref().expect("validation_config should be set");
+        assert_eq!(vc.get("max_query_depth").and_then(serde_json::Value::as_u64), Some(3));
+        assert_eq!(vc.get("max_query_complexity").and_then(serde_json::Value::as_u64), Some(25));
+
+        let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn test_merge_toml_only_without_validation_config() {
+        let toml_content = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.fields.id]
+type = "ID"
+"#;
+
+        let temp_path = "/tmp/test_fraiseql_no_validation.toml";
+        std::fs::write(temp_path, toml_content).unwrap();
+
+        let result = SchemaMerger::merge_toml_only(temp_path);
+        assert!(result.is_ok());
+        let schema = result.unwrap();
+
+        // validation_config should be None when no [validation] section
+        assert!(schema.validation_config.is_none());
+
+        let _ = std::fs::remove_file(temp_path);
     }
 }

@@ -460,6 +460,7 @@ mod tests {
             security:         None,
             observers_config: None,
             subscriptions_config: None,
+            validation_config: None,
             schema_sdl:       None,
             custom_scalars:   CustomTypeRegistry::default(),
         };
@@ -505,6 +506,7 @@ mod tests {
             security:         None,
             observers_config: None,
             subscriptions_config: None,
+            validation_config: None,
             schema_sdl:       None,
             custom_scalars:   CustomTypeRegistry::default(),
         };

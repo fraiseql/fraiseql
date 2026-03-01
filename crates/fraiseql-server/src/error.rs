@@ -40,6 +40,10 @@ pub enum ErrorCode {
     Conflict,
     /// Circuit breaker open — federation entity temporarily unavailable.
     CircuitBreakerOpen,
+    /// Persisted query not found — client must re-send the full query body.
+    PersistedQueryNotFound,
+    /// Persisted query hash mismatch — SHA-256 of body does not match provided hash.
+    PersistedQueryMismatch,
 }
 
 impl ErrorCode {
@@ -58,6 +62,9 @@ impl ErrorCode {
             Self::Timeout => StatusCode::REQUEST_TIMEOUT,
             Self::InternalServerError | Self::DatabaseError => StatusCode::INTERNAL_SERVER_ERROR,
             Self::CircuitBreakerOpen => StatusCode::SERVICE_UNAVAILABLE,
+            // APQ protocol: "not found" is a signal for the client to re-send with query body.
+            Self::PersistedQueryNotFound => StatusCode::OK,
+            Self::PersistedQueryMismatch => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -266,6 +273,24 @@ impl GraphQLError {
             // Cancelled, Configuration, Internal, and any future variants
             _ => Self::internal(err.to_string()),
         }
+    }
+
+    /// Persisted query not found — client must re-send the full query body.
+    #[must_use]
+    pub fn persisted_query_not_found() -> Self {
+        Self::new(
+            "PersistedQueryNotFound",
+            ErrorCode::PersistedQueryNotFound,
+        )
+    }
+
+    /// Persisted query hash mismatch — SHA-256 of body does not match the provided hash.
+    #[must_use]
+    pub fn persisted_query_mismatch() -> Self {
+        Self::new(
+            "provided sha does not match query",
+            ErrorCode::PersistedQueryMismatch,
+        )
     }
 
     /// Circuit breaker open — federation entity temporarily unavailable.

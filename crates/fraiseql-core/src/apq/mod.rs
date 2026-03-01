@@ -17,10 +17,16 @@
 //! - **metrics**: APQ performance metrics and monitoring
 
 pub mod hasher; // Pure Rust query hasher
+pub mod memory_storage;
 pub mod metrics;
+#[cfg(feature = "redis-apq")]
+pub mod redis_storage;
 pub mod storage;
 
 // Re-export key types for convenience
 pub use hasher::{hash_query, hash_query_with_variables, verify_hash, verify_hash_with_variables};
+pub use memory_storage::InMemoryApqStorage;
 pub use metrics::ApqMetrics;
+#[cfg(feature = "redis-apq")]
+pub use redis_storage::RedisApqStorage;
 pub use storage::{ApqError, ApqStats, ApqStorage};

@@ -319,6 +319,10 @@ pub struct TomlSchema {
     /// WebSocket subscription configuration (hooks, limits).
     #[serde(default)]
     pub subscriptions: SubscriptionsConfig,
+
+    /// Query validation limits (depth, complexity).
+    #[serde(default)]
+    pub validation: ValidationConfig,
 }
 
 /// Schema metadata
@@ -1380,6 +1384,25 @@ fn default_hook_timeout_ms() -> u64 {
     500
 }
 
+/// Query validation limits (depth and complexity).
+///
+/// ```toml
+/// [validation]
+/// max_query_depth = 10
+/// max_query_complexity = 100
+/// ```
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ValidationConfig {
+    /// Maximum allowed query nesting depth. `None` uses the server default (10).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_query_depth: Option<u32>,
+
+    /// Maximum allowed query complexity score. `None` uses the server default (100).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_query_complexity: Option<u32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1724,5 +1747,36 @@ requests_per_second = 50
         let schema: TomlSchema = toml::from_str(toml).unwrap();
         let rl = schema.security.rate_limiting.unwrap();
         assert_eq!(rl.requests_per_second_per_user, None);
+    }
+
+    #[test]
+    fn test_validation_config_parses_limits() {
+        let toml = r"
+[validation]
+max_query_depth = 5
+max_query_complexity = 50
+";
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        assert_eq!(schema.validation.max_query_depth, Some(5));
+        assert_eq!(schema.validation.max_query_complexity, Some(50));
+    }
+
+    #[test]
+    fn test_validation_config_defaults_to_none() {
+        let toml = "";
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        assert_eq!(schema.validation.max_query_depth, None);
+        assert_eq!(schema.validation.max_query_complexity, None);
+    }
+
+    #[test]
+    fn test_validation_config_partial() {
+        let toml = r"
+[validation]
+max_query_depth = 3
+";
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        assert_eq!(schema.validation.max_query_depth, Some(3));
+        assert_eq!(schema.validation.max_query_complexity, None);
     }
 }
