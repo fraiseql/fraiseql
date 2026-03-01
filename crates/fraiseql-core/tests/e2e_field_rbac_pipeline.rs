@@ -15,6 +15,7 @@
 //! 9. Runtime: error on missing required scope
 //! 10. Runtime: E2E pipeline for multi-tenant scenarios
 
+use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 
 use chrono::Utc;
@@ -47,6 +48,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -59,6 +61,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             // Protected fields
@@ -72,6 +75,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -84,6 +88,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.phone".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             // Admin-only fields
@@ -97,6 +102,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -109,6 +115,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -117,6 +124,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
+        requires_role:       None,
         is_error:            false,
         relay:            false,
     }

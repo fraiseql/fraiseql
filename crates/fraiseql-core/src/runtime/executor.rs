@@ -161,7 +161,7 @@ use futures::future::BoxFuture;
 
 use super::{
     ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
-    filter_fields,
+    classify_field_access,
     mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
 };
 #[cfg(test)]
@@ -869,54 +869,54 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Apply field-level RBAC filtering to projection fields.
     ///
-    /// Filters the projection fields based on the user's security context and field scope
-    /// requirements. Returns only fields that the user is authorized to access.
+    /// Classifies each requested field against the user's security context:
+    /// - **Allowed**: user has the required scope (or field is public)
+    /// - **Masked**: user lacks scope, but `on_deny = Mask` → field value will be nulled
+    /// - **Rejected**: user lacks scope, `on_deny = Reject` → query fails with FORBIDDEN
     ///
-    /// # Arguments
+    /// # Errors
     ///
-    /// * `return_type` - The GraphQL return type name (e.g., "User", "Post")
-    /// * `projection_fields` - The originally requested field names
-    /// * `security_context` - The user's security context with roles
-    ///
-    /// # Returns
-    ///
-    /// Filtered list of accessible field names in the same order as requested
+    /// Returns `FraiseQLError::Forbidden` if any requested field has `on_deny = Reject`
+    /// and the user lacks the required scope.
     fn apply_field_rbac_filtering(
         &self,
         return_type: &str,
         projection_fields: Vec<String>,
         security_context: &SecurityContext,
-    ) -> Result<Vec<String>> {
+    ) -> Result<super::field_filter::FieldAccessResult> {
+        use super::field_filter::FieldAccessResult;
+
         // Try to extract security config from compiled schema
         if let Some(ref security_json) = self.schema.security {
-            // Deserialize security config
             let security_config: SecurityConfig = serde_json::from_value(security_json.clone())
                 .map_err(|_| FraiseQLError::Validation {
                     message: "Invalid security configuration in compiled schema".to_string(),
                     path:    Some("schema.security".to_string()),
                 })?;
 
-            // Find the type in the schema
             if let Some(type_def) = self.schema.types.iter().find(|t| t.name == return_type) {
-                // Filter fields based on user roles and scope requirements
-                let accessible_fields =
-                    filter_fields(security_context, &security_config, &type_def.fields);
-
-                // Map back to field names, preserving order from projection_fields
-                let accessible_names: std::collections::HashSet<String> =
-                    accessible_fields.iter().map(|f| f.name.clone()).collect();
-
-                let filtered: Vec<String> = projection_fields
-                    .into_iter()
-                    .filter(|name| accessible_names.contains(name))
-                    .collect();
-
-                return Ok(filtered);
+                return classify_field_access(
+                    security_context,
+                    &security_config,
+                    &type_def.fields,
+                    projection_fields,
+                )
+                .map_err(|rejected_field| FraiseQLError::Authorization {
+                    message:  format!(
+                        "Access denied: field '{rejected_field}' on type '{return_type}' \
+                         requires a scope you do not have"
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(format!("{return_type}.{rejected_field}")),
+                });
             }
         }
 
-        // If no security config or type not found, return all projection fields (no filtering)
-        Ok(projection_fields)
+        // No security config or type not found → all fields allowed, none masked
+        Ok(FieldAccessResult {
+            allowed: projection_fields,
+            masked:  Vec::new(),
+        })
     }
 
     /// Execute a regular query with row-level security (RLS) filtering.
@@ -947,6 +947,19 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 2. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
+
+        // 2b. Enforce requires_role — return "not found" (not "forbidden") to prevent enumeration
+        if let Some(ref required_role) = query_match.query_def.requires_role {
+            if !security_context.roles.iter().any(|r| r == required_role) {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "Query '{}' not found in schema",
+                        query_match.query_def.name
+                    ),
+                    path: None,
+                });
+            }
+        }
 
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
@@ -1033,23 +1046,30 @@ impl<A: DatabaseAdapter> Executor<A> {
             )
             .await?;
 
-        // 9. Apply field-level RBAC filtering
-        // Filter projection fields based on user roles and field scope requirements
-        let filtered_projection_fields = self.apply_field_rbac_filtering(
+        // 9. Apply field-level RBAC filtering (reject / mask / allow)
+        let access = self.apply_field_rbac_filtering(
             &query_match.query_def.return_type,
             plan.projection_fields,
             security_context,
         )?;
 
-        // 9. Project results to accessible fields only
-        let projector = ResultProjector::new(filtered_projection_fields);
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+        // 10. Project results — include both allowed and masked fields in projection
+        let mut all_projection_fields = access.allowed;
+        all_projection_fields.extend(access.masked.iter().cloned());
+        let projector = ResultProjector::new(all_projection_fields);
+        let mut projected =
+            projector.project_results(&results, query_match.query_def.returns_list)?;
 
-        // 10. Wrap in GraphQL data envelope
+        // 11. Null out masked fields in the projected result
+        if !access.masked.is_empty() {
+            null_masked_fields(&mut projected, &access.masked);
+        }
+
+        // 12. Wrap in GraphQL data envelope
         let response =
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
-        // 11. Serialize to JSON string
+        // 13. Serialize to JSON string
         Ok(serde_json::to_string(&response)?)
     }
 
@@ -1060,6 +1080,17 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         // 1. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
+
+        // Guard: role-restricted queries are invisible to unauthenticated users
+        if query_match.query_def.requires_role.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' not found in schema",
+                    query_match.query_def.name
+                ),
+                path: None,
+            });
+        }
 
         // Guard: queries with inject params require a security context.
         if !query_match.query_def.inject_params.is_empty() {
@@ -2280,6 +2311,28 @@ impl<A: DatabaseAdapter> Executor<A> {
 /// The `@fraiseql.query(inject={"param": "jwt:claim"})` decorator maps JWT claims:
 ///
 /// | Claim | Source | Example |
+/// Null out masked fields in a projected JSON result.
+///
+/// Walks the result (which may be a single object or an array of objects)
+/// and sets each masked field's value to `null`.
+fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for field_name in masked {
+                if map.contains_key(field_name) {
+                    map.insert(field_name.clone(), serde_json::Value::Null);
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                null_masked_fields(item, masked);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// |-------|--------|---------|
 /// | `"sub"` | User ID from JWT | `"user-123"` |
 /// | `"tenant_id"` | Tenant from JWT | `"tenant-456"` |
@@ -2448,6 +2501,7 @@ mod tests {
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
         schema
     }
@@ -2893,6 +2947,7 @@ mod tests {
             inject_params,
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -2905,5 +2960,40 @@ mod tests {
             matches!(err, FraiseQLError::Validation { .. }),
             "Expected Validation error, got: {err:?}"
         );
+    }
+
+    // =========================================================================
+    // null_masked_fields tests
+    // =========================================================================
+
+    #[test]
+    fn test_null_masked_fields_object() {
+        let mut value = serde_json::json!({"id": 1, "email": "alice@example.com", "name": "Alice"});
+        null_masked_fields(&mut value, &["email".to_string()]);
+        assert_eq!(value, serde_json::json!({"id": 1, "email": null, "name": "Alice"}));
+    }
+
+    #[test]
+    fn test_null_masked_fields_array() {
+        let mut value = serde_json::json!([
+            {"id": 1, "email": "a@b.com", "salary": 100_000},
+            {"id": 2, "email": "c@d.com", "salary": 120_000},
+        ]);
+        null_masked_fields(&mut value, &["email".to_string(), "salary".to_string()]);
+        assert_eq!(
+            value,
+            serde_json::json!([
+                {"id": 1, "email": null, "salary": null},
+                {"id": 2, "email": null, "salary": null},
+            ])
+        );
+    }
+
+    #[test]
+    fn test_null_masked_fields_no_masked() {
+        let mut value = serde_json::json!({"id": 1, "name": "Alice"});
+        let original = value.clone();
+        null_masked_fields(&mut value, &[]);
+        assert_eq!(value, original);
     }
 }

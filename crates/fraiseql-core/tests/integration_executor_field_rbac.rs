@@ -6,6 +6,7 @@
 //! 3. Result projection with filtered fields
 //! 4. Proper handling of scope requirements in execution pipeline
 
+use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 
 use chrono::Utc;
@@ -37,6 +38,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -49,6 +51,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             // Protected fields
@@ -62,6 +65,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:Post.content".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -74,6 +78,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("write:Post.draft".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             // Admin-only fields
@@ -87,6 +92,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -95,6 +101,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
+        requires_role:       None,
         is_error:            false,
         relay:            false,
     }

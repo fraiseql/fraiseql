@@ -137,6 +137,10 @@ pub struct IntermediateType {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
 
+    /// Role required to see this type in introspection and access queries returning it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_role: Option<String>,
+
     /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub is_error: bool,
@@ -191,6 +195,10 @@ pub struct IntermediateField {
     /// ```
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_scope: Option<String>,
+
+    /// Policy when the user lacks `requires_scope`: `"reject"` (default) or `"mask"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_deny: Option<String>,
 }
 
 // =============================================================================
@@ -448,6 +456,10 @@ pub struct IntermediateQuery {
     /// Each entry is validated as a safe SQL identifier at schema compile time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub additional_views: Vec<String>,
+
+    /// Role required to execute this query and see it in introspection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_role: Option<String>,
 }
 
 /// Mutation definition in intermediate format

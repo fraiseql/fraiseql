@@ -9,6 +9,7 @@
 //! 6. Graceful degradation vs errors
 //! 7. Error messages for access denied
 
+use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 
 use chrono::Utc;
@@ -39,6 +40,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -51,6 +53,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -63,6 +66,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -75,6 +79,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.phone".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -87,6 +92,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -99,6 +105,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -107,6 +114,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
+        requires_role:       None,
         is_error:            false,
         relay:            false,
     };

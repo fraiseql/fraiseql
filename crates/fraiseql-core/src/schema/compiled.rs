@@ -775,6 +775,14 @@ pub struct TypeDefinition {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub implements: Vec<String>,
 
+    /// Role required to see this type in introspection and access its queries.
+    ///
+    /// When set, only users with this role can see the type in the GraphQL schema
+    /// and execute queries returning this type. Users without the role see neither
+    /// the type nor its associated queries — preventing role enumeration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_role: Option<String>,
+
     /// Whether this type is a mutation error type (tagged with `@fraiseql.error`).
     ///
     /// Error types are populated from `mutation_response.metadata` JSONB rather than
@@ -830,6 +838,7 @@ impl TypeDefinition {
             description:         None,
             sql_projection_hint: None,
             implements:          Vec::new(),
+            requires_role:       None,
             is_error:            false,
             relay:               false,
         }
@@ -1529,6 +1538,14 @@ pub struct QueryDefinition {
     /// ```
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub additional_views: Vec<String>,
+
+    /// Role required to execute this query and see it in introspection.
+    ///
+    /// When set, only users with this role can discover and execute this query.
+    /// Users without the role receive `"Unknown query"` (not `FORBIDDEN`)
+    /// to prevent role enumeration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_role: Option<String>,
 }
 
 impl QueryDefinition {
@@ -1552,6 +1569,7 @@ impl QueryDefinition {
             inject_params:       IndexMap::new(),
             cache_ttl_seconds:   None,
             additional_views:    Vec::new(),
+            requires_role:       None,
         }
     }
 

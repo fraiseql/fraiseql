@@ -9,8 +9,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use fraiseql_core::schema::{
-    CompiledSchema, FieldDefinition, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,
-};
+    CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition, SecurityConfig, TypeDefinition,};
 
 /// Helper to create a test schema with scoped fields
 fn create_schema_with_scoped_fields() -> CompiledSchema {
@@ -27,6 +26,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None, // Public field
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -39,6 +39,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None, // Public field
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -51,6 +52,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -63,6 +65,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
@@ -71,6 +74,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
+        requires_role:       None,
         is_error:            false,
         relay:            false,
     };

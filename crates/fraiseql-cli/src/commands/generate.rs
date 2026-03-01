@@ -1128,6 +1128,7 @@ mod tests {
              inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -1152,6 +1153,7 @@ mod tests {
              inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
     }
@@ -1176,6 +1178,7 @@ mod tests {
                         description:    None,
                         directives:     None,
                         requires_scope: None,
+                        on_deny:        None,
                     },
                     IntermediateField {
                         name:           "id".to_string(),
@@ -1184,6 +1187,7 @@ mod tests {
                         description:    None,
                         directives:     None,
                         requires_scope: None,
+                        on_deny:        None,
                     },
                     IntermediateField {
                         name:           "name".to_string(),
@@ -1192,6 +1196,7 @@ mod tests {
                         description:    None,
                         directives:     None,
                         requires_scope: None,
+                        on_deny:        None,
                     },
                     IntermediateField {
                         name:           "bio".to_string(),
@@ -1200,10 +1205,12 @@ mod tests {
                         description:    None,
                         directives:     None,
                         requires_scope: None,
+                        on_deny:        None,
                     },
                 ],
                 description: None,
                 implements:  Vec::new(),
+                requires_role: None,
                 is_error:    false,
                 relay:    false,
             }],
@@ -1223,6 +1230,7 @@ mod tests {
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
                 },
                 IntermediateQuery {
                     name:         "author".to_string(),
@@ -1245,6 +1253,7 @@ mod tests {
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
                 },
             ],
             enums: vec![IntermediateEnum {

@@ -94,14 +94,18 @@ class FieldConfig(Generic[T]):
         ...     # Protected field - requires scope to access
         ...     salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
         ...     ssn: Annotated[str, fraiseql.field(requires_scope="hr:view_pii")]
+        ...     # Protected field with masking (returns null instead of rejecting)
+        ...     email: Annotated[str, fraiseql.field(requires_scope="read:User.email", on_deny="mask")]
 
     Attributes:
         requires_scope: Scope required to access this field (e.g., "read:User.salary")
+        on_deny: Policy when user lacks required scope: "reject" (default) or "mask"
         deprecated: Deprecation reason if field is deprecated
         description: Field description for GraphQL schema
     """
 
     requires_scope: str | None = None
+    on_deny: str | None = None
     deprecated: str | None = None
     description: str | None = None
 
@@ -109,6 +113,7 @@ class FieldConfig(Generic[T]):
 def field(
     *,
     requires_scope: str | None = None,
+    on_deny: str | None = None,
     deprecated: str | None = None,
     description: str | None = None,
 ) -> FieldConfig[Any]:
@@ -122,6 +127,9 @@ def field(
             If set, users must have this scope in their JWT to query this field.
             Supports patterns like "read:Type.field" or custom scopes like "hr:view_pii".
             See fraiseql.scope module for format documentation.
+        on_deny: Policy when user lacks the required scope.
+            "reject" (default): entire query fails with FORBIDDEN error.
+            "mask": query succeeds, field returns null.
         deprecated: Deprecation reason if field is deprecated.
         description: Field description for GraphQL schema documentation.
 
@@ -130,6 +138,7 @@ def field(
 
     Raises:
         ScopeValidationError: If requires_scope format is invalid
+        ValueError: If on_deny is not "reject" or "mask"
 
     Examples:
         >>> from typing import Annotated
@@ -139,30 +148,31 @@ def field(
         ... class User:
         ...     id: int
         ...     name: str
-        ...     # Requires specific scope to access
+        ...     # Requires specific scope to access (default: reject)
         ...     salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
-        ...     # Custom scope for PII
-        ...     ssn: Annotated[str, fraiseql.field(requires_scope="hr:view_pii")]
+        ...     # Mask mode: returns null for unauthorized users
+        ...     email: Annotated[str, fraiseql.field(requires_scope="read:User.email", on_deny="mask")]
         ...     # Deprecated field
         ...     old_email: Annotated[str, fraiseql.field(deprecated="Use email instead")]
-
-        This generates JSON with field-level access control:
-        - salary field requires "read:User.salary" scope
-        - ssn field requires "hr:view_pii" scope
-        - old_email field is marked deprecated
-
-    Notes:
-        - Use with typing.Annotated for type safety
-        - Multiple FieldConfig annotations on a field are merged
-        - Scope format: action:resource (e.g., "read:Type.field", "admin:*")
-        - The runtime will reject queries for protected fields without proper scopes
-        - For scope format details, see fraiseql.scope module documentation
     """
     # Validate scope format
     validate_scope(requires_scope)
 
+    # Validate on_deny
+    if on_deny is not None:
+        if on_deny not in ("reject", "mask"):
+            msg = (
+                f"on_deny must be 'reject' or 'mask' (got {on_deny!r}). "
+                "'reject' fails the query, 'mask' returns null."
+            )
+            raise ValueError(msg)
+        if requires_scope is None:
+            msg = "on_deny has no effect without requires_scope"
+            raise ValueError(msg)
+
     return FieldConfig(
         requires_scope=requires_scope,
+        on_deny=on_deny,
         deprecated=deprecated,
         description=description,
     )
@@ -173,6 +183,7 @@ def type(
     *,
     implements: list[str] | None = None,
     relay: bool = False,
+    requires_role: str | None = None,
 ) -> type[T] | Callable[[type[T]], type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
@@ -239,6 +250,7 @@ def type(
             description=c.__doc__,
             implements=implements or [],
             relay=relay,
+            requires_role=requires_role,
         )
 
         # Return original class unmodified (no runtime behavior)

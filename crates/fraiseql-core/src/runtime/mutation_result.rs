@@ -173,7 +173,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::schema::FieldType;
+    use crate::schema::{FieldDenyPolicy, FieldType};
 
     fn make_field(name: &str, type_str: &str) -> FieldDefinition {
         let known = std::collections::HashSet::new();
@@ -187,6 +187,7 @@ mod tests {
             alias:          None,
             deprecation:    None,
             requires_scope: None,
+            on_deny: FieldDenyPolicy::default(),
             encryption:     None,
         }
     }

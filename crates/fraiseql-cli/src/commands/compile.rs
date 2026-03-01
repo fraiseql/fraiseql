@@ -383,8 +383,8 @@ mod tests {
 
     use fraiseql_core::{
         schema::{
-            AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, QueryDefinition,
-            TypeDefinition,
+            AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
+            QueryDefinition, TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
@@ -406,6 +406,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        on_deny: FieldDenyPolicy::default(),
                         encryption:     None,
                     },
                     FieldDefinition {
@@ -418,6 +419,7 @@ mod tests {
                         alias:          None,
                         deprecation:    None,
                         requires_scope: None,
+                        on_deny: FieldDenyPolicy::default(),
                         encryption:     None,
                     },
                 ],
@@ -426,6 +428,7 @@ mod tests {
                 jsonb_column:        String::new(),
                 sql_projection_hint: None,
                 implements:          vec![],
+                requires_role:       None,
                 is_error:            false,
                 relay:            false,
             }],
@@ -446,6 +449,7 @@ mod tests {
                 inject_params: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role:       None,
             }],
             enums:            vec![],
             input_types:      vec![],
@@ -496,6 +500,7 @@ mod tests {
                 inject_params: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role:       None,
             }],
             mutations:        vec![],
             subscriptions:    vec![],

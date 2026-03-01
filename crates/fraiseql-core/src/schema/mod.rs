@@ -60,8 +60,8 @@ pub use config_types::{
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{
-    DeprecationInfo, DistanceMetric, FieldDefinition, FieldEncryptionConfig, FieldType,
-    VectorConfig, VectorIndexType,
+    DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
+    FieldType, VectorConfig, VectorIndexType,
 };
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,

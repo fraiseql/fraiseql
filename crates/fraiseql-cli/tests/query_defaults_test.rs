@@ -23,6 +23,7 @@ fn base_schema_with_query(query: IntermediateQuery, query_defaults: Option<Inter
             fields:      vec![],
             description: None,
             implements:  vec![],
+            requires_role: None,
             is_error:    false,
             relay:       false,
         }],
@@ -64,6 +65,7 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
         inject:       indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
         additional_views: vec![],
+        requires_role: None,
     }
 }
 
@@ -83,6 +85,7 @@ fn single_query(name: &str) -> IntermediateQuery {
         inject:       indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
         additional_views: vec![],
+        requires_role: None,
     }
 }
 
@@ -102,6 +105,7 @@ fn relay_query(name: &str) -> IntermediateQuery {
         inject:       indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
         additional_views: vec![],
+        requires_role: None,
     }
 }
 

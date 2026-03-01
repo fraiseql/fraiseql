@@ -6,6 +6,7 @@
 //! - Introspection: `node` field appears in Query type when relay types exist
 //! - Introspection: PageInfo / XxxEdge / XxxConnection types are visible
 
+use fraiseql_core::schema::FieldDenyPolicy;
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
@@ -217,6 +218,7 @@ fn relay_schema() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -229,12 +231,14 @@ fn relay_schema() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
         description:         None,
         sql_projection_hint: None,
         implements:          vec!["Node".to_string()],
+        requires_role:       None,
         is_error:            false,
         relay:               true,
     };
@@ -254,6 +258,7 @@ fn relay_schema() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             }),
     );
@@ -276,6 +281,7 @@ fn relay_schema() -> CompiledSchema {
         inject_params:       Default::default(),
         cache_ttl_seconds:   None,
         additional_views: vec![],
+        requires_role:       None,
     });
 
     schema
@@ -757,6 +763,7 @@ fn uuid_relay_schema() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
             FieldDefinition {
@@ -769,9 +776,11 @@ fn uuid_relay_schema() -> CompiledSchema {
                 alias:          None,
                 deprecation:    None,
                 requires_scope: None,
+                on_deny: FieldDenyPolicy::default(),
                 encryption:     None,
             },
         ],
+        requires_role:       None,
         is_error:            false,
         description:         None,
         sql_projection_hint: None,
@@ -797,6 +806,7 @@ fn uuid_relay_schema() -> CompiledSchema {
         inject_params: Default::default(),
         cache_ttl_seconds:   None,
         additional_views: vec![],
+        requires_role:       None,
     });
 
     schema

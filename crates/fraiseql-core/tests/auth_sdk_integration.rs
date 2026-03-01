@@ -403,6 +403,7 @@ fn create_test_schema() -> CompiledSchema {
         inject_params: Default::default(),
         cache_ttl_seconds:   None,
         additional_views: vec![],
+        requires_role:       None,
     });
 
     schema

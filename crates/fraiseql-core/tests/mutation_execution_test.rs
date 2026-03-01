@@ -4,6 +4,7 @@
 //! verify that scalar fields (DateTime, Int, UUID, String) are correctly
 //! populated from `metadata` JSONB, without requiring a database.
 
+use fraiseql_core::schema::FieldDenyPolicy;
 use fraiseql_core::{
     runtime::mutation_result::populate_error_fields,
     schema::{FieldDefinition, FieldType},
@@ -23,6 +24,7 @@ fn field(name: &str, type_str: &str) -> FieldDefinition {
         alias:          None,
         deprecation:    None,
         requires_scope: None,
+        on_deny: FieldDenyPolicy::default(),
         encryption:     None,
     }
 }

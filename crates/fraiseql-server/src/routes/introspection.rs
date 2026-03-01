@@ -5,7 +5,7 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::debug;
 
-use crate::routes::graphql::AppState;
+use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
 
 /// Introspection response.
 #[derive(Debug, Serialize)]
@@ -68,20 +68,34 @@ pub struct MutationInfo {
 /// Introspection handler.
 ///
 /// Returns schema structure for debugging and tooling.
+/// Types and queries with `requires_role` are filtered based on the
+/// caller's roles — hidden types/queries never appear in introspection
+/// to prevent role enumeration.
 ///
 /// # Security Note
 ///
 /// In production, this endpoint should be disabled or require authentication.
 pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
 ) -> impl IntoResponse {
     debug!("Introspection requested");
 
     let schema = state.executor.schema();
 
+    let user_roles: Vec<&str> = security_context
+        .as_ref()
+        .map(|ctx| ctx.roles.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+
     let types: Vec<TypeInfo> = schema
         .types
         .iter()
+        .filter(|t| {
+            t.requires_role
+                .as_ref()
+                .is_none_or(|role| user_roles.contains(&role.as_str()))
+        })
         .map(|t| TypeInfo {
             name:        t.name.clone(),
             description: t.description.clone(),
@@ -92,6 +106,11 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let queries: Vec<QueryInfo> = schema
         .queries
         .iter()
+        .filter(|q| {
+            q.requires_role
+                .as_ref()
+                .is_none_or(|role| user_roles.contains(&role.as_str()))
+        })
         .map(|q| QueryInfo {
             name:         q.name.clone(),
             return_type:  q.return_type.clone(),

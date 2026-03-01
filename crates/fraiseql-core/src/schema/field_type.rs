@@ -199,6 +199,21 @@ impl DistanceMetric {
 }
 
 // ============================================================================
+// Field Deny Policy
+// ============================================================================
+
+/// Policy applied when a user lacks the required scope for a field.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldDenyPolicy {
+    /// Reject the entire query with a `FORBIDDEN` error (default).
+    #[default]
+    Reject,
+    /// Return `null` for this field — the query succeeds.
+    Mask,
+}
+
+// ============================================================================
 // Field Definition
 // ============================================================================
 
@@ -228,6 +243,7 @@ impl DistanceMetric {
 ///     alias: None,
 ///     deprecation: None,
 ///     requires_scope: None,
+///     on_deny: FieldDenyPolicy::default(),
 ///     encryption: None,
 /// };
 /// ```
@@ -287,11 +303,19 @@ pub struct FieldDefinition {
     ///     alias: None,
     ///     deprecation: None,
     ///     requires_scope: Some("read:Employee.salary".to_string()),
+    ///     on_deny: FieldDenyPolicy::Reject,
     ///     encryption: None,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_scope: Option<String>,
+
+    /// Policy when a user lacks the required scope for this field.
+    ///
+    /// - `Reject` (default): the entire query fails with a `FORBIDDEN` error.
+    /// - `Mask`: the query succeeds but this field returns `null`.
+    #[serde(default)]
+    pub on_deny: FieldDenyPolicy,
 
     /// Encryption configuration for this field.
     ///
@@ -367,6 +391,7 @@ impl FieldDefinition {
             alias: None,
             deprecation: None,
             requires_scope: None,
+            on_deny: FieldDenyPolicy::default(),
             encryption: None,
         }
     }
@@ -384,6 +409,7 @@ impl FieldDefinition {
             alias: None,
             deprecation: None,
             requires_scope: None,
+            on_deny: FieldDenyPolicy::default(),
             encryption: None,
         }
     }
@@ -409,6 +435,7 @@ impl FieldDefinition {
             alias:          None,
             deprecation:    None,
             requires_scope: None,
+            on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
         }
     }
@@ -426,6 +453,13 @@ impl FieldDefinition {
     #[must_use]
     pub fn with_requires_scope(mut self, scope: impl Into<String>) -> Self {
         self.requires_scope = Some(scope.into());
+        self
+    }
+
+    /// Set the deny policy for when a user lacks the required scope.
+    #[must_use]
+    pub fn with_on_deny(mut self, policy: FieldDenyPolicy) -> Self {
+        self.on_deny = policy;
         self
     }
 

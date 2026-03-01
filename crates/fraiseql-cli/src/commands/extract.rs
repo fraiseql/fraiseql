@@ -384,6 +384,7 @@ impl SchemaExtractor for PythonExtractor {
                         description: None,
                         directives: None,
                         requires_scope: None,
+                        on_deny:        None,
                     });
                 }
             }
@@ -394,6 +395,7 @@ impl SchemaExtractor for PythonExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -426,6 +428,7 @@ impl SchemaExtractor for PythonExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -491,6 +494,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                     fields,
                     description: None,
                     implements: Vec::new(),
+                    requires_role: None,
                     is_error: false,
                     relay: false,
                 });
@@ -522,6 +526,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                      inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
                 });
             }
         }
@@ -564,6 +569,7 @@ fn extract_ts_fields(body: &str) -> Vec<IntermediateField> {
             description:    None,
             directives:     None,
             requires_scope: None,
+            on_deny:        None,
         });
     }
     fields
@@ -645,6 +651,7 @@ impl SchemaExtractor for RustExtractor {
                         description: None,
                         directives: None,
                         requires_scope: None,
+                        on_deny:        None,
                     });
                 }
             }
@@ -655,6 +662,7 @@ impl SchemaExtractor for RustExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -684,6 +692,7 @@ impl SchemaExtractor for RustExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -748,6 +757,7 @@ impl SchemaExtractor for JavaExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -778,6 +788,7 @@ impl SchemaExtractor for JavaExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -804,6 +815,7 @@ fn extract_java_record_fields(body: &str) -> Vec<IntermediateField> {
             description: None,
             directives: None,
             requires_scope: None,
+            on_deny:        None,
         });
     }
     fields
@@ -869,6 +881,7 @@ impl SchemaExtractor for KotlinExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -898,6 +911,7 @@ impl SchemaExtractor for KotlinExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -923,6 +937,7 @@ fn extract_kotlin_fields(body: &str) -> Vec<IntermediateField> {
             description: None,
             directives: None,
             requires_scope: None,
+            on_deny:        None,
         });
     }
     fields
@@ -987,6 +1002,7 @@ impl SchemaExtractor for GoExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -1016,6 +1032,7 @@ impl SchemaExtractor for GoExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -1045,6 +1062,7 @@ fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<IntermediateFie
                 description: None,
                 directives: None,
                 requires_scope: None,
+                on_deny:        None,
             });
         }
     }
@@ -1102,6 +1120,7 @@ impl SchemaExtractor for CSharpExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -1132,6 +1151,7 @@ impl SchemaExtractor for CSharpExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -1179,6 +1199,7 @@ fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField> {
             description: None,
             directives: None,
             requires_scope: None,
+            on_deny:        None,
         });
     }
     fields
@@ -1227,6 +1248,7 @@ impl SchemaExtractor for SwiftExtractor {
                         description: None,
                         directives: None,
                         requires_scope: None,
+                        on_deny:        None,
                     });
                 }
             }
@@ -1237,6 +1259,7 @@ impl SchemaExtractor for SwiftExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -1266,6 +1289,7 @@ impl SchemaExtractor for SwiftExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -1327,6 +1351,7 @@ impl SchemaExtractor for ScalaExtractor {
                 fields,
                 description,
                 implements: Vec::new(),
+                requires_role: None,
                 is_error: false,
                 relay: false,
             });
@@ -1356,6 +1381,7 @@ impl SchemaExtractor for ScalaExtractor {
                  inject: IndexMap::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],
+                requires_role: None,
             });
         }
 
@@ -1381,6 +1407,7 @@ fn extract_scala_fields(body: &str) -> Vec<IntermediateField> {
             description: None,
             directives: None,
             requires_scope: None,
+            on_deny:        None,
         });
     }
     fields

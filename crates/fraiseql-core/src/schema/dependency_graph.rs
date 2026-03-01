@@ -601,6 +601,7 @@ mod tests {
             description:         None,
             sql_projection_hint: None,
             implements:          vec![],
+            requires_role:       None,
             is_error:            false,
             relay:            false,
         }
@@ -1008,6 +1009,7 @@ mod tests {
                 description:         None,
                 sql_projection_hint: None,
                 implements:          vec!["Node".to_string()],
+                requires_role:       None,
                 is_error:            false,
                 relay:            false,
             }],

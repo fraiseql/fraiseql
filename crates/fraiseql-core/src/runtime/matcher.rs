@@ -260,6 +260,7 @@ mod tests {
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
         schema
     }
@@ -456,6 +457,7 @@ mod tests {
             inject_params:       Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
         let matcher = QueryMatcher::new(schema);
 

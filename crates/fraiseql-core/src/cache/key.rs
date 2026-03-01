@@ -520,6 +520,7 @@ mod tests {
         inject_params:     Default::default(),
         cache_ttl_seconds:   None,
         additional_views: vec![],
+        requires_role:       None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -552,6 +553,7 @@ mod tests {
         inject_params:     Default::default(),
         cache_ttl_seconds:   None,
         additional_views: vec![],
+        requires_role:       None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -579,6 +581,7 @@ mod tests {
             inject_params:    Default::default(),
             cache_ttl_seconds: None,
             additional_views: vec!["v_post".to_string(), "v_tag".to_string()],
+            requires_role:       None,
         };
 
         let views = extract_accessed_views(&query_def);

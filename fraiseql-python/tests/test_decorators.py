@@ -987,3 +987,66 @@ def test_mutation_injection_sql_source_raises() -> None:
         @fraiseql.mutation(sql_source="fn_evil; DROP TABLE users; --", operation="CREATE")
         def create_whatchamacallit(name: str) -> Whatchamacallit:
             pass
+
+
+# =============================================================================
+# requires_role on @type and @query
+# =============================================================================
+
+
+def test_type_requires_role_is_set() -> None:
+    """@type(requires_role='admin') emits requires_role in schema."""
+
+    @fraiseql.type(requires_role="admin")
+    class SecretReport:
+        id: int
+        content: str
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "SecretReport")
+    assert t["requires_role"] == "admin"
+
+
+def test_type_requires_role_absent_by_default() -> None:
+    """@type without requires_role does not emit the key."""
+
+    @fraiseql.type
+    class PublicData:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "PublicData")
+    assert "requires_role" not in t
+
+
+def test_query_requires_role_is_set() -> None:
+    """@query(requires_role='admin') emits requires_role in schema."""
+
+    @fraiseql.type
+    class AuditLog:
+        id: int
+        action: str
+
+    @fraiseql.query(sql_source="v_audit_log", requires_role="admin")
+    def audit_logs() -> list[AuditLog]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = next(q for q in schema["queries"] if q["name"] == "audit_logs")
+    assert q["requires_role"] == "admin"
+
+
+def test_query_requires_role_absent_by_default() -> None:
+    """@query without requires_role does not emit the key."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    @fraiseql.query(sql_source="v_widget")
+    def widgets() -> list[Widget]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = next(q for q in schema["queries"] if q["name"] == "widgets")
+    assert "requires_role" not in q

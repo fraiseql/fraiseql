@@ -1525,7 +1525,7 @@ impl IntrospectionResponses {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{AutoParams, FieldType};
+    use crate::schema::{AutoParams, FieldType, FieldDenyPolicy,};
 
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
@@ -1557,6 +1557,7 @@ mod tests {
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
 
         // Add a user query with argument
@@ -1584,6 +1585,7 @@ mod tests {
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
 
         schema
@@ -1701,6 +1703,7 @@ mod tests {
             description:         None,
             sql_projection_hint: None,
             implements:          vec![],
+            requires_role:       None,
             is_error:            false,
             relay:            false,
             fields:              vec![
@@ -1717,6 +1720,7 @@ mod tests {
                         reason: Some("Use 'sku' instead".to_string()),
                     }),
                     requires_scope: None,
+                    on_deny: FieldDenyPolicy::default(),
                     encryption:     None,
                 },
                 FieldDefinition::new("sku", FieldType::String),
@@ -1948,6 +1952,7 @@ mod tests {
             description:         Some("A user".to_string()),
             sql_projection_hint: None,
             implements:          vec!["Node".to_string()],
+            requires_role:       None,
             is_error:            false,
             relay:            false,
             fields:              vec![
@@ -1963,6 +1968,7 @@ mod tests {
             description:         Some("A blog post".to_string()),
             sql_projection_hint: None,
             implements:          vec!["Node".to_string()],
+            requires_role:       None,
             is_error:            false,
             relay:            false,
             fields:              vec![
@@ -2026,6 +2032,7 @@ mod tests {
             description:         None,
             sql_projection_hint: None,
             implements:          vec!["Node".to_string(), "Timestamped".to_string()],
+            requires_role:       None,
             is_error:            false,
             relay:            false,
             fields:              vec![
@@ -2241,6 +2248,7 @@ mod tests {
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -2280,6 +2288,7 @@ mod tests {
             inject_params:     Default::default(),
             cache_ttl_seconds:   None,
             additional_views: vec![],
+            requires_role:       None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

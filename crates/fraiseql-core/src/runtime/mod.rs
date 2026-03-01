@@ -64,7 +64,7 @@ pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSql, AggregationSqlGenerator};
 pub use executor::Executor;
-pub use field_filter::{can_access_field, filter_fields};
+pub use field_filter::{FieldAccessResult, can_access_field, classify_field_access, filter_fields};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher};
 pub use planner::{ExecutionPlan, QueryPlanner};

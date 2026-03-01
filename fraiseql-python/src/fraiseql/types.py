@@ -166,6 +166,8 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
         if config is not None:
             if config.requires_scope:
                 field_info["requires_scope"] = config.requires_scope
+            if config.on_deny:
+                field_info["on_deny"] = config.on_deny
             if config.deprecated:
                 field_info["deprecated"] = {"reason": config.deprecated}
             if config.description:

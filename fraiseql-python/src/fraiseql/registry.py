@@ -31,7 +31,7 @@ class SchemaRegistry:
             "type": field_info["type"],
             "nullable": field_info["nullable"],
         }
-        for key in ("requires_scope", "deprecated", "description"):
+        for key in ("requires_scope", "on_deny", "deprecated", "description"):
             if key in field_info:
                 field_def[key] = field_info[key]
         return field_def
@@ -44,6 +44,7 @@ class SchemaRegistry:
         description: str | None = None,
         implements: list[str] | None = None,
         relay: bool = False,
+        requires_role: str | None = None,
     ) -> None:
         """Register a GraphQL type.
 
@@ -55,6 +56,8 @@ class SchemaRegistry:
             relay: Whether this type implements the Relay Node interface. When True,
                 the compiler generates global node IDs and validates pk_{entity} exists
                 in the view's data JSONB.
+            requires_role: Role required to access this type. If set, only users with
+                this role can see or query this type.
         """
         field_list = [cls._build_field_def(k, v) for k, v in fields.items()]
 
@@ -75,6 +78,9 @@ class SchemaRegistry:
 
         if relay:
             type_def["relay"] = True
+
+        if requires_role:
+            type_def["requires_role"] = requires_role
 
         cls._types[name] = type_def
 

@@ -18,7 +18,8 @@ use crate::{
     error::Result,
     schema::{
         ArgumentDefinition, AutoParams as SchemaAutoParams, CompiledSchema, DeprecationInfo,
-        EnumDefinition, EnumValueDefinition, FieldDefinition, FieldType, InputFieldDefinition,
+        EnumDefinition, EnumValueDefinition, FieldDefinition, FieldDenyPolicy, FieldType,
+        InputFieldDefinition,
         InputObjectDefinition, InterfaceDefinition, MutationDefinition, QueryDefinition,
         SubscriptionDefinition, TypeDefinition, UnionDefinition,
     },
@@ -116,6 +117,7 @@ impl CodeGenerator {
                     sql_projection_hint: None, // Populated during optimization pass
                     implements:          Vec::new(), /* Note: IR doesn't have interface
                                                 * implementation yet */
+                    requires_role:       None,
                     is_error:            false,
                     relay:            false,
                 }
@@ -148,6 +150,7 @@ impl CodeGenerator {
                     inject_params:     Default::default(),
                     cache_ttl_seconds:   None,
                     additional_views: vec![],
+                    requires_role:   None,
                 }
             })
             .collect();
@@ -240,6 +243,7 @@ impl CodeGenerator {
                     alias: None,          // Aliases come from query, not schema
                     deprecation: None,    // Note: IR fields don't have deprecation yet
                     requires_scope: None, // Note: IR fields don't have scope requirements yet
+                    on_deny: FieldDenyPolicy::default(),
                     encryption: None,
                 }
             })
