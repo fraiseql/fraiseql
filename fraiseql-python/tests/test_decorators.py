@@ -836,3 +836,98 @@ def test_mutation_invalidates_fact_tables_invalid_identifier_raises() -> None:
         )
         def create_sprocket(name: str) -> Sprocket:
             pass
+
+
+# ============================================================================
+# sql_source identifier validation
+# ============================================================================
+
+
+def test_query_valid_sql_source_passes() -> None:
+    """Valid sql_source values (simple and schema-qualified) are accepted."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    @fraiseql.query(sql_source="v_widget")
+    def widgets() -> list[Widget]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][-1]
+    assert q["sql_source"] == "v_widget"
+
+
+def test_query_schema_qualified_sql_source_passes() -> None:
+    """Schema-qualified sql_source like 'public.v_widget' is accepted."""
+
+    @fraiseql.type
+    class Gadget:
+        id: int
+
+    @fraiseql.query(sql_source="public.v_gadget")
+    def gadgets() -> list[Gadget]:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    q = schema["queries"][-1]
+    assert q["sql_source"] == "public.v_gadget"
+
+
+def test_query_injection_sql_source_raises() -> None:
+    """SQL injection attempt in sql_source raises ValueError."""
+
+    @fraiseql.type
+    class Gizmo:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid SQL identifier"):
+
+        @fraiseql.query(sql_source='v_gizmo"; DROP TABLE users; --')
+        def gizmos() -> list[Gizmo]:
+            pass
+
+
+def test_query_sql_source_with_space_raises() -> None:
+    """sql_source containing a space raises ValueError."""
+
+    @fraiseql.type
+    class Doohickey:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid SQL identifier"):
+
+        @fraiseql.query(sql_source="v user")
+        def doohickeys() -> list[Doohickey]:
+            pass
+
+
+def test_mutation_valid_sql_source_passes() -> None:
+    """Valid mutation sql_source is accepted."""
+
+    @fraiseql.type
+    class Thingamajig:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_thingamajig", operation="CREATE")
+    def create_thingamajig(name: str) -> Thingamajig:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    m = schema["mutations"][-1]
+    assert m["sql_source"] == "fn_create_thingamajig"
+
+
+def test_mutation_injection_sql_source_raises() -> None:
+    """SQL injection attempt in mutation sql_source raises ValueError."""
+
+    @fraiseql.type
+    class Whatchamacallit:
+        id: int
+
+    with pytest.raises(ValueError, match="not a valid SQL identifier"):
+
+        @fraiseql.mutation(sql_source="fn_evil; DROP TABLE users; --", operation="CREATE")
+        def create_whatchamacallit(name: str) -> Whatchamacallit:
+            pass

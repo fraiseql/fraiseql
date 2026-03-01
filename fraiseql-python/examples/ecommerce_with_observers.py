@@ -11,9 +11,10 @@ Output:
     ecommerce_schema.json (ready for fraiseql-cli compilation)
 """
 
+from fraiseql.observers import RetryConfig
+
 import fraiseql
 from fraiseql import ID, DateTime, email, observer, slack, type, webhook
-from fraiseql.observers import RetryConfig
 
 
 # Define types

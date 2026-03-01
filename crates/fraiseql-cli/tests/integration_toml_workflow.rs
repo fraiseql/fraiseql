@@ -119,7 +119,7 @@ url = "postgresql://localhost/test"
 [queries.getItems]
 return_type = "{}"
 return_array = true
-sql_source = "SELECT * FROM v_{}"
+sql_source = "v_{}"
 
 [security]
 default_policy = "public"
@@ -229,12 +229,12 @@ url = "postgresql://localhost/test"
 [queries.getUser]
 return_type = "User"
 return_array = false
-sql_source = "SELECT * FROM users WHERE id = $1"
+sql_source = "v_users"
 
 [queries.getPosts]
 return_type = "Post"
 return_array = true
-sql_source = "SELECT * FROM posts"
+sql_source = "v_posts"
 
 [[queries.getUser.args]]
 name = "userId"

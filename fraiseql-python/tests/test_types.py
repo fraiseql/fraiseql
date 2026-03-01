@@ -59,7 +59,7 @@ def test_python_type_to_graphql_list_of_scalars() -> None:
 
 def test_python_type_to_graphql_rich_scalars() -> None:
     """Test rich FraiseQL scalar types."""
-    from fraiseql.scalars import Email, IBAN, IPAddress, LTree, Money, PhoneNumber, URL
+    from fraiseql.scalars import IBAN, URL, Email, IPAddress, LTree, Money, PhoneNumber
 
     # Contact scalars
     assert python_type_to_graphql(Email) == ("Email", False)

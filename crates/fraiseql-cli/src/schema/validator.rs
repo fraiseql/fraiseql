@@ -3,11 +3,70 @@
 //! Provides detailed validation error reporting with line numbers and context.
 
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
 use anyhow::Result;
+use regex::Regex;
 use tracing::{debug, info};
 
 use super::intermediate::IntermediateSchema;
+
+/// Pattern for safe SQL identifiers: `schema.name` or just `name`.
+/// Each part must start with a letter or underscore, followed by alphanumerics/underscores.
+static SAFE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
+        .expect("static regex is valid")
+});
+
+/// Validates that `value` is a safe SQL identifier.
+///
+/// Accepts `[A-Za-z_][A-Za-z0-9_]*` with an optional single schema dot
+/// (e.g. `"v_user"` or `"public.v_user"`). Rejects anything that could be
+/// SQL injection or cause a runtime syntax error.
+///
+/// # Arguments
+/// - `value`: The string to validate (e.g. `"v_user"` or `"public.v_user"`)
+/// - `field`: The TOML/decorator field name (`"sql_source"`, `"function_name"`)
+/// - `path`: Human-readable location for the error (`"Query.users"`, `"Mutation.createPost"`)
+///
+/// # Errors
+///
+/// Returns a `ValidationError` if `value` is empty or does not match the safe
+/// identifier pattern.
+pub fn validate_sql_identifier(
+    value: &str,
+    field: &str,
+    path: &str,
+) -> std::result::Result<(), ValidationError> {
+    if value.is_empty() {
+        return Err(ValidationError {
+            message:    format!(
+                "`{field}` at `{path}` must not be empty. \
+                 Provide a view or function name such as \"v_user\" or \"public.v_user\"."
+            ),
+            path:       path.to_string(),
+            severity:   ErrorSeverity::Error,
+            suggestion: None,
+        });
+    }
+    if !SAFE_IDENTIFIER.is_match(value) {
+        return Err(ValidationError {
+            message:    format!(
+                "`{field}` value {value:?} at `{path}` is not a valid SQL identifier. \
+                 Only ASCII letters, digits, underscores, and an optional schema dot are \
+                 allowed. Valid examples: \"v_user\", \"public.v_user\", \"fn_create_post\"."
+            ),
+            path:       path.to_string(),
+            severity:   ErrorSeverity::Error,
+            suggestion: Some(
+                "Remove semicolons, quotes, dashes, spaces, or any SQL syntax \
+                 from the identifier value."
+                    .to_string(),
+            ),
+        });
+    }
+    Ok(())
+}
 
 /// Detailed validation error
 #[derive(Debug, Clone)]
@@ -112,6 +171,17 @@ impl SchemaValidator {
                 }
             }
 
+            // Validate sql_source is a safe SQL identifier
+            if let Some(sql_source) = &query.sql_source {
+                if let Err(e) = validate_sql_identifier(
+                    sql_source,
+                    "sql_source",
+                    &format!("Query.{}", query.name),
+                ) {
+                    report.errors.push(e);
+                }
+            }
+
             // Warning for queries without SQL source
             if query.sql_source.is_none() && query.returns_list {
                 report.errors.push(ValidationError {
@@ -174,6 +244,39 @@ impl SchemaValidator {
                         )),
                     });
                 }
+            }
+
+            // Validate sql_source is a safe SQL identifier
+            if let Some(sql_source) = &mutation.sql_source {
+                if let Err(e) = validate_sql_identifier(
+                    sql_source,
+                    "sql_source",
+                    &format!("Mutation.{}", mutation.name),
+                ) {
+                    report.errors.push(e);
+                }
+            }
+
+            // Warn about inject_params ordering contract
+            if !mutation.inject.is_empty() {
+                let inject_names: Vec<&str> =
+                    mutation.inject.keys().map(String::as_str).collect();
+                let fn_name = mutation
+                    .sql_source
+                    .as_deref()
+                    .unwrap_or("<unknown>");
+                report.errors.push(ValidationError {
+                    message:    format!(
+                        "Mutation '{}' has inject params {:?}. \
+                         These are appended as the LAST positional arguments to \
+                         `{fn_name}`. Your SQL function MUST declare injected \
+                         parameters last, after all client-provided arguments.",
+                        mutation.name, inject_names,
+                    ),
+                    path:       format!("Mutation.{}", mutation.name),
+                    severity:   ErrorSeverity::Warning,
+                    suggestion: None,
+                });
             }
         }
 
@@ -950,5 +1053,107 @@ mod tests {
         let report = SchemaValidator::validate(&schema).unwrap();
         assert!(!report.is_valid());
         assert!(report.errors.iter().any(|e| e.message.contains("invalid backoff_strategy")));
+    }
+
+    #[test]
+    fn test_query_injection_in_sql_source_rejected() {
+        let schema = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+                is_error:    false,
+                relay:       false,
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:              "users".to_string(),
+                return_type:       "User".to_string(),
+                returns_list:      true,
+                nullable:          false,
+                arguments:         vec![],
+                description:       None,
+                sql_source:        Some("v_user\"; DROP TABLE users; --".to_string()),
+                auto_params:       None,
+                deprecated:        None,
+                jsonb_column:      None,
+                relay:             false,
+                inject:            IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views:  vec![],
+            }],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+            custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
+            query_defaults:    None,
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        assert!(!report.is_valid());
+        assert!(report.errors.iter().any(|e| e.message.contains("valid SQL identifier")));
+    }
+
+    #[test]
+    fn test_query_schema_qualified_sql_source_passes() {
+        let schema = IntermediateSchema {
+            security:          None,
+            version:           "2.0.0".to_string(),
+            types:             vec![IntermediateType {
+                name:        "User".to_string(),
+                fields:      vec![],
+                description: None,
+                implements:  vec![],
+                is_error:    false,
+                relay:       false,
+            }],
+            enums:             vec![],
+            input_types:       vec![],
+            interfaces:        vec![],
+            unions:            vec![],
+            queries:           vec![IntermediateQuery {
+                name:              "users".to_string(),
+                return_type:       "User".to_string(),
+                returns_list:      true,
+                nullable:          false,
+                arguments:         vec![],
+                description:       None,
+                sql_source:        Some("public.v_user".to_string()),
+                auto_params:       None,
+                deprecated:        None,
+                jsonb_column:      None,
+                relay:             false,
+                inject:            IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views:  vec![],
+            }],
+            mutations:         vec![],
+            subscriptions:     vec![],
+            fragments:         None,
+            directives:        None,
+            fact_tables:       None,
+            aggregate_queries: None,
+            observers:         None,
+            custom_scalars:    None,
+            observers_config:  None,
+            federation_config: None,
+            query_defaults:    None,
+        };
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        // Should only have the usual "no sql_source" warnings for other queries, not errors
+        assert!(report.is_valid(), "Schema-qualified sql_source should be valid");
     }
 }

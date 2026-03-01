@@ -35,7 +35,7 @@ fn test_compile_with_security_config() {
       "name": "users",
       "return_type": "User",
       "return_is_list": true,
-      "sql_source": "SELECT * FROM users",
+      "sql_source": "v_users",
       "arguments": []
     }
   ]

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import Enum as PythonEnum
 from types import FunctionType
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
-
-import re
 
 from fraiseql.registry import SchemaRegistry
 from fraiseql.scope import validate_scope
@@ -15,6 +14,21 @@ from fraiseql.types import extract_field_info, extract_function_signature
 
 _INJECT_SOURCE_RE = re.compile(r"^jwt:[A-Za-z_][A-Za-z0-9_]*$")
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
+
+
+def _validate_sql_identifier(value: str, param: str, context: str) -> None:
+    """Raise ValueError if value is not a safe SQL identifier.
+
+    Valid: 'v_user', 'public.v_user', 'fn_create_post'
+    Invalid: anything containing ; " -- spaces or SQL syntax
+    """
+    if not isinstance(value, str) or not _SQL_IDENTIFIER_RE.match(value):
+        raise ValueError(
+            f"{context}: {param}={value!r} is not a valid SQL identifier. "
+            "Use only ASCII letters, digits, and underscores, with an optional "
+            "schema prefix (e.g. 'v_user' or 'public.v_user')."
+        )
 
 
 def _validate_inject(
@@ -284,6 +298,12 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         # Work with a local copy so we can safely modify it
         cfg = dict(config_kwargs)
 
+        # sql_source validation — block injection at authoring time
+        if sql_source := cfg.get("sql_source"):
+            _validate_sql_identifier(
+                sql_source, "sql_source", f"@fraiseql.query on {f.__name__!r}"
+            )
+
         # Inject validation — fail fast at authoring time
         if inject := cfg.get("inject"):
             if not isinstance(inject, dict):
@@ -312,10 +332,8 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                     f"(got {av.__class__.__name__!r})."
                 )
                 raise TypeError(msg)
-            import re
-            _sql_ident = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
             for entry in av:
-                if not isinstance(entry, str) or not _sql_ident.match(entry):
+                if not isinstance(entry, str) or not _IDENTIFIER_RE.match(entry):
                     msg = (
                         f"@fraiseql.query additional_views= on {f.__name__!r}: "
                         f"entry {entry!r} is not a valid SQL identifier. "
@@ -410,6 +428,12 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
     def decorator(f: F) -> F:
         # Extract function signature
         signature = extract_function_signature(f)
+
+        # sql_source validation — block injection at authoring time
+        if sql_source := config_kwargs.get("sql_source"):
+            _validate_sql_identifier(
+                sql_source, "sql_source", f"@fraiseql.mutation on {f.__name__!r}"
+            )
 
         # Inject validation — fail fast at authoring time
         if inject := config_kwargs.get("inject"):
