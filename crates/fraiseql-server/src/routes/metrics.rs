@@ -109,6 +109,25 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Append subscription counters.
+    let subs = crate::routes::subscription_metrics();
+    output.push_str(&format!(
+        concat!(
+            "\n# HELP fraiseql_ws_connections_total Total WebSocket subscription connections\n",
+            "# TYPE fraiseql_ws_connections_total counter\n",
+            "fraiseql_ws_connections_total{{result=\"accepted\"}} {accepted}\n",
+            "fraiseql_ws_connections_total{{result=\"rejected\"}} {rejected}\n",
+            "\n# HELP fraiseql_ws_subscriptions_total Total subscription registrations\n",
+            "# TYPE fraiseql_ws_subscriptions_total counter\n",
+            "fraiseql_ws_subscriptions_total{{result=\"accepted\"}} {sub_accepted}\n",
+            "fraiseql_ws_subscriptions_total{{result=\"rejected\"}} {sub_rejected}\n",
+        ),
+        accepted     = subs.connections_accepted,
+        rejected     = subs.connections_rejected,
+        sub_accepted = subs.subscriptions_accepted,
+        sub_rejected = subs.subscriptions_rejected,
+    ));
+
     (axum::http::StatusCode::OK, [("Content-Type", "text/plain; version=0.0.4")], output)
 }
 

@@ -1,12 +1,14 @@
-//! WebSocket subscription handler for graphql-ws protocol.
+//! WebSocket subscription handler with protocol negotiation.
 //!
-//! Implements the graphql-ws (graphql-transport-ws) protocol for GraphQL subscriptions
-//! over WebSocket connections.
+//! Supports both the modern `graphql-transport-ws` protocol and the legacy
+//! `graphql-ws` (Apollo subscriptions-transport-ws) protocol. Protocol
+//! selection happens during the WebSocket upgrade via the `Sec-WebSocket-Protocol`
+//! header.
 //!
-//! # Protocol
+//! # Lifecycle Hooks
 //!
-//! Uses the modern graphql-ws protocol as specified at:
-//! <https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md>
+//! Configurable callbacks are invoked at key points in the subscription
+//! lifecycle: `on_connect`, `on_disconnect`, `on_subscribe`, `on_unsubscribe`.
 //!
 //! # Example
 //!
@@ -20,13 +22,21 @@
 //!     .with_state(state);
 //! ```
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use axum::{
     extract::{
         State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
+    http::HeaderMap,
     response::IntoResponse,
 };
 use fraiseql_core::runtime::{
@@ -39,10 +49,43 @@ use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
+use crate::subscriptions::protocol::{ProtocolCodec, WsProtocol};
+use crate::subscriptions::lifecycle::SubscriptionLifecycle;
+
+// ── Subscription metrics (module-level atomics) ──────────────────────
+
+static WS_CONNECTIONS_ACCEPTED: AtomicU64 = AtomicU64::new(0);
+static WS_CONNECTIONS_REJECTED: AtomicU64 = AtomicU64::new(0);
+static WS_SUBSCRIPTIONS_ACCEPTED: AtomicU64 = AtomicU64::new(0);
+static WS_SUBSCRIPTIONS_REJECTED: AtomicU64 = AtomicU64::new(0);
+
+/// Subscription metrics for Prometheus export.
+#[must_use]
+pub fn subscription_metrics() -> SubscriptionMetrics {
+    SubscriptionMetrics {
+        connections_accepted:  WS_CONNECTIONS_ACCEPTED.load(Ordering::Relaxed),
+        connections_rejected:  WS_CONNECTIONS_REJECTED.load(Ordering::Relaxed),
+        subscriptions_accepted: WS_SUBSCRIPTIONS_ACCEPTED.load(Ordering::Relaxed),
+        subscriptions_rejected: WS_SUBSCRIPTIONS_REJECTED.load(Ordering::Relaxed),
+    }
+}
+
+/// Snapshot of subscription counters.
+pub struct SubscriptionMetrics {
+    /// Total WebSocket connections accepted (after on_connect).
+    pub connections_accepted: u64,
+    /// Total WebSocket connections rejected by lifecycle hook.
+    pub connections_rejected: u64,
+    /// Total subscriptions accepted (after on_subscribe).
+    pub subscriptions_accepted: u64,
+    /// Total subscriptions rejected (by hook or limit).
+    pub subscriptions_rejected: u64,
+}
+
 /// Connection initialization timeout (5 seconds per graphql-ws spec).
 const CONNECTION_INIT_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Ping interval for keepalive.
+/// Ping/keepalive interval.
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
 /// State for subscription WebSocket handler.
@@ -50,32 +93,82 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub struct SubscriptionState {
     /// Subscription manager.
     pub manager: Arc<SubscriptionManager>,
+    /// Lifecycle hooks.
+    pub lifecycle: Arc<dyn SubscriptionLifecycle>,
+    /// Maximum subscriptions per connection (`None` = unlimited).
+    pub max_subscriptions_per_connection: Option<u32>,
 }
 
 impl SubscriptionState {
     /// Create new subscription state.
     pub fn new(manager: Arc<SubscriptionManager>) -> Self {
-        Self { manager }
+        Self {
+            manager,
+            lifecycle: Arc::new(crate::subscriptions::lifecycle::NoopLifecycle),
+            max_subscriptions_per_connection: None,
+        }
+    }
+
+    /// Set lifecycle hooks.
+    #[must_use]
+    pub fn with_lifecycle(mut self, lifecycle: Arc<dyn SubscriptionLifecycle>) -> Self {
+        self.lifecycle = lifecycle;
+        self
+    }
+
+    /// Set maximum subscriptions per connection.
+    #[must_use]
+    pub fn with_max_subscriptions(mut self, max: Option<u32>) -> Self {
+        self.max_subscriptions_per_connection = max;
+        self
     }
 }
 
 /// WebSocket upgrade handler for subscriptions.
 ///
-/// Upgrades HTTP connection to WebSocket and handles graphql-ws protocol.
+/// Negotiates the WebSocket sub-protocol from the `Sec-WebSocket-Protocol`
+/// header. Supports `graphql-transport-ws` (modern) and `graphql-ws` (legacy).
+/// Defaults to `graphql-transport-ws` when no header is present.
+/// Returns `400 Bad Request` for unrecognised protocols.
 pub async fn subscription_handler(
+    headers: HeaderMap,
     ws: WebSocketUpgrade,
     State(state): State<SubscriptionState>,
 ) -> impl IntoResponse {
-    ws.protocols(["graphql-transport-ws"])
-        .on_upgrade(move |socket| handle_subscription_connection(socket, state))
+    let protocol_header = headers
+        .get("sec-websocket-protocol")
+        .and_then(|v| v.to_str().ok());
+
+    let protocol = match protocol_header {
+        None => WsProtocol::GraphqlTransportWs,
+        Some(header) => match WsProtocol::from_header(Some(header)) {
+            Some(p) => p,
+            None => {
+                warn!(header = %header, "Unknown WebSocket sub-protocol requested");
+                return axum::http::StatusCode::BAD_REQUEST.into_response();
+            }
+        },
+    };
+
+    ws.protocols([protocol.as_str()])
+        .on_upgrade(move |socket| handle_subscription_connection(socket, state, protocol))
+        .into_response()
 }
 
 /// Handle a WebSocket subscription connection.
-async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionState) {
+async fn handle_subscription_connection(
+    socket: WebSocket,
+    state: SubscriptionState,
+    protocol: WsProtocol,
+) {
     let connection_id = uuid::Uuid::new_v4().to_string();
-    info!(connection_id = %connection_id, "WebSocket connection established");
+    let codec = ProtocolCodec::new(protocol);
+    info!(
+        connection_id = %connection_id,
+        protocol = %protocol.as_str(),
+        "WebSocket connection established"
+    );
 
-    // Split socket into sender and receiver
     let (mut sender, mut receiver) = socket.split();
 
     // Wait for connection_init with timeout
@@ -83,7 +176,7 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
         while let Some(msg) = receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
+                    if let Ok(client_msg) = codec.decode(&text) {
                         if client_msg.parsed_type() == Some(ClientMessageType::ConnectionInit) {
                             return Some(client_msg);
                         }
@@ -104,14 +197,31 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
     // Handle init timeout or failure
     let _init_payload = match init_result {
         Ok(Some(msg)) => {
+            // Call lifecycle on_connect hook
+            let params = msg.payload.clone().unwrap_or(serde_json::json!({}));
+            if let Err(reason) = state.lifecycle.on_connect(&params, &connection_id).await {
+                warn!(
+                    connection_id = %connection_id,
+                    reason = %reason,
+                    "Lifecycle on_connect rejected connection"
+                );
+                WS_CONNECTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                let _ = sender
+                    .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                        code:   4400,
+                        reason: reason.into(),
+                    })))
+                    .await;
+                return;
+            }
+
             // Send connection_ack
             let ack = ServerMessage::connection_ack(None);
-            if let Ok(json) = ack.to_json() {
-                if sender.send(Message::Text(json.into())).await.is_err() {
-                    error!(connection_id = %connection_id, "Failed to send connection_ack");
-                    return;
-                }
+            if let Err(send_err) = send_server_message(&codec, &mut sender, ack).await {
+                error!(connection_id = %connection_id, error = %send_err, "Failed to send connection_ack");
+                return;
             }
+            WS_CONNECTIONS_ACCEPTED.fetch_add(1, Ordering::Relaxed);
             info!(connection_id = %connection_id, "Connection initialized");
             msg.payload
         },
@@ -121,7 +231,6 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
         },
         Err(_) => {
             warn!(connection_id = %connection_id, "Connection init timeout");
-            // Send close frame with timeout code
             let _ = sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
                     code:   CloseCode::ConnectionInitTimeout.code(),
@@ -138,25 +247,24 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
     // Subscribe to event broadcast
     let mut event_receiver = state.manager.receiver();
 
-    // Ping timer
+    // Ping/keepalive timer
     let mut ping_interval = tokio::time::interval(PING_INTERVAL);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     // Main message loop
     loop {
         tokio::select! {
-            // Handle incoming WebSocket messages
             msg = receiver.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         if let Err(close_code) = handle_client_message(
                             &text,
                             &connection_id,
-                            &state.manager,
+                            &state,
+                            &codec,
                             &mut active_operations,
                             &mut sender,
                         ).await {
-                            // Protocol error - close connection
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
                                 code: close_code.code(),
                                 reason: close_code.reason().into(),
@@ -167,9 +275,7 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
                     Some(Ok(Message::Ping(data))) => {
                         let _ = sender.send(Message::Pong(data)).await;
                     }
-                    Some(Ok(Message::Pong(_))) => {
-                        // Pong received, connection is alive
-                    }
+                    Some(Ok(Message::Pong(_))) => {}
                     Some(Ok(Message::Close(_))) => {
                         info!(connection_id = %connection_id, "Client closed connection");
                         break;
@@ -186,21 +292,17 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
                 }
             }
 
-            // Handle subscription events
             event = event_receiver.recv() => {
                 match event {
                     Ok(payload) => {
-                        // Find operation ID for this subscription
                         if let Some((op_id, _)) = active_operations
                             .iter()
                             .find(|(_, sub_id)| **sub_id == payload.subscription_id)
                         {
                             let msg = create_next_message(op_id, &payload);
-                            if let Ok(json) = msg.to_json() {
-                                if sender.send(Message::Text(json.into())).await.is_err() {
-                                    warn!(connection_id = %connection_id, "Failed to send event");
-                                    break;
-                                }
+                            if send_server_message(&codec, &mut sender, msg).await.is_err() {
+                                warn!(connection_id = %connection_id, "Failed to send event");
+                                break;
                             }
                         }
                     }
@@ -214,21 +316,19 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
                 }
             }
 
-            // Send ping for keepalive
             _ = ping_interval.tick() => {
-                let ping = ServerMessage::ping(None);
-                if let Ok(json) = ping.to_json() {
-                    if sender.send(Message::Text(json.into())).await.is_err() {
-                        warn!(connection_id = %connection_id, "Failed to send ping");
-                        break;
-                    }
+                let msg = ServerMessage::ping(None);
+                if send_server_message(&codec, &mut sender, msg).await.is_err() {
+                    warn!(connection_id = %connection_id, "Failed to send ping/keepalive");
+                    break;
                 }
             }
         }
     }
 
-    // Cleanup: unsubscribe all operations for this connection
+    // Cleanup
     state.manager.unsubscribe_connection(&connection_id);
+    state.lifecycle.on_disconnect(&connection_id).await;
     info!(connection_id = %connection_id, "WebSocket connection closed");
 }
 
@@ -238,31 +338,27 @@ async fn handle_subscription_connection(socket: WebSocket, state: SubscriptionSt
 async fn handle_client_message(
     text: &str,
     connection_id: &str,
-    manager: &SubscriptionManager,
+    state: &SubscriptionState,
+    codec: &ProtocolCodec,
     active_operations: &mut HashMap<String, SubscriptionId>,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
 ) -> Result<(), CloseCode> {
-    let client_msg: ClientMessage = serde_json::from_str(text).map_err(|e| {
+    let client_msg: ClientMessage = codec.decode(text).map_err(|e| {
         warn!(error = %e, "Failed to parse client message");
         CloseCode::ProtocolError
     })?;
 
     match client_msg.parsed_type() {
         Some(ClientMessageType::Ping) => {
-            // Respond with pong
             let pong = ServerMessage::pong(client_msg.payload);
-            if let Ok(json) = pong.to_json() {
-                let _ = sender.send(Message::Text(json.into())).await;
-            }
+            let _ = send_server_message(codec, sender, pong).await;
         },
 
         Some(ClientMessageType::Pong) => {
-            // Client responded to our ping, connection is alive
             debug!(connection_id = %connection_id, "Received pong");
         },
 
         Some(ClientMessageType::Subscribe) => {
-            // Parse subscription payload first (borrows client_msg)
             let payload: SubscribePayload = client_msg.subscription_payload().ok_or_else(|| {
                 warn!("Invalid subscribe payload");
                 CloseCode::ProtocolError
@@ -279,32 +375,76 @@ async fn handle_client_message(
                 return Err(CloseCode::SubscriberAlreadyExists);
             }
 
+            // Enforce per-connection subscription limit
+            if let Some(max) = state.max_subscriptions_per_connection {
+                if active_operations.len() >= max as usize {
+                    warn!(
+                        connection_id = %connection_id,
+                        active = active_operations.len(),
+                        max = max,
+                        "Subscription limit reached"
+                    );
+                    WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(
+                            format!("Maximum subscriptions per connection ({max}) reached"),
+                            "SUBSCRIPTION_LIMIT_REACHED",
+                        )],
+                    );
+                    let _ = send_server_message(codec, sender, error).await;
+                    return Ok(());
+                }
+            }
+
             // Extract subscription name from query
-            // For now, we use a simple parser - in production, use proper GraphQL parsing
-            let subscription_name = extract_subscription_name(&payload.query).ok_or_else(|| {
+            let subscription_name = match extract_subscription_name(&payload.query) {
+                Some(name) => name,
+                None => {
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(
+                            "Could not parse subscription query",
+                            "PARSE_ERROR",
+                        )],
+                    );
+                    let _ = send_server_message(codec, sender, error).await;
+                    return Ok(());
+                }
+            };
+
+            // Call lifecycle on_subscribe hook
+            let variables_value = serde_json::to_value(&payload.variables).unwrap_or_default();
+            if let Err(reason) = state
+                .lifecycle
+                .on_subscribe(&subscription_name, &variables_value, connection_id)
+                .await
+            {
+                warn!(
+                    connection_id = %connection_id,
+                    subscription = %subscription_name,
+                    reason = %reason,
+                    "Lifecycle on_subscribe rejected subscription"
+                );
+                WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
                 let error = ServerMessage::error(
                     &op_id,
-                    vec![GraphQLError::with_code(
-                        "Could not parse subscription query",
-                        "PARSE_ERROR",
-                    )],
+                    vec![GraphQLError::with_code(reason, "SUBSCRIPTION_REJECTED")],
                 );
-                if let Ok(json) = error.to_json() {
-                    let _ = futures::executor::block_on(sender.send(Message::Text(json.into())));
-                }
-                CloseCode::ProtocolError
-            })?;
+                let _ = send_server_message(codec, sender, error).await;
+                return Ok(());
+            }
 
             // Subscribe
-            let variables = serde_json::to_value(&payload.variables).unwrap_or_default();
-            match manager.subscribe(
+            match state.manager.subscribe(
                 &subscription_name,
                 serde_json::json!({}),
-                variables,
+                variables_value,
                 connection_id,
             ) {
                 Ok(sub_id) => {
                     active_operations.insert(op_id.clone(), sub_id);
+                    WS_SUBSCRIPTIONS_ACCEPTED.fetch_add(1, Ordering::Relaxed);
                     info!(
                         connection_id = %connection_id,
                         operation_id = %op_id,
@@ -317,9 +457,7 @@ async fn handle_client_message(
                         &op_id,
                         vec![GraphQLError::with_code(e.to_string(), "SUBSCRIPTION_ERROR")],
                     );
-                    if let Ok(json) = error.to_json() {
-                        let _ = sender.send(Message::Text(json.into())).await;
-                    }
+                    let _ = send_server_message(codec, sender, error).await;
                 },
             }
         },
@@ -330,9 +468,9 @@ async fn handle_client_message(
                 CloseCode::ProtocolError
             })?;
 
-            // Unsubscribe
             if let Some(sub_id) = active_operations.remove(&op_id) {
-                let _ = manager.unsubscribe(sub_id);
+                let _ = state.manager.unsubscribe(sub_id);
+                state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
                 info!(
                     connection_id = %connection_id,
                     operation_id = %op_id,
@@ -342,23 +480,38 @@ async fn handle_client_message(
         },
 
         Some(ClientMessageType::ConnectionInit) => {
-            // Already initialized - too many init requests
             warn!(connection_id = %connection_id, "Duplicate connection_init");
             return Err(CloseCode::TooManyInitRequests);
         },
 
         None => {
             warn!(message_type = %client_msg.message_type, "Unknown message type");
-            // Unknown message types are ignored per spec
         },
     }
 
     Ok(())
 }
 
+/// Send a server message through the codec, handling protocol translation.
+async fn send_server_message(
+    codec: &ProtocolCodec,
+    sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+    msg: ServerMessage,
+) -> Result<(), String> {
+    match codec.encode(msg) {
+        Ok(Some(json)) => {
+            sender
+                .send(Message::Text(json.into()))
+                .await
+                .map_err(|e| e.to_string())
+        }
+        Ok(None) => Ok(()), // Message suppressed by codec (e.g. pong in legacy mode)
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 /// Create a "next" message for a subscription event.
 fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> ServerMessage {
-    // Structure the data as GraphQL response format
     let data = serde_json::json!({
         payload.subscription_name.clone(): payload.data
     });
@@ -366,22 +519,15 @@ fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> Ser
 }
 
 /// Extract subscription name from a GraphQL subscription query.
-///
-/// This is a simple parser for demonstration. In production, use proper GraphQL parsing.
 fn extract_subscription_name(query: &str) -> Option<String> {
-    // Look for pattern: subscription { subscriptionName
-    // or: subscription OperationName { subscriptionName
     let query = query.trim();
 
-    // Find "subscription" keyword
     let sub_idx = query.find("subscription")?;
     let after_sub = &query[sub_idx + "subscription".len()..];
 
-    // Find opening brace
     let brace_idx = after_sub.find('{')?;
     let after_brace = after_sub[brace_idx + 1..].trim_start();
 
-    // Extract first word (subscription field name)
     let name_end = after_brace
         .find(|c: char| !c.is_alphanumeric() && c != '_')
         .unwrap_or(after_brace.len());

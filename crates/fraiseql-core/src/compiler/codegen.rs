@@ -159,14 +159,15 @@ impl CodeGenerator {
             .iter()
             .map(|s| {
                 SubscriptionDefinition {
-                    name:        s.name.clone(),
-                    return_type: s.return_type.clone(),
-                    arguments:   Self::map_arguments(&s.arguments, &known_types),
-                    description: s.description.clone(),
-                    topic:       None, // Populated from decorator topic binding
-                    filter:      None, // Populated from decorator filters
-                    fields:      Vec::new(), // Populated from decorator field selection
-                    deprecation: None, // Note: IR subscriptions don't have deprecation yet
+                    name:          s.name.clone(),
+                    return_type:   s.return_type.clone(),
+                    arguments:     Self::map_arguments(&s.arguments, &known_types),
+                    description:   s.description.clone(),
+                    topic:         None, // Populated from decorator topic binding
+                    filter:        None, // Populated from decorator filters
+                    fields:        Vec::new(), // Populated from decorator field selection
+                    filter_fields: Vec::new(), // Populated from decorator filter_fields
+                    deprecation:   None, // Note: IR subscriptions don't have deprecation yet
                 }
             })
             .collect();
@@ -215,6 +216,7 @@ impl CodeGenerator {
             security: None,
             // Raw schema SDL: populated for federation _service query
             observers_config: None,
+            subscriptions_config: None,
             schema_sdl: None,
             // Custom scalar types registry
             custom_scalars,

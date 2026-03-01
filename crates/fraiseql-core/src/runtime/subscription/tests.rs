@@ -714,3 +714,120 @@ fn test_subscription_field_projection() {
         assert!(payload.data.get("customer").is_none());
     }
 }
+
+// =========================================================================
+// filter_fields Expansion Tests
+// =========================================================================
+
+#[test]
+fn test_filter_fields_auto_generates_argument_paths() {
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
+        .with_topic("order_created");
+    def.filter_fields = vec!["user_id".to_string(), "tenant_id".to_string()];
+
+    let schema = Arc::new(CompiledSchema {
+        subscriptions: vec![def],
+        ..Default::default()
+    });
+
+    let manager = SubscriptionManager::new(schema);
+
+    // Subscribe with filter_fields variables
+    let id = manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({"user_id": "usr_1", "tenant_id": "t_1"}),
+            "conn_1",
+        )
+        .unwrap();
+
+    // The definition should now have argument_paths auto-generated
+    let sub = manager.get_subscription(id).unwrap();
+    let filter = sub.definition.filter.as_ref().expect("filter should exist");
+    assert_eq!(filter.argument_paths.get("user_id"), Some(&"/user_id".to_string()));
+    assert_eq!(filter.argument_paths.get("tenant_id"), Some(&"/tenant_id".to_string()));
+}
+
+#[test]
+fn test_filter_fields_does_not_overwrite_explicit_argument_paths() {
+    use std::collections::HashMap;
+    use crate::schema::SubscriptionFilter;
+
+    let mut argument_paths = HashMap::new();
+    argument_paths.insert("user_id".to_string(), "/author/id".to_string());
+
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
+        .with_topic("order_created")
+        .with_filter(SubscriptionFilter {
+            argument_paths,
+            static_filters: Vec::new(),
+        });
+    // filter_fields includes user_id (already in argument_paths) and tenant_id (new)
+    def.filter_fields = vec!["user_id".to_string(), "tenant_id".to_string()];
+
+    let schema = Arc::new(CompiledSchema {
+        subscriptions: vec![def],
+        ..Default::default()
+    });
+
+    let manager = SubscriptionManager::new(schema);
+
+    let id = manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({"user_id": "usr_1", "tenant_id": "t_1"}),
+            "conn_1",
+        )
+        .unwrap();
+
+    let sub = manager.get_subscription(id).unwrap();
+    let filter = sub.definition.filter.as_ref().unwrap();
+    // Explicit path should be preserved, not overwritten
+    assert_eq!(filter.argument_paths.get("user_id"), Some(&"/author/id".to_string()));
+    // New field should be auto-generated
+    assert_eq!(filter.argument_paths.get("tenant_id"), Some(&"/tenant_id".to_string()));
+}
+
+#[test]
+fn test_filter_fields_filtering_events() {
+    let mut def = SubscriptionDefinition::new("OrderCreated", "Order")
+        .with_topic("order_created");
+    def.filter_fields = vec!["user_id".to_string()];
+
+    let schema = Arc::new(CompiledSchema {
+        subscriptions: vec![def],
+        ..Default::default()
+    });
+
+    let manager = SubscriptionManager::new(schema);
+
+    // Subscribe with user_id filter
+    manager
+        .subscribe(
+            "OrderCreated",
+            serde_json::json!({}),
+            serde_json::json!({"user_id": "usr_1"}),
+            "conn_1",
+        )
+        .unwrap();
+
+    // Matching event
+    let matching = SubscriptionEvent::new(
+        "Order",
+        "ord_1",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_1", "user_id": "usr_1"}),
+    );
+    assert_eq!(manager.publish_event(matching), 1);
+
+    // Non-matching event (different user_id)
+    let non_matching = SubscriptionEvent::new(
+        "Order",
+        "ord_2",
+        SubscriptionOperation::Create,
+        serde_json::json!({"id": "ord_2", "user_id": "usr_2"}),
+    );
+    assert_eq!(manager.publish_event(non_matching), 0);
+}

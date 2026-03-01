@@ -141,8 +141,9 @@ impl SchemaConverter {
                           * IntermediateSchema) */
             federation: intermediate.federation_config,    // Federation config from TOML
             security: intermediate.security,               // Security configuration from TOML
-            observers_config: intermediate.observers_config, // Observers config from TOML
-            schema_sdl: None,                              // Raw GraphQL SDL
+            observers_config: intermediate.observers_config,         // Observers config from TOML
+            subscriptions_config: intermediate.subscriptions_config, // Subscriptions config from TOML
+            schema_sdl: None,                                        // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
         };
 
@@ -679,6 +680,7 @@ impl SchemaConverter {
             topic: intermediate.topic,
             filter,
             fields: intermediate.fields,
+            filter_fields: Vec::new(),
             deprecation,
         })
     }
@@ -1113,6 +1115,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1167,6 +1170,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1214,6 +1218,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1276,6 +1281,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1329,6 +1335,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1383,6 +1390,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1444,6 +1452,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1511,6 +1520,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1594,6 +1604,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1644,6 +1655,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1698,6 +1710,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1764,6 +1777,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1852,6 +1866,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1926,6 +1941,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -1977,6 +1993,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -2038,6 +2055,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -2104,6 +2122,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };
@@ -2182,6 +2201,7 @@ mod tests {
             observers:         None,
             custom_scalars:    None,
             observers_config:  None,
+            subscriptions_config: None,
             federation_config: None,
             query_defaults:    None,
         };

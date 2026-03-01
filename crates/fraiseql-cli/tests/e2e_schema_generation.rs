@@ -29,6 +29,7 @@ fn test_e2e_complete_compilation_pipeline() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -78,6 +79,7 @@ fn test_e2e_sql_templates_all_databases() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -133,6 +135,7 @@ fn test_e2e_lookup_data_comprehensive() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -183,6 +186,7 @@ fn test_e2e_all_operators_generated() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -243,6 +247,7 @@ fn test_e2e_compilation_deterministic() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -297,6 +302,7 @@ fn test_e2e_all_49_types_valid() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };

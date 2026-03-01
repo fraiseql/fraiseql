@@ -252,6 +252,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers_config: Option<serde_json::Value>,
 
+    /// WebSocket subscription configuration (hooks, limits).
+    /// Compiled from the `[subscriptions]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subscriptions_config: Option<serde_json::Value>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
@@ -282,6 +287,7 @@ impl PartialEq for CompiledSchema {
             && self.federation == other.federation
             && self.security == other.security
             && self.observers_config == other.observers_config
+            && self.subscriptions_config == other.subscriptions_config
             && self.schema_sdl == other.schema_sdl
     }
 }
@@ -1779,6 +1785,14 @@ pub struct SubscriptionDefinition {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fields: Vec<String>,
 
+    /// Shorthand: argument names that should auto-generate `argument_paths`
+    /// entries using `/<field_name>` as the JSON pointer path.
+    ///
+    /// Example: `filter_fields: ["user_id"]` generates an `argument_paths`
+    /// entry of `"user_id" -> "/user_id"` at runtime.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filter_fields: Vec<String>,
+
     /// Deprecation information (from @deprecated directive).
     /// When set, this subscription is marked as deprecated in the schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1839,14 +1853,15 @@ impl SubscriptionDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:        name.into(),
-            return_type: return_type.into(),
-            arguments:   Vec::new(),
-            description: None,
-            topic:       None,
-            filter:      None,
-            fields:      Vec::new(),
-            deprecation: None,
+            name:          name.into(),
+            return_type:   return_type.into(),
+            arguments:     Vec::new(),
+            description:   None,
+            topic:         None,
+            filter:        None,
+            fields:        Vec::new(),
+            filter_fields: Vec::new(),
+            deprecation:   None,
         }
     }
 

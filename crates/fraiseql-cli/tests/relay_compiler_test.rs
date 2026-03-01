@@ -76,6 +76,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         custom_scalars:    None,
         security:          None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     }

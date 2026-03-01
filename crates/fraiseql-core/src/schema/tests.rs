@@ -138,6 +138,7 @@ fn test_schema_to_json_roundtrip() {
         federation:     None,
         security:       None,
         observers_config: None,
+            subscriptions_config: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
@@ -329,6 +330,7 @@ fn test_operation_count() {
         federation:     None,
         security:       None,
         observers_config: None,
+            subscriptions_config: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
@@ -701,6 +703,7 @@ fn test_vector_field_roundtrip() {
         federation:     None,
         security:       None,
         observers_config: None,
+            subscriptions_config: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };

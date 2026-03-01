@@ -32,6 +32,7 @@ fn test_rich_filter_compilation_pipeline() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -102,6 +103,7 @@ fn test_all_rich_types_generate_where_input() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -159,6 +161,7 @@ fn test_where_input_fields_include_standard_operators() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -211,6 +214,7 @@ fn test_sql_templates_cover_all_databases() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -274,6 +278,7 @@ fn test_lookup_data_integrity() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };
@@ -336,6 +341,7 @@ fn test_compiled_schema_is_valid() {
         observers:         None,
         custom_scalars:    None,
         observers_config:  None,
+            subscriptions_config: None,
         federation_config: None,
         query_defaults:    None,
     };

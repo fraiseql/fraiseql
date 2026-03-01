@@ -94,6 +94,13 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub federation_config: Option<serde_json::Value>,
 
+    /// WebSocket subscription configuration (hooks, limits).
+    ///
+    /// Compiled from the `[subscriptions]` TOML section. Embedded verbatim into
+    /// the compiled schema for server-side consumption.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subscriptions_config: Option<serde_json::Value>,
+
     /// Global auto-param defaults for list queries (injected from TOML by the merger).
     ///
     /// Never present in `schema.json` — populated at compile time from `[query_defaults]`

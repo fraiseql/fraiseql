@@ -91,11 +91,29 @@ impl SubscriptionManager {
         connection_id: &str,
     ) -> Result<SubscriptionId, SubscriptionError> {
         // Find subscription definition
-        let definition = self
+        let mut definition = self
             .schema
             .find_subscription(subscription_name)
             .ok_or_else(|| SubscriptionError::SubscriptionNotFound(subscription_name.to_string()))?
             .clone();
+
+        // Expand filter_fields into argument_paths on the filter.
+        // Each filter_field name becomes an argument_path entry mapping
+        // the field name to a JSON pointer path (e.g., "user_id" → "/user_id").
+        if !definition.filter_fields.is_empty() {
+            let filter = definition.filter.get_or_insert_with(|| {
+                crate::schema::SubscriptionFilter {
+                    argument_paths: std::collections::HashMap::new(),
+                    static_filters: Vec::new(),
+                }
+            });
+            for field in &definition.filter_fields {
+                filter
+                    .argument_paths
+                    .entry(field.clone())
+                    .or_insert_with(|| format!("/{field}"));
+            }
+        }
 
         // Create active subscription
         let active = ActiveSubscription::new(

@@ -104,6 +104,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         federation:     None,
         security:       Some(serde_json::to_value(security_config).unwrap()),
         observers_config: None,
+            subscriptions_config: None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
     }

@@ -534,6 +534,12 @@ impl SchemaMerger {
                 .unwrap_or_default();
         }
 
+        // Embed subscriptions configuration (hooks, limits)
+        let subs_json = serde_json::to_value(&toml_schema.subscriptions).unwrap_or_default();
+        if subs_json != serde_json::json!({}) {
+            merged["subscriptions_config"] = subs_json;
+        }
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;

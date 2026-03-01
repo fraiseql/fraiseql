@@ -45,6 +45,8 @@ pub struct Server<A: DatabaseAdapter> {
     config:               ServerConfig,
     executor:             Arc<Executor<A>>,
     subscription_manager: Arc<SubscriptionManager>,
+    subscription_lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
+    max_subscriptions_per_connection: Option<u32>,
     oidc_validator:       Option<Arc<OidcValidator>>,
     rate_limiter:         Option<Arc<RateLimiter>>,
     secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
@@ -372,10 +374,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Read subscription config from compiled schema (hooks, limits).
+        let subscriptions_config_json = schema.subscriptions_config.clone();
+
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
-        Self::from_executor(
+        let mut server = Self::from_executor(
             config,
             executor,
             subscription_manager,
@@ -389,7 +394,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             revocation_manager,
             db_pool,
         )
-        .await
+        .await?;
+
+        // Apply subscription lifecycle/limits from compiled schema.
+        if let Some(ref subs_json) = subscriptions_config_json {
+            if let Some(max) = subs_json.get("max_subscriptions_per_connection").and_then(|v| v.as_u64()) {
+                #[allow(clippy::cast_possible_truncation)]
+                // Reason: max_subscriptions_per_connection is a u32 config field; u64 → u32
+                // truncation is acceptable for a limit that would never exceed u32::MAX.
+                {
+                    server.max_subscriptions_per_connection = Some(max as u32);
+                }
+            }
+            if let Some(lifecycle) = crate::subscriptions::WebhookLifecycle::from_schema_json(subs_json) {
+                server.subscription_lifecycle = Arc::new(lifecycle);
+            }
+        }
+
+        Ok(server)
     }
 
     /// Shared initialization path used by both `new` and `with_relay_pagination`.
@@ -506,6 +528,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             config,
             executor,
             subscription_manager,
+            subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),
+            max_subscriptions_per_connection: None,
             oidc_validator,
             rate_limiter,
             secrets_manager: None,
@@ -523,6 +547,23 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "arrow")]
             flight_service,
         })
+    }
+
+    /// Set lifecycle hooks for WebSocket subscriptions.
+    #[must_use]
+    pub fn with_subscription_lifecycle(
+        mut self,
+        lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
+    ) -> Self {
+        self.subscription_lifecycle = lifecycle;
+        self
+    }
+
+    /// Set maximum subscriptions allowed per WebSocket connection.
+    #[must_use]
+    pub fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
+        self.max_subscriptions_per_connection = Some(max);
+        self
     }
 
     /// Set secrets manager for the server.
@@ -717,6 +758,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             config,
             executor,
             subscription_manager,
+            subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),
+            max_subscriptions_per_connection: None,
             oidc_validator,
             rate_limiter,
             secrets_manager: None,
@@ -871,10 +914,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Conditionally add subscription route (WebSocket)
         if self.config.subscriptions_enabled {
-            let subscription_state = SubscriptionState::new(self.subscription_manager.clone());
+            let subscription_state = SubscriptionState::new(self.subscription_manager.clone())
+                .with_lifecycle(self.subscription_lifecycle.clone())
+                .with_max_subscriptions(self.max_subscriptions_per_connection);
             info!(
                 subscription_path = %self.config.subscription_path,
-                "GraphQL subscriptions enabled (graphql-ws protocol)"
+                "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
             );
             let subscription_router = Router::new()
                 .route(&self.config.subscription_path, get(subscription_handler))
