@@ -138,6 +138,9 @@ pub mod arrow;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
+// Trusted documents (query allowlist)
+pub mod trusted_documents;
+
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;

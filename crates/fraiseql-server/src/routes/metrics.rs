@@ -164,6 +164,29 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Append trusted document counters.
+    if state.trusted_docs.is_some() {
+        let hits = crate::trusted_documents::hits_total();
+        let misses = crate::trusted_documents::misses_total();
+        let rejected = crate::trusted_documents::rejected_total();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_trusted_documents_hits_total Trusted document lookups resolved from manifest\n",
+                "# TYPE fraiseql_trusted_documents_hits_total counter\n",
+                "fraiseql_trusted_documents_hits_total {hits}\n",
+                "\n# HELP fraiseql_trusted_documents_misses_total Unknown document ID lookups\n",
+                "# TYPE fraiseql_trusted_documents_misses_total counter\n",
+                "fraiseql_trusted_documents_misses_total {misses}\n",
+                "\n# HELP fraiseql_trusted_documents_rejected_total Raw queries rejected (strict mode)\n",
+                "# TYPE fraiseql_trusted_documents_rejected_total counter\n",
+                "fraiseql_trusted_documents_rejected_total {rejected}\n",
+            ),
+            hits = hits,
+            misses = misses,
+            rejected = rejected,
+        ));
+    }
+
     // Append per-operation histogram metrics
     output.push_str(&state.metrics.operation_metrics.to_prometheus_format());
 

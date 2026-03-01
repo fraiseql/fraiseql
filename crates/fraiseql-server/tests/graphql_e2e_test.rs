@@ -29,6 +29,7 @@ fn test_simple_query_structure() {
         variables:      None,
         operation_name: None,
         extensions:     None,
+        document_id:    None,
     };
 
     assert_eq!(request.query.as_deref(), Some("{ user { id } }"));
@@ -49,6 +50,7 @@ fn test_query_with_variables() {
         variables: Some(variables),
         operation_name: Some("GetUserPosts".to_string()),
         extensions: None,
+        document_id: None,
     };
 
     assert_eq!(request.operation_name, Some("GetUserPosts".to_string()));
@@ -293,6 +295,7 @@ fn test_validation_pipeline() {
         variables:      Some(json!({"limit": 10})),
         operation_name: None,
         extensions:     None,
+        document_id:    None,
     };
 
     // Step 2: Validate query structure

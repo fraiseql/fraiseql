@@ -1,6 +1,24 @@
 //! FraiseQL Arrow Flight integration.
 //!
-//! This crate provides Apache Arrow Flight support for FraiseQL, enabling:
+//! This crate is the **library implementation** of FraiseQL's Arrow Flight support.
+//! It provides [`FraiseQLFlightService`], the gRPC service that handles all Flight
+//! protocol operations (handshake, `DoGet`, `DoPut`, schema introspection, etc.).
+//!
+//! # Relationship to `fraiseql-server`
+//!
+//! `fraiseql-arrow` and `fraiseql-server::arrow` are **not duplicates** — they form a
+//! library/consumer pair:
+//!
+//! - **`fraiseql-arrow`** (this crate): Implements the Arrow Flight protocol on top of
+//!   abstract `DatabaseAdapter` and `QueryExecutor` traits. Contains all Flight logic:
+//!   authentication, caching, streaming, JSON↔Arrow conversion, schema registry.
+//!
+//! - **`fraiseql-server::arrow`**: Thin adapter layer (~270 lines) that wraps
+//!   fraiseql-core database adapters to this crate's trait interfaces and manages
+//!   the Flight gRPC server lifecycle (port 50051, graceful shutdown).
+//!
+//! # Features
+//!
 //! - High-performance columnar data transfer
 //! - Zero-copy deserialization in clients (Python, R, Java)
 //! - Direct integration with data warehouses (ClickHouse, Snowflake)

@@ -44,6 +44,10 @@ pub enum ErrorCode {
     PersistedQueryNotFound,
     /// Persisted query hash mismatch — SHA-256 of body does not match provided hash.
     PersistedQueryMismatch,
+    /// Raw query forbidden — trusted documents strict mode requires a documentId.
+    ForbiddenQuery,
+    /// Document not found — the provided documentId is not in the trusted manifest.
+    DocumentNotFound,
 }
 
 impl ErrorCode {
@@ -65,6 +69,7 @@ impl ErrorCode {
             // APQ protocol: "not found" is a signal for the client to re-send with query body.
             Self::PersistedQueryNotFound => StatusCode::OK,
             Self::PersistedQueryMismatch => StatusCode::BAD_REQUEST,
+            Self::ForbiddenQuery | Self::DocumentNotFound => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -290,6 +295,23 @@ impl GraphQLError {
         Self::new(
             "provided sha does not match query",
             ErrorCode::PersistedQueryMismatch,
+        )
+    }
+
+    /// Raw query forbidden — trusted documents strict mode requires a documentId.
+    #[must_use]
+    pub fn forbidden_query() -> Self {
+        Self::new(
+            "Raw queries are not permitted. Send a documentId instead.",
+            ErrorCode::ForbiddenQuery,
+        )
+    }
+
+    /// Document not found — the provided documentId is not in the trusted manifest.
+    pub fn document_not_found(doc_id: impl Into<String>) -> Self {
+        Self::new(
+            format!("Unknown document: {}", doc_id.into()),
+            ErrorCode::DocumentNotFound,
         )
     }
 

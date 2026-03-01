@@ -233,6 +233,7 @@ fn test_graphql_request_minimal() {
         variables:      None,
         operation_name: None,
         extensions:     None,
+        document_id:    None,
     };
 
     let validator = RequestValidator::new();

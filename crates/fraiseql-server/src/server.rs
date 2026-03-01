@@ -59,6 +59,7 @@ pub struct Server<A: DatabaseAdapter> {
     api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
     apq_store:            Option<Arc<dyn fraiseql_core::apq::ApqStorage>>,
+    trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
 
     #[cfg(feature = "observers")]
     observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
@@ -309,6 +310,123 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Arc::new(sanitizer)
     }
 
+    /// Build a `TrustedDocumentStore` from `security.trusted_documents` in the
+    /// compiled schema, if present and `enabled = true`.
+    fn trusted_docs_from_schema(
+        schema: &CompiledSchema,
+    ) -> Option<Arc<crate::trusted_documents::TrustedDocumentStore>> {
+        let security = schema.security.as_ref()?;
+        let td_cfg = security.get("trusted_documents")?;
+
+        #[derive(serde::Deserialize)]
+        struct TdCfgMinimal {
+            #[serde(default)]
+            enabled: bool,
+            #[serde(default)]
+            mode: String,
+            manifest_path: Option<String>,
+            #[allow(dead_code)]
+            manifest_url: Option<String>,
+            #[serde(default)]
+            reload_interval_secs: u64,
+        }
+
+        let cfg: TdCfgMinimal = serde_json::from_value(td_cfg.clone()).ok()?;
+        if !cfg.enabled {
+            return None;
+        }
+
+        let mode = if cfg.mode.eq_ignore_ascii_case("strict") {
+            crate::trusted_documents::TrustedDocumentMode::Strict
+        } else {
+            crate::trusted_documents::TrustedDocumentMode::Permissive
+        };
+
+        if let Some(ref path) = cfg.manifest_path {
+            match crate::trusted_documents::TrustedDocumentStore::from_manifest_file(
+                std::path::Path::new(path),
+                mode,
+            ) {
+                Ok(store) => {
+                    let store = Arc::new(store);
+                    // Spawn hot-reload task if configured.
+                    if cfg.reload_interval_secs > 0 {
+                        if let Some(ref url) = cfg.manifest_url {
+                            Self::spawn_trusted_docs_reload(
+                                Arc::clone(&store),
+                                url.clone(),
+                                cfg.reload_interval_secs,
+                            );
+                        } else {
+                            warn!(
+                                "trusted_documents.reload_interval_secs > 0 but no manifest_url set \
+                                 — hot-reload disabled (file-based manifests must be reloaded manually)"
+                            );
+                        }
+                    }
+                    info!(
+                        manifest = %path,
+                        mode = ?mode,
+                        "Trusted documents loaded"
+                    );
+                    Some(store)
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to load trusted documents manifest");
+                    None
+                }
+            }
+        } else {
+            warn!("trusted_documents.enabled = true but no manifest_path or manifest_url set");
+            None
+        }
+    }
+
+    /// Spawn a background task that periodically re-fetches the manifest from a URL.
+    fn spawn_trusted_docs_reload(
+        store: Arc<crate::trusted_documents::TrustedDocumentStore>,
+        url: String,
+        interval_secs: u64,
+    ) {
+        tokio::spawn(async move {
+            let mut ticker =
+                tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                ticker.tick().await;
+                match reqwest::get(&url).await {
+                    Ok(resp) => match resp.text().await {
+                        Ok(body) => {
+                            #[derive(serde::Deserialize)]
+                            struct Manifest {
+                                documents: std::collections::HashMap<String, String>,
+                            }
+                            match serde_json::from_str::<Manifest>(&body) {
+                                Ok(manifest) => {
+                                    let count = manifest.documents.len();
+                                    store.replace_documents(manifest.documents).await;
+                                    info!(
+                                        count,
+                                        "Trusted documents manifest reloaded"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(error = %e, "Failed to parse trusted documents manifest");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "Failed to read trusted documents manifest response");
+                        }
+                    },
+                    Err(e) => {
+                        warn!(error = %e, "Failed to fetch trusted documents manifest");
+                    }
+                }
+            }
+        });
+    }
+
     /// Create new server.
     ///
     /// Relay pagination queries will return a `Validation` error at runtime. Use
@@ -361,6 +479,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
         }
+        let trusted_docs = Self::trusted_docs_from_schema(&schema);
 
         // Warn when query-result caching is active but no RLS policies are declared.
         // Cache isolation relies on per-user WHERE clauses in the cache key.  Without RLS,
@@ -396,6 +515,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             schema_rate_limiter,
             api_key_authenticator,
             revocation_manager,
+            trusted_docs,
             db_pool,
         )
         .await?;
@@ -474,6 +594,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         schema_rate_limiter:  Option<Arc<RateLimiter>>,
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
         revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+        trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
         #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
@@ -579,6 +700,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             api_key_authenticator,
             revocation_manager,
             apq_store: None,
+            trusted_docs,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -704,6 +826,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
+        let trusted_docs = Self::trusted_docs_from_schema(&schema);
 
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -720,6 +843,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             schema_rate_limiter,
             api_key_authenticator,
             revocation_manager,
+            trusted_docs,
             db_pool,
         )
         .await?;
@@ -798,6 +922,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
+        let trusted_docs = Self::trusted_docs_from_schema(&schema);
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -873,6 +998,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             });
         }
 
+        let apq_enabled = config.apq_enabled;
+
         Ok(Self {
             config,
             executor,
@@ -889,12 +1016,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             oidc_server_client,
             api_key_authenticator,
             revocation_manager,
-            apq_store: if config.apq_enabled {
+            apq_store: if apq_enabled {
                 Some(Arc::new(fraiseql_core::apq::InMemoryApqStorage::default())
                     as Arc<dyn fraiseql_core::apq::ApqStorage>)
             } else {
                 None
             },
+            trusted_docs,
+            mcp_config: None,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
@@ -996,6 +1125,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Attach APQ store if configured
         if let Some(ref store) = self.apq_store {
             state = state.with_apq_store(store.clone());
+        }
+
+        // Attach trusted document store if configured
+        if let Some(ref store) = self.trusted_docs {
+            state = state.with_trusted_docs(store.clone());
         }
 
         let metrics = state.metrics.clone();

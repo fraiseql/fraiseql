@@ -504,6 +504,19 @@ TOML CONFIG:
         introspection: bool,
     },
 
+    /// Validate a trusted documents manifest
+    ///
+    /// Checks that the manifest JSON is well-formed and that each key
+    /// is a valid SHA-256 hex string matching its query body.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql validate-documents manifest.json")]
+    ValidateDocuments {
+        /// Path to the trusted documents manifest JSON file
+        #[arg(value_name = "MANIFEST")]
+        manifest: String,
+    },
+
     /// Development server with hot-reload
     #[command(hide = true)] // Hide until implemented
     Serve {
@@ -920,6 +933,16 @@ pub async fn run() {
             introspection,
         } => {
             commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await
+        },
+
+        Commands::ValidateDocuments { manifest } => {
+            match commands::validate_documents::run(&manifest) {
+                Ok(true) => Ok(()),
+                Ok(false) => {
+                    process::exit(2);
+                },
+                Err(e) => Err(e),
+            }
         },
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,

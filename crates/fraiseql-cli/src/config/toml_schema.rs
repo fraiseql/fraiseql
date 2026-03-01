@@ -609,6 +609,8 @@ pub struct SecuritySettings {
     pub api_keys:            Option<ApiKeySecurityConfig>,
     /// Token revocation — reject JWTs by `jti` after revocation
     pub token_revocation:    Option<TokenRevocationSecurityConfig>,
+    /// Trusted documents — query allowlist (strict or permissive mode)
+    pub trusted_documents:   Option<TrustedDocumentsConfig>,
 }
 
 impl Default for SecuritySettings {
@@ -625,6 +627,7 @@ impl Default for SecuritySettings {
             pkce:               None,
             api_keys:           None,
             token_revocation:   None,
+            trusted_documents:  None,
         }
     }
 }
@@ -978,6 +981,56 @@ pub struct StaticApiKeyEntry {
     pub scopes: Vec<String>,
     /// Human-readable name for audit logging
     pub name: String,
+}
+
+/// Trusted document mode.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TrustedDocumentMode {
+    /// Only documentId requests allowed; raw query strings rejected
+    Strict,
+    /// documentId requests use the manifest; raw queries fall through
+    #[default]
+    Permissive,
+}
+
+/// Trusted documents / query allowlist configuration.
+///
+/// ```toml
+/// [security.trusted_documents]
+/// enabled = true
+/// mode = "strict"
+/// manifest_path = "./trusted-documents.json"
+/// reload_interval_secs = 0
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TrustedDocumentsConfig {
+    /// Enable trusted documents
+    pub enabled: bool,
+    /// Enforcement mode: "strict" or "permissive"
+    pub mode: TrustedDocumentMode,
+    /// Path to the trusted documents manifest JSON file
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_path: Option<String>,
+    /// URL to fetch the trusted documents manifest from at startup
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_url: Option<String>,
+    /// Poll interval in seconds for hot-reloading the manifest (0 = no reload)
+    #[serde(default)]
+    pub reload_interval_secs: u64,
+}
+
+impl Default for TrustedDocumentsConfig {
+    fn default() -> Self {
+        Self {
+            enabled:              false,
+            mode:                 TrustedDocumentMode::Permissive,
+            manifest_path:        None,
+            manifest_url:         None,
+            reload_interval_secs: 0,
+        }
+    }
 }
 
 /// Token revocation configuration.

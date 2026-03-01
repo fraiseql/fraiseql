@@ -172,6 +172,7 @@ fn test_request_validation_integration() {
         variables:      None,
         operation_name: None,
         extensions:     None,
+        document_id:    None,
     };
 
     assert!(validator.validate_query(valid_request.query.as_deref().unwrap()).is_ok());
@@ -183,6 +184,7 @@ fn test_request_validation_integration() {
         variables:      None,
         operation_name: None,
         extensions:     None,
+        document_id:    None,
     };
 
     let validator = validator.with_max_depth(2);

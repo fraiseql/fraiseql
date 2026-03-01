@@ -255,6 +255,7 @@ fn test_graphql_request_structure_with_profiles() {
         variables:      None,
         operation_name: None,
         extensions:     None,
+        document_id:    None,
     };
 
     let validator = regulated_profile_validator();

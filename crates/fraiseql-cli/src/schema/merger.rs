@@ -498,6 +498,9 @@ impl SchemaMerger {
             "rate_limiting": toml_schema.security.rate_limiting,
             "state_encryption": toml_schema.security.state_encryption,
             "pkce": toml_schema.security.pkce,
+            "api_keys": toml_schema.security.api_keys,
+            "token_revocation": toml_schema.security.token_revocation,
+            "trusted_documents": toml_schema.security.trusted_documents,
         });
 
         // Embed observers configuration if enabled or if any backend URL is set

@@ -26,6 +26,7 @@ fn test_graphql_request_structure_for_mutation_attack() {
         variables:      None,
         operation_name: Some("UpdateRole".to_string()),
         extensions:     None,
+        document_id:    None,
     };
 
     // Server should validate and reject attempts to set role through mutation
@@ -54,6 +55,7 @@ fn test_variable_injection_with_role_parameter() {
         variables:      Some(variables),
         operation_name: Some("SetRole".to_string()),
         extensions:     None,
+        document_id:    None,
     };
 
     // Server should reject this query structure - role field is not a variable, it's immutable

@@ -52,6 +52,10 @@ pub struct GraphQLRequest {
     /// Protocol extensions (APQ, tracing, etc.).
     #[serde(default)]
     pub extensions: Option<serde_json::Value>,
+
+    /// Trusted document identifier (GraphQL over HTTP spec).
+    #[serde(default, rename = "documentId")]
+    pub document_id: Option<String>,
 }
 
 /// GraphQL GET request parameters.
@@ -119,6 +123,8 @@ pub struct AppState<A: DatabaseAdapter> {
         Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     /// APQ persistent query store (optional, enabled via compiled schema config).
     pub apq_store:   Option<Arc<dyn ApqStorage>>,
+    /// Trusted document store (optional, enabled via `[security.trusted_documents]`).
+    pub trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
     /// APQ metrics tracker.
     pub apq_metrics: Arc<ApqMetrics>,
     /// Request validator (depth/complexity limits, configured from compiled schema).
@@ -146,6 +152,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             state_encryption: None,
             api_key_authenticator: None,
             apq_store: None,
+            trusted_docs: None,
             apq_metrics: Arc::new(ApqMetrics::default()),
             validator: crate::validation::RequestValidator::new(),
             debug_config: None,
@@ -268,6 +275,16 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
+    /// Attach a trusted document store for query allowlist enforcement.
+    #[must_use]
+    pub fn with_trusted_docs(
+        mut self,
+        store: Arc<crate::trusted_documents::TrustedDocumentStore>,
+    ) -> Self {
+        self.trusted_docs = Some(store);
+        self
+    }
+
     /// Set the request validator (query depth/complexity limits).
     #[must_use]
     pub fn with_validator(mut self, validator: crate::validation::RequestValidator) -> Self {
@@ -383,6 +400,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         variables,
         operation_name: params.operation_name,
         extensions: None,
+        document_id: None,
     };
 
     // NOTE: SecurityContext extraction will be handled via middleware in next iteration
@@ -410,6 +428,35 @@ fn extract_apq_hash(extensions: Option<&serde_json::Value>) -> Option<&str> {
         .get("persistedQuery")?
         .get("sha256Hash")?
         .as_str()
+}
+
+/// Extract a trusted document ID from the request.
+///
+/// Supports three formats:
+/// 1. `documentId` (GraphQL over HTTP spec)
+/// 2. `extensions.persistedQuery.sha256Hash` (Apollo APQ format)
+/// 3. `extensions.doc_id` (Relay format)
+fn extract_document_id(request: &GraphQLRequest) -> Option<String> {
+    // 1. Top-level documentId field (GraphQL over HTTP spec)
+    if let Some(ref doc_id) = request.document_id {
+        return Some(doc_id.clone());
+    }
+    // 2. Extensions-based formats
+    if let Some(ext) = request.extensions.as_ref() {
+        // Relay format: extensions.doc_id
+        if let Some(doc_id) = ext.get("doc_id").and_then(|v| v.as_str()) {
+            return Some(doc_id.to_string());
+        }
+        // Apollo APQ format: extensions.persistedQuery.sha256Hash (also used for APQ)
+        if let Some(hash) = ext
+            .get("persistedQuery")
+            .and_then(|pq| pq.get("sha256Hash"))
+            .and_then(|h| h.as_str())
+        {
+            return Some(hash.to_string());
+        }
+    }
+    None
 }
 
 /// Resolve an APQ request: look up or register a persisted query.
@@ -465,7 +512,7 @@ async fn resolve_apq(
 /// Shared GraphQL execution logic for both GET and POST handlers.
 async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: AppState<A>,
-    request: GraphQLRequest,
+    mut request: GraphQLRequest,
     _trace_context: Option<fraiseql_core::federation::FederationTraceContext>,
     mut security_context: Option<SecurityContext>,
     headers: &HeaderMap,
@@ -487,6 +534,38 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 crate::api_key::ApiKeyResult::NotPresent => {
                     // Fall through to JWT/OIDC (or unauthenticated).
                 }
+            }
+        }
+    }
+
+    // Resolve query body — trusted documents take priority over APQ.
+    // If a trusted document store is configured, resolve the document ID first.
+    if let Some(ref td_store) = state.trusted_docs {
+        let doc_id = extract_document_id(&request);
+        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()).await {
+            Ok(resolved) => {
+                if doc_id.is_some() {
+                    crate::trusted_documents::record_hit();
+                    debug!(document_id = ?doc_id, "Trusted document resolved");
+                }
+                // Replace the query with the resolved body so APQ and execution use it.
+                request.query = Some(resolved);
+            }
+            Err(crate::trusted_documents::TrustedDocumentError::ForbiddenRawQuery) => {
+                crate::trusted_documents::record_rejected();
+                return Err(ErrorResponse::from_error(GraphQLError::forbidden_query()));
+            }
+            Err(crate::trusted_documents::TrustedDocumentError::DocumentNotFound { id }) => {
+                crate::trusted_documents::record_miss();
+                return Err(ErrorResponse::from_error(
+                    GraphQLError::document_not_found(&id),
+                ));
+            }
+            Err(crate::trusted_documents::TrustedDocumentError::ManifestLoad(msg)) => {
+                error!(error = %msg, "Trusted document manifest error");
+                return Err(ErrorResponse::from_error(
+                    GraphQLError::internal("Trusted documents unavailable"),
+                ));
             }
         }
     }

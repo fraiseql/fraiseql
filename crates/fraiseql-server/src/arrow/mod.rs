@@ -1,19 +1,25 @@
-//! Arrow Flight server integration for high-performance columnar data transfer.
+//! Arrow Flight adapter layer for `fraiseql-server`.
 //!
-//! This module provides Arrow Flight server integration that enables clients
-//! to fetch data via the Apache Arrow Flight protocol for efficient,
-//! high-performance data retrieval.
+//! This module is a **thin adapter** (~270 lines) that bridges fraiseql-core's
+//! database adapters to the [`fraiseql_arrow`] crate's trait interfaces and manages
+//! the Flight gRPC server lifecycle (port 50051, graceful shutdown).
 //!
-//! # Features
+//! # Relationship to `fraiseql-arrow`
 //!
-//! - Arrow Flight gRPC service
-//! - Support for ta_* materialized tables
-//! - Schema registry with pre-compiled Arrow schemas
-//! - Zero-copy row-to-Arrow conversion
+//! This module does **not** re-implement the Arrow Flight protocol. All Flight logic
+//! (authentication, streaming, caching, JSON↔Arrow conversion) lives in the
+//! [`fraiseql_arrow`] library crate. This module provides:
+//!
+//! - [`FlightDatabaseAdapter`]: Wraps fraiseql-core adapters (Postgres, Wire) to
+//!   implement `fraiseql_arrow::DatabaseAdapter`
+//! - [`ExecutorQueryAdapter`]: Wraps `Executor<A>` to implement
+//!   `fraiseql_arrow::QueryExecutor` (type erasure)
+//! - [`create_flight_service`]: Factory that assembles a configured
+//!   `FraiseQLFlightService` from core adapters
 //!
 //! # Usage
 //!
-//! This module is only available when the "arrow" feature is enabled.
+//! This module is only available when the `arrow` feature is enabled.
 
 #[cfg(feature = "arrow")]
 pub mod database_adapter;
