@@ -15,7 +15,7 @@ use fraiseql_core::{
 #[tokio::test]
 async fn cache_hit_avoids_second_real_query() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let cache = QueryResultCache::new(CacheConfig::with_max_entries(100));
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "v1".to_string());
 
     // First call — cache miss, hits real DB
@@ -34,7 +34,7 @@ async fn cache_hit_avoids_second_real_query() {
 #[tokio::test]
 async fn cache_invalidation_forces_refetch() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let cache = QueryResultCache::new(CacheConfig::with_max_entries(100));
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "v1".to_string());
 
     // Populate cache
@@ -55,7 +55,7 @@ async fn cache_invalidation_forces_refetch() {
 #[tokio::test]
 async fn different_views_cache_independently() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let cache = QueryResultCache::new(CacheConfig::with_max_entries(100));
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "v1".to_string());
 
     // Query two different views
@@ -74,7 +74,7 @@ async fn different_views_cache_independently() {
 #[tokio::test]
 async fn different_query_params_cache_independently() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let cache = QueryResultCache::new(CacheConfig::with_max_entries(100));
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "v1".to_string());
 
     // Query with limit 1

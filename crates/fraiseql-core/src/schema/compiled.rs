@@ -2642,24 +2642,30 @@ mod tests {
 
     #[test]
     fn test_has_rls_configured_with_empty_policies() {
-        let mut schema = CompiledSchema::default();
-        schema.security = Some(serde_json::json!({"policies": []}));
+        let schema = CompiledSchema {
+            security: Some(serde_json::json!({"policies": []})),
+            ..CompiledSchema::default()
+        };
         assert!(!schema.has_rls_configured(), "Empty policies array must return false");
     }
 
     #[test]
     fn test_has_rls_configured_with_policies() {
-        let mut schema = CompiledSchema::default();
-        schema.security = Some(serde_json::json!({
-            "policies": [{"name": "tenant_isolation", "condition": "tenant_id = $1"}]
-        }));
+        let schema = CompiledSchema {
+            security: Some(serde_json::json!({
+                "policies": [{"name": "tenant_isolation", "condition": "tenant_id = $1"}]
+            })),
+            ..CompiledSchema::default()
+        };
         assert!(schema.has_rls_configured(), "Non-empty policies array must return true");
     }
 
     #[test]
     fn test_has_rls_configured_no_policies_key() {
-        let mut schema = CompiledSchema::default();
-        schema.security = Some(serde_json::json!({"rate_limiting": {"enabled": true}}));
+        let schema = CompiledSchema {
+            security: Some(serde_json::json!({"rate_limiting": {"enabled": true}})),
+            ..CompiledSchema::default()
+        };
         assert!(!schema.has_rls_configured(), "Security without policies key must return false");
     }
 }

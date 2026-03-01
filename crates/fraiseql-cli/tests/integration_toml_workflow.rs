@@ -136,7 +136,7 @@ audit_logging_enabled = false
 
     // 3. Run compile command
     // fraiseql compile fraiseql.toml --types types.json --output schema.compiled.json
-    let cli_path = env!("CARGO_BIN_EXE_fraiseql");
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
     let output = Command::new(cli_path)
         .args([
             "compile",
@@ -257,7 +257,7 @@ audit_logging_enabled = false
     fs::write(&toml_path, toml_config).unwrap();
 
     // Compile
-    let cli_path = env!("CARGO_BIN_EXE_fraiseql");
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
     let output = Command::new(cli_path)
         .args([
             "compile",
@@ -357,7 +357,7 @@ audit_logging_enabled = false
     fs::write(&types_path, types_json).unwrap();
     fs::write(&toml_path, toml_config).unwrap();
 
-    let cli_path = env!("CARGO_BIN_EXE_fraiseql");
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
     let output = Command::new(cli_path)
         .args([
             "compile",

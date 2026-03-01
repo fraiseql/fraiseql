@@ -20,7 +20,7 @@ fn make_user_data() -> Vec<JsonbValue> {
 #[tokio::test]
 async fn test_cache_miss_hits_database() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
-    let cache = QueryResultCache::new(CacheConfig::default());
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     let result = cached.execute_where_query("v_user", None, None, None).await.unwrap();
@@ -31,7 +31,7 @@ async fn test_cache_miss_hits_database() {
 #[tokio::test]
 async fn test_cache_hit_skips_database() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
-    let cache = QueryResultCache::new(CacheConfig::default());
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     // First call — cache miss
@@ -47,7 +47,7 @@ async fn test_cache_hit_skips_database() {
 #[tokio::test]
 async fn test_cache_miss_with_different_where_clause() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
-    let cache = QueryResultCache::new(CacheConfig::default());
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     let where1 = WhereClause::Field {
@@ -72,7 +72,7 @@ async fn test_cache_miss_with_different_where_clause() {
 #[tokio::test]
 async fn test_database_error_not_cached() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data()).fail_on_query(0);
-    let cache = QueryResultCache::new(CacheConfig::default());
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     // First call fails
@@ -93,7 +93,7 @@ async fn test_cache_with_schema_version_isolation() {
     // Two adapters with same cache config but different schema versions
     // should produce different cache keys (no cross-version hits)
     let adapter_v1 = FailingAdapter::new().with_response("v_user", make_user_data());
-    let cache_v1 = QueryResultCache::new(CacheConfig::default());
+    let cache_v1 = QueryResultCache::new(CacheConfig::enabled());
     let cached_v1 = CachedDatabaseAdapter::new(adapter_v1, cache_v1, "1.0.0".to_string());
 
     let _ = cached_v1.execute_where_query("v_user", None, None, None).await.unwrap();
@@ -105,7 +105,7 @@ async fn test_cache_with_schema_version_isolation() {
 
     // Different schema version — separate adapter, separate cache
     let adapter_v2 = FailingAdapter::new().with_response("v_user", make_user_data());
-    let cache_v2 = QueryResultCache::new(CacheConfig::default());
+    let cache_v2 = QueryResultCache::new(CacheConfig::enabled());
     let cached_v2 = CachedDatabaseAdapter::new(adapter_v2, cache_v2, "2.0.0".to_string());
 
     let _ = cached_v2.execute_where_query("v_user", None, None, None).await.unwrap();
@@ -115,7 +115,7 @@ async fn test_cache_with_schema_version_isolation() {
 #[tokio::test]
 async fn test_invalidate_view_forces_cache_miss() {
     let adapter = FailingAdapter::new().with_response("v_user", make_user_data());
-    let cache = QueryResultCache::new(CacheConfig::default());
+    let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     // Populate cache
