@@ -188,6 +188,18 @@ impl SqlServerWhereGenerator {
                     "{field_path} COLLATE Latin1_General_CI_AI LIKE {param}"
                 ))
             }
+            WhereOperator::Nlike => {
+                self.generate_comparison(&field_path, "NOT LIKE", value, params)
+            }
+            WhereOperator::Nilike => Err(FraiseQLError::Unsupported {
+                message: "NILIKE operator not supported in SQL Server (no native ILIKE)".to_string(),
+            }),
+            WhereOperator::Regex
+            | WhereOperator::Iregex
+            | WhereOperator::Nregex
+            | WhereOperator::Niregex => Err(FraiseQLError::Unsupported {
+                message: "POSIX regex operators not supported in SQL Server".to_string(),
+            }),
 
             // Null checks
             WhereOperator::IsNull => {

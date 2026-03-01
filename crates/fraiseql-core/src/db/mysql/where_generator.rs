@@ -143,6 +143,26 @@ impl MySqlWhereGenerator {
                 // MySQL LIKE is case-insensitive by default with utf8mb4_unicode_ci
                 self.generate_comparison(&field_path, "LIKE", value, params)
             },
+            WhereOperator::Nlike => {
+                self.generate_comparison(&field_path, "NOT LIKE", value, params)
+            },
+            WhereOperator::Nilike => Err(FraiseQLError::Unsupported {
+                message: "NILIKE operator not supported in MySQL (no native ILIKE)".to_string(),
+            }),
+            WhereOperator::Regex => {
+                self.generate_comparison(&field_path, "REGEXP", value, params)
+            },
+            WhereOperator::Iregex => {
+                // MySQL REGEXP is case-insensitive by default with utf8mb4
+                self.generate_comparison(&field_path, "REGEXP", value, params)
+            },
+            WhereOperator::Nregex => {
+                self.generate_comparison(&field_path, "NOT REGEXP", value, params)
+            },
+            WhereOperator::Niregex => {
+                // MySQL NOT REGEXP is case-insensitive by default with utf8mb4
+                self.generate_comparison(&field_path, "NOT REGEXP", value, params)
+            },
 
             // Null checks
             WhereOperator::IsNull => {

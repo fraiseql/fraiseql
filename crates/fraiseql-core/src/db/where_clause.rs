@@ -202,6 +202,18 @@ pub enum WhereOperator {
     Like,
     /// Pattern matching (case-insensitive) (ILIKE).
     Ilike,
+    /// Negated pattern matching (NOT LIKE).
+    Nlike,
+    /// Negated pattern matching (case-insensitive) (NOT ILIKE).
+    Nilike,
+    /// POSIX regex match (~).
+    Regex,
+    /// POSIX regex match (case-insensitive) (~*).
+    Iregex,
+    /// Negated POSIX regex match (!~).
+    Nregex,
+    /// Negated POSIX regex match (case-insensitive) (!~*).
+    Niregex,
 
     // ========================================================================
     // Null Checks
@@ -340,7 +352,7 @@ impl WhereOperator {
             "lt" => Ok(Self::Lt),
             "lte" => Ok(Self::Lte),
             "in" => Ok(Self::In),
-            "nin" => Ok(Self::Nin),
+            "nin" | "notin" => Ok(Self::Nin),
             "contains" => Ok(Self::Contains),
             "icontains" => Ok(Self::Icontains),
             "startswith" => Ok(Self::Startswith),
@@ -349,6 +361,12 @@ impl WhereOperator {
             "iendswith" => Ok(Self::Iendswith),
             "like" => Ok(Self::Like),
             "ilike" => Ok(Self::Ilike),
+            "nlike" => Ok(Self::Nlike),
+            "nilike" => Ok(Self::Nilike),
+            "regex" => Ok(Self::Regex),
+            "iregex" | "imatches" => Ok(Self::Iregex),
+            "nregex" | "not_matches" => Ok(Self::Nregex),
+            "niregex" => Ok(Self::Niregex),
             "isnull" => Ok(Self::IsNull),
             "array_contains" => Ok(Self::ArrayContains),
             "array_contained_by" => Ok(Self::ArrayContainedBy),
@@ -374,7 +392,7 @@ impl WhereOperator {
             "is_private" => Ok(Self::IsPrivate),
             "is_public" => Ok(Self::IsPublic),
             "is_loopback" => Ok(Self::IsLoopback),
-            "in_subnet" => Ok(Self::InSubnet),
+            "in_subnet" | "inrange" => Ok(Self::InSubnet),
             "contains_subnet" => Ok(Self::ContainsSubnet),
             "contains_ip" => Ok(Self::ContainsIP),
             "overlaps" => Ok(Self::Overlaps),
@@ -404,7 +422,16 @@ impl WhereOperator {
     /// Check if operator is case-insensitive.
     #[must_use]
     pub const fn is_case_insensitive(&self) -> bool {
-        matches!(self, Self::Icontains | Self::Istartswith | Self::Iendswith | Self::Ilike)
+        matches!(
+            self,
+            Self::Icontains
+                | Self::Istartswith
+                | Self::Iendswith
+                | Self::Ilike
+                | Self::Nilike
+                | Self::Iregex
+                | Self::Niregex
+        )
     }
 
     /// Check if operator works with strings.
@@ -420,6 +447,12 @@ impl WhereOperator {
                 | Self::Iendswith
                 | Self::Like
                 | Self::Ilike
+                | Self::Nlike
+                | Self::Nilike
+                | Self::Regex
+                | Self::Iregex
+                | Self::Nregex
+                | Self::Niregex
         )
     }
 }
@@ -604,5 +637,47 @@ mod tests {
     fn test_from_graphql_json_invalid_operator() {
         let json = json!({ "field": { "nonexistent_op": 42 } });
         assert!(WhereClause::from_graphql_json(&json).is_err());
+    }
+
+    #[test]
+    fn test_new_string_operators_from_str() {
+        assert_eq!(WhereOperator::from_str("nlike").unwrap(), WhereOperator::Nlike);
+        assert_eq!(WhereOperator::from_str("nilike").unwrap(), WhereOperator::Nilike);
+        assert_eq!(WhereOperator::from_str("regex").unwrap(), WhereOperator::Regex);
+        assert_eq!(WhereOperator::from_str("iregex").unwrap(), WhereOperator::Iregex);
+        assert_eq!(WhereOperator::from_str("nregex").unwrap(), WhereOperator::Nregex);
+        assert_eq!(WhereOperator::from_str("niregex").unwrap(), WhereOperator::Niregex);
+    }
+
+    #[test]
+    fn test_v1_aliases_from_str() {
+        // notin → Nin
+        assert_eq!(WhereOperator::from_str("notin").unwrap(), WhereOperator::Nin);
+        // inrange → InSubnet
+        assert_eq!(WhereOperator::from_str("inrange").unwrap(), WhereOperator::InSubnet);
+        // imatches → Iregex
+        assert_eq!(WhereOperator::from_str("imatches").unwrap(), WhereOperator::Iregex);
+        // not_matches → Nregex
+        assert_eq!(WhereOperator::from_str("not_matches").unwrap(), WhereOperator::Nregex);
+    }
+
+    #[test]
+    fn test_new_operators_case_insensitive_flag() {
+        assert!(WhereOperator::Nilike.is_case_insensitive());
+        assert!(WhereOperator::Iregex.is_case_insensitive());
+        assert!(WhereOperator::Niregex.is_case_insensitive());
+        assert!(!WhereOperator::Nlike.is_case_insensitive());
+        assert!(!WhereOperator::Regex.is_case_insensitive());
+        assert!(!WhereOperator::Nregex.is_case_insensitive());
+    }
+
+    #[test]
+    fn test_new_operators_are_string_operators() {
+        assert!(WhereOperator::Nlike.is_string_operator());
+        assert!(WhereOperator::Nilike.is_string_operator());
+        assert!(WhereOperator::Regex.is_string_operator());
+        assert!(WhereOperator::Iregex.is_string_operator());
+        assert!(WhereOperator::Nregex.is_string_operator());
+        assert!(WhereOperator::Niregex.is_string_operator());
     }
 }

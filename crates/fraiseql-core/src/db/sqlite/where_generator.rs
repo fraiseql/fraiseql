@@ -142,6 +142,17 @@ impl SqliteWhereGenerator {
                 // SQLite LIKE is case-insensitive for ASCII by default
                 self.generate_comparison(&field_path, "LIKE", value, params)
             },
+            WhereOperator::Nlike => {
+                self.generate_comparison(&field_path, "NOT LIKE", value, params)
+            },
+            WhereOperator::Nilike | WhereOperator::Regex | WhereOperator::Iregex
+            | WhereOperator::Nregex | WhereOperator::Niregex => {
+                Err(FraiseQLError::Unsupported {
+                    message: format!(
+                        "{operator:?} operator not supported in SQLite (no native ILIKE or POSIX regex)"
+                    ),
+                })
+            },
 
             // Null checks
             WhereOperator::IsNull => {

@@ -133,6 +133,12 @@ impl WhereSqlGenerator {
             WhereOperator::Iendswith => "ILIKE",
             WhereOperator::Like => "LIKE",
             WhereOperator::Ilike => "ILIKE",
+            WhereOperator::Nlike => "NOT LIKE",
+            WhereOperator::Nilike => "NOT ILIKE",
+            WhereOperator::Regex => "~",
+            WhereOperator::Iregex => "~*",
+            WhereOperator::Nregex => "!~",
+            WhereOperator::Niregex => "!~*",
 
             // Array operations
             WhereOperator::ArrayContains => "@>",

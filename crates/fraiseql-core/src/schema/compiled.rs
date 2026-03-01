@@ -596,7 +596,7 @@ impl CompiledSchema {
             .map(|s| {
                 !s.get("policies")
                     .and_then(|p| p.as_array())
-                    .map_or(true, |a| a.is_empty())
+                    .is_none_or(|a| a.is_empty())
             })
             .unwrap_or(false)
     }

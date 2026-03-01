@@ -272,6 +272,16 @@ impl PostgresWhereGenerator {
             },
             WhereOperator::Like => self.generate_comparison(&field_path, "LIKE", value, params),
             WhereOperator::Ilike => self.generate_comparison(&field_path, "ILIKE", value, params),
+            WhereOperator::Nlike => {
+                self.generate_comparison(&field_path, "NOT LIKE", value, params)
+            },
+            WhereOperator::Nilike => {
+                self.generate_comparison(&field_path, "NOT ILIKE", value, params)
+            },
+            WhereOperator::Regex => self.generate_comparison(&field_path, "~", value, params),
+            WhereOperator::Iregex => self.generate_comparison(&field_path, "~*", value, params),
+            WhereOperator::Nregex => self.generate_comparison(&field_path, "!~", value, params),
+            WhereOperator::Niregex => self.generate_comparison(&field_path, "!~*", value, params),
 
             // Null checks
             WhereOperator::IsNull => {
@@ -1173,5 +1183,83 @@ mod tests {
         // Uses JSONB extraction
         assert_eq!(sql, "data->'category'->>'code' = $1");
         assert_eq!(params, vec![json!("ELEC")]);
+    }
+
+    #[test]
+    fn test_nlike() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::Nlike,
+            value:    json!("%test%"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'name' NOT LIKE $1");
+        assert_eq!(params, vec![json!("%test%")]);
+    }
+
+    #[test]
+    fn test_nilike() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::Nilike,
+            value:    json!("%test%"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'name' NOT ILIKE $1");
+        assert_eq!(params, vec![json!("%test%")]);
+    }
+
+    #[test]
+    fn test_regex() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Regex,
+            value:    json!("^[A-Z]{3}$"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'code' ~ $1");
+        assert_eq!(params, vec![json!("^[A-Z]{3}$")]);
+    }
+
+    #[test]
+    fn test_iregex() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Iregex,
+            value:    json!("^abc"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'code' ~* $1");
+        assert_eq!(params, vec![json!("^abc")]);
+    }
+
+    #[test]
+    fn test_nregex() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Nregex,
+            value:    json!("^test"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'code' !~ $1");
+        assert_eq!(params, vec![json!("^test")]);
+    }
+
+    #[test]
+    fn test_niregex() {
+        let gen = PostgresWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Niregex,
+            value:    json!("^test"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "data->>'code' !~* $1");
+        assert_eq!(params, vec![json!("^test")]);
     }
 }
