@@ -114,3 +114,4 @@ temp/
 
 # Analysis work-in-progress
 TODO_*/
+mutants.out/
