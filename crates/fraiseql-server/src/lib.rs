@@ -134,6 +134,10 @@ pub mod observers;
 #[cfg(feature = "arrow")]
 pub mod arrow;
 
+// MCP (Model Context Protocol) server - optional
+#[cfg(feature = "mcp")]
+pub mod mcp;
+
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;

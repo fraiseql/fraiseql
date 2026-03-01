@@ -286,6 +286,14 @@ async fn main() -> anyhow::Result<()> {
             server.set_secrets_manager(mgr);
         }
 
+        // Serve MCP over stdio if requested, otherwise start HTTP server.
+        #[cfg(feature = "mcp")]
+        if env::var("FRAISEQL_MCP_STDIO").is_ok() {
+            tracing::info!("FraiseQL MCP stdio mode starting");
+            server.serve_mcp_stdio().await?;
+            return Ok(());
+        }
+
         tracing::info!(
             "FraiseQL Server {} starting (HTTP + Arrow Flight)",
             env!("CARGO_PKG_VERSION")
@@ -301,6 +309,14 @@ async fn main() -> anyhow::Result<()> {
         // Attach secrets manager if configured
         if let Some(mgr) = secrets_manager {
             server.set_secrets_manager(mgr);
+        }
+
+        // Serve MCP over stdio if requested, otherwise start HTTP server.
+        #[cfg(feature = "mcp")]
+        if env::var("FRAISEQL_MCP_STDIO").is_ok() {
+            tracing::info!("FraiseQL MCP stdio mode starting");
+            server.serve_mcp_stdio().await?;
+            return Ok(());
         }
 
         tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));

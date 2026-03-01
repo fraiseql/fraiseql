@@ -146,6 +146,7 @@ impl SchemaConverter {
             subscriptions_config: intermediate.subscriptions_config, // Subscriptions config from TOML
             validation_config: intermediate.validation_config,       // Validation limits from TOML
             debug_config: intermediate.debug_config,                 // Debug config from TOML
+            mcp_config: intermediate.mcp_config,                     // MCP config from TOML
             schema_sdl: None,                                        // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
         };
@@ -1148,6 +1149,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1208,6 +1210,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1259,6 +1262,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1326,6 +1330,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1384,6 +1389,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1443,6 +1449,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1510,6 +1517,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1580,6 +1588,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1666,6 +1675,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1719,6 +1729,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1776,6 +1787,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1845,6 +1857,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -1937,6 +1950,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -2018,6 +2032,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -2074,6 +2089,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -2141,6 +2157,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -2214,6 +2231,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 
@@ -2300,6 +2318,7 @@ mod tests {
             validation_config: None,
             federation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             query_defaults:    None,
         };
 

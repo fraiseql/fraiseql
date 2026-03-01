@@ -178,6 +178,7 @@ fn create_compiled_schema_with_rbac() -> CompiledSchema {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
     }

@@ -84,6 +84,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     }
 }

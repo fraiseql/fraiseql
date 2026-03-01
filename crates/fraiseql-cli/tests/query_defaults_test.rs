@@ -46,6 +46,7 @@ fn base_schema_with_query(query: IntermediateQuery, query_defaults: Option<Inter
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults,
     }
 }

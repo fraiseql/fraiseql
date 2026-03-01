@@ -33,6 +33,7 @@ fn test_e2e_complete_compilation_pipeline() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -85,6 +86,7 @@ fn test_e2e_sql_templates_all_databases() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -143,6 +145,7 @@ fn test_e2e_lookup_data_comprehensive() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -196,6 +199,7 @@ fn test_e2e_all_operators_generated() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -259,6 +263,7 @@ fn test_e2e_compilation_deterministic() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -316,6 +321,7 @@ fn test_e2e_all_49_types_valid() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 

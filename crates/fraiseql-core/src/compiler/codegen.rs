@@ -222,6 +222,7 @@ impl CodeGenerator {
             subscriptions_config: None,
             validation_config: None,
             debug_config: None,
+            mcp_config: None,
             schema_sdl: None,
             // Custom scalar types registry
             custom_scalars,

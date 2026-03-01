@@ -145,6 +145,25 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Append MCP tool call counters when the feature is compiled in.
+    #[cfg(feature = "mcp")]
+    {
+        let calls = crate::mcp::handler::mcp_tool_calls_total();
+        let errors = crate::mcp::handler::mcp_tool_errors_total();
+        output.push_str(&format!(
+            concat!(
+                "\n# HELP fraiseql_mcp_tool_calls_total Total MCP tool calls\n",
+                "# TYPE fraiseql_mcp_tool_calls_total counter\n",
+                "fraiseql_mcp_tool_calls_total {calls}\n",
+                "\n# HELP fraiseql_mcp_tool_errors_total Total MCP tool call errors\n",
+                "# TYPE fraiseql_mcp_tool_errors_total counter\n",
+                "fraiseql_mcp_tool_errors_total {errors}\n",
+            ),
+            calls = calls,
+            errors = errors,
+        ));
+    }
+
     // Append per-operation histogram metrics
     output.push_str(&state.metrics.operation_metrics.to_prometheus_format());
 

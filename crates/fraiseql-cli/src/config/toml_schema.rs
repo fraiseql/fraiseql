@@ -327,6 +327,46 @@ pub struct TomlSchema {
     /// Debug/development settings (database EXPLAIN, SQL exposure).
     #[serde(default)]
     pub debug: DebugConfig,
+
+    /// MCP (Model Context Protocol) server configuration.
+    #[serde(default)]
+    pub mcp: McpConfig,
+}
+
+/// MCP (Model Context Protocol) server configuration.
+///
+/// Enables AI/LLM tools to interact with FraiseQL queries and mutations
+/// through the standardized Model Context Protocol.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct McpConfig {
+    /// Enable MCP server endpoint.
+    pub enabled:      bool,
+    /// Transport mode: "http", "stdio", or "both".
+    pub transport:    String,
+    /// HTTP path for MCP endpoint (e.g., "/mcp").
+    pub path:         String,
+    /// Require authentication for MCP requests.
+    pub require_auth: bool,
+    /// Whitelist of query/mutation names to expose (empty = all).
+    #[serde(default)]
+    pub include:      Vec<String>,
+    /// Blacklist of query/mutation names to hide.
+    #[serde(default)]
+    pub exclude:      Vec<String>,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self {
+            enabled:      false,
+            transport:    "http".to_string(),
+            path:         "/mcp".to_string(),
+            require_auth: true,
+            include:      Vec::new(),
+            exclude:      Vec::new(),
+        }
+    }
 }
 
 /// Schema metadata

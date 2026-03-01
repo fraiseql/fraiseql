@@ -552,6 +552,12 @@ impl SchemaMerger {
             merged["debug_config"] = debug_json;
         }
 
+        // Embed MCP config when enabled
+        if toml_schema.mcp.enabled {
+            merged["mcp_config"] = serde_json::to_value(&toml_schema.mcp)
+                .unwrap_or_default();
+        }
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;

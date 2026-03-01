@@ -58,6 +58,9 @@ pin-project = "1"
 rand = "0.8"
 # Redis for rate limiting (optional)
 redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+# MCP (Model Context Protocol) server (optional)
+rmcp = {version = "0.16", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
+schemars = {version = "1", optional = true}
 reqwest = {version = "0.12", features = ["json"]}
 # TLS/SSL support
 rustls = "0.23"
@@ -116,6 +119,8 @@ aws-s3 = ["aws-sdk-s3", "aws-config"]
 cors = []
 database = []
 default = []
+# MCP (Model Context Protocol) server
+mcp = ["rmcp", "schemars"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 # Observer system for reactive business logic
 observers = ["fraiseql-observers"]

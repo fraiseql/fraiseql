@@ -41,6 +41,7 @@ fn test_compile_schema_with_single_custom_scalar() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -97,6 +98,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -150,6 +152,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -190,6 +193,7 @@ fn test_custom_scalar_preserves_all_metadata() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -226,6 +230,7 @@ fn test_empty_custom_scalars_list() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 
@@ -266,6 +271,7 @@ fn test_custom_scalar_with_no_validation_rules() {
             validation_config: None,
         federation_config: None,
         debug_config:      None,
+        mcp_config:        None,
         query_defaults:    None,
     };
 

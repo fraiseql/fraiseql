@@ -348,6 +348,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -401,6 +402,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -454,6 +456,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -507,6 +510,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -560,6 +564,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };
@@ -623,6 +628,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             debug_config:      None,
+            mcp_config:        None,
             schema_sdl:     None,
             custom_scalars: CustomTypeRegistry::default(),
         };

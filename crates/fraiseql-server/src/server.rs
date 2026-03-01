@@ -68,6 +68,9 @@ pub struct Server<A: DatabaseAdapter> {
 
     #[cfg(feature = "arrow")]
     flight_service: Option<FraiseQLFlightService>,
+
+    #[cfg(feature = "mcp")]
+    mcp_config: Option<crate::mcp::McpConfig>,
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -397,6 +400,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         )
         .await?;
 
+        // Initialize MCP config from compiled schema when the feature is compiled in.
+        #[cfg(feature = "mcp")]
+        {
+            if let Some(ref mcp_json) = server.executor.schema().mcp_config {
+                match serde_json::from_value::<crate::mcp::McpConfig>(mcp_json.clone()) {
+                    Ok(cfg) if cfg.enabled => {
+                        let tool_count = crate::mcp::tools::schema_to_tools(
+                            server.executor.schema(),
+                            &cfg,
+                        ).len();
+                        info!(
+                            path = %cfg.path,
+                            transport = %cfg.transport,
+                            tools = tool_count,
+                            "MCP server configured"
+                        );
+                        server.mcp_config = Some(cfg);
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!(error = %e, "Invalid mcp_config in compiled schema — MCP disabled");
+                    }
+                }
+            }
+        }
+
         // Initialize APQ store when enabled.
         if server.config.apq_enabled {
             let apq_store: Arc<dyn fraiseql_core::apq::ApqStorage> =
@@ -556,6 +585,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool,
             #[cfg(feature = "arrow")]
             flight_service,
+            #[cfg(feature = "mcp")]
+            mcp_config: None,
         })
     }
 
@@ -582,6 +613,48 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     pub fn set_secrets_manager(&mut self, manager: Arc<crate::secrets_manager::SecretsManager>) {
         self.secrets_manager = Some(manager);
         info!("Secrets manager attached to server");
+    }
+
+    /// Serve MCP over stdio (stdin/stdout) instead of HTTP.
+    ///
+    /// This is used when `FRAISEQL_MCP_STDIO=1` is set.  The server reads JSON-RPC
+    /// messages from stdin and writes responses to stdout, following the MCP stdio
+    /// transport specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if MCP is not configured or the stdio transport fails.
+    #[cfg(feature = "mcp")]
+    pub async fn serve_mcp_stdio(self) -> Result<()> {
+        let mcp_cfg = self.mcp_config.ok_or_else(|| {
+            ServerError::ConfigError(
+                "FRAISEQL_MCP_STDIO=1 but MCP is not configured. \
+                 Add [mcp] enabled = true to fraiseql.toml and recompile the schema."
+                    .into(),
+            )
+        })?;
+
+        let schema = Arc::new(self.executor.schema().clone());
+        let executor = self.executor.clone();
+
+        let service = crate::mcp::handler::FraiseQLMcpService::new(
+            schema,
+            executor,
+            mcp_cfg,
+        );
+
+        info!("MCP stdio transport starting — reading from stdin, writing to stdout");
+
+        use rmcp::ServiceExt;
+        let running = service
+            .serve((tokio::io::stdin(), tokio::io::stdout()))
+            .await
+            .map_err(|e| ServerError::ConfigError(format!("MCP stdio init failed: {e}")))?;
+
+        running.waiting().await
+            .map_err(|e| ServerError::ConfigError(format!("MCP stdio error: {e}")))?;
+
+        Ok(())
     }
 }
 
@@ -650,6 +723,32 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             db_pool,
         )
         .await?;
+
+        // Initialize MCP config from compiled schema when the feature is compiled in.
+        #[cfg(feature = "mcp")]
+        {
+            if let Some(ref mcp_json) = server.executor.schema().mcp_config {
+                match serde_json::from_value::<crate::mcp::McpConfig>(mcp_json.clone()) {
+                    Ok(cfg) if cfg.enabled => {
+                        let tool_count = crate::mcp::tools::schema_to_tools(
+                            server.executor.schema(),
+                            &cfg,
+                        ).len();
+                        info!(
+                            path = %cfg.path,
+                            transport = %cfg.transport,
+                            tools = tool_count,
+                            "MCP server configured"
+                        );
+                        server.mcp_config = Some(cfg);
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        warn!(error = %e, "Invalid mcp_config in compiled schema — MCP disabled");
+                    }
+                }
+            }
+        }
 
         // Initialize APQ store when enabled.
         if server.config.apq_enabled {
@@ -1167,6 +1266,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_state(rev_state);
             app = app.merge(rev_router);
             info!("Token revocation routes mounted: POST /auth/revoke, POST /auth/revoke-all");
+        }
+
+        // MCP (Model Context Protocol) route — mounted when mcp feature is compiled in
+        // and mcp_config is present.
+        #[cfg(feature = "mcp")]
+        if let Some(ref mcp_cfg) = self.mcp_config {
+            if mcp_cfg.transport == "http" || mcp_cfg.transport == "both" {
+                use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
+                use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+
+                let schema = Arc::new(self.executor.schema().clone());
+                let executor = self.executor.clone();
+                let cfg = mcp_cfg.clone();
+                let mcp_service = StreamableHttpService::new(
+                    move || {
+                        Ok(crate::mcp::handler::FraiseQLMcpService::new(
+                            schema.clone(),
+                            executor.clone(),
+                            cfg.clone(),
+                        ))
+                    },
+                    Arc::new(LocalSessionManager::default()),
+                    StreamableHttpServerConfig::default(),
+                );
+                app = app.nest_service(&mcp_cfg.path, mcp_service);
+                info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
+            }
         }
 
         // Remaining API routes (query intelligence, federation)

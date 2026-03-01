@@ -267,6 +267,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_config: Option<serde_json::Value>,
 
+    /// MCP (Model Context Protocol) server configuration.
+    /// Compiled from the `[mcp]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_config: Option<serde_json::Value>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
