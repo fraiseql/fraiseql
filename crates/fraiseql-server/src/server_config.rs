@@ -311,6 +311,20 @@ pub struct ServerConfig {
     #[serde(default)]
     pub database_tls: Option<DatabaseTlsConfig>,
 
+    /// Require `Content-Type: application/json` on POST requests (default: true).
+    ///
+    /// CSRF protection: rejects POST requests with non-JSON Content-Type
+    /// (e.g. `text/plain`, `application/x-www-form-urlencoded`) with 415.
+    #[serde(default = "default_true")]
+    pub require_json_content_type: bool,
+
+    /// Maximum request body size in bytes (default: 1 MB).
+    ///
+    /// Requests exceeding this limit receive 413 Payload Too Large.
+    /// Set to 0 to use axum's default (no limit).
+    #[serde(default = "default_max_request_body_bytes")]
+    pub max_request_body_bytes: usize,
+
     /// Rate limiting configuration for GraphQL requests.
     ///
     /// When configured, enables per-IP and per-user rate limiting with token bucket algorithm.
@@ -428,6 +442,8 @@ impl Default for ServerConfig {
             auth: None,          // No auth by default
             tls: None,           // TLS disabled by default
             database_tls: None,  // Database TLS disabled by default
+            require_json_content_type: true, // CSRF protection
+            max_request_body_bytes: default_max_request_body_bytes(), // 1 MB
             rate_limiting: None, // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
@@ -606,6 +622,11 @@ fn default_bind_addr() -> SocketAddr {
 
 fn default_true() -> bool {
     true
+}
+
+/// 1 MB default body limit.
+fn default_max_request_body_bytes() -> usize {
+    1_048_576
 }
 
 fn default_graphql_path() -> String {

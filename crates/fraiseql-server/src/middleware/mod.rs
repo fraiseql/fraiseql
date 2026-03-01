@@ -1,6 +1,7 @@
 //! HTTP middleware.
 
 pub mod auth;
+pub mod content_type;
 pub mod cors;
 pub mod logging;
 pub mod metrics;
@@ -10,6 +11,7 @@ pub mod tenant;
 pub mod trace;
 
 pub use auth::{BearerAuthState, bearer_auth_middleware};
+pub use content_type::require_json_content_type;
 pub use cors::{cors_layer, cors_layer_restricted, security_headers_middleware};
 pub use logging::logging_middleware;
 pub use metrics::metrics_middleware;

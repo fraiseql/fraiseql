@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use axum::{
-    Router, middleware,
+    Router, extract::DefaultBodyLimit, middleware,
     routing::{get, post},
 };
 #[cfg(feature = "arrow")]
@@ -28,7 +28,7 @@ use crate::{
     Result, ServerError,
     middleware::{
         BearerAuthState, OidcAuthState, RateLimiter, bearer_auth_middleware, cors_layer_restricted,
-        metrics_middleware, oidc_auth_middleware, trace_layer,
+        metrics_middleware, oidc_auth_middleware, require_json_content_type, trace_layer,
     },
     routes::{
         AuthPkceState, PlaygroundState, SubscriptionState, api, auth_callback, auth_start,
@@ -780,7 +780,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         let metrics = state.metrics.clone();
 
-        // Build GraphQL route (possibly with OIDC auth)
+        // Build GraphQL route (possibly with OIDC auth + Content-Type enforcement)
         // Supports both GET and POST per GraphQL over HTTP spec
         let graphql_router = if let Some(ref validator) = self.oidc_validator {
             info!(
@@ -788,20 +788,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 "GraphQL endpoint protected by OIDC authentication (GET and POST)"
             );
             let auth_state = OidcAuthState::new(validator.clone());
-            Router::new()
+            let router = Router::new()
                 .route(
                     &self.config.graphql_path,
                     get(graphql_get_handler::<A>).post(graphql_handler::<A>),
                 )
-                .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
-                .with_state(state.clone())
+                .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware));
+
+            if self.config.require_json_content_type {
+                router
+                    .route_layer(middleware::from_fn(require_json_content_type))
+                    .with_state(state.clone())
+            } else {
+                router.with_state(state.clone())
+            }
         } else {
-            Router::new()
+            let router = Router::new()
                 .route(
                     &self.config.graphql_path,
                     get(graphql_get_handler::<A>).post(graphql_handler::<A>),
-                )
-                .with_state(state.clone())
+                );
+
+            if self.config.require_json_content_type {
+                router
+                    .route_layer(middleware::from_fn(require_json_content_type))
+                    .with_state(state.clone())
+            } else {
+                router.with_state(state.clone())
+            }
         };
 
         // Build base routes (always available without auth)
@@ -1063,6 +1077,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 self.config.cors_origins.clone()
             };
             app = app.layer(cors_layer_restricted(origins));
+        }
+
+        // Add request body size limit (default 1 MB — prevents memory exhaustion)
+        if self.config.max_request_body_bytes > 0 {
+            info!(
+                max_bytes = self.config.max_request_body_bytes,
+                "Request body size limit enabled"
+            );
+            app = app.layer(DefaultBodyLimit::max(self.config.max_request_body_bytes));
         }
 
         // Add rate limiting middleware if configured
