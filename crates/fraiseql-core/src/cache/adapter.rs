@@ -115,10 +115,10 @@ use crate::{
 /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string());
 ///
 /// // First query - cache miss (slower)
-/// let users1 = adapter.execute_where_query("v_user", Some(&where_clause), None, None).await?;
+/// let users1 = adapter.execute_where_query("v_user", None, None, None).await?;
 ///
 /// // Second query - cache hit (fast!)
-/// let users2 = adapter.execute_where_query("v_user", Some(&where_clause), None, None).await?;
+/// let users2 = adapter.execute_where_query("v_user", None, None, None).await?;
 ///
 /// // After mutation, invalidate
 /// let invalidation = InvalidationContext::for_mutation(

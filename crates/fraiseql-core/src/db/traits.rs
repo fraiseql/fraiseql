@@ -468,6 +468,22 @@ pub trait DatabaseAdapter: Send + Sync {
     fn capabilities(&self) -> DatabaseCapabilities {
         DatabaseCapabilities::from_database_type(self.database_type())
     }
+
+    /// Run the database's `EXPLAIN` on a SQL statement without executing it.
+    ///
+    /// Returns a JSON representation of the query plan. The format is
+    /// database-specific (e.g. PostgreSQL returns JSON, SQLite returns rows).
+    ///
+    /// The default implementation returns `Unsupported`.
+    async fn explain_query(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<serde_json::Value> {
+        Err(crate::error::FraiseQLError::Unsupported {
+            message: "EXPLAIN not available for this database adapter".to_string(),
+        })
+    }
 }
 
 /// Database capabilities and feature support.

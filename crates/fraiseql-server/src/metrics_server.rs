@@ -8,12 +8,15 @@
 //! - HTTP request/response metrics
 
 use std::{
+    fmt::Write as _,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
     time::Instant,
 };
+
+use dashmap::DashMap;
 
 /// Metrics collector for the server.
 #[derive(Debug, Clone)]
@@ -99,6 +102,9 @@ pub struct MetricsCollector {
 
     /// Federation errors
     pub federation_errors_total: Arc<AtomicU64>,
+
+    /// Per-operation metrics (histogram + error counter)
+    pub operation_metrics: Arc<OperationMetricsRegistry>,
 }
 
 impl MetricsCollector {
@@ -133,6 +139,7 @@ impl MetricsCollector {
             federation_entity_cache_hits: Arc::new(AtomicU64::new(0)),
             federation_entity_cache_misses: Arc::new(AtomicU64::new(0)),
             federation_errors_total: Arc::new(AtomicU64::new(0)),
+            operation_metrics: Arc::new(OperationMetricsRegistry::default()),
         }
     }
 }
@@ -199,6 +206,205 @@ impl MetricsCollector {
 impl Default for MetricsCollector {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Histogram bucket upper bounds in microseconds.
+/// Corresponds to: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+const HISTOGRAM_BUCKET_BOUNDS_US: [u64; 11] = [
+    1_000,
+    5_000,
+    10_000,
+    25_000,
+    50_000,
+    100_000,
+    250_000,
+    500_000,
+    1_000_000,
+    2_500_000,
+    5_000_000,
+];
+
+/// Prometheus `le` labels matching [`HISTOGRAM_BUCKET_BOUNDS_US`], in seconds.
+const HISTOGRAM_LE_LABELS: [&str; 11] = [
+    "0.001", "0.005", "0.01", "0.025", "0.05", "0.1", "0.25", "0.5", "1", "2.5", "5",
+];
+
+/// Per-operation metrics: count, total duration, error count, and histogram buckets.
+#[derive(Debug)]
+pub struct OperationMetrics {
+    count:         AtomicU64,
+    duration_us:   AtomicU64,
+    error_count:   AtomicU64,
+    bucket_counts: [AtomicU64; 11],
+}
+
+impl OperationMetrics {
+    fn new() -> Self {
+        Self {
+            count:         AtomicU64::new(0),
+            duration_us:   AtomicU64::new(0),
+            error_count:   AtomicU64::new(0),
+            bucket_counts: std::array::from_fn(|_| AtomicU64::new(0)),
+        }
+    }
+
+    fn record(&self, duration_us: u64, is_error: bool) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+        self.duration_us.fetch_add(duration_us, Ordering::Relaxed);
+        if is_error {
+            self.error_count.fetch_add(1, Ordering::Relaxed);
+        }
+        // Increment only the first (smallest) bucket whose bound >= duration.
+        // The cumulative sum is computed at render time.
+        for (i, &bound) in HISTOGRAM_BUCKET_BOUNDS_US.iter().enumerate() {
+            if duration_us <= bound {
+                self.bucket_counts[i].fetch_add(1, Ordering::Relaxed);
+                return;
+            }
+        }
+        // Duration exceeds all finite buckets — it only appears in +Inf
+    }
+}
+
+/// Registry of per-operation metrics with cardinality guard.
+///
+/// Operations beyond `max_operations` are folded into an `__overflow__` bucket
+/// to prevent unbounded label cardinality.
+#[derive(Debug)]
+pub struct OperationMetricsRegistry {
+    operations:     DashMap<String, OperationMetrics>,
+    max_operations: usize,
+    overflow:       OperationMetrics,
+}
+
+impl OperationMetricsRegistry {
+    /// Create a new registry with the given cardinality limit.
+    #[must_use]
+    pub fn new(max_operations: usize) -> Self {
+        Self {
+            operations: DashMap::new(),
+            max_operations,
+            overflow: OperationMetrics::new(),
+        }
+    }
+
+    /// Record a query execution for the given operation name.
+    pub fn record(&self, name: &str, duration_us: u64, is_error: bool) {
+        let canonical = if name.is_empty() { "__anonymous__" } else { name };
+
+        // Check if already tracked
+        if let Some(entry) = self.operations.get(canonical) {
+            entry.record(duration_us, is_error);
+            return;
+        }
+
+        // Check cardinality limit before inserting
+        if self.operations.len() >= self.max_operations {
+            self.overflow.record(duration_us, is_error);
+            return;
+        }
+
+        // Insert and record (race-safe: entry() handles concurrent inserts)
+        self.operations
+            .entry(canonical.to_owned())
+            .or_insert_with(OperationMetrics::new)
+            .record(duration_us, is_error);
+    }
+
+    /// Render all per-operation metrics in Prometheus text exposition format.
+    #[must_use]
+    pub fn to_prometheus_format(&self) -> String {
+        let mut out = String::new();
+
+        // Collect entries for deterministic output (sorted by name)
+        let mut entries: Vec<(String, u64, u64, u64, [u64; 11])> = self
+            .operations
+            .iter()
+            .map(|e| {
+                let buckets: [u64; 11] =
+                    std::array::from_fn(|i| e.value().bucket_counts[i].load(Ordering::Relaxed));
+                (
+                    e.key().clone(),
+                    e.value().count.load(Ordering::Relaxed),
+                    e.value().duration_us.load(Ordering::Relaxed),
+                    e.value().error_count.load(Ordering::Relaxed),
+                    buckets,
+                )
+            })
+            .collect();
+
+        // Add overflow if it has data
+        let overflow_count = self.overflow.count.load(Ordering::Relaxed);
+        if overflow_count > 0 {
+            let buckets: [u64; 11] =
+                std::array::from_fn(|i| self.overflow.bucket_counts[i].load(Ordering::Relaxed));
+            entries.push((
+                "__overflow__".to_owned(),
+                overflow_count,
+                self.overflow.duration_us.load(Ordering::Relaxed),
+                self.overflow.error_count.load(Ordering::Relaxed),
+                buckets,
+            ));
+        }
+
+        if entries.is_empty() {
+            return out;
+        }
+
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Duration histogram
+        out.push_str(
+            "\n# HELP fraiseql_query_duration_seconds Per-operation query duration histogram\n\
+             # TYPE fraiseql_query_duration_seconds histogram\n",
+        );
+        for (name, count, duration_us, _, buckets) in &entries {
+            let mut cumulative: u64 = 0;
+            for (i, &bucket_count) in buckets.iter().enumerate() {
+                cumulative += bucket_count;
+                let _ = writeln!(
+                    out,
+                    "fraiseql_query_duration_seconds_bucket{{operation=\"{name}\",le=\"{}\"}} \
+                     {cumulative}",
+                    HISTOGRAM_LE_LABELS[i],
+                );
+            }
+            let _ = writeln!(
+                out,
+                "fraiseql_query_duration_seconds_bucket{{operation=\"{name}\",le=\"+Inf\"}} \
+                 {count}",
+            );
+            let sum_secs = *duration_us as f64 / 1_000_000.0;
+            let _ = writeln!(
+                out,
+                "fraiseql_query_duration_seconds_sum{{operation=\"{name}\"}} {sum_secs:.6}",
+            );
+            let _ = writeln!(
+                out,
+                "fraiseql_query_duration_seconds_count{{operation=\"{name}\"}} {count}",
+            );
+        }
+
+        // Error counter
+        out.push_str(
+            "\n# HELP fraiseql_query_errors_total Per-operation query error count\n\
+             # TYPE fraiseql_query_errors_total counter\n",
+        );
+        for (name, _, _, error_count, _) in &entries {
+            let _ = writeln!(
+                out,
+                "fraiseql_query_errors_total{{operation=\"{name}\"}} {error_count}",
+            );
+        }
+
+        out
+    }
+}
+
+impl Default for OperationMetricsRegistry {
+    fn default() -> Self {
+        Self::new(500)
     }
 }
 
@@ -469,5 +675,64 @@ mod tests {
 
         let metrics = PrometheusMetrics::from(&collector);
         assert!((metrics.queries_avg_duration_ms - 5.0).abs() < 0.01); // 5ms average
+    }
+
+    #[test]
+    fn test_operation_metrics_record_and_render() {
+        let registry = OperationMetricsRegistry::new(500);
+        registry.record("GetUsers", 10_000, false); // 10ms
+        registry.record("GetUsers", 20_000, false); // 20ms
+        registry.record("GetPosts", 5_000, true); // 5ms error
+
+        let output = registry.to_prometheus_format();
+        assert!(output.contains("fraiseql_query_duration_seconds_bucket{operation=\"GetUsers\""));
+        assert!(output.contains("fraiseql_query_duration_seconds_count{operation=\"GetUsers\"} 2"));
+        assert!(output.contains("fraiseql_query_duration_seconds_count{operation=\"GetPosts\"} 1"));
+        assert!(output.contains("fraiseql_query_errors_total{operation=\"GetPosts\"} 1"));
+        assert!(output.contains("fraiseql_query_errors_total{operation=\"GetUsers\"} 0"));
+    }
+
+    #[test]
+    fn test_anonymous_operation_label() {
+        let registry = OperationMetricsRegistry::new(500);
+        registry.record("", 1_000, false);
+
+        let output = registry.to_prometheus_format();
+        assert!(output.contains("operation=\"__anonymous__\""));
+    }
+
+    #[test]
+    fn test_overflow_bucketing() {
+        let registry = OperationMetricsRegistry::new(3);
+        registry.record("Op1", 1_000, false);
+        registry.record("Op2", 1_000, false);
+        registry.record("Op3", 1_000, false);
+        // This should go to overflow
+        registry.record("Op4", 1_000, false);
+
+        let output = registry.to_prometheus_format();
+        assert!(output.contains("operation=\"__overflow__\""));
+        assert!(output.contains("fraiseql_query_duration_seconds_count{operation=\"__overflow__\"} 1"));
+    }
+
+    #[test]
+    fn test_histogram_bucket_correctness() {
+        let registry = OperationMetricsRegistry::new(500);
+        // 50ms = 50_000us → should increment le=0.05 and all buckets above
+        registry.record("TestOp", 50_000, false);
+
+        let output = registry.to_prometheus_format();
+        // le=0.025 (25ms) should be 0 (50ms > 25ms)
+        assert!(output.contains(
+            "fraiseql_query_duration_seconds_bucket{operation=\"TestOp\",le=\"0.025\"} 0"
+        ));
+        // le=0.05 (50ms) should be 1 (50ms <= 50ms)
+        assert!(output.contains(
+            "fraiseql_query_duration_seconds_bucket{operation=\"TestOp\",le=\"0.05\"} 1"
+        ));
+        // le=0.1 (100ms) should be 1 (cumulative)
+        assert!(output.contains(
+            "fraiseql_query_duration_seconds_bucket{operation=\"TestOp\",le=\"0.1\"} 1"
+        ));
     }
 }

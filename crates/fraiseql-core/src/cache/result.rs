@@ -88,7 +88,8 @@ pub struct CachedResult {
 /// cache.put(
 ///     "cache_key_123".to_string(),
 ///     result.clone(),
-///     vec!["v_user".to_string()]
+///     vec!["v_user".to_string()],
+///     None, // use global TTL
 /// ).unwrap();
 ///
 /// // Retrieve from cache

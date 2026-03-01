@@ -546,6 +546,12 @@ impl SchemaMerger {
             merged["validation_config"] = val_json;
         }
 
+        // Embed debug config when enabled
+        if toml_schema.debug.enabled {
+            let debug_json = serde_json::to_value(&toml_schema.debug).unwrap_or_default();
+            merged["debug_config"] = debug_json;
+        }
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;

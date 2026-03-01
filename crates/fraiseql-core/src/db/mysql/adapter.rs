@@ -429,6 +429,32 @@ impl DatabaseAdapter for MySqlAdapter {
         Ok(results)
     }
 
+    async fn explain_query(
+        &self,
+        sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<serde_json::Value> {
+        use sqlx::Row as _;
+
+        let explain_sql = format!("EXPLAIN FORMAT=JSON {sql}");
+        let row: sqlx::mysql::MySqlRow =
+            sqlx::query(&explain_sql).fetch_one(&self.pool).await.map_err(|e| {
+                FraiseQLError::Database {
+                    message:   format!("MySQL EXPLAIN failed: {e}"),
+                    sql_state: None,
+                }
+            })?;
+
+        let raw: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to read MySQL EXPLAIN output: {e}"),
+            sql_state: None,
+        })?;
+
+        serde_json::from_str(&raw).map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to parse MySQL EXPLAIN JSON: {e}"),
+            sql_state: None,
+        })
+    }
 }
 
 #[cfg(all(test, feature = "test-mysql"))]

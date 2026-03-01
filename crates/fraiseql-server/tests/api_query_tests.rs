@@ -5,7 +5,9 @@
 
 mod common;
 
-use common::test_app::{api_router, get_json, make_test_state, post_json};
+use common::test_app::{api_router, get_json, make_test_state, make_test_state_with, post_json};
+use fraiseql_core::schema::CompiledSchema;
+use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::StatusCode;
 
 // ============================================================================
@@ -31,8 +33,21 @@ async fn explain_returns_complexity_for_valid_query() {
 }
 
 #[tokio::test]
-async fn explain_returns_sql_equivalent() {
-    let router = api_router(make_test_state());
+async fn explain_returns_sql_when_query_matches_schema() {
+    // Build a schema with a "users" query backed by "v_user" view
+    let mut schema = CompiledSchema::new();
+    let query_def: fraiseql_core::schema::QueryDefinition = serde_json::from_value(
+        serde_json::json!({
+            "name": "users",
+            "return_type": "User",
+            "returns_list": true,
+            "sql_source": "v_user"
+        }),
+    )
+    .unwrap();
+    schema.queries.push(query_def);
+    let state = make_test_state_with(FailingAdapter::new(), schema);
+    let router = api_router(state);
     let (_, json) = post_json(
         &router,
         "/api/v1/query/explain",
@@ -40,7 +55,24 @@ async fn explain_returns_sql_equivalent() {
     )
     .await;
 
-    assert!(json["data"]["sql"].is_string());
+    assert!(json["data"]["sql"].is_string(), "expected SQL string, got: {}", json["data"]["sql"]);
+    assert!(json["data"]["views_accessed"].as_array().is_some());
+}
+
+#[tokio::test]
+async fn explain_returns_null_sql_for_unknown_query() {
+    // Empty schema — planner can't match "users"
+    let router = api_router(make_test_state());
+    let (status, json) = post_json(
+        &router,
+        "/api/v1/query/explain",
+        serde_json::json!({ "query": "query { users { id } }" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(json["data"]["sql"].is_null());
+    assert_eq!(json["data"]["query_type"], "unknown");
 }
 
 #[tokio::test]

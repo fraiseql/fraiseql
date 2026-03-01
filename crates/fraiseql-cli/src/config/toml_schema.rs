@@ -323,6 +323,10 @@ pub struct TomlSchema {
     /// Query validation limits (depth, complexity).
     #[serde(default)]
     pub validation: ValidationConfig,
+
+    /// Debug/development settings (database EXPLAIN, SQL exposure).
+    #[serde(default)]
+    pub debug: DebugConfig,
 }
 
 /// Schema metadata
@@ -1401,6 +1405,43 @@ pub struct ValidationConfig {
     /// Maximum allowed query complexity score. `None` uses the server default (100).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_query_complexity: Option<u32>,
+}
+
+/// Debug/development configuration.
+///
+/// Controls features that should only be enabled during development or
+/// in trusted environments. All flags default to off.
+///
+/// ```toml
+/// [debug]
+/// enabled = true
+/// database_explain = true
+/// expose_sql = true
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DebugConfig {
+    /// Master switch — all debug features require this to be `true`.
+    pub enabled: bool,
+
+    /// When `true`, the explain endpoint will also run `EXPLAIN` against the
+    /// database and include the query plan in the response.
+    pub database_explain: bool,
+
+    /// When `true`, the explain endpoint includes the generated SQL in the
+    /// response. Defaults to `true` (SQL is shown even without
+    /// `database_explain`).
+    pub expose_sql: bool,
+}
+
+impl Default for DebugConfig {
+    fn default() -> Self {
+        Self {
+            enabled:          false,
+            database_explain: false,
+            expose_sql:       true,
+        }
+    }
 }
 
 #[cfg(test)]

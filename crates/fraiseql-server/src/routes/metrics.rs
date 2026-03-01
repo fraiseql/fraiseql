@@ -145,6 +145,9 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         ));
     }
 
+    // Append per-operation histogram metrics
+    output.push_str(&state.metrics.operation_metrics.to_prometheus_format());
+
     // Append subscription counters.
     let subs = crate::routes::subscription_metrics();
     output.push_str(&format!(

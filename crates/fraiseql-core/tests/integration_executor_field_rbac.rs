@@ -142,6 +142,7 @@ fn create_executor_test_schema() -> CompiledSchema {
         observers_config: None,
             subscriptions_config: None,
             validation_config: None,
+            debug_config:      None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
     }

@@ -891,6 +891,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
         state = state.with_validator(validator);
 
+        // Attach debug config from compiled schema
+        state.debug_config.clone_from(&self.executor.schema().debug_config);
+
         // Attach APQ store if configured
         if let Some(ref store) = self.apq_store {
             state = state.with_apq_store(store.clone());

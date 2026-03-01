@@ -18,7 +18,10 @@ use crate::routes::{
 #[derive(Debug, Deserialize)]
 pub struct ExplainRequest {
     /// GraphQL query string to analyze
-    pub query: String,
+    pub query:     String,
+    /// Optional GraphQL variables
+    #[serde(default)]
+    pub variables: Option<serde_json::Value>,
 }
 
 /// Response from explain endpoint.
@@ -34,6 +37,13 @@ pub struct ExplainResponse {
     pub warnings:       Vec<String>,
     /// Estimated cost to execute the query
     pub estimated_cost: usize,
+    /// Views/tables that would be accessed
+    pub views_accessed: Vec<String>,
+    /// Query type classification
+    pub query_type:     String,
+    /// Database-level EXPLAIN output (only when debug.database_explain is enabled)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database_plan:  Option<serde_json::Value>,
 }
 
 /// Complexity information for a query.
@@ -83,8 +93,8 @@ pub struct StatsResponse {
 /// - Complexity metrics (depth, field count, score)
 /// - Warnings for potential performance issues
 /// - Estimated cost to execute
-pub async fn explain_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
     Json(req): Json<ExplainRequest>,
 ) -> Result<Json<ApiResponse<ExplainResponse>>, ApiError> {
     // Validate query is not empty
@@ -98,15 +108,48 @@ pub async fn explain_handler<A: DatabaseAdapter>(
     // Generate warnings for high complexity
     let warnings = generate_warnings(&complexity);
 
-    // Generate mock SQL (in real implementation, would use QueryPlanner)
-    let sql = generate_mock_sql(&req.query);
+    // Use the real QueryPlanner via Executor::plan_query
+    let (sql, estimated_cost, views_accessed, query_type, database_plan) =
+        match state.executor.plan_query(&req.query, req.variables.as_ref()) {
+            Ok(plan) => {
+                // Optionally run DB-level EXPLAIN when debug.database_explain is enabled
+                let db_plan = if is_db_explain_enabled(state.debug_config.as_ref())
+                    && !plan.sql.is_empty()
+                {
+                    state
+                        .executor
+                        .adapter()
+                        .explain_query(&plan.sql, &[])
+                        .await
+                        .ok()
+                } else {
+                    None
+                };
+
+                (
+                    if plan.sql.is_empty() { None } else { Some(plan.sql) },
+                    plan.estimated_cost,
+                    plan.views_accessed,
+                    plan.query_type,
+                    db_plan,
+                )
+            },
+            Err(_) => {
+                // Fall back to heuristic cost if the query can't be planned
+                // (e.g. schema mismatch, parse errors that passed basic validation)
+                (None, estimate_cost(&complexity), Vec::new(), "unknown".to_string(), None)
+            },
+        };
 
     let response = ExplainResponse {
         query: req.query,
         sql,
         complexity,
         warnings,
-        estimated_cost: estimate_cost(&complexity),
+        estimated_cost,
+        views_accessed,
+        query_type,
+        database_plan,
     };
 
     Ok(Json(ApiResponse {
@@ -296,15 +339,16 @@ fn estimate_cost(complexity: &ComplexityInfo) -> usize {
     base_cost + depth_cost + field_cost
 }
 
-/// Generate mock SQL from a GraphQL query.
-/// In a real implementation, this would use fraiseql-core's QueryPlanner.
-fn generate_mock_sql(_query: &str) -> Option<String> {
-    // Placeholder: In production, would call:
-    // let planner = fraiseql_core::runtime::planner::QueryPlanner::new(true);
-    // let plan = planner.plan(&parsed)?;
-    // Some(plan.sql)
-
-    Some("SELECT * FROM generated_view".to_string())
+/// Check whether DB-level EXPLAIN is enabled in the debug configuration.
+fn is_db_explain_enabled(debug_config: Option<&serde_json::Value>) -> bool {
+    debug_config
+        .and_then(|c| c.get("enabled"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+        && debug_config
+            .and_then(|c| c.get("database_explain"))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
 }
 
 /// Validate GraphQL query syntax.
@@ -439,6 +483,9 @@ mod tests {
             },
             warnings:       vec![],
             estimated_cost: 50,
+            views_accessed: vec!["v_user".to_string()],
+            query_type:     "regular".to_string(),
+            database_plan:  None,
         };
 
         assert!(!response.query.is_empty());
@@ -470,9 +517,42 @@ mod tests {
     #[test]
     fn test_explain_request_structure() {
         let request = ExplainRequest {
-            query: "query { users { id } }".to_string(),
+            query:     "query { users { id } }".to_string(),
+            variables: None,
         };
 
         assert!(!request.query.is_empty());
+    }
+
+    #[test]
+    fn test_debug_disabled_no_db_explain() {
+        // Default (no debug config) → DB explain disabled
+        assert!(!is_db_explain_enabled(None));
+
+        // Enabled but database_explain false
+        let config = serde_json::json!({
+            "enabled": true,
+            "database_explain": false,
+        });
+        assert!(!is_db_explain_enabled(Some(&config)));
+    }
+
+    #[test]
+    fn test_debug_enabled_db_explain() {
+        let config = serde_json::json!({
+            "enabled": true,
+            "database_explain": true,
+        });
+        assert!(is_db_explain_enabled(Some(&config)));
+    }
+
+    #[test]
+    fn test_debug_master_switch_required() {
+        // database_explain true but master switch off → disabled
+        let config = serde_json::json!({
+            "enabled": false,
+            "database_explain": true,
+        });
+        assert!(!is_db_explain_enabled(Some(&config)));
     }
 }

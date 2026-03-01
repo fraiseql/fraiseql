@@ -565,6 +565,31 @@ impl DatabaseAdapter for PostgresAdapter {
 
         Ok(results)
     }
+
+    async fn explain_query(
+        &self,
+        sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<serde_json::Value> {
+        let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
+        let client = self.acquire_connection_with_retry().await?;
+        let rows: Vec<Row> = client.query(explain_sql.as_str(), &[]).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("EXPLAIN failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            }
+        })?;
+
+        if let Some(row) = rows.first() {
+            let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to parse EXPLAIN output: {e}"),
+                sql_state: None,
+            })?;
+            Ok(plan)
+        } else {
+            Ok(serde_json::Value::Null)
+        }
+    }
 }
 
 #[async_trait]

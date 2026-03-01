@@ -465,6 +465,7 @@ mod tests {
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
+            debug_config:      None,
             schema_sdl:       None,
             custom_scalars:   CustomTypeRegistry::default(),
         };
@@ -512,6 +513,7 @@ mod tests {
             observers_config: None,
             subscriptions_config: None,
             validation_config: None,
+            debug_config:      None,
             schema_sdl:       None,
             custom_scalars:   CustomTypeRegistry::default(),
         };

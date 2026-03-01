@@ -122,7 +122,9 @@ pub struct AppState<A: DatabaseAdapter> {
     /// APQ metrics tracker.
     pub apq_metrics: Arc<ApqMetrics>,
     /// Request validator (depth/complexity limits, configured from compiled schema).
-    pub validator:   crate::validation::RequestValidator,
+    pub validator:    crate::validation::RequestValidator,
+    /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
+    pub debug_config: Option<serde_json::Value>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -146,6 +148,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             apq_store: None,
             apq_metrics: Arc::new(ApqMetrics::default()),
             validator: crate::validation::RequestValidator::new(),
+            debug_config: None,
         }
     }
 
@@ -650,8 +653,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     }
 
     // Propagate execution errors with metrics
+    let op_name = request.operation_name.as_deref().unwrap_or("");
     let result = exec_result.map_err(|e| {
         let elapsed = start_time.elapsed();
+        let elapsed_us = elapsed.as_micros() as u64;
         error!(
             error = %e,
             elapsed_ms = elapsed.as_millis(),
@@ -661,7 +666,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.execution_errors_total.fetch_add(1, Ordering::Relaxed);
         // Record duration even for failed queries
-        metrics.queries_duration_us.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
+        metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
+        metrics.operation_metrics.record(op_name, elapsed_us, true);
         let err = state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e));
         ErrorResponse::from_error(err)
     })?;
@@ -674,6 +680,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
     metrics.db_queries_total.fetch_add(1, Ordering::Relaxed);
     metrics.db_queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
+    metrics.operation_metrics.record(op_name, elapsed_us, false);
 
     // Record federation-specific metrics for federation queries
     if fraiseql_core::federation::is_federation_query(&query) {

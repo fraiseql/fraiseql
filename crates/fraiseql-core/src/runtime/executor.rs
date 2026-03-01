@@ -487,6 +487,116 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// let variables = serde_json::json!({"id": "user-123"});
     /// let result = executor.execute(query, Some(&variables)).await?;
     /// ```
+    /// Generate an explain plan for a query without executing it.
+    ///
+    /// Returns the SQL that would be generated, parameters, cost estimate,
+    /// and views that would be accessed.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the query cannot be parsed or matched against the schema.
+    pub fn plan_query(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<super::ExplainPlan> {
+        let query_type = self.classify_query(query)?;
+
+        match query_type {
+            QueryType::Regular => {
+                let query_match = self.matcher.match_query(query, variables)?;
+                let view = query_match
+                    .query_def
+                    .sql_source
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string());
+                let plan = self.planner.plan(&query_match)?;
+                Ok(super::ExplainPlan {
+                    sql:            plan.sql,
+                    parameters:     plan.parameters,
+                    estimated_cost: plan.estimated_cost,
+                    views_accessed: vec![view],
+                    query_type:     "regular".to_string(),
+                })
+            },
+            QueryType::Mutation(ref name) => {
+                let mutation_def =
+                    self.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
+                        FraiseQLError::Validation {
+                            message: format!("Mutation '{name}' not found in schema"),
+                            path:    None,
+                        }
+                    })?;
+                let fn_name = mutation_def
+                    .sql_source
+                    .clone()
+                    .unwrap_or_else(|| format!("fn_{name}"));
+                Ok(super::ExplainPlan {
+                    sql:            format!("SELECT * FROM {fn_name}(...)"),
+                    parameters:     Vec::new(),
+                    estimated_cost: 100,
+                    views_accessed: vec![fn_name],
+                    query_type:     "mutation".to_string(),
+                })
+            },
+            QueryType::Aggregate(ref name) => {
+                let sql_source = self
+                    .schema
+                    .queries
+                    .iter()
+                    .find(|q| q.name == *name)
+                    .and_then(|q| q.sql_source.clone())
+                    .unwrap_or_else(|| "unknown".to_string());
+                Ok(super::ExplainPlan {
+                    sql:            format!("SELECT ... FROM {sql_source} -- aggregate"),
+                    parameters:     Vec::new(),
+                    estimated_cost: 200,
+                    views_accessed: vec![sql_source],
+                    query_type:     "aggregate".to_string(),
+                })
+            },
+            QueryType::Window(ref name) => {
+                let sql_source = self
+                    .schema
+                    .queries
+                    .iter()
+                    .find(|q| q.name == *name)
+                    .and_then(|q| q.sql_source.clone())
+                    .unwrap_or_else(|| "unknown".to_string());
+                Ok(super::ExplainPlan {
+                    sql:            format!("SELECT ... FROM {sql_source} -- window"),
+                    parameters:     Vec::new(),
+                    estimated_cost: 250,
+                    views_accessed: vec![sql_source],
+                    query_type:     "window".to_string(),
+                })
+            },
+            QueryType::IntrospectionSchema | QueryType::IntrospectionType(_) => {
+                Ok(super::ExplainPlan {
+                    sql:            String::new(),
+                    parameters:     Vec::new(),
+                    estimated_cost: 0,
+                    views_accessed: Vec::new(),
+                    query_type:     "introspection".to_string(),
+                })
+            },
+            QueryType::Federation(_) => Ok(super::ExplainPlan {
+                sql:            String::new(),
+                parameters:     Vec::new(),
+                estimated_cost: 0,
+                views_accessed: Vec::new(),
+                query_type:     "federation".to_string(),
+            }),
+            QueryType::NodeQuery => Ok(super::ExplainPlan {
+                sql:            String::new(),
+                parameters:     Vec::new(),
+                estimated_cost: 50,
+                views_accessed: Vec::new(),
+                query_type:     "node".to_string(),
+            }),
+        }
+    }
+
     pub async fn execute(
         &self,
         query: &str,
@@ -2995,5 +3105,42 @@ mod tests {
         let original = value.clone();
         null_masked_fields(&mut value, &[]);
         assert_eq!(value, original);
+    }
+
+    #[test]
+    fn test_plan_query_regular() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let plan = executor.plan_query("{ users { id name } }", None).unwrap();
+        assert_eq!(plan.query_type, "regular");
+        assert!(plan.sql.contains("v_user"));
+        assert_eq!(plan.views_accessed, vec!["v_user"]);
+        assert!(plan.estimated_cost > 0);
+    }
+
+    #[test]
+    fn test_plan_query_introspection() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let plan = executor
+            .plan_query("{ __schema { types { name } } }", None)
+            .unwrap();
+        assert_eq!(plan.query_type, "introspection");
+        assert!(plan.sql.is_empty());
+        assert!(plan.views_accessed.is_empty());
+    }
+
+    #[test]
+    fn test_plan_query_empty_rejected() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor.plan_query("", None);
+        assert!(result.is_err());
     }
 }

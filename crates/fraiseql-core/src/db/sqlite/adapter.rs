@@ -377,6 +377,32 @@ impl DatabaseAdapter for SqliteAdapter {
         })
     }
 
+    async fn explain_query(
+        &self,
+        sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<serde_json::Value> {
+        use sqlx::Row as _;
+
+        let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
+        let rows: Vec<sqlx::sqlite::SqliteRow> =
+            sqlx::query(&explain_sql).fetch_all(&self.pool).await.map_err(|e| {
+                FraiseQLError::Database {
+                    message:   format!("SQLite EXPLAIN failed: {e}"),
+                    sql_state: None,
+                }
+            })?;
+
+        let steps: Vec<serde_json::Value> = rows
+            .iter()
+            .map(|row| {
+                let detail: String = row.try_get("detail").unwrap_or_default();
+                serde_json::json!({ "detail": detail })
+            })
+            .collect();
+
+        Ok(serde_json::json!(steps))
+    }
 }
 
 #[cfg(test)]

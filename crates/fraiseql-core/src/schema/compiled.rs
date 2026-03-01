@@ -262,6 +262,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validation_config: Option<serde_json::Value>,
 
+    /// Debug/development configuration.
+    /// Compiled from the `[debug]` TOML section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug_config: Option<serde_json::Value>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
@@ -743,6 +748,9 @@ fn is_builtin_type(name: &str) -> bool {
 ///     description: Some("A user in the system".to_string()),
 ///     sql_projection_hint: None,
 ///     implements: vec![],
+///     requires_role: None,
+///     is_error: false,
+///     relay: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

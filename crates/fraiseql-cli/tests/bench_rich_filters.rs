@@ -37,6 +37,7 @@ fn bench_compile_empty_schema_rich_types() {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -82,6 +83,7 @@ fn bench_metadata_access_performance() {
             subscriptions_config: None,
             validation_config: None,
         federation_config: None,
+        debug_config:      None,
         query_defaults:    None,
     };
 
@@ -133,6 +135,7 @@ fn bench_operator_metadata_parsing() {
             subscriptions_config: None,
             validation_config: None,
         federation_config: None,
+        debug_config:      None,
         query_defaults:    None,
     };
 
@@ -188,6 +191,7 @@ fn bench_database_template_access() {
             subscriptions_config: None,
             validation_config: None,
         federation_config: None,
+        debug_config:      None,
         query_defaults:    None,
     };
 
@@ -249,6 +253,7 @@ fn bench_lookup_data_access() {
             subscriptions_config: None,
             validation_config: None,
         federation_config: None,
+        debug_config:      None,
         query_defaults:    None,
     };
 
@@ -302,6 +307,7 @@ fn bench_full_operator_traversal() {
             subscriptions_config: None,
             validation_config: None,
         federation_config: None,
+        debug_config:      None,
         query_defaults:    None,
     };
 

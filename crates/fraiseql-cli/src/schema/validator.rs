@@ -628,6 +628,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -674,6 +675,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -749,6 +751,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -804,6 +807,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -863,6 +867,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -910,6 +915,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -965,6 +971,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -1020,6 +1027,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -1075,6 +1083,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -1130,6 +1139,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 
@@ -1185,6 +1195,7 @@ mod tests {
             subscriptions_config: None,
             validation_config: None,
             federation_config: None,
+            debug_config:      None,
             query_defaults:    None,
         };
 

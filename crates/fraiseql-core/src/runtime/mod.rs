@@ -42,6 +42,7 @@ mod aggregate_parser;
 mod aggregate_projector;
 pub mod aggregation;
 mod executor;
+mod explain;
 pub mod field_filter;
 pub mod input_validator;
 pub mod jsonb_strategy;
@@ -79,6 +80,7 @@ pub use subscription::{
     SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
     WebhookPayload, protocol,
 };
+pub use explain::ExplainPlan;
 pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;

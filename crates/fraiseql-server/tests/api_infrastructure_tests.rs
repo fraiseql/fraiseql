@@ -24,6 +24,9 @@ fn test_api_query_response_types_defined() {
         },
         warnings:       vec![],
         estimated_cost: 100,
+        views_accessed: vec![],
+        query_type:     "unknown".to_string(),
+        database_plan:  None,
     };
     assert_eq!(explain.query, "test");
 
