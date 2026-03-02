@@ -1,0 +1,31 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_users",
+      "jsonb_column": "data",
+      "fields": [
+        {"name": "id",   "field_type": "Int",    "nullable": false},
+        {"name": "name", "field_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_users",
+      "jsonb_column": "data",
+      "arguments": []
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "directives": []
+}
