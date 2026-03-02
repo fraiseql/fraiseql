@@ -70,7 +70,7 @@ graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
 hyper = {version = "1.0"}
-itertools = "0.13"
+itertools = "0.14"
 jsonwebtoken = "9.2"
 linked-hash-map = "0.5"
 # Caching
