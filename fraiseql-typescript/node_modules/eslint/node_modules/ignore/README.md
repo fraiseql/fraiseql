@@ -123,6 +123,7 @@ ig.filter(['.abc\\a.js', '.abc\\d\\e.js'])
 # Methods
 
 ## .add(pattern: string | Ignore): this
+
 ## .add(patterns: Array<string | Ignore>): this
 
 - **pattern** `String | Ignore` An ignore pattern string, or the `Ignore` instance
@@ -175,7 +176,7 @@ Filters the given array of pathnames, and returns the filtered array.
 
 - **paths** `Array.<Pathname>` The array of `pathname`s to be filtered.
 
-### `Pathname` Conventions:
+### `Pathname` Conventions
 
 #### 1. `Pathname` should be a `path.relative()`d pathname
 

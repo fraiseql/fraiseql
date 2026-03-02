@@ -284,14 +284,14 @@ app = create_fraiseql_app(
 )
 ```
 
-2. **Use environment-specific settings**:
+1. **Use environment-specific settings**:
 
 ```python
 # Production disables introspection and playground automatically
 production=os.getenv("ENV") == "production"
 ```
 
-3. **Add monitoring and caching**:
+1. **Add monitoring and caching**:
 
 ```python
 from fraiseql.fastapi import FraiseQLConfig

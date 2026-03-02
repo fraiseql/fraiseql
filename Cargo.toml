@@ -29,7 +29,8 @@ members = [
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",
   "crates/fraiseql-secrets",
-  "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, files
+  "crates/fraiseql-server",
+  "crates/fraiseql-test-utils",  # HTTP server with runtime, files
   "crates/fraiseql-webhooks",
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
 ]
@@ -55,14 +56,14 @@ deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.0.0-rc.13"}
 fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.0.0-rc.13"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.0.0-rc.13"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.0.0-rc.13"}
 fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.0-rc.13"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.0-rc.13", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.0.0-rc.13"}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.0.0-rc.13"}
 fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.0.0-rc.13"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.0.0-rc.13"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.0.0-rc.13"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.0.0-rc.13"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.0.0-rc.13"}
 futures = "0.3"
 # GraphQL parsing
@@ -70,7 +71,7 @@ graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
 hyper = {version = "1.0"}
-itertools = "0.13"
+itertools = "0.14"
 jsonwebtoken = "9.2"
 linked-hash-map = "0.5"
 # Caching

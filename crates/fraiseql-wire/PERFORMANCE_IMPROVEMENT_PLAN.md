@@ -216,9 +216,9 @@ for v in batch {
 }
 ```
 
-2. Update metrics: Record batch metrics instead of per-row
+1. Update metrics: Record batch metrics instead of per-row
 
-3. Benchmark: Measure improvement with 8, 16, 32 batch sizes
+2. Benchmark: Measure improvement with 8, 16, 32 batch sizes
 
 **Risk**: Low - Doesn't change external API
 **Effort**: 1-2 hours
