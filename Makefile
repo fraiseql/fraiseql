@@ -433,17 +433,15 @@ parity-generate:
 	@cd fraiseql-python && uv run python tests/generate_parity_schema.py \
 	    > /tmp/parity-python.json
 	@echo "  [1/5] Python done"
-	@cd fraiseql-typescript && bun run tests/generate-parity-schema.ts \
-	    > /tmp/parity-typescript.json
+	@cd fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
+	    bun run tests/generate-parity-schema.ts > /tmp/parity-typescript.json
 	@echo "  [2/5] TypeScript done"
 	@cd fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
 	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
 	    > /tmp/parity-go.json
 	@echo "  [3/5] Go done"
-	@cd fraiseql-java && mvn -q test -Dtest=GenerateParitySchema \
-	    "-DschemaOutputFile=/tmp/parity-java.json" 2>/dev/null || \
-	    cd fraiseql-java && mvn test -Dtest=GenerateParitySchema \
-	    "-DschemaOutputFile=/tmp/parity-java.json"
+	@cd fraiseql-java && JAVA_HOME=$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1) \
+	    mvn -q test -Dtest=GenerateParitySchema "-DschemaOutputFile=/tmp/parity-java.json"
 	@echo "  [4/5] Java done"
 	@cd fraiseql-php && php tests/GenerateParitySchema.php \
 	    > /tmp/parity-php.json
