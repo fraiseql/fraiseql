@@ -19,12 +19,14 @@ No FFI calls at runtime. Schema authoring languages are strictly build-time tool
 ## Consequences
 
 **Positive:**
+
 - Zero runtime overhead from Python/TS
 - Clean separation of concerns
 - Deployment is pure Rust binary
 - Schema validation at compile time
 
 **Negative:**
+
 - Adds compilation step to deployment pipeline
 - Schema changes require recompilation
 - Developers must understand three-layer model

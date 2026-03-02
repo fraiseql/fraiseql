@@ -147,6 +147,7 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 ### For JWT Signature Validation Failures
 
 1. **Check JWT secret key**
+
    ```bash
    # If using symmetric signing (HS256), verify secret matches
    # The secret should be in Vault or environment
@@ -165,6 +166,7 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
    ```
 
 2. **Refresh JWKS from OIDC provider**
+
    ```bash
    # Force JWKS cache refresh (trigger reload)
    curl -X POST http://localhost:8815/admin/auth/refresh-jwks
@@ -179,7 +181,8 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 
 ### For Token Expiry Issues
 
-3. **Check server clock skew**
+1. **Check server clock skew**
+
    ```bash
    # JWT validation checks: token_exp > current_time
    # If server clock is wrong, all tokens fail
@@ -196,7 +199,8 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
    sudo chronyc makestep
    ```
 
-4. **Increase token lifetime (temporary)**
+2. **Increase token lifetime (temporary)**
+
    ```bash
    # If tokens are legitimately expiring too fast
    # Update token generation config in OIDC provider
@@ -208,7 +212,8 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 
 ### For OIDC/OAuth Provider Unavailable
 
-5. **Use cached JWKS/allow stale keys**
+1. **Use cached JWKS/allow stale keys**
+
    ```bash
    # If OIDC provider is temporarily down, allow using cached JWKS
    export AUTH_ALLOW_STALE_JWKS=true
@@ -217,7 +222,8 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
    docker restart fraiseql-server
    ```
 
-6. **Switch to backup authentication method**
+2. **Switch to backup authentication method**
+
    ```bash
    # If OIDC is down, can temporarily use different auth:
    export AUTH_PROVIDER="jwt_local"  # Use pre-shared JWT secret
@@ -228,7 +234,8 @@ jq '.security.authentication.claim_mappings' /etc/fraiseql/schema.compiled.json
 
 ### For Missing Required Claims
 
-7. **Update compiled schema with claim mappings**
+1. **Update compiled schema with claim mappings**
+
    ```bash
    # Check what claims are required vs provided
    jq '.security.authentication.required_claims' /etc/fraiseql/schema.compiled.json
@@ -395,28 +402,33 @@ EOF
 ### Best Practices
 
 - **Token validation caching**: Cache JWKS and validated tokens to reduce provider load
+
   ```bash
   export AUTH_JWKS_CACHE_TTL=3600  # 1 hour
   export AUTH_TOKEN_CACHE_TTL=300   # 5 minutes
   ```
 
 - **Graceful degradation**: Allow stale JWKS during provider outages
+
   ```bash
   export AUTH_ALLOW_STALE_JWKS=true
   ```
 
 - **Clock synchronization**: Ensure all servers use NTP for accurate time
+
   ```bash
   sudo systemctl enable ntp
   sudo systemctl start ntp
   ```
 
 - **Certificate rotation**: Monitor JWT signing certificate expiry
+
   ```bash
   openssl x509 -in cert.pem -text -noout | grep -A2 "Not After"
   ```
 
 - **OIDC configuration validation**: Verify config after any provider updates
+
   ```bash
   curl -s "$(jq -r '.security.authentication.providers[0].issuer' schema.compiled.json)/.well-known/openid-configuration" | jq .
   ```

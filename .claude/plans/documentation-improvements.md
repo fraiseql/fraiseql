@@ -342,9 +342,9 @@ A: No, ID maps to UUID in PostgreSQL.
        D -->|Yes| F{Is resolver correct?}
    ```
 
-2. **"Type not found in schema"**
-3. **"Database connection fails"**
-4. **"GraphQL validation error"**
+1. **"Type not found in schema"**
+2. **"Database connection fails"**
+3. **"GraphQL validation error"**
 
 ### Implementation
 
@@ -503,15 +503,15 @@ plugins:
 
 ### Phase 2: Important (Following Sprint)
 
-5. ✅ **Code Example Testing** (1-2 weeks)
-6. 🔍 **Troubleshooting Flowcharts** (2 days)
-7. ⚡ **Performance Tuning Guide** (3-4 days)
+1. ✅ **Code Example Testing** (1-2 weeks)
+2. 🔍 **Troubleshooting Flowcharts** (2 days)
+3. ⚡ **Performance Tuning Guide** (3-4 days)
 
 ### Phase 3: Nice to Have (Future)
 
-8. 🌍 **Real-World Examples** (1 week)
-9. 📚 **API Reference Auto-Generation** (3-5 days)
-10. 🎥 **Video Tutorials** (2-3 weeks)
+1. 🌍 **Real-World Examples** (1 week)
+2. 📚 **API Reference Auto-Generation** (3-5 days)
+3. 🎥 **Video Tutorials** (2-3 weeks)
 
 ---
 

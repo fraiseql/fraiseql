@@ -394,13 +394,13 @@ $ jsesc --json --pretty '{ "föo": "♥", "bår": "𝌆 baz" }'
 Read a local JSON file, escape any non-ASCII symbols, and save the result to a new file:
 
 ```bash
-$ jsesc --json --object < data-raw.json > data-escaped.json
+jsesc --json --object < data-raw.json > data-escaped.json
 ```
 
 Or do the same with an online JSON file:
 
 ```bash
-$ curl -sL "http://git.io/aorKgQ" | jsesc --json --object > data-escaped.json
+curl -sL "http://git.io/aorKgQ" | jsesc --json --object > data-escaped.json
 ```
 
 See `jsesc --help` for the full list of options.
