@@ -27,7 +27,10 @@ pub struct NatsConfig {
     /// NATS server URL (e.g., "<nats://localhost:4222>")
     pub url: String,
 
-    /// `JetStream` stream name (e.g., "`fraiseql.entity_changes`")
+    /// `JetStream` stream name (e.g., `"fraiseql-entity-changes"`)
+    ///
+    /// NATS stream names must not contain `.` or `_` (NATS rejects them).
+    /// Use `-` as a separator.
     pub stream_name: String,
 
     /// Durable consumer name for this observer instance
@@ -56,7 +59,7 @@ impl Default for NatsConfig {
     fn default() -> Self {
         Self {
             url:                    "nats://localhost:4222".to_string(),
-            stream_name:            "fraiseql.entity_changes".to_string(),
+            stream_name:            "fraiseql-entity-changes".to_string(),
             consumer_name:          "observer-default".to_string(),
             subject_prefix:         "entity.change".to_string(),
             max_reconnect_attempts: 5,
@@ -386,7 +389,7 @@ mod tests {
     fn test_nats_config_default() {
         let config = NatsConfig::default();
         assert_eq!(config.url, "nats://localhost:4222");
-        assert_eq!(config.stream_name, "fraiseql.entity_changes");
+        assert_eq!(config.stream_name, "fraiseql-entity-changes");
         assert_eq!(config.consumer_name, "observer-default");
         assert_eq!(config.subject_prefix, "entity.change");
         assert_eq!(config.max_reconnect_attempts, 5);

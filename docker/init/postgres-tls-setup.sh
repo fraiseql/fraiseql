@@ -19,27 +19,63 @@
 
 set -euo pipefail
 
-echo "[TLS setup] Generating self-signed certificate in $PGDATA..."
+echo "[TLS setup] Generating CA + server certificate chain in $PGDATA..."
 
+# Step 1: Generate CA key and self-signed CA certificate (CA:TRUE so rustls accepts it)
 openssl req -x509 -newkey rsa:2048 \
-    -keyout "$PGDATA/server.key" \
-    -out   "$PGDATA/server.crt" \
-    -days  365 \
+    -keyout "$PGDATA/ca.key" \
+    -out    "$PGDATA/ca.crt" \
+    -days   365 \
     -nodes \
-    -subj  "/CN=localhost" \
+    -subj   "/CN=fraiseql-test-ca" \
+    -addext "basicConstraints=critical,CA:TRUE" \
+    -addext "keyUsage=critical,keyCertSign,cRLSign" \
+    2>/dev/null
+
+# Step 2: Generate server key and CSR
+openssl req -newkey rsa:2048 \
+    -keyout "$PGDATA/server.key" \
+    -out    "$PGDATA/server.csr" \
+    -days   365 \
+    -nodes \
+    -subj   "/CN=localhost" \
+    2>/dev/null
+
+# Step 3: Sign the server cert with the CA — end-entity cert (no CA:TRUE)
+openssl x509 -req \
+    -in     "$PGDATA/server.csr" \
+    -CA     "$PGDATA/ca.crt" \
+    -CAkey  "$PGDATA/ca.key" \
+    -CAcreateserial \
+    -out    "$PGDATA/server.crt" \
+    -days   365 \
+    -extfile <(printf "subjectAltName=IP:127.0.0.1,DNS:localhost\nbasicConstraints=CA:FALSE") \
     2>/dev/null
 
 # PostgreSQL requires the key to be readable only by the server process owner
 chmod 600 "$PGDATA/server.key"
 
-echo "[TLS setup] Certificate generated."
-echo "[TLS setup]   cert: $PGDATA/server.crt"
-echo "[TLS setup]   key:  $PGDATA/server.key"
+echo "[TLS setup] Certificates generated."
+echo "[TLS setup]   CA cert:     $PGDATA/ca.crt"
+echo "[TLS setup]   Server cert: $PGDATA/server.crt"
+echo "[TLS setup]   Server key:  $PGDATA/server.key"
 
-# Copy the CA cert (self-signed, so server cert = CA cert) to a well-known
-# location so the CI step can docker-cp it out without knowing $PGDATA.
+# Enable SSL in postgresql.conf here, AFTER certs exist.
+# We do NOT pass -c ssl=on as a docker run arg because the postgres init-time
+# temp server also starts with that flag — before this script has run — causing
+# it to abort with "server.crt: No such file or directory".
+{
+    echo ""
+    echo "# TLS — enabled by postgres-tls-setup.sh init script"
+    echo "ssl = on"
+    echo "ssl_cert_file = 'server.crt'"
+    echo "ssl_key_file  = 'server.key'"
+} >> "$PGDATA/postgresql.conf"
+echo "[TLS setup] SSL enabled in postgresql.conf."
+
+# Copy the CA cert to a well-known location so CI can docker-cp it out.
 mkdir -p /var/run/postgresql
-cp "$PGDATA/server.crt" /var/run/postgresql/ca.crt
+cp "$PGDATA/ca.crt" /var/run/postgresql/ca.crt
 echo "[TLS setup] CA cert available at /var/run/postgresql/ca.crt"
 
 # Create the wire test view — fraiseql-wire TLS integration tests query v_test_entity

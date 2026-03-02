@@ -9,7 +9,7 @@
 //! These tests require a running PostgreSQL instance.
 //! Run with: `cargo test -p fraiseql-server --test database_query_test -- --ignored`
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sqlx::postgres::PgPool;
 
@@ -281,8 +281,13 @@ async fn test_pool_size_limits() {
 
     let pool = PgPool::connect(&database_url).await.expect("Failed to connect");
 
-    // Run a query to ensure pool is warmed up
-    let _: i32 = sqlx::query_scalar("SELECT 1").fetch_one(&pool).await.unwrap();
+    // Explicitly acquire a connection and immediately release it back to the pool.
+    // This is more reliable than fetch_one because we have full control over the lifecycle.
+    let conn = pool.acquire().await.expect("Should acquire a connection");
+    drop(conn);
+
+    // Give the pool a short window to process the connection return into its idle list.
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
     let num_idle = pool.num_idle();
     assert!(num_idle >= 1, "pool should have idle connections after query, got {num_idle}");

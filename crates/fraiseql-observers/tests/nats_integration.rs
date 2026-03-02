@@ -42,7 +42,7 @@ mod nats_tests {
         let config = NatsConfig::default();
 
         assert_eq!(config.url, "nats://localhost:4222");
-        assert_eq!(config.stream_name, "fraiseql.entity_changes");
+        assert_eq!(config.stream_name, "fraiseql-entity-changes");
         assert_eq!(config.consumer_name, "observer-default");
         assert_eq!(config.subject_prefix, "entity.change");
         assert_eq!(config.max_reconnect_attempts, 5);
