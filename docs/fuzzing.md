@@ -104,6 +104,7 @@ The fuzzer uses these as starting points and mutates them to discover new code p
 ## Adding a New Fuzz Target
 
 1. Create `fuzz/fuzz_targets/<name>.rs`:
+
    ```rust
    #![no_main]
    use libfuzzer_sys::fuzz_target;
@@ -114,6 +115,7 @@ The fuzzer uses these as starting points and mutates them to discover new code p
    ```
 
 2. Register in `fuzz/Cargo.toml`:
+
    ```toml
    [[bin]]
    name = "<name>"
