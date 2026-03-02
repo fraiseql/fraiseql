@@ -18,7 +18,7 @@ FraiseQL v2 is a **347,420-line Rust codebase** across 13 workspace crates, impl
 | Testing | A | 8,394 tests, property-based testing, fuzzing, benchmarks |
 | Error Handling | A+ | 945-line error hierarchy with HTTP mapping and field suggestions |
 | Documentation | A | 26,585 doc-comment lines, ADRs, runbooks, SLA docs |
-| Dependency Management | B+ | 793 packages in Cargo.lock (see analysis below), well-managed with feature gates |
+| Dependency Management | B- | 793 packages in Cargo.lock; ~54 heavyweight packages not feature-gated; 94 duplicate-version entries |
 | Security Features | A+ | RLS, field encryption, audit logging, rate limiting, OIDC/OAuth |
 | Developer Experience | A- | SDKs in 12+ languages, 22+ examples, but some large files |
 | CI/CD | A+ | 10 GitHub Actions workflows, daily audits, container scanning |
@@ -411,20 +411,37 @@ cargo cov        # LLVM code coverage
 
 ### Moderate Issues
 
-6. **Dependency count (793 packages in Cargo.lock)**: While feature gates help, even with optional ecosystems removed (~110 packages for Arrow, AWS, gRPC, SQL Server, Kafka, NATS, Redis, Windows), 577 core packages remain. An additional ~19 are test/bench-only (criterion, proptest, insta, etc.). The count is within range for a Rust project combining axum + sqlx + tokio + crypto + auth, but warrants periodic review with `cargo-udeps` to identify unused dependencies, and `cargo tree --duplicates` to eliminate duplicate versions.
+6. **Dependency count (793 packages in Cargo.lock)**: The lock file is inflated by `deny.toml` setting `all-features = true` and by 68 packages existing in multiple versions (94 extra entries). However, the deeper issue is architectural -- several heavyweight ecosystems are **non-optional when they should be**.
 
     **Breakdown:**
     | Category | Packages | Notes |
     |----------|----------|-------|
-    | Feature-gated optional | ~110 | Arrow, AWS, gRPC, SQL Server, Kafka, NATS, Redis, Windows |
-    | Test/bench-only | ~19 | criterion, proptest, plotters, insta, etc. |
+    | Feature-gated optional | ~88 | AWS, SQL Server, OpenTelemetry, ClickHouse, Kafka, NATS, Redis, MCP |
+    | Should be optional but aren't | ~54 | Arrow/Parquet/gRPC (33 pkgs), image processing (21 pkgs) |
+    | Test/bench-only | ~25 | criterion, proptest, plotters, testcontainers, bollard, insta |
+    | Version duplicates (extra entries) | 94 | 68 packages in 2+ versions (windows-sys: 5, rand: 4, rustls: 3) |
     | Workspace crates | 13 | fraiseql-* |
-    | Core transitive | ~651 | tokio, axum, sqlx, hyper, serde, rustls, etc. |
+    | Core transitive | ~519 | tokio, axum, sqlx, hyper, serde, rustls, etc. |
     | **Total** | **793** | |
 
-7. **No integration test execution verified**: `cargo test -- --list` crashed (stack overflow in test listing), suggesting potential issues with the test suite's scale or recursive test discovery.
+    **Estimated build sizes by scenario:**
+    | Scenario | Est. Packages |
+    |----------|---------------|
+    | Cargo.lock as-is (all features, all platforms) | 793 |
+    | Default `cargo build --workspace` (what actually compiles) | ~650 |
+    | + Make arrow/image optional in server | ~595 |
+    | + Deduplicate multi-version packages | ~500-550 |
+    | Minimal: `cargo build -p fraiseql --features postgres` | ~200-250 |
 
-8. **Build does not compile in this environment**: `cargo check` could not be verified due to missing system dependencies. The codebase relies on system libraries (libssl, libpq) that must be installed.
+7. **Non-optional heavyweight dependencies in fraiseql-server**: `fraiseql-arrow` is a **required** (non-optional) dependency of `fraiseql-server` (`Cargo.toml` line 26), which unconditionally pulls in the entire Arrow/Parquet/gRPC stack (~33 packages). Similarly, `image` is required (line 45), pulling ~21 packages including the `rav1e` AV1 encoder. These should be feature-gated. Additionally, `fraiseql-cli` unconditionally depends on `fraiseql-server` (line 10), meaning the CLI binary inherits all of these heavyweight transitive dependencies just to compile schemas.
+
+8. **Triple TLS implementation**: The workspace simultaneously uses `native-tls`, `rustls`, and `aws-lc-rs`, contributing ~23 TLS/crypto packages. Consolidating to a single TLS backend where possible would reduce both package count and binary size.
+
+9. **94 duplicate-version entries**: 68 packages exist in 2+ versions due to ecosystem fragmentation. Worst offenders: `windows-sys` (5 versions), `rand`/`rand_core` (4 each), `hashbrown`/`getrandom` (4 each), `rustls`/`tokio-rustls` (3 each), `hyper`/`http` (2 each, 0.14 vs 1.0 migration), `prost`/`tonic` (2 each). `deny.toml` sets `multiple-versions = "warn"` rather than `"deny"`.
+
+10. **No integration test execution verified**: `cargo test -- --list` crashed (stack overflow in test listing), suggesting potential issues with the test suite's scale or recursive test discovery.
+
+11. **Build does not compile in this environment**: `cargo check` could not be verified due to missing system dependencies. The codebase relies on system libraries (libssl, libpq) that must be installed.
 
 ---
 
@@ -455,4 +472,10 @@ FraiseQL v2 is a **high-quality, production-grade framework** that stands out fo
 4. **Testing**: Multi-layered strategy including property testing and fuzzing
 5. **Operational readiness**: Runbooks, SLAs, comprehensive CI/CD
 
-The framework is well-positioned for production enterprise use. The primary areas for improvement are dependency count reduction (793 packages warrants `cargo-udeps` and `cargo tree --duplicates` audits), file size management, `unwrap()` audit in hot paths, and ensuring all deprecated SDKs have clear migration paths.
+The framework is well-positioned for production enterprise use. The primary areas for improvement are:
+
+1. **Make `fraiseql-arrow` and `image` optional in `fraiseql-server`** -- the single biggest dependency win, gating ~54 packages behind feature flags
+2. **Break the `fraiseql-cli` -> `fraiseql-server` hard dependency** -- the CLI should not pull in the full server stack to compile schemas
+3. **Deduplicate package versions** -- 68 packages in 2+ versions (94 extra lock entries), especially `rustls` (3 versions) and `windows-sys` (5 versions)
+4. **Consolidate TLS backends** -- three TLS implementations in parallel is excessive
+5. **Audit `unwrap()` calls in runtime hot paths** and manage large file decomposition
