@@ -372,7 +372,7 @@ Error: sql error: column "project__status__name" does not exist
 
 1. WHERE clause references non-existent column/JSON key
 2. Wrong JSON path syntax
-4. Data doesn't have the expected structure
+3. Data doesn't have the expected structure
 
 **Solutions**:
 

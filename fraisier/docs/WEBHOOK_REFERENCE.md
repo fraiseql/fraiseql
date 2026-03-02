@@ -359,13 +359,13 @@ def verify_webhook_signature(payload, signature, secret):
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-2. Store in environment variable (never in code):
+1. Store in environment variable (never in code):
 
 ```bash
 export FRAISIER_WEBHOOK_SECRET="your_secret_here"
 ```
 
-3. Verify signature on received webhook:
+1. Verify signature on received webhook:
 
 ```python
 signature = request.headers.get('X-Fraisier-Signature')
