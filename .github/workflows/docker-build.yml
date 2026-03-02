@@ -16,7 +16,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}
 
 jobs:
   build-and-push:
@@ -33,11 +33,15 @@ jobs:
             dockerfile: Dockerfile
             build-context: .
             image-suffix: "server"
+            optional: false
 
           - name: tutorial
             dockerfile: tutorial/Dockerfile
             build-context: .
             image-suffix: "tutorial"
+            optional: true
+
+    continue-on-error: ${{ matrix.service.optional == true }}
 
     steps:
       - name: Checkout repository
@@ -229,8 +233,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: GitHub Container Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
           echo "**Images**:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository }}/server\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/server\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Branch**: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
