@@ -16,38 +16,59 @@ type ArgumentDefinition struct {
 	IsDefault bool        `json:"-"` // Track whether default was set
 }
 
+// DeprecationInfo carries the deprecation reason for a query or mutation.
+type DeprecationInfo struct {
+	Reason string `json:"reason"`
+}
+
 // TypeDefinition represents a GraphQL type
 type TypeDefinition struct {
-	Name        string      `json:"name"`
-	Fields      []FieldInfo `json:"fields"`
-	Description string      `json:"description,omitempty"`
-	Relay       bool        `json:"relay,omitempty"`
+	Name         string      `json:"name"`
+	Fields       []FieldInfo `json:"fields"`
+	Description  string      `json:"description,omitempty"`
+	Relay        bool        `json:"relay,omitempty"`
+	SqlSource    string      `json:"sql_source,omitempty"`
+	JsonbColumn  string      `json:"jsonb_column,omitempty"`
+	IsError      bool        `json:"is_error,omitempty"`
+	RequiresRole string      `json:"requires_role,omitempty"`
+	Implements   []string    `json:"implements,omitempty"`
 }
 
 // QueryDefinition represents a GraphQL query
 type QueryDefinition struct {
-	Name        string                 `json:"name"`
-	ReturnType  string                 `json:"return_type"`
-	ReturnsList bool                   `json:"returns_list"`
-	Nullable    bool                   `json:"nullable"`
-	Arguments   []ArgumentDefinition   `json:"arguments"`
-	Description string                 `json:"description,omitempty"`
-	SqlSource   string                 `json:"sql_source,omitempty"`
-	Relay       bool                   `json:"relay,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
+	Name              string                 `json:"name"`
+	ReturnType        string                 `json:"return_type"`
+	ReturnsList       bool                   `json:"returns_list"`
+	Nullable          bool                   `json:"nullable"`
+	Arguments         []ArgumentDefinition   `json:"arguments"`
+	Description       string                 `json:"description,omitempty"`
+	SqlSource         string                 `json:"sql_source,omitempty"`
+	Relay             bool                   `json:"relay,omitempty"`
+	RelayCursorColumn string                 `json:"relay_cursor_column,omitempty"`
+	RelayCursorType   string                 `json:"relay_cursor_type,omitempty"`
+	InjectParams      map[string]interface{} `json:"inject_params,omitempty"`
+	CacheTTLSeconds   *uint64                `json:"cache_ttl_seconds,omitempty"`
+	AdditionalViews   []string               `json:"additional_views,omitempty"`
+	RequiresRole      string                 `json:"requires_role,omitempty"`
+	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
+	Config            map[string]interface{} `json:"config,omitempty"`
 }
 
 // MutationDefinition represents a GraphQL mutation
 type MutationDefinition struct {
-	Name        string                 `json:"name"`
-	ReturnType  string                 `json:"return_type"`
-	ReturnsList bool                   `json:"returns_list"`
-	Nullable    bool                   `json:"nullable"`
-	Arguments   []ArgumentDefinition   `json:"arguments"`
-	Description string                 `json:"description,omitempty"`
-	Operation   string                 `json:"operation,omitempty"`
-	SqlSource   string                 `json:"sql_source,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
+	Name                 string                 `json:"name"`
+	ReturnType           string                 `json:"return_type"`
+	ReturnsList          bool                   `json:"returns_list"`
+	Nullable             bool                   `json:"nullable"`
+	Arguments            []ArgumentDefinition   `json:"arguments"`
+	Description          string                 `json:"description,omitempty"`
+	Operation            string                 `json:"operation,omitempty"`
+	SqlSource            string                 `json:"sql_source,omitempty"`
+	InjectParams         map[string]interface{} `json:"inject_params,omitempty"`
+	InvalidatesViews     []string               `json:"invalidates_views,omitempty"`
+	InvalidatesFactTables []string              `json:"invalidates_fact_tables,omitempty"`
+	Deprecation          *DeprecationInfo       `json:"deprecation,omitempty"`
+	Config               map[string]interface{} `json:"config,omitempty"`
 }
 
 // FactTableDefinition represents a GraphQL fact table for analytics
@@ -124,7 +145,26 @@ func getInstance() *SchemaRegistry {
 	return registry
 }
 
+// toSnakeCase converts CamelCase to snake_case.
+// Examples: "OrderItem" → "order_item", "User" → "user".
+func toSnakeCase(s string) string {
+	result := make([]byte, 0, len(s)+4)
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if i > 0 && ch >= 'A' && ch <= 'Z' {
+			result = append(result, '_')
+		}
+		if ch >= 'A' && ch <= 'Z' {
+			result = append(result, ch+32) // to lower ASCII
+		} else {
+			result = append(result, ch)
+		}
+	}
+	return string(result)
+}
+
 // RegisterType registers a type with the schema registry.
+// sql_source is automatically derived as "v_" + snake_case(name).
 // Returns an error if a type with the same name is already registered.
 func RegisterType(name string, fields []FieldInfo, description string, relay ...bool) error {
 	reg := getInstance()
@@ -140,6 +180,28 @@ func RegisterType(name string, fields []FieldInfo, description string, relay ...
 		Fields:      fields,
 		Description: description,
 		Relay:       isRelay,
+		SqlSource:   "v_" + toSnakeCase(name),
+	}
+	return nil
+}
+
+// RegisterErrorType registers a GraphQL error type with the schema registry.
+// Error types are used to return structured error responses from mutations.
+// Returns an error if a type with the same name is already registered.
+func RegisterErrorType(name string, fields []FieldInfo, description string) error {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	if _, exists := reg.types[name]; exists {
+		return fmt.Errorf("type %q is already registered; each name must be unique within a schema", name)
+	}
+	reg.types[name] = TypeDefinition{
+		Name:        name,
+		Fields:      fields,
+		Description: description,
+		IsError:     true,
+		SqlSource:   "v_" + toSnakeCase(name),
 	}
 	return nil
 }

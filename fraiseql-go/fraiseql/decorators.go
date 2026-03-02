@@ -3,6 +3,7 @@ package fraiseql
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // operationBuilder holds the common fields and shared logic for QueryBuilder and MutationBuilder.
@@ -58,10 +59,32 @@ func (b *operationBuilder) setDescription(desc string) {
 	b.description = desc
 }
 
+// parseInjectParams converts {"param": "jwt:claim"} to {"param": {"source": "jwt", "claim": "claim"}}.
+func parseInjectParams(params map[string]string) map[string]interface{} {
+	result := make(map[string]interface{}, len(params))
+	for k, v := range params {
+		parts := strings.SplitN(v, ":", 2)
+		if len(parts) == 2 {
+			result[k] = map[string]interface{}{
+				"source": parts[0],
+				"claim":  parts[1],
+			}
+		}
+	}
+	return result
+}
+
 // QueryBuilder provides a fluent interface for building GraphQL queries
 type QueryBuilder struct {
 	operationBuilder
-	relay bool
+	relay             bool
+	relayCursorColumn string
+	relayCursorType   string
+	injectParams      map[string]interface{}
+	cacheTTLSeconds   *uint64
+	additionalViews   []string
+	requiresRole      string
+	deprecation       *DeprecationInfo
 }
 
 // NewQuery creates a new query builder
@@ -112,11 +135,64 @@ func (qb *QueryBuilder) Description(desc string) *QueryBuilder {
 	return qb
 }
 
+// SqlSource sets the SQL view name for this query.
+func (qb *QueryBuilder) SqlSource(source string) *QueryBuilder {
+	qb.config["sql_source"] = source
+	return qb
+}
+
 // Relay marks the query as a Relay connection query.
-// Requires ReturnsArray(true) and a sql_source in Config.
+// Requires ReturnsArray(true) and a sql_source set via Config or SqlSource.
 // The compiler derives the cursor column from the return type name (e.g. User -> pk_user).
 func (qb *QueryBuilder) Relay(relay bool) *QueryBuilder {
 	qb.relay = relay
+	return qb
+}
+
+// RelayCursorColumn sets the column used as the Relay pagination cursor.
+func (qb *QueryBuilder) RelayCursorColumn(col string) *QueryBuilder {
+	qb.relayCursorColumn = col
+	return qb
+}
+
+// RelayCursorType sets the type of the relay cursor column ("int64" or "uuid").
+func (qb *QueryBuilder) RelayCursorType(cursorType string) *QueryBuilder {
+	qb.relayCursorType = cursorType
+	return qb
+}
+
+// InjectParams sets server-side JWT claim injections for this query.
+// Each entry maps a parameter name to a source string of the form "jwt:<claim>".
+func (qb *QueryBuilder) InjectParams(params map[string]string) *QueryBuilder {
+	if len(params) > 0 {
+		qb.injectParams = parseInjectParams(params)
+	}
+	return qb
+}
+
+// CacheTTLSeconds sets the cache TTL in seconds for query results.
+// A value of 0 disables caching for this query explicitly.
+func (qb *QueryBuilder) CacheTTLSeconds(ttl uint64) *QueryBuilder {
+	qb.cacheTTLSeconds = &ttl
+	return qb
+}
+
+// AdditionalViews lists extra views that should be invalidated when this query's
+// backing view changes. Used by the cache invalidation system.
+func (qb *QueryBuilder) AdditionalViews(views []string) *QueryBuilder {
+	qb.additionalViews = views
+	return qb
+}
+
+// RequiresRole restricts this query to callers who hold the given role.
+func (qb *QueryBuilder) RequiresRole(role string) *QueryBuilder {
+	qb.requiresRole = role
+	return qb
+}
+
+// Deprecated marks this query as deprecated with the given reason.
+func (qb *QueryBuilder) Deprecated(reason string) *QueryBuilder {
+	qb.deprecation = &DeprecationInfo{Reason: reason}
 	return qb
 }
 
@@ -139,13 +215,20 @@ func (qb *QueryBuilder) Register() error {
 	}
 
 	definition := QueryDefinition{
-		Name:        qb.name,
-		ReturnType:  qb.returnType,
-		ReturnsList: qb.returnsList,
-		Nullable:    qb.nullable,
-		Arguments:   qb.arguments,
-		Description: qb.description,
-		Relay:       qb.relay,
+		Name:              qb.name,
+		ReturnType:        qb.returnType,
+		ReturnsList:       qb.returnsList,
+		Nullable:          qb.nullable,
+		Arguments:         qb.arguments,
+		Description:       qb.description,
+		Relay:             qb.relay,
+		RelayCursorColumn: qb.relayCursorColumn,
+		RelayCursorType:   qb.relayCursorType,
+		InjectParams:      qb.injectParams,
+		CacheTTLSeconds:   qb.cacheTTLSeconds,
+		AdditionalViews:   qb.additionalViews,
+		RequiresRole:      qb.requiresRole,
+		Deprecation:       qb.deprecation,
 	}
 
 	if len(qb.config) > 0 {
@@ -171,15 +254,21 @@ func (qb *QueryBuilder) Register() error {
 // MutationBuilder provides a fluent interface for building GraphQL mutations
 type MutationBuilder struct {
 	operationBuilder
+	injectParams          map[string]interface{}
+	invalidatesViews      []string
+	invalidatesFactTables []string
+	deprecation           *DeprecationInfo
 }
 
 // NewMutation creates a new mutation builder
 func NewMutation(name string) *MutationBuilder {
-	return &MutationBuilder{operationBuilder{
-		name:      name,
-		config:    make(map[string]interface{}),
-		arguments: []ArgumentDefinition{},
-	}}
+	return &MutationBuilder{
+		operationBuilder: operationBuilder{
+			name:      name,
+			config:    make(map[string]interface{}),
+			arguments: []ArgumentDefinition{},
+		},
+	}
 }
 
 // ReturnType sets the return type for the mutation
@@ -219,16 +308,61 @@ func (mb *MutationBuilder) Description(desc string) *MutationBuilder {
 	return mb
 }
 
+// SqlSource sets the SQL function name for this mutation.
+func (mb *MutationBuilder) SqlSource(source string) *MutationBuilder {
+	mb.config["sql_source"] = source
+	return mb
+}
+
+// Operation sets the DML operation type for this mutation ("insert", "update", "delete").
+func (mb *MutationBuilder) Operation(op string) *MutationBuilder {
+	mb.config["operation"] = op
+	return mb
+}
+
+// InjectParams sets server-side JWT claim injections for this mutation.
+// Each entry maps a parameter name to a source string of the form "jwt:<claim>".
+func (mb *MutationBuilder) InjectParams(params map[string]string) *MutationBuilder {
+	if len(params) > 0 {
+		mb.injectParams = parseInjectParams(params)
+	}
+	return mb
+}
+
+// InvalidatesViews lists views whose cached results should be invalidated when this
+// mutation runs successfully.
+func (mb *MutationBuilder) InvalidatesViews(views []string) *MutationBuilder {
+	mb.invalidatesViews = views
+	return mb
+}
+
+// InvalidatesFactTables lists fact tables whose cached aggregates should be
+// invalidated when this mutation runs successfully.
+func (mb *MutationBuilder) InvalidatesFactTables(tables []string) *MutationBuilder {
+	mb.invalidatesFactTables = tables
+	return mb
+}
+
+// Deprecated marks this mutation as deprecated with the given reason.
+func (mb *MutationBuilder) Deprecated(reason string) *MutationBuilder {
+	mb.deprecation = &DeprecationInfo{Reason: reason}
+	return mb
+}
+
 // Register registers the mutation with the global schema registry.
 // Returns an error if a mutation with the same name is already registered.
 func (mb *MutationBuilder) Register() error {
 	definition := MutationDefinition{
-		Name:        mb.name,
-		ReturnType:  mb.returnType,
-		ReturnsList: mb.returnsList,
-		Nullable:    mb.nullable,
-		Arguments:   mb.arguments,
-		Description: mb.description,
+		Name:                 mb.name,
+		ReturnType:           mb.returnType,
+		ReturnsList:          mb.returnsList,
+		Nullable:             mb.nullable,
+		Arguments:            mb.arguments,
+		Description:          mb.description,
+		InjectParams:         mb.injectParams,
+		InvalidatesViews:     mb.invalidatesViews,
+		InvalidatesFactTables: mb.invalidatesFactTables,
+		Deprecation:          mb.deprecation,
 	}
 
 	if len(mb.config) > 0 {
