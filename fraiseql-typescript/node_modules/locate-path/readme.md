@@ -5,7 +5,7 @@
 ## Install
 
 ```
-$ npm install locate-path
+npm install locate-path
 ```
 
 ## Usage
@@ -16,14 +16,14 @@ Here we find the first file that exists on disk, in array order.
 const locatePath = require('locate-path');
 
 const files = [
-	'unicorn.png',
-	'rainbow.png', // Only this one actually exists on disk
-	'pony.png'
+ 'unicorn.png',
+ 'rainbow.png', // Only this one actually exists on disk
+ 'pony.png'
 ];
 
 (async () => {
-	console(await locatePath(files));
-	//=> 'rainbow'
+ console(await locatePath(files));
+ //=> 'rainbow'
 })();
 ```
 
@@ -115,11 +115,11 @@ Same as above.
 ---
 
 <div align="center">
-	<b>
-		<a href="https://tidelift.com/subscription/pkg/npm-locate-path?utm_source=npm-locate-path&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
-	</b>
-	<br>
-	<sub>
-		Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
-	</sub>
+ <b>
+  <a href="https://tidelift.com/subscription/pkg/npm-locate-path?utm_source=npm-locate-path&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
+ </b>
+ <br>
+ <sub>
+  Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
+ </sub>
 </div>

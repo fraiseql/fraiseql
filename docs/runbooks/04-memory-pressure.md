@@ -143,6 +143,7 @@ fi
 ### Immediate Actions (< 2 minutes)
 
 1. **Increase memory limit**
+
    ```bash
    # Stop the container
    docker stop fraiseql-server
@@ -169,6 +170,7 @@ fi
    ```
 
 2. **Kill idle database connections**
+
    ```bash
    # Frees up memory held by connection buffers
    psql $DATABASE_URL << 'EOF'
@@ -180,6 +182,7 @@ fi
    ```
 
 3. **Clear in-memory caches** (if application supports it)
+
    ```bash
    # Some applications have cache clear endpoint
    curl -X POST http://localhost:8815/admin/cache/clear
@@ -191,6 +194,7 @@ fi
    ```
 
 4. **Reduce connection pool size temporarily**
+
    ```bash
    # Smaller pool = less memory, but lower concurrency
    export FRAISEQL_DB_POOL_MAX=10  # from default 20
@@ -199,7 +203,8 @@ fi
 
 ### Short-term (5-30 minutes)
 
-5. **Enable request rate limiting to reduce load**
+1. **Enable request rate limiting to reduce load**
+
    ```bash
    # Use Redis for rate limiting instead of in-memory
    export REDIS_URL="redis://redis:6379"
@@ -207,7 +212,8 @@ fi
    docker restart fraiseql-server
    ```
 
-6. **Disable or reduce query caching**
+2. **Disable or reduce query caching**
+
    ```bash
    # If caching is consuming memory
    export FRAISEQL_QUERY_CACHE_ENABLED="false"
@@ -216,7 +222,8 @@ fi
    docker restart fraiseql-server
    ```
 
-7. **Enable swap space** (temporary measure while investigating)
+3. **Enable swap space** (temporary measure while investigating)
+
    ```bash
    # Add swap space if not present
    sudo dd if=/dev/zero of=/swapfile bs=1G count=4
