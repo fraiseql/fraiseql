@@ -296,7 +296,7 @@ struct PerEntityJson {
 // Public manager
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Manages one [`EntityCircuitBreaker`] per federation entity type.
+/// Manages one circuit breaker per federation entity type.
 ///
 /// Instantiated from the compiled schema JSON and shared via `Arc` across
 /// request handlers and the metrics endpoint.

@@ -41,7 +41,7 @@ impl AppState {
     /// Create new application state from configuration (without database).
     ///
     /// Only available when the `database` feature is disabled.
-    /// When `database` is enabled, use [`new_with_database`](Self::new_with_database) instead.
+    /// When `database` is enabled, use `AppState::new_with_database` instead.
     #[cfg(not(feature = "database"))]
     pub fn new(config: crate::config::RuntimeConfig, shutdown: Arc<ShutdownCoordinator>) -> Self {
         Self {

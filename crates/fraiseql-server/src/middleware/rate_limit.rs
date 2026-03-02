@@ -787,7 +787,7 @@ impl RedisRateLimiter {
 /// Rate limiter that dispatches to either an in-memory or Redis backend.
 ///
 /// Construct via [`RateLimiter::new`] (in-memory, default) or
-/// [`RateLimiter::new_redis`] (distributed Redis, requires the
+/// `RateLimiter::new_redis` (distributed Redis, requires the
 /// `redis-rate-limiting` Cargo feature).
 pub enum RateLimiter {
     /// Single-node token-bucket limiter backed by `HashMap` with `RwLock`.

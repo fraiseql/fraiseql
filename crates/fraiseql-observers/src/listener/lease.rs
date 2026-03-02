@@ -6,7 +6,7 @@
 //! |---------|-------------------|----------|
 //! | [`CheckpointLease::in_process`] | single process | nothing |
 //! | [`CheckpointLease::postgres`] | multi-process | PostgreSQL (`postgres` feature) |
-//! | [`CheckpointLease::redis`] | multi-process | Redis (`redis-lease` feature) |
+//! | `CheckpointLease::redis` | multi-process | Redis (`redis-lease` feature) |
 //!
 //! **In-process** is suitable for testing and single-node deployments.
 //! **Postgres** uses a PostgreSQL *session advisory lock*: the lock lives as long as
@@ -385,7 +385,8 @@ enum LeaseKind {
 ///
 /// Use [`CheckpointLease::in_process`] for single-process deployments and tests,
 /// [`CheckpointLease::postgres`] for multi-process coordination without Redis,
-/// or [`CheckpointLease::redis`] for multi-process coordination backed by Redis.
+/// or `CheckpointLease::redis` (requires the `redis-lease` feature) for multi-process
+/// coordination backed by Redis.
 pub struct CheckpointLease(LeaseKind);
 
 impl CheckpointLease {

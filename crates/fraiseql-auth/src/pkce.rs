@@ -88,7 +88,7 @@ struct PkceEntry {
 /// In-memory PKCE state store backed by a [`DashMap`].
 ///
 /// State is per-process: lost on restart, not shared across replicas.
-/// For multi-replica deployments, use [`PkceStateStore::new_redis`] instead
+/// For multi-replica deployments, use `RedisPkceStateStore` instead
 /// (requires the `redis-pkce` Cargo feature).
 pub struct InMemoryPkceStateStore {
     state_ttl_secs: u64,
