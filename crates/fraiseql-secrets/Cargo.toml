@@ -23,8 +23,8 @@ tokio-test = "0.4"
 workspace = true
 
 [package]
-name = "fraiseql-secrets"
 description = "Secrets management and field-level encryption for FraiseQL"
+name = "fraiseql-secrets"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

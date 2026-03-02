@@ -261,7 +261,7 @@ fraiseql.registerSubscription(
 );
 ```
 
-2. **Topic-Based Subscriptions** - Route to different channels
+1. **Topic-Based Subscriptions** - Route to different channels
 
 ```typescript
 fraiseql.registerSubscription(
@@ -274,7 +274,7 @@ fraiseql.registerSubscription(
 );
 ```
 
-3. **Filtered Subscriptions** - Target specific records
+1. **Filtered Subscriptions** - Target specific records
 
 ```typescript
 fraiseql.registerSubscription(
@@ -286,7 +286,7 @@ fraiseql.registerSubscription(
 );
 ```
 
-4. **Change Data Capture (CDC)** - Capture all changes
+1. **Change Data Capture (CDC)** - Capture all changes
 
 ```typescript
 fraiseql.registerSubscription(
@@ -299,7 +299,7 @@ fraiseql.registerSubscription(
 );
 ```
 
-5. **Alerts and Notifications** - Complex filtering
+1. **Alerts and Notifications** - Complex filtering
 
 ```typescript
 fraiseql.registerSubscription(
@@ -461,7 +461,7 @@ fraiseql.registerTypeFields("User", [
 }
 ```
 
-2. **API Versioning**: Deprecate fields with migration guidance
+1. **API Versioning**: Deprecate fields with migration guidance
 
 ```typescript
 {
@@ -472,7 +472,7 @@ fraiseql.registerTypeFields("User", [
 }
 ```
 
-3. **Schema Documentation**: Add rich field descriptions
+1. **Schema Documentation**: Add rich field descriptions
 
 ```typescript
 {
