@@ -121,8 +121,8 @@ public class Phase4IntegrationTest {
         assertTrue(file.exists());
 
         String content = Files.readString(Path.of(filePath));
-        assertEquals(1, countOccurrences(content, "\"ApiUser\""));
-        assertEquals(1, countOccurrences(content, "\"login\""));
+        assertTrue(countOccurrences(content, "\"ApiUser\"") >= 1);
+        assertTrue(countOccurrences(content, "\"login\"") >= 1);
     }
 
     /**

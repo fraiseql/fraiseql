@@ -58,12 +58,12 @@ public class SchemaFormatter {
      * For TOML-based workflow where configuration is separate.
      *
      * @param registry the SchemaRegistry to format
-     * @return ObjectNode representing minimal schema (types only)
+     * @return JSON string representing minimal schema (types only)
      */
-    public static ObjectNode formatMinimalSchema(SchemaRegistry registry) {
+    public static String formatMinimalSchema(SchemaRegistry registry) {
         ObjectNode root = mapper.createObjectNode();
 
-        // Format types
+        // Format types (ObjectNode keyed by type name)
         root.set("types", formatTypes(registry.getAllTypes()));
 
         // Format enums
@@ -81,7 +81,59 @@ public class SchemaFormatter {
             root.set("interfaces", formatInterfaces(registry.getAllInterfaces()));
         }
 
-        return root;
+        return root.toString();
+    }
+
+    /**
+     * Format types as an ArrayNode (for minimal schema export).
+     * Each type is an object element including its fields.
+     */
+    private static ArrayNode formatTypesArray(Map<String, SchemaRegistry.GraphQLTypeInfo> types) {
+        ArrayNode typesArray = mapper.createArrayNode();
+        for (SchemaRegistry.GraphQLTypeInfo typeInfo : types.values()) {
+            ObjectNode typeNode = mapper.createObjectNode();
+            typeNode.put("name", typeInfo.name);
+            if (!typeInfo.description.isEmpty()) {
+                typeNode.put("description", typeInfo.description);
+            }
+            if (typeInfo.relay) {
+                typeNode.put("relay", true);
+            }
+            if (typeInfo.isError) {
+                typeNode.put("is_error", true);
+            }
+            if (typeInfo.requiresRole != null) {
+                typeNode.put("requires_role", typeInfo.requiresRole);
+            }
+            if (typeInfo.sqlSource != null) {
+                typeNode.put("sql_source", typeInfo.sqlSource);
+            }
+            // Format fields
+            ObjectNode fieldsNode = mapper.createObjectNode();
+            for (TypeConverter.GraphQLFieldInfo fieldInfo : typeInfo.fields.values()) {
+                ObjectNode fieldNode = mapper.createObjectNode();
+                fieldNode.put("type", fieldInfo.getGraphQLType());
+                fieldNode.put("baseType", fieldInfo.type);
+                fieldNode.put("nullable", fieldInfo.nullable);
+                if (!fieldInfo.description.isEmpty()) {
+                    fieldNode.put("description", fieldInfo.description);
+                }
+                if (fieldInfo.requiresScope != null) {
+                    fieldNode.put("requires_scope", fieldInfo.requiresScope);
+                }
+                if (fieldInfo.requiresScopes != null) {
+                    ArrayNode scopesArray = mapper.createArrayNode();
+                    for (String scope : fieldInfo.requiresScopes) {
+                        scopesArray.add(scope);
+                    }
+                    fieldNode.set("requires_scopes", scopesArray);
+                }
+                fieldsNode.set(fieldInfo.name, fieldNode);
+            }
+            typeNode.set("fields", fieldsNode);
+            typesArray.add(typeNode);
+        }
+        return typesArray;
     }
 
     /**
@@ -110,13 +162,30 @@ public class SchemaFormatter {
                 typeNode.put("relay", true);
             }
 
+            // Add is_error flag
+            if (typeInfo.isError) {
+                typeNode.put("is_error", true);
+            }
+
+            // Add requires_role
+            if (typeInfo.requiresRole != null) {
+                typeNode.put("requires_role", typeInfo.requiresRole);
+            }
+
+            // Add sql_source
+            if (typeInfo.sqlSource != null) {
+                typeNode.put("sql_source", typeInfo.sqlSource);
+            }
+
             // Format fields
             ObjectNode fieldsNode = mapper.createObjectNode();
             for (TypeConverter.GraphQLFieldInfo fieldInfo : typeInfo.fields.values()) {
                 ObjectNode fieldNode = mapper.createObjectNode();
 
-                fieldNode.put("type", fieldInfo.type);
+                fieldNode.put("type", fieldInfo.getGraphQLType());
+                fieldNode.put("baseType", fieldInfo.type);
                 fieldNode.put("nullable", fieldInfo.nullable);
+                fieldNode.put("isList", fieldInfo.isList);
 
                 if (!fieldInfo.description.isEmpty()) {
                     fieldNode.put("description", fieldInfo.description);
@@ -174,6 +243,34 @@ public class SchemaFormatter {
                 queryNode.put("relay", true);
             }
 
+            if (queryInfo.sqlSource != null) {
+                queryNode.put("sql_source", queryInfo.sqlSource);
+            }
+
+            if (queryInfo.cacheTtlSeconds != null) {
+                queryNode.put("cache_ttl_seconds", queryInfo.cacheTtlSeconds);
+            }
+
+            if (queryInfo.injectParams != null && !queryInfo.injectParams.isEmpty()) {
+                ObjectNode ipNode = mapper.createObjectNode();
+                for (Map.Entry<String, String> entry : queryInfo.injectParams.entrySet()) {
+                    String[] parts = entry.getValue().split(":", 2);
+                    ObjectNode sourceNode = mapper.createObjectNode();
+                    sourceNode.put("source", parts[0]);
+                    sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
+                    ipNode.set(entry.getKey(), sourceNode);
+                }
+                queryNode.set("inject_params", ipNode);
+            }
+
+            if (queryInfo.additionalViews != null && !queryInfo.additionalViews.isEmpty()) {
+                ArrayNode viewsArray = mapper.createArrayNode();
+                for (String view : queryInfo.additionalViews) {
+                    viewsArray.add(view);
+                }
+                queryNode.set("additional_views", viewsArray);
+            }
+
             queriesNode.set(queryInfo.name, queryNode);
         }
 
@@ -204,6 +301,42 @@ public class SchemaFormatter {
 
             if (!mutationInfo.description.isEmpty()) {
                 mutationNode.put("description", mutationInfo.description);
+            }
+
+            if (mutationInfo.sqlSource != null) {
+                mutationNode.put("sql_source", mutationInfo.sqlSource);
+            }
+
+            if (mutationInfo.operation != null) {
+                mutationNode.put("operation", mutationInfo.operation);
+            }
+
+            if (mutationInfo.injectParams != null && !mutationInfo.injectParams.isEmpty()) {
+                ObjectNode ipNode = mapper.createObjectNode();
+                for (Map.Entry<String, String> entry : mutationInfo.injectParams.entrySet()) {
+                    String[] parts = entry.getValue().split(":", 2);
+                    ObjectNode sourceNode = mapper.createObjectNode();
+                    sourceNode.put("source", parts[0]);
+                    sourceNode.put("claim", parts.length > 1 ? parts[1] : parts[0]);
+                    ipNode.set(entry.getKey(), sourceNode);
+                }
+                mutationNode.set("inject_params", ipNode);
+            }
+
+            if (mutationInfo.invalidatesViews != null && !mutationInfo.invalidatesViews.isEmpty()) {
+                ArrayNode viewsArray = mapper.createArrayNode();
+                for (String view : mutationInfo.invalidatesViews) {
+                    viewsArray.add(view);
+                }
+                mutationNode.set("invalidates_views", viewsArray);
+            }
+
+            if (mutationInfo.invalidatesFactTables != null && !mutationInfo.invalidatesFactTables.isEmpty()) {
+                ArrayNode tablesArray = mapper.createArrayNode();
+                for (String table : mutationInfo.invalidatesFactTables) {
+                    tablesArray.add(table);
+                }
+                mutationNode.set("invalidates_fact_tables", tablesArray);
             }
 
             mutationsNode.set(mutationInfo.name, mutationNode);
@@ -350,6 +483,35 @@ public class SchemaFormatter {
             mapper.writerWithDefaultPrettyPrinter().writeValue(file, schema);
         } else {
             mapper.writeValue(file, schema);
+        }
+    }
+
+    /**
+     * Write a JSON string to file (pretty-printed by re-parsing).
+     *
+     * @param jsonString the JSON string to write
+     * @param filePath the output file path
+     * @throws IOException if writing to file fails
+     */
+    public static void writeToFile(String jsonString, String filePath) throws IOException {
+        writeToFile(jsonString, filePath, true);
+    }
+
+    /**
+     * Write a JSON string to file with optional pretty-printing.
+     *
+     * @param jsonString the JSON string to write
+     * @param filePath the output file path
+     * @param pretty whether to pretty-print JSON
+     * @throws IOException if writing to file fails
+     */
+    public static void writeToFile(String jsonString, String filePath, boolean pretty) throws IOException {
+        File file = new File(filePath);
+        if (pretty) {
+            Object parsed = mapper.readValue(jsonString, Object.class);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(file, parsed);
+        } else {
+            new java.io.FileWriter(file).append(jsonString).close();
         }
     }
 

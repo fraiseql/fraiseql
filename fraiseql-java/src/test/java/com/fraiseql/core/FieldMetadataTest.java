@@ -164,8 +164,8 @@ public class FieldMetadataTest {
         var fields1 = TypeConverter.extractFields(User.class);
         var fields2 = TypeConverter.extractFields(User.class);
 
-        var names1 = fields1.keySet().stream().toList();
-        var names2 = fields2.keySet().stream().toList();
+        var names1 = new java.util.ArrayList<>(fields1.keySet());
+        var names2 = new java.util.ArrayList<>(fields2.keySet());
 
         assertEquals(names1, names2);
     }

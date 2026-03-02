@@ -1,5 +1,6 @@
 package com.fraiseql.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
@@ -127,6 +128,32 @@ public class FraiseQL {
     }
 
     /**
+     * Export the full schema as a JsonNode (for in-memory assertions in tests).
+     *
+     * @return the schema as a Jackson JsonNode
+     */
+    public static JsonNode exportSchemaAsJson() {
+        return SchemaFormatter.formatSchema(registry);
+    }
+
+    /**
+     * Register an error type (is_error = true) in the schema.
+     * Error types are returned by mutations to signal domain errors.
+     *
+     * @param typeClass the class annotated with @GraphQLType
+     */
+    public static void registerErrorType(Class<?> typeClass) {
+        String typeName = typeClass.getSimpleName();
+        if (typeClass.isAnnotationPresent(GraphQLType.class)) {
+            GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
+            if (!annotation.name().isEmpty()) {
+                typeName = annotation.name();
+            }
+        }
+        registry.registerErrorType(typeName, typeClass);
+    }
+
+    /**
      * Get the schema registry.
      *
      * @return the SchemaRegistry instance
@@ -153,6 +180,10 @@ public class FraiseQL {
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
         private boolean relay = false;
+        private String sqlSource = null;
+        private Long cacheTtlSeconds = null;
+        private Map<String, String> injectParams = null;
+        private List<String> additionalViews = null;
 
         private QueryBuilder(String name) {
             this.name = name;
@@ -241,6 +272,51 @@ public class FraiseQL {
         }
 
         /**
+         * Set the underlying SQL view or table for this query.
+         *
+         * @param sqlSource view or table name
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSource(String sqlSource) {
+            this.sqlSource = sqlSource;
+            return this;
+        }
+
+        /**
+         * Set the cache TTL for query results.
+         *
+         * @param seconds TTL in seconds (0 = no cache)
+         * @return this builder for chaining
+         */
+        public QueryBuilder cacheTtlSeconds(long seconds) {
+            this.cacheTtlSeconds = seconds;
+            return this;
+        }
+
+        /**
+         * Inject server-side parameters derived from the JWT.
+         * Map keys are parameter names; values are {@code "jwt:<claim>"} expressions.
+         *
+         * @param params inject mapping
+         * @return this builder for chaining
+         */
+        public QueryBuilder inject(Map<String, String> params) {
+            this.injectParams = new LinkedHashMap<>(params);
+            return this;
+        }
+
+        /**
+         * Declare additional views invalidated when this query's cache should be cleared.
+         *
+         * @param views list of view names
+         * @return this builder for chaining
+         */
+        public QueryBuilder additionalViews(List<String> views) {
+            this.additionalViews = new ArrayList<>(views);
+            return this;
+        }
+
+        /**
          * Register this query in the schema.
          *
          * @throws IllegalStateException if relay(true) is set without returnsArray(true)
@@ -253,7 +329,12 @@ public class FraiseQL {
                 );
             }
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
-            registry.registerQuery(name, finalReturnType, arguments, description, relay);
+            if (sqlSource != null || cacheTtlSeconds != null || injectParams != null || additionalViews != null) {
+                registry.registerQuery(name, finalReturnType, arguments, description, relay,
+                    sqlSource, cacheTtlSeconds, injectParams, additionalViews);
+            } else {
+                registry.registerQuery(name, finalReturnType, arguments, description, relay);
+            }
         }
     }
 
@@ -266,6 +347,11 @@ public class FraiseQL {
         private boolean returnsArray = false;
         private final Map<String, String> arguments = new LinkedHashMap<>();
         private String description = "";
+        private String sqlSource = null;
+        private String operation = null;
+        private Map<String, String> injectParams = null;
+        private List<String> invalidatesViews = null;
+        private List<String> invalidatesFactTables = null;
 
         private MutationBuilder(String name) {
             this.name = name;
@@ -341,11 +427,72 @@ public class FraiseQL {
         }
 
         /**
+         * Set the underlying SQL function for this mutation.
+         *
+         * @param sqlSource function name
+         * @return this builder for chaining
+         */
+        public MutationBuilder sqlSource(String sqlSource) {
+            this.sqlSource = sqlSource;
+            return this;
+        }
+
+        /**
+         * Set the DML operation type (e.g. "insert", "update", "delete").
+         *
+         * @param operation operation name
+         * @return this builder for chaining
+         */
+        public MutationBuilder operation(String operation) {
+            this.operation = operation;
+            return this;
+        }
+
+        /**
+         * Inject server-side parameters derived from the JWT.
+         *
+         * @param params inject mapping (key → "jwt:&lt;claim&gt;")
+         * @return this builder for chaining
+         */
+        public MutationBuilder inject(Map<String, String> params) {
+            this.injectParams = new LinkedHashMap<>(params);
+            return this;
+        }
+
+        /**
+         * Declare cache views that should be invalidated when this mutation succeeds.
+         *
+         * @param views list of view names
+         * @return this builder for chaining
+         */
+        public MutationBuilder invalidatesViews(List<String> views) {
+            this.invalidatesViews = new ArrayList<>(views);
+            return this;
+        }
+
+        /**
+         * Declare fact tables whose cached aggregates should be invalidated.
+         *
+         * @param tables list of fact table names
+         * @return this builder for chaining
+         */
+        public MutationBuilder invalidatesFactTables(List<String> tables) {
+            this.invalidatesFactTables = new ArrayList<>(tables);
+            return this;
+        }
+
+        /**
          * Register this mutation in the schema.
          */
         public void register() {
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
-            registry.registerMutation(name, finalReturnType, arguments, description);
+            if (sqlSource != null || operation != null || injectParams != null
+                    || invalidatesViews != null || invalidatesFactTables != null) {
+                registry.registerMutation(name, finalReturnType, arguments, description,
+                    sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables);
+            } else {
+                registry.registerMutation(name, finalReturnType, arguments, description);
+            }
         }
     }
 

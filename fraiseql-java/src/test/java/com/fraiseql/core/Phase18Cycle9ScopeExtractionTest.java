@@ -193,7 +193,7 @@ public class Phase18Cycle9ScopeExtractionTest {
 
     @Test
     @DisplayName("Scope is exported to JSON for single scope field")
-    void testScopeExportToJsonSingleScope() {
+    void testScopeExportToJsonSingleScope() throws Exception {
         // RED: Scope must appear in JSON export
         FraiseQL.registerType(ExportTestSingleScope.class);
 
@@ -201,7 +201,7 @@ public class Phase18Cycle9ScopeExtractionTest {
         assertNotNull(schema);
 
         var json = mapper.readTree(schema);
-        var salaryField = json.get("types").get(0).get("fields").get("salary");
+        var salaryField = json.get("types").get("ExportTestSingleScope").get("fields").get("salary");
 
         assertNotNull(salaryField.get("requires_scope"),
             "JSON should contain requires_scope field");
@@ -210,7 +210,7 @@ public class Phase18Cycle9ScopeExtractionTest {
 
     @Test
     @DisplayName("Scopes array is exported to JSON for multiple scopes field")
-    void testScopeExportToJsonMultipleScopes() {
+    void testScopeExportToJsonMultipleScopes() throws Exception {
         // RED: requiresScopes array exported as requires_scopes
         FraiseQL.registerType(ExportTestMultipleScopes.class);
 
@@ -218,7 +218,7 @@ public class Phase18Cycle9ScopeExtractionTest {
         assertNotNull(schema);
 
         var json = mapper.readTree(schema);
-        var restrictedField = json.get("types").get(0).get("fields").get("restricted");
+        var restrictedField = json.get("types").get("ExportTestMultipleScopes").get("fields").get("restricted");
 
         var scopesNode = restrictedField.get("requires_scopes");
         assertNotNull(scopesNode, "JSON should contain requires_scopes array");
@@ -228,7 +228,7 @@ public class Phase18Cycle9ScopeExtractionTest {
 
     @Test
     @DisplayName("Public fields without scope are not exported with scope field")
-    void testPublicFieldJsonExport() {
+    void testPublicFieldJsonExport() throws Exception {
         // RED: Public fields should NOT have requires_scope in JSON
         FraiseQL.registerType(ExportTestPublicField.class);
 
@@ -236,7 +236,7 @@ public class Phase18Cycle9ScopeExtractionTest {
         assertNotNull(schema);
 
         var json = mapper.readTree(schema);
-        var idField = json.get("types").get(0).get("fields").get("id");
+        var idField = json.get("types").get("ExportTestPublicField").get("fields").get("id");
 
         assertNull(idField.get("requires_scope"),
             "Public field should not have requires_scope in JSON");

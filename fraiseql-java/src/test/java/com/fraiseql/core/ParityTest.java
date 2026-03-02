@@ -1,8 +1,14 @@
 package com.fraiseql.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -334,6 +340,63 @@ public class ParityTest {
     }
 
     // =========================================================================
+    // GOLDEN FIXTURE COMPARISON
+    // =========================================================================
+
+    @Test
+    @DisplayName("Golden fixture 01: basic query and mutation fields match")
+    void goldenFixture01BasicQueryMutation() throws Exception {
+        FraiseQL.clear();
+
+        FraiseQL.registerType(GoldenUser.class);
+        FraiseQL.query("users")
+            .returnType("GoldenUser")
+            .returnsArray(true)
+            .sqlSource("v_user")
+            .description("List all users")
+            .arg("limit", "Int")
+            .register();
+        FraiseQL.mutation("createUser")
+            .returnType("GoldenUser")
+            .sqlSource("fn_create_user")
+            .operation("insert")
+            .description("Create a new user")
+            .arg("email", "String")
+            .arg("name", "String")
+            .register();
+
+        Path goldenPath = Paths.get("../tests/fixtures/golden/01-basic-query-mutation.json");
+        ObjectNode golden = (ObjectNode) new ObjectMapper().readTree(goldenPath.toFile());
+
+        JsonNode generated = FraiseQL.exportSchemaAsJson();
+
+        JsonNode genQ = findQueryInSchema(generated, "users");
+        JsonNode golQ = findQueryInSchema(golden, "users");
+        assertEquals(golQ.get("sql_source").asText(), genQ.get("sql_source").asText());
+        assertEquals(golQ.get("returnType").asText(), genQ.get("returnType").asText());
+
+        JsonNode genM = findMutationInSchema(generated, "createUser");
+        JsonNode golM = findMutationInSchema(golden, "createUser");
+        assertEquals(golM.get("sql_source").asText(), genM.get("sql_source").asText());
+        assertEquals(golM.get("operation").asText(),  genM.get("operation").asText());
+        assertFalse(genM.has("inject_params") &&
+                    genM.get("inject_params").size() > 0,
+                    "inject_params must be absent or empty for this fixture");
+    }
+
+    // =========================================================================
+    // HELPERS
+    // =========================================================================
+
+    private JsonNode findQueryInSchema(JsonNode schema, String name) {
+        return schema.get("queries").get(name);
+    }
+
+    private JsonNode findMutationInSchema(JsonNode schema, String name) {
+        return schema.get("mutations").get(name);
+    }
+
+    // =========================================================================
     // TYPE CONVERSION PARITY TESTS
     // =========================================================================
 
@@ -418,5 +481,17 @@ public class ParityTest {
 
         @GraphQLField(description = "Creation timestamp")
         public java.time.LocalDateTime createdAt;
+    }
+
+    @GraphQLType(description = "User for golden fixture tests")
+    public static class GoldenUser {
+        @GraphQLField
+        public int id;
+
+        @GraphQLField
+        public String email;
+
+        @GraphQLField
+        public String name;
     }
 }

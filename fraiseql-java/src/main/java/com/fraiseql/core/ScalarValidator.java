@@ -62,12 +62,26 @@ public final class ScalarValidator {
         } catch (ScalarValidationError e) {
             throw e;
         } catch (IllegalArgumentException e) {
-            throw e;
+            // "Unknown validation context" errors propagate as-is
+            if (e.getMessage() != null && e.getMessage().startsWith("Unknown validation context")) {
+                throw e;
+            }
+            // Other IAEs (e.g. from parseValue) are wrapped in ScalarValidationError
+            try {
+                CustomScalar scalar = scalarClass.getDeclaredConstructor().newInstance();
+                throw new ScalarValidationError(scalar.getName(), context, e.getMessage(), e);
+            } catch (ScalarValidationError sve) {
+                throw sve;
+            } catch (Exception instantiationError) {
+                throw new ScalarValidationError(scalarClass.getSimpleName(), context, e.getMessage(), e);
+            }
         } catch (Exception e) {
             // Extract scalar name for error message
             try {
                 CustomScalar scalar = scalarClass.getDeclaredConstructor().newInstance();
                 throw new ScalarValidationError(scalar.getName(), context, e.getMessage(), e);
+            } catch (ScalarValidationError sve) {
+                throw sve;
             } catch (Exception instantiationError) {
                 throw new ScalarValidationError(scalarClass.getSimpleName(), context, e.getMessage(), e);
             }

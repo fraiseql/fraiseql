@@ -40,7 +40,7 @@ import java.lang.annotation.*;
  * </pre>
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
+@Target({ElementType.FIELD, ElementType.METHOD})
 public @interface GraphQLField {
     /**
      * Optional custom name for the GraphQL field.
@@ -80,7 +80,7 @@ public @interface GraphQLField {
      *
      * Example: "read:user.salary"
      */
-    String requiresScope() default "";
+    String requiresScope() default "\u0000";
 
     /**
      * Optional JWT scopes required to access this field.
@@ -89,5 +89,5 @@ public @interface GraphQLField {
      *
      * Example: {"admin", "read:financial"}
      */
-    String[] requiresScopes() default {};
+    String[] requiresScopes() default {"\u0000"};
 }

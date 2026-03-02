@@ -1,8 +1,12 @@
 package com.fraiseql.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -364,6 +368,122 @@ public class OperationsTest {
     }
 
     // =========================================================================
+    // JSON FIELD ASSERTION TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("Query cache_ttl_seconds appears in JSON export")
+    void queryCacheTtlSecondsAppearsInJson() throws Exception {
+        FraiseQL.query("orders")
+            .returnType("Order")
+            .sqlSource("v_order")
+            .cacheTtlSeconds(300)
+            .register();
+
+        JsonNode schema = FraiseQL.exportSchemaAsJson();
+        JsonNode q = findQuery(schema, "orders");
+        assertEquals(300, q.get("cache_ttl_seconds").asInt());
+    }
+
+    @Test
+    @DisplayName("Query inject_params appears in JSON export")
+    void queryInjectParamsAppearsInJson() throws Exception {
+        FraiseQL.query("tenantOrders")
+            .returnType("Order")
+            .sqlSource("v_order")
+            .inject(Map.of("tenant_id", "jwt:tenant_id"))
+            .register();
+
+        JsonNode schema = FraiseQL.exportSchemaAsJson();
+        JsonNode q = findQuery(schema, "tenantOrders");
+        JsonNode ip = q.get("inject_params");
+        assertNotNull(ip);
+        assertEquals("jwt",       ip.get("tenant_id").get("source").asText());
+        assertEquals("tenant_id", ip.get("tenant_id").get("claim").asText());
+    }
+
+    @Test
+    @DisplayName("Query additional_views appears in JSON export")
+    void queryAdditionalViewsAppearsInJson() throws Exception {
+        FraiseQL.query("reports")
+            .returnType("Report")
+            .sqlSource("v_report")
+            .additionalViews(List.of("v_report_summary"))
+            .register();
+
+        JsonNode q = findQuery(FraiseQL.exportSchemaAsJson(), "reports");
+        assertEquals("v_report_summary", q.get("additional_views").get(0).asText());
+    }
+
+    @Test
+    @DisplayName("Mutation sql_source and operation appear in JSON export")
+    void mutationSqlSourceAppearsInJson() throws Exception {
+        FraiseQL.mutation("createOrder")
+            .returnType("Order")
+            .sqlSource("fn_create_order")
+            .operation("insert")
+            .register();
+
+        JsonNode m = findMutation(FraiseQL.exportSchemaAsJson(), "createOrder");
+        assertEquals("fn_create_order", m.get("sql_source").asText());
+        assertEquals("insert", m.get("operation").asText());
+    }
+
+    @Test
+    @DisplayName("Mutation inject_params appears in JSON export")
+    void mutationInjectParamsAppearsInJson() throws Exception {
+        FraiseQL.mutation("createOrder2")
+            .returnType("Order")
+            .sqlSource("fn_create_order")
+            .inject(Map.of("user_id", "jwt:sub"))
+            .register();
+
+        JsonNode m = findMutation(FraiseQL.exportSchemaAsJson(), "createOrder2");
+        JsonNode ip = m.get("inject_params");
+        assertNotNull(ip);
+        assertEquals("jwt", ip.get("user_id").get("source").asText());
+        assertEquals("sub", ip.get("user_id").get("claim").asText());
+    }
+
+    @Test
+    @DisplayName("Mutation invalidates_views appears in JSON export")
+    void mutationInvalidatesViewsAppearsInJson() throws Exception {
+        FraiseQL.mutation("placeOrder")
+            .returnType("Order")
+            .sqlSource("fn_place_order")
+            .invalidatesViews(List.of("v_order_summary"))
+            .register();
+
+        JsonNode m = findMutation(FraiseQL.exportSchemaAsJson(), "placeOrder");
+        assertEquals("v_order_summary", m.get("invalidates_views").get(0).asText());
+    }
+
+    @Test
+    @DisplayName("Mutation invalidates_fact_tables appears in JSON export")
+    void mutationInvalidatesFactTablesAppearsInJson() throws Exception {
+        FraiseQL.mutation("recordSale")
+            .returnType("Sale")
+            .sqlSource("fn_record_sale")
+            .invalidatesFactTables(List.of("tf_sales"))
+            .register();
+
+        JsonNode m = findMutation(FraiseQL.exportSchemaAsJson(), "recordSale");
+        assertEquals("tf_sales", m.get("invalidates_fact_tables").get(0).asText());
+    }
+
+    // =========================================================================
+    // HELPERS
+    // =========================================================================
+
+    private JsonNode findQuery(JsonNode schema, String name) {
+        return schema.get("queries").get(name);
+    }
+
+    private JsonNode findMutation(JsonNode schema, String name) {
+        return schema.get("mutations").get(name);
+    }
+
+    // =========================================================================
     // TEST FIXTURES
     // =========================================================================
 
@@ -404,5 +524,14 @@ public class OperationsTest {
 
         @GraphQLField
         public String status;
+    }
+
+    @GraphQLType(description = "A sale record")
+    public static class Sale {
+        @GraphQLField
+        public int id;
+
+        @GraphQLField
+        public int amount;
     }
 }

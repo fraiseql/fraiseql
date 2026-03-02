@@ -1,5 +1,6 @@
 package com.fraiseql.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -251,10 +252,58 @@ public class TypeSystemTest {
         var fields = TypeConverter.extractFields(User.class);
 
         // LinkedHashMap preserves insertion order
-        var fieldNames = fields.keySet().stream().toList();
+        var fieldNames = new java.util.ArrayList<>(fields.keySet());
         assertEquals("id", fieldNames.get(0));
         assertEquals("email", fieldNames.get(1));
         assertEquals("name", fieldNames.get(2));
+    }
+
+    // =========================================================================
+    // TYPE JSON FIELD ASSERTION TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("Type sql_source is snake_case of type name")
+    void typeSqlSourceIsSnakeCaseOfName() throws Exception {
+        FraiseQL.registerType(OrderItem.class);
+        JsonNode schema = FraiseQL.exportSchemaAsJson();
+        JsonNode t = findType(schema, "OrderItem");
+        assertEquals("v_order_item", t.get("sql_source").asText());
+    }
+
+    @Test
+    @DisplayName("Type jsonb_column defaults to data (or is omitted)")
+    void typeJsonbColumnDefaultsToData() throws Exception {
+        FraiseQL.registerType(SimpleType.class);
+        JsonNode t = findType(FraiseQL.exportSchemaAsJson(), "SimpleType");
+        JsonNode col = t.get("jsonb_column");
+        if (col != null) {
+            assertEquals("data", col.asText());
+        }
+    }
+
+    @Test
+    @DisplayName("Error type has is_error flag in JSON export")
+    void errorTypeHasIsErrorFlag() throws Exception {
+        FraiseQL.registerErrorType(UserNotFound.class);
+        JsonNode t = findType(FraiseQL.exportSchemaAsJson(), "UserNotFound");
+        assertTrue(t.get("is_error").asBoolean());
+    }
+
+    @Test
+    @DisplayName("Type requires_role appears in JSON export")
+    void typeRequiresRoleInJson() throws Exception {
+        FraiseQL.registerType(AdminView.class);
+        JsonNode t = findType(FraiseQL.exportSchemaAsJson(), "AdminView");
+        assertEquals("admin", t.get("requires_role").asText());
+    }
+
+    // =========================================================================
+    // HELPERS
+    // =========================================================================
+
+    private JsonNode findType(JsonNode schema, String name) {
+        return schema.get("types").get(name);
     }
 
     // =========================================================================
@@ -367,5 +416,33 @@ public class TypeSystemTest {
 
         @GraphQLField(nullable = true)
         public String nullableField;
+    }
+
+    @GraphQLType(description = "An order line item")
+    public static class OrderItem {
+        @GraphQLField
+        public int id;
+
+        @GraphQLField
+        public int quantity;
+    }
+
+    @GraphQLType(description = "A simple type for defaults testing")
+    public static class SimpleType {
+        @GraphQLField
+        public int id;
+    }
+
+    @GraphQLType(description = "User not found error")
+    public static class UserNotFound {
+        @GraphQLField
+        public String message;
+    }
+
+    @GraphQLType(description = "Admin-only view")
+    @RequiresRole("admin")
+    public static class AdminView {
+        @GraphQLField
+        public String secretData;
     }
 }

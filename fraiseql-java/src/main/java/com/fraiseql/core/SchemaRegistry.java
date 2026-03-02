@@ -19,6 +19,7 @@ public class SchemaRegistry {
     private final Map<String, InterfaceInfo> interfaces;
     private final Map<String, UnionInfo> unions;
     private final Map<String, InputTypeInfo> inputTypes;
+    private final Map<String, ObserverInfo> observers;
 
     private SchemaRegistry() {
         this.types = new ConcurrentHashMap<>();
@@ -29,6 +30,7 @@ public class SchemaRegistry {
         this.interfaces = new ConcurrentHashMap<>();
         this.unions = new ConcurrentHashMap<>();
         this.inputTypes = new ConcurrentHashMap<>();
+        this.observers = new ConcurrentHashMap<>();
     }
 
     /**
@@ -48,6 +50,61 @@ public class SchemaRegistry {
      * @throws IllegalArgumentException if type is not annotated with @GraphQLType
      */
     public void registerType(String typeName, Class<?> typeClass) {
+        boolean hasGraphQLType = typeClass.isAnnotationPresent(GraphQLType.class);
+        boolean hasFactTable  = typeClass.isAnnotationPresent(GraphQLFactTable.class);
+        boolean hasAuthzPolicy = typeClass.isAnnotationPresent(AuthzPolicy.class);
+        if (!hasGraphQLType && !hasFactTable && !hasAuthzPolicy) {
+            throw new IllegalArgumentException("Class " + typeClass.getName()
+                + " must be annotated with @GraphQLType or @GraphQLFactTable");
+        }
+
+        String name = typeName;
+        String typeDescription = "";
+        boolean relay = false;
+        if (hasGraphQLType) {
+            GraphQLType annotation = typeClass.getAnnotation(GraphQLType.class);
+            if (annotation.name() != null && !annotation.name().isEmpty()) {
+                name = annotation.name();
+            }
+            typeDescription = annotation.description();
+            relay = annotation.relay();
+        } else if (hasFactTable) {
+            GraphQLFactTable ftAnnotation = typeClass.getAnnotation(GraphQLFactTable.class);
+            typeDescription = ftAnnotation.description();
+        } else if (hasAuthzPolicy) {
+            AuthzPolicy policyAnnotation = typeClass.getAnnotation(AuthzPolicy.class);
+            typeDescription = policyAnnotation.description();
+        }
+
+        Map<String, TypeConverter.GraphQLFieldInfo> fields = TypeConverter.extractFields(typeClass);
+
+        // Derive snake_case sql_source from type name (e.g. "OrderItem" -> "v_order_item")
+        String sqlSource = toSnakeCase(name);
+
+        // Extract requires_role from @RequiresRole annotation (type level)
+        String requiresRole = null;
+        if (typeClass.isAnnotationPresent(RequiresRole.class)) {
+            requiresRole = typeClass.getAnnotation(RequiresRole.class).value();
+        }
+
+        GraphQLTypeInfo typeInfo = new GraphQLTypeInfo(
+            name,
+            typeClass,
+            fields,
+            typeDescription,
+            relay,
+            false,
+            requiresRole,
+            sqlSource
+        );
+
+        types.put(name, typeInfo);
+    }
+
+    /**
+     * Register a type marked as an error type (is_error = true).
+     */
+    public void registerErrorType(String typeName, Class<?> typeClass) {
         if (!typeClass.isAnnotationPresent(GraphQLType.class)) {
             throw new IllegalArgumentException("Class " + typeClass.getName() + " must be annotated with @GraphQLType");
         }
@@ -59,16 +116,33 @@ public class SchemaRegistry {
         }
 
         Map<String, TypeConverter.GraphQLFieldInfo> fields = TypeConverter.extractFields(typeClass);
+        String sqlSource = toSnakeCase(name);
 
         GraphQLTypeInfo typeInfo = new GraphQLTypeInfo(
             name,
             typeClass,
             fields,
             annotation.description(),
-            annotation.relay()
+            annotation.relay(),
+            true,
+            null,
+            sqlSource
         );
 
         types.put(name, typeInfo);
+    }
+
+    /** Convert CamelCase to snake_case (e.g. "OrderItem" → "v_order_item"). */
+    private static String toSnakeCase(String name) {
+        StringBuilder sb = new StringBuilder("v_");
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isUpperCase(c) && i > 0) {
+                sb.append('_');
+            }
+            sb.append(Character.toLowerCase(c));
+        }
+        return sb.toString();
     }
 
     /**
@@ -89,6 +163,15 @@ public class SchemaRegistry {
         queries.put(queryName, queryInfo);
     }
 
+    /** Register a query with all extended fields. */
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
+                              boolean relay, String sqlSource, Long cacheTtlSeconds,
+                              Map<String, String> injectParams, List<String> additionalViews) {
+        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
+            sqlSource, cacheTtlSeconds, injectParams, additionalViews);
+        queries.put(queryName, queryInfo);
+    }
+
     /**
      * Register a mutation in the schema.
      *
@@ -99,6 +182,16 @@ public class SchemaRegistry {
      */
     public void registerMutation(String mutationName, String returnType, Map<String, String> arguments, String description) {
         MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description);
+        mutations.put(mutationName, mutationInfo);
+    }
+
+    /** Register a mutation with all extended fields. */
+    public void registerMutation(String mutationName, String returnType, Map<String, String> arguments,
+                                 String description, String sqlSource, String operation,
+                                 Map<String, String> injectParams, List<String> invalidatesViews,
+                                 List<String> invalidatesFactTables) {
+        MutationInfo mutationInfo = new MutationInfo(mutationName, returnType, arguments, description,
+            sqlSource, operation, injectParams, invalidatesViews, invalidatesFactTables);
         mutations.put(mutationName, mutationInfo);
     }
 
@@ -336,7 +429,25 @@ public class SchemaRegistry {
     }
 
     /**
-     * Clear all registered types, queries, mutations, subscriptions, enums, interfaces, unions, and input types.
+     * Register an observer in the schema.
+     */
+    public void registerObserver(String name, String entity, String event, String condition,
+                                 RetryConfig retry, List<Map<String, Object>> actions) {
+        ObserverInfo info = new ObserverInfo(name, entity, event, condition, retry, actions);
+        observers.put(name, info);
+    }
+
+    /**
+     * Get all registered observers.
+     *
+     * @return unmodifiable map of observer name to ObserverInfo
+     */
+    public Map<String, ObserverInfo> getAllObservers() {
+        return Collections.unmodifiableMap(observers);
+    }
+
+    /**
+     * Clear all registered types, queries, mutations, subscriptions, enums, interfaces, unions, input types, and observers.
      * Useful for testing.
      */
     public void clear() {
@@ -348,6 +459,7 @@ public class SchemaRegistry {
         interfaces.clear();
         unions.clear();
         inputTypes.clear();
+        observers.clear();
     }
 
     /**
@@ -359,21 +471,28 @@ public class SchemaRegistry {
         public final Map<String, TypeConverter.GraphQLFieldInfo> fields;
         public final String description;
         public final boolean relay;
+        public final boolean isError;
+        public final String requiresRole;
+        public final String sqlSource;
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
-            this.name = name;
-            this.javaClass = javaClass;
-            this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
-            this.description = description;
-            this.relay = false;
+            this(name, javaClass, fields, description, false, false, null, null);
         }
 
         public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description, boolean relay) {
+            this(name, javaClass, fields, description, relay, false, null, null);
+        }
+
+        public GraphQLTypeInfo(String name, Class<?> javaClass, Map<String, TypeConverter.GraphQLFieldInfo> fields,
+                               String description, boolean relay, boolean isError, String requiresRole, String sqlSource) {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
             this.description = description;
             this.relay = relay;
+            this.isError = isError;
+            this.requiresRole = requiresRole;
+            this.sqlSource = sqlSource;
         }
 
         @Override
@@ -395,21 +514,33 @@ public class SchemaRegistry {
         public final Map<String, String> arguments;
         public final String description;
         public final boolean relay;
+        public final String sqlSource;
+        public final Long cacheTtlSeconds;
+        public final Map<String, String> injectParams;
+        public final List<String> additionalViews;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this.name = name;
-            this.returnType = returnType;
-            this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
-            this.description = description;
-            this.relay = false;
+            this(name, returnType, arguments, description, false, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
+            this(name, returnType, arguments, description, relay, null, null, null, null);
+        }
+
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
+                         boolean relay, String sqlSource, Long cacheTtlSeconds,
+                         Map<String, String> injectParams, List<String> additionalViews) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
             this.description = description;
             this.relay = relay;
+            this.sqlSource = sqlSource;
+            this.cacheTtlSeconds = cacheTtlSeconds;
+            this.injectParams = injectParams != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(injectParams)) : null;
+            this.additionalViews = additionalViews != null
+                ? Collections.unmodifiableList(new ArrayList<>(additionalViews)) : null;
         }
 
         @Override
@@ -430,12 +561,31 @@ public class SchemaRegistry {
         public final String returnType;
         public final Map<String, String> arguments;
         public final String description;
+        public final String sqlSource;
+        public final String operation;
+        public final Map<String, String> injectParams;
+        public final List<String> invalidatesViews;
+        public final List<String> invalidatesFactTables;
 
         public MutationInfo(String name, String returnType, Map<String, String> arguments, String description) {
+            this(name, returnType, arguments, description, null, null, null, null, null);
+        }
+
+        public MutationInfo(String name, String returnType, Map<String, String> arguments, String description,
+                            String sqlSource, String operation, Map<String, String> injectParams,
+                            List<String> invalidatesViews, List<String> invalidatesFactTables) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
             this.description = description;
+            this.sqlSource = sqlSource;
+            this.operation = operation;
+            this.injectParams = injectParams != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(injectParams)) : null;
+            this.invalidatesViews = invalidatesViews != null
+                ? Collections.unmodifiableList(new ArrayList<>(invalidatesViews)) : null;
+            this.invalidatesFactTables = invalidatesFactTables != null
+                ? Collections.unmodifiableList(new ArrayList<>(invalidatesFactTables)) : null;
         }
 
         @Override
@@ -571,6 +721,38 @@ public class SchemaRegistry {
             return "InputTypeInfo{" +
                 "name='" + name + '\'' +
                 ", fields=" + fields.size() +
+                '}';
+        }
+    }
+
+    /**
+     * Information about a registered observer.
+     */
+    public static class ObserverInfo {
+        public final String name;
+        public final String entity;
+        public final String event;
+        public final String condition;
+        public final RetryConfig retry;
+        public final List<Map<String, Object>> actions;
+
+        public ObserverInfo(String name, String entity, String event, String condition,
+                            RetryConfig retry, List<Map<String, Object>> actions) {
+            this.name = name;
+            this.entity = entity;
+            this.event = event;
+            this.condition = condition;
+            this.retry = retry;
+            this.actions = Collections.unmodifiableList(new ArrayList<>(actions));
+        }
+
+        @Override
+        public String toString() {
+            return "ObserverInfo{" +
+                "name='" + name + '\'' +
+                ", entity='" + entity + '\'' +
+                ", event='" + event + '\'' +
+                ", actions=" + actions.size() +
                 '}';
         }
     }

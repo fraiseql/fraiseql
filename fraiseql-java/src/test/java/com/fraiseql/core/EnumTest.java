@@ -73,7 +73,7 @@ public class EnumTest {
         var enumInfo = registry.getEnum("Priority");
         assertTrue(enumInfo.isPresent());
 
-        var valueNames = enumInfo.get().values.keySet().stream().toList();
+        var valueNames = new java.util.ArrayList<>(enumInfo.get().values.keySet());
         assertEquals("FIRST", valueNames.get(0));
         assertEquals("SECOND", valueNames.get(1));
         assertEquals("THIRD", valueNames.get(2));

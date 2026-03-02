@@ -1,125 +1,34 @@
 {
-  "types": [
-    {
-      "name": "User",
-      "sql_source": "v_user",
-      "jsonb_column": "payload",
-      "description": "A registered user in the system",
-      "sql_projection_hint": {
-        "database": "postgresql",
-        "projection_template": "jsonb_build_object('id', data->>'id', 'email', data->>'email', 'name', data->>'name')",
-        "estimated_reduction_percent": 60
+  "version": "1.0",
+  "types": {
+    "GoldenUser": {
+      "name": "GoldenUser",
+      "javaClass": "com.fraiseql.core.ParityTest$GoldenUser",
+      "fields": {
+        "id":    { "type": "Int!",    "baseType": "Int",    "nullable": false, "isList": false },
+        "email": { "type": "String!", "baseType": "String", "nullable": false, "isList": false },
+        "name":  { "type": "String!", "baseType": "String", "nullable": false, "isList": false }
       },
-      "fields": [
-        {"name": "id",    "field_type": "ID",      "nullable": false},
-        {"name": "email", "field_type": "String",   "nullable": false},
-        {"name": "name",  "field_type": "String",   "nullable": true,  "description": "Display name"},
-        {"name": "age",   "field_type": "Int",      "nullable": true},
-        {"name": "score", "field_type": "Float",    "nullable": true},
-        {"name": "active","field_type": "Boolean",  "nullable": false},
-        {"name": "uid",   "field_type": "UUID",     "nullable": false},
-        {"name": "meta",  "field_type": "Json",     "nullable": true},
-        {"name": "amount","field_type": "Decimal",  "nullable": true},
-        {"name": "created_at", "field_type": "DateTime", "nullable": false},
-        {"name": "birth_date", "field_type": "Date",     "nullable": true},
-        {"name": "login_time", "field_type": "Time",     "nullable": true},
-        {"name": "email_addr", "field_type": {"Scalar": "Email"}, "nullable": true, "alias": "emailAddress"},
-        {"name": "tags",  "field_type": {"List": "String"}, "nullable": true}
-      ]
+      "sql_source": "v_golden_user"
     }
-  ],
-  "queries": [
-    {
+  },
+  "queries": {
+    "users": {
       "name": "users",
-      "return_type": "User",
-      "returns_list": true,
-      "nullable": false,
-      "sql_source": "v_user",
-      "description": "List all users with optional filtering",
-      "jsonb_column": "payload",
-      "auto_params": {
-        "has_where": true,
-        "has_order_by": true,
-        "has_limit": true,
-        "has_offset": true
-      },
-      "arguments": [
-        {
-          "name": "email",
-          "arg_type": "String",
-          "nullable": true,
-          "description": "Filter by email address"
-        },
-        {
-          "name": "limit",
-          "arg_type": "Int",
-          "nullable": false,
-          "default_value": 10
-        }
-      ]
-    },
-    {
-      "name": "user",
-      "return_type": "User",
-      "returns_list": false,
-      "nullable": true,
-      "sql_source": "v_user",
-      "description": "Fetch a single user by ID",
-      "jsonb_column": "payload",
-      "arguments": [
-        {
-          "name": "id",
-          "arg_type": "ID",
-          "nullable": false
-        }
-      ]
+      "returnType": "[GoldenUser]",
+      "arguments": { "limit": "Int" },
+      "description": "List all users",
+      "sql_source": "v_user"
     }
-  ],
-  "mutations": [
-    {
+  },
+  "mutations": {
+    "createUser": {
       "name": "createUser",
-      "return_type": "User",
+      "returnType": "GoldenUser",
+      "arguments": { "email": "String", "name": "String" },
+      "description": "Create a new user",
       "sql_source": "fn_create_user",
-      "description": "Create a new user account",
-      "operation": {"Insert": {"table": "users"}},
-      "arguments": [
-        {"name": "email", "arg_type": "String", "nullable": false},
-        {"name": "name",  "arg_type": "String", "nullable": false}
-      ]
-    },
-    {
-      "name": "updateUser",
-      "return_type": "User",
-      "sql_source": "fn_update_user",
-      "description": "Update an existing user",
-      "operation": {"Update": {"table": "users"}},
-      "arguments": [
-        {"name": "id",    "arg_type": "ID",     "nullable": false},
-        {"name": "name",  "arg_type": "String", "nullable": true}
-      ]
-    },
-    {
-      "name": "deleteUser",
-      "return_type": "User",
-      "sql_source": "fn_delete_user",
-      "description": "Delete a user account",
-      "operation": {"Delete": {"table": "users"}},
-      "arguments": [
-        {"name": "id", "arg_type": "ID", "nullable": false}
-      ]
-    },
-    {
-      "name": "customOp",
-      "return_type": "User",
-      "sql_source": "fn_custom_op",
-      "description": "Custom operation example",
-      "operation": "Custom",
-      "arguments": []
+      "operation": "insert"
     }
-  ],
-  "subscriptions": [],
-  "enums": [],
-  "input_types": [],
-  "interfaces": [],
-  "unions": []
+  }
 }
