@@ -1,0 +1,90 @@
+{
+  "types": [
+    {
+      "name": "BlogPost",
+      "sql_source": "v_blog_post",
+      "description": "A blog post that implements the Searchable and Node interfaces",
+      "implements": ["Node", "Searchable"],
+      "fields": [
+        {"name": "id",      "field_type": "ID",     "nullable": false},
+        {"name": "title",   "field_type": "String", "nullable": false},
+        {"name": "content", "field_type": "String", "nullable": true}
+      ]
+    },
+    {
+      "name": "Video",
+      "sql_source": "v_video",
+      "implements": ["Searchable"],
+      "fields": [
+        {"name": "id",       "field_type": "ID",     "nullable": false},
+        {"name": "title",    "field_type": "String", "nullable": false},
+        {"name": "duration", "field_type": "Int",    "nullable": false}
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "Node",
+      "description": "An object with a globally unique ID",
+      "fields": [
+        {"name": "id", "field_type": "ID", "nullable": false}
+      ]
+    },
+    {
+      "name": "Searchable",
+      "description": "An object that can appear in search results",
+      "fields": [
+        {"name": "id",    "field_type": "ID",     "nullable": false},
+        {"name": "title", "field_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "unions": [
+    {
+      "name": "SearchResult",
+      "description": "Possible types returned by a search query",
+      "member_types": ["BlogPost", "Video"]
+    },
+    {
+      "name": "MediaContent",
+      "member_types": ["BlogPost", "Video"]
+    }
+  ],
+  "directives": [
+    {
+      "name": "rateLimit",
+      "description": "Apply rate limiting to a field or operation",
+      "locations": ["FIELD_DEFINITION", "OBJECT"],
+      "arguments": [
+        {"name": "limit",  "arg_type": "Int",    "nullable": false},
+        {"name": "window", "arg_type": "String", "nullable": true}
+      ],
+      "is_repeatable": false
+    },
+    {
+      "name": "auth",
+      "description": "Require authentication for this location",
+      "locations": ["FIELD_DEFINITION", "OBJECT", "QUERY", "MUTATION"],
+      "arguments": [
+        {"name": "role", "arg_type": "String", "nullable": true}
+      ],
+      "is_repeatable": true
+    }
+  ],
+  "queries": [
+    {
+      "name": "search",
+      "return_type": "SearchResult",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_search_result",
+      "arguments": [
+        {"name": "query", "arg_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": []
+}

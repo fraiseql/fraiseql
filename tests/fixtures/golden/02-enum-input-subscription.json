@@ -1,0 +1,118 @@
+{
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        {"name": "id",     "field_type": "ID",     "nullable": false},
+        {"name": "status", "field_type": {"Enum": "OrderStatus"}, "nullable": false},
+        {"name": "filter", "field_type": {"Input": "OrderFilter"}, "nullable": true}
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "name": "OrderStatus",
+      "description": "Possible states of a customer order",
+      "values": [
+        {"name": "PENDING",    "description": "Order has been placed"},
+        {"name": "PROCESSING", "description": "Order is being processed"},
+        {"name": "SHIPPED",    "description": "Order has shipped"},
+        {"name": "DELIVERED",  "description": "Order was delivered"},
+        {
+          "name": "CANCELLED",
+          "description": "Order was cancelled",
+          "deprecation": {"reason": "Use REFUNDED instead"}
+        }
+      ]
+    },
+    {
+      "name": "SortDirection",
+      "values": [
+        {"name": "ASC"},
+        {"name": "DESC"}
+      ]
+    }
+  ],
+  "input_types": [
+    {
+      "name": "OrderFilter",
+      "description": "Filter criteria for orders",
+      "fields": [
+        {
+          "name": "status",
+          "field_type": "OrderStatus",
+          "description": "Filter by order status"
+        },
+        {
+          "name": "min_amount",
+          "field_type": "Decimal",
+          "description": "Minimum order amount",
+          "default_value": "0"
+        },
+        {
+          "name": "created_after",
+          "field_type": "DateTime",
+          "deprecation": {"reason": "Use dateRange instead"}
+        }
+      ],
+      "metadata": {"sql_template": "WHERE status = $1 AND amount >= $2"}
+    }
+  ],
+  "subscriptions": [
+    {
+      "name": "orderCreated",
+      "return_type": "Order",
+      "description": "Fires when a new order is placed",
+      "topic": "orders.created",
+      "filter": {
+        "argument_paths": {
+          "userId": "/user_id",
+          "status":  "/order_status"
+        },
+        "static_filters": [
+          {
+            "path":     "/source",
+            "operator": "eq",
+            "value":    "web"
+          },
+          {
+            "path":     "/amount",
+            "operator": "gt",
+            "value":    0
+          }
+        ]
+      },
+      "fields": ["id", "status", "amount"],
+      "filter_fields": ["userId"],
+      "arguments": [
+        {"name": "userId", "arg_type": "ID", "nullable": false}
+      ]
+    },
+    {
+      "name": "legacyOrderUpdated",
+      "return_type": "Order",
+      "topic": "orders.updated.v1",
+      "deprecation": {"reason": "Use orderUpdated subscription instead"},
+      "arguments": []
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_order",
+      "arguments": []
+    }
+  ],
+  "mutations": [],
+  "interfaces": [],
+  "unions": [],
+  "subscriptions_config": {
+    "max_connections": 1000,
+    "heartbeat_interval_secs": 30,
+    "auth_required": true
+  }
+}

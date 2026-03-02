@@ -1129,6 +1129,7 @@ mod tests {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+            relay_cursor_type: None,
         };
         assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -1154,6 +1155,7 @@ mod tests {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+            relay_cursor_type: None,
         };
         assert_eq!(derive_class_name(&single_query), "AuthorById");
     }
@@ -1231,6 +1233,7 @@ mod tests {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                    relay_cursor_type: None,
                 },
                 IntermediateQuery {
                     name:         "author".to_string(),
@@ -1254,6 +1257,7 @@ mod tests {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                    relay_cursor_type: None,
                 },
             ],
             enums: vec![IntermediateEnum {

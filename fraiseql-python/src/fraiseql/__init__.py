@@ -40,6 +40,7 @@ Example:
 
 from fraiseql.decorators import FieldConfig, field, mutation, query, scalar, subscription
 from fraiseql.decorators import enum as enum_decorator
+from fraiseql.decorators import error as error_decorator
 from fraiseql.decorators import input as input_decorator
 from fraiseql.decorators import interface as interface_decorator
 from fraiseql.decorators import type as type_decorator
@@ -59,6 +60,7 @@ __all__ = [
     # Decorators
     "type_decorator",
     "enum_decorator",
+    "error_decorator",
     "input_decorator",
     "interface_decorator",
     "union_decorator",
@@ -98,6 +100,7 @@ __all__ = [
 # Aliases for cleaner API
 type = type_decorator
 enum = enum_decorator
+error = error_decorator
 input = input_decorator
 interface = interface_decorator
 union = union_decorator

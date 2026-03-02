@@ -1,0 +1,66 @@
+{
+  "types": [
+    {
+      "name": "CreateUserSuccess",
+      "sql_source": "v_user",
+      "fields": [
+        {"name": "id",    "field_type": "ID",     "nullable": false},
+        {"name": "email", "field_type": "String", "nullable": false}
+      ]
+    },
+    {
+      "name": "DuplicateEmailError",
+      "sql_source": "v_user",
+      "description": "Error returned when email already exists",
+      "is_error": true,
+      "fields": [
+        {"name": "message",        "field_type": "String",   "nullable": false},
+        {"name": "conflicting_id", "field_type": "ID",       "nullable": true},
+        {"name": "code",           "field_type": "Int",      "nullable": false},
+        {"name": "occurred_at",    "field_type": "DateTime", "nullable": true},
+        {"name": "request_id",     "field_type": "UUID",     "nullable": true}
+      ]
+    },
+    {
+      "name": "ValidationError",
+      "sql_source": "v_user",
+      "description": "Validation failure with field-level details",
+      "is_error": true,
+      "fields": [
+        {"name": "message", "field_type": "String", "nullable": false},
+        {"name": "field",   "field_type": "String", "nullable": false},
+        {"name": "rule",    "field_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createUser",
+      "return_type": "CreateUserSuccess",
+      "sql_source": "fn_create_user",
+      "description": "Create a new user; returns error types on failure",
+      "operation": {"Insert": {"table": "users"}},
+      "arguments": [
+        {"name": "email", "arg_type": "String", "nullable": false},
+        {"name": "name",  "arg_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "user",
+      "return_type": "CreateUserSuccess",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_user",
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": []
+}

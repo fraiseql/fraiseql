@@ -1,0 +1,149 @@
+{
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "description": "A tenant-scoped order (admin-only)",
+      "requires_role": "admin",
+      "fields": [
+        {"name": "id",        "field_type": "ID",      "nullable": false},
+        {"name": "tenant_id", "field_type": "UUID",    "nullable": false},
+        {"name": "amount",    "field_type": "Decimal", "nullable": false},
+        {"name": "status",    "field_type": "String",  "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_order",
+      "requires_role": "admin",
+      "inject_params": {
+        "tenant_id": {"source": "jwt", "claim": "tenant_id"}
+      },
+      "cache_ttl_seconds": 300,
+      "additional_views": ["v_order_summary", "v_order_items"],
+      "arguments": []
+    },
+    {
+      "name": "orderSummary",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_order_summary",
+      "inject_params": {
+        "user_id":   {"source": "jwt", "claim": "sub"},
+        "tenant_id": {"source": "jwt", "claim": "tenant_id"}
+      },
+      "cache_ttl_seconds": 0,
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createOrder",
+      "return_type": "Order",
+      "sql_source": "fn_create_order",
+      "description": "Create an order; auto-stamps tenant and user from JWT",
+      "operation": {"Insert": {"table": "orders"}},
+      "inject_params": {
+        "user_id":   {"source": "jwt", "claim": "sub"},
+        "tenant_id": {"source": "jwt", "claim": "org_id"}
+      },
+      "invalidates_fact_tables": ["tf_sales", "tf_order_count"],
+      "invalidates_views": ["v_order_summary", "v_order_items"],
+      "arguments": [
+        {"name": "amount",      "arg_type": "Decimal", "nullable": false},
+        {"name": "description", "arg_type": "String",  "nullable": true}
+      ]
+    }
+  ],
+  "fact_tables": {
+    "tf_sales": {
+      "version_strategy": "version_table",
+      "version_fn": "get_tf_sales_version",
+      "bump_fn": "bump_tf_sales_version"
+    },
+    "tf_order_count": {
+      "version_strategy": "timestamp",
+      "updated_at_column": "updated_at"
+    }
+  },
+  "observers": [
+    {
+      "name": "onHighValueOrder",
+      "entity": "Order",
+      "event": "INSERT",
+      "condition": "amount > 1000",
+      "actions": [
+        {
+          "type": "webhook",
+          "url": "https://api.example.com/high-value-orders",
+          "method": "POST"
+        },
+        {
+          "type": "slack",
+          "channel": "#alerts"
+        }
+      ],
+      "retry": {
+        "max_attempts": 5,
+        "backoff_strategy": "exponential",
+        "initial_delay_ms": 500,
+        "max_delay_ms": 30000
+      }
+    },
+    {
+      "name": "onOrderDeleted",
+      "entity": "Order",
+      "event": "DELETE",
+      "actions": [
+        {"type": "nats", "subject": "orders.deleted"}
+      ],
+      "retry": {
+        "max_attempts": 3,
+        "backoff_strategy": "linear",
+        "initial_delay_ms": 1000,
+        "max_delay_ms": 60000
+      }
+    }
+  ],
+  "security": {
+    "role_definitions": [
+      {
+        "name": "admin",
+        "description": "Full system administrator",
+        "scopes": ["admin:*", "read:*", "write:*"]
+      },
+      {
+        "name": "viewer",
+        "scopes": ["read:Order", "read:User"]
+      }
+    ],
+    "default_role": "viewer",
+    "policies": [
+      {"type": "row_level", "table": "orders", "condition": "tenant_id = current_tenant_id()"}
+    ]
+  },
+  "observers_config": {
+    "backend": "nats",
+    "redis_url": "redis://localhost:6379",
+    "nats_url": "nats://localhost:4222",
+    "queue_name": "fraiseql_events"
+  },
+  "validation_config": {
+    "max_query_depth": 10,
+    "max_query_complexity": 1000,
+    "introspection_enabled": true
+  },
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": []
+}

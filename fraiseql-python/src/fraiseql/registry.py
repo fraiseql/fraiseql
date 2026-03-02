@@ -1,8 +1,16 @@
 """Global schema registry for collecting types, queries, and mutations."""
 
+import re
 from typing import Any, TypeAlias
 
 SchemaElement: TypeAlias = dict[str, Any]
+
+_CAMEL_RE = re.compile(r"(?<!^)(?=[A-Z])")
+
+
+def _pascal_to_snake(name: str) -> str:
+    """Convert PascalCase to snake_case (e.g. OrderItem → order_item)."""
+    return _CAMEL_RE.sub("_", name).lower()
 
 
 class SchemaRegistry:
@@ -45,6 +53,7 @@ class SchemaRegistry:
         implements: list[str] | None = None,
         relay: bool = False,
         requires_role: str | None = None,
+        is_error: bool = False,
     ) -> None:
         """Register a GraphQL type.
 
@@ -63,6 +72,7 @@ class SchemaRegistry:
 
         type_def: dict[str, Any] = {
             "name": name,
+            "sql_source": f"v_{_pascal_to_snake(name)}",
             "fields": field_list,
             "description": description,
         }
@@ -81,6 +91,9 @@ class SchemaRegistry:
 
         if requires_role:
             type_def["requires_role"] = requires_role
+
+        if is_error:
+            type_def["is_error"] = True
 
         cls._types[name] = type_def
 

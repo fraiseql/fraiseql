@@ -68,6 +68,7 @@ def _validate_inject(
             )
             raise ValueError(msg)
 
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -312,9 +313,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
 
         # sql_source validation — block injection at authoring time
         if sql_source := cfg.get("sql_source"):
-            _validate_sql_identifier(
-                sql_source, "sql_source", f"@fraiseql.query on {f.__name__!r}"
-            )
+            _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.query on {f.__name__!r}")
 
         # Inject validation — fail fast at authoring time
         if inject := cfg.get("inject"):
@@ -326,6 +325,11 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                 raise TypeError(msg)
             arg_names = {arg["name"] for arg in signature["arguments"]}
             _validate_inject(inject, arg_names, f"@fraiseql.query {f.__name__!r}")
+            # Emit structured inject_params alongside raw inject
+            cfg["inject_params"] = {
+                k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
+                for k, v in inject.items()
+            }
 
         # cache_ttl_seconds validation — fail fast at authoring time
         if (ttl := cfg.get("cache_ttl_seconds")) is not None:
@@ -354,6 +358,14 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                     )
                     raise ValueError(msg)
 
+        # deprecated= → deprecation={reason: ...}
+        if "deprecated" in cfg:
+            cfg["deprecation"] = {"reason": cfg.pop("deprecated")}
+
+        # auto_params=True → expand to all-true dict
+        if cfg.get("auto_params") is True:
+            cfg["auto_params"] = {"where": True, "order_by": True, "limit": True, "offset": True}
+
         # Relay validation — fail fast at authoring time
         if cfg.get("relay"):
             if not signature["return_type"]["is_list"]:
@@ -377,13 +389,15 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
                 cfg["auto_params"] = ap
 
         # Register query with schema registry
+        # description= in cfg overrides the docstring
+        description = cfg.pop("description", f.__doc__)
         SchemaRegistry.register_query(
             name=f.__name__,
             return_type=signature["return_type"]["type"],
             returns_list=signature["return_type"]["is_list"],
             nullable=signature["return_type"]["nullable"],
             arguments=signature["arguments"],
-            description=f.__doc__,
+            description=description,
             **cfg,
         )
 
@@ -441,14 +455,17 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
         # Extract function signature
         signature = extract_function_signature(f)
 
+        # Work with a local copy so we can safely modify it
+        cfg = dict(config_kwargs)
+
         # sql_source validation — block injection at authoring time
-        if sql_source := config_kwargs.get("sql_source"):
+        if sql_source := cfg.get("sql_source"):
             _validate_sql_identifier(
                 sql_source, "sql_source", f"@fraiseql.mutation on {f.__name__!r}"
             )
 
         # Inject validation — fail fast at authoring time
-        if inject := config_kwargs.get("inject"):
+        if inject := cfg.get("inject"):
             if not isinstance(inject, dict):
                 msg = (
                     f"@fraiseql.mutation inject= on {f.__name__!r} must be a dict "
@@ -457,9 +474,18 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                 raise TypeError(msg)
             arg_names = {arg["name"] for arg in signature["arguments"]}
             _validate_inject(inject, arg_names, f"@fraiseql.mutation {f.__name__!r}")
+            # Emit structured inject_params alongside raw inject
+            cfg["inject_params"] = {
+                k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
+                for k, v in inject.items()
+            }
+
+        # deprecated= → deprecation={reason: ...}
+        if "deprecated" in cfg:
+            cfg["deprecation"] = {"reason": cfg.pop("deprecated")}
 
         # invalidates_fact_tables validation — fail fast at authoring time
-        if (ift := config_kwargs.get("invalidates_fact_tables")) is not None:
+        if (ift := cfg.get("invalidates_fact_tables")) is not None:
             if not isinstance(ift, list):
                 msg = (
                     f"@fraiseql.mutation invalidates_fact_tables= on {f.__name__!r} "
@@ -477,7 +503,7 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                     raise ValueError(msg)
 
         # invalidates_views validation — fail fast at authoring time
-        if (iv := config_kwargs.get("invalidates_views")) is not None:
+        if (iv := cfg.get("invalidates_views")) is not None:
             if not isinstance(iv, list):
                 msg = (
                     f"@fraiseql.mutation invalidates_views= on {f.__name__!r} "
@@ -495,14 +521,16 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
                     raise ValueError(msg)
 
         # Register mutation with schema registry
+        # description= in cfg overrides the docstring
+        description = cfg.pop("description", f.__doc__)
         SchemaRegistry.register_mutation(
             name=f.__name__,
             return_type=signature["return_type"]["type"],
             returns_list=signature["return_type"]["is_list"],
             nullable=signature["return_type"]["nullable"],
             arguments=signature["arguments"],
-            description=f.__doc__,
-            **config_kwargs,
+            description=description,
+            **cfg,
         )
 
         # Return original function unmodified
@@ -514,6 +542,37 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
         return decorator
     # Called without arguments: @mutation
     return decorator(func)
+
+
+def error(cls: type[T]) -> type[T]:
+    """Decorator to mark a Python class as a GraphQL error type.
+
+    Like @type, but sets is_error=True in the schema output. Error types are
+    returned by mutations when an operation fails, and their fields are populated
+    from the mutation_response.metadata JSONB column.
+
+    Args:
+        cls: Python class with type annotations
+
+    Returns:
+        The original class (unmodified)
+
+    Examples:
+        >>> @fraiseql.error
+        ... class UserNotFound:
+        ...     '''Error when user lookup fails.'''
+        ...     message: str
+        ...     code: str
+    """
+    cls.__fraiseql_type__ = True  # type: ignore[attr-defined]
+    fields = extract_field_info(cls)
+    SchemaRegistry.register_type(
+        name=cls.__name__,
+        fields=fields,
+        description=cls.__doc__,
+        is_error=True,
+    )
+    return cls
 
 
 def enum(cls: type[E]) -> type[E]:
@@ -940,9 +999,7 @@ def scalar(cls: type[S]) -> type[S]:
 
     scalar_name = cls.name
     if not isinstance(scalar_name, str) or not scalar_name:
-        raise ValueError(
-            f"CustomScalar name must be a non-empty string, got {scalar_name!r}"
-        )
+        raise ValueError(f"CustomScalar name must be a non-empty string, got {scalar_name!r}")
 
     # Register with schema registry
     SchemaRegistry.register_scalar(

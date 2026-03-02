@@ -68,6 +68,7 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
         cache_ttl_seconds: None,
         additional_views: vec![],
         requires_role: None,
+        relay_cursor_type: None,
     }
 }
 
@@ -88,6 +89,7 @@ fn single_query(name: &str) -> IntermediateQuery {
         cache_ttl_seconds: None,
         additional_views: vec![],
         requires_role: None,
+        relay_cursor_type: None,
     }
 }
 
@@ -108,6 +110,7 @@ fn relay_query(name: &str) -> IntermediateQuery {
         cache_ttl_seconds: None,
         additional_views: vec![],
         requires_role: None,
+        relay_cursor_type: None,
     }
 }
 

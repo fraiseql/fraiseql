@@ -662,6 +662,7 @@ def test_query_inject_multiple_params() -> None:
     q = schema["queries"][0]
     assert q["inject"] == {"org_id": "jwt:org_id", "user_id": "jwt:sub"}
 
+
 def test_query_cache_ttl_valid_passes_through() -> None:
     """cache_ttl_seconds is forwarded to the schema."""
 
@@ -1050,3 +1051,255 @@ def test_query_requires_role_absent_by_default() -> None:
     schema = SchemaRegistry.get_schema()
     q = next(q for q in schema["queries"] if q["name"] == "widgets")
     assert "requires_role" not in q
+
+
+# =============================================================================
+# Phase 03 Cycle 1: @fraiseql.type — missing fields
+# =============================================================================
+
+
+def test_type_decorator_sql_source_is_snake_case() -> None:
+    """@fraiseql.type generates sql_source as v_ + snake_case of class name."""
+
+    @fraiseql.type
+    class OrderItem:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = schema["types"][0]
+    assert t["sql_source"] == "v_order_item"
+
+
+def test_type_decorator_sql_source_simple_name() -> None:
+    """Single-word class name maps to v_<lower>."""
+
+    @fraiseql.type
+    class Product:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = schema["types"][0]
+    assert t["sql_source"] == "v_product"
+
+
+def test_type_decorator_jsonb_column_defaults_to_data() -> None:
+    """@fraiseql.type sets jsonb_column to 'data' by default."""
+
+    @fraiseql.type
+    class Widget:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = schema["types"][0]
+    assert t.get("jsonb_column", "data") == "data"
+
+
+def test_type_decorator_implements() -> None:
+    """@fraiseql.type(implements=[...]) emits implements list."""
+
+    @fraiseql.interface
+    class Node:
+        """A globally unique node."""
+
+        id: str
+
+    @fraiseql.type(implements=["Node"])
+    class Article:
+        id: str
+        title: str
+
+    schema = SchemaRegistry.get_schema()
+    t = next(t for t in schema["types"] if t["name"] == "Article")
+    assert t["implements"] == ["Node"]
+
+
+# =============================================================================
+# Phase 03 Cycle 2: @fraiseql.error decorator
+# =============================================================================
+
+
+def test_error_type_decorator_sets_is_error_flag() -> None:
+    """@fraiseql.error marks the type with is_error: true."""
+
+    @fraiseql.error
+    class UserNotFound:
+        """Error when user lookup fails."""
+
+        message: str
+        code: str
+
+    schema = SchemaRegistry.get_schema()
+    assert len(schema["types"]) == 1
+    t = schema["types"][0]
+    assert t["name"] == "UserNotFound"
+    assert t["is_error"] is True
+    assert len(t["fields"]) == 2
+
+
+def test_error_type_fields_include_scalar_types() -> None:
+    """@fraiseql.error types with int/datetime fields serialize correctly."""
+    import datetime
+
+    @fraiseql.error
+    class ConflictError:
+        message: str
+        conflict_id: int
+        occurred_at: datetime.datetime
+
+    schema = SchemaRegistry.get_schema()
+    t = schema["types"][0]
+    assert t["is_error"] is True
+    field_names = [f["name"] for f in t["fields"]]
+    assert "message" in field_names
+    assert "conflict_id" in field_names
+    assert "occurred_at" in field_names
+
+
+def test_error_type_not_is_error_by_default() -> None:
+    """@fraiseql.type without error decorator does not emit is_error."""
+
+    @fraiseql.type
+    class User:
+        id: int
+
+    schema = SchemaRegistry.get_schema()
+    t = schema["types"][0]
+    assert "is_error" not in t
+
+
+# =============================================================================
+# Phase 03 Cycle 3: @fraiseql.query — missing fields in JSON
+# =============================================================================
+
+
+def test_query_inject_params_in_json() -> None:
+    """inject= on @query emits inject_params dict with source/claim structure."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.query(sql_source="v_order", inject={"tenant_id": "jwt:tenant_id"})
+    def orders() -> list[Order]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["inject_params"] == {"tenant_id": {"source": "jwt", "claim": "tenant_id"}}
+
+
+def test_query_deprecation_in_json() -> None:
+    """deprecated= on @query emits deprecation.reason in schema JSON."""
+
+    @fraiseql.type
+    class Legacy:
+        id: int
+
+    @fraiseql.query(sql_source="v_legacy", deprecated="Use newQuery instead")
+    def old_query() -> list[Legacy]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["deprecation"]["reason"] == "Use newQuery instead"
+
+
+def test_query_auto_params_bool_true_expands_to_dict() -> None:
+    """auto_params=True on @query expands to all-true dict."""
+
+    @fraiseql.type
+    class X:
+        id: int
+
+    @fraiseql.query(sql_source="v_x", auto_params=True)
+    def xs() -> list[X]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    ap = q.get("auto_params", {})
+    assert ap.get("where") is True
+    assert ap.get("order_by") is True
+    assert ap.get("limit") is True
+    assert ap.get("offset") is True
+
+
+def test_query_auto_params_dict_passthrough() -> None:
+    """auto_params as a dict passes through unchanged."""
+
+    @fraiseql.type
+    class Y:
+        id: int
+
+    @fraiseql.query(sql_source="v_y", auto_params={"where": True, "limit": False})
+    def ys() -> list[Y]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["auto_params"] == {"where": True, "limit": False}
+
+
+def test_query_relay_cursor_type_in_json() -> None:
+    """relay_cursor_type= on @query is emitted in schema JSON."""
+
+    @fraiseql.type
+    class Item:
+        id: int
+
+    @fraiseql.query(sql_source="v_item", relay=True, relay_cursor_type="Int64")
+    def items() -> list[Item]:
+        pass
+
+    q = SchemaRegistry.get_schema()["queries"][0]
+    assert q["relay_cursor_type"] == "Int64"
+
+
+# =============================================================================
+# Phase 03 Cycle 4: @fraiseql.mutation — missing fields in JSON
+# =============================================================================
+
+
+def test_mutation_inject_params_in_json() -> None:
+    """inject= on @mutation emits inject_params dict with source/claim structure."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_create_order", inject={"user_id": "jwt:sub"})
+    def create_order(name: str) -> Order:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["inject_params"] == {"user_id": {"source": "jwt", "claim": "sub"}}
+
+
+def test_mutation_deprecation_in_json() -> None:
+    """deprecated= on @mutation emits deprecation.reason in schema JSON."""
+
+    @fraiseql.type
+    class X:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_old", deprecated="Use newMutation")
+    def old_mutation(x: int) -> X:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["deprecation"]["reason"] == "Use newMutation"
+
+
+def test_mutation_invalidates_views_in_json() -> None:
+    """invalidates_views emits in JSON and invalidates_fact_tables defaults to []."""
+
+    @fraiseql.type
+    class Order:
+        id: int
+
+    @fraiseql.mutation(
+        sql_source="fn_create_order",
+        invalidates_views=["v_order_summary"],
+    )
+    def create_order(name: str) -> Order:
+        pass
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["sql_source"] == "fn_create_order"
+    assert m["invalidates_views"] == ["v_order_summary"]

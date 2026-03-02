@@ -1,0 +1,52 @@
+{
+  "types": [
+    {
+      "name": "Product",
+      "sql_source": "v_product",
+      "description": "A product with relay-style cursor pagination (BIGINT pk)",
+      "relay": true,
+      "fields": [
+        {"name": "id",    "field_type": "ID",      "nullable": false},
+        {"name": "name",  "field_type": "String",  "nullable": false},
+        {"name": "price", "field_type": "Decimal", "nullable": false},
+        {"name": "sku",   "field_type": "String",  "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_product",
+      "description": "Relay-paginated product list using BIGINT cursor",
+      "relay": true,
+      "relay_cursor_column": "pk_product",
+      "arguments": [
+        {"name": "first",  "arg_type": "Int", "nullable": true},
+        {"name": "last",   "arg_type": "Int", "nullable": true},
+        {"name": "before", "arg_type": "String", "nullable": true},
+        {"name": "after",  "arg_type": "String", "nullable": true}
+      ]
+    },
+    {
+      "name": "product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_product",
+      "relay": true,
+      "relay_cursor_column": "pk_product",
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": []
+}

@@ -425,6 +425,7 @@ mod tests {
         super::ir::{AutoParams, IRArgument, IRField, IRQuery, IRSubscription, IRType},
         *,
     };
+    use crate::schema::CursorType;
 
     #[test]
     fn test_code_generator_new() {
@@ -572,13 +573,21 @@ mod tests {
         assert_eq!(user_query.arguments[0].name, "id");
         assert_eq!(user_query.arguments[0].arg_type, FieldType::Id);
 
-        // Check users query with auto_params
+        // Check users query with auto_params — assert all fields
         let users_query = &schema.queries[1];
         assert_eq!(users_query.name, "users");
         assert!(users_query.returns_list);
+        assert_eq!(
+            users_query.sql_source.as_deref(),
+            Some("v_user"),
+            "codegen must thread sql_source from IR"
+        );
         assert!(users_query.auto_params.has_where);
         assert!(users_query.auto_params.has_order_by);
         assert_eq!(users_query.arguments[0].default_value, Some(serde_json::json!(10)));
+        assert_eq!(users_query.relay_cursor_type, CursorType::Int64);
+        assert!(users_query.inject_params.is_empty());
+        assert!(users_query.cache_ttl_seconds.is_none());
     }
 
     #[test]
@@ -618,8 +627,15 @@ mod tests {
         ));
         // sql_source must be populated from operation.table so the executor can call
         // the SQL function without the "has no sql_source configured" error (issue #53).
-        assert_eq!(mutation.sql_source, Some("user".to_string()));
+        assert_eq!(
+            mutation.sql_source,
+            Some("user".to_string()),
+            "codegen must thread sql_source from IR"
+        );
         assert_eq!(mutation.arguments.len(), 1);
+        assert!(mutation.inject_params.is_empty());
+        assert!(mutation.invalidates_fact_tables.is_empty());
+        assert!(mutation.invalidates_views.is_empty());
     }
 
     #[test]

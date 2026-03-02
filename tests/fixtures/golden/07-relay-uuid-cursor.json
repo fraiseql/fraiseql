@@ -1,0 +1,64 @@
+{
+  "types": [
+    {
+      "name": "Item",
+      "sql_source": "v_item",
+      "description": "An item using UUID relay cursor instead of BIGINT",
+      "relay": true,
+      "fields": [
+        {"name": "id",   "field_type": "UUID",   "nullable": false},
+        {"name": "name", "field_type": "String", "nullable": false},
+        {"name": "slug", "field_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "items",
+      "return_type": "Item",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_item",
+      "description": "Relay-paginated item list using UUID cursor",
+      "relay": true,
+      "relay_cursor_column": "id",
+      "relay_cursor_type": "uuid",
+      "arguments": [
+        {"name": "first",  "arg_type": "Int",    "nullable": true},
+        {"name": "after",  "arg_type": "String", "nullable": true},
+        {"name": "last",   "arg_type": "Int",    "nullable": true},
+        {"name": "before", "arg_type": "String", "nullable": true}
+      ]
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "federation": {
+    "enabled": true,
+    "service_name": "items-service",
+    "schema_url": "https://items.example.com/graphql",
+    "circuit_breaker": {
+      "failure_threshold": 5,
+      "recovery_timeout_secs": 30,
+      "per_entity_overrides": {
+        "Item": {"failure_threshold": 3}
+      }
+    }
+  },
+  "debug_config": {
+    "log_sql": false,
+    "explain_queries": false,
+    "slow_query_threshold_ms": 500
+  },
+  "mcp_config": {
+    "enabled": true,
+    "server_name": "fraiseql-items",
+    "description": "MCP server exposing items data",
+    "expose_queries": ["items"]
+  },
+  "schema_sdl": "type Item { id: UUID! name: String! slug: String! }\ntype Query { items(first: Int, after: String, last: Int, before: String): ItemConnection! }"
+}

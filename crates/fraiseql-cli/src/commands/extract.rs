@@ -429,6 +429,7 @@ impl SchemaExtractor for PythonExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -527,6 +528,7 @@ impl SchemaExtractor for TypeScriptExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
                 });
             }
         }
@@ -693,6 +695,7 @@ impl SchemaExtractor for RustExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -789,6 +792,7 @@ impl SchemaExtractor for JavaExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -912,6 +916,7 @@ impl SchemaExtractor for KotlinExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -1033,6 +1038,7 @@ impl SchemaExtractor for GoExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -1152,6 +1158,7 @@ impl SchemaExtractor for CSharpExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -1290,6 +1297,7 @@ impl SchemaExtractor for SwiftExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 
@@ -1382,6 +1390,7 @@ impl SchemaExtractor for ScalaExtractor {
                 cache_ttl_seconds: None,
                 additional_views: vec![],
                 requires_role: None,
+                relay_cursor_type: None,
             });
         }
 

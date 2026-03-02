@@ -1,0 +1,112 @@
+{
+  "types": [
+    {
+      "name": "LegacyUser",
+      "sql_source": "v_legacy_user",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "login",
+          "field_type": "String",
+          "nullable": false,
+          "deprecation": {"reason": "Use 'email' field instead"}
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "legacyUsers",
+      "return_type": "LegacyUser",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_legacy_user",
+      "description": "Deprecated: returns users in the old format",
+      "deprecation": {"reason": "Use 'users' query with new schema instead"},
+      "arguments": [
+        {
+          "name": "oldLimit",
+          "arg_type": "Int",
+          "nullable": true,
+          "deprecation": {"reason": "Use 'first' argument instead"}
+        },
+        {
+          "name": "first",
+          "arg_type": "Int",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "legacyUser",
+      "return_type": "LegacyUser",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_legacy_user",
+      "deprecation": {},
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createLegacyUser",
+      "return_type": "LegacyUser",
+      "sql_source": "fn_create_legacy_user",
+      "description": "Deprecated mutation: use createUser instead",
+      "operation": {"Insert": {"table": "legacy_users"}},
+      "deprecation": {"reason": "Use createUser mutation instead"},
+      "arguments": [
+        {"name": "login", "arg_type": "String", "nullable": false},
+        {
+          "name": "password",
+          "arg_type": "String",
+          "nullable": false,
+          "deprecation": {"reason": "Credentials managed externally via OIDC"}
+        }
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "name": "LegacyStatus",
+      "description": "Deprecated status enum",
+      "values": [
+        {"name": "ACTIVE"},
+        {"name": "INACTIVE"},
+        {
+          "name": "SUSPENDED",
+          "description": "Account suspended by admin",
+          "deprecation": {"reason": "Use DISABLED instead"}
+        },
+        {
+          "name": "DISABLED",
+          "description": "Account disabled"
+        }
+      ]
+    }
+  ],
+  "subscriptions": [
+    {
+      "name": "legacyUserEvents",
+      "return_type": "LegacyUser",
+      "description": "Deprecated event stream",
+      "topic": "users.events.v1",
+      "deprecation": {"reason": "Use userEvents subscription on new schema"},
+      "arguments": []
+    }
+  ],
+  "input_types": [],
+  "interfaces": [],
+  "unions": []
+}

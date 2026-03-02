@@ -474,6 +474,11 @@ pub struct IntermediateQuery {
     /// Role required to execute this query and see it in introspection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires_role: Option<String>,
+
+    /// Relay cursor column type: `"uuid"` for UUID PKs, `"int64"` (or absent) for bigint PKs.
+    /// Only meaningful when `relay = true`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relay_cursor_type: Option<String>,
 }
 
 /// Mutation definition in intermediate format

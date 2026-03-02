@@ -69,6 +69,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
              cache_ttl_seconds: None,
              additional_views: vec![],
              requires_role: None,
+            relay_cursor_type: None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -113,6 +114,12 @@ fn test_query_relay_cursor_column_is_derived() {
         users_query.relay_cursor_column,
         Some("pk_user".to_string()),
         "cursor column should be derived as pk_user from User type"
+    );
+    // Int64 is the default cursor type for non-UUID primary keys
+    assert_eq!(
+        users_query.relay_cursor_type,
+        fraiseql_core::schema::CursorType::Int64,
+        "cursor type should default to Int64 for bigint/pk columns"
     );
 }
 
@@ -308,4 +315,39 @@ fn test_relay_query_has_where_auto_param() {
 
     let q = compiled.queries.iter().find(|q| q.name == "users").unwrap();
     assert!(q.auto_params.has_where, "relay query should keep has_where auto_param");
+}
+
+// =============================================================================
+// Relay cursor type propagation
+// =============================================================================
+
+#[test]
+fn test_relay_uuid_cursor_type_is_set() {
+    let mut schema = relay_intermediate_schema();
+    // Override the single query to declare a UUID cursor column
+    schema.queries[0].relay_cursor_type = Some("uuid".to_string());
+
+    let compiled = SchemaConverter::convert(schema).expect("schema conversion failed");
+
+    let q = compiled.queries.iter().find(|q| q.name == "users").unwrap();
+    assert!(q.relay, "query should have relay=true");
+    assert_eq!(
+        q.relay_cursor_type,
+        fraiseql_core::schema::CursorType::Uuid,
+        "relay_cursor_type should be Uuid when declared as 'uuid'"
+    );
+}
+
+#[test]
+fn test_relay_int64_cursor_type_is_default() {
+    // No relay_cursor_type set → defaults to Int64
+    let compiled = SchemaConverter::convert(relay_intermediate_schema())
+        .expect("schema conversion failed");
+
+    let q = compiled.queries.iter().find(|q| q.name == "users").unwrap();
+    assert_eq!(
+        q.relay_cursor_type,
+        fraiseql_core::schema::CursorType::Int64,
+        "relay_cursor_type should default to Int64 when not declared"
+    );
 }

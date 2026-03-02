@@ -69,6 +69,7 @@ fn test_schema_from_json_full() {
         "mutations": [{
             "name": "createUser",
             "return_type": "User",
+            "sql_source": "fn_create_user",
             "arguments": [
                 {"name": "email", "arg_type": "String", "nullable": false}
             ],
@@ -88,14 +89,31 @@ fn test_schema_from_json_full() {
     let user_type = &schema.types[0];
     assert_eq!(user_type.name, "User");
     assert_eq!(user_type.sql_source, "v_user");
+    assert_eq!(user_type.jsonb_column, "data");
     assert_eq!(user_type.fields.len(), 3);
     assert_eq!(user_type.description, Some("A user in the system".to_string()));
+    assert!(!user_type.is_error);
+    assert!(!user_type.relay);
+    assert!(user_type.requires_role.is_none());
+    assert!(user_type.implements.is_empty());
 
     // Check queries
     assert_eq!(schema.queries.len(), 2);
     let users_query = schema.find_query("users").unwrap();
     assert!(users_query.returns_list);
+    assert_eq!(users_query.sql_source.as_deref(), Some("v_user"));
     assert!(users_query.auto_params.has_where);
+    assert!(users_query.auto_params.has_order_by);
+    assert!(users_query.auto_params.has_limit);
+    assert!(users_query.auto_params.has_offset);
+    assert!(!users_query.relay);
+    assert!(users_query.relay_cursor_column.is_none());
+    assert_eq!(users_query.relay_cursor_type, CursorType::Int64);
+    assert!(users_query.inject_params.is_empty());
+    assert!(users_query.cache_ttl_seconds.is_none());
+    assert!(users_query.additional_views.is_empty());
+    assert!(users_query.requires_role.is_none());
+    assert!(users_query.deprecation.is_none());
 
     let user_query = schema.find_query("user").unwrap();
     assert!(!user_query.returns_list);
@@ -105,16 +123,63 @@ fn test_schema_from_json_full() {
     // Check mutations
     assert_eq!(schema.mutations.len(), 1);
     let create_user = schema.find_mutation("createUser").unwrap();
+    // sql_source regression-proof against issue #53
+    assert_eq!(create_user.sql_source.as_deref(), Some("fn_create_user"));
     assert_eq!(create_user.arguments.len(), 1);
     assert!(matches!(
         &create_user.operation,
         MutationOperation::Insert { table } if table == "users"
     ));
+    assert!(create_user.inject_params.is_empty());
+    assert!(create_user.invalidates_fact_tables.is_empty());
+    assert!(create_user.invalidates_views.is_empty());
+    assert!(create_user.deprecation.is_none());
 
     // Check subscriptions
     assert_eq!(schema.subscriptions.len(), 1);
     let sub = schema.find_subscription("userCreated").unwrap();
     assert_eq!(sub.topic, Some("user_created".to_string()));
+}
+
+/// Cycle 2 — assert inject_params, cache_ttl_seconds, additional_views, requires_role
+#[test]
+fn test_query_full_fields() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent().unwrap()
+        .parent().unwrap()
+        .join("tests/fixtures/golden/05-security-inject-cache.json");
+    let json = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
+    let schema = CompiledSchema::from_json(&json).unwrap();
+
+    let q = schema.find_query("orders").unwrap();
+    assert_eq!(q.inject_params.len(), 1);
+    let src = q.inject_params.get("tenant_id").unwrap();
+    assert_eq!(*src, InjectedParamSource::Jwt("tenant_id".to_string()));
+    assert_eq!(q.cache_ttl_seconds, Some(300));
+    assert_eq!(q.additional_views, vec!["v_order_summary", "v_order_items"]);
+    assert_eq!(q.requires_role.as_deref(), Some("admin"));
+}
+
+/// Cycle 3 — assert sql_source, inject_params, invalidates_* on a mutation
+#[test]
+fn test_mutation_full_fields() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent().unwrap()
+        .parent().unwrap()
+        .join("tests/fixtures/golden/05-security-inject-cache.json");
+    let json = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
+    let schema = CompiledSchema::from_json(&json).unwrap();
+
+    let m = schema.find_mutation("createOrder").unwrap();
+    // sql_source — regression-proof against issue #53
+    assert_eq!(m.sql_source.as_deref(), Some("fn_create_order"));
+    assert_eq!(m.inject_params.len(), 2);
+    assert!(m.inject_params.contains_key("user_id"));
+    assert!(m.inject_params.contains_key("tenant_id"));
+    assert_eq!(m.invalidates_fact_tables, vec!["tf_sales", "tf_order_count"]);
+    assert_eq!(m.invalidates_views, vec!["v_order_summary", "v_order_items"]);
 }
 
 #[test]
