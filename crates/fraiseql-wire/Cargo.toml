@@ -24,7 +24,7 @@ bytes = "1"
 futures = "0.3"
 hmac = "0.12"  # HMAC-SHA256
 # Metrics for observability
-metrics = "0.22"  # Metrics collection framework
+metrics = "0.24"  # Metrics collection framework
 pbkdf2 = "0.12"  # Key derivation for SCRAM
 rand = "0.8"  # Random nonce generation
 # TLS support

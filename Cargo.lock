@@ -2824,7 +2824,7 @@ dependencies = [
  "image",
  "infer",
  "jsonwebtoken",
- "metrics 0.22.4",
+ "metrics",
  "metrics-exporter-prometheus",
  "mime_guess",
  "opentelemetry 0.29.1",
@@ -2905,7 +2905,7 @@ dependencies = [
  "criterion",
  "futures",
  "hmac",
- "metrics 0.22.4",
+ "metrics",
  "pbkdf2",
  "proptest",
  "rand 0.8.5",
@@ -4200,16 +4200,6 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
 name = "metrics"
-version = "0.22.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56d05972e8cbac2671e85aa9d04d9160d193f8bebd1a5c1a2f4542c62e65d1d0"
-dependencies = [
- "ahash",
- "portable-atomic",
-]
-
-[[package]]
-name = "metrics"
 version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d5312e9ba3771cfa961b585728215e3d972c950a3eed9252aa093d6301277e8"
@@ -4231,7 +4221,7 @@ dependencies = [
  "hyper-util",
  "indexmap 2.13.0",
  "ipnet",
- "metrics 0.24.3",
+ "metrics",
  "metrics-util",
  "quanta",
  "rustls 0.23.37",
@@ -4249,7 +4239,7 @@ dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
  "hashbrown 0.16.1",
- "metrics 0.24.3",
+ "metrics",
  "quanta",
  "rand 0.9.2",
  "rand_xoshiro",
