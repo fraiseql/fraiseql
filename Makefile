@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
+.PHONY: help build test test-unit test-integration test-federation clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
 
 # Default target
 help:
@@ -26,6 +26,7 @@ help:
 	@echo "  make fmt                - Format code with rustfmt"
 	@echo "  make check              - Run all checks (fmt + clippy + test)"
 	@echo "  make clean              - Clean build artifacts"
+	@echo "  make clean-test-containers - Remove leaked testcontainers postgres instances"
 	@echo ""
 	@echo "Development:"
 	@echo "  make dev                - Run development server"
@@ -128,6 +129,15 @@ check: fmt-check clippy test
 # Clean build artifacts
 clean:
 	cargo clean
+
+# Remove leaked testcontainers Postgres containers (testcontainers-rs 0.26 uses Drop
+# for cleanup; containers stored in static OnceCell never drop, so they accumulate
+# locally between runs — CI is unaffected because each job has a fresh Docker env).
+clean-test-containers:
+	@echo "Stopping leaked testcontainers postgres containers..."
+	@docker ps -q --filter "ancestor=postgres:11-alpine" | xargs -r docker stop
+	@docker container prune -f
+	@echo "Done."
 
 # Install CLI tool
 install:
