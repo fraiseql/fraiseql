@@ -819,6 +819,82 @@ jobs:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
 
+  # Integration tests for HTTP E2E server (start binary, run against it)
+  integration-http-e2e:
+    name: Integration Tests (HTTP E2E Server)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Apply E2E database schema
+        run: |
+          PGPASSWORD=fraiseql_test_password psql \
+            -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
+            -f docker/e2e/init-postgres.sql
+
+      - name: Build fraiseql-server binary
+        run: cargo build -p fraiseql-server
+
+      - name: Start fraiseql-server
+        run: |
+          ./target/debug/fraiseql-server &
+          echo $! > /tmp/fraiseql-server.pid
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_BIND_ADDR: 127.0.0.1:8815
+          FRAISEQL_METRICS_ENABLED: "true"
+          FRAISEQL_METRICS_TOKEN: "e2e-test-metrics-token-32chars!"
+          FRAISEQL_INTROSPECTION_ENABLED: "true"
+          FRAISEQL_INTROSPECTION_REQUIRE_AUTH: "false"
+          FRAISEQL_ENV: development
+          RUST_LOG: info
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8815/health && break || sleep 2
+          done
+
+      - name: Run HTTP E2E tests
+        run: >
+          cargo test -p fraiseql-server --test http_server_e2e_test
+          -- --ignored --test-threads=4
+        env:
+          FRAISEQL_TEST_URL: http://localhost:8815
+          FRAISEQL_METRICS_TOKEN: "e2e-test-metrics-token-32chars!"
+          RUST_LOG: debug
+
+      - name: Run concurrent load test
+        run: >
+          cargo test -p fraiseql-server --test concurrent_load_test
+          -- --ignored --test-threads=1
+        env:
+          FRAISEQL_TEST_URL: http://localhost:8815
+          RUST_LOG: debug
+
+      - name: Stop server
+        if: always()
+        run: kill $(cat /tmp/fraiseql-server.pid 2>/dev/null) 2>/dev/null || true
+
   # Optional: Run all ignored tests (triggered manually)
   ignored-tests:
     name: Ignored Tests (Manual)
@@ -1047,6 +1123,7 @@ jobs:
       - integration-tls
       - integration-vault
       - integration-server
+      - integration-http-e2e
       - coverage
       - security
       - docs
