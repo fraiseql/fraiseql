@@ -24,7 +24,7 @@ dashmap = "6.1"
 fraiseql-core = {workspace = true}
 futures = "0.3"
 # JWT handling (for session token creation and validation)
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 parquet = "57"
 prost = "0.14"
 # Serialization

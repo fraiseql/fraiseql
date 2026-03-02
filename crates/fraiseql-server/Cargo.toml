@@ -45,7 +45,7 @@ http = "1"
 image = {version = "0.25", features = ["jpeg", "png", "webp"]}
 infer = "0.15"
 # Authentication (JWT, OAuth, OIDC)
-jsonwebtoken = "9.2"
+jsonwebtoken = "10.3"
 # Metrics (optional)
 metrics = {version = "0.22", optional = true}
 metrics-exporter-prometheus = {version = "0.18", optional = true}
