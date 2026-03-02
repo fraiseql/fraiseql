@@ -1,3 +1,7 @@
+[[bin]]
+name = "fraiseql-cli"
+path = "src/main.rs"
+
 [dependencies]
 # Error handling
 anyhow = "1.0"
@@ -9,11 +13,11 @@ deadpool-postgres = {workspace = true}
 fraiseql-core = {workspace = true, features = ["postgres"]}
 fraiseql-server = {workspace = true}
 glob = "0.3"
+# Serialization
+indexmap = {workspace = true}
 # File watching (for serve command)
 notify = "7.0"
 regex = {workspace = true}
-# Serialization
-indexmap = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 sha2 = {workspace = true}
@@ -27,10 +31,6 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 # Multi-file schema loading
 walkdir = "2"
-
-[[bin]]
-name = "fraiseql-cli"
-path = "src/main.rs"
 
 [dev-dependencies]
 temp-env = {workspace = true}
@@ -49,14 +49,14 @@ edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
 
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/fraiseql-{ target }.tar.gz"
 bin-dir = "fraiseql{ binary-ext }"
 pkg-fmt = "tgz"
+pkg-url = "{ repo }/releases/download/v{ version }/fraiseql-{ target }.tar.gz"
 
 [package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
 pkg-fmt = "zip"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true

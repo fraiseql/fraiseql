@@ -135,6 +135,7 @@ ip route
 ### Immediate Actions (< 2 minutes)
 
 1. **Attempt FraiseQL restart** (often recovers from transient issues)
+
    ```bash
    docker restart fraiseql-server
    sleep 5
@@ -142,12 +143,14 @@ ip route
    ```
 
 2. **Check database is actually down**
+
    ```bash
    # Try connecting directly from another container/host
    docker run --rm postgres:15 psql "$DATABASE_URL" -c "SELECT 1"
    ```
 
 3. **Enable read-only mode or graceful degradation** (if supported)
+
    ```bash
    # Set environment variable to enable cached responses only
    export FRAISEQL_FALLBACK_MODE=cache_only
@@ -155,6 +158,7 @@ ip route
    ```
 
 4. **Isolate the problem** - Is it PostgreSQL or just FraiseQL?
+
    ```bash
    # From a different host/container
    psql postgresql://user:pass@other-host:5432/other_db -c "SELECT 1"
@@ -327,6 +331,7 @@ curl http://localhost:8815/health
 ### Database Reliability Measures
 
 - **Monitoring**: Set up alerts for connection failures, high latency, replication lag
+
   ```bash
   # Prometheus alert rule example
   - alert: PostgreSQLDown
@@ -336,6 +341,7 @@ curl http://localhost:8815/health
   ```
 
 - **Connection pool tuning**:
+
   ```bash
   # Review in fraiseql config
   db_pool_min_connections=5
@@ -344,18 +350,21 @@ curl http://localhost:8815/health
   ```
 
 - **Regular backups**:
+
   ```bash
   # Daily automated backup
   pg_dump "$DATABASE_URL" > /backups/database_$(date +%Y%m%d).sql
   ```
 
 - **Replication setup** (for HA):
+
   ```bash
   # Configure streaming replication with hot standby
   # See PostgreSQL documentation
   ```
 
 - **Connection string redundancy**:
+
   ```bash
   # Use multiple hosts in connection string
   DATABASE_URL="postgresql://user:pass@primary:5432,replica:5432/database?load_balance_hosts=true"

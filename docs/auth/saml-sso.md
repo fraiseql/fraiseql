@@ -18,6 +18,7 @@ Browser → SAML IdP (Okta, Azure AD, ADFS)
 ```
 
 The identity proxy:
+
 1. Handles SAML assertion validation and XML signature verification
 2. Maps SAML attributes to JWT claims
 3. Exposes an OIDC-compatible discovery endpoint (`.well-known/openid-configuration`)
