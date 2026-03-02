@@ -440,7 +440,8 @@ parity-generate:
 	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
 	    > /tmp/parity-go.json
 	@echo "  [3/5] Go done"
-	@cd fraiseql-java && JAVA_HOME=$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1) \
+	@cd fraiseql-java && \
+	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \
 	    mvn -q test -Dtest=GenerateParitySchema "-DschemaOutputFile=/tmp/parity-java.json"
 	@echo "  [4/5] Java done"
 	@cd fraiseql-php && php tests/GenerateParitySchema.php \
