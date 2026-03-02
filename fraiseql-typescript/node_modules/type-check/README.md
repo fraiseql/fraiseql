@@ -80,14 +80,17 @@ parsedTypeCheck(parsedType, 2);       // true
 `typeCheck` checks a JavaScript value `input` against `type` written in the [type format](#type-format) (and taking account the optional `options`) and returns whether the `input` matches the `type`.
 
 ##### arguments
+
 * type - `String` - the type written in the [type format](#type-format) which to check against
 * input - `*` - any JavaScript value, which is to be checked against the type
 * options - `Maybe Object` - an optional parameter specifying additional options, currently the only available option is specifying [custom types](#custom-types)
 
 ##### returns
+
 `Boolean` - whether the input matches the type
 
 ##### example
+
 ```js
 typeCheck('Number', 2); // true
 ```
@@ -97,28 +100,35 @@ typeCheck('Number', 2); // true
 `parseType` parses string `type` written in the [type format](#type-format) into an object representing the parsed type.
 
 ##### arguments
+
 * type - `String` - the type written in the [type format](#type-format) which to parse
 
 ##### returns
+
 `Object` - an object in the parsed type format representing the parsed type
 
 ##### example
+
 ```js
 parseType('Number'); // [{type: 'Number'}]
 ```
+
 ### parsedTypeCheck(parsedType, input, options)
 
 `parsedTypeCheck` checks a JavaScript value `input` against parsed `type` in the parsed type format (and taking account the optional `options`) and returns whether the `input` matches the `type`. Use this in conjunction with `parseType` if you are going to use a type more than once.
 
 ##### arguments
+
 * type - `Object` - the type in the parsed type format which to check against
 * input - `*` - any JavaScript value, which is to be checked against the type
 * options - `Maybe Object` - an optional parameter specifying additional options, currently the only available option is specifying [custom types](#custom-types)
 
 ##### returns
+
 `Boolean` - whether the input matches the type
 
 ##### example
+
 ```js
 parsedTypeCheck([{type: 'Number'}], 2); // true
 var parsedType = parseType('String');
@@ -149,6 +159,7 @@ White space is ignored. The root node is a __Types__.
 {}.toString.call(VALUE).slice(8, -1)
 {}.toString.call(true).slice(8, -1) // 'Boolean'
 ```
+
 A basic type, eg. `Number`, uses this check. This is much more versatile than using `typeof` - for example, with `document`, `typeof` produces `'object'` which isn't that useful, and our technique produces `'HTMLDocument'`.
 
 You may check for multiple types by separating types with a `|`. The checker proceeds from left to right, and passes if the value is any of the types - eg. `String | Boolean` first checks if the value is a string, and then if it is a boolean. If it is none of those, then it returns false.

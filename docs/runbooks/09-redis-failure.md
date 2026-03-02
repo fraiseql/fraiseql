@@ -142,6 +142,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
 ### Immediate (< 2 minutes)
 
 1. **Restart Redis**
+
    ```bash
    # Most straightforward fix
    docker restart redis
@@ -154,6 +155,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    ```
 
 2. **Disable Redis feature temporarily** (if restart doesn't work quickly)
+
    ```bash
    # Disable cache
    export FRAISEQL_QUERY_CACHE_BACKEND="none"
@@ -167,6 +169,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    ```
 
 3. **Check for persistent issues**
+
    ```bash
    # Is Redis really down?
    docker ps | grep redis
@@ -180,7 +183,8 @@ docker logs fraiseql-server | grep -i "redis" | head -1
 
 ### Short-term (5-30 minutes)
 
-4. **Verify Redis password/auth** (if auth error)
+1. **Verify Redis password/auth** (if auth error)
+
    ```bash
    # Test with password
    REDIS_PASS=$(echo "$REDIS_URL" | grep -oP '(?<=:)[^@]*(?=@)')
@@ -198,7 +202,8 @@ docker logs fraiseql-server | grep -i "redis" | head -1
              CONFIG SET requirepass "newpassword"
    ```
 
-5. **Check Redis memory/eviction**
+2. **Check Redis memory/eviction**
+
    ```bash
    # If Redis full, it may be unresponsive
    redis-cli -u $REDIS_URL INFO memory
@@ -214,7 +219,8 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    redis-cli -u $REDIS_URL EVAL 'return redis.call("del", unpack(redis.call("keys", ARGV[1])))' 0 'cache:*'
    ```
 
-6. **Clear stale cache** (if cache causing issues)
+3. **Clear stale cache** (if cache causing issues)
+
    ```bash
    # Flush all cache keys (safe if using TTL)
    redis-cli -u $REDIS_URL EVAL \
@@ -227,7 +233,8 @@ docker logs fraiseql-server | grep -i "redis" | head -1
 
 ### Extended Outage (30+ minutes)
 
-7. **Switch to non-Redis backend**
+1. **Switch to non-Redis backend**
+
    ```bash
    # Disable Redis-dependent features
    export FRAISEQL_QUERY_CACHE_BACKEND="memory"  # In-memory cache
@@ -243,7 +250,8 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    # - More memory usage on FraiseQL
    ```
 
-8. **Provision new Redis instance**
+2. **Provision new Redis instance**
+
    ```bash
    # If current Redis cannot be recovered quickly
    docker run -d \
