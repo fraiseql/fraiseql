@@ -18,7 +18,7 @@ FraiseQL v2 is a **347,420-line Rust codebase** across 13 workspace crates, impl
 | Testing | A | 8,394 tests, property-based testing, fuzzing, benchmarks |
 | Error Handling | A+ | 945-line error hierarchy with HTTP mapping and field suggestions |
 | Documentation | A | 26,585 doc-comment lines, ADRs, runbooks, SLA docs |
-| Dependency Management | A+ | 699 deps fully pinned, 8 automated security tools, SBOM generation |
+| Dependency Management | B+ | 793 packages in Cargo.lock (see analysis below), well-managed with feature gates |
 | Security Features | A+ | RLS, field encryption, audit logging, rate limiting, OIDC/OAuth |
 | Developer Experience | A- | SDKs in 12+ languages, 22+ examples, but some large files |
 | CI/CD | A+ | 10 GitHub Actions workflows, daily audits, container scanning |
@@ -411,9 +411,20 @@ cargo cov        # LLVM code coverage
 
 ### Moderate Issues
 
-6. **No integration test execution verified**: `cargo test -- --list` crashed (stack overflow in test listing), suggesting potential issues with the test suite's scale or recursive test discovery.
+6. **Dependency count (793 packages in Cargo.lock)**: While feature gates help, even with optional ecosystems removed (~110 packages for Arrow, AWS, gRPC, SQL Server, Kafka, NATS, Redis, Windows), 577 core packages remain. An additional ~19 are test/bench-only (criterion, proptest, insta, etc.). The count is within range for a Rust project combining axum + sqlx + tokio + crypto + auth, but warrants periodic review with `cargo-udeps` to identify unused dependencies, and `cargo tree --duplicates` to eliminate duplicate versions.
 
-7. **Build does not compile in this environment**: `cargo check` could not be verified due to missing system dependencies. The codebase relies on system libraries (libssl, libpq) that must be installed.
+    **Breakdown:**
+    | Category | Packages | Notes |
+    |----------|----------|-------|
+    | Feature-gated optional | ~110 | Arrow, AWS, gRPC, SQL Server, Kafka, NATS, Redis, Windows |
+    | Test/bench-only | ~19 | criterion, proptest, plotters, insta, etc. |
+    | Workspace crates | 13 | fraiseql-* |
+    | Core transitive | ~651 | tokio, axum, sqlx, hyper, serde, rustls, etc. |
+    | **Total** | **793** | |
+
+7. **No integration test execution verified**: `cargo test -- --list` crashed (stack overflow in test listing), suggesting potential issues with the test suite's scale or recursive test discovery.
+
+8. **Build does not compile in this environment**: `cargo check` could not be verified due to missing system dependencies. The codebase relies on system libraries (libssl, libpq) that must be installed.
 
 ---
 
@@ -444,4 +455,4 @@ FraiseQL v2 is a **high-quality, production-grade framework** that stands out fo
 4. **Testing**: Multi-layered strategy including property testing and fuzzing
 5. **Operational readiness**: Runbooks, SLAs, comprehensive CI/CD
 
-The framework is well-positioned for production enterprise use. The primary areas for improvement are file size management, `unwrap()` audit in hot paths, and ensuring all deprecated SDKs have clear migration paths.
+The framework is well-positioned for production enterprise use. The primary areas for improvement are dependency count reduction (793 packages warrants `cargo-udeps` and `cargo tree --duplicates` audits), file size management, `unwrap()` audit in hot paths, and ensuring all deprecated SDKs have clear migration paths.
