@@ -19,12 +19,14 @@ Tier 1 languages receive active support. Tier 2 receives maintenance updates. Co
 ## Consequences
 
 **Positive:**
+
 - Focused maintenance effort
 - Higher quality Tier 1 SDKs
 - Realistic support matrix
 - Reduced security exposure
 
 **Negative:**
+
 - Some language communities lose direct support
 - Developers must migrate if preferred language demoted
 - Perception of reduced language coverage
