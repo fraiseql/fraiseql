@@ -281,9 +281,9 @@ postgres_exporter:
     - postgres
 ```
 
-2. Uncomment postgres job in `monitoring/prometheus.yml`
+1. Uncomment postgres job in `monitoring/prometheus.yml`
 
-3. Restart services:
+2. Restart services:
 
 ```bash
 docker-compose up -d

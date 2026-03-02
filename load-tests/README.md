@@ -24,11 +24,13 @@ Comprehensive load testing infrastructure for FraiseQL using [k6](https://k6.io/
 ### Install K6
 
 **macOS (Homebrew):**
+
 ```bash
 brew install k6
 ```
 
 **Linux (Debian/Ubuntu):**
+
 ```bash
 sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
 echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6-stable.list
@@ -37,16 +39,19 @@ sudo apt-get install k6
 ```
 
 **Linux (Arch):**
+
 ```bash
 sudo pacman -S k6
 ```
 
 **Docker:**
+
 ```bash
 docker pull grafana/k6:latest
 ```
 
 **Verify Installation:**
+
 ```bash
 k6 version
 ```
@@ -56,6 +61,7 @@ k6 version
 ### 1. Start FraiseQL Server
 
 Ensure your FraiseQL server is running:
+
 ```bash
 # From fraiseql root directory
 cargo run --bin fraiseql-server
@@ -105,21 +111,25 @@ K6 prints results to console. Key metrics to watch:
 **Purpose:** Realistic production traffic pattern
 
 **Characteristics:**
+
 - 80% read operations (queries)
 - 15% write operations (mutations)
 - 5% health checks
 - Two traffic patterns: daytime load and burst spikes
 
 **Scenarios:**
+
 - `daytime_load`: Gradual ramp to 1000 rps, 5 min sustained
 - `burst_traffic`: Sudden spike to 2000 rps for 1 minute
 
 **Run:**
+
 ```bash
 k6 run load-tests/k6/scenarios/mixed-workload.js
 ```
 
 **Metrics to Watch:**
+
 - p95 response time (should be <50ms)
 - Error rate (should be <1%)
 - p99 response time (should be <200ms)
@@ -129,20 +139,24 @@ k6 run load-tests/k6/scenarios/mixed-workload.js
 **Purpose:** Read-heavy workload performance
 
 **Characteristics:**
+
 - Tests 4 query types: simple, nested, complex, list
 - Emphasizes query parsing and execution performance
 - High throughput baseline test
 
 **Scenarios:**
+
 - `sustained_load`: 1000 rps for 5 minutes
 - `spike_test`: Rapid escalation 100→5000→100 rps
 
 **Run:**
+
 ```bash
 k6 run load-tests/k6/scenarios/graphql-queries.js
 ```
 
 **Use When:**
+
 - Benchmarking query execution
 - Testing query caching effectiveness
 - Validating GraphQL parsing performance
@@ -152,20 +166,24 @@ k6 run load-tests/k6/scenarios/graphql-queries.js
 **Purpose:** Write operation stress testing
 
 **Characteristics:**
+
 - Tests create, update, delete operations
 - Focuses on database write performance
 - Lower throughput than queries (expected)
 
 **Scenarios:**
+
 - `sustained_mutations`: 200 rps sustained
 - `create_heavy`: Focused create operation test at 150 rps
 
 **Run:**
+
 ```bash
 k6 run load-tests/k6/scenarios/graphql-mutations.js
 ```
 
 **Use When:**
+
 - Benchmarking mutation throughput
 - Testing database write handling
 - Validating transaction performance
@@ -175,22 +193,26 @@ k6 run load-tests/k6/scenarios/graphql-mutations.js
 **Purpose:** Security and session management testing
 
 **Characteristics:**
+
 - 60% session validation (cheapest operation)
 - 25% login attempts
 - 15% token refresh
 - Tests auth endpoint latency and rate limiting
 
 **Scenarios:**
+
 - `baseline_auth`: Normal auth traffic at 100 rps
 - `brute_force_stress`: Simulated brute force attacks at 300 rps
 - `token_refresh_burst`: Sudden refresh spike (tokens nearing expiry)
 
 **Run:**
+
 ```bash
 k6 run load-tests/k6/scenarios/auth-flow.js
 ```
 
 **Use When:**
+
 - Testing rate limiting behavior
 - Validating token management
 - Stress testing session handling
@@ -200,26 +222,31 @@ k6 run load-tests/k6/scenarios/auth-flow.js
 **Purpose:** Automatic Persisted Query (APQ) performance validation
 
 **Characteristics:**
+
 - Tests cache hit vs. miss performance
 - Demonstrates bandwidth savings with APQ
 - Tracks cache warming behavior
 
 **Scenarios:**
+
 - `cache_warmup`: New query registration phase
 - `warm_cache`: Mostly cache hits, high load
 - `cache_with_new_queries`: Mix of hits and misses
 
 **Run:**
+
 ```bash
 k6 run load-tests/k6/scenarios/apq-cache.js
 ```
 
 **Expected Results:**
+
 - Cache hits: <50ms
 - Cache misses: >100ms (query registration)
 - 5-10x performance improvement for cached queries
 
 **Use When:**
+
 - Validating APQ implementation
 - Measuring bandwidth savings
 - Testing cache effectiveness
@@ -280,6 +307,7 @@ export const options = {
 ```
 
 Available threshold sets:
+
 - `defaultThresholds` - p50<10ms, p95<50ms, p99<200ms
 - `mutationThresholds` - Relaxed for writes
 - `tightThresholds` - p50<5ms (auth operations)
@@ -366,26 +394,31 @@ jobs:
 ### Key Metrics Explained
 
 **http_req_duration**
+
 - Time from request send to response received
 - Critical for user experience
 - Should have tight p95/p99 constraints
 
 **http_req_failed**
+
 - Percentage of failed requests (5xx, timeouts, etc.)
 - Target: <1% for production workloads
 - Indicates system stability
 
 **http_reqs**
+
 - Total requests completed
 - Indicates throughput capacity
 - Use for capacity planning
 
 **Percentiles (p50, p95, p99)**
+
 - p50: Median response time (what most users experience)
 - p95: 95th percentile (experience of worst 5% of users)
 - p99: 99th percentile (rare slow requests)
 
 Example interpretation:
+
 ```
 http_req_duration......: avg=45ms    min=10ms    med=35ms    max=500ms   p(95)=120ms   p(99)=250ms
 ```
@@ -411,21 +444,25 @@ For FraiseQL, typical values should be:
 ### Detecting Performance Issues
 
 **High Error Rate (>1%)**
+
 - Check server logs for errors
 - Verify database connectivity
 - Assess resource limits (CPU, memory)
 
 **Increasing Latency Over Time**
+
 - Possible connection pool exhaustion
 - Memory leak in server
 - Database connection timeout
 
 **Spike Test Failures**
+
 - Server can't handle burst traffic
 - Consider load balancing/scaling
 - Review connection pooling settings
 
 **APQ Cache Misses Too High**
+
 - Cache warmup incomplete
 - Client not persisting queries
 - Cache eviction happening
@@ -504,6 +541,7 @@ Baselines committed for regression detection."
 ### 1. Progressive Load Increase
 
 Start small, increase gradually:
+
 ```bash
 # Test with low load first
 k6 run --vus 10 --duration 1m scenarios/mixed-workload.js
@@ -633,6 +671,7 @@ k6 run --duration 1m scenarios/mixed-workload.js
 ### "Too many open files" error
 
 Increase file descriptor limit:
+
 ```bash
 ulimit -n 65536
 ```
@@ -681,6 +720,7 @@ See [Example CI/CD](#continuous-integration) section above.
 ### Performance Profiling
 
 Export full metrics:
+
 ```bash
 k6 run \
   --out json=metrics.json \
@@ -689,6 +729,7 @@ k6 run \
 ```
 
 Analyze with tools like:
+
 - [k6 Results](https://k6.io/docs/results-output/)
 - Grafana
 - Datadog
