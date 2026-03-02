@@ -266,23 +266,23 @@ Extensive documentation suite (40+ files):
 
 ### Priority 2: SHOULD REVIEW (Development & Operations)
 
-5. `/home/lionel/code/fraiseql/DEVELOPMENT.md` (363 lines)
-6. `/home/lionel/code/fraiseql/CONTRIBUTING.md` (363 lines)
-7. `/home/lionel/code/fraiseql/TESTING.md` (432 lines)
-8. `/home/lionel/code/fraiseql/TROUBLESHOOTING.md`
-9. `/home/lionel/code/fraiseql/SECURITY.md`
+1. `/home/lionel/code/fraiseql/DEVELOPMENT.md` (363 lines)
+2. `/home/lionel/code/fraiseql/CONTRIBUTING.md` (363 lines)
+3. `/home/lionel/code/fraiseql/TESTING.md` (432 lines)
+4. `/home/lionel/code/fraiseql/TROUBLESHOOTING.md`
+5. `/home/lionel/code/fraiseql/SECURITY.md`
 
 ### Priority 3: NICE TO REVIEW (Release & Status)
 
-10. `/home/lionel/code/fraiseql/RELEASE_NOTES_v2.1.0-agent.md`
-11. `/home/lionel/code/fraiseql/DESIGN_QUALITY_VISION.md`
+1. `/home/lionel/code/fraiseql/RELEASE_NOTES_v2.1.0-agent.md`
+2. `/home/lionel/code/fraiseql/DESIGN_QUALITY_VISION.md`
 
 ### Priority 4: OPTIONAL (Specialized)
 
-12. `/home/lionel/code/fraiseql/FRAISEQL_DESIGN_RULES.md`
-13. `/home/lionel/code/fraiseql/.claude/README.md`
-14. `/home/lionel/code/fraiseql/LANGUAGE_IMPLEMENTATION_PLAN.md`
-15. `/home/lionel/code/fraiseql/.github/SECRETS_SETUP.md`
+1. `/home/lionel/code/fraiseql/FRAISEQL_DESIGN_RULES.md`
+2. `/home/lionel/code/fraiseql/.claude/README.md`
+3. `/home/lionel/code/fraiseql/LANGUAGE_IMPLEMENTATION_PLAN.md`
+4. `/home/lionel/code/fraiseql/.github/SECRETS_SETUP.md`
 
 ### Priority 5: IMPLEMENTATION-SPECIFIC (for context)
 

@@ -279,6 +279,7 @@ Reasoning:
    ```
 
    **For untrusted input**, use `.where_rust()` instead.
+
    ```
 
 2. **Add validation examples**:

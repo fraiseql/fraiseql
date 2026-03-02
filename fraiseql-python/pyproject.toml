@@ -2,6 +2,11 @@
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
+[dependency-groups]
+dev = [
+  "pytest>=9.0.2"
+]
+
 [project]
 authors = [
   {name = "FraiseQL Team"}
@@ -60,9 +65,4 @@ select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "C4", "SIM", "TCH"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
   "ANN"  # Don't require type annotations in tests
-]
-
-[dependency-groups]
-dev = [
-    "pytest>=9.0.2",
 ]
