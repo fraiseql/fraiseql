@@ -12,11 +12,15 @@ from `caniuse-lite`.
 ```sh
 npx update-browserslist-db@latest
 ```
+
 Or if using `pnpm`:
+
 ```sh
 pnpm exec update-browserslist-db latest
 ```
+
 Or if using `yarn`:
+
 ```sh
 yarn dlx update-browserslist-db@latest
 ```
@@ -27,4 +31,5 @@ yarn dlx update-browserslist-db@latest
 </a>
 
 ## Docs
+
 Read full docs **[here](https://github.com/browserslist/update-db#readme)**.

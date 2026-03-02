@@ -91,11 +91,11 @@ You can also inherit from `Hfs` to create your own class with a preconfigured im
 
 ```js
 class MyHfs extends Hfs {
-	constructor() {
-		super({
-			impl: myImpl
-		});
-	}
+ constructor() {
+  super({
+   impl: myImpl
+  });
+ }
 }
 ```
 
@@ -105,30 +105,30 @@ The `Path` class represents the path to a directory or file within a file system
 
 ```js
 const myPath = new Path(["dir", "subdir"]);
-console.log(myPath.toString());		// "dir/subdir"
+console.log(myPath.toString());  // "dir/subdir"
 
 // add another step
 myPath.push("file.txt");
-console.log(myPath.toString());		// "dir/subdir/file.txt"
+console.log(myPath.toString());  // "dir/subdir/file.txt"
 
 // get just the last step
-console.log(myPath.name);			// "file.txt"
+console.log(myPath.name);   // "file.txt"
 
 // change just the last step
 myPath.name = "file.json";
-console.log(myPath.name);			// "file.json"
-console.log(myPath.toString());		// "dir/subdir/file.json"
+console.log(myPath.name);   // "file.json"
+console.log(myPath.toString());  // "dir/subdir/file.json"
 
 // get the size of the path
-console.log(myPath.size);			// 3
+console.log(myPath.size);   // 3
 
 // remove the last step
 myPath.pop();
-console.log(myPath.toString());		// "dir/subdir"
+console.log(myPath.toString());  // "dir/subdir"
 
 // iterate over the steps
 for (const step of myPath) {
-	// do something
+ // do something
 }
 
 // create a new path from a string
