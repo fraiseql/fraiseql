@@ -97,6 +97,7 @@ name = "backend-service"
 ```
 
 Generate a key hash:
+
 ```bash
 echo -n "your-api-key" | sha256sum | cut -d' ' -f1
 ```

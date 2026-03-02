@@ -26,14 +26,14 @@ docker-compose ps nats
 docker-compose logs nats
 ```
 
-2. **Check NATS_SERVERS configuration:**
+1. **Check NATS_SERVERS configuration:**
 
 ```bash
 echo $NATS_SERVERS
 # Should output: nats://nats:4222 (or your configured value)
 ```
 
-3. **Test connectivity:**
+1. **Test connectivity:**
 
 ```bash
 # From Fraisier container
@@ -43,14 +43,14 @@ docker-compose exec fraisier nc -zv nats 4222
 nc -zv localhost 4222
 ```
 
-4. **Verify credentials:**
+1. **Verify credentials:**
 
 ```bash
 echo $NATS_USERNAME
 echo $NATS_PASSWORD
 ```
 
-5. **Check network connectivity:**
+1. **Check network connectivity:**
 
 ```bash
 docker-compose exec fraisier ping nats
@@ -80,7 +80,7 @@ TimeoutError: Failed to connect: timeout exceeded
 NATS_TIMEOUT=15  # Increase from default 5
 ```
 
-2. **Wait for NATS to be ready:**
+1. **Wait for NATS to be ready:**
 
 ```bash
 docker-compose up -d nats
@@ -88,7 +88,7 @@ sleep 5
 docker-compose up -d fraisier
 ```
 
-3. **Check NATS startup logs:**
+1. **Check NATS startup logs:**
 
 ```bash
 docker-compose logs nats | tail -20
@@ -126,7 +126,7 @@ authorization {
 }
 ```
 
-2. **Reset credentials:**
+1. **Reset credentials:**
 
 ```bash
 docker-compose down
@@ -134,7 +134,7 @@ docker volume rm fraisier_nats-data
 docker-compose up
 ```
 
-3. **Check NATS auth configuration:**
+1. **Check NATS auth configuration:**
 
 ```bash
 docker-compose exec nats cat /etc/nats/nats.conf | grep -A 5 authorization
@@ -172,7 +172,7 @@ else:
     print("NATS not configured")
 ```
 
-2. **Check event bus connection:**
+1. **Check event bus connection:**
 
 ```python
 client = NatsClient(**config.connection.to_nats_client_kwargs())
@@ -180,13 +180,13 @@ await client.connect()
 print("Connected:", client.connection is not None)
 ```
 
-3. **Enable debug logging:**
+1. **Enable debug logging:**
 
 ```bash
 FRAISIER_LOG_LEVEL=DEBUG
 ```
 
-4. **Manually publish test event:**
+1. **Manually publish test event:**
 
 ```python
 import asyncio
@@ -240,25 +240,25 @@ docker-compose exec nats nats server info
 # Should show JetStream status: enabled
 ```
 
-2. **Check streams exist:**
+1. **Check streams exist:**
 
 ```bash
 docker-compose exec nats nats stream list
 ```
 
-3. **View stream info:**
+1. **View stream info:**
 
 ```bash
 docker-compose exec nats nats stream info DEPLOYMENT_EVENTS
 ```
 
-4. **Check storage permissions:**
+1. **Check storage permissions:**
 
 ```bash
 docker-compose exec nats ls -la /data/nats/
 ```
 
-5. **Enable JetStream in config:**
+1. **Enable JetStream in config:**
 
 ```bash
 # In docker-compose.yml
@@ -301,7 +301,7 @@ subs = registry.get_subscriptions_for_event_type("deployment.started")
 print(f"Subscriptions for deployment.started: {len(subs)}")
 ```
 
-2. **Verify event filter:**
+1. **Verify event filter:**
 
 ```python
 # Too restrictive - only matches specific service
@@ -311,7 +311,7 @@ registry.register(handler, EventFilter(service="api"))
 registry.register(handler, EventFilter())
 ```
 
-3. **Check event type names match:**
+1. **Check event type names match:**
 
 ```python
 # ✓ Correct
@@ -322,7 +322,7 @@ EventFilter(event_type=DeploymentEvents.STARTED)
 # (Use the string value, not the constant name)
 ```
 
-4. **Enable logging in handler:**
+1. **Enable logging in handler:**
 
 ```python
 async def my_handler(event):
@@ -330,7 +330,7 @@ async def my_handler(event):
     # ... rest of handler ...
 ```
 
-5. **Test handler directly:**
+1. **Test handler directly:**
 
 ```python
 from fraisier.nats.events import NatsEvent
@@ -375,7 +375,7 @@ async def safe_handler(event):
         # Re-raise if critical, otherwise continue
 ```
 
-2. **Verify handler type (sync vs async):**
+1. **Verify handler type (sync vs async):**
 
 ```python
 # ✓ Async handler
@@ -388,7 +388,7 @@ registry.register(async_handler, is_async=True)
 registry.register(async_handler, is_async=False)
 ```
 
-3. **Configure retry logic:**
+1. **Configure retry logic:**
 
 ```python
 registry.register(
@@ -399,7 +399,7 @@ registry.register(
 )
 ```
 
-4. **Monitor handler execution:**
+1. **Monitor handler execution:**
 
 ```python
 def monitored_handler(event):
@@ -437,14 +437,14 @@ stream limit exceeded
 docker-compose exec nats df -h /data/nats/
 ```
 
-2. **Check stream storage:**
+1. **Check stream storage:**
 
 ```bash
 docker-compose exec nats nats stream info DEPLOYMENT_EVENTS
 # Look for "Store Size"
 ```
 
-3. **Reduce retention periods:**
+1. **Reduce retention periods:**
 
 ```bash
 # In .env
@@ -452,19 +452,19 @@ NATS_DEPLOYMENT_EVENTS_RETENTION=360    # Instead of 720
 NATS_HEALTH_EVENTS_RETENTION=72         # Instead of 168
 ```
 
-4. **Purge old events:**
+1. **Purge old events:**
 
 ```bash
 docker-compose exec nats nats stream purge DEPLOYMENT_EVENTS
 ```
 
-5. **Reduce max stream size:**
+1. **Reduce max stream size:**
 
 ```bash
 NATS_STREAM_MAX_SIZE=536870912  # 512MB instead of 1GB
 ```
 
-6. **Expand storage:**
+1. **Expand storage:**
 
 ```yaml
 # docker-compose.yml
@@ -501,14 +501,14 @@ jetstream {
 }
 ```
 
-2. **Check stream storage type:**
+1. **Check stream storage type:**
 
 ```bash
 docker-compose exec nats nats stream info DEPLOYMENT_EVENTS
 # Look for "Storage: File" (not "Memory")
 ```
 
-3. **Set retention:**
+1. **Set retention:**
 
 ```bash
 NATS_DEPLOYMENT_EVENTS_RETENTION=720  # Days
@@ -545,7 +545,7 @@ event = NatsEvent(
 )
 ```
 
-2. **Check provider region configuration:**
+1. **Check provider region configuration:**
 
 ```python
 provider = BareMetalProvider(
@@ -555,7 +555,7 @@ provider = BareMetalProvider(
 )
 ```
 
-3. **Verify filter by region:**
+1. **Verify filter by region:**
 
 ```python
 registry.register(
@@ -564,7 +564,7 @@ registry.register(
 )
 ```
 
-4. **Check environment configuration:**
+1. **Check environment configuration:**
 
 ```bash
 NATS_REGION=us-east-1
@@ -595,14 +595,14 @@ Timeout waiting for response from region
 INTER_REGION_TIMEOUT=60  # Increase from 30
 ```
 
-2. **Check network connectivity:**
+1. **Check network connectivity:**
 
 ```bash
 ping other-region-host
 traceroute other-region-host
 ```
 
-3. **Verify all regions connected to same NATS:**
+1. **Verify all regions connected to same NATS:**
 
 ```bash
 # All regions should use same NATS cluster
@@ -639,14 +639,14 @@ set +a
 python app.py
 ```
 
-2. **Check environment variables:**
+1. **Check environment variables:**
 
 ```bash
 env | grep NATS
 env | grep DEPLOYMENT
 ```
 
-3. **Verify configuration loading:**
+1. **Verify configuration loading:**
 
 ```python
 from fraisier.nats.config import get_nats_config
@@ -657,7 +657,7 @@ config = get_nats_config()
 print("Config servers:", config.connection.servers)
 ```
 
-4. **Clear configuration cache:**
+1. **Clear configuration cache:**
 
 ```python
 from fraisier.nats import reset_subscriber_registry

@@ -270,17 +270,17 @@ Together: ~15-19 hours = **working, observable deployments**
 
 Adding these makes it truly production-grade:
 
-3. **Phase 5: Advanced Patterns** (3-4 hrs)
+1. **Phase 5: Advanced Patterns** (3-4 hrs)
    - Blue-Green, Canary, Rolling deployments
    - Automatic rollback
 
-4. **Phase 6: E2E Tests** (4-5 hrs)
+2. **Phase 6: E2E Tests** (4-5 hrs)
    - Confidence that everything works
 
-5. **Phase 7: Docker Setup** (3-4 hrs)
+3. **Phase 7: Docker Setup** (3-4 hrs)
    - Easy local testing and deployment
 
-6. **Phase 8: Documentation** (4-5 hrs)
+4. **Phase 8: Documentation** (4-5 hrs)
    - Users can actually use it
 
 Together: ~14-18 additional hours = **production-ready, well-documented**

@@ -9,7 +9,7 @@ You should use this package instead of an array if you do a lot of `Array#push()
 ## Install
 
 ```
-$ npm install yocto-queue
+npm install yocto-queue
 ```
 
 ## Usage
