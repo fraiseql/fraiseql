@@ -1,4 +1,4 @@
-//! Pipeline integration tests — Cycles 1 & 2 of phase 09.
+//! Pipeline integration tests — codegen → executor end-to-end.
 //!
 //! These tests drive the **core compiler pipeline** end-to-end:
 //!
@@ -93,7 +93,7 @@ impl DatabaseAdapter for PipelineMockAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 1: compile() → execute() — full pipeline regression for issue #53
+// compile() → execute() — full pipeline regression for issue #53
 // ---------------------------------------------------------------------------
 
 /// Pipeline 1: Compiler::compile() → Executor::execute()
@@ -161,7 +161,7 @@ async fn pipeline_compile_then_execute_query_succeeds() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 2: Verify sql_source is set on mutations produced by codegen
+// Verify sql_source is set on mutations produced by codegen
 // ---------------------------------------------------------------------------
 
 /// When a mutation uses `"operation": "create"` and `return_type: "User"`,

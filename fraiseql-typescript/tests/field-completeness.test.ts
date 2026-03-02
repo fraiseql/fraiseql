@@ -1,5 +1,5 @@
 /**
- * Phase 04: TypeScript SDK field-completeness tests.
+ * TypeScript SDK field-completeness tests.
  *
  * Every field that the Rust compiler can read from schema.json must be
  * exercised here.  The tests are deliberately exhaustive — one assertion

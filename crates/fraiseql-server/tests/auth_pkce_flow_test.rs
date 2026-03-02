@@ -1,7 +1,5 @@
 //! Pipeline 6 — composed HTTP integration test: PKCE auth_start → auth_callback.
 //!
-//! Phase 11, Cycles 4 & 5.
-//!
 //! Drives the complete PKCE flow at the HTTP level against a real Axum router
 //! built from the production `auth_start` and `auth_callback` handlers.  No
 //! real OIDC IdP is involved — the test verifies the middleware layers
@@ -109,7 +107,7 @@ fn extract_state_param(url: &str) -> &str {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 4: composed auth_start → auth_callback HTTP test
+// Composed auth_start → auth_callback HTTP tests
 // ---------------------------------------------------------------------------
 
 /// Pipeline 6, Stage A: `GET /auth/start` must redirect to the configured IdP.
@@ -256,10 +254,10 @@ async fn auth_callback_missing_code_and_state_returns_400() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 5: Redis PkceStateStore variant (requires REDIS_TEST_URL)
+// Redis PkceStateStore variant (requires REDIS_TEST_URL)
 // ---------------------------------------------------------------------------
 
-/// Same flow as Cycle 4 but using the Redis-backed PKCE state store.
+/// Same flow as the in-memory tests but using the Redis-backed PKCE state store.
 ///
 /// Skipped unless `REDIS_TEST_URL` is set in the environment.
 #[cfg(feature = "redis-pkce")]

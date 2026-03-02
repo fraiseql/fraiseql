@@ -1,6 +1,6 @@
 package fraiseql
 
-// golden_test.go — Cycle 5: Golden schema comparison.
+// golden_test.go — Golden schema comparison.
 //
 // Registers the same schema as golden fixture 01-basic-query-mutation.json and
 // asserts that key fields in the generated JSON match the fixture.  The test

@@ -10,8 +10,8 @@ import sys
 
 sys.path.insert(0, "src")
 
-from fraiseql.registry import SchemaRegistry  # noqa: E402
 import fraiseql  # noqa: E402
+from fraiseql.registry import SchemaRegistry  # noqa: E402
 from fraiseql.scalars import ID  # noqa: E402
 
 # Reset registry to avoid contamination from previous imports
@@ -54,7 +54,7 @@ def users() -> list[User]:
     cache_ttl_seconds=300,
     requires_role="admin",
 )
-def tenantOrders() -> list[Order]:
+def tenantOrders() -> list[Order]:  # noqa: N802
     """List tenant orders (admin only)."""
 
 
@@ -62,7 +62,7 @@ def tenantOrders() -> list[Order]:
 
 
 @fraiseql.mutation(sql_source="fn_create_user", operation="insert")
-def createUser(email: str, name: str) -> User:
+def createUser(email: str, name: str) -> User:  # noqa: N802
     """Create a new user."""
 
 
@@ -73,7 +73,7 @@ def createUser(email: str, name: str) -> User:
     invalidates_views=["v_order_summary"],
     invalidates_fact_tables=["tf_sales"],
 )
-def placeOrder() -> Order:
+def placeOrder() -> Order:  # noqa: N802
     """Place a new order."""
 
 

@@ -1,5 +1,5 @@
 /**
- * Phase 04: Golden schema fixture comparisons.
+ * Golden schema fixture comparisons.
  *
  * Each test builds the same schema that the corresponding JSON fixture
  * describes and verifies that the TypeScript SDK emits exactly the fields

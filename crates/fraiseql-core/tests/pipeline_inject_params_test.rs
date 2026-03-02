@@ -1,9 +1,7 @@
 //! Pipeline 5 — Stage B → C integration tests: inject params executor guard.
 //!
-//! Phase 11, Cycle 3.
-//!
 //! Loads the golden fixture 05-security-inject-cache.json (which was produced by
-//! the Python authoring SDK and verified correct in Phase 01) and drives it
+//! the Python authoring SDK) and drives it
 //! through the executor, verifying that:
 //!
 //! 1. The compiled schema contains inject_params (fixture pre-condition).
@@ -151,7 +149,7 @@ fn fixture_05_has_inject_params_on_order_summary_query() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 3: unauthenticated guard — Stage B → C
+// Unauthenticated guard — Stage B → C
 // ---------------------------------------------------------------------------
 
 /// Pipeline 5 guard: executor must reject inject queries without security context.
@@ -210,7 +208,7 @@ async fn executor_rejects_role_guarded_inject_query_without_security_context() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 3 happy path: inject params resolved with security context
+// Happy path: inject params resolved with security context
 // ---------------------------------------------------------------------------
 
 /// Pipeline 5 happy path: executor resolves inject params when a valid security

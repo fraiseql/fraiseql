@@ -1,4 +1,4 @@
-//! Pipeline 3 (error path) integration tests — Phase 10, Cycle 3.
+//! Pipeline 3 integration tests — mutation error-type field population.
 //!
 //! Tests that when a mutation returns a failure status, the executor populates
 //! error-type fields from `mutation_response.metadata` JSONB (issue #294 regression
@@ -92,7 +92,7 @@ impl DatabaseAdapter for ErrorMockAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 3: error type mutation result population
+// Error type mutation result population
 // ---------------------------------------------------------------------------
 
 /// Pipeline 3 (error path): mutation returning `failed:conflict` produces

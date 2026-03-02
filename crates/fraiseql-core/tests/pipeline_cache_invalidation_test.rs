@@ -1,4 +1,4 @@
-//! Pipeline 4 integration tests — Phase 10, Cycle 2.
+//! Pipeline 4 integration tests — cache invalidation.
 //!
 //! Drives the **cache invalidation pipeline** after a successful mutation:
 //!
@@ -145,7 +145,7 @@ fn admin_security_context() -> SecurityContext {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 2: mutation → cache invalidation
+// Mutation → cache invalidation
 // ---------------------------------------------------------------------------
 
 /// Pipeline 4: successful mutation invalidates listed views in the cache.
@@ -292,7 +292,7 @@ async fn failed_mutation_does_not_invalidate_cache() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 2: fact table version bumping
+// Fact table version bumping
 // ---------------------------------------------------------------------------
 
 /// Pipeline 4: successful mutation bumps fact table version counters.

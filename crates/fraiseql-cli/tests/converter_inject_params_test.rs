@@ -1,7 +1,5 @@
 //! Pipeline 5 — Stage B integration tests: CLI converter inject params.
 //!
-//! Phase 11, Cycles 1 & 2.
-//!
 //! Verifies that `SchemaConverter::convert()` correctly parses every documented
 //! inject-source string (`"jwt:<claim>"`) into the corresponding
 //! `InjectedParamSource` variant, covering all special-alias claims and
@@ -57,7 +55,7 @@ fn schema_with_inject(inject: IndexMap<String, String>) -> IntermediateSchema {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 1: parse each documented JWT claim alias
+// JWT claim alias tests
 // ---------------------------------------------------------------------------
 
 /// Stage B: `"jwt:sub"` → `InjectedParamSource::Jwt("sub")`.
@@ -156,7 +154,7 @@ fn parse_inject_source_jwt_claim_with_underscores() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 1: error paths — invalid inject source format
+// Error paths — invalid inject source format
 // ---------------------------------------------------------------------------
 
 /// Stage B error: unknown prefix must be rejected.
@@ -245,7 +243,7 @@ fn parse_inject_source_arg_conflict_returns_error() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 2: multi-inject round-trip (Stage A → B)
+// Multi-inject round-trip (Stage A → B)
 // ---------------------------------------------------------------------------
 
 /// Stage A → B: query with multiple inject params — all survive the converter.
@@ -283,7 +281,7 @@ fn converter_multi_inject_params_all_survive() {
     );
 }
 
-/// Stage A → B: query with no inject params produces empty inject_params map.
+/// Stage A → B: query with no inject params produces empty `inject_params` map.
 #[test]
 fn converter_empty_inject_produces_empty_map() {
     let schema = IntermediateSchema {

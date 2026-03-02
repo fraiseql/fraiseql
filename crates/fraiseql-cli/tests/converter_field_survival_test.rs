@@ -1,4 +1,4 @@
-//! Converter field-survival tests — Cycle 3 of phase 09.
+//! Converter field-survival tests.
 //!
 //! These tests verify that every field set on `IntermediateQuery`,
 //! `IntermediateMutation`, and `IntermediateType` survives

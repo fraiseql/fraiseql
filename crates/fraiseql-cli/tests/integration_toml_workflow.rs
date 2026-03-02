@@ -394,11 +394,11 @@ audit_logging_enabled = false
     assert!(security.get("policies").is_some(), "policies missing from security config");
 }
 
-/// Cycle 4 (phase 09): Full CLI compile pipeline with field-level assertions.
+/// Full CLI compile pipeline with field-level assertions.
 ///
-/// types.json carries inject and cache_ttl_seconds on a query, and
-/// invalidates_views on a mutation.  We compile via the CLI binary and then
-/// parse the compiled JSON with CompiledSchema::from_json() to assert that
+/// types.json carries `inject` and `cache_ttl_seconds` on a query, and
+/// `invalidates_views` on a mutation.  We compile via the CLI binary and then
+/// parse the compiled JSON with `CompiledSchema::from_json()` to assert that
 /// those fields reach the output unchanged.
 #[test]
 fn test_field_values_survive_full_cli_pipeline() {

@@ -1,4 +1,4 @@
-//! Pipeline 3 integration tests — Phase 10, Cycle 1.
+//! Pipeline 3 integration tests — mutation execution end-to-end.
 //!
 //! Drives the **mutation execution pipeline** end-to-end:
 //!
@@ -159,7 +159,7 @@ impl DatabaseAdapter for RecordingMockAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 1: mutation executor uses sql_source from compiled schema
+// Mutation executor uses sql_source from compiled schema
 // ---------------------------------------------------------------------------
 
 /// Pipeline 3: full mutation execution path drives `sql_source` from the compiled schema.
@@ -265,7 +265,7 @@ async fn mutation_executor_wraps_response_in_data_envelope() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 1 variant: inject_params are appended from JWT security context
+// inject_params are appended from JWT security context
 // ---------------------------------------------------------------------------
 
 /// Pipeline 3: inject_params from the compiled schema are resolved from the

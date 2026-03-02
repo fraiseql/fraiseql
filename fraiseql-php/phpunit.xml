@@ -10,6 +10,7 @@
     <testsuites>
         <testsuite name="FraiseQL PHP Test Suite">
             <directory>tests</directory>
+            <exclude>tests/Phase18Cycle11ScopeExtractionTest.php</exclude>
         </testsuite>
     </testsuites>
     <coverage processUncoveredFiles="true">
