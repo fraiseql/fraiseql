@@ -92,6 +92,10 @@ mod query_optimization_tests {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
 
+        // Warmup: discard the first call to avoid cold-start allocation overhead
+        // skewing the timing assertion in loaded CI environments.
+        let _ = generator.generate_projection_sql(&fields);
+
         let start = Instant::now();
         let sql = generator.generate_projection_sql(&fields);
         let elapsed = start.elapsed();

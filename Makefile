@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
+.PHONY: help build test test-unit test-integration test-federation clippy fmt check clean install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
 
 # Default target
 help:
@@ -8,14 +8,17 @@ help:
 	@echo "  make test               - Run all tests"
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
+	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make coverage           - Generate test coverage report"
 	@echo ""
 	@echo "Database (Docker):"
-	@echo "  make db-up              - Start test databases (PostgreSQL, MySQL)"
+	@echo "  make db-up              - Start test databases (PostgreSQL, MySQL, SQL Server, Redis)"
 	@echo "  make db-down            - Stop test databases"
 	@echo "  make db-logs            - View database logs"
 	@echo "  make db-reset           - Reset test databases (remove volumes)"
 	@echo "  make db-status          - Check database health"
+	@echo "  make federation-up      - Start federation stack (Apollo Router + 3 subgraphs)"
+	@echo "  make federation-down    - Stop federation stack"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make build              - Build all crates"
@@ -74,10 +77,34 @@ test-unit:
 	@cargo test --lib --all-features
 
 # Run integration tests (requires Docker databases)
+# Runs each suite with the correct feature flags and env vars.
 test-integration: db-up
-	@echo "Running integration tests..."
-	@sleep 2  # Wait for databases to be fully ready
-	@cargo test --all-features -- --ignored
+	@echo ""
+	@echo "=== PostgreSQL integration tests ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test --features test-postgres -p fraiseql-core -- --ignored --test-threads=4
+	@echo ""
+	@echo "=== MySQL integration tests ==="
+	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
+	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test --features test-mysql -p fraiseql-core -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== SQL Server integration tests ==="
+	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
+	SAGA_STORE_TEST_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test --features test-sqlserver -p fraiseql-core -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== fraiseql-observers integration tests ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	REDIS_URL="redis://localhost:6379" \
+		cargo test --features "postgres,dedup,caching,testing" -p fraiseql-observers --test integration_test -- --ignored
+	@echo ""
+	@echo "=== fraiseql-server integration tests ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-server -- --ignored
+	@echo ""
+	@echo "All integration tests passed."
 
 # Run end-to-end tests
 test-e2e:
@@ -130,41 +157,90 @@ watch-check:
 # Docker-based Test Database Management
 # ============================================================================
 
-# Start test databases (PostgreSQL + MySQL)
+# Start test databases (PostgreSQL, MySQL, SQL Server, Redis) and wait until healthy
 db-up:
 	@echo "Starting test databases..."
-	@docker compose -f docker-compose.test.yml up -d
-	@echo "Waiting for databases to be healthy..."
-	@sleep 3
-	@docker compose -f docker-compose.test.yml ps
+	@docker compose -f docker/docker-compose.test.yml up -d
+	@echo "Waiting for all services to be healthy..."
+	@for svc in postgres-test mysql-test sqlserver-test redis-test; do \
+		printf "  Waiting for %-20s" "$$svc..."; \
+		for i in $$(seq 1 60); do \
+			status=$$(docker inspect --format='{{.State.Health.Status}}' \
+				$$(docker compose -f docker/docker-compose.test.yml ps -q $$svc 2>/dev/null) 2>/dev/null); \
+			if [ "$$status" = "healthy" ]; then echo " ready"; break; fi; \
+			if [ $$i -eq 60 ]; then echo " TIMEOUT"; exit 1; fi; \
+			sleep 2; \
+		done; \
+	done
+	@echo "All databases ready."
+	@docker compose -f docker/docker-compose.test.yml ps
 
 # Stop test databases
 db-down:
 	@echo "Stopping test databases..."
-	@docker compose -f docker-compose.test.yml down
+	@docker compose -f docker/docker-compose.test.yml down
 
 # View database logs
 db-logs:
-	@docker compose -f docker-compose.test.yml logs -f
+	@docker compose -f docker/docker-compose.test.yml logs -f
 
 # Reset test databases (remove volumes)
 db-reset:
 	@echo "Resetting test databases (removing volumes)..."
-	@docker compose -f docker-compose.test.yml down -v
-	@docker compose -f docker-compose.test.yml up -d
-	@sleep 3
-	@echo "Databases reset and started"
+	@docker compose -f docker/docker-compose.test.yml down -v
+	@$(MAKE) db-up
 
 # Check database health status
 db-status:
 	@echo "Database status:"
-	@docker compose -f docker-compose.test.yml ps
+	@docker compose -f docker/docker-compose.test.yml ps
 
 # Verify test data
 db-verify:
 	@echo "Verifying PostgreSQL test data..."
-	@docker compose -f docker-compose.test.yml exec -T postgres-test \
+	@docker compose -f docker/docker-compose.test.yml exec -T postgres-test \
 		psql -U fraiseql_test -d test_fraiseql -c "SELECT 'v_user' AS view, COUNT(*) FROM v_user UNION ALL SELECT 'v_post', COUNT(*) FROM v_post UNION ALL SELECT 'v_product', COUNT(*) FROM v_product;"
+
+# ============================================================================
+# Federation stack (Apollo Router + 3 subgraphs)
+# ============================================================================
+
+# Start the federation Docker stack and wait for all services to be healthy
+federation-up:
+	@echo "Starting federation stack..."
+	@docker compose -f docker/federation-ci/docker-compose.yml up -d --build
+	@echo "Waiting for federation services to be healthy..."
+	@for url in \
+		"http://localhost:8088/health" \
+		"http://localhost:4001/health" \
+		"http://localhost:4002/health" \
+		"http://localhost:4003/health"; do \
+		printf "  Waiting for %-35s" "$$url..."; \
+		for i in $$(seq 1 30); do \
+			if curl -sf "$$url" >/dev/null 2>&1; then echo " ready"; break; fi; \
+			if [ $$i -eq 30 ]; then echo " TIMEOUT"; exit 1; fi; \
+			sleep 4; \
+		done; \
+	done
+	@echo "Federation stack ready."
+	@echo "  Apollo Router:   http://localhost:4000/graphql"
+	@echo "  Users service:   http://localhost:4001/graphql"
+	@echo "  Orders service:  http://localhost:4002/graphql"
+	@echo "  Products service:http://localhost:4003/graphql"
+
+# Stop the federation stack and remove volumes
+federation-down:
+	@echo "Stopping federation stack..."
+	@docker compose -f docker/federation-ci/docker-compose.yml down -v
+
+# Run federation integration tests (starts stack, runs tests, tears down)
+test-federation: federation-up
+	@echo ""
+	@echo "=== Federation integration tests ==="
+	@cargo test -p fraiseql-core federation -- --ignored --test-threads=4; \
+		EXIT=$$?; \
+		$(MAKE) federation-down; \
+		exit $$EXIT
 
 # ============================================================================
 # Legacy database commands (local PostgreSQL)
@@ -202,7 +278,7 @@ outdated:
 ## Setup: Start Docker databases and prepare for E2E tests
 e2e-setup:
 	@echo "🔧 Setting up E2E test infrastructure..."
-	@docker compose -f docker-compose.test.yml up -d || echo "ℹ️  Docker compose not available, skipping database setup"
+	@docker compose -f docker/docker-compose.test.yml up -d || echo "ℹ️  Docker compose not available, skipping database setup"
 	@echo "✅ E2E infrastructure ready"
 
 ## Run E2E tests for Python language generator
@@ -277,14 +353,14 @@ e2e-all: e2e-python e2e-typescript e2e-go e2e-velocitybench
 ## Cleanup: Stop Docker containers and remove temp files
 e2e-clean:
 	@echo "🧹 Cleaning up E2E test infrastructure..."
-	@docker compose -f docker-compose.test.yml down -v 2>/dev/null || true
+	@docker compose -f docker/docker-compose.test.yml down -v 2>/dev/null || true
 	@rm -rf /tmp/fraiseql-*-test-output
 	@echo "✅ Cleanup complete"
 
 ## Status: Check E2E test infrastructure
 e2e-status:
 	@echo "Docker Compose Status:"
-	@docker compose -f docker-compose.test.yml ps 2>/dev/null || echo "Docker not available"
+	@docker compose -f docker/docker-compose.test.yml ps 2>/dev/null || echo "Docker not available"
 	@echo ""
 	@echo "Languages ready:"
 	@which python3 > /dev/null && echo "  ✅ Python" || echo "  ❌ Python"

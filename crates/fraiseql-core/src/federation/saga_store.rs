@@ -235,14 +235,14 @@ pub struct PostgresSagaStore {
 }
 
 impl PostgresSagaStore {
-    /// Create a new PostgreSQL saga store with default configuration.
+    /// Create a new PostgreSQL saga store.
     ///
     /// Connects to PostgreSQL and verifies connectivity.
     ///
     /// # Arguments
     ///
-    /// * `_connection_string` - PostgreSQL connection string (currently unused, uses default
-    ///   config)
+    /// * `connection_string` - PostgreSQL connection URL, e.g.
+    ///   `postgresql://user:password@host:port/database`
     ///
     /// # Errors
     ///
@@ -253,14 +253,9 @@ impl PostgresSagaStore {
     /// ```ignore
     /// let store = PostgresSagaStore::new("postgresql://localhost/fraiseql").await?;
     /// ```
-    pub async fn new(_connection_string: &str) -> Result<Self> {
-        // Parse connection string and create pool
+    pub async fn new(connection_string: &str) -> Result<Self> {
         let cfg = deadpool_postgres::Config {
-            dbname: Some("fraiseql".to_string()),
-            host: Some("localhost".to_string()),
-            port: Some(5432),
-            user: Some("postgres".to_string()),
-            password: Some("postgres".to_string()),
+            url: Some(connection_string.to_string()),
             ..Default::default()
         };
 
@@ -930,7 +925,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires running PostgreSQL database"]
     async fn test_postgres_connection() {
-        let store = PostgresSagaStore::new("postgresql://localhost/fraiseql_test")
+        // Use SAGA_STORE_TEST_URL (postgres-specific) so this test is unaffected
+        // when the suite is invoked with DATABASE_URL pointing to MySQL/SQL Server.
+        let url = std::env::var("SAGA_STORE_TEST_URL").unwrap_or_else(|_| {
+            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
+                .to_string()
+        });
+        let store = PostgresSagaStore::new(&url)
             .await
             .expect("Failed to create store");
         store.health_check().await.expect("Health check failed");

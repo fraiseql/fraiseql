@@ -547,10 +547,58 @@ jobs:
           name: benchmark-results
           path: target/criterion
 
+  # Federation integration tests (Docker-based, Apollo Router + 3 subgraphs)
+  federation-tests:
+    name: Federation Docker Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Start federation stack
+        run: docker compose -f docker/federation-ci/docker-compose.yml up -d --build
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for subgraphs and Apollo Router..."
+          for url in \
+            http://localhost:8088/health \
+            http://localhost:4001/health \
+            http://localhost:4002/health \
+            http://localhost:4003/health; do
+            for i in $(seq 1 30); do
+              if curl -sf "$url" > /dev/null 2>&1; then
+                echo "✓ $url is ready"
+                break
+              fi
+              echo "  waiting for $url (attempt $i/30)..."
+              sleep 4
+              if [ "$i" -eq 30 ]; then
+                echo "✗ $url never became ready"
+                exit 1
+              fi
+            done
+          done
+
+      - name: Run federation tests
+        run: cargo test -p fraiseql-core federation -- --ignored --test-threads=4
+        timeout-minutes: 20
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f docker/federation-ci/docker-compose.yml logs --tail=200
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker/federation-ci/docker-compose.yml down -v
+
   # All checks passed
   ci-success:
     name: CI Success
-    needs: [fmt, clippy, test, integration-postgres, integration-mysql, integration-sqlite, integration-sqlserver, coverage, security, docs]
+    needs: [fmt, clippy, test, integration-postgres, integration-mysql, integration-sqlite, integration-sqlserver, coverage, security, docs, federation-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Mark CI as successful

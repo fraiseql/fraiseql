@@ -1,0 +1,96 @@
+schema
+  @link(url: "https://specs.apollo.dev/link/v1.0")
+  @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
+{
+  query: Query
+  mutation: Mutation
+}
+
+directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+directive @join__graph(name: String!, url: String!) on ENUM_VALUE
+directive @join__implements(graph: join__Graph!, interface: String!) repeatable on OBJECT | INTERFACE
+directive @join__type(graph: join__Graph!, key: join__FieldSet, extension: Boolean! = false, resolvable: Boolean! = true, isInterfaceObject: Boolean! = false) repeatable on OBJECT | INTERFACE | UNION | ENUM | SCALAR | INPUT_OBJECT
+directive @join__unionMember(graph: join__Graph!, member: String!) repeatable on UNION
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+scalar join__FieldSet
+
+scalar link__Import
+
+enum link__Purpose {
+  EXECUTION
+  SECURITY
+}
+
+enum join__Graph {
+  ORDERS @join__graph(name: "orders", url: "http://orders-service:4000/graphql")
+  PRODUCTS @join__graph(name: "products", url: "http://products-service:4000/graphql")
+  USERS @join__graph(name: "users", url: "http://users-service:4000/graphql")
+}
+
+type _Service
+  @join__type(graph: USERS)
+{
+  sdl: String!
+}
+
+type Query
+  @join__type(graph: ORDERS)
+  @join__type(graph: PRODUCTS)
+  @join__type(graph: USERS)
+{
+  _service: _Service! @join__field(graph: USERS)
+  users(limit: Int): [User!]! @join__field(graph: USERS)
+  user(id: ID!): User @join__field(graph: USERS)
+  orders(limit: Int): [Order!]! @join__field(graph: ORDERS)
+  order(id: ID!): Order @join__field(graph: ORDERS)
+  ordersByUser(userId: ID!): [Order!]! @join__field(graph: ORDERS)
+  products(limit: Int): [Product!]! @join__field(graph: PRODUCTS)
+  product(id: ID!): Product @join__field(graph: PRODUCTS)
+}
+
+type Mutation
+  @join__type(graph: ORDERS)
+  @join__type(graph: USERS)
+{
+  createUser(identifier: String!, name: String!, email: String!): User! @join__field(graph: USERS)
+  updateUser(id: ID!, name: String!): User! @join__field(graph: USERS)
+  verifyUserExists(userId: ID!): User! @join__field(graph: USERS)
+  createOrder(userId: ID!, status: String!, total: Float!): Order! @join__field(graph: ORDERS)
+  cancelOrder(orderId: ID!): Order! @join__field(graph: ORDERS)
+}
+
+type User
+  @join__type(graph: USERS, key: "id")
+  @join__type(graph: ORDERS, key: "id")
+{
+  id: ID!
+  identifier: String! @join__field(graph: USERS)
+  name: String! @join__field(graph: USERS)
+  email: String! @join__field(graph: USERS)
+  createdAt: String! @join__field(graph: USERS)
+  orders(limit: Int): [Order!]! @join__field(graph: ORDERS)
+}
+
+type Order
+  @join__type(graph: ORDERS, key: "id")
+{
+  id: ID!
+  userId: ID!
+  status: String!
+  total: Float!
+  createdAt: String!
+  user: User! @join__field(graph: ORDERS)
+  products(limit: Int): [Product!]! @join__field(graph: ORDERS)
+}
+
+type Product
+  @join__type(graph: PRODUCTS, key: "id")
+  @join__type(graph: ORDERS, key: "id", resolvable: false)
+{
+  id: ID!
+  name: String! @join__field(graph: PRODUCTS)
+  price: Float! @join__field(graph: PRODUCTS)
+  stock: Int! @join__field(graph: PRODUCTS)
+}

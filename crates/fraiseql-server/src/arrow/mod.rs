@@ -4,6 +4,18 @@
 //! database adapters to the [`fraiseql_arrow`] crate's trait interfaces and manages
 //! the Flight gRPC server lifecycle (port 50051, graceful shutdown).
 //!
+//! # Architecture
+//!
+//! Arrow Flight support uses a library/consumer split:
+//!
+//! - [`fraiseql_arrow`] (the `fraiseql-arrow` crate) — full Arrow Flight gRPC
+//!   implementation, database-agnostic via `DatabaseAdapter` and `QueryExecutor` traits
+//! - This module (`fraiseql-server/src/arrow`) — thin adapter layer that bridges
+//!   `fraiseql-core` adapters to the `fraiseql-arrow` traits
+//!
+//! The Flight gRPC server binds on port 50051 alongside the HTTP server (port 3000).
+//! Enable with `--features arrow`.
+//!
 //! # Relationship to `fraiseql-arrow`
 //!
 //! This module does **not** re-implement the Arrow Flight protocol. All Flight logic
