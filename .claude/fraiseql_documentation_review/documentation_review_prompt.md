@@ -24,22 +24,22 @@ The following documentation files should be reviewed in order:
 
 ### Development & Implementation
 
-4. `.claude/CLAUDE.md` - Project development guidelines
-5. `.claude/IMPLEMENTATION_ROADMAP.md` - Implementation status and roadmap
-6. `.phases/README.md` - Phase-based development methodology (if exists)
+1. `.claude/CLAUDE.md` - Project development guidelines
+2. `.claude/IMPLEMENTATION_ROADMAP.md` - Implementation status and roadmap
+3. `.phases/README.md` - Phase-based development methodology (if exists)
 
 ### Crate-Specific Documentation
 
-7. `crates/fraiseql-core/README.md` - Core engine documentation (if exists)
-8. `crates/fraiseql-server/README.md` - Server documentation (if exists)
-9. `crates/fraiseql-cli/README.md` - CLI documentation (if exists)
-10. `crates/fraiseql-wire/README.md` - Wire protocol documentation (if exists)
+1. `crates/fraiseql-core/README.md` - Core engine documentation (if exists)
+2. `crates/fraiseql-server/README.md` - Server documentation (if exists)
+3. `crates/fraiseql-cli/README.md` - CLI documentation (if exists)
+4. `crates/fraiseql-wire/README.md` - Wire protocol documentation (if exists)
 
 ### Other Documentation
 
-11. `CONTRIBUTING.md` - Contributing guidelines (if exists)
-12. `LICENSE` - License file (if exists)
-13. Any other `.md` files found in root or docs/ directory
+1. `CONTRIBUTING.md` - Contributing guidelines (if exists)
+2. `LICENSE` - License file (if exists)
+3. Any other `.md` files found in root or docs/ directory
 
 ---
 

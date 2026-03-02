@@ -124,6 +124,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 ### For Expiring Certificate (< 30 days)
 
 1. **Initiate certificate renewal process**
+
    ```bash
    # For Let's Encrypt (certbot)
    certbot renew --force-renewal
@@ -136,6 +137,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 2. **Request certificate from provider**
+
    ```bash
    # AWS Certificate Manager
    aws acm request-certificate \
@@ -152,6 +154,7 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    ```
 
 3. **Install new certificate**
+
    ```bash
    # Backup old certificate
    cp /etc/fraiseql/certs/server.crt /etc/fraiseql/certs/server.crt.backup-$(date +%s)
@@ -176,7 +179,8 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 
 ### For Already-Expired Certificate
 
-4. **Emergency certificate renewal** (if expired)
+1. **Emergency certificate renewal** (if expired)
+
    ```bash
    # For Let's Encrypt (if using)
    sudo systemctl stop nginx  # or whatever is binding port 80/443
@@ -195,7 +199,8 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
 
 ### For Kubernetes/Cloud Environment
 
-5. **Update Kubernetes secret**
+1. **Update Kubernetes secret**
+
    ```bash
    # Generate new certificate (if self-signed for testing)
    openssl req -x509 -newkey rsa:4096 -keyout tls.key -out tls.crt \
@@ -214,7 +219,8 @@ curl -s -H "X-Vault-Token: $VAULT_TOKEN" \
    kubectl rollout status deployment fraiseql-server -n fraiseql
    ```
 
-6. **Update AWS/Cloud provider certificates**
+2. **Update AWS/Cloud provider certificates**
+
    ```bash
    # AWS Load Balancer
    aws elbv2 modify-listener \

@@ -474,7 +474,7 @@ fraiseql_observer_processing_duration_seconds
 docker-compose -f docker-compose.postgres-redis.yml up -d redis
 ```
 
-2. Update environment variables:
+1. Update environment variables:
 
 ```bash
 export FRAISEQL_REDIS_URL=redis://redis:6379
@@ -482,13 +482,13 @@ export FRAISEQL_ENABLE_DEDUP=true
 export FRAISEQL_ENABLE_CACHING=true
 ```
 
-3. Restart observer:
+1. Restart observer:
 
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml up -d observer
 ```
 
-4. Verify Redis connection:
+1. Verify Redis connection:
 
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml logs observer | grep "Redis connected"
@@ -502,25 +502,25 @@ docker-compose -f docker-compose.postgres-redis.yml logs observer | grep "Redis 
 docker-compose -f docker-compose.nats-distributed.yml up -d nats
 ```
 
-2. Deploy bridge (publishes historical events):
+1. Deploy bridge (publishes historical events):
 
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml up -d bridge
 ```
 
-3. Deploy workers:
+1. Deploy workers:
 
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml up -d --scale worker=3
 ```
 
-4. Stop old PostgreSQL observer:
+1. Stop old PostgreSQL observer:
 
 ```bash
 docker-compose -f docker-compose.postgres-redis.yml stop observer
 ```
 
-5. Verify NATS stream:
+1. Verify NATS stream:
 
 ```bash
 docker-compose -f docker-compose.nats-distributed.yml exec nats nats stream info fraiseql_events
