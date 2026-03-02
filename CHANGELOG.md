@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-02
+
+### Added
+
+- **Cross-SDK parity test suite** (phases 01–13): 5100+ tests across Rust, Python, TypeScript,
+  Go, Java, and PHP validating that all six SDKs produce identical compiled schema output for
+  types, queries, mutations, and decorators.
+- **Golden fixture regression guards**: `tests/fixtures/golden/` contains 10 reference JSON
+  fixtures verified against every SDK's `exportSchema()`. Any SDK divergence in field names,
+  types, or structure is caught before merge.
+- **Full integration test infrastructure**: dedicated CI jobs and local Docker Compose services
+  for Redis, NATS, PostgreSQL (with TLS), Vault, and federation — enabling all 177 previously
+  ignored tests to run in CI.
+- **`testcontainers` watchdog**: `features = ["watchdog"]` on testcontainers 0.26 ensures
+  container cleanup on SIGTERM/SIGINT.
+
 ### Fixed
 
 - **Per-user rate limiting now operative**: `check_user_limit` was never called from
@@ -47,18 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or stack traces) directly to the browser. Provider error codes are now mapped to a fixed
   allowlist (`access_denied` → "Access was denied", `invalid_request` / `invalid_scope` →
   "Invalid authorization request", etc.); the full provider response is still logged at `warn`.
-- **Test: URL-safe state token extraction**: the PKCE round-trip test replaced fragile
-  `split("state=")` string parsing with `reqwest::Url::parse().query_pairs()`, eliminating
-  false matches when `state=` appears in other parts of the authorization URL.
-
-### Verification
-
-- `cargo check`: clean
-- `cargo clippy --all-targets -- -D warnings`: zero warnings
-- Rate limit module: 34 tests pass (10 new — `extract_jwt_subject`, `extract_real_ip`,
-  `retry_after_for_path`)
-- Auth routes: 8 tests pass (4 new — oversized `redirect_uri`, OIDC error mapping ×2,
-  round-trip with URL parsing)
+- **Rustdoc link warnings resolved**: all six intra-doc links to feature-gated or private items
+  replaced with plain text, giving `cargo doc --no-deps` zero warnings.
 
 ## [2.0.0-rc.14] - 2026-02-28
 
