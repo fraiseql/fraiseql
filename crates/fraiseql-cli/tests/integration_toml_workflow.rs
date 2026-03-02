@@ -393,3 +393,126 @@ audit_logging_enabled = false
     assert!(security.get("rules").is_some(), "rules missing from security config");
     assert!(security.get("policies").is_some(), "policies missing from security config");
 }
+
+/// Cycle 4 (phase 09): Full CLI compile pipeline with field-level assertions.
+///
+/// types.json carries inject and cache_ttl_seconds on a query, and
+/// invalidates_views on a mutation.  We compile via the CLI binary and then
+/// parse the compiled JSON with CompiledSchema::from_json() to assert that
+/// those fields reach the output unchanged.
+#[test]
+fn test_field_values_survive_full_cli_pipeline() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // types.json in the intermediate format emitted by language SDKs
+    let types_json = r#"
+{
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "v_order",
+      "fields": [
+        {"name": "id",     "type": "ID",     "nullable": false},
+        {"name": "amount", "type": "Float",  "nullable": false},
+        {"name": "status", "type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_order",
+      "cache_ttl_seconds": 300,
+      "inject": {"tenant_id": "jwt:tenant_id"}
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createOrder",
+      "return_type": "Order",
+      "sql_source": "fn_create_order",
+      "invalidates_views": ["v_order"],
+      "inject": {"user_id": "jwt:sub"}
+    }
+  ]
+}
+"#;
+
+    let toml_config = r#"
+[schema]
+name = "field_survival_test"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+
+[security]
+default_policy = "public"
+
+[security.enterprise]
+rate_limiting_enabled = false
+audit_logging_enabled = false
+"#;
+
+    let types_path = temp_dir.path().join("types.json");
+    let toml_path = temp_dir.path().join("fraiseql.toml");
+    let output_path = temp_dir.path().join("schema.compiled.json");
+
+    fs::write(&types_path, types_json).unwrap();
+    fs::write(&toml_path, toml_config).unwrap();
+
+    let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
+    let output = Command::new(cli_path)
+        .args([
+            "compile",
+            toml_path.to_str().unwrap(),
+            "--types",
+            types_path.to_str().unwrap(),
+            "--output",
+            output_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Failed to run compilation");
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        panic!("Compilation failed.\nstdout: {stdout}\nstderr: {stderr}");
+    }
+
+    let compiled_json = fs::read_to_string(&output_path).expect("compiled schema missing");
+    let schema = fraiseql_core::schema::CompiledSchema::from_json(&compiled_json)
+        .expect("compiled schema must parse");
+
+    // Query field survival
+    let q = schema.find_query("orders").expect("'orders' query must be present");
+    assert_eq!(
+        q.sql_source.as_deref(),
+        Some("v_order"),
+        "query sql_source must survive full CLI pipeline"
+    );
+    assert_eq!(
+        q.cache_ttl_seconds,
+        Some(300),
+        "cache_ttl_seconds must survive full CLI pipeline"
+    );
+    assert_eq!(q.inject_params.len(), 1, "inject_params must have one entry");
+
+    // Mutation field survival
+    let m = schema.find_mutation("createOrder").expect("'createOrder' mutation must be present");
+    assert_eq!(
+        m.sql_source.as_deref(),
+        Some("fn_create_order"),
+        "mutation sql_source must survive full CLI pipeline"
+    );
+    assert_eq!(
+        m.invalidates_views,
+        vec!["v_order"],
+        "invalidates_views must survive full CLI pipeline"
+    );
+    assert_eq!(m.inject_params.len(), 1, "mutation inject_params must have one entry");
+}

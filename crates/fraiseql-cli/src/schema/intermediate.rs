@@ -135,7 +135,7 @@ fn default_version() -> String {
 }
 
 /// Type definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct IntermediateType {
     /// Type name (e.g., "User")
     pub name: String,
@@ -407,7 +407,7 @@ pub struct IntermediateInputField {
 }
 
 /// Query definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct IntermediateQuery {
     /// Query name (e.g., "users")
     pub name: String,
@@ -482,7 +482,7 @@ pub struct IntermediateQuery {
 }
 
 /// Mutation definition in intermediate format
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct IntermediateMutation {
     /// Mutation name (e.g., "createUser")
     pub name: String,
