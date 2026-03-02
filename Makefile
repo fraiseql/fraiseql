@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
+.PHONY: help build test test-unit test-integration test-federation test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity
 
 # Default target
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
+	@echo "  make test-parity        - Run cross-SDK parity checks (requires uv, bun, go, mvn, php)"
 	@echo "  make coverage           - Generate test coverage report"
 	@echo ""
 	@echo "Database (Docker):"
@@ -419,6 +420,49 @@ e2e-status:
 	@which go > /dev/null && echo "  ✅ Go" || echo "  ❌ Go"
 	@which mvn > /dev/null 2>&1 || [ -d "$$HOME/.local/opt/apache-maven-"* ] && echo "  ✅ Java" || echo "  ❌ Java"
 	@which php > /dev/null && echo "  ✅ PHP" || echo "  ❌ PHP"
+
+# ============================================================================
+# Cross-SDK Parity Testing
+# ============================================================================
+
+PARITY_GOLDEN := tests/fixtures/golden/parity-schema.json
+
+## Generate parity schemas from all 5 authoring SDKs into /tmp/parity-*.json
+parity-generate:
+	@echo "=== Generating parity schemas ==="
+	@cd fraiseql-python && uv run python tests/generate_parity_schema.py \
+	    > /tmp/parity-python.json
+	@echo "  [1/5] Python done"
+	@cd fraiseql-typescript && bun run tests/generate-parity-schema.ts \
+	    > /tmp/parity-typescript.json
+	@echo "  [2/5] TypeScript done"
+	@cd fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
+	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
+	    > /tmp/parity-go.json
+	@echo "  [3/5] Go done"
+	@cd fraiseql-java && mvn -q test -Dtest=GenerateParitySchema \
+	    "-DschemaOutputFile=/tmp/parity-java.json" 2>/dev/null || \
+	    cd fraiseql-java && mvn test -Dtest=GenerateParitySchema \
+	    "-DschemaOutputFile=/tmp/parity-java.json"
+	@echo "  [4/5] Java done"
+	@cd fraiseql-php && php tests/GenerateParitySchema.php \
+	    > /tmp/parity-php.json
+	@echo "  [5/5] PHP done"
+
+## Compare parity schemas against each other and the golden fixture
+parity-compare: parity-generate
+	@echo "=== Comparing parity schemas ==="
+	@python3 tools/compare_parity_schemas.py \
+	    /tmp/parity-python.json \
+	    /tmp/parity-typescript.json \
+	    /tmp/parity-go.json \
+	    /tmp/parity-java.json \
+	    /tmp/parity-php.json \
+	    $(PARITY_GOLDEN)
+
+## Run all parity checks (generate + compare)
+test-parity: parity-compare
+	@echo "=== All SDK parity tests passed ==="
 
 # ============================================================================
 # Docker Demo Platform (Newcomer Onboarding)

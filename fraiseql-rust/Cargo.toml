@@ -32,4 +32,8 @@ path = "tests/integration_test.rs"
 name = "scope_extraction_test"
 path = "tests/scope_extraction_test.rs"
 
+[[test]]
+name = "generate_parity_schema"
+path = "tests/generate_parity_schema.rs"
+
 [workspace]
