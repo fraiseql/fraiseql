@@ -434,6 +434,377 @@ jobs:
       - name: Check for broken links
         run: cargo doc --all-features --no-deps 2>&1 | grep -i "warning" && exit 1 || exit 0
 
+  # Integration tests for Redis (APQ storage, observer queue and lease)
+  integration-redis:
+    name: Integration Tests (Redis)
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-redis-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run Redis APQ storage tests (fraiseql-core)
+        run: cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
+        env:
+          REDIS_URL: redis://localhost:6379
+          RUST_LOG: debug
+
+      - name: Run Redis observer queue and lease tests (fraiseql-observers)
+        run: cargo test -p fraiseql-observers --features "caching,queue,redis-lease" --lib -- --ignored --test-threads=1
+        env:
+          REDIS_URL: redis://localhost:6379
+          RUST_LOG: debug
+
+  # Integration tests for NATS JetStream (observer transport)
+  integration-nats:
+    name: Integration Tests (NATS)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-nats-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
+
+      - name: Wait for NATS to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8222/healthz > /dev/null 2>&1; then
+              echo "NATS is ready"
+              break
+            fi
+            echo "  waiting for NATS (attempt $i/20)..."
+            sleep 2
+            if [ "$i" -eq 20 ]; then
+              echo "NATS never became ready"
+              exit 1
+            fi
+          done
+
+      - name: Run NATS transport integration tests
+        run: cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
+        env:
+          RUST_LOG: debug
+
+      - name: Show NATS logs on failure
+        if: failure()
+        run: docker logs nats-test
+
+  # Integration tests for observer runtime (PostgreSQL + NATS)
+  integration-observers:
+    name: Integration Tests (Observers)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-observers-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
+
+      - name: Wait for NATS to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8222/healthz > /dev/null 2>&1; then
+              echo "NATS is ready"
+              break
+            fi
+            sleep 2
+            if [ "$i" -eq 20 ]; then echo "NATS never became ready"; exit 1; fi
+          done
+
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
+      - name: Run PostgreSQL NOTIFY transport tests
+        run: cargo test -p fraiseql-observers --features "postgres" --lib postgres_notify -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+      - name: Run observer storage and lease tests
+        run: cargo test -p fraiseql-observers --features "postgres,caching,redis-lease" --lib -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+      - name: Run bridge integration tests (PostgreSQL + NATS)
+        run: cargo test -p fraiseql-observers --features "postgres,nats" --test bridge_integration -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+      - name: Run fraiseql-server observer runtime tests
+        run: cargo test -p fraiseql-server --features "observers-nats" --test observer_runtime_integration_test -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
+  # Integration tests for TLS wire protocol (PostgreSQL with TLS)
+  integration-tls:
+    name: Integration Tests (TLS Wire Protocol)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker + psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold postgresql-client
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-tls-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Start PostgreSQL with TLS enabled
+        # postgres:16 includes openssl; the init script generates self-signed certs
+        # in $PGDATA and exposes the CA cert at /var/run/postgresql/ca.crt
+        run: |
+          docker run -d --name postgres-tls \
+            -p 5434:5432 \
+            -e POSTGRES_USER=fraiseql_test \
+            -e POSTGRES_PASSWORD=fraiseql_test_password \
+            -e POSTGRES_DB=test_fraiseql \
+            -v "$PWD/docker/init/postgres-tls-setup.sh:/docker-entrypoint-initdb.d/00-tls.sh:ro" \
+            postgres:16 \
+            -c ssl=on
+
+      - name: Wait for PostgreSQL TLS and extract CA certificate
+        run: |
+          for i in $(seq 1 40); do
+            if docker exec postgres-tls pg_isready -U fraiseql_test -d test_fraiseql > /dev/null 2>&1; then
+              echo "PostgreSQL TLS is ready"
+              break
+            fi
+            echo "  waiting for postgres-tls (attempt $i/40)..."
+            sleep 3
+            if [ "$i" -eq 40 ]; then
+              echo "PostgreSQL TLS never became ready"
+              docker logs postgres-tls
+              exit 1
+            fi
+          done
+          # Extract the generated CA cert so tests can verify the server cert
+          docker cp postgres-tls:/var/run/postgresql/ca.crt /tmp/tls-ca.crt
+          echo "CA cert extracted to /tmp/tls-ca.crt"
+          openssl x509 -in /tmp/tls-ca.crt -text -noout | head -20
+
+      - name: Run TLS wire integration tests
+        run: cargo test -p fraiseql-wire --test tls_integration -- --ignored --test-threads=1
+        env:
+          TLS_TEST_DB_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5434/test_fraiseql
+          TLS_TEST_CA_CERT: /tmp/tls-ca.crt
+          RUST_LOG: debug
+
+      - name: Run TLS lib tests (custom CA builder)
+        run: cargo test -p fraiseql-wire --lib -- --ignored --test-threads=1
+        env:
+          TLS_TEST_CA_CERT: /tmp/tls-ca.crt
+
+      - name: Show PostgreSQL TLS logs on failure
+        if: failure()
+        run: docker logs postgres-tls
+
+  # Integration tests for Vault secrets manager
+  integration-vault:
+    name: Integration Tests (Vault Secrets Manager)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-vault-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Start Vault in dev mode
+        run: |
+          docker run -d --name vault-test \
+            -p 8200:8200 \
+            --cap-add=IPC_LOCK \
+            -e VAULT_DEV_ROOT_TOKEN_ID=fraiseql-test-token \
+            -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+            -e VAULT_LOG_LEVEL=warn \
+            hashicorp/vault:1.17
+
+      - name: Wait for Vault to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8200/v1/sys/health > /dev/null 2>&1; then
+              echo "Vault is ready"
+              break
+            fi
+            echo "  waiting for Vault (attempt $i/20)..."
+            sleep 2
+            if [ "$i" -eq 20 ]; then echo "Vault never became ready"; exit 1; fi
+          done
+
+      - name: Run Vault secrets manager tests
+        run: cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: fraiseql-test-token
+          RUST_LOG: debug
+
+      - name: Show Vault logs on failure
+        if: failure()
+        run: docker logs vault-test
+
+  # Integration tests for fraiseql-server database queries
+  integration-server:
+    name: Integration Tests (Server Database)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fraiseql_test_password
+          POSTGRES_USER: fraiseql_test
+          POSTGRES_DB: test_fraiseql
+        options: >-
+          --health-cmd "pg_isready -U fraiseql_test -d test_fraiseql"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-server-db-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Initialize test database schema
+        run: |
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql
+          psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init-analytics.sql
+        env:
+          PGPASSWORD: fraiseql_test_password
+
+      - name: Run server database query tests
+        run: cargo test -p fraiseql-server --test database_query_test -- --ignored --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          RUST_LOG: debug
+
   # Optional: Run all ignored tests (triggered manually)
   ignored-tests:
     name: Ignored Tests (Manual)
@@ -453,6 +824,15 @@ jobs:
           --health-retries 5
         ports:
           - 5433:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
 
@@ -473,6 +853,42 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-ignored-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats-test -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js -m 8222
+
+      - name: Start Vault in dev mode
+        run: |
+          docker run -d --name vault-test -p 8200:8200 \
+            --cap-add=IPC_LOCK \
+            -e VAULT_DEV_ROOT_TOKEN_ID=fraiseql-test-token \
+            -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+            hashicorp/vault:1.17
+
+      - name: Start PostgreSQL with TLS
+        run: |
+          docker run -d --name postgres-tls -p 5434:5432 \
+            -e POSTGRES_USER=fraiseql_test \
+            -e POSTGRES_PASSWORD=fraiseql_test_password \
+            -e POSTGRES_DB=test_fraiseql \
+            -v "$PWD/docker/init/postgres-tls-setup.sh:/docker-entrypoint-initdb.d/00-tls.sh:ro" \
+            postgres:16 -c ssl=on
+
+      - name: Wait for all services
+        run: |
+          echo "Waiting for NATS..."
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8222/healthz && break || sleep 2
+          done
+          echo "Waiting for Vault..."
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8200/v1/sys/health && break || sleep 2
+          done
+          echo "Waiting for PostgreSQL TLS..."
+          for i in $(seq 1 40); do
+            docker exec postgres-tls pg_isready -U fraiseql_test -d test_fraiseql 2>/dev/null && break || sleep 3
+          done
+          docker cp postgres-tls:/var/run/postgresql/ca.crt /tmp/tls-ca.crt 2>/dev/null || true
+
       - name: Initialize test database schema
         run: |
           psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql || true
@@ -485,7 +901,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-          TLS_TEST_DB_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          SAGA_STORE_TEST_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          REDIS_URL: redis://localhost:6379
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: fraiseql-test-token
+          TLS_TEST_DB_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5434/test_fraiseql
+          TLS_TEST_CA_CERT: /tmp/tls-ca.crt
           RUST_LOG: info
 
   # Benchmark performance (only on v2-development)
@@ -598,7 +1019,24 @@ jobs:
   # All checks passed
   ci-success:
     name: CI Success
-    needs: [fmt, clippy, test, integration-postgres, integration-mysql, integration-sqlite, integration-sqlserver, coverage, security, docs, federation-tests]
+    needs:
+      - fmt
+      - clippy
+      - test
+      - integration-postgres
+      - integration-mysql
+      - integration-sqlite
+      - integration-sqlserver
+      - integration-redis
+      - integration-nats
+      - integration-observers
+      - integration-tls
+      - integration-vault
+      - integration-server
+      - coverage
+      - security
+      - docs
+      - federation-tests
     runs-on: ubuntu-latest
     steps:
       - name: Mark CI as successful

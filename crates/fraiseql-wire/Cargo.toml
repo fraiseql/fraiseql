@@ -55,7 +55,7 @@ zeroize = {version = "1.6", features = ["std", "derive"]}
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 proptest = {workspace = true}
-testcontainers = "0.26"
+testcontainers = {version = "0.26", features = ["watchdog"]}
 testcontainers-modules = {version = "0.14", features = ["postgres"]}
 tokio-postgres = "0.7"
 tokio-test = "0.4"

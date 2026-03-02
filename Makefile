@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
+.PHONY: help build test test-unit test-integration test-federation test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status
 
 # Default target
 help:
@@ -9,14 +9,15 @@ help:
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
+	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
 	@echo "  make coverage           - Generate test coverage report"
 	@echo ""
 	@echo "Database (Docker):"
-	@echo "  make db-up              - Start test databases (PostgreSQL, MySQL, SQL Server, Redis)"
-	@echo "  make db-down            - Stop test databases"
-	@echo "  make db-logs            - View database logs"
-	@echo "  make db-reset           - Reset test databases (remove volumes)"
-	@echo "  make db-status          - Check database health"
+	@echo "  make db-up              - Start all test infrastructure (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)"
+	@echo "  make db-down            - Stop test infrastructure"
+	@echo "  make db-logs            - View infrastructure logs"
+	@echo "  make db-reset           - Reset test infrastructure (remove volumes)"
+	@echo "  make db-status          - Check infrastructure health"
 	@echo "  make federation-up      - Start federation stack (Apollo Router + 3 subgraphs)"
 	@echo "  make federation-down    - Stop federation stack"
 	@echo ""
@@ -107,6 +108,45 @@ test-integration: db-up
 	@echo ""
 	@echo "All integration tests passed."
 
+# Run ALL #[ignore] tests — requires full test infrastructure (make db-up first).
+# Covers: Redis APQ, NATS transport, observer bridge, Vault secrets, server DB queries.
+# Stress tests (60s+ each) are excluded; run them separately with:
+#   cargo test -p fraiseql-observers --test stress_tests -- --ignored
+test-all-ignored: db-up
+	@echo ""
+	@echo "=== Redis tests (APQ + observer queue/lease) ==="
+	REDIS_URL="redis://localhost:6379" \
+		cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
+	REDIS_URL="redis://localhost:6379" \
+		cargo test -p fraiseql-observers --features "caching,queue,redis-lease" --lib -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== NATS transport tests ==="
+	cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== Observer bridge tests (PostgreSQL + NATS) ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-observers --features "postgres,nats" --test bridge_integration -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== Observer PostgreSQL transport + lease tests ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-observers --features "postgres,redis-lease" --lib -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== Vault secrets manager tests ==="
+	VAULT_ADDR="http://localhost:8200" \
+	VAULT_TOKEN="fraiseql-test-token" \
+		cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== Server database query tests ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-server --test database_query_test -- --ignored --test-threads=1
+	@echo ""
+	@echo "=== Observer server runtime tests ==="
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test -p fraiseql-server --features "observers-nats" --test observer_runtime_integration_test -- --ignored --test-threads=1
+	@echo ""
+	@echo "All ignored tests passed."
+
 # Run end-to-end tests
 test-e2e:
 	cargo test --test 'test_*' --all-features -- --ignored
@@ -167,12 +207,13 @@ watch-check:
 # Docker-based Test Database Management
 # ============================================================================
 
-# Start test databases (PostgreSQL, MySQL, SQL Server, Redis) and wait until healthy
+# Start all test infrastructure (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)
+# and wait until each service is healthy.
 db-up:
-	@echo "Starting test databases..."
+	@echo "Starting test infrastructure..."
 	@docker compose -f docker/docker-compose.test.yml up -d
 	@echo "Waiting for all services to be healthy..."
-	@for svc in postgres-test mysql-test sqlserver-test redis-test; do \
+	@for svc in postgres-test mysql-test sqlserver-test redis-test nats-test vault-test; do \
 		printf "  Waiting for %-20s" "$$svc..."; \
 		for i in $$(seq 1 60); do \
 			status=$$(docker inspect --format='{{.State.Health.Status}}' \
@@ -182,7 +223,7 @@ db-up:
 			sleep 2; \
 		done; \
 	done
-	@echo "All databases ready."
+	@echo "All services ready."
 	@docker compose -f docker/docker-compose.test.yml ps
 
 # Stop test databases
