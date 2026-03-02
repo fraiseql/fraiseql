@@ -440,7 +440,19 @@ export function input(
  * ]);
  * ```
  */
-export function registerTypeFields(typeName: string, fields: Field[], description?: string, options?: { relay?: boolean }): void {
+export function registerTypeFields(
+  typeName: string,
+  fields: Field[],
+  description?: string,
+  options?: {
+    relay?: boolean;
+    sqlSource?: string;
+    jsonbColumn?: string;
+    isError?: boolean;
+    requiresRole?: string;
+    implements?: string[];
+  }
+): void {
   SchemaRegistry.registerType(typeName, fields, description, options);
 }
 

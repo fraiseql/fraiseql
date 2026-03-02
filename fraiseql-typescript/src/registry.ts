@@ -32,6 +32,11 @@ export interface TypeDefinition {
   fields: Field[];
   description?: string;
   relay?: boolean;
+  sql_source?: string;
+  jsonb_column?: string;
+  is_error?: boolean;
+  requires_role?: string;
+  implements?: string[];
 }
 
 /**
@@ -239,18 +244,40 @@ export interface Schema {
 
 /**
  * Normalise camelCase config keys to snake_case so the Rust compiler receives
- * the expected field names.  Currently handles the known camelCase keys used
- * in decorator config objects.
+ * the expected field names.  Handles all known camelCase keys used in decorator
+ * config objects and performs structural transformations for inject and deprecated.
  */
 function normaliseConfig(config: Record<string, unknown>): Record<string, unknown> {
   const keyMap: Record<string, string> = {
     sqlSource: "sql_source",
     autoParams: "auto_params",
     jsonbColumn: "jsonb_column",
+    cacheTtlSeconds: "cache_ttl_seconds",
+    invalidatesViews: "invalidates_views",
+    invalidatesFactTables: "invalidates_fact_tables",
+    relayCursorColumn: "relay_cursor_column",
+    relayCursorType: "relay_cursor_type",
+    requiresRole: "requires_role",
+    additionalViews: "additional_views",
   };
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(config)) {
-    result[keyMap[key] ?? key] = value;
+    if (key === "inject" && value !== null && typeof value === "object") {
+      // Transform { param: "jwt:claim" } → inject_params: { param: { source: "jwt", claim: "claim" } }
+      const injected: Record<string, { source: string; claim: string }> = {};
+      for (const [param, spec] of Object.entries(value as Record<string, string>)) {
+        const colonIdx = spec.indexOf(":");
+        if (colonIdx > 0) {
+          injected[param] = { source: spec.slice(0, colonIdx), claim: spec.slice(colonIdx + 1) };
+        }
+      }
+      result["inject_params"] = injected;
+    } else if (key === "deprecated" && typeof value === "string") {
+      // Transform deprecated: "reason" → deprecation: { reason: "reason" }
+      result["deprecation"] = { reason: value };
+    } else {
+      result[keyMap[key] ?? key] = value;
+    }
   }
   return result;
 }
@@ -281,17 +308,33 @@ export class SchemaRegistry {
    * @param name - Type name (e.g., "User")
    * @param fields - List of field definitions
    * @param description - Optional type description
+   * @param options - Additional type options
    */
-  static registerType(name: string, fields: Field[], description?: string, options?: { relay?: boolean }): void {
+  static registerType(
+    name: string,
+    fields: Field[],
+    description?: string,
+    options?: {
+      relay?: boolean;
+      sqlSource?: string;
+      jsonbColumn?: string;
+      isError?: boolean;
+      requiresRole?: string;
+      implements?: string[];
+    }
+  ): void {
     if (this.types.has(name)) {
       throw new Error(
         `Type '${name}' is already registered. Each name must be unique within a schema.`
       );
     }
     const typeDef: TypeDefinition = { name, fields, description };
-    if (options?.relay) {
-      typeDef.relay = true;
-    }
+    if (options?.relay) typeDef.relay = true;
+    if (options?.sqlSource) typeDef.sql_source = options.sqlSource;
+    if (options?.jsonbColumn) typeDef.jsonb_column = options.jsonbColumn;
+    if (options?.isError) typeDef.is_error = true;
+    if (options?.requiresRole) typeDef.requires_role = options.requiresRole;
+    if (options?.implements) typeDef.implements = options.implements;
     this.types.set(name, typeDef);
   }
 
