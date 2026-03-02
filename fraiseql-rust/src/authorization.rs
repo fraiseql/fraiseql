@@ -39,7 +39,8 @@ impl Default for AuthorizeConfig {
 }
 
 impl AuthorizeConfig {
-    /// Convert to HashMap for serialization
+    /// Convert to `HashMap` for serialization
+    #[must_use]
     pub fn to_map(&self) -> HashMap<String, String> {
         let mut map = HashMap::new();
         map.insert("rule".to_string(), self.rule.clone());
@@ -58,7 +59,8 @@ impl AuthorizeConfig {
 }
 
 /// Fluent builder for custom authorization rules
-#[derive(Debug, Default)]
+#[derive(Debug)]
+#[must_use]
 pub struct AuthorizeBuilder {
     rule: String,
     policy: String,
@@ -68,6 +70,21 @@ pub struct AuthorizeBuilder {
     operations: String,
     cacheable: bool,
     cache_duration_seconds: u32,
+}
+
+impl Default for AuthorizeBuilder {
+    fn default() -> Self {
+        Self {
+            rule: String::new(),
+            policy: String::new(),
+            description: String::new(),
+            error_message: String::new(),
+            recursive: false,
+            operations: String::new(),
+            cacheable: true,
+            cache_duration_seconds: 300,
+        }
+    }
 }
 
 impl AuthorizeBuilder {
@@ -101,7 +118,7 @@ impl AuthorizeBuilder {
     }
 
     /// Set recursive application
-    pub fn recursive(mut self, recursive: bool) -> Self {
+    pub const fn recursive(mut self, recursive: bool) -> Self {
         self.recursive = recursive;
         self
     }
@@ -113,18 +130,19 @@ impl AuthorizeBuilder {
     }
 
     /// Enable or disable caching
-    pub fn cacheable(mut self, cacheable: bool) -> Self {
+    pub const fn cacheable(mut self, cacheable: bool) -> Self {
         self.cacheable = cacheable;
         self
     }
 
     /// Set cache duration in seconds
-    pub fn cache_duration_seconds(mut self, duration: u32) -> Self {
+    pub const fn cache_duration_seconds(mut self, duration: u32) -> Self {
         self.cache_duration_seconds = duration;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> AuthorizeConfig {
         AuthorizeConfig {
             rule: self.rule,

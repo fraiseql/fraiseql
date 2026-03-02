@@ -1,11 +1,13 @@
 //! Role-based access control (RBAC)
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Role matching strategies
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RoleMatchStrategy {
     /// At least one role must match
+    #[default]
     Any,
     /// All roles must match
     All,
@@ -15,21 +17,25 @@ pub enum RoleMatchStrategy {
 
 impl RoleMatchStrategy {
     /// Get string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Any => "any",
             Self::All => "all",
             Self::Exactly => "exactly",
         }
     }
+}
 
-    /// Parse from string
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for RoleMatchStrategy {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "any" => Some(Self::Any),
-            "all" => Some(Self::All),
-            "exactly" => Some(Self::Exactly),
-            _ => None,
+            "any" => Ok(Self::Any),
+            "all" => Ok(Self::All),
+            "exactly" => Ok(Self::Exactly),
+            _ => Err(()),
         }
     }
 }
@@ -37,12 +43,6 @@ impl RoleMatchStrategy {
 impl std::fmt::Display for RoleMatchStrategy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
-    }
-}
-
-impl Default for RoleMatchStrategy {
-    fn default() -> Self {
-        Self::Any
     }
 }
 
@@ -86,13 +86,11 @@ impl Default for RoleRequiredConfig {
 }
 
 impl RoleRequiredConfig {
-    /// Convert to HashMap for serialization
+    /// Convert to `HashMap` for serialization
+    #[must_use]
     pub fn to_map(&self) -> HashMap<String, String> {
         let mut map = HashMap::new();
-        map.insert(
-            "roles".to_string(),
-            self.roles.join(","),
-        );
+        map.insert("roles".to_string(), self.roles.join(","));
         map.insert("strategy".to_string(), self.strategy.as_str().to_string());
         map.insert("hierarchy".to_string(), self.hierarchy.to_string());
         map.insert("description".to_string(), self.description.clone());
@@ -109,7 +107,8 @@ impl RoleRequiredConfig {
 }
 
 /// Fluent builder for role-based access control
-#[derive(Debug, Default)]
+#[derive(Debug)]
+#[must_use]
 pub struct RoleRequiredBuilder {
     roles: Vec<String>,
     strategy: RoleMatchStrategy,
@@ -122,6 +121,22 @@ pub struct RoleRequiredBuilder {
     cache_duration_seconds: u32,
 }
 
+impl Default for RoleRequiredBuilder {
+    fn default() -> Self {
+        Self {
+            roles: Vec::new(),
+            strategy: RoleMatchStrategy::Any,
+            hierarchy: false,
+            description: String::new(),
+            error_message: String::new(),
+            operations: String::new(),
+            inherit: false,
+            cacheable: true,
+            cache_duration_seconds: 300,
+        }
+    }
+}
+
 impl RoleRequiredBuilder {
     /// Create a new builder
     pub fn new() -> Self {
@@ -130,7 +145,7 @@ impl RoleRequiredBuilder {
 
     /// Set required roles (variadic)
     pub fn roles(mut self, roles: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.roles = roles.into_iter().map(|r| r.into()).collect();
+        self.roles = roles.into_iter().map(std::convert::Into::into).collect();
         self
     }
 
@@ -141,13 +156,13 @@ impl RoleRequiredBuilder {
     }
 
     /// Set role matching strategy
-    pub fn strategy(mut self, strategy: RoleMatchStrategy) -> Self {
+    pub const fn strategy(mut self, strategy: RoleMatchStrategy) -> Self {
         self.strategy = strategy;
         self
     }
 
     /// Enable role hierarchy
-    pub fn hierarchy(mut self, hierarchy: bool) -> Self {
+    pub const fn hierarchy(mut self, hierarchy: bool) -> Self {
         self.hierarchy = hierarchy;
         self
     }
@@ -171,24 +186,25 @@ impl RoleRequiredBuilder {
     }
 
     /// Enable role inheritance
-    pub fn inherit(mut self, inherit: bool) -> Self {
+    pub const fn inherit(mut self, inherit: bool) -> Self {
         self.inherit = inherit;
         self
     }
 
     /// Enable caching
-    pub fn cacheable(mut self, cacheable: bool) -> Self {
+    pub const fn cacheable(mut self, cacheable: bool) -> Self {
         self.cacheable = cacheable;
         self
     }
 
     /// Set cache duration in seconds
-    pub fn cache_duration_seconds(mut self, duration: u32) -> Self {
+    pub const fn cache_duration_seconds(mut self, duration: u32) -> Self {
         self.cache_duration_seconds = duration;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> RoleRequiredConfig {
         RoleRequiredConfig {
             roles: self.roles,

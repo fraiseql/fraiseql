@@ -71,7 +71,7 @@ impl Field {
     /// assert!(!field.nullable);
     /// ```
     #[must_use]
-    pub fn with_nullable(mut self, nullable: bool) -> Self {
+    pub const fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }

@@ -1,6 +1,7 @@
 //! Authorization policies (RBAC, ABAC, Custom, Hybrid)
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// Authorization policy types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,7 +18,8 @@ pub enum AuthzPolicyType {
 
 impl AuthzPolicyType {
     /// Get string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Rbac => "rbac",
             Self::Abac => "abac",
@@ -25,15 +27,18 @@ impl AuthzPolicyType {
             Self::Hybrid => "hybrid",
         }
     }
+}
 
-    /// Parse from string
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for AuthzPolicyType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "rbac" => Some(Self::Rbac),
-            "abac" => Some(Self::Abac),
-            "custom" => Some(Self::Custom),
-            "hybrid" => Some(Self::Hybrid),
-            _ => None,
+            "rbac" => Ok(Self::Rbac),
+            "abac" => Ok(Self::Abac),
+            "custom" => Ok(Self::Custom),
+            "hybrid" => Ok(Self::Hybrid),
+            _ => Err(()),
         }
     }
 }
@@ -89,17 +94,15 @@ impl AuthzPolicyConfig {
         }
     }
 
-    /// Convert to HashMap for serialization
+    /// Convert to `HashMap` for serialization
+    #[must_use]
     pub fn to_map(&self) -> HashMap<String, String> {
         let mut map = HashMap::new();
         map.insert("name".to_string(), self.name.clone());
         map.insert("type".to_string(), self.policy_type.as_str().to_string());
         map.insert("description".to_string(), self.description.clone());
         map.insert("rule".to_string(), self.rule.clone());
-        map.insert(
-            "attributes".to_string(),
-            self.attributes.join(","),
-        );
+        map.insert("attributes".to_string(), self.attributes.join(","));
         map.insert("cacheable".to_string(), self.cacheable.to_string());
         map.insert(
             "cacheDurationSeconds".to_string(),
@@ -115,6 +118,7 @@ impl AuthzPolicyConfig {
 
 /// Fluent builder for authorization policies
 #[derive(Debug)]
+#[must_use]
 pub struct AuthzPolicyBuilder {
     name: String,
     policy_type: AuthzPolicyType,
@@ -148,7 +152,7 @@ impl AuthzPolicyBuilder {
     }
 
     /// Set policy type
-    pub fn policy_type(mut self, policy_type: AuthzPolicyType) -> Self {
+    pub const fn policy_type(mut self, policy_type: AuthzPolicyType) -> Self {
         self.policy_type = policy_type;
         self
     }
@@ -167,7 +171,7 @@ impl AuthzPolicyBuilder {
 
     /// Set ABAC attributes (variadic)
     pub fn attributes(mut self, attrs: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.attributes = attrs.into_iter().map(|a| a.into()).collect();
+        self.attributes = attrs.into_iter().map(std::convert::Into::into).collect();
         self
     }
 
@@ -178,19 +182,19 @@ impl AuthzPolicyBuilder {
     }
 
     /// Enable caching
-    pub fn cacheable(mut self, cacheable: bool) -> Self {
+    pub const fn cacheable(mut self, cacheable: bool) -> Self {
         self.cacheable = cacheable;
         self
     }
 
     /// Set cache duration in seconds
-    pub fn cache_duration_seconds(mut self, duration: u32) -> Self {
+    pub const fn cache_duration_seconds(mut self, duration: u32) -> Self {
         self.cache_duration_seconds = duration;
         self
     }
 
     /// Set recursive application
-    pub fn recursive(mut self, recursive: bool) -> Self {
+    pub const fn recursive(mut self, recursive: bool) -> Self {
         self.recursive = recursive;
         self
     }
@@ -202,7 +206,7 @@ impl AuthzPolicyBuilder {
     }
 
     /// Enable audit logging
-    pub fn audit_logging(mut self, audit_logging: bool) -> Self {
+    pub const fn audit_logging(mut self, audit_logging: bool) -> Self {
         self.audit_logging = audit_logging;
         self
     }
@@ -214,6 +218,7 @@ impl AuthzPolicyBuilder {
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> AuthzPolicyConfig {
         AuthzPolicyConfig {
             name: self.name,

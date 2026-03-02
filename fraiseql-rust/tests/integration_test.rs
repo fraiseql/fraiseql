@@ -1,9 +1,12 @@
 //! Integration tests for FraiseQL Rust security module
 
+use std::str::FromStr;
 use fraiseql_rust::{
     AuthorizeBuilder, RoleRequiredBuilder, AuthzPolicyBuilder,
     RoleMatchStrategy, AuthzPolicyType,
 };
+use fraiseql_rust::field::Field;
+use fraiseql_rust::schema::{SchemaRegistry, ScopeValidationError, validate_scope};
 
 // ============================================================================
 // AUTHORIZATION TESTS (11 tests)
@@ -736,4 +739,311 @@ fn test_default_policy() {
     assert_eq!(config.policy_type, AuthzPolicyType::Custom);
     assert!(config.cacheable);
     assert_eq!(config.cache_duration_seconds, 300);
+}
+
+// ============================================================================
+// PHASE 08 — COMPLETE FIELD ASSERTIONS
+// ============================================================================
+
+// --- AuthorizeConfig: every field ---
+
+#[test]
+fn authorize_builder_all_fields() {
+    let config = AuthorizeBuilder::new()
+        .rule("isOwner($context.userId, $field.ownerId)")
+        .policy("ownerPolicy")
+        .description("Ownership check")
+        .error_message("You do not own this resource")
+        .recursive(true)
+        .operations("read,update")
+        .cacheable(false)
+        .cache_duration_seconds(120)
+        .build();
+
+    assert_eq!(config.rule, "isOwner($context.userId, $field.ownerId)");
+    assert_eq!(config.policy, "ownerPolicy");
+    assert_eq!(config.description, "Ownership check");
+    assert_eq!(config.error_message, "You do not own this resource");
+    assert!(config.recursive);
+    assert_eq!(config.operations, "read,update");
+    assert!(!config.cacheable);
+    assert_eq!(config.cache_duration_seconds, 120);
+}
+
+#[test]
+fn authorize_to_map_all_keys() {
+    let config = AuthorizeBuilder::new()
+        .rule("testRule")
+        .policy("testPolicy")
+        .description("desc")
+        .error_message("err")
+        .recursive(true)
+        .operations("delete")
+        .cacheable(false)
+        .cache_duration_seconds(60)
+        .build();
+
+    let map = config.to_map();
+
+    assert_eq!(map.get("rule"), Some(&"testRule".to_string()));
+    assert_eq!(map.get("policy"), Some(&"testPolicy".to_string()));
+    assert_eq!(map.get("description"), Some(&"desc".to_string()));
+    assert_eq!(map.get("errorMessage"), Some(&"err".to_string()));
+    assert_eq!(map.get("recursive"), Some(&"true".to_string()));
+    assert_eq!(map.get("operations"), Some(&"delete".to_string()));
+    assert_eq!(map.get("cacheable"), Some(&"false".to_string()));
+    assert_eq!(map.get("cacheDurationSeconds"), Some(&"60".to_string()));
+}
+
+// --- RoleRequiredConfig: every field ---
+
+#[test]
+fn role_required_builder_all_fields() {
+    let config = RoleRequiredBuilder::new()
+        .roles(vec!["admin", "superuser"])
+        .strategy(RoleMatchStrategy::All)
+        .hierarchy(true)
+        .description("Full admin access")
+        .error_message("Admins only")
+        .operations("create,delete")
+        .inherit(true)
+        .cacheable(false)
+        .cache_duration_seconds(600)
+        .build();
+
+    assert_eq!(config.roles, vec!["admin", "superuser"]);
+    assert_eq!(config.strategy, RoleMatchStrategy::All);
+    assert!(config.hierarchy);
+    assert_eq!(config.description, "Full admin access");
+    assert_eq!(config.error_message, "Admins only");
+    assert_eq!(config.operations, "create,delete");
+    assert!(config.inherit);
+    assert!(!config.cacheable);
+    assert_eq!(config.cache_duration_seconds, 600);
+}
+
+#[test]
+fn role_required_builder_roles_vec() {
+    let roles = vec!["editor".to_string(), "reviewer".to_string()];
+    let config = RoleRequiredBuilder::new().roles_vec(roles.clone()).build();
+
+    assert_eq!(config.roles, roles);
+}
+
+#[test]
+fn role_required_to_map_all_keys() {
+    let config = RoleRequiredBuilder::new()
+        .roles(vec!["admin", "editor"])
+        .strategy(RoleMatchStrategy::Exactly)
+        .hierarchy(true)
+        .description("desc")
+        .error_message("err")
+        .operations("read")
+        .inherit(true)
+        .cacheable(false)
+        .cache_duration_seconds(90)
+        .build();
+
+    let map = config.to_map();
+
+    assert_eq!(map.get("roles"), Some(&"admin,editor".to_string()));
+    assert_eq!(map.get("strategy"), Some(&"exactly".to_string()));
+    assert_eq!(map.get("hierarchy"), Some(&"true".to_string()));
+    assert_eq!(map.get("description"), Some(&"desc".to_string()));
+    assert_eq!(map.get("errorMessage"), Some(&"err".to_string()));
+    assert_eq!(map.get("operations"), Some(&"read".to_string()));
+    assert_eq!(map.get("inherit"), Some(&"true".to_string()));
+    assert_eq!(map.get("cacheable"), Some(&"false".to_string()));
+    assert_eq!(map.get("cacheDurationSeconds"), Some(&"90".to_string()));
+}
+
+#[test]
+fn role_match_strategy_from_str_all_variants() {
+    assert_eq!(RoleMatchStrategy::from_str("any"), Ok(RoleMatchStrategy::Any));
+    assert_eq!(RoleMatchStrategy::from_str("all"), Ok(RoleMatchStrategy::All));
+    assert_eq!(RoleMatchStrategy::from_str("exactly"), Ok(RoleMatchStrategy::Exactly));
+    assert_eq!(RoleMatchStrategy::from_str("ANY"), Ok(RoleMatchStrategy::Any));
+    assert_eq!(RoleMatchStrategy::from_str("unknown"), Err(()));
+}
+
+#[test]
+fn role_match_strategy_display() {
+    assert_eq!(RoleMatchStrategy::Any.to_string(), "any");
+    assert_eq!(RoleMatchStrategy::All.to_string(), "all");
+    assert_eq!(RoleMatchStrategy::Exactly.to_string(), "exactly");
+}
+
+// --- AuthzPolicyConfig: every field ---
+
+#[test]
+fn authz_policy_builder_all_fields() {
+    let config = AuthzPolicyBuilder::new("fullPolicy")
+        .policy_type(AuthzPolicyType::Hybrid)
+        .description("All fields exercised")
+        .rule("hasRole($context, 'admin')")
+        .attributes(vec!["clearance >= 3", "active == true"])
+        .cacheable(false)
+        .cache_duration_seconds(900)
+        .recursive(true)
+        .operations("create,read,update,delete")
+        .audit_logging(true)
+        .error_message("Insufficient privileges")
+        .build();
+
+    assert_eq!(config.name, "fullPolicy");
+    assert_eq!(config.policy_type, AuthzPolicyType::Hybrid);
+    assert_eq!(config.description, "All fields exercised");
+    assert_eq!(config.rule, "hasRole($context, 'admin')");
+    assert_eq!(config.attributes, vec!["clearance >= 3", "active == true"]);
+    assert!(!config.cacheable);
+    assert_eq!(config.cache_duration_seconds, 900);
+    assert!(config.recursive);
+    assert_eq!(config.operations, "create,read,update,delete");
+    assert!(config.audit_logging);
+    assert_eq!(config.error_message, "Insufficient privileges");
+}
+
+#[test]
+fn authz_policy_to_map_all_keys() {
+    let config = AuthzPolicyBuilder::new("mapPolicy")
+        .policy_type(AuthzPolicyType::Abac)
+        .description("desc")
+        .rule("rule_expr")
+        .attributes(vec!["attr1", "attr2"])
+        .cacheable(false)
+        .cache_duration_seconds(45)
+        .recursive(true)
+        .operations("read")
+        .audit_logging(true)
+        .error_message("denied")
+        .build();
+
+    let map = config.to_map();
+
+    assert_eq!(map.get("name"), Some(&"mapPolicy".to_string()));
+    assert_eq!(map.get("type"), Some(&"abac".to_string()));
+    assert_eq!(map.get("description"), Some(&"desc".to_string()));
+    assert_eq!(map.get("rule"), Some(&"rule_expr".to_string()));
+    assert_eq!(map.get("attributes"), Some(&"attr1,attr2".to_string()));
+    assert_eq!(map.get("cacheable"), Some(&"false".to_string()));
+    assert_eq!(map.get("cacheDurationSeconds"), Some(&"45".to_string()));
+    assert_eq!(map.get("recursive"), Some(&"true".to_string()));
+    assert_eq!(map.get("operations"), Some(&"read".to_string()));
+    assert_eq!(map.get("auditLogging"), Some(&"true".to_string()));
+    assert_eq!(map.get("errorMessage"), Some(&"denied".to_string()));
+}
+
+#[test]
+fn authz_policy_type_from_str_all_variants() {
+    assert_eq!(AuthzPolicyType::from_str("rbac"), Ok(AuthzPolicyType::Rbac));
+    assert_eq!(AuthzPolicyType::from_str("abac"), Ok(AuthzPolicyType::Abac));
+    assert_eq!(AuthzPolicyType::from_str("custom"), Ok(AuthzPolicyType::Custom));
+    assert_eq!(AuthzPolicyType::from_str("hybrid"), Ok(AuthzPolicyType::Hybrid));
+    assert_eq!(AuthzPolicyType::from_str("RBAC"), Ok(AuthzPolicyType::Rbac));
+    assert_eq!(AuthzPolicyType::from_str("unknown"), Err(()));
+}
+
+#[test]
+fn authz_policy_type_display() {
+    assert_eq!(AuthzPolicyType::Rbac.to_string(), "rbac");
+    assert_eq!(AuthzPolicyType::Abac.to_string(), "abac");
+    assert_eq!(AuthzPolicyType::Custom.to_string(), "custom");
+    assert_eq!(AuthzPolicyType::Hybrid.to_string(), "hybrid");
+}
+
+// --- ScopeValidationError: untested variants ---
+
+#[test]
+fn scope_validation_empty_action() {
+    let err = validate_scope(":resource").unwrap_err();
+    assert_eq!(err, ScopeValidationError::EmptyAction);
+}
+
+#[test]
+fn scope_validation_empty_resource() {
+    let err = validate_scope("action:").unwrap_err();
+    assert_eq!(err, ScopeValidationError::EmptyResource);
+}
+
+#[test]
+fn scope_validation_invalid_action_starts_with_digit() {
+    let err = validate_scope("1read:user").unwrap_err();
+    assert!(matches!(err, ScopeValidationError::InvalidAction(_)));
+}
+
+#[test]
+fn scope_validation_invalid_resource_starts_with_digit() {
+    let err = validate_scope("read:1user").unwrap_err();
+    assert!(matches!(err, ScopeValidationError::InvalidResource(_)));
+}
+
+// --- Field: JSON export completeness ---
+
+#[test]
+fn field_to_json_includes_type_and_nullable() {
+    let field = Field::new("id", "Int").with_nullable(false);
+    let json = field.to_json();
+
+    assert!(json.contains("\"name\":\"id\""));
+    assert!(json.contains("\"type\":\"Int\""));
+    assert!(json.contains("\"nullable\":false"));
+}
+
+#[test]
+fn field_to_json_with_requires_scopes_array() {
+    let scopes = vec!["read:user.email".to_string(), "write:user.email".to_string()];
+    let field = Field::new("email", "String").with_requires_scopes(Some(scopes));
+    let json = field.to_json();
+
+    assert!(json.contains("\"requiresScopes\""));
+    assert!(json.contains("\"read:user.email\""));
+    assert!(json.contains("\"write:user.email\""));
+}
+
+#[test]
+fn field_to_json_with_description() {
+    let field = Field::new("email", "String")
+        .with_description(Some("Primary contact email".to_string()));
+    let json = field.to_json();
+
+    assert!(json.contains("\"description\""));
+    assert!(json.contains("Primary contact email"));
+}
+
+// --- SchemaRegistry: unknown type, overwrite, no-scopes type ---
+
+#[test]
+fn schema_registry_get_unknown_type_returns_none() {
+    let registry = SchemaRegistry::new();
+    assert!(registry.get_type("NonExistent").is_none());
+}
+
+#[test]
+fn schema_registry_overwrite_type() {
+    let mut registry = SchemaRegistry::new();
+    registry.register_type("User", vec![Field::new("id", "Int")]);
+    registry.register_type("User", vec![Field::new("id", "Int"), Field::new("name", "String")]);
+
+    assert_eq!(registry.get_type("User").unwrap().len(), 2);
+}
+
+#[test]
+fn schema_registry_extract_scoped_fields_excludes_unscoped_types() {
+    let mut registry = SchemaRegistry::new();
+    registry.register_type("Config", vec![Field::new("version", "String")]);
+
+    let scoped = registry.extract_scoped_fields();
+    assert!(!scoped.contains_key("Config"));
+}
+
+#[test]
+fn schema_registry_extract_scoped_fields_includes_requires_scopes() {
+    let mut registry = SchemaRegistry::new();
+    let scopes = vec!["read:user.email".to_string(), "admin:*".to_string()];
+    let fields = vec![Field::new("email", "String").with_requires_scopes(Some(scopes))];
+    registry.register_type("User", fields);
+
+    let scoped = registry.extract_scoped_fields();
+    assert!(scoped.contains_key("User"));
+    assert!(scoped["User"].contains(&"email".to_string()));
 }

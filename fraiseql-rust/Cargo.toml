@@ -29,7 +29,7 @@ name = "integration_test"
 path = "tests/integration_test.rs"
 
 [[test]]
-name = "phase18_cycle16_scope_extraction_test"
-path = "tests/phase18_cycle16_scope_extraction_test.rs"
+name = "scope_extraction_test"
+path = "tests/scope_extraction_test.rs"
 
 [workspace]
