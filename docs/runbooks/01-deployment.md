@@ -17,6 +17,7 @@
 ## Investigation
 
 1. **Check current deployment status**
+
    ```bash
    # List all FraiseQL containers
    docker ps | grep fraiseql
@@ -29,6 +30,7 @@
    ```
 
 2. **Verify compiled schema is present**
+
    ```bash
    # Check if schema file exists
    ls -lah /etc/fraiseql/schema.compiled.json
@@ -41,6 +43,7 @@
    ```
 
 3. **Check resource availability**
+
    ```bash
    # Check disk space
    df -h /etc/fraiseql /var/lib/docker
@@ -53,6 +56,7 @@
    ```
 
 4. **Verify database connection**
+
    ```bash
    # Test database connectivity
    psql $DATABASE_URL -c "SELECT now(), version();" && echo "DB OK" || echo "DB ERROR"
@@ -62,6 +66,7 @@
    ```
 
 5. **Check configuration and secrets**
+
    ```bash
    # List environment variables
    env | grep -E "^(DB_|REDIS_|VAULT_|RUST_LOG|PORT|SCHEMA_PATH)"
