@@ -192,6 +192,7 @@ insta = { version = "1", features = ["yaml"] }
 New file: `crates/fraiseql-core/tests/compiler_snapshots.rs`
 
 Cover these paths:
+
 - Simple list query (no filter)
 - Query with user WHERE clause
 - Query with RLS applied
@@ -207,6 +208,7 @@ Cover these paths:
 **Why**: No sustained-concurrency testing. Connection pool behavior under 50+ simultaneous requests, circuit breaker recovery, graceful shutdown under active load are unverified.
 
 **What to test**:
+
 1. Sustained load: 50 concurrent requests, 60 seconds, PostgreSQL
 2. Connection pool ≤ `pool_max` (monitor `pg_stat_activity`)
 3. No connection leak (before/after count)
@@ -224,6 +226,7 @@ grep -r "FlightService\|flight_service" crates/ --include="*.rs" -l
 ```
 
 Expected outcome:
+
 1. Different use cases (standalone vs embedded) → add comment distinguishing them
 2. Actual duplication → consolidate
 3. Dead code → delete it
@@ -265,6 +268,7 @@ Add module-level doc:
 Current: problem-only ("Unknown field"). Target: problem + fix ("Unknown field. Valid fields are: [list]").
 
 Priority errors:
+
 - Type mismatch: add "check your schema.py type annotation"
 - Unknown field: add "valid fields are: [list]"
 - Unauthorized: distinguish missing JWT / expired / insufficient scope
