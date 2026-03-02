@@ -5,7 +5,7 @@
 ## Install
 
 ```
-$ npm install p-limit
+npm install p-limit
 ```
 
 ## Usage
@@ -16,15 +16,15 @@ const pLimit = require('p-limit');
 const limit = pLimit(1);
 
 const input = [
-	limit(() => fetchSomething('foo')),
-	limit(() => fetchSomething('bar')),
-	limit(() => doSomething())
+ limit(() => fetchSomething('foo')),
+ limit(() => fetchSomething('bar')),
+ limit(() => doSomething())
 ];
 
 (async () => {
-	// Only one promise is run at once
-	const result = await Promise.all(input);
-	console.log(result);
+ // Only one promise is run at once
+ const result = await Promise.all(input);
+ console.log(result);
 })();
 ```
 
@@ -91,11 +91,11 @@ This package is only about limiting the number of concurrent executions, while `
 ---
 
 <div align="center">
-	<b>
-		<a href="https://tidelift.com/subscription/pkg/npm-p-limit?utm_source=npm-p-limit&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
-	</b>
-	<br>
-	<sub>
-		Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
-	</sub>
+ <b>
+  <a href="https://tidelift.com/subscription/pkg/npm-p-limit?utm_source=npm-p-limit&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
+ </b>
+ <br>
+ <sub>
+  Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
+ </sub>
 </div>

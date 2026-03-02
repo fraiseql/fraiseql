@@ -8,7 +8,7 @@ chrono = {version = "0.4", features = ["serde"]}
 dashmap = "6.1"
 hex = "0.4"
 http = "1"
-jsonwebtoken = "9.2"
+jsonwebtoken = "10.3"
 rand = "0.8"
 # Redis for distributed rate limiting (optional)
 redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
@@ -39,8 +39,8 @@ redis-rate-limiting = ["redis"]
 workspace = true
 
 [package]
-name = "fraiseql-auth"
 description = "Authentication, authorization, and session management for FraiseQL"
+name = "fraiseql-auth"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true
