@@ -1118,9 +1118,21 @@ jobs:
           python-version: "3.12"
 
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "fraiseql-python/uv.lock"
 
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('fraiseql-typescript/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
 
       - uses: actions/setup-go@v5
         with:
@@ -1130,9 +1142,17 @@ jobs:
         with:
           java-version: "21"
           distribution: temurin
+          cache: maven
 
       - name: Install PHP
         run: sudo apt-get install -y php-cli php-mbstring php-xml php-curl
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: fraiseql-php/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('fraiseql-php/composer.json') }}
+          restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer
         run: |
