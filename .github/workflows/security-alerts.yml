@@ -15,7 +15,7 @@ jobs:
     name: Scan Base Images
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Pull latest base images
         run: |
@@ -141,7 +141,7 @@ jobs:
     name: Monitor Active CVEs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check CVE-2025-14104 (util-linux)
         id: cve-14104
@@ -289,7 +289,7 @@ jobs:
     needs: [scan-base-images, monitor-active-cves]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Generate compliance summary
         run: |

@@ -34,11 +34,11 @@ deadpool = {workspace = true}
 # fraiseql-wire backend (optional)
 fraiseql-wire = {workspace = true, optional = true}
 futures = {workspace = true}
-indexmap = {workspace = true}
 # GraphQL
 graphql-parser = {workspace = true}
 hex = {workspace = true}
 hmac = {workspace = true}
+indexmap = {workspace = true}
 itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
 linked-hash-map = {workspace = true}
