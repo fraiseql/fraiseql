@@ -28,6 +28,8 @@ final class TypeBuilder
     private array $fields = [];
 
     private ?string $description = null;
+    private ?string $sqlSourceValue = null;
+    private bool $isErrorValue = false;
 
     /**
      * Create a new TypeBuilder for a type.
@@ -184,6 +186,40 @@ final class TypeBuilder
     }
 
     /**
+     * Set the SQL source (view name) for this type.
+     *
+     * @param string $source The SQL view name
+     * @return self Fluent interface
+     */
+    public function sqlSource(string $source): self
+    {
+        $this->sqlSourceValue = $source;
+        return $this;
+    }
+
+    /**
+     * Mark this type as an error type.
+     *
+     * @param bool $isError Whether this type represents an error
+     * @return self Fluent interface
+     */
+    public function isError(bool $isError = true): self
+    {
+        $this->isErrorValue = $isError;
+        return $this;
+    }
+
+    /**
+     * Register this type with the StaticAPI registry.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        StaticAPI::registerTypeBuilder($this);
+    }
+
+    /**
      * Get the type name.
      *
      * @return string
@@ -201,6 +237,26 @@ final class TypeBuilder
     public function getDescription(): ?string
     {
         return $this->description;
+    }
+
+    /**
+     * Get the SQL source for this type.
+     *
+     * @return string|null
+     */
+    public function getSqlSource(): ?string
+    {
+        return $this->sqlSourceValue;
+    }
+
+    /**
+     * Whether this type is an error type.
+     *
+     * @return bool
+     */
+    public function getIsError(): bool
+    {
+        return $this->isErrorValue;
     }
 
     /**

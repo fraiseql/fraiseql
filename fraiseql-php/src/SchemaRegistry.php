@@ -38,6 +38,15 @@ final class SchemaRegistry
     /** @var array<string, SubscriptionDefinition> Registered subscriptions */
     private array $subscriptions = [];
 
+    /** @var array<string, QueryBuilder> Registered queries */
+    private array $queries = [];
+
+    /** @var array<string, MutationBuilder> Registered mutations */
+    private array $mutations = [];
+
+    /** @var array<string, array{sql_source: string|null, is_error: bool}> Extra type metadata */
+    private array $typeMeta = [];
+
     private function __construct()
     {
     }
@@ -215,6 +224,72 @@ final class SchemaRegistry
 
 
     /**
+     * Register a query definition.
+     *
+     * @param QueryBuilder $query The query builder
+     * @return self Fluent interface
+     */
+    public function registerQuery(QueryBuilder $query): self
+    {
+        $this->queries[$query->getName()] = $query;
+        return $this;
+    }
+
+    /**
+     * Get a registered query by name.
+     *
+     * @param string $name The query name
+     * @return QueryBuilder|null
+     */
+    public function getQuery(string $name): ?QueryBuilder
+    {
+        return $this->queries[$name] ?? null;
+    }
+
+    /**
+     * Get all registered queries.
+     *
+     * @return array<string, QueryBuilder>
+     */
+    public function getAllQueries(): array
+    {
+        return $this->queries;
+    }
+
+    /**
+     * Register a mutation definition.
+     *
+     * @param MutationBuilder $mutation The mutation builder
+     * @return self Fluent interface
+     */
+    public function registerMutation(MutationBuilder $mutation): self
+    {
+        $this->mutations[$mutation->getName()] = $mutation;
+        return $this;
+    }
+
+    /**
+     * Get a registered mutation by name.
+     *
+     * @param string $name The mutation name
+     * @return MutationBuilder|null
+     */
+    public function getMutation(string $name): ?MutationBuilder
+    {
+        return $this->mutations[$name] ?? null;
+    }
+
+    /**
+     * Get all registered mutations.
+     *
+     * @return array<string, MutationBuilder>
+     */
+    public function getAllMutations(): array
+    {
+        return $this->mutations;
+    }
+
+    /**
      * Clear all registered types (useful for testing).
      *
      * @return self Fluent interface
@@ -225,6 +300,9 @@ final class SchemaRegistry
         $this->classToTypeName = [];
         $this->typeFields = [];
         $this->subscriptions = [];
+        $this->queries = [];
+        $this->mutations = [];
+        $this->typeMeta = [];
 
         return $this;
     }

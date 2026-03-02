@@ -199,6 +199,149 @@ final class StaticAPI
     }
 
     /**
+     * Start building a query definition.
+     *
+     * @param string $name The query name
+     * @return QueryBuilder The query builder
+     */
+    public static function query(string $name): QueryBuilder
+    {
+        return QueryBuilder::query($name);
+    }
+
+    /**
+     * Start building a mutation definition.
+     *
+     * @param string $name The mutation name
+     * @return MutationBuilder The mutation builder
+     */
+    public static function mutation(string $name): MutationBuilder
+    {
+        return MutationBuilder::mutation($name);
+    }
+
+    /**
+     * Register a TypeBuilder instance (including sql_source and is_error metadata).
+     *
+     * @param TypeBuilder $builder The type builder
+     * @return void
+     */
+    public static function registerTypeBuilder(TypeBuilder $builder): void
+    {
+        $registry = SchemaRegistry::getInstance();
+
+        $reflection = new \ReflectionClass($registry);
+
+        $typesProperty = $reflection->getProperty('types');
+        $typesProperty->setAccessible(true);
+        $types = $typesProperty->getValue($registry);
+
+        $fieldsProperty = $reflection->getProperty('typeFields');
+        $fieldsProperty->setAccessible(true);
+        $typeFields = $fieldsProperty->getValue($registry);
+
+        $typeAttr = new \FraiseQL\Attributes\GraphQLType(
+            name: $builder->getName(),
+            description: $builder->getDescription(),
+        );
+
+        $types[$builder->getName()] = $typeAttr;
+        $typeFields[$builder->getName()] = $builder->getFields();
+
+        $typesProperty->setValue($registry, $types);
+        $fieldsProperty->setValue($registry, $typeFields);
+
+        // Store sql_source and is_error in a side-channel registry
+        $metaProperty = null;
+        try {
+            $metaProperty = $reflection->getProperty('typeMeta');
+        } catch (\ReflectionException) {
+            // property doesn't exist yet, will be handled below
+        }
+
+        if ($metaProperty !== null) {
+            $metaProperty->setAccessible(true);
+            $meta = $metaProperty->getValue($registry);
+            $meta[$builder->getName()] = [
+                'sql_source' => $builder->getSqlSource(),
+                'is_error'   => $builder->getIsError(),
+            ];
+            $metaProperty->setValue($registry, $meta);
+        }
+    }
+
+    /**
+     * Export the complete schema as an array (types + queries + mutations).
+     *
+     * @return array<string, mixed>
+     */
+    public static function exportSchema(): array
+    {
+        $registry = SchemaRegistry::getInstance();
+
+        // Build types section
+        $types = [];
+        foreach ($registry->getTypeNames() as $typeName) {
+            $typeAttr = $registry->getType($typeName);
+            $fields   = $registry->getTypeFields($typeName);
+
+            $typeDef = [
+                'name'   => $typeName,
+                'fields' => array_map(
+                    static fn(\FraiseQL\FieldDefinition $f) => [
+                        'name'     => $f->name,
+                        'type'     => $f->type,
+                        'nullable' => $f->nullable,
+                    ],
+                    $fields,
+                ),
+            ];
+
+            if ($typeAttr !== null && $typeAttr->description !== null) {
+                $typeDef['description'] = $typeAttr->description;
+            }
+
+            // Retrieve typeMeta if available
+            $meta = self::getTypeMeta($registry, $typeName);
+            if ($meta !== null) {
+                if ($meta['sql_source'] !== null) {
+                    $typeDef['sql_source'] = $meta['sql_source'];
+                }
+                if ($meta['is_error']) {
+                    $typeDef['is_error'] = true;
+                }
+            }
+
+            $types[$typeName] = $typeDef;
+        }
+
+        // Build queries section
+        $queries = [];
+        foreach ($registry->getAllQueries() as $name => $builder) {
+            $queries[$name] = $builder->toArray();
+        }
+
+        // Build mutations section
+        $mutations = [];
+        foreach ($registry->getAllMutations() as $name => $builder) {
+            $mutations[$name] = $builder->toArray();
+        }
+
+        $schema = ['version' => '1.0'];
+        if (!empty($types)) {
+            $schema['types'] = $types;
+        }
+        if (!empty($queries)) {
+            $schema['queries'] = $queries;
+        }
+        if (!empty($mutations)) {
+            $schema['mutations'] = $mutations;
+        }
+
+        return $schema;
+    }
+
+    /**
      * Clear all registered types (useful for testing).
      *
      * @return void
@@ -206,5 +349,21 @@ final class StaticAPI
     public static function clear(): void
     {
         SchemaRegistry::getInstance()->clear();
+    }
+
+    /**
+     * @return array{sql_source: string|null, is_error: bool}|null
+     */
+    private static function getTypeMeta(SchemaRegistry $registry, string $typeName): ?array
+    {
+        try {
+            $reflection   = new \ReflectionClass($registry);
+            $metaProperty = $reflection->getProperty('typeMeta');
+            $metaProperty->setAccessible(true);
+            $meta = $metaProperty->getValue($registry);
+            return $meta[$typeName] ?? null;
+        } catch (\ReflectionException) {
+            return null;
+        }
     }
 }
