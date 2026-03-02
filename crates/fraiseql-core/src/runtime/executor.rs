@@ -1583,13 +1583,37 @@ impl<A: DatabaseAdapter> Executor<A> {
                 }
             })?;
 
-        // 2. Require a sql_source (PostgreSQL function name)
-        let sql_source = mutation_def.sql_source.as_deref().ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: format!("Mutation '{mutation_name}' has no sql_source configured"),
-                path:    None,
+        // 2. Require a sql_source (PostgreSQL function name).
+        //
+        // Fall back to the operation's table field when sql_source is absent.
+        // The CLI compiler stores the SQL function name in both places
+        // (sql_source and operation.{Insert|Update|Delete}.table), but older or
+        // alternate compilation paths (e.g. fraiseql-core's own codegen) may only
+        // populate operation.table and leave sql_source as None.
+        let sql_source_owned: String;
+        let sql_source: &str = if let Some(src) = mutation_def.sql_source.as_deref() {
+            src
+        } else {
+            use crate::schema::MutationOperation;
+            match &mutation_def.operation {
+                MutationOperation::Insert { table }
+                | MutationOperation::Update { table }
+                | MutationOperation::Delete { table }
+                    if !table.is_empty() =>
+                {
+                    sql_source_owned = table.clone();
+                    &sql_source_owned
+                },
+                _ => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "Mutation '{mutation_name}' has no sql_source configured"
+                        ),
+                        path: None,
+                    });
+                },
             }
-        })?;
+        };
 
         // 3. Build positional args Vec from variables in ArgumentDefinition order.
         //    Validate that every required (non-nullable, no default) argument is present.
@@ -3142,5 +3166,84 @@ mod tests {
 
         let result = executor.plan_query("", None);
         assert!(result.is_err());
+    }
+
+    // ── Regression tests for issue #53 ──────────────────────────────────────
+    //
+    // The executor must fall back to operation.table when mutation_def.sql_source
+    // is None.  Before the fix, the "has no sql_source configured" error was
+    // returned unconditionally whenever sql_source was absent (e.g. when a schema
+    // was compiled via the core Rust codegen path rather than the CLI converter).
+
+    /// A mutation compiled without an explicit sql_source (only operation.table set)
+    /// must NOT return a "has no sql_source configured" error.  Instead it should
+    /// fall back to operation.table and attempt to call the SQL function, which in
+    /// this test returns "function returned no rows" (the mock adapter is empty) —
+    /// proving the executor reached the function-call stage (issue #53 regression).
+    #[tokio::test]
+    async fn test_mutation_falls_back_to_operation_table_when_sql_source_none() {
+        use crate::schema::{MutationDefinition, MutationOperation};
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            name:       "createUser".to_string(),
+            return_type: "User".to_string(),
+            // sql_source deliberately absent — simulates codegen path before the fix.
+            sql_source: None,
+            operation: MutationOperation::Insert {
+                table: "fn_create_user".to_string(),
+            },
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let err = executor
+            .execute("mutation { createUser { id } }", None)
+            .await
+            .unwrap_err();
+
+        let msg = err.to_string();
+        // Must NOT be the "missing sql_source" error — the fallback must have fired.
+        assert!(
+            !msg.contains("has no sql_source configured"),
+            "executor still failed on missing sql_source instead of using operation.table: {msg}"
+        );
+        // Must be the downstream "no rows" error — proving the SQL call was attempted.
+        assert!(
+            msg.contains("function returned no rows") || msg.contains("no rows"),
+            "expected 'no rows' error after fallback, got: {msg}"
+        );
+    }
+
+    /// When both sql_source and operation.table are absent the executor must still
+    /// return a clear validation error (not panic or silently succeed).
+    #[tokio::test]
+    async fn test_mutation_errors_when_both_sql_source_and_table_absent() {
+        use crate::schema::{MutationDefinition, MutationOperation};
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            name:       "deleteUser".to_string(),
+            return_type: "User".to_string(),
+            sql_source: None,
+            // Custom operation has no table — no fallback available.
+            operation: MutationOperation::Custom,
+            ..MutationDefinition::new("deleteUser", "User")
+        });
+
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let err = executor
+            .execute("mutation { deleteUser { id } }", None)
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.to_string().contains("has no sql_source configured"),
+            "expected sql_source error, got: {err}"
+        );
     }
 }

@@ -278,8 +278,10 @@ impl CodeGenerator {
         use super::ir::MutationOperation as IRMutationOp;
         use crate::schema::MutationOperation;
 
-        // The compiled schema MutationOperation needs a table name for Insert/Update/Delete
-        // Since IR doesn't have this, we use Custom as default or derive from return type
+        // The compiled schema MutationOperation needs a table name for Insert/Update/Delete.
+        // The IR doesn't carry a sql_source field, so we derive the table from the return type.
+        // sql_source is set to the same value so the executor can locate the SQL function even
+        // when the operation.table fallback path is not exercised.
         let operation = match m.operation {
             IRMutationOp::Create => MutationOperation::Insert {
                 table: m.return_type.to_lowercase(), // Infer table from return type
@@ -293,6 +295,17 @@ impl CodeGenerator {
             IRMutationOp::Custom => MutationOperation::Custom,
         };
 
+        let sql_source = match &operation {
+            MutationOperation::Insert { table }
+            | MutationOperation::Update { table }
+            | MutationOperation::Delete { table }
+                if !table.is_empty() =>
+            {
+                Some(table.clone())
+            },
+            _ => None,
+        };
+
         MutationDefinition {
             name:        m.name.clone(),
             return_type: m.return_type.clone(),
@@ -300,7 +313,7 @@ impl CodeGenerator {
             description: m.description.clone(),
             operation,
             deprecation: None, // Note: IR mutations don't have deprecation yet
-            sql_source:    None,
+            sql_source,
             inject_params: Default::default(),
             invalidates_fact_tables: vec![],
             invalidates_views:      vec![],
@@ -603,6 +616,9 @@ mod tests {
             &mutation.operation,
             crate::schema::MutationOperation::Insert { table } if table == "user"
         ));
+        // sql_source must be populated from operation.table so the executor can call
+        // the SQL function without the "has no sql_source configured" error (issue #53).
+        assert_eq!(mutation.sql_source, Some("user".to_string()));
         assert_eq!(mutation.arguments.len(), 1);
     }
 
