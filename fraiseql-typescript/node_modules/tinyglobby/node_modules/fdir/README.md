@@ -33,13 +33,13 @@ _\* `picomatch` must be installed manually by the user to support globbing._
 You can install using `npm`:
 
 ```sh
-$ npm i fdir
+npm i fdir
 ```
 
 or Yarn:
 
 ```sh
-$ yarn add fdir
+yarn add fdir
 ```
 
 ### Usage
@@ -59,15 +59,15 @@ api.withPromise().then((files) => {
 });
 ```
 
-## Documentation:
+## Documentation
 
 Documentation for all methods is available [here](/documentation.md).
 
-## 📊 Benchmarks:
+## 📊 Benchmarks
 
 Please check the benchmark against the latest version [here](/BENCHMARKS.md).
 
-## 🙏Used by:
+## 🙏Used by
 
 `fdir` is downloaded over 200k+ times a week by projects around the world. Here's a list of some notable projects using `fdir` in production:
 
