@@ -461,7 +461,9 @@ All core features implemented with comprehensive CI validation:
 | [METRICS.md](METRICS.md) | All exposed Prometheus metrics |
 | [SECURITY_AUDIT.md](SECURITY_AUDIT.md) | Security assessment and findings |
 | [POSTGRES_COMPATIBILITY.md](POSTGRES_COMPATIBILITY.md) | PostgreSQL version compatibility |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflows and architecture |
+| [SECURITY.md](SECURITY.md) | Security best practices and deployment hardening |
+| [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker development environment setup |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflows and contribution guidelines |
 | [docs/OPERATORS.md](docs/OPERATORS.md) | WHERE clause operator reference |
 | [docs/COLLATION.md](docs/COLLATION.md) | Sorting and collation reference |
 | [benches/COMPARISON_GUIDE.md](benches/COMPARISON_GUIDE.md) | Benchmark comparison guide |

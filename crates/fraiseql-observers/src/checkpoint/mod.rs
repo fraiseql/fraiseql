@@ -269,6 +269,42 @@ impl CheckpointStrategy {
         }
     }
 
+    /// Creates the idempotency table if it does not already exist.
+    ///
+    /// Safe to call on every observer startup — uses `CREATE TABLE IF NOT EXISTS`.
+    /// When the strategy is `AtLeastOnce`, this is a no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::DatabaseError` if the database connection fails or the
+    /// caller lacks `CREATE TABLE` permissions. The observer should refuse to start
+    /// when this returns an error.
+    pub async fn create_table_if_not_exists(&self, pool: &sqlx::PgPool) -> Result<()> {
+        let Some(table) = self.idempotency_table() else {
+            return Ok(()); // AtLeastOnce: no-op
+        };
+
+        let sql = format!(
+            "CREATE TABLE IF NOT EXISTS {table} (\
+               idempotency_key  TEXT        NOT NULL, \
+               listener_id      TEXT        NOT NULL, \
+               processed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(), \
+               PRIMARY KEY (idempotency_key, listener_id)\
+             ); \
+             CREATE INDEX IF NOT EXISTS idx_{table}_processed_at \
+               ON {table} (processed_at)"
+        );
+
+        sqlx::raw_sql(&sql)
+            .execute(pool)
+            .await
+            .map_err(|e| crate::error::ObserverError::DatabaseError {
+                reason: format!("Failed to create idempotency table '{table}': {e}"),
+            })?;
+
+        Ok(())
+    }
+
     /// Check if an idempotency key has already been processed.
     ///
     /// Returns `Ok(true)` when the key exists (event is a duplicate → skip).
