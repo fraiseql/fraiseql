@@ -351,6 +351,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 }
 
 #[cfg(all(test, feature = "dedup"))]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use serde_json::json;
     use uuid::Uuid;

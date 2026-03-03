@@ -229,6 +229,7 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
 }
 
 #[cfg(all(test, feature = "caching"))]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use serde_json::json;
     use uuid::Uuid;

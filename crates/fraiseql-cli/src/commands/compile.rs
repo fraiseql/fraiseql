@@ -320,8 +320,7 @@ fn check_sqlite_compatibility_warnings(
     database_url: Option<&str>,
 ) {
     let target_is_sqlite = database_url
-        .map(|url| url.to_ascii_lowercase().starts_with("sqlite://"))
-        .unwrap_or(false)
+        .is_some_and(|url| url.to_ascii_lowercase().starts_with("sqlite://"))
         || is_toml && detect_sqlite_target_in_toml(input_path);
 
     if !target_is_sqlite {

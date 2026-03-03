@@ -131,7 +131,7 @@ pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<S
         .fields
         .iter()
         .filter(|f| is_scalar_field_type(&f.field_type))
-        .map(|f| f.name.clone())
+        .map(|f| f.name.to_string())
         .collect()
 }
 

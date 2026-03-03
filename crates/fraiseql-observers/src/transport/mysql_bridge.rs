@@ -548,6 +548,7 @@ impl MySQLNatsBridge {
 
 #[cfg(test)]
 #[cfg(feature = "mysql")]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use super::*;
 

@@ -57,13 +57,9 @@ multi-db = ["postgres", "mysql"]
 mysql = ["sqlx/mysql"]
 # NATS Features
 nats = ["async-nats"]
-# Descriptive bundles — use these instead of the deprecated phase aliases below.
+# Descriptive bundles
 enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 analytics = ["macros", "arrow"]
-# NOTE: phase8/phase9 are deprecated aliases from development. Use enterprise/analytics instead.
-# Will be removed in 2.3.0.
-phase8 = ["enterprise"]
-phase9 = ["analytics"]
 # Database backends (enable sqlx features)
 postgres = ["sqlx/postgres"]
 queue = ["redis"]

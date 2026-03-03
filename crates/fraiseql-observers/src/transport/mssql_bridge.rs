@@ -673,6 +673,7 @@ pub async fn create_mssql_pool(connection_string: &str) -> Result<MSSQLPool> {
 
 #[cfg(test)]
 #[cfg(feature = "mssql")]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use super::*;
 

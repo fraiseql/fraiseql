@@ -27,6 +27,7 @@
 //!    ```
 
 #![allow(unused_imports)]
+#![allow(clippy::unwrap_used)] // Reason: integration test file
 #![cfg(feature = "nats")]
 
 use std::{sync::Arc, time::Duration};
