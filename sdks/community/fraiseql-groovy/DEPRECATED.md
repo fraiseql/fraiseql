@@ -2,14 +2,21 @@
 
 This SDK has been deprecated and is no longer actively maintained.
 
+**Deprecated since**: v2.0.0
+**Last compatible schema version**: v1.x
+**v2.0.0 compatibility**: Not supported. The v2 compiled schema format (`schema.compiled.json`) is not compatible with this SDK.
+
 ## Recommended Alternative
 
-Java SDK
+[FraiseQL Java SDK](../fraiseql-java)
 
 ## Reason
 
-Groovy runs on the JVM; the Java SDK provides full interop.
+Groovy runs on the JVM; the Java SDK provides full interop without a separate Groovy SDK.
 
 ## Migration
 
-The Java SDK is fully Groovy-compatible via standard Java interop.
+1. Add the Java SDK dependency to your `build.gradle` or `pom.xml`.
+2. Replace `fraiseql.groovy.*` imports with `io.fraiseql.*`.
+3. The Java SDK is fully Groovy-compatible — Groovy's dynamic dispatch works seamlessly with Java APIs.
+4. If you were using v1.x schemas, recompile with `fraiseql-cli compile` to produce a v2 schema.
