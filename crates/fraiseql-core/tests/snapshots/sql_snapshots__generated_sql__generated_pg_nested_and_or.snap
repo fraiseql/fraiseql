@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+((data->>'active')::boolean = $1 AND (data->>'role' = $2 OR data->>'role' = $3))
