@@ -11,20 +11,16 @@ use FraiseQL\Schema;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Phase 18 Cycle 11: Field-Level RBAC for PHP SDK
- *
  * Tests that field scopes are properly extracted from GraphQLField attributes,
  * stored in registry, and exported to JSON for compiler consumption.
  *
- * RED Phase: 21 comprehensive test cases
- * - 15 happy path tests for scope extraction and export
- * - 6 validation tests for error handling
- *
- * Attribute format:
+ * Covers:
  * - Single scope: #[GraphQLField(scope: 'read:user.email')]
  * - Multiple scopes: #[GraphQLField(scopes: ['admin', 'auditor'])]
+ * - JSON export format
+ * - Validation of invalid scope formats
  */
-final class Phase18Cycle11ScopeExtractionTest extends TestCase
+final class ScopeExtractionTest extends TestCase
 {
     private SchemaRegistry $registry;
 
@@ -45,7 +41,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testSingleScopeExtraction(): void
     {
-        // RED: This test fails because FieldDefinition doesn't store scope
         #[GraphQLType(name: 'UserWithScope')]
         final class UserWithScope
         {
@@ -69,7 +64,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testMultipleDifferentScopesExtraction(): void
     {
-        // RED: Tests extraction of different scopes on different fields
         #[GraphQLType(name: 'UserWithMultipleScopes')]
         final class UserWithMultipleScopes
         {
@@ -96,7 +90,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testPublicFieldNoScopeExtraction(): void
     {
-        // RED: Public fields should have null/empty scope
         #[GraphQLType(name: 'UserWithMixedFields')]
         final class UserWithMixedFields
         {
@@ -123,7 +116,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testMultipleScopesOnSingleField(): void
     {
-        // RED: Field with scopes=['scope1', 'scope2'] array
         #[GraphQLType(name: 'AdminWithMultipleScopes')]
         final class AdminWithMultipleScopes
         {
@@ -148,7 +140,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testMixedSingleAndMultipleScopes(): void
     {
-        // RED: Type with both single-scope and multi-scope fields
         #[GraphQLType(name: 'MixedScopeTypes')]
         final class MixedScopeTypes
         {
@@ -169,7 +160,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testScopeArrayOrder(): void
     {
-        // RED: Scopes array order must be preserved
         #[GraphQLType(name: 'OrderedScopes')]
         final class OrderedScopes
         {
@@ -194,7 +184,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testResourceBasedScopePattern(): void
     {
-        // RED: Resource pattern like read:User.email
         #[GraphQLType(name: 'ResourcePatternScopes')]
         final class ResourcePatternScopes
         {
@@ -213,7 +202,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testActionBasedScopePattern(): void
     {
-        // RED: Action patterns like read:*, write:*, admin:*
         #[GraphQLType(name: 'ActionPatternScopes')]
         final class ActionPatternScopes
         {
@@ -233,7 +221,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testGlobalWildcardScope(): void
     {
-        // RED: Global wildcard matching all scopes
         #[GraphQLType(name: 'GlobalWildcardScope')]
         final class GlobalWildcardScope
         {
@@ -254,7 +241,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testScopeExportToJsonSingleScope(): void
     {
-        // RED: Scope must appear in JSON export
         #[GraphQLType(name: 'ExportTestSingleScope')]
         final class ExportTestSingleScope
         {
@@ -280,7 +266,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testScopeExportToJsonMultipleScopes(): void
     {
-        // RED: scopes array exported as scopes field in JSON
         #[GraphQLType(name: 'ExportTestMultipleScopes')]
         final class ExportTestMultipleScopes
         {
@@ -303,7 +288,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testPublicFieldJsonExport(): void
     {
-        // RED: Public fields without scope should not have scope in JSON
         #[GraphQLType(name: 'ExportTestPublicField')]
         final class ExportTestPublicField
         {
@@ -334,7 +318,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testScopePreservedWithMetadata(): void
     {
-        // RED: Scope doesn't interfere with type, nullable, etc.
         #[GraphQLType(name: 'ScopeWithMetadata')]
         final class ScopeWithMetadata
         {
@@ -353,7 +336,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testScopeWithNullableField(): void
     {
-        // RED: Scope works on nullable fields
         #[GraphQLType(name: 'ScopeWithNullable')]
         final class ScopeWithNullable
         {
@@ -372,7 +354,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testMultipleScopedFieldsMetadataIndependence(): void
     {
-        // RED: Each field's metadata is independent
         #[GraphQLType(name: 'MetadataIndependence')]
         final class MetadataIndependence
         {
@@ -397,7 +378,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testInvalidScopeFormatDetection(): void
     {
-        // RED: Invalid scopes should be detected
         $this->expectException(\Exception::class);
 
         #[GraphQLType(name: 'InvalidScopeFormat')]
@@ -412,7 +392,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testEmptyScopeRejection(): void
     {
-        // RED: Empty string scope should be invalid
         $this->expectException(\Exception::class);
 
         #[GraphQLType(name: 'EmptyScope')]
@@ -427,7 +406,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testEmptyScopesArrayRejection(): void
     {
-        // RED: Empty scopes array should be invalid
         $this->expectException(\Exception::class);
 
         #[GraphQLType(name: 'EmptyScopesArray')]
@@ -442,7 +420,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testInvalidActionWithHyphensValidation(): void
     {
-        // RED: Hyphens in action prefix are invalid
         $this->expectException(\Exception::class);
 
         #[GraphQLType(name: 'InvalidActionWithHyphens')]
@@ -457,7 +434,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testInvalidResourceWithHyphensValidation(): void
     {
-        // RED: Hyphens in resource name are invalid
         $this->expectException(\Exception::class);
 
         #[GraphQLType(name: 'InvalidResourceWithHyphens')]
@@ -472,7 +448,6 @@ final class Phase18Cycle11ScopeExtractionTest extends TestCase
 
     public function testConflictingBothScopeAndScopes(): void
     {
-        // RED: Can't have both scope and scopes on same field
         $this->expectException(\Exception::class);
 
         #[GraphQLType(name: 'ConflictingScopeAndScopes')]

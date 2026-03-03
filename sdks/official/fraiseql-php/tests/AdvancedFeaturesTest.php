@@ -18,12 +18,12 @@ use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
 
 /**
- * Tests for Phase 5: Advanced Features
+ * Tests for advanced features:
  * - ArgumentBuilder for GraphQL arguments
  * - Validator for schema validation
  * - Cache system for performance
  */
-final class Phase5Test extends TestCase
+final class AdvancedFeaturesTest extends TestCase
 {
     protected function tearDown(): void
     {

@@ -37,6 +37,7 @@ fn roundtrip(lang: Language) -> serde_json::Value {
         Language::CSharp => "cs",
         Language::Swift => "swift",
         Language::Scala => "scala",
+        Language::Php => "php",
     };
     let schema_file = project_dir.join("schema").join(format!("schema.{ext}"));
     assert!(schema_file.exists(), "Schema file not found: {}", schema_file.display());

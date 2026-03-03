@@ -34,6 +34,8 @@ pub enum Language {
     Swift,
     /// Scala authoring
     Scala,
+    /// PHP authoring
+    Php,
 }
 
 impl fmt::Display for Language {
@@ -48,6 +50,7 @@ impl fmt::Display for Language {
             Self::CSharp => write!(f, "csharp"),
             Self::Swift => write!(f, "swift"),
             Self::Scala => write!(f, "scala"),
+            Self::Php => write!(f, "php"),
         }
     }
 }
@@ -65,6 +68,7 @@ impl Language {
             "cs" => Some(Self::CSharp),
             "swift" => Some(Self::Swift),
             "scala" | "sc" => Some(Self::Scala),
+            "php" => Some(Self::Php),
             _ => None,
         }
     }
@@ -84,8 +88,9 @@ impl FromStr for Language {
             "csharp" | "c#" | "cs" => Ok(Self::CSharp),
             "swift" => Ok(Self::Swift),
             "scala" | "sc" => Ok(Self::Scala),
+            "php" => Ok(Self::Php),
             other => Err(format!(
-                "Unknown language: {other}. Choose: python, typescript, rust, java, kotlin, go, csharp, swift, scala"
+                "Unknown language: {other}. Choose: python, typescript, rust, java, kotlin, go, csharp, swift, scala, php"
             )),
         }
     }
@@ -1066,6 +1071,7 @@ fn create_authoring_skeleton(project_dir: &Path, config: &InitConfig) -> Result<
         Language::CSharp => create_csharp_skeleton(project_dir, config),
         Language::Swift => create_swift_skeleton(project_dir, config),
         Language::Scala => create_scala_skeleton(project_dir, config),
+        Language::Php => create_php_skeleton(project_dir, config),
     }
 }
 
@@ -1834,6 +1840,129 @@ def tags(): List[Tag] = ???
 
     fs::write(dir.join("schema.scala"), content).context("Failed to create schema.scala")?;
     info!("Created schema/schema.scala");
+    Ok(())
+}
+
+fn create_php_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
+    let dir = project_dir.join("schema");
+    fs::create_dir_all(&dir).context("Failed to create schema/ directory")?;
+
+    let content = format!(
+        r"<?php
+
+declare(strict_types=1);
+
+// FraiseQL blog schema definition for {name}.
+
+use FraiseQL\Attributes\GraphQLType;
+use FraiseQL\Attributes\GraphQLField;
+
+/** Blog author with trinity pattern. */
+#[GraphQLType(name: 'Author', sqlSource: 'v_author')]
+final class Author
+{{
+    #[GraphQLField(type: 'Int')]
+    public int $pk;
+
+    #[GraphQLField(type: 'ID')]
+    public string $id;
+
+    #[GraphQLField(type: 'String')]
+    public string $identifier;
+
+    #[GraphQLField(type: 'String')]
+    public string $name;
+
+    #[GraphQLField(type: 'String')]
+    public string $email;
+
+    #[GraphQLField(type: 'String', nullable: true)]
+    public ?string $bio;
+
+    #[GraphQLField(type: 'DateTime')]
+    public string $createdAt;
+
+    #[GraphQLField(type: 'DateTime')]
+    public string $updatedAt;
+}}
+
+/** Blog post with trinity pattern. */
+#[GraphQLType(name: 'Post', sqlSource: 'v_post')]
+final class Post
+{{
+    #[GraphQLField(type: 'Int')]
+    public int $pk;
+
+    #[GraphQLField(type: 'ID')]
+    public string $id;
+
+    #[GraphQLField(type: 'String')]
+    public string $identifier;
+
+    #[GraphQLField(type: 'String')]
+    public string $title;
+
+    #[GraphQLField(type: 'String')]
+    public string $body;
+
+    #[GraphQLField(type: 'Boolean')]
+    public bool $published;
+
+    #[GraphQLField(type: 'ID')]
+    public string $authorId;
+
+    #[GraphQLField(type: 'DateTime')]
+    public string $createdAt;
+
+    #[GraphQLField(type: 'DateTime')]
+    public string $updatedAt;
+}}
+
+/** Comment on a blog post. */
+#[GraphQLType(name: 'Comment', sqlSource: 'v_comment')]
+final class Comment
+{{
+    #[GraphQLField(type: 'Int')]
+    public int $pk;
+
+    #[GraphQLField(type: 'ID')]
+    public string $id;
+
+    #[GraphQLField(type: 'String')]
+    public string $body;
+
+    #[GraphQLField(type: 'String')]
+    public string $authorName;
+
+    #[GraphQLField(type: 'ID')]
+    public string $postId;
+
+    #[GraphQLField(type: 'DateTime')]
+    public string $createdAt;
+}}
+
+/** Categorization tag for posts. */
+#[GraphQLType(name: 'Tag', sqlSource: 'v_tag')]
+final class Tag
+{{
+    #[GraphQLField(type: 'Int')]
+    public int $pk;
+
+    #[GraphQLField(type: 'ID')]
+    public string $id;
+
+    #[GraphQLField(type: 'String')]
+    public string $identifier;
+
+    #[GraphQLField(type: 'String')]
+    public string $name;
+}}
+",
+        name = config.project_name,
+    );
+
+    fs::write(dir.join("schema.php"), content).context("Failed to create schema/schema.php")?;
+    info!("Created schema/schema.php");
     Ok(())
 }
 

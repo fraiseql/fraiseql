@@ -115,3 +115,10 @@ temp/
 # Analysis work-in-progress
 TODO_*/
 mutants.out/
+
+# PHP
+vendor/
+composer.phar
+composer-setup.php
+.phpunit.cache/
+.phpunit.result.cache

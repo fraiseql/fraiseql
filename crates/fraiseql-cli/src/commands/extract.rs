@@ -180,6 +180,7 @@ fn dispatch_extractor(lang: Language, source: &str) -> Result<ExtractedSchema> {
         Language::CSharp => CSharpExtractor.extract(source),
         Language::Swift => SwiftExtractor.extract(source),
         Language::Scala => ScalaExtractor.extract(source),
+        Language::Php => anyhow::bail!("PHP extraction is handled by the PHP SDK binary (`vendor/bin/fraiseql export`). Run that first to produce schema.json, then use `fraiseql compile`."),
     }
 }
 
@@ -302,6 +303,12 @@ fn extract_nullable(lang: Language, type_str: &str) -> (String, bool) {
         },
         Language::TypeScript => {
             // TypeScript uses explicit `nullable: true` in the object literal
+        },
+        Language::Php => {
+            // PHP uses ?Type prefix for nullable
+            if let Some(base) = trimmed.strip_prefix('?') {
+                return (base.to_string(), true);
+            }
         },
     }
 

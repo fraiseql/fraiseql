@@ -16,12 +16,12 @@ use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
 
 /**
- * Tests for Phase 6: Optimization
+ * Tests for optimization features:
  * - SchemaCache for caching compiled schemas
  * - PerformanceMonitor for tracking metrics
  * - LazyLoader for on-demand type loading
  */
-final class Phase6Test extends TestCase
+final class OptimizationTest extends TestCase
 {
     protected function tearDown(): void
     {
