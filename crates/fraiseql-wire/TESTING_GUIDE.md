@@ -466,22 +466,67 @@ timeout 30 cargo test --test load_tests -- --ignored --nocapture --test-threads=
 
 ---
 
-## Next Steps
+## CI Workflows
 
-1. **Read the implementation plan**: `.claude/phases/phase-7-3-7-6-stabilization.md`
-2. **Review acceptance criteria**: Success metrics for each phase
-3. **Run baseline tests**: Establish performance baseline
-4. **Monitor over time**: Track throughput and memory
+The project uses two GitHub Actions workflows:
+
+1. **CI Workflow** (`.github/workflows/ci.yml`) — runs on every push and PR
+   - Build & Test: `cargo build --release`, unit tests, clippy, formatting, `cargo audit`
+   - Coverage: `cargo tarpaulin` → Codecov
+   - MSRV: tests with Rust 1.75 minimum
+   - Integration Tests: Postgres service + schema fixtures
+   - Documentation: `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
+
+2. **Release Workflow** (`.github/workflows/release.yml`) — runs on `v*` tags
+   - Builds, tests, creates GitHub Release, publishes to crates.io
+
+### Local CI Simulation
+
+```bash
+cargo fmt -- --check
+cargo clippy -- -D warnings
+cargo test --lib
+cargo test --test integration -- --ignored
+cargo audit
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+```
+
+### Making a Release
+
+```bash
+# 1. Update Cargo.toml version and CHANGELOG.md
+# 2. Commit: git commit -m "chore: bump version to 0.x.y"
+# 3. Run release script:
+./scripts/publish.sh 0.x.y
+# Script: validates semver, builds, tests, creates tag, pushes, publishes to crates.io
+```
+
+### GitHub Secrets Required
+
+| Secret | Purpose |
+|--------|---------|
+| `CARGO_TOKEN` | Publishing to crates.io |
+| `CODECOV_TOKEN` | Coverage reports (optional) |
+
+### Before Pushing Checklist
+
+```bash
+cargo fmt
+cargo clippy -- -D warnings
+cargo test --lib
+cargo test --test integration -- --ignored
+cargo audit
+```
 
 ---
 
 ## Related Documentation
 
-- **Load Testing**: Throughput, memory, concurrency
-- **Stress Testing**: Failure scenarios, recovery
 - **Performance Tuning**: `PERFORMANCE_TUNING.md`
-- **Architecture**: `.claude/CLAUDE.md`
+- **Benchmarking**: `BENCHMARKING.md`
+- **Troubleshooting**: `TROUBLESHOOTING.md`
+- **Operator Reference**: `docs/OPERATORS.md`
 
 ---
 
-**Ready to test fraiseql-wire!** 🧪
+**Ready to test fraiseql-wire!**

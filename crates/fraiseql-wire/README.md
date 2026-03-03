@@ -433,31 +433,39 @@ All core features implemented with comprehensive CI validation:
 
 ## Roadmap
 
-* [x] Connection pooling integration guide (CONNECTION_POOLING.md)
-* [x] Advanced filtering patterns (ADVANCED_FILTERING.md)
-* [x] PostgreSQL 15-18 compatibility (POSTGRES_COMPATIBILITY.md)
+* [x] Connection pooling integration guide
+* [x] Advanced filtering patterns
+* [x] PostgreSQL 15-18 compatibility
 * [x] SCRAM/TLS end-to-end integration tests in CI
 * [x] Comprehensive metrics and tracing
 * [x] Server-side ordering (ORDER BY with COLLATE)
 * [x] Pagination support (LIMIT/OFFSET)
 * [x] SQL field projection for payload optimization
 * [ ] Extended metric examples and dashboards
-* [ ] Performance tuning guide for large datasets
 * [ ] PostgreSQL 19+ compatibility tracking
 * [ ] Binary protocol optimization (extended query protocol)
 
 ---
 
-## Documentation & Guides
+## Documentation
 
-* **[QUICK_START.md](QUICK_START.md)** – Installation and first steps
-* **[TESTING_GUIDE.md](TESTING_GUIDE.md)** – How to run unit, integration, and load tests
-* **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** – Error diagnosis and common issues
-* **[CI_CD_GUIDE.md](CI_CD_GUIDE.md)** – GitHub Actions, local development, releases
-* **[PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md)** – Benchmarking and optimization
-* **[CONTRIBUTING.md](CONTRIBUTING.md)** – Development workflows and architecture
-* **[PRD.md](PRD.md)** – Product requirements and design
-* **[.github/PUBLISHING.md](.github/PUBLISHING.md)** – Automatic crates.io publishing setup and workflow
+| Document | Purpose |
+|----------|---------|
+| [TESTING_GUIDE.md](TESTING_GUIDE.md) | Running tests locally and in CI; release process |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Error diagnosis and common issues |
+| [PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md) | Tuning for production workloads |
+| [BENCHMARKING.md](BENCHMARKING.md) | How to run and interpret benchmarks |
+| [ADVANCED_FILTERING.md](ADVANCED_FILTERING.md) | Complex WHERE clause patterns |
+| [TYPED_STREAMING_GUIDE.md](TYPED_STREAMING_GUIDE.md) | Type-safe streaming setup |
+| [CONNECTION_POOLING.md](CONNECTION_POOLING.md) | Pool configuration and tuning |
+| [METRICS.md](METRICS.md) | All exposed Prometheus metrics |
+| [SECURITY_AUDIT.md](SECURITY_AUDIT.md) | Security assessment and findings |
+| [POSTGRES_COMPATIBILITY.md](POSTGRES_COMPATIBILITY.md) | PostgreSQL version compatibility |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflows and architecture |
+| [docs/OPERATORS.md](docs/OPERATORS.md) | WHERE clause operator reference |
+| [docs/COLLATION.md](docs/COLLATION.md) | Sorting and collation reference |
+| [benches/COMPARISON_GUIDE.md](benches/COMPARISON_GUIDE.md) | Benchmark comparison guide |
+| [.github/PUBLISHING.md](.github/PUBLISHING.md) | crates.io publishing workflow |
 
 ### Examples
 
