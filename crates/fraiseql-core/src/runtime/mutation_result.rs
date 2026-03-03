@@ -27,6 +27,12 @@ pub enum MutationOutcome {
         entity:      JsonValue,
         /// GraphQL type name for the entity (from the `entity_type` column).
         entity_type: Option<String>,
+        /// UUID string of the mutated entity (from the `entity_id` column).
+        ///
+        /// Present for UPDATE and DELETE mutations. Used for entity-aware cache
+        /// invalidation: only cache entries containing this UUID are evicted,
+        /// leaving unrelated entries warm.
+        entity_id:   Option<String>,
         /// Cascade operations associated with this mutation.
         cascade:     Option<JsonValue>,
     },
@@ -73,8 +79,9 @@ pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
     } else {
         let entity = row.get("entity").cloned().unwrap_or(JsonValue::Null);
         let entity_type = row.get("entity_type").and_then(|v| v.as_str()).map(str::to_string);
+        let entity_id = row.get("entity_id").and_then(|v| v.as_str()).map(str::to_string);
         let cascade = row.get("cascade").cloned().filter(|v| !v.is_null());
-        Ok(MutationOutcome::Success { entity, entity_type, cascade })
+        Ok(MutationOutcome::Success { entity, entity_type, entity_id, cascade })
     }
 }
 
@@ -202,9 +209,43 @@ mod tests {
 
         let outcome = parse_mutation_row(&row).unwrap();
         assert!(matches!(outcome, MutationOutcome::Success { .. }));
-        if let MutationOutcome::Success { entity, entity_type, .. } = outcome {
+        if let MutationOutcome::Success { entity, entity_type, entity_id, .. } = outcome {
             assert_eq!(entity["id"], "abc");
             assert_eq!(entity_type.as_deref(), Some("Machine"));
+            assert!(entity_id.is_none());
+        }
+    }
+
+    #[test]
+    fn test_parse_mutation_row_includes_entity_id() {
+        let mut row = HashMap::new();
+        row.insert("status".to_string(), json!("updated"));
+        row.insert("message".to_string(), json!("updated"));
+        row.insert("entity".to_string(), json!({"id": "550e8400-e29b-41d4-a716-446655440000"}));
+        row.insert("entity_type".to_string(), json!("User"));
+        row.insert("entity_id".to_string(), json!("550e8400-e29b-41d4-a716-446655440000"));
+
+        let outcome = parse_mutation_row(&row).unwrap();
+        if let MutationOutcome::Success { entity_id, entity_type, .. } = outcome {
+            assert_eq!(entity_id.as_deref(), Some("550e8400-e29b-41d4-a716-446655440000"));
+            assert_eq!(entity_type.as_deref(), Some("User"));
+        } else {
+            panic!("expected Success");
+        }
+    }
+
+    #[test]
+    fn test_parse_mutation_row_entity_id_absent_when_missing() {
+        let mut row = HashMap::new();
+        row.insert("status".to_string(), json!("new"));
+        row.insert("entity".to_string(), json!({"id": "abc"}));
+        // entity_id column not present (CREATE mutation)
+
+        let outcome = parse_mutation_row(&row).unwrap();
+        if let MutationOutcome::Success { entity_id, .. } = outcome {
+            assert!(entity_id.is_none());
+        } else {
+            panic!("expected Success");
         }
     }
 

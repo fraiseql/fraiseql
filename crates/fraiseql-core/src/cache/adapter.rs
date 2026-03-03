@@ -457,20 +457,32 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             return Ok(0);
         }
 
-        // Invalidate based on entity types and IDs
-        // Currently converts entities to view-level invalidation
-        // This ensures correctness while maintaining backward compatibility
-        // Future: Track which specific caches depend on each entity for more precise invalidation
-        let mut views_to_invalidate = std::collections::HashSet::new();
+        // Entity-aware invalidation: evict only cache entries that contain the
+        // affected entity UUIDs, leaving unrelated entries warm.
+        let mut total_evicted = 0u64;
         for entity in cascade_entities.all_affected() {
-            // Extract view name from entity type (e.g., "User" → "v_user")
-            let view_name = format!("v_{}", entity.entity_type.to_lowercase());
-            views_to_invalidate.insert(view_name);
+            total_evicted +=
+                self.cache.invalidate_by_entity(&entity.entity_type, &entity.entity_id)?;
         }
 
-        // Invalidate the extracted views
-        let views: Vec<String> = views_to_invalidate.into_iter().collect();
-        self.cache.invalidate_views(&views)
+        Ok(total_evicted)
+    }
+
+    /// Evict cache entries that contain the given entity UUID.
+    ///
+    /// Delegates to `QueryResultCache::invalidate_by_entity`. Only entries
+    /// whose entity-ID index (built at `put()` time) contains the given UUID
+    /// are removed; all other entries remain warm.
+    ///
+    /// # Returns
+    ///
+    /// Number of cache entries evicted.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the cache mutex is poisoned.
+    pub fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
+        self.cache.invalidate_by_entity(entity_type, entity_id)
     }
 
     /// Get reference to underlying adapter.
@@ -710,6 +722,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cached_values,
             vec![table_name], // Track which fact table this query reads
             None,             // Fact-table queries use the global TTL
+            None,             // No entity-type index for raw queries
         )?;
 
         Ok(result)
@@ -757,7 +770,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
         // Store in cache
         let ttl = self.view_ttl_overrides.get(view).copied();
-        self.cache.put(cache_key, result.clone(), vec![view.to_string()], ttl)?;
+        self.cache.put(cache_key, result.clone(), vec![view.to_string()], ttl, None)?;
 
         Ok(result)
     }
@@ -803,6 +816,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             result.clone(),
             vec![view.to_string()], // accessed views
             ttl,
+            None, // No entity-type index for WHERE queries
         )?;
 
         Ok(result)
@@ -841,6 +855,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         // Delegate to the inherent (synchronous) method which handles cascade
         // expansion and cache eviction.
         CachedDatabaseAdapter::invalidate_views(self, views)
+    }
+
+    async fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
+        CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)
     }
 
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {

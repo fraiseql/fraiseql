@@ -1720,24 +1720,39 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .await?;
         }
 
-        // Invalidate query result cache for views touched by this mutation.
-        // When invalidates_views is empty, infer the primary view from the
-        // mutation return type's sql_source (if any).
-        if matches!(outcome, MutationOutcome::Success { .. }) {
-            let views_to_invalidate = if mutation_def.invalidates_views.is_empty() {
-                self.schema
-                    .types
-                    .iter()
-                    .find(|t| t.name == mutation_def.return_type)
-                    .filter(|t| !t.sql_source.is_empty())
-                    .map(|t| t.sql_source.clone())
-                    .into_iter()
-                    .collect::<Vec<_>>()
-            } else {
-                mutation_def.invalidates_views.clone()
-            };
-            if !views_to_invalidate.is_empty() {
-                self.adapter.invalidate_views(&views_to_invalidate).await?;
+        // Invalidate query result cache for views/entities touched by this mutation.
+        //
+        // Strategy:
+        // - UPDATE/DELETE with entity_id: entity-aware eviction only (precise, no false positives).
+        //   Evicts only the cache entries that actually contain the mutated entity UUID.
+        // - CREATE or explicit invalidates_views: view-level flush.
+        //   For CREATE the new entity isn't in any existing cache entry, so entity-aware is a
+        //   no-op. View-level ensures list queries return the new row.
+        // - No entity_id and no views declared: infer view from return type (backward-compat).
+        if let MutationOutcome::Success { entity_type, entity_id, .. } = &outcome {
+            // Entity-aware path: precise eviction for UPDATE/DELETE.
+            if let (Some(etype), Some(eid)) = (entity_type.as_deref(), entity_id.as_deref()) {
+                self.adapter.invalidate_by_entity(etype, eid).await?;
+            }
+
+            // View-level path: needed when entity_id is absent (CREATE) or when the developer
+            // explicitly declared invalidates_views to also refresh list queries.
+            if entity_id.is_none() || !mutation_def.invalidates_views.is_empty() {
+                let views_to_invalidate = if mutation_def.invalidates_views.is_empty() {
+                    self.schema
+                        .types
+                        .iter()
+                        .find(|t| t.name == mutation_def.return_type)
+                        .filter(|t| !t.sql_source.is_empty())
+                        .map(|t| t.sql_source.clone())
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                } else {
+                    mutation_def.invalidates_views.clone()
+                };
+                if !views_to_invalidate.is_empty() {
+                    self.adapter.invalidate_views(&views_to_invalidate).await?;
+                }
             }
         }
 

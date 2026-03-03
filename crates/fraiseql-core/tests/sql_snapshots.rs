@@ -952,3 +952,124 @@ mod sqlserver_relay {
         assert_snapshot!(sql);
     }
 }
+
+// ============================================================================
+// MySQL Relay Pagination SQL Snapshots
+//
+// These tests document the exact SQL emitted for MySQL keyset pagination.
+// MySQL relay uses:
+//   - Backtick-quoted identifiers
+//   - `?` positional parameters
+//   - `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))` for ORDER BY fields
+//   - `LIMIT ?` (no OFFSET 0 prefix required)
+//   - Inner DESC + outer re-sort ASC for backward pagination
+// ============================================================================
+
+mod mysql_relay {
+    use insta::assert_snapshot;
+
+    // Forward pagination — no cursor, no WHERE, no ORDER BY
+    #[test]
+    fn snapshot_mysql_relay_forward_no_cursor() {
+        let sql = "SELECT data FROM `v_user` ORDER BY `pk_user` ASC LIMIT ?";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — with BIGINT cursor
+    #[test]
+    fn snapshot_mysql_relay_forward_bigint_cursor() {
+        let sql = "SELECT data FROM `v_user` WHERE `pk_user` > ? ORDER BY `pk_user` ASC LIMIT ?";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — with UUID cursor (CHAR(36) string comparison)
+    #[test]
+    fn snapshot_mysql_relay_forward_uuid_cursor() {
+        let sql = "SELECT data FROM `v_user` WHERE `pk_user` > ? ORDER BY `pk_user` ASC LIMIT ?";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — cursor + user WHERE
+    #[test]
+    fn snapshot_mysql_relay_forward_cursor_with_where() {
+        let sql = "SELECT data FROM `v_user` \
+                   WHERE `pk_user` > ? \
+                   AND (JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) = ?) \
+                   ORDER BY `pk_user` ASC LIMIT ?";
+        assert_snapshot!(sql);
+    }
+
+    // Forward pagination — custom ORDER BY (single column)
+    #[test]
+    fn snapshot_mysql_relay_forward_custom_order_by() {
+        let sql = "SELECT data FROM `v_post` \
+                   WHERE `pk_post` > ? \
+                   ORDER BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) ASC, `pk_post` ASC \
+                   LIMIT ?";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — no cursor, wraps in subquery for re-sort
+    #[test]
+    fn snapshot_mysql_relay_backward_no_cursor() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `pk_user` AS _relay_cursor \
+                   FROM `v_user` \
+                   ORDER BY `pk_user` DESC LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — with BIGINT cursor
+    #[test]
+    fn snapshot_mysql_relay_backward_bigint_cursor() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `pk_user` AS _relay_cursor \
+                   FROM `v_user` \
+                   WHERE `pk_user` < ? \
+                   ORDER BY `pk_user` DESC LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — with user WHERE + cursor
+    #[test]
+    fn snapshot_mysql_relay_backward_cursor_with_where() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `pk_user` AS _relay_cursor \
+                   FROM `v_user` \
+                   WHERE `pk_user` < ? \
+                   AND (JSON_UNQUOTE(JSON_EXTRACT(data, '$.active')) = ?) \
+                   ORDER BY `pk_user` DESC LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // Backward pagination — custom ORDER BY (sort direction flipped in inner query)
+    #[test]
+    fn snapshot_mysql_relay_backward_custom_order_by() {
+        let sql = "SELECT data FROM (\
+                   SELECT data, `pk_post` AS _relay_cursor \
+                   FROM `v_post` \
+                   WHERE `pk_post` < ? \
+                   ORDER BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC, `pk_post` DESC \
+                   LIMIT ?\
+                   ) _relay_page ORDER BY _relay_cursor ASC";
+        assert_snapshot!(sql);
+    }
+
+    // COUNT query — no WHERE
+    #[test]
+    fn snapshot_mysql_relay_count_no_where() {
+        let sql = "SELECT COUNT(*) FROM `v_user`";
+        assert_snapshot!(sql);
+    }
+
+    // COUNT query — with user WHERE (cursor NOT included per Relay spec)
+    #[test]
+    fn snapshot_mysql_relay_count_with_where() {
+        let sql = "SELECT COUNT(*) FROM `v_user` \
+                   WHERE (JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) = ?)";
+        assert_snapshot!(sql);
+    }
+}

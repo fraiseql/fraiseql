@@ -457,6 +457,23 @@ pub trait DatabaseAdapter: Send + Sync {
         Ok(0)
     }
 
+    /// Evict cache entries that contain the given entity UUID.
+    ///
+    /// Called by the executor after a successful UPDATE or DELETE mutation when
+    /// the `mutation_response` includes an `entity_id`. Only cache entries whose
+    /// entity-ID index contains the given UUID are removed; unrelated entries
+    /// remain warm.
+    ///
+    /// The default implementation is a no-op. `CachedDatabaseAdapter` overrides
+    /// this to perform the selective eviction.
+    ///
+    /// # Returns
+    ///
+    /// The number of cache entries evicted.
+    async fn invalidate_by_entity(&self, _entity_type: &str, _entity_id: &str) -> Result<u64> {
+        Ok(0)
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,
@@ -570,9 +587,9 @@ pub enum CursorValue {
 ///
 /// # Implementors
 ///
-/// Currently: [`PostgresAdapter`](crate::db::postgres::PostgresAdapter) and
-/// [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) when the inner `A`
-/// implements this trait.
+/// - [`PostgresAdapter`](crate::db::postgres::PostgresAdapter) — full keyset pagination
+/// - [`MySqlAdapter`](crate::db::mysql::MySqlAdapter) — keyset pagination with `?` params
+/// - [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) — delegates to inner `A`
 ///
 /// # Usage
 ///

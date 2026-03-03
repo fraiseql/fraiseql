@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT data FROM (SELECT data, `pk_post` AS _relay_cursor FROM `v_post` WHERE `pk_post` < ? ORDER BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC, `pk_post` DESC LIMIT ?) _relay_page ORDER BY _relay_cursor ASC

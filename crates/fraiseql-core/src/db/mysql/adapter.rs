@@ -8,9 +8,10 @@ use sqlx::{
 
 use super::where_generator::MySqlWhereGenerator;
 use crate::{
+    compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_mysql_identifier,
-        traits::DatabaseAdapter,
+        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -454,6 +455,220 @@ impl DatabaseAdapter for MySqlAdapter {
             message:   format!("Failed to parse MySQL EXPLAIN JSON: {e}"),
             sql_state: None,
         })
+    }
+}
+
+// ── MySQL relay helpers ────────────────────────────────────────────────────
+
+/// Build the `ORDER BY` clause for a relay page query.
+///
+/// Custom `order_by` columns come first (using MySQL JSON path syntax), then the
+/// cursor column is appended as a stable tiebreaker.  The sort direction is
+/// flipped for backward queries (inner subquery) and restored by the outer
+/// `ORDER BY _relay_cursor ASC` wrapper.
+fn build_mysql_relay_order_sql(
+    quoted_col: &str,
+    order_by: Option<&[OrderByClause]>,
+    forward: bool,
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+
+    if let Some(clauses) = order_by {
+        for c in clauses {
+            let dir = match (c.direction, forward) {
+                (OrderDirection::Asc, true) | (OrderDirection::Desc, false) => "ASC",
+                (OrderDirection::Desc, true) | (OrderDirection::Asc, false) => "DESC",
+            };
+            // JSON_UNQUOTE(JSON_EXTRACT(data, '$.field')) — field names are validated
+            // GraphQL identifiers, which cannot contain ' or other SQL-special chars.
+            let escaped = c.field.replace('\'', "''");
+            parts.push(format!("JSON_UNQUOTE(JSON_EXTRACT(data, '$.{escaped}')) {dir}"));
+        }
+    }
+
+    let cursor_dir = if forward { "ASC" } else { "DESC" };
+    parts.push(format!("{quoted_col} {cursor_dir}"));
+    format!(" ORDER BY {}", parts.join(", "))
+}
+
+/// Combine cursor and user WHERE conditions into a single `WHERE` clause fragment.
+fn build_mysql_relay_where(
+    cursor_sql: Option<&str>,
+    user_sql: Option<&str>,
+) -> String {
+    match (cursor_sql, user_sql) {
+        (None, None) => String::new(),
+        (Some(c), None) => format!(" WHERE {c}"),
+        (None, Some(u)) => format!(" WHERE ({u})"),
+        (Some(c), Some(u)) => format!(" WHERE {c} AND ({u})"),
+    }
+}
+
+impl MySqlAdapter {
+    /// Execute a parameterized SQL query and return the first column of the first row as `i64`.
+    ///
+    /// Used internally for `COUNT(*)` queries in relay pagination.
+    async fn execute_count_query(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<u64> {
+        let mut query = sqlx::query(sql);
+
+        for param in &params {
+            query = match param {
+                serde_json::Value::String(s) => query.bind(s.clone()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f)
+                    } else {
+                        query.bind(n.to_string())
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<String>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(param.to_string())
+                },
+            };
+        }
+
+        let row: MySqlRow = query.fetch_one(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("MySQL COUNT query failed: {e}"),
+                sql_state: None,
+            }
+        })?;
+
+        // COUNT(*) returns BIGINT UNSIGNED in MySQL; try i64 first (covers most real counts).
+        let cnt: u64 = if let Ok(v) = row.try_get::<i64, _>(0) {
+            v as u64
+        } else if let Ok(v) = row.try_get::<u64, _>(0) {
+            v
+        } else {
+            0
+        };
+
+        Ok(cnt)
+    }
+}
+
+// ── RelayDatabaseAdapter ───────────────────────────────────────────────────
+
+#[async_trait]
+impl RelayDatabaseAdapter for MySqlAdapter {
+    /// Execute keyset (cursor-based) pagination against a JSONB view.
+    ///
+    /// # MySQL specifics
+    ///
+    /// - Identifiers are quoted with backticks.
+    /// - Parameters use positional `?` placeholders (not numbered like `$1`).
+    /// - JSON field access in ORDER BY uses `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))`.
+    /// - UUID cursors are compared as `CHAR(36)` strings — no explicit cast needed.
+    /// - Backward pagination uses an inner DESC subquery re-sorted ASC by the outer query.
+    ///
+    /// # `totalCount` semantics
+    ///
+    /// When `include_total_count` is `true`, a separate `SELECT COUNT(*) FROM {view}
+    /// WHERE {user_filter}` is issued **without** the cursor condition. This implements
+    /// the Relay spec requirement that `totalCount` reflects the full connection size,
+    /// not the filtered page.
+    async fn execute_relay_page(
+        &self,
+        view: &str,
+        cursor_column: &str,
+        after: Option<CursorValue>,
+        before: Option<CursorValue>,
+        limit: u32,
+        forward: bool,
+        where_clause: Option<&WhereClause>,
+        order_by: Option<&[OrderByClause]>,
+        include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        let quoted_view = quote_mysql_identifier(view);
+        let quoted_col = quote_mysql_identifier(cursor_column);
+
+        // ── Cursor condition ───────────────────────────────────────────────
+        let active_cursor = if forward { after } else { before };
+        let (cursor_where_sql, cursor_param): (Option<String>, Option<serde_json::Value>) =
+            match active_cursor {
+                None => (None, None),
+                Some(CursorValue::Int64(pk)) => {
+                    let op = if forward { ">" } else { "<" };
+                    (
+                        Some(format!("{quoted_col} {op} ?")),
+                        Some(serde_json::Value::Number(pk.into())),
+                    )
+                },
+                Some(CursorValue::Uuid(uuid)) => {
+                    // MySQL UUIDs stored as CHAR(36); string comparison works for canonical form.
+                    let op = if forward { ">" } else { "<" };
+                    (
+                        Some(format!("{quoted_col} {op} ?")),
+                        Some(serde_json::Value::String(uuid)),
+                    )
+                },
+            };
+
+        // ── User WHERE clause ──────────────────────────────────────────────
+        let (user_where_sql, user_where_params): (Option<String>, Vec<serde_json::Value>) =
+            if let Some(clause) = where_clause {
+                let generator = MySqlWhereGenerator::new();
+                let (sql, params) = generator.generate(clause)?;
+                (Some(sql), params)
+            } else {
+                (None, Vec::new())
+            };
+
+        // ── ORDER BY ───────────────────────────────────────────────────────
+        let order_sql = build_mysql_relay_order_sql(&quoted_col, order_by, forward);
+
+        // ── Combined page WHERE ────────────────────────────────────────────
+        let page_where_sql =
+            build_mysql_relay_where(cursor_where_sql.as_deref(), user_where_sql.as_deref());
+
+        // ── Page params: [cursor?, ...user_where_params, limit] ────────────
+        let mut page_params: Vec<serde_json::Value> = Vec::new();
+        if let Some(cp) = cursor_param {
+            page_params.push(cp);
+        }
+        page_params.extend(user_where_params.iter().cloned());
+        page_params.push(serde_json::Value::Number(limit.into()));
+
+        // ── Page SQL ───────────────────────────────────────────────────────
+        //
+        // Backward pagination: inner DESC query + outer re-sorts ASC so the
+        // caller always receives rows in ascending cursor order.
+        let page_sql = if forward {
+            format!("SELECT data FROM {quoted_view}{page_where_sql}{order_sql} LIMIT ?")
+        } else {
+            let inner = format!(
+                "SELECT data, {quoted_col} AS _relay_cursor \
+                 FROM {quoted_view}{page_where_sql}{order_sql} LIMIT ?"
+            );
+            format!("SELECT data FROM ({inner}) _relay_page ORDER BY _relay_cursor ASC")
+        };
+
+        let rows = self.execute_raw(&page_sql, page_params).await?;
+
+        // ── Count query (cursor-independent per Relay spec) ────────────────
+        let total_count = if include_total_count {
+            let (count_sql, count_params) = if let Some(u_sql) = &user_where_sql {
+                (
+                    format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({u_sql})"),
+                    user_where_params.clone(),
+                )
+            } else {
+                (format!("SELECT COUNT(*) FROM {quoted_view}"), vec![])
+            };
+            Some(self.execute_count_query(&count_sql, count_params).await?)
+        } else {
+            None
+        };
+
+        Ok(RelayPageResult { rows, total_count })
     }
 }
 

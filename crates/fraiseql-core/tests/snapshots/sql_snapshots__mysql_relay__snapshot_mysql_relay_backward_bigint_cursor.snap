@@ -1,0 +1,5 @@
+---
+source: crates/fraiseql-core/tests/sql_snapshots.rs
+expression: sql
+---
+SELECT data FROM (SELECT data, `pk_user` AS _relay_cursor FROM `v_user` WHERE `pk_user` < ? ORDER BY `pk_user` DESC LIMIT ?) _relay_page ORDER BY _relay_cursor ASC
