@@ -514,4 +514,124 @@ mod tests {
         assert!(json.contains("VALIDATION"));
         assert!(json.contains("req-123"));
     }
+
+    // =========================================================================
+    // Complete ErrorCode → HTTP status coverage
+    // =========================================================================
+
+    #[test]
+    fn test_all_error_codes_have_expected_status() {
+        // Every variant must map to an explicit HTTP status
+        assert_eq!(ErrorCode::ParseError.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(ErrorCode::RequestError.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(ErrorCode::NotFound.status_code(), StatusCode::NOT_FOUND);
+        assert_eq!(ErrorCode::Conflict.status_code(), StatusCode::CONFLICT);
+        assert_eq!(ErrorCode::RateLimitExceeded.status_code(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(ErrorCode::Timeout.status_code(), StatusCode::REQUEST_TIMEOUT);
+        assert_eq!(ErrorCode::InternalServerError.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(ErrorCode::PersistedQueryMismatch.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(ErrorCode::ForbiddenQuery.status_code(), StatusCode::BAD_REQUEST);
+        assert_eq!(ErrorCode::DocumentNotFound.status_code(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn test_persisted_query_not_found_maps_to_200() {
+        // APQ protocol: "not found" signals the client to re-send with the full query body.
+        // Returning 200 OK is spec-required for the APQ flow.
+        assert_eq!(ErrorCode::PersistedQueryNotFound.status_code(), StatusCode::OK);
+
+        use axum::response::IntoResponse;
+        let response = ErrorResponse::from_error(GraphQLError::persisted_query_not_found())
+            .into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    // =========================================================================
+    // FraiseQLError → GraphQLError conversion coverage
+    // =========================================================================
+
+    #[test]
+    fn test_from_fraiseql_timeout_maps_to_timeout_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Timeout {
+            timeout_ms: 5000,
+            query:      Some("{ users { id } }".into()),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::Timeout);
+    }
+
+    #[test]
+    fn test_from_fraiseql_rate_limited_maps_to_rate_limit_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::RateLimited {
+            message:          "too many requests".into(),
+            retry_after_secs: 60,
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::RateLimitExceeded);
+    }
+
+    #[test]
+    fn test_from_fraiseql_conflict_maps_to_conflict_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Conflict {
+            message: "unique constraint violated".into(),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::Conflict);
+    }
+
+    #[test]
+    fn test_from_fraiseql_parse_maps_to_parse_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Parse {
+            message:  "unexpected token".into(),
+            location: "line 1, col 5".into(),
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::ParseError);
+    }
+
+    #[test]
+    fn test_from_fraiseql_internal_maps_to_internal_code() {
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::Internal {
+            message: "unexpected nil pointer".into(),
+            source:  None,
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::InternalServerError);
+    }
+
+    // =========================================================================
+    // HTTP response structure tests
+    // =========================================================================
+
+    #[test]
+    fn test_timeout_response_has_correct_status() {
+        use axum::response::IntoResponse;
+        let response =
+            ErrorResponse::from_error(GraphQLError::new("timed out", ErrorCode::Timeout))
+                .into_response();
+        assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+    }
+
+    #[test]
+    fn test_rate_limit_response_has_correct_status() {
+        use axum::response::IntoResponse;
+        let response =
+            ErrorResponse::from_error(GraphQLError::rate_limited("too many requests"))
+                .into_response();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[test]
+    fn test_not_found_response_has_correct_status() {
+        use axum::response::IntoResponse;
+        let response =
+            ErrorResponse::from_error(GraphQLError::not_found("resource not found"))
+                .into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
 }

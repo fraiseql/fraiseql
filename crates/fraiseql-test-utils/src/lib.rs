@@ -10,6 +10,12 @@ pub mod fixtures;
 pub mod mock_db;
 pub mod saga;
 
+// Re-export assertion helpers for direct use
+pub use assertions::{
+    assert_graphql_error_contains, assert_graphql_success, assert_has_data,
+    assert_no_graphql_errors,
+};
+
 // Re-export saga types for convenience
 pub use saga::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
 
