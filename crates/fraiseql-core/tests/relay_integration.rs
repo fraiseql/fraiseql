@@ -635,6 +635,50 @@ async fn test_relay_total_count_absent_when_not_requested() {
     );
 }
 
+/// Verify that `totalCount` is populated when requested inside an inline fragment
+/// (`... on UserConnection { totalCount }`), per the Relay Cursor Connections spec.
+///
+/// This covers the case where a Relay-compiled query uses type-conditioned inline
+/// fragments rather than bare field selections.
+#[tokio::test]
+async fn test_relay_total_count_via_inline_fragment() {
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "{ users { ... on UserConnection { totalCount } edges { cursor node { name } } } }",
+            Some(&json!({"first": 2})),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        result["data"]["users"]["totalCount"],
+        json!(3),
+        "totalCount inside an inline fragment must still be populated"
+    );
+}
+
+/// Verify that `totalCount` is populated when requested via a named fragment spread
+/// that has been expanded by the fragment resolver before the relay check runs.
+#[tokio::test]
+async fn test_relay_total_count_via_named_fragment() {
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "fragment ConnFields on UserConnection { totalCount }
+             { users { ...ConnFields edges { cursor node { name } } } }",
+            Some(&json!({"first": 2})),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        result["data"]["users"]["totalCount"],
+        json!(3),
+        "totalCount via named fragment spread must still be populated"
+    );
+}
+
 // =============================================================================
 // UUID cursor tests
 // =============================================================================

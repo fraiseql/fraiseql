@@ -375,24 +375,14 @@ impl<A: DatabaseAdapter> Executor<A> {
         };
 
         // Detect whether the client selected `totalCount` inside the connection.
-        // `query_match.selections` contains the root-level fields of the query (e.g.
-        // `users`). `totalCount` is a field *inside* the connection, so we look in the
-        // nested_fields of the matched root field.
-        //
-        // Fragment spreads (e.g. `... on UserConnection { totalCount }`) are NOT
-        // resolved here; clients using fragment spreads for totalCount will receive null.
-        // Relay compiler and Apollo relay mode always emit totalCount as an inline field.
-        // TODO(relay): flatten fragments before this check for full spec compliance.
+        // Named fragment spreads are already expanded by the matcher's FragmentResolver.
+        // Inline fragments (`... on UserConnection { totalCount }`) remain as FieldSelection
+        // entries with a name starting with "..." — we recurse one level into those.
         let include_total_count = query_match
             .selections
             .iter()
             .find(|sel| sel.name == query_def.name)
-            .map(|connection_field| {
-                connection_field
-                    .nested_fields
-                    .iter()
-                    .any(|sel| sel.name == "totalCount")
-            })
+            .map(|connection_field| selections_contain_field(&connection_field.nested_fields, "totalCount"))
             .unwrap_or(false);
 
         // Capture before the move into execute_relay_page.
@@ -581,4 +571,22 @@ impl<A: DatabaseAdapter> Executor<A> {
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(serde_json::to_string(&response)?)
     }
+}
+
+/// Return `true` if `field_name` appears in `selections`, including inside inline
+/// fragment entries (`FieldSelection` whose name starts with `"..."`).
+///
+/// Named fragment spreads are already flattened by [`FragmentResolver`] before this
+/// is called, so we only need to recurse one level into inline fragments.
+fn selections_contain_field(selections: &[crate::graphql::FieldSelection], field_name: &str) -> bool {
+    for sel in selections {
+        if sel.name == field_name {
+            return true;
+        }
+        // Inline fragment: name starts with "..." (e.g. "...on UserConnection")
+        if sel.name.starts_with("...") && selections_contain_field(&sel.nested_fields, field_name) {
+            return true;
+        }
+    }
+    false
 }
