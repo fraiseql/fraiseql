@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **C# SDK v2.0.0** (`sdks/official/fraiseql-csharp`): complete rewrite replacing the old
+  dictionary-based v1 API with a modern attribute-driven authoring system.
+  `[GraphQLType(Name, SqlSource, IsInput, Relay, IsError)]` and
+  `[GraphQLField(Type, Nullable, Scope, Scopes)]` on C# classes drive reflection-based
+  registration. `QueryBuilder`/`MutationBuilder` provide a fluent API; `SchemaBuilder` is a
+  code-first alternative that bypasses reflection entirely. `SchemaExporter.Export()` emits
+  snake_case JSON (`sql_source`, `return_type`, `returns_list`). A `dotnet tool`
+  (`fraiseql export <assembly.dll>`) loads any assembly and exports `schema.json` without
+  requiring a source checkout. C# type auto-detection covers all primitives including
+  `Guid → ID`, `DateTime → String`, and full `Nullable<T>` / nullable-reference-type
+  resolution via `NullabilityInfoContext`. 103 xUnit tests, zero warnings.
+- **Elixir SDK v2.0.0** (`sdks/official/fraiseql-elixir`): replaces the Agent-based v1 API
+  (moved to `FraiseQL.Schema.Legacy`) with a compile-time macro DSL. `use FraiseQL.Schema`
+  injects `fraiseql_type/2-3`, `fraiseql_query/2-3`, and `fraiseql_mutation/2-3` macros backed
+  by `accumulate: true` module attributes. Field and argument accumulation uses a double-buffer
+  pattern (`@__fraiseql_field_buffer`) so `field/3` and `argument/3` calls inside `do` blocks
+  expand correctly at compile time. `@before_compile` generates `__fraiseql_types__/0`,
+  `__fraiseql_queries__/0`, `__fraiseql_mutations__/0`, `export_to_file!/1-2`, and
+  `to_intermediate_schema/0`. Duplicate type names and missing `sql_source` raise
+  `ArgumentError` at compile time. `mix fraiseql.export --module MyApp.Schema` exports without
+  a custom script. Full Dialyzer and Credo strict CI matrix (Elixir 1.15–1.17 × OTP 26–27).
+  98+ ExUnit tests.
+- **F# SDK v2.0.0** (`sdks/official/fraiseql-fsharp`): new SDK with two authoring styles that
+  produce identical `schema.json`. Attribute-based: `[<GraphQLType("Author", SqlSource =
+  "v_author")>]` on F# types, reflected by `SchemaRegistry`. Computation expression DSL:
+  `fraiseql { yield type' "Author" "v_author" { field "id" "ID" { nullable false } }; yield
+  query "authors" { returnType "Author"; returnsList true; sqlSource "v_author" } }` — five
+  nested CEs (`FraiseQLBuilder`, `TypeCEBuilder`, `QueryCEBuilder`, `MutationCEBuilder`,
+  `FieldBuilder`) produce an `IntermediateSchema` value with no global state. `SchemaExporter`
+  uses a custom `SnakeCaseNamingPolicy` for correct JSON key names. `dotnet tool`
+  (`fraiseql-schema-fsharp export <dll>`) loads an assembly and exports `schema.json`. 133 xUnit
+  tests, zero warnings.
+- **SDK CI workflows**: `.github/workflows/csharp-sdk.yml`, `elixir-sdk.yml`, `fsharp-sdk.yml`
+  trigger on path-filtered pushes and publish to NuGet / Hex.pm on `csharp-sdk/v*`,
+  `elixir-sdk/v*`, `fsharp-sdk/v*` tags respectively.
+
 - **Domain-specific string newtypes** (`schema::domain_types`): `TypeName`, `FieldName`,
   `SqlSource`, `RoleName`, and `Scope` replace bare `String` fields on `TypeDefinition`,
   `FieldDefinition`, and `RoleDefinition`. Passing a `FieldName` where a `TypeName` is expected

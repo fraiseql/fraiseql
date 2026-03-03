@@ -1,164 +1,109 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
+using FraiseQL.Attributes;
+using FraiseQL.Registry;
 using Xunit;
-using FraiseQL;
 
-namespace FraiseQL.Tests
+namespace FraiseQL.Tests;
+
+[Collection(RegistryTestCollection.Name)]
+public sealed class ExportTypesTests : IDisposable
 {
-    public class ExportTypesTests : IDisposable
+    public ExportTypesTests() => SchemaRegistry.Instance.Clear();
+    public void Dispose() => SchemaRegistry.Instance.Clear();
+
+    [GraphQLType(Name = "User", SqlSource = "v_user", Description = "User in the system")]
+    private class UserFixture
     {
-        public ExportTypesTests()
-        {
-            Schema.Reset();
-        }
+        [GraphQLField(Type = "ID", Nullable = false)]
+        public int Id { get; set; }
 
-        public void Dispose()
-        {
-            Schema.Reset();
-        }
+        [GraphQLField(Type = "String", Nullable = false)]
+        public string Name { get; set; } = string.Empty;
 
-        [Fact]
-        public void TestExportTypesMinimalSingleType()
-        {
-            Schema.RegisterType("User", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } },
-                { "name", new Dictionary<string, object> { { "type", "String" }, { "nullable", false } } },
-                { "email", new Dictionary<string, object> { { "type", "String" }, { "nullable", false } } }
-            }, "User in the system");
+        [GraphQLField(Type = "String", Nullable = false)]
+        public string Email { get; set; } = string.Empty;
+    }
 
-            var json = Schema.ExportTypes(true);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+    [GraphQLType(Name = "Product", SqlSource = "v_product")]
+    private class ProductFixture
+    {
+        [GraphQLField(Type = "ID", Nullable = false)]
+        public Guid ProductId { get; set; }
 
-            Assert.True(root.TryGetProperty("types", out var types));
-            Assert.Equal(JsonValueKind.Array, types.ValueKind);
-            Assert.Equal(1, types.GetArrayLength());
+        [GraphQLField(Type = "String", Nullable = false)]
+        public string Label { get; set; } = string.Empty;
 
-            Assert.False(root.TryGetProperty("queries", out _));
-            Assert.False(root.TryGetProperty("mutations", out _));
-            Assert.False(root.TryGetProperty("observers", out _));
+        [GraphQLField(Type = "Float", Nullable = false)]
+        public decimal Price { get; set; }
 
-            var userDef = types[0];
-            Assert.Equal("User", userDef.GetProperty("name").GetString());
-            Assert.Equal("User in the system", userDef.GetProperty("description").GetString());
-        }
+        [GraphQLField(Type = "Int", Nullable = false)]
+        public int Stock { get; set; }
 
-        [Fact]
-        public void TestExportTypesMultipleTypes()
-        {
-            Schema.RegisterType("User", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } },
-                { "name", new Dictionary<string, object> { { "type", "String" }, { "nullable", false } } }
-            });
+        [GraphQLField(Type = "Boolean", Nullable = false)]
+        public bool Active { get; set; }
+    }
 
-            Schema.RegisterType("Post", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } },
-                { "title", new Dictionary<string, object> { { "type", "String" }, { "nullable", false } } }
-            });
+    [Fact]
+    public void TestRegisterSingleTypeDescription()
+    {
+        SchemaRegistry.Instance.Register(typeof(UserFixture));
 
-            var json = Schema.ExportTypes(true);
-            using var doc = JsonDocument.Parse(json);
-            var types = doc.RootElement.GetProperty("types");
+        var td = SchemaRegistry.Instance.GetTypeDefinition("User");
+        Assert.NotNull(td);
+        Assert.Equal("User in the system", td.Description);
+    }
 
-            Assert.Equal(2, types.GetArrayLength());
+    [Fact]
+    public void TestRegisterSingleTypeSqlSource()
+    {
+        SchemaRegistry.Instance.Register(typeof(UserFixture));
 
-            var typeNames = types.EnumerateArray().Select(t => t.GetProperty("name").GetString()).ToList();
-            Assert.Contains("User", typeNames);
-            Assert.Contains("Post", typeNames);
-        }
+        var td = SchemaRegistry.Instance.GetTypeDefinition("User");
+        Assert.NotNull(td);
+        Assert.Equal("v_user", td.SqlSource);
+    }
 
-        [Fact]
-        public void TestExportTypesNoQueries()
-        {
-            Schema.RegisterType("User", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } }
-            });
+    [Fact]
+    public void TestRegisterSingleTypeFieldCount()
+    {
+        SchemaRegistry.Instance.Register(typeof(UserFixture));
 
-            var json = Schema.ExportTypes(true);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
+        var td = SchemaRegistry.Instance.GetTypeDefinition("User");
+        Assert.NotNull(td);
+        Assert.Equal(3, td.Fields.Count);
+    }
 
-            Assert.True(root.TryGetProperty("types", out _));
-            Assert.False(root.TryGetProperty("queries", out _));
-            Assert.False(root.TryGetProperty("mutations", out _));
-        }
+    [Fact]
+    public void TestRegisterSingleTypeFieldNames()
+    {
+        SchemaRegistry.Instance.Register(typeof(UserFixture));
 
-        [Fact]
-        public void TestExportTypesCompactFormat()
-        {
-            Schema.RegisterType("User", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } }
-            });
+        var td = SchemaRegistry.Instance.GetTypeDefinition("User");
+        Assert.NotNull(td);
+        Assert.Equal("id", td.Fields[0].Name);
+        Assert.Equal("name", td.Fields[1].Name);
+        Assert.Equal("email", td.Fields[2].Name);
+    }
 
-            var compact = Schema.ExportTypes(false);
-            var pretty = Schema.ExportTypes(true);
+    [Fact]
+    public void TestRegisterMultipleTypes()
+    {
+        SchemaRegistry.Instance.Register(typeof(UserFixture));
+        SchemaRegistry.Instance.Register(typeof(ProductFixture));
 
-            Assert.True(compact.Length <= pretty.Length);
+        Assert.Equal(2, SchemaRegistry.Instance.GetAllTypes().Count);
+    }
 
-            var compactDoc = JsonDocument.Parse(compact);
-            Assert.True(compactDoc.RootElement.TryGetProperty("types", out _));
+    [Fact]
+    public void TestProductTypeFieldTypes()
+    {
+        SchemaRegistry.Instance.Register(typeof(ProductFixture));
 
-            var prettyDoc = JsonDocument.Parse(pretty);
-            Assert.True(prettyDoc.RootElement.TryGetProperty("types", out _));
-        }
-
-        [Fact]
-        public void TestExportTypesPrettyFormat()
-        {
-            Schema.RegisterType("User", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } }
-            });
-
-            var json = Schema.ExportTypes(true);
-            Assert.Contains("\n", json);
-
-            using var doc = JsonDocument.Parse(json);
-            Assert.True(doc.RootElement.TryGetProperty("types", out _));
-        }
-
-        [Fact]
-        public void TestExportTypesFile()
-        {
-            Schema.RegisterType("User", new Dictionary<string, object>
-            {
-                { "id", new Dictionary<string, object> { { "type", "ID" }, { "nullable", false } } },
-                { "name", new Dictionary<string, object> { { "type", "String" }, { "nullable", false } } }
-            });
-
-            var tmpFile = "/tmp/fraiseql_types_test_csharp.json";
-            if (File.Exists(tmpFile))
-                File.Delete(tmpFile);
-
-            Schema.ExportTypesFile(tmpFile);
-
-            Assert.True(File.Exists(tmpFile));
-
-            var content = File.ReadAllText(tmpFile);
-            using var doc = JsonDocument.Parse(content);
-            var types = doc.RootElement.GetProperty("types");
-            Assert.Equal(1, types.GetArrayLength());
-
-            File.Delete(tmpFile);
-        }
-
-        [Fact]
-        public void TestExportTypesEmpty()
-        {
-            var json = Schema.ExportTypes(true);
-            using var doc = JsonDocument.Parse(json);
-            var types = doc.RootElement.GetProperty("types");
-
-            Assert.Equal(JsonValueKind.Array, types.ValueKind);
-            Assert.Equal(0, types.GetArrayLength());
-        }
+        var td = SchemaRegistry.Instance.GetTypeDefinition("Product");
+        Assert.NotNull(td);
+        Assert.Equal("ID", td.Fields.First(f => f.Name == "productId").Type);
+        Assert.Equal("String", td.Fields.First(f => f.Name == "label").Type);
+        Assert.Equal("Float", td.Fields.First(f => f.Name == "price").Type);
+        Assert.Equal("Int", td.Fields.First(f => f.Name == "stock").Type);
+        Assert.Equal("Boolean", td.Fields.First(f => f.Name == "active").Type);
     }
 }

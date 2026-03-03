@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>fraiseql-schema-fsharp</ToolCommandName>
+    <PackageId>FraiseQL.Tool.FSharp</PackageId>
+    <Version>2.0.0</Version>
+    <Authors>FraiseQL Contributors</Authors>
+    <Description>CLI tool for exporting FraiseQL schema.json from .NET assemblies annotated with F# attributes.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>graphql;fsharp;schema;fraiseql;cli;tool</PackageTags>
+    <RepositoryUrl>https://github.com/fraiseql/fraiseql</RepositoryUrl>
+    <RootNamespace>FraiseQL.Tool</RootNamespace>
+    <RollForward>Major</RollForward>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FraiseQL\FraiseQL.fsproj" />
+  </ItemGroup>
+</Project>
