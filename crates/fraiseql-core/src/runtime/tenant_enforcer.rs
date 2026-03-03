@@ -1,5 +1,9 @@
-// Multi-tenancy enforcement layer
-// Ensures all database queries are scoped to the requesting organization
+//! Multi-tenancy enforcement layer.
+//!
+//! Ensures all database queries are scoped to the requesting organization by
+//! automatically injecting `org_id` filters into WHERE clauses. Supports both
+//! the structured [`WhereClause`] AST (preferred, parameterized) and raw SQL
+//! string injection as a fallback.
 
 use serde_json::json;
 

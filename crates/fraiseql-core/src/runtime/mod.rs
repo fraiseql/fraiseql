@@ -89,7 +89,42 @@ pub use window_projector::WindowProjector;
 
 use crate::security::{FieldFilter, FieldFilterConfig, RLSPolicy};
 
-/// Runtime configuration.
+/// Runtime configuration for the FraiseQL query executor.
+///
+/// Controls safety limits, security policies, and performance tuning. All settings
+/// have production-safe defaults and can be overridden via the builder-style methods.
+///
+/// # Defaults
+///
+/// | Field | Default | Notes |
+/// |-------|---------|-------|
+/// | `cache_query_plans` | `true` | Caches parsed query plans for repeated queries |
+/// | `max_query_depth` | `10` | Prevents stack overflow on recursive GraphQL |
+/// | `max_query_complexity` | `1000` | Rough cost model; tune per workload |
+/// | `enable_tracing` | `false` | Emit OpenTelemetry spans for each query |
+/// | `query_timeout_ms` | `30 000` | Hard limit; 0 disables the timeout |
+/// | `field_filter` | `None` | No field-level access control |
+/// | `rls_policy` | `None` | No row-level security |
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::runtime::RuntimeConfig;
+/// use fraiseql_core::security::FieldFilterConfig;
+///
+/// let config = RuntimeConfig {
+///     max_query_depth: 5,
+///     max_query_complexity: 500,
+///     enable_tracing: true,
+///     query_timeout_ms: 5_000,
+///     ..RuntimeConfig::default()
+/// }
+/// .with_field_filter(
+///     FieldFilterConfig::new()
+///         .protect_field("User", "salary")
+///         .protect_field("User", "ssn"),
+/// );
+/// ```
 pub struct RuntimeConfig {
     /// Enable query plan caching.
     pub cache_query_plans: bool,
