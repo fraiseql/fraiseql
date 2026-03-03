@@ -1,13 +1,14 @@
-.PHONY: help build test test-unit test-integration test-federation test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity
 
 # Default target
 help:
 	@echo "FraiseQL v2 Development Commands"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test               - Run all tests"
+	@echo "  make test               - Run unit + integration tests (PostgreSQL)"
 	@echo "  make test-unit          - Run unit tests only (fast, no database)"
 	@echo "  make test-integration   - Run integration tests (requires Docker)"
+	@echo "  make test-full          - Run ALL categories: unit + integration + cross-db + federation"
 	@echo "  make test-federation    - Run federation tests (requires Docker)"
 	@echo "  make test-all-ignored   - Run ALL #[ignore] tests (requires full infra: db-up)"
 	@echo "  make test-parity        - Run cross-SDK parity checks (requires uv, bun, go, mvn, php)"
@@ -73,6 +74,36 @@ build-release:
 
 # Run all tests (unit + integration)
 test: test-unit test-integration
+
+# Run the full test suite: unit + SQL snapshots + integration (all DBs) + cross-database parity + federation
+# Requires full infrastructure: Docker with PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault + Apollo Router
+test-full: db-up federation-up
+	@echo "=== Running full test suite ==="
+	@echo ""
+	@echo "[1/5] Unit tests..."
+	@cargo test --lib --all-features
+	@echo ""
+	@echo "[2/5] SQL snapshot tests..."
+	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
+	@echo ""
+	@echo "[3/5] Behavioral integration tests (all databases)..."
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+		cargo test --features test-postgres -p fraiseql-core -- --ignored --test-threads=4
+	DATABASE_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
+		cargo test --features test-mysql -p fraiseql-core -- --ignored --test-threads=1
+	DATABASE_URL="server=localhost,1434;database=test_fraiseql;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true" \
+		cargo test --features test-sqlserver -p fraiseql-core -- --ignored --test-threads=1
+	@echo ""
+	@echo "[4/5] Cross-database parity tests..."
+	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
+	MYSQL_URL="mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql" \
+		cargo test --features test-postgres,test-mysql -p fraiseql-core \
+		    --test cross_database_test -- --ignored --test-threads=1
+	@echo ""
+	@echo "[5/5] Federation integration tests..."
+	@cd docker/federation-ci && pytest -q --tb=short
+	@echo ""
+	@echo "=== Full test suite complete ==="
 
 # Run unit tests only (no database required)
 test-unit:

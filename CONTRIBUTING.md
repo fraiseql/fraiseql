@@ -211,74 +211,51 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ## Testing
 
-### Test Levels
+See **[`docs/testing.md`](docs/testing.md)** for the full test taxonomy (7 categories,
+infrastructure requirements, CI coverage, and decision guide).
 
-1. **Unit Tests**: Test individual functions/modules
-
-   ```rust
-   #[cfg(test)]
-   mod tests {
-       use super::*;
-
-       #[test]
-       fn test_addition() {
-           assert_eq!(add(2, 2), 4);
-       }
-   }
-   ```
-
-2. **Integration Tests**: Test module interactions
-
-   ```rust
-   // tests/integration/test_schema.rs
-   #[test]
-   fn test_schema_loading() {
-       let schema = CompiledSchema::load("test.json").unwrap();
-       assert!(schema.is_valid());
-   }
-   ```
-
-3. **End-to-End Tests**: Test complete flows
-
-   ```rust
-   // tests/e2e/test_query_execution.rs
-   #[tokio::test]
-   async fn test_query_execution() {
-       let executor = setup_executor().await;
-       let result = executor.execute("query { users { id } }").await.unwrap();
-       assert!(!result.has_errors());
-   }
-   ```
-
-### Test Database
-
-Integration tests require PostgreSQL:
+### Quick Commands
 
 ```bash
-# Create test database (local setup)
-make db-setup-local
-
-# Or use Docker containers
-make db-up
-
-# Run integration tests
-make test-integration
-
-# Clean up (local)
-make db-teardown-local
-
-# Or stop Docker containers
-make db-down
+make test           # Unit + SQL snapshots + behavioral integration (PostgreSQL)
+make test-full      # All categories: unit + snapshots + integration + cross-db + federation
+make test-load      # Load testing (requires running server + k6)
+make coverage       # Generate test coverage report (target/llvm-cov/html/index.html)
 ```
+
+### Infrastructure
+
+```bash
+make db-up          # Start test databases (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)
+make db-down        # Stop test databases
+make db-reset       # Reset volumes (after schema changes)
+```
+
+### Updating SQL Snapshots
+
+If you change the SQL compiler, snapshot tests will fail. To update them:
+
+```bash
+# Accept all snapshot changes
+INSTA_UPDATE=accept cargo nextest run --test sql_snapshots
+
+# Review each change interactively
+cargo insta review
+
+# Commit the updated .snap files
+git add crates/fraiseql-core/tests/snapshots/
+git commit -m "test(sql): update SQL snapshots after compiler change"
+```
+
+**Important**: Review every changed snapshot to verify the new SQL is correct,
+not just different.
 
 ### Coverage
 
 We aim for **85%+ test coverage**:
 
 ```bash
-# Generate coverage report
 make coverage
-
 # View report at target/llvm-cov/html/index.html
 ```
 
@@ -333,7 +310,7 @@ FraiseQL v2 is a **compiled GraphQL execution engine**. Key principles:
 - **Runtime Layer**: Query execution → Result streaming (runtime via fraiseql-server)
 - **Database Layer**: Data storage and retrieval (multi-database support)
 
-See `.claude/ARCHITECTURE_PRINCIPLES.md` for detailed architecture documentation.
+See [`docs/architecture/overview.md`](docs/architecture/overview.md) for detailed architecture documentation.
 
 ### 2. Layered Optionality
 

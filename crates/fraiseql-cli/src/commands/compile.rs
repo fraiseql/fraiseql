@@ -222,6 +222,9 @@ pub async fn compile_to_schema(
         validate_indexed_columns(&schema, db_url).await?;
     }
 
+    // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
+    check_sqlite_compatibility_warnings(&schema, opts.input, is_toml, opts.database);
+
     Ok((schema, report))
 }
 
@@ -304,6 +307,75 @@ pub async fn run(
     optimization_report.print();
 
     Ok(())
+}
+
+/// Emit warnings when schema uses features that SQLite does not support.
+///
+/// SQLite lacks stored procedures (mutations) and relay/subscription support.
+/// A compile-time warning helps catch this before runtime failures.
+fn check_sqlite_compatibility_warnings(
+    schema: &CompiledSchema,
+    input_path: &str,
+    is_toml: bool,
+    database_url: Option<&str>,
+) {
+    let target_is_sqlite = database_url
+        .map(|url| url.to_ascii_lowercase().starts_with("sqlite://"))
+        .unwrap_or(false)
+        || is_toml && detect_sqlite_target_in_toml(input_path);
+
+    if !target_is_sqlite {
+        return;
+    }
+
+    let mutation_count = schema.mutations.len();
+    let relay_count = schema.queries.iter().filter(|q| q.relay).count();
+    let subscription_count = schema.subscriptions.len();
+
+    if mutation_count > 0 {
+        warn!(
+            "Schema contains {} mutation(s) but target database is SQLite. \
+             Mutations are not supported on SQLite. \
+             See: https://fraiseql.dev/docs/database-compatibility",
+            mutation_count,
+        );
+    }
+    if relay_count > 0 {
+        warn!(
+            "Schema contains {} relay query/queries but target database is SQLite. \
+             Relay (keyset pagination) is not supported on SQLite. \
+             See: https://fraiseql.dev/docs/database-compatibility",
+            relay_count,
+        );
+    }
+    if subscription_count > 0 {
+        warn!(
+            "Schema contains {} subscription(s) but target database is SQLite. \
+             Subscriptions are not supported on SQLite. \
+             See: https://fraiseql.dev/docs/database-compatibility",
+            subscription_count,
+        );
+    }
+}
+
+/// Check if the TOML schema file specifies `database_target = "sqlite"`.
+///
+/// Reads and parses the TOML to extract the schema metadata. Returns `false`
+/// on any parse error (non-fatal — warning detection is best-effort).
+fn detect_sqlite_target_in_toml(toml_path: &str) -> bool {
+    let Ok(content) = fs::read_to_string(toml_path) else {
+        return false;
+    };
+    let Ok(toml_schema) =
+        toml::from_str::<crate::config::toml_schema::TomlSchema>(&content)
+    else {
+        return false;
+    };
+    toml_schema
+        .schema
+        .database_target
+        .to_ascii_lowercase()
+        .contains("sqlite")
 }
 
 /// Validate indexed columns against database views.

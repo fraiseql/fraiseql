@@ -449,6 +449,16 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
         - Function must have type annotations for all parameters and return type
         - Pass configuration as decorator arguments: @mutation(sql_source="...", operation="CREATE")
         - operation: CREATE, UPDATE, DELETE, or CUSTOM
+
+    Database support:
+        - PostgreSQL: full support
+        - MySQL: full support
+        - SQL Server: full support
+        - SQLite: NOT supported — the server returns FraiseQLError::Unsupported at runtime.
+          Use PostgreSQL for any schema containing mutations.
+
+    See Also:
+        https://fraiseql.dev/docs/database-compatibility
     """
 
     def decorator(f: F) -> F:

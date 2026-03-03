@@ -84,9 +84,11 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 **PostgreSQL** is the primary platform with full feature support.
 
-**MySQL and SQL Server** support queries and mutations. Relay pagination falls back to offset-based pagination.
+**MySQL** (v2.1+) and **SQL Server** support queries, mutations, and relay pagination.
 
-**SQLite** is for local development and testing only. Mutations return an explicit error. Not recommended for production.
+**SQLite** is for local development and testing only. Mutations and relay return an explicit error at runtime.
+
+See [docs/database-compatibility.md](docs/database-compatibility.md) for the full feature matrix.
 
 ## Wire Protocol
 
