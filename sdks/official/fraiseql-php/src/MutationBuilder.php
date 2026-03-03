@@ -115,6 +115,42 @@ final class MutationBuilder
     }
 
     /**
+     * Export in canonical IntermediateSchema format consumed by `fraiseql compile`.
+     *
+     * @return array<string, mixed>
+     */
+    public function toIntermediateArray(): array
+    {
+        $result = [
+            'name'        => $this->name,
+            'return_type' => $this->returnTypeValue,
+            'arguments'   => $this->buildIntermediateArguments(),
+        ];
+
+        if ($this->sqlSourceValue !== null) {
+            $result['sql_source'] = $this->sqlSourceValue;
+        }
+
+        if ($this->operationValue !== null) {
+            $result['operation'] = $this->operationValue;
+        }
+
+        if ($this->descriptionValue !== null) {
+            $result['description'] = $this->descriptionValue;
+        }
+
+        if (!empty($this->invalidatesViewsList)) {
+            $result['invalidates'] = $this->invalidatesViewsList;
+        }
+
+        if (!empty($this->injectMap)) {
+            $result['inject'] = $this->injectMap;
+        }
+
+        return $result;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
@@ -171,5 +207,23 @@ final class MutationBuilder
             }
         }
         return $params;
+    }
+
+    /**
+     * Build arguments array in IntermediateSchema format (list of {name, type, nullable}).
+     *
+     * @return array<int, array{name: string, type: string, nullable: bool}>
+     */
+    private function buildIntermediateArguments(): array
+    {
+        $result = [];
+        foreach ($this->arguments as $name => $arg) {
+            $result[] = [
+                'name'     => $name,
+                'type'     => $arg['type'],
+                'nullable' => $arg['nullable'],
+            ];
+        }
+        return $result;
     }
 }

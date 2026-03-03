@@ -59,10 +59,14 @@ final class Schema
                     ];
                 }, $fields),
             ];
-            // Emit relay flag when the type implements the Relay Node interface
             $typeAttr = $registry->getType($typeName);
-            if ($typeAttr !== null && $typeAttr->relay) {
-                $typeDef['relay'] = true;
+            if ($typeAttr !== null) {
+                if ($typeAttr->description !== null) {
+                    $typeDef['description'] = $typeAttr->description;
+                }
+                if ($typeAttr->relay) {
+                    $typeDef['relay'] = true;
+                }
             }
             $types[] = $typeDef;
         }

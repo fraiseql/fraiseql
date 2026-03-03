@@ -26,14 +26,19 @@ final readonly class GraphQLType
 {
     /**
      * @param string|null $name Optional custom GraphQL type name. Defaults to class name.
+     * @param string|null $sqlSource The SQL view backing this type (e.g. 'v_user').
      * @param string|null $description Optional description for schema documentation.
      * @param bool $isInput Whether this type represents a GraphQL input type.
+     * @param bool $relay Whether this type implements the Relay Node interface.
+     * @param bool $isError Whether this type represents a mutation error type.
      */
     public function __construct(
         public ?string $name = null,
+        public ?string $sqlSource = null,
         public ?string $description = null,
         public bool $isInput = false,
         public bool $relay = false,
+        public bool $isError = false,
     ) {
     }
 }

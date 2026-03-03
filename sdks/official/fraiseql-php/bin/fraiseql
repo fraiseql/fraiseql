@@ -1,0 +1,136 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * FraiseQL PHP CLI — schema export tool.
+ *
+ * Usage:
+ *   vendor/bin/fraiseql export [--output=schema.json] [--pretty] <bootstrap-file>
+ *
+ * The bootstrap file must register types and queries via StaticAPI::register()
+ * and return nothing (side-effect only). The CLI then calls SchemaExporter::exportToFile()
+ * to produce schema.json for use with `fraiseql compile`.
+ *
+ * Example bootstrap (schema/schema.php):
+ *   <?php
+ *   use FraiseQL\StaticAPI;
+ *   StaticAPI::register(Author::class);
+ *   StaticAPI::query('authors')->returnType('Author')->returnsList()->sqlSource('v_author')->register();
+ *
+ * Then run:
+ *   vendor/bin/fraiseql export schema/schema.php
+ *   fraiseql compile schema.json
+ */
+
+// Locate the Composer autoloader
+$autoloaders = [
+    __DIR__ . '/../vendor/autoload.php',   // installed via composer require
+    __DIR__ . '/../../vendor/autoload.php', // dev monorepo layout
+    __DIR__ . '/../../../autoload.php',     // installed globally
+];
+
+$autoloaded = false;
+foreach ($autoloaders as $autoloader) {
+    if (file_exists($autoloader)) {
+        require_once $autoloader;
+        $autoloaded = true;
+        break;
+    }
+}
+
+if (!$autoloaded) {
+    fwrite(STDERR, "Error: Could not find vendor/autoload.php. Run `composer install` first.\n");
+    exit(1);
+}
+
+// Parse arguments
+$args    = array_slice($argv, 1);
+$command = array_shift($args) ?? '';
+
+if ($command === '' || $command === '--help' || $command === '-h') {
+    echo <<<'HELP'
+FraiseQL PHP SDK — schema exporter
+
+Usage:
+  vendor/bin/fraiseql export [options] <bootstrap-file>
+
+Commands:
+  export    Export schema from a PHP bootstrap file to schema.json
+
+Options:
+  --output=<path>   Output file path (default: schema.json)
+  --compact         Compact JSON output (default: pretty-printed)
+  --help, -h        Show this help message
+
+Example:
+  vendor/bin/fraiseql export schema/schema.php
+  vendor/bin/fraiseql export --output=dist/schema.json schema/schema.php
+
+The bootstrap file registers FraiseQL types and queries using StaticAPI.
+The output schema.json is consumed by `fraiseql compile`.
+
+HELP;
+    exit(0);
+}
+
+if ($command !== 'export') {
+    fwrite(STDERR, "Error: Unknown command '$command'. Run `vendor/bin/fraiseql --help` for usage.\n");
+    exit(1);
+}
+
+// Parse export options
+$outputPath    = 'schema.json';
+$pretty        = true;
+$bootstrapFile = null;
+
+foreach ($args as $arg) {
+    if (str_starts_with($arg, '--output=')) {
+        $outputPath = substr($arg, 9);
+    } elseif ($arg === '--compact') {
+        $pretty = false;
+    } elseif (!str_starts_with($arg, '--')) {
+        $bootstrapFile = $arg;
+    }
+}
+
+if ($bootstrapFile === null) {
+    fwrite(STDERR, "Error: Bootstrap file argument is required.\n");
+    fwrite(STDERR, "Usage: vendor/bin/fraiseql export [--output=schema.json] <bootstrap-file>\n");
+    exit(1);
+}
+
+if (!file_exists($bootstrapFile)) {
+    fwrite(STDERR, "Error: Bootstrap file not found: $bootstrapFile\n");
+    exit(1);
+}
+
+// Load the bootstrap file (registers types/queries as side effects)
+require_once $bootstrapFile;
+
+// Export schema
+use FraiseQL\SchemaExporter;
+use FraiseQL\FraiseQLException;
+
+try {
+    SchemaExporter::exportToFile($outputPath);
+
+    $schema     = SchemaExporter::toArray();
+    $typeCount  = count($schema['types']);
+    $queryCount = count($schema['queries']);
+    $mutCount   = count($schema['mutations']);
+
+    echo "Schema exported to $outputPath\n";
+    echo "  Version:   {$schema['version']}\n";
+    echo "  Types:     $typeCount\n";
+    echo "  Queries:   $queryCount\n";
+    echo "  Mutations: $mutCount\n";
+    echo "\nNext: fraiseql compile $outputPath\n";
+} catch (FraiseQLException $e) {
+    fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+    exit(1);
+} catch (Throwable $e) {
+    fwrite(STDERR, "Unexpected error: " . $e->getMessage() . "\n");
+    exit(1);
+}

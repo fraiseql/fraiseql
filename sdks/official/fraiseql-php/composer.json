@@ -29,6 +29,9 @@
             "FraiseQL\\Tests\\": "tests/"
         }
     },
+    "bin": [
+        "bin/fraiseql"
+    ],
     "config": {
         "sort-packages": true
     },

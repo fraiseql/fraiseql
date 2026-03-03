@@ -5,20 +5,16 @@
          beStrictAboutOutputDuringTests="true"
          failOnRisky="true"
          failOnWarning="true"
-         cacheDirectory=".phpunit.cache"
-         verbose="true">
+         cacheDirectory=".phpunit.cache">
     <testsuites>
         <testsuite name="FraiseQL PHP Test Suite">
             <directory>tests</directory>
-            <exclude>tests/Phase18Cycle11ScopeExtractionTest.php</exclude>
+            <exclude>tests/ScopeExtractionTest.php</exclude>
         </testsuite>
     </testsuites>
-    <coverage processUncoveredFiles="true">
+    <source>
         <include>
             <directory suffix=".php">src</directory>
         </include>
-        <exclude>
-            <directory suffix="test.php">src</directory>
-        </exclude>
-    </coverage>
+    </source>
 </phpunit>

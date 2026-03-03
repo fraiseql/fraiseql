@@ -140,6 +140,50 @@ final class QueryBuilder
     }
 
     /**
+     * Export in canonical IntermediateSchema format consumed by `fraiseql compile`.
+     *
+     * Keys match the Rust IntermediateQuery struct exactly (snake_case).
+     *
+     * @return array<string, mixed>
+     */
+    public function toIntermediateArray(): array
+    {
+        $result = [
+            'name'         => $this->name,
+            'return_type'  => $this->returnTypeValue,
+            'returns_list' => $this->returnsListValue,
+            'nullable'     => false,
+            'arguments'    => $this->buildIntermediateArguments(),
+        ];
+
+        if ($this->sqlSourceValue !== null) {
+            $result['sql_source'] = $this->sqlSourceValue;
+        }
+
+        if ($this->descriptionValue !== null) {
+            $result['description'] = $this->descriptionValue;
+        }
+
+        if ($this->cacheTtlSecondsValue !== null) {
+            $result['cache_ttl_seconds'] = $this->cacheTtlSecondsValue;
+        }
+
+        if (!empty($this->additionalViewsList)) {
+            $result['additional_views'] = $this->additionalViewsList;
+        }
+
+        if (!empty($this->injectMap)) {
+            $result['inject'] = $this->injectMap;
+        }
+
+        if ($this->requiresRoleValue !== null) {
+            $result['requires_role'] = $this->requiresRoleValue;
+        }
+
+        return $result;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
@@ -211,5 +255,23 @@ final class QueryBuilder
             }
         }
         return $params;
+    }
+
+    /**
+     * Build arguments array in IntermediateSchema format (list of {name, type, nullable}).
+     *
+     * @return array<int, array{name: string, type: string, nullable: bool}>
+     */
+    private function buildIntermediateArguments(): array
+    {
+        $result = [];
+        foreach ($this->arguments as $name => $arg) {
+            $result[] = [
+                'name'     => $name,
+                'type'     => $arg['type'],
+                'nullable' => $arg['nullable'],
+            ];
+        }
+        return $result;
     }
 }

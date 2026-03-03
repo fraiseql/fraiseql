@@ -1,17 +1,50 @@
 <?php
 
+declare(strict_types=1);
+
 namespace FraiseQL\Tests;
 
+use FraiseQL\Attributes\GraphQLType;
+use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\Schema;
-use FraiseQL\TypeInfo;
-use FraiseQL\FieldDefinition;
+use FraiseQL\SchemaRegistry;
 use PHPUnit\Framework\TestCase;
 
+// ---------------------------------------------------------------------------
+// Fixture classes (defined once at file scope to avoid redeclaration)
+// ---------------------------------------------------------------------------
+
+#[GraphQLType(name: 'ExportUser', sqlSource: 'v_export_user', description: 'A user in the system')]
+final class ExportUserFixture
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public int $id;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $name;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $email;
+}
+
+#[GraphQLType(name: 'ExportPost', sqlSource: 'v_export_post')]
+final class ExportPostFixture
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public int $id;
+
+    #[GraphQLField(type: 'String', nullable: false)]
+    public string $title;
+
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public int $authorId;
+}
+
 /**
- * Tests for minimal types.json export (TOML-based workflow)
+ * Tests for the minimal types export (Schema::exportTypes).
  *
- * Validates that ExportTypes() function generates minimal schema
- * with only types (no queries, mutations, observers, etc.)
+ * Schema::exportTypes() produces {"types": [...]} for the TOML-based
+ * workflow where queries/mutations live in fraiseql.toml.
  */
 class ExportTypesTest extends TestCase
 {
@@ -25,166 +58,116 @@ class ExportTypesTest extends TestCase
         Schema::reset();
     }
 
-    public function testExportTypesMinimalSingleType(): void
+    public function testExportTypesSingleType(): void
     {
-        // Register a single type with fields
-        Schema::registerType('User', [
-            'name' => 'User',
-            'description' => 'User in the system',
-            'fields' => [
-                ['name' => 'id', 'type' => 'ID', 'nullable' => false],
-                ['name' => 'name', 'type' => 'String', 'nullable' => false],
-                ['name' => 'email', 'type' => 'String', 'nullable' => false],
-            ]
-        ]);
+        Schema::registerType(ExportUserFixture::class);
 
-        // Export minimal types
-        $json = Schema::exportTypes(true);
+        $json   = Schema::exportTypes(true);
         $parsed = json_decode($json, true);
 
-        // Should have types section
         $this->assertArrayHasKey('types', $parsed);
         $this->assertIsArray($parsed['types']);
         $this->assertCount(1, $parsed['types']);
 
-        // Should NOT have queries, mutations, observers
+        // Should NOT have queries/mutations (types-only export)
         $this->assertArrayNotHasKey('queries', $parsed);
         $this->assertArrayNotHasKey('mutations', $parsed);
-        $this->assertArrayNotHasKey('observers', $parsed);
-        $this->assertArrayNotHasKey('authz_policies', $parsed);
 
-        // Verify User type
-        $userDef = $parsed['types'][0];
-        $this->assertEquals('User', $userDef['name']);
-        $this->assertEquals('User in the system', $userDef['description']);
+        $typeDef = $parsed['types'][0];
+        $this->assertSame('ExportUser', $typeDef['name']);
+        $this->assertSame('A user in the system', $typeDef['description'] ?? null);
     }
 
     public function testExportTypesMultipleTypes(): void
     {
-        // Register User type
-        $userType = new TypeInfo('User', '');
-        $userType->addField(new FieldDefinition('id', 'ID', false));
-        $userType->addField(new FieldDefinition('name', 'String', false));
-        Schema::registerType('User', $userType);
+        Schema::registerType(ExportUserFixture::class);
+        Schema::registerType(ExportPostFixture::class);
 
-        // Register Post type
-        $postType = new TypeInfo('Post', '');
-        $postType->addField(new FieldDefinition('id', 'ID', false));
-        $postType->addField(new FieldDefinition('title', 'String', false));
-        $postType->addField(new FieldDefinition('authorId', 'ID', false));
-        Schema::registerType('Post', $postType);
-
-        // Export minimal
-        $json = Schema::exportTypes(true);
+        $json   = Schema::exportTypes(true);
         $parsed = json_decode($json, true);
 
-        // Check types count
         $this->assertCount(2, $parsed['types']);
 
-        // Verify both types present
-        $typeNames = array_map(function ($t) { return $t['name']; }, $parsed['types']);
-        $this->assertContains('User', $typeNames);
-        $this->assertContains('Post', $typeNames);
+        $typeNames = array_column($parsed['types'], 'name');
+        $this->assertContains('ExportUser', $typeNames);
+        $this->assertContains('ExportPost', $typeNames);
     }
 
     public function testExportTypesNoQueries(): void
     {
-        // Register type
-        $userType = new TypeInfo('User', '');
-        $userType->addField(new FieldDefinition('id', 'ID', false));
-        Schema::registerType('User', $userType);
+        Schema::registerType(ExportUserFixture::class);
 
-        // Export minimal
-        $json = Schema::exportTypes(true);
+        $json   = Schema::exportTypes(true);
         $parsed = json_decode($json, true);
 
-        // Should have types
         $this->assertArrayHasKey('types', $parsed);
-
-        // Should NOT have queries
         $this->assertArrayNotHasKey('queries', $parsed);
         $this->assertArrayNotHasKey('mutations', $parsed);
     }
 
-    public function testExportTypesCompactFormat(): void
+    public function testExportTypesCompactVsPretty(): void
     {
-        // Register type
-        $userType = new TypeInfo('User', '');
-        $userType->addField(new FieldDefinition('id', 'ID', false));
-        Schema::registerType('User', $userType);
+        Schema::registerType(ExportUserFixture::class);
 
-        // Export compact (pretty=false)
-        $compactJson = Schema::exportTypes(false);
-        $prettyJson = Schema::exportTypes(true);
+        $compact = Schema::exportTypes(false);
+        $pretty  = Schema::exportTypes(true);
 
-        // Both should be valid JSON
-        $this->assertIsArray(json_decode($compactJson, true));
-        $this->assertIsArray(json_decode($prettyJson, true));
+        // Both are valid JSON
+        $this->assertIsArray(json_decode($compact, true));
+        $this->assertIsArray(json_decode($pretty, true));
 
-        // Compact should be smaller
-        $this->assertLessThan(strlen($prettyJson), strlen($compactJson) + 100);
-    }
-
-    public function testExportTypesPrettyFormat(): void
-    {
-        // Register type
-        $userType = new TypeInfo('User', '');
-        $userType->addField(new FieldDefinition('id', 'ID', false));
-        Schema::registerType('User', $userType);
-
-        // Export pretty
-        $json = Schema::exportTypes(true);
-
-        // Should contain newlines (pretty format)
-        $this->assertStringContainsString("\n", $json);
-
-        // Should be valid JSON
-        $parsed = json_decode($json, true);
-        $this->assertArrayHasKey('types', $parsed);
+        // Pretty output contains newlines; compact does not
+        $this->assertStringContainsString("\n", $pretty);
+        $this->assertStringNotContainsString("\n", $compact);
     }
 
     public function testExportTypesFile(): void
     {
-        // Register type
-        $userType = new TypeInfo('User', '');
-        $userType->addField(new FieldDefinition('id', 'ID', false));
-        $userType->addField(new FieldDefinition('name', 'String', false));
-        Schema::registerType('User', $userType);
+        Schema::registerType(ExportUserFixture::class);
 
-        // Export to temporary file
-        $tmpFile = '/tmp/fraiseql_types_test_php.json';
+        $tmpFile = tempnam(sys_get_temp_dir(), 'fraiseql_export_') . '.json';
 
-        // Clean up if exists
-        if (file_exists($tmpFile)) {
-            unlink($tmpFile);
+        try {
+            ob_start();
+            Schema::exportTypesFile($tmpFile);
+            ob_end_clean();
+
+            $this->assertFileExists($tmpFile);
+            $parsed = json_decode((string) file_get_contents($tmpFile), true);
+            $this->assertArrayHasKey('types', $parsed);
+            $this->assertCount(1, $parsed['types']);
+        } finally {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
         }
-
-        // Export to file
-        Schema::exportTypesFile($tmpFile);
-
-        // Verify file exists
-        $this->assertTrue(file_exists($tmpFile));
-
-        // Verify content
-        $content = file_get_contents($tmpFile);
-        $parsed = json_decode($content, true);
-
-        $this->assertArrayHasKey('types', $parsed);
-        $this->assertCount(1, $parsed['types']);
-
-        // Cleanup
-        unlink($tmpFile);
     }
 
     public function testExportTypesEmpty(): void
     {
-        // Export with no types registered
-        $json = Schema::exportTypes(true);
+        $json   = Schema::exportTypes(true);
         $parsed = json_decode($json, true);
 
-        // Should still have types key (as empty array)
         $this->assertArrayHasKey('types', $parsed);
-        $this->assertIsArray($parsed['types']);
-        $this->assertEmpty($parsed['types']);
+        $this->assertSame([], $parsed['types']);
+    }
+
+    public function testExportTypesFieldsAreArray(): void
+    {
+        Schema::registerType(ExportUserFixture::class);
+
+        $json   = Schema::exportTypes(true);
+        $parsed = json_decode($json, true);
+
+        $typeDef = $parsed['types'][0];
+        $this->assertIsArray($typeDef['fields']);
+        $this->assertNotEmpty($typeDef['fields']);
+
+        // Each field must have name, type, nullable
+        foreach ($typeDef['fields'] as $field) {
+            $this->assertArrayHasKey('name', $field);
+            $this->assertArrayHasKey('type', $field);
+            $this->assertArrayHasKey('nullable', $field);
+        }
     }
 }
