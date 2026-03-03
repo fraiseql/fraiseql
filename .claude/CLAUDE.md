@@ -65,7 +65,7 @@ FraiseQL v2 is production-ready with a layered optionality architecture:
 - **Server**: Generic HTTP server (`Server<DatabaseAdapter>`)
 - **Extensions**: Optional features via Cargo flags (`fraiseql-observers`, `fraiseql-arrow`, etc.)
 
-See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for detailed architecture documentation.
+See [docs/architecture/overview.md](../docs/architecture/overview.md) for detailed architecture documentation.
 
 ### Workflow Pattern
 
@@ -74,7 +74,7 @@ See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for detailed archit
 git checkout -b feature/description
 
 # 2. Implement changes
-# Follow .claude/IMPLEMENTATION_ROADMAP.md
+# See ROADMAP.md for feature implementation status
 
 # 3. Verify build
 cargo check
@@ -116,7 +116,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ## Architecture Guidelines
 
-See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) for comprehensive architectural documentation.
+See [docs/architecture/overview.md](../docs/architecture/overview.md) for comprehensive architectural documentation.
 
 ### 1. Authoring vs Runtime Separation
 
@@ -295,8 +295,8 @@ All configurable via `fraiseql.toml` and environment variables.
 ```
 fraiseql/
 ├── .claude/
-│   ├── CLAUDE.md                    # This file
-│   └── IMPLEMENTATION_ROADMAP.md    # Feature implementation status
+│   └── CLAUDE.md                    # This file (AI session instructions)
+├── docs/architecture/               # Architecture docs (overview, compiler)
 ├── crates/
 │   ├── fraiseql-core/              # Core execution engine
 │   ├── fraiseql-server/            # HTTP server
@@ -441,7 +441,7 @@ RUST_LOG=debug cargo test
 
 ## Next Steps
 
-See `.claude/IMPLEMENTATION_ROADMAP.md` for detailed feature implementation status and priority order. Current focus areas:
+See `ROADMAP.md` (repository root) for detailed feature implementation status and priority order. Current focus areas:
 
 - Performance optimization and benchmarking
 - Additional database backend support
