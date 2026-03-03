@@ -69,19 +69,17 @@ use std::{
 
 use async_trait::async_trait;
 use serde_json::json;
-use sha2::{Digest, Sha256};
 
 use super::{
     cascade_invalidator::CascadeInvalidator,
     fact_table_version::{
         FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy,
-        generate_version_key_component,
     },
     key::generate_cache_key,
     result::QueryResultCache,
 };
 use crate::{
-    db::{DatabaseAdapter, DatabaseType, PoolMetrics, RelayDatabaseAdapter, WhereClause, types::JsonbValue},
+    db::{DatabaseAdapter, DatabaseType, PoolMetrics, WhereClause, types::JsonbValue},
     error::Result,
     schema::CompiledSchema,
 };
@@ -131,35 +129,35 @@ use crate::{
 /// ```
 pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// Underlying database adapter.
-    adapter: A,
+    pub(super) adapter: A,
 
     /// Query result cache.
-    cache: Arc<QueryResultCache>,
+    pub(super) cache: Arc<QueryResultCache>,
 
     /// Schema version for cache key generation.
     ///
     /// When schema version changes (e.g., after deployment), all cache entries
     /// with old version become invalid automatically.
-    schema_version: String,
+    pub(super) schema_version: String,
 
     /// Per-view TTL overrides in seconds.
     ///
     /// Populated from `QueryDefinition::cache_ttl_seconds` at server startup:
     /// view name → TTL seconds.  `None` for a view falls back to the global
     /// `CacheConfig::ttl_seconds`.
-    view_ttl_overrides: HashMap<String, u64>,
+    pub(super) view_ttl_overrides: HashMap<String, u64>,
 
     /// Configuration for fact table aggregation caching.
-    fact_table_config: FactTableCacheConfig,
+    pub(super) fact_table_config: FactTableCacheConfig,
 
     /// Version provider for fact tables (caches version lookups).
-    version_provider: Arc<FactTableVersionProvider>,
+    pub(super) version_provider: Arc<FactTableVersionProvider>,
 
     /// Optional cascade invalidator for transitive view dependency expansion.
     ///
     /// When set, `invalidate_views()` uses BFS to expand the initial view list
     /// to include all transitively dependent views before clearing cache entries.
-    cascade_invalidator: Option<Arc<Mutex<CascadeInvalidator>>>,
+    pub(super) cascade_invalidator: Option<Arc<Mutex<CascadeInvalidator>>>,
 }
 
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
@@ -345,151 +343,6 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         }
     }
 
-    /// Invalidate cache entries that read from specified views.
-    ///
-    /// Call this after mutations to ensure cache consistency. All cache entries
-    /// that accessed any of the modified views will be removed.
-    ///
-    /// # Arguments
-    ///
-    /// * `views` - List of views/tables that were modified
-    ///
-    /// # Returns
-    ///
-    /// Number of cache entries invalidated
-    ///
-    /// # Errors
-    ///
-    /// Returns error if cache mutex is poisoned (very rare).
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use fraiseql_core::cache::CachedDatabaseAdapter;
-    /// # use fraiseql_core::db::postgres::PostgresAdapter;
-    /// # async fn example(adapter: CachedDatabaseAdapter<PostgresAdapter>) -> Result<(), Box<dyn std::error::Error>> {
-    /// // After creating a user
-    /// let count = adapter.invalidate_views(&["v_user".to_string()])?;
-    /// println!("Invalidated {} cache entries", count);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
-        // Expand the view list with transitive dependents when a cascade
-        // invalidator is configured.
-        if let Some(cascader) = &self.cascade_invalidator {
-            let mut expanded: std::collections::HashSet<String> =
-                views.iter().cloned().collect();
-            let mut guard = cascader.lock().map_err(|e| {
-                crate::error::FraiseQLError::Internal {
-                    message: format!("Cascade invalidator lock poisoned: {e}"),
-                    source:  None,
-                }
-            })?;
-            for view in views {
-                let transitive = guard.cascade_invalidate(view)?;
-                expanded.extend(transitive);
-            }
-            let expanded_views: Vec<String> = expanded.into_iter().collect();
-            return self.cache.invalidate_views(&expanded_views);
-        }
-        self.cache.invalidate_views(views)
-    }
-
-    /// Invalidate cache entries based on GraphQL Cascade response entities.
-    ///
-    /// This is the entity-aware invalidation method that provides more
-    /// precise invalidation. Instead of invalidating all caches reading from
-    /// a view, only caches that depend on the affected entities are invalidated.
-    ///
-    /// # Arguments
-    ///
-    /// * `cascade_response` - GraphQL mutation response with cascade field
-    /// * `parser` - CascadeResponseParser to extract entities
-    ///
-    /// # Returns
-    ///
-    /// Number of cache entries invalidated
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use fraiseql_core::cache::{CachedDatabaseAdapter, CascadeResponseParser};
-    /// # use fraiseql_core::db::postgres::PostgresAdapter;
-    /// # use serde_json::json;
-    /// # async fn example(adapter: CachedDatabaseAdapter<PostgresAdapter>) -> Result<(), Box<dyn std::error::Error>> {
-    /// let cascade_response = json!({
-    ///     "createPost": {
-    ///         "cascade": {
-    ///             "updated": [
-    ///                 { "__typename": "User", "id": "uuid-1" }
-    ///             ]
-    ///         }
-    ///     }
-    /// });
-    ///
-    /// let parser = CascadeResponseParser::new();
-    /// let count = adapter.invalidate_cascade_entities(&cascade_response, &parser)?;
-    /// println!("Invalidated {} cache entries", count);
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Note on Performance
-    ///
-    /// This method replaces view-level invalidation with entity-level invalidation.
-    /// Instead of clearing all caches that touch a view (e.g., v_user), only caches
-    /// that touch the specific entities are cleared (e.g., User:uuid-1).
-    ///
-    /// Expected improvement:
-    /// - **View-level**: 60-70% hit rate (many false positives)
-    /// - **Entity-level**: 90-95% hit rate (only true positives)
-    pub fn invalidate_cascade_entities(
-        &self,
-        cascade_response: &serde_json::Value,
-        parser: &super::cascade_response_parser::CascadeResponseParser,
-    ) -> Result<u64> {
-        // Parse cascade response to extract affected entities
-        let cascade_entities = parser.parse_cascade_response(cascade_response)?;
-
-        if !cascade_entities.has_changes() {
-            // No entities affected - no invalidation needed
-            return Ok(0);
-        }
-
-        // View-level invalidation: convert entity types to view names and evict all
-        // cache entries that read from those views. This is used for the cascade response
-        // path where multiple entity types can be affected by a single mutation.
-        // Unlike the executor's entity-aware path, cascade invalidation uses view-level
-        // because the cascade entities may not be indexed in the cache by entity ID.
-        let mut views_to_invalidate = std::collections::HashSet::new();
-        for entity in cascade_entities.all_affected() {
-            // Derive view name from entity type (e.g., "User" → "v_user")
-            let view_name = format!("v_{}", entity.entity_type.to_lowercase());
-            views_to_invalidate.insert(view_name);
-        }
-
-        let views: Vec<String> = views_to_invalidate.into_iter().collect();
-        self.cache.invalidate_views(&views)
-    }
-
-    /// Evict cache entries that contain the given entity UUID.
-    ///
-    /// Delegates to `QueryResultCache::invalidate_by_entity`. Only entries
-    /// whose entity-ID index (built at `put()` time) contains the given UUID
-    /// are removed; all other entries remain warm.
-    ///
-    /// # Returns
-    ///
-    /// Number of cache entries evicted.
-    ///
-    /// # Errors
-    ///
-    /// Returns error if the cache mutex is poisoned.
-    pub fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
-        self.cache.invalidate_by_entity(entity_type, entity_id)
-    }
-
     /// Get reference to underlying adapter.
     ///
     /// Useful for accessing adapter-specific methods not in the `DatabaseAdapter` trait.
@@ -555,182 +408,6 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     #[must_use]
     pub fn version_provider(&self) -> &FactTableVersionProvider {
         &self.version_provider
-    }
-
-    /// Extract fact table name from SQL query.
-    ///
-    /// Looks for `FROM tf_<name>` pattern in the SQL.
-    fn extract_fact_table_from_sql(sql: &str) -> Option<String> {
-        // Look for FROM tf_xxx pattern (case insensitive)
-        let sql_lower = sql.to_lowercase();
-        let from_idx = sql_lower.find("from ")?;
-        let after_from = &sql_lower[from_idx + 5..];
-
-        // Skip whitespace
-        let trimmed = after_from.trim_start();
-
-        // Check if it starts with tf_
-        if !trimmed.starts_with("tf_") {
-            return None;
-        }
-
-        // Extract table name (until whitespace, comma, or end)
-        let end_idx = trimmed
-            .find(|c: char| c.is_whitespace() || c == ',' || c == ')')
-            .unwrap_or(trimmed.len());
-
-        Some(trimmed[..end_idx].to_string())
-    }
-
-    /// Generate cache key for aggregation query.
-    ///
-    /// Includes SQL, schema version, and version component based on strategy.
-    fn generate_aggregation_cache_key(
-        sql: &str,
-        schema_version: &str,
-        version_component: Option<&str>,
-    ) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(sql.as_bytes());
-        hasher.update(schema_version.as_bytes());
-        if let Some(vc) = version_component {
-            hasher.update(vc.as_bytes());
-        }
-        let result = hasher.finalize();
-        format!("agg:{:x}", result)
-    }
-
-    /// Fetch version from tf_versions table.
-    ///
-    /// Returns cached version if fresh, otherwise queries database.
-    async fn fetch_table_version(&self, table_name: &str) -> Option<i64> {
-        // Check cached version first
-        if let Some(version) = self.version_provider.get_cached_version(table_name) {
-            return Some(version);
-        }
-
-        // Query tf_versions table
-        let sql = format!(
-            "SELECT version FROM tf_versions WHERE table_name = '{}'",
-            table_name.replace('\'', "''") // Escape single quotes
-        );
-
-        match self.adapter.execute_raw_query(&sql).await {
-            Ok(rows) if !rows.is_empty() => {
-                if let Some(serde_json::Value::Number(n)) = rows[0].get("version") {
-                    if let Some(v) = n.as_i64() {
-                        self.version_provider.set_cached_version(table_name, v);
-                        return Some(v);
-                    }
-                }
-                None
-            },
-            _ => None,
-        }
-    }
-
-    /// Execute aggregation query with caching based on fact table versioning strategy.
-    ///
-    /// This method provides transparent caching for aggregation queries on fact tables.
-    /// The caching behavior depends on the configured strategy for the fact table.
-    ///
-    /// # Arguments
-    ///
-    /// * `sql` - The aggregation SQL query
-    ///
-    /// # Returns
-    ///
-    /// Query results (from cache or database)
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// # use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig};
-    /// # use fraiseql_core::db::postgres::PostgresAdapter;
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let db = PostgresAdapter::new("postgresql://localhost/db").await?;
-    /// # let cache = QueryResultCache::new(CacheConfig::default());
-    /// # let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string());
-    /// // This query will be cached according to tf_sales strategy
-    /// let results = adapter.execute_aggregation_query(
-    ///     "SELECT SUM(revenue) FROM tf_sales WHERE year = 2024"
-    /// ).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn execute_aggregation_query(
-        &self,
-        sql: &str,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Extract fact table from SQL
-        let Some(table_name) = Self::extract_fact_table_from_sql(sql) else {
-            // Not a fact table query - execute without caching
-            return self.adapter.execute_raw_query(sql).await;
-        };
-
-        // Get strategy for this table
-        let strategy = self.fact_table_config.get_strategy(&table_name);
-
-        // Check if caching is enabled
-        if !strategy.is_caching_enabled() {
-            return self.adapter.execute_raw_query(sql).await;
-        }
-
-        // Get version component based on strategy
-        let table_version = if matches!(strategy, FactTableVersionStrategy::VersionTable) {
-            self.fetch_table_version(&table_name).await
-        } else {
-            None
-        };
-
-        let version_component = generate_version_key_component(
-            &table_name,
-            strategy,
-            table_version,
-            &self.schema_version,
-        );
-
-        // If version table strategy but no version found, skip caching
-        let Some(version_component) = version_component else {
-            // VersionTable strategy but no version in tf_versions - skip cache
-            return self.adapter.execute_raw_query(sql).await;
-        };
-
-        // Generate cache key
-        let cache_key = Self::generate_aggregation_cache_key(
-            sql,
-            &self.schema_version,
-            Some(&version_component),
-        );
-
-        // Try cache first
-        if let Some(cached_result) = self.cache.get(&cache_key)? {
-            // Cache hit - convert JsonbValue back to HashMap
-            let results: Vec<std::collections::HashMap<String, serde_json::Value>> = cached_result
-                .iter()
-                .filter_map(|jv| serde_json::from_value(jv.as_value().clone()).ok())
-                .collect();
-            return Ok(results);
-        }
-
-        // Cache miss - execute query
-        let result = self.adapter.execute_raw_query(sql).await?;
-
-        // Store in cache (convert HashMap to JsonbValue)
-        let cached_values: Vec<JsonbValue> = result
-            .iter()
-            .filter_map(|row| serde_json::to_value(row).ok().map(JsonbValue::new))
-            .collect();
-
-        self.cache.put(
-            cache_key,
-            cached_values,
-            vec![table_name], // Track which fact table this query reads
-            None,             // Fact-table queries use the global TTL
-            None,             // No entity-type index for raw queries
-        )?;
-
-        Ok(result)
     }
 }
 
@@ -899,38 +576,6 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         }
         Ok(())
     }
-
-}
-
-#[async_trait]
-impl<A: RelayDatabaseAdapter> RelayDatabaseAdapter for CachedDatabaseAdapter<A> {
-    async fn execute_relay_page(
-        &self,
-        view: &str,
-        cursor_column: &str,
-        after: Option<crate::db::traits::CursorValue>,
-        before: Option<crate::db::traits::CursorValue>,
-        limit: u32,
-        forward: bool,
-        where_clause: Option<&crate::db::where_clause::WhereClause>,
-        order_by: Option<&[crate::compiler::aggregation::OrderByClause]>,
-        include_total_count: bool,
-    ) -> Result<crate::db::traits::RelayPageResult> {
-        // Relay pagination results are not cached — always delegate to the underlying adapter
-        self.adapter
-            .execute_relay_page(
-                view,
-                cursor_column,
-                after,
-                before,
-                limit,
-                forward,
-                where_clause,
-                order_by,
-                include_total_count,
-            )
-            .await
-    }
 }
 
 #[cfg(test)]
@@ -1030,7 +675,6 @@ mod tests {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
-
     }
 
     #[tokio::test]

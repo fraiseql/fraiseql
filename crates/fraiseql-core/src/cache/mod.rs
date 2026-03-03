@@ -194,8 +194,11 @@
 mod adapter;
 mod config;
 mod dependency_tracker;
+mod fact_table_cache;
 mod invalidation;
+mod invalidation_api;
 mod key;
+mod relay_cache;
 mod result;
 
 // Cascading invalidation with transitive dependencies

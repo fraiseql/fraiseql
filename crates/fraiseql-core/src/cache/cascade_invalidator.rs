@@ -540,4 +540,21 @@ mod tests {
             invalidator.get_direct_dependents("v_raw_user")
         );
     }
+
+    #[test]
+    fn cascade_invalidator_is_send_sync() {
+        // Invariant: CascadeInvalidator is read-only (graph data) after construction.
+        // Stats use an internal Mutex for thread-safe writes.
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<CascadeInvalidator>();
+    }
+
+    #[test]
+    fn cascade_invalidate_takes_shared_ref() {
+        let mut inv = CascadeInvalidator::new();
+        inv.add_dependency("v_b", "v_a").unwrap();
+        // Should work with &inv (not &mut inv) — cascade_invalidate takes &self.
+        let result = inv.cascade_invalidate("v_a").unwrap();
+        assert!(result.contains("v_b"));
+    }
 }

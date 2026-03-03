@@ -43,17 +43,27 @@ mod config_types;
 mod dependency_graph;
 pub mod domain_types;
 mod field_type;
+mod graphql_type_defs;
 mod introspection;
+pub mod introspection_types;
+mod observer_types;
 mod scalar_types;
+pub mod security_config;
+mod subscription_types;
 
 pub use compiled::{
     ArgumentDefinition, AutoParams, CompiledSchema, CursorType, DirectiveDefinition,
-    DirectiveLocationKind, EnumDefinition, EnumValueDefinition, FilterOperator,
-    InjectedParamSource, InputFieldDefinition, InputObjectDefinition, InterfaceDefinition,
-    MutationDefinition, MutationOperation, ObserverDefinition, QueryDefinition, RetryConfig,
-    RoleDefinition, SecurityConfig, SqlProjectionHint, StaticFilterCondition,
-    SubscriptionDefinition, SubscriptionFilter, TypeDefinition, UnionDefinition,
+    DirectiveLocationKind, MutationDefinition, MutationOperation, QueryDefinition,
 };
+pub use graphql_type_defs::{
+    EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
+    InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition,
+};
+pub use observer_types::{ObserverDefinition, RetryConfig};
+pub use subscription_types::{
+    FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
+};
+pub use security_config::{InjectedParamSource, RoleDefinition, SecurityConfig};
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
     EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler, FederationConfig,

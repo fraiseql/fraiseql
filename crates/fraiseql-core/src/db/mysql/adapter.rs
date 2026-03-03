@@ -155,11 +155,20 @@ impl MySqlAdapter {
             };
         }
 
-        let rows: Vec<MySqlRow> =
-            query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("MySQL query execution failed: {e}"),
-                sql_state: None,
-            })?;
+        let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
+            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
+                db_err
+                    .code()
+                    .and_then(|c| c.parse::<u16>().ok())
+                    .and_then(map_mysql_error_code)
+            } else {
+                None
+            };
+            FraiseQLError::Database {
+                message: format!("MySQL query execution failed: {e}"),
+                sql_state,
+            }
+        })?;
 
         let results = rows
             .into_iter()
@@ -458,6 +467,37 @@ impl DatabaseAdapter for MySqlAdapter {
     }
 }
 
+/// Map MySQL error numbers to SQLSTATE strings for uniform error reporting.
+///
+/// MySQL error numbers are numeric codes from the MySQL error reference.
+/// This mapping covers the most common integrity and transaction errors.
+///
+/// # Arguments
+///
+/// * `code` - MySQL error number (e.g., 1062 for duplicate entry)
+///
+/// # Returns
+///
+/// Returns a SQLSTATE string if a mapping exists, or `None` for unmapped codes.
+fn map_mysql_error_code(code: u16) -> Option<String> {
+    let sqlstate = match code {
+        // 1062: Duplicate entry for key (unique constraint violation)
+        // 1169: Unique constraint violation (alternate code)
+        1062 | 1169 => "23505",
+        // 1048: Column cannot be null (NOT NULL violation)
+        1048 => "23502",
+        // 1451: Cannot delete or update a parent row (FK parent violation)
+        // 1452: Cannot add or update a child row (FK child violation)
+        1451 | 1452 => "23503",
+        // 1205: Lock wait timeout exceeded — treat as serialization failure
+        1205 => "40001",
+        // 1213: Deadlock found when trying to get lock
+        1213 => "40001",
+        _ => return None,
+    };
+    Some(sqlstate.to_string())
+}
+
 // ── MySQL relay helpers ────────────────────────────────────────────────────
 
 /// Build the `ORDER BY` clause for a relay page query.
@@ -667,6 +707,164 @@ impl RelayDatabaseAdapter for MySqlAdapter {
         };
 
         Ok(RelayPageResult { rows, total_count })
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+    use crate::db::{identifier::quote_mysql_identifier, types::DatabaseType};
+
+    // Unit tests for MySQL adapter internals.
+    // These tests do NOT require a live MySQL connection.
+    // Integration tests in the `tests` module below cover actual query execution.
+
+    // ========================================================================
+    // DatabaseType Invariant
+    // ========================================================================
+
+    #[test]
+    fn mysql_database_type_as_str() {
+        assert_eq!(DatabaseType::MySQL.as_str(), "mysql");
+        assert_eq!(DatabaseType::MySQL.to_string(), "mysql");
+    }
+
+    #[test]
+    fn mysql_database_type_differs_from_others() {
+        assert_ne!(DatabaseType::MySQL, DatabaseType::PostgreSQL);
+        assert_ne!(DatabaseType::MySQL, DatabaseType::SQLite);
+        assert_ne!(DatabaseType::MySQL, DatabaseType::SQLServer);
+    }
+
+    // ========================================================================
+    // MySQL Error Code Mapping
+    // ========================================================================
+
+    #[test]
+    fn mysql_error_1062_maps_to_unique_violation() {
+        assert_eq!(map_mysql_error_code(1062), Some("23505".to_string()));
+    }
+
+    #[test]
+    fn mysql_error_1169_also_maps_to_unique_violation() {
+        assert_eq!(map_mysql_error_code(1169), Some("23505".to_string()));
+    }
+
+    #[test]
+    fn mysql_error_1048_maps_to_not_null_violation() {
+        assert_eq!(map_mysql_error_code(1048), Some("23502".to_string()));
+    }
+
+    #[test]
+    fn mysql_error_1451_maps_to_foreign_key_violation() {
+        assert_eq!(map_mysql_error_code(1451), Some("23503".to_string()));
+    }
+
+    #[test]
+    fn mysql_error_1452_also_maps_to_foreign_key_violation() {
+        assert_eq!(map_mysql_error_code(1452), Some("23503".to_string()));
+    }
+
+    #[test]
+    fn mysql_error_1205_maps_to_lock_timeout() {
+        assert_eq!(map_mysql_error_code(1205), Some("40001".to_string()));
+    }
+
+    #[test]
+    fn mysql_error_1213_maps_to_deadlock() {
+        assert_eq!(map_mysql_error_code(1213), Some("40001".to_string()));
+    }
+
+    #[test]
+    fn unknown_mysql_error_code_returns_none() {
+        assert_eq!(map_mysql_error_code(9999), None);
+        assert_eq!(map_mysql_error_code(0), None);
+        assert_eq!(map_mysql_error_code(1064), None);
+    }
+
+    // ========================================================================
+    // Relay Helper Functions
+    // ========================================================================
+
+    #[test]
+    fn relay_where_both_none_returns_empty() {
+        assert_eq!(build_mysql_relay_where(None, None), "");
+    }
+
+    #[test]
+    fn relay_where_cursor_only() {
+        assert_eq!(build_mysql_relay_where(Some("`id` > ?"), None), " WHERE `id` > ?");
+    }
+
+    #[test]
+    fn relay_where_user_only_wraps_in_parens() {
+        assert_eq!(
+            build_mysql_relay_where(None, Some("active = ?")),
+            " WHERE (active = ?)"
+        );
+    }
+
+    #[test]
+    fn relay_where_both_combines_with_and() {
+        assert_eq!(
+            build_mysql_relay_where(Some("`id` > ?"), Some("active = ?")),
+            " WHERE `id` > ? AND (active = ?)"
+        );
+    }
+
+    #[test]
+    fn relay_order_sql_forward_no_custom_order() {
+        let quoted_col = quote_mysql_identifier("id");
+        let result = build_mysql_relay_order_sql(&quoted_col, None, true);
+        assert_eq!(result, " ORDER BY `id` ASC");
+    }
+
+    #[test]
+    fn relay_order_sql_backward_no_custom_order() {
+        let quoted_col = quote_mysql_identifier("id");
+        let result = build_mysql_relay_order_sql(&quoted_col, None, false);
+        assert_eq!(result, " ORDER BY `id` DESC");
+    }
+
+    #[test]
+    fn relay_order_sql_forward_with_desc_custom_order() {
+        use crate::compiler::aggregation::{OrderByClause, OrderDirection};
+        let quoted_col = quote_mysql_identifier("id");
+        let order_by =
+            vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Desc }];
+        let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), true);
+        assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
+        assert!(result.ends_with("`id` ASC"));
+    }
+
+    #[test]
+    fn relay_order_sql_backward_flips_asc_to_desc() {
+        use crate::compiler::aggregation::{OrderByClause, OrderDirection};
+        let quoted_col = quote_mysql_identifier("id");
+        let order_by =
+            vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Asc }];
+        let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), false);
+        assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
+        assert!(result.ends_with("`id` DESC"));
+    }
+
+    // ========================================================================
+    // MySQL Identifier Quoting
+    // ========================================================================
+
+    #[test]
+    fn mysql_identifier_wraps_in_backticks() {
+        assert_eq!(quote_mysql_identifier("v_user"), "`v_user`");
+    }
+
+    #[test]
+    fn mysql_identifier_escapes_embedded_backtick() {
+        assert_eq!(quote_mysql_identifier("bad`name"), "`bad``name`");
+    }
+
+    #[test]
+    fn mysql_identifier_schema_qualified_name() {
+        assert_eq!(quote_mysql_identifier("mydb.v_user"), "`mydb`.`v_user`");
     }
 }
 

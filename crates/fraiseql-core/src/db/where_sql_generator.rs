@@ -10,6 +10,13 @@ use crate::{
     error::{FraiseQLError, Result},
 };
 
+/// Maximum allowed byte length for a string value embedded in a raw SQL query.
+///
+/// Applies to SQL fragments assembled via string escaping (e.g. LIKE patterns,
+/// JSON path keys). Regular parameterized query paths are unaffected.
+/// 64 KiB is generous for any realistic filter value while blocking DoS inputs.
+const MAX_SQL_VALUE_BYTES: usize = 65_536;
+
 /// Generates SQL WHERE clause strings from AST.
 pub struct WhereSqlGenerator;
 
@@ -64,7 +71,7 @@ impl WhereSqlGenerator {
         operator: &WhereOperator,
         value: &Value,
     ) -> Result<String> {
-        let json_path = Self::build_json_path(path);
+        let json_path = Self::build_json_path(path)?;
         let sql = match operator {
             // Null checks
             WhereOperator::IsNull => {
@@ -85,16 +92,16 @@ impl WhereSqlGenerator {
         Ok(sql)
     }
 
-    fn build_json_path(path: &[String]) -> String {
+    fn build_json_path(path: &[String]) -> Result<String> {
         if path.is_empty() {
-            return "data".to_string();
+            return Ok("data".to_string());
         }
 
         if path.len() == 1 {
             // Simple path: data->>'field'
             // SECURITY: Escape field name to prevent SQL injection
-            let escaped = Self::escape_sql_string(&path[0]);
-            format!("data->>'{}'", escaped)
+            let escaped = Self::escape_sql_string(&path[0])?;
+            Ok(format!("data->>'{}'", escaped))
         } else {
             // Nested path: data#>'{a,b,c}'->>'d'
             // SECURITY: Escape all field names to prevent SQL injection
@@ -102,11 +109,13 @@ impl WhereSqlGenerator {
             let last = &path[path.len() - 1];
 
             // Escape all nested components
-            let escaped_nested: Vec<String> =
-                nested.iter().map(|n| Self::escape_sql_string(n)).collect();
+            let escaped_nested: Vec<String> = nested
+                .iter()
+                .map(|n| Self::escape_sql_string(n))
+                .collect::<Result<Vec<_>>>()?;
             let nested_path = escaped_nested.join(",");
-            let escaped_last = Self::escape_sql_string(last);
-            format!("data#>'{{{}}}'->>'{}'", nested_path, escaped_last)
+            let escaped_last = Self::escape_sql_string(last)?;
+            Ok(format!("data#>'{{{}}}'->>'{}'", nested_path, escaped_last))
         }
     }
 
@@ -236,17 +245,17 @@ impl WhereSqlGenerator {
 
             // String operators with wildcards
             (Value::String(s), WhereOperator::Contains | WhereOperator::Icontains) => {
-                Ok(format!("'%{}%'", Self::escape_sql_string(s)))
+                Ok(format!("'%{}%'", Self::escape_sql_string(s)?))
             },
             (Value::String(s), WhereOperator::Startswith | WhereOperator::Istartswith) => {
-                Ok(format!("'{}%'", Self::escape_sql_string(s)))
+                Ok(format!("'{}%'", Self::escape_sql_string(s)?))
             },
             (Value::String(s), WhereOperator::Endswith | WhereOperator::Iendswith) => {
-                Ok(format!("'%{}'", Self::escape_sql_string(s)))
+                Ok(format!("'%{}'", Self::escape_sql_string(s)?))
             },
 
             // Regular strings
-            (Value::String(s), _) => Ok(format!("'{}'", Self::escape_sql_string(s))),
+            (Value::String(s), _) => Ok(format!("'{}'", Self::escape_sql_string(s)?)),
 
             // Arrays (for IN operator)
             (Value::Array(arr), WhereOperator::In | WhereOperator::Nin) => {
@@ -270,6 +279,17 @@ impl WhereSqlGenerator {
                         message: format!("Failed to serialize JSON for array operator: {e}"),
                         source:  None,
                     })?;
+                if json_str.len() > MAX_SQL_VALUE_BYTES {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "JSONB value exceeds maximum allowed size for SQL embedding \
+                             ({} bytes, limit is {} bytes)",
+                            json_str.len(),
+                            MAX_SQL_VALUE_BYTES
+                        ),
+                        path: None,
+                    });
+                }
                 let escaped = json_str.replace('\'', "''");
                 Ok(format!("'{}'::jsonb", escaped))
             },
@@ -283,8 +303,19 @@ impl WhereSqlGenerator {
         }
     }
 
-    fn escape_sql_string(s: &str) -> String {
-        s.replace('\'', "''")
+    fn escape_sql_string(s: &str) -> Result<String> {
+        if s.len() > MAX_SQL_VALUE_BYTES {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "String value exceeds maximum allowed size for SQL embedding \
+                     ({} bytes, limit is {} bytes)",
+                    s.len(),
+                    MAX_SQL_VALUE_BYTES
+                ),
+                path: None,
+            });
+        }
+        Ok(s.replace('\'', "''"))
     }
 }
 
@@ -550,7 +581,7 @@ mod tests {
         assert!(sql.contains("::jsonb"), "Must produce valid JSONB cast");
         // Verify the value is inside a JSON string (double-quoted), not a raw SQL string.
         // serde_json serializes this as: ["normal","'; DROP TABLE users; --"]
-        // After SQL escaping: [\"normal\",\"''; DROP TABLE users; --\"]
+        // After SQL escaping: ["normal","''; DROP TABLE users; --"]
         // The single quote inside the JSON value is doubled for SQL safety.
         assert!(
             sql.contains("''"),
@@ -574,5 +605,53 @@ mod tests {
         // Both simple and nested path components should be escaped
         assert!(sql.contains("''")); // Escaped quotes present
         assert!(sql.contains("data#>'{")); // Nested path syntax
+    }
+
+    #[test]
+    fn escape_sql_string_rejects_oversized_input() {
+        let large = "a".repeat(MAX_SQL_VALUE_BYTES + 1);
+        let result = WhereSqlGenerator::escape_sql_string(&large);
+        assert!(matches!(result, Err(FraiseQLError::Validation { .. })));
+    }
+
+    #[test]
+    fn escape_sql_string_accepts_exactly_max_bytes() {
+        let at_limit = "a".repeat(MAX_SQL_VALUE_BYTES);
+        assert!(WhereSqlGenerator::escape_sql_string(&at_limit).is_ok());
+    }
+
+    #[test]
+    fn escape_sql_string_escapes_single_quotes() {
+        let result = WhereSqlGenerator::escape_sql_string("it's").unwrap();
+        assert_eq!(result, "it''s");
+    }
+
+    #[test]
+    fn value_to_sql_rejects_oversized_string_value() {
+        let large = "a".repeat(MAX_SQL_VALUE_BYTES + 1);
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(large),
+        };
+        assert!(matches!(
+            WhereSqlGenerator::to_sql(&clause),
+            Err(FraiseQLError::Validation { .. })
+        ));
+    }
+
+    #[test]
+    fn value_to_sql_rejects_oversized_jsonb_value() {
+        // Build an array large enough to exceed MAX_SQL_VALUE_BYTES when serialized
+        let large_element = "a".repeat(MAX_SQL_VALUE_BYTES);
+        let clause = WhereClause::Field {
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!([large_element]),
+        };
+        assert!(matches!(
+            WhereSqlGenerator::to_sql(&clause),
+            Err(FraiseQLError::Validation { .. })
+        ));
     }
 }
