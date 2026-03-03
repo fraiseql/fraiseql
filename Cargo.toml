@@ -124,6 +124,8 @@ cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not
 cargo_common_metadata = "allow"  # Internal crates don't need all metadata
 if_not_else = "allow"  # Style preference
 multiple_crate_versions = "allow"  # Transitive dependencies cause this
+missing_errors_doc = "warn"   # Public fallible fns should document error variants
+missing_panics_doc = "warn"  # Public fns that can panic should document when
 must_use_candidate = "allow"  # We'll use this selectively
 nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
 option_if_let_else = "allow"  # Style preference
