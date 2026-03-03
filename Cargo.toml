@@ -76,23 +76,17 @@ jsonwebtoken = "9.2"
 linked-hash-map = "0.5"
 # Caching
 lru = "0.16"
-# TLS
-native-tls = "0.2"
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
-postgres-native-tls = "0.5"
 # Property-based testing
 proptest = "1.4"
-# Python FFI (for fraiseql-python crate)
-pyo3 = {version = "0.25", features = ["extension-module", "experimental-async"]}
-pyo3-async-runtimes = {version = "0.25", features = ["tokio-runtime"]}
 # Random
 rand = "0.8"
 # Kafka
 rdkafka = {version = "0.39", features = ["tokio"]}
 regex = "1.10"
-# HTTP client
-reqwest = {version = "0.12", features = ["json"]}
+# HTTP client — rustls only, no OpenSSL dependency
+reqwest = {version = "0.12", default-features = false, features = ["json", "rustls-tls"]}
 # SQLite
 rusqlite = {version = "0.32", features = ["bundled"]}
 # Serialization

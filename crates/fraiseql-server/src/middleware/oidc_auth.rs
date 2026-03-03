@@ -114,19 +114,21 @@ pub async fn oidc_auth_middleware(
                 },
                 Err(e) => {
                     tracing::debug!(error = %e, "Token validation failed");
-                    let error_description = match &e {
-                        fraiseql_core::security::SecurityError::TokenExpired { .. } => {
-                            "Bearer error=\"invalid_token\", error_description=\"Token has expired\""
-                        },
-                        fraiseql_core::security::SecurityError::InvalidToken => {
-                            "Bearer error=\"invalid_token\", error_description=\"Token is invalid\""
-                        },
-                        _ => "Bearer error=\"invalid_token\"",
+                    let (www_authenticate, body) = match &e {
+                        fraiseql_core::security::SecurityError::TokenExpired { .. } => (
+                            "Bearer error=\"invalid_token\", error_description=\"Token has expired\"",
+                            "Token has expired",
+                        ),
+                        fraiseql_core::security::SecurityError::InvalidToken => (
+                            "Bearer error=\"invalid_token\", error_description=\"Token is invalid\"",
+                            "Token is invalid",
+                        ),
+                        _ => ("Bearer error=\"invalid_token\"", "Invalid or expired token"),
                     };
                     (
                         StatusCode::UNAUTHORIZED,
-                        [(header::WWW_AUTHENTICATE, error_description.to_string())],
-                        "Invalid or expired token",
+                        [(header::WWW_AUTHENTICATE, www_authenticate.to_string())],
+                        body,
                     )
                         .into_response()
                 },

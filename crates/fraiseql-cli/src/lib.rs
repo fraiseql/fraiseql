@@ -459,6 +459,7 @@ EXAMPLES:
     /// and [database] sections.  CLI flags take precedence over TOML settings, which
     /// take precedence over defaults.  The database URL is resolved in this order:
     /// --database flag > DATABASE_URL env var > [database].url in fraiseql.toml.
+    #[cfg(feature = "run-server")]
     #[command(after_help = "\
 EXAMPLES:
     fraiseql run
@@ -924,6 +925,7 @@ pub async fn run() {
             Err(e) => Err(anyhow::anyhow!(e)),
         },
 
+        #[cfg(feature = "run-server")]
         Commands::Run {
             input,
             database,

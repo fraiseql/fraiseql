@@ -100,27 +100,27 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
             data:   response,
         }))
     } else {
-        // Step 3: Apply the schema (invalidate cache after swap)
+        // Step 3: Apply the schema (invalidate cache after swap if configured)
+        #[cfg(feature = "arrow")]
         if let Some(cache) = state.cache() {
             cache.clear();
             let response = ReloadSchemaResponse {
                 success: true,
                 message: format!("Schema reloaded from {} and cache cleared", req.schema_path),
             };
-            Ok(Json(ApiResponse {
+            return Ok(Json(ApiResponse {
                 status: "success".to_string(),
                 data:   response,
-            }))
-        } else {
-            let response = ReloadSchemaResponse {
-                success: true,
-                message: format!("Schema reloaded from {}", req.schema_path),
-            };
-            Ok(Json(ApiResponse {
-                status: "success".to_string(),
-                data:   response,
-            }))
+            }));
         }
+        let response = ReloadSchemaResponse {
+            success: true,
+            message: format!("Schema reloaded from {}", req.schema_path),
+        };
+        Ok(Json(ApiResponse {
+            status: "success".to_string(),
+            data:   response,
+        }))
     }
 }
 
@@ -149,6 +149,14 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Json(req): Json<CacheClearRequest>,
 ) -> Result<Json<ApiResponse<CacheClearResponse>>, ApiError> {
+    // Cache operations require the `arrow` feature.
+    #[cfg(not(feature = "arrow"))]
+    {
+        let _ = (state, req);
+        return Err(ApiError::internal_error("Cache not configured"));
+    }
+
+    #[cfg(feature = "arrow")]
     // Validate scope and required parameters
     match req.scope.as_str() {
         "all" => {
@@ -234,6 +242,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 pub async fn cache_stats_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<CacheStatsResponse>>, ApiError> {
+    #[cfg(feature = "arrow")]
     if let Some(cache) = state.cache() {
         let response = CacheStatsResponse {
             entries_count: cache.len(),
@@ -241,11 +250,13 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
             ttl_secs:      60, // Default TTL from QueryCache::new(60)
             message:       format!("Cache contains {} entries with 60-second TTL", cache.len()),
         };
-        Ok(Json(ApiResponse {
+        return Ok(Json(ApiResponse {
             status: "success".to_string(),
             data:   response,
-        }))
-    } else {
+        }));
+    }
+    {
+        let _ = state;
         let response = CacheStatsResponse {
             entries_count: 0,
             cache_enabled: false,
@@ -295,8 +306,11 @@ pub async fn config_handler<A: DatabaseAdapter>(
             config.insert("max_queue_depth".to_string(), limits.max_queue_depth.to_string());
         }
 
-        // Cache status
+        // Cache status (requires arrow feature)
+        #[cfg(feature = "arrow")]
         config.insert("cache_enabled".to_string(), state.cache().is_some().to_string());
+        #[cfg(not(feature = "arrow"))]
+        config.insert("cache_enabled".to_string(), "false".to_string());
     } else {
         // Minimal configuration if not available
         config.insert("cache_enabled".to_string(), "false".to_string());

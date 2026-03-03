@@ -163,6 +163,7 @@ use super::{
     ExecutionContext, JsonbStrategy, QueryMatcher, QueryPlanner, ResultProjector, RuntimeConfig,
     classify_field_access,
     mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
+    suggest_similar,
 };
 #[cfg(test)]
 use crate::db::types::{DatabaseType, PoolMetrics};
@@ -522,10 +523,16 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation(ref name) => {
                 let mutation_def =
                     self.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
-                        FraiseQLError::Validation {
-                            message: format!("Mutation '{name}' not found in schema"),
-                            path:    None,
-                        }
+                        let candidates: Vec<&str> =
+                            self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
+                        let suggestion = suggest_similar(name, &candidates);
+                        let message = match suggestion.as_slice() {
+                            [s] => format!(
+                                "Mutation '{name}' not found in schema. Did you mean '{s}'?"
+                            ),
+                            _ => format!("Mutation '{name}' not found in schema"),
+                        };
+                        FraiseQLError::Validation { message, path: None }
                     })?;
                 let fn_name = mutation_def
                     .sql_source
@@ -1577,10 +1584,24 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 1. Locate the mutation definition
         let mutation_def =
             self.schema.find_mutation(mutation_name).ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: format!("Unknown mutation: {mutation_name}"),
-                    path:    None,
-                }
+                let candidates: Vec<&str> =
+                    self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
+                let suggestion = suggest_similar(mutation_name, &candidates);
+                let message = match suggestion.as_slice() {
+                    [s] => format!(
+                        "Mutation '{mutation_name}' not found in schema. Did you mean '{s}'?"
+                    ),
+                    [a, b] => format!(
+                        "Mutation '{mutation_name}' not found in schema. Did you mean '{a}' or \
+                         '{b}'?"
+                    ),
+                    [a, b, c, ..] => format!(
+                        "Mutation '{mutation_name}' not found in schema. Did you mean '{a}', \
+                         '{b}', or '{c}'?"
+                    ),
+                    _ => format!("Mutation '{mutation_name}' not found in schema"),
+                };
+                FraiseQLError::Validation { message, path: None }
             })?;
 
         // 2. Require a sql_source (PostgreSQL function name).
@@ -2081,9 +2102,16 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Get fact table metadata from schema
         let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+            let known: Vec<&str> = self.schema.list_fact_tables();
+            let suggestion = suggest_similar(&fact_table_name, &known);
+            let base = format!("Fact table '{}' not found in schema", fact_table_name);
+            let message = match suggestion.as_slice() {
+                [s] => format!("{base}. Did you mean '{s}'?"),
+                _ => base,
+            };
             FraiseQLError::Validation {
-                message: format!("Fact table '{}' not found in schema", fact_table_name),
-                path:    Some(format!("fact_tables.{}", fact_table_name)),
+                message,
+                path: Some(format!("fact_tables.{}", fact_table_name)),
             }
         })?;
 
@@ -2116,9 +2144,16 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Get fact table metadata from schema
         let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+            let known: Vec<&str> = self.schema.list_fact_tables();
+            let suggestion = suggest_similar(&fact_table_name, &known);
+            let base = format!("Fact table '{}' not found in schema", fact_table_name);
+            let message = match suggestion.as_slice() {
+                [s] => format!("{base}. Did you mean '{s}'?"),
+                _ => base,
+            };
             FraiseQLError::Validation {
-                message: format!("Fact table '{}' not found in schema", fact_table_name),
-                path:    Some(format!("fact_tables.{}", fact_table_name)),
+                message,
+                path: Some(format!("fact_tables.{}", fact_table_name)),
             }
         })?;
 

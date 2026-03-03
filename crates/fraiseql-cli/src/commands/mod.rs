@@ -13,6 +13,7 @@ pub mod init;
 pub mod introspect_facts;
 pub mod lint;
 pub mod migrate;
+#[cfg(feature = "run-server")]
 pub mod run;
 pub mod sbom;
 pub mod serve;

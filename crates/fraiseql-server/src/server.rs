@@ -31,7 +31,7 @@ use crate::{
         metrics_middleware, oidc_auth_middleware, require_json_content_type, trace_layer,
     },
     routes::{
-        AuthPkceState, PlaygroundState, SubscriptionState, api, auth_callback, auth_start,
+        PlaygroundState, SubscriptionState, api,
         graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
         introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
         subscription_handler,
@@ -39,6 +39,8 @@ use crate::{
     server_config::ServerConfig,
     tls::TlsSetup,
 };
+#[cfg(feature = "auth")]
+use crate::routes::{AuthPkceState, auth_callback, auth_start};
 
 /// FraiseQL HTTP Server.
 pub struct Server<A: DatabaseAdapter> {
@@ -49,12 +51,16 @@ pub struct Server<A: DatabaseAdapter> {
     max_subscriptions_per_connection: Option<u32>,
     oidc_validator:       Option<Arc<OidcValidator>>,
     rate_limiter:         Option<Arc<RateLimiter>>,
+    #[cfg(feature = "secrets")]
     secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
     circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
     error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    #[cfg(feature = "auth")]
     state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    #[cfg(feature = "auth")]
     pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
+    #[cfg(feature = "auth")]
     oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
     api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
@@ -75,6 +81,7 @@ pub struct Server<A: DatabaseAdapter> {
 }
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+    #[cfg(feature = "auth")]
     /// Build a `StateEncryptionService` from `security.state_encryption` in the compiled
     /// schema, if the section is present and `enabled = true`.
     ///
@@ -99,6 +106,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// When `redis_url` is set and the `redis-pkce` feature is compiled in, initialises
     /// a Redis-backed distributed store; otherwise falls back to the in-memory backend
     /// with a warning.
+    #[cfg(feature = "auth")]
     async fn pkce_store_from_schema(
         schema: &CompiledSchema,
         state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
@@ -190,6 +198,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Returns `ServerError::ConfigError` with an operator-actionable message when the
     /// constraint is violated.
+    #[cfg(feature = "auth")]
     fn check_redis_requirement(
         pkce_store: Option<&Arc<crate::auth::PkceStateStore>>,
     ) -> crate::Result<()> {
@@ -216,6 +225,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     }
 
     /// Build an `OidcServerClient` from the compiled schema JSON, if `[auth]` is present.
+    #[cfg(feature = "auth")]
     fn oidc_server_client_from_schema(
         schema: &CompiledSchema,
     ) -> Option<Arc<crate::auth::OidcServerClient>> {
@@ -467,9 +477,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        #[cfg(feature = "auth")]
         let state_encryption   = Self::state_encryption_from_schema(&schema)?;
+        #[cfg(not(feature = "auth"))]
+        let state_encryption: Option<std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>> = None;
+        #[cfg(feature = "auth")]
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
+        #[cfg(not(feature = "auth"))]
+        let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
+        #[cfg(feature = "auth")]
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
+        #[cfg(not(feature = "auth"))]
+        let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         if api_key_authenticator.is_some() {
@@ -656,6 +675,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         };
 
         // Warn if PKCE is configured but [auth] is missing (no OidcServerClient).
+        #[cfg(feature = "auth")]
         if pkce_store.is_some() && oidc_server_client.is_none() {
             tracing::error!(
                 "pkce.enabled = true but [auth] is not configured or OIDC client init failed. \
@@ -666,9 +686,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and PKCE store is in-memory.
+        #[cfg(feature = "auth")]
         Self::check_redis_requirement(pkce_store.as_ref())?;
 
         // Spawn background PKCE state cleanup task (every 5 minutes).
+        #[cfg(feature = "auth")]
         if let Some(ref store) = pkce_store {
             use std::time::Duration;
             use tokio::time::MissedTickBehavior;
@@ -691,11 +713,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             max_subscriptions_per_connection: None,
             oidc_validator,
             rate_limiter,
+            #[cfg(feature = "secrets")]
             secrets_manager: None,
             circuit_breaker,
             error_sanitizer,
+            #[cfg(feature = "auth")]
             state_encryption,
+            #[cfg(feature = "auth")]
             pkce_store,
+            #[cfg(feature = "auth")]
             oidc_server_client,
             api_key_authenticator,
             revocation_manager,
@@ -732,6 +758,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Set secrets manager for the server.
     ///
     /// This allows attaching a secrets manager after server creation for credential management.
+    #[cfg(feature = "secrets")]
     pub fn set_secrets_manager(&mut self, manager: Arc<crate::secrets_manager::SecretsManager>) {
         self.secrets_manager = Some(manager);
         info!("Secrets manager attached to server");
@@ -820,9 +847,18 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
+        #[cfg(feature = "auth")]
         let state_encryption   = Self::state_encryption_from_schema(&schema)?;
+        #[cfg(not(feature = "auth"))]
+        let state_encryption: Option<std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>> = None;
+        #[cfg(feature = "auth")]
         let pkce_store         = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
+        #[cfg(not(feature = "auth"))]
+        let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
+        #[cfg(feature = "auth")]
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
+        #[cfg(not(feature = "auth"))]
+        let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
@@ -916,9 +952,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
         let error_sanitizer     = Self::error_sanitizer_from_schema(&schema);
+        #[cfg(feature = "auth")]
         let state_encryption    = Self::state_encryption_from_schema(&schema)?;
+        #[cfg(not(feature = "auth"))]
+        let state_encryption: Option<std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>> = None;
+        #[cfg(feature = "auth")]
         let pkce_store          = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
+        #[cfg(not(feature = "auth"))]
+        let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
+        #[cfg(feature = "auth")]
         let oidc_server_client  = Self::oidc_server_client_from_schema(&schema);
+        #[cfg(not(feature = "auth"))]
+        let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
@@ -973,6 +1018,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await;
 
         // Warn if PKCE is configured but [auth] is missing.
+        #[cfg(feature = "auth")]
         if pkce_store.is_some() && oidc_server_client.is_none() {
             tracing::error!(
                 "pkce.enabled = true but [auth] is not configured or OIDC client init failed. \
@@ -981,9 +1027,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Refuse to start if FRAISEQL_REQUIRE_REDIS is set and PKCE store is in-memory.
+        #[cfg(feature = "auth")]
         Self::check_redis_requirement(pkce_store.as_ref())?;
 
         // Spawn background PKCE state cleanup task (every 5 minutes).
+        #[cfg(feature = "auth")]
         if let Some(ref store) = pkce_store {
             use std::time::Duration;
             use tokio::time::MissedTickBehavior;
@@ -1008,11 +1056,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             max_subscriptions_per_connection: None,
             oidc_validator,
             rate_limiter,
+            #[cfg(feature = "secrets")]
             secrets_manager: None,
             circuit_breaker,
             error_sanitizer,
+            #[cfg(feature = "auth")]
             state_encryption,
+            #[cfg(feature = "auth")]
             pkce_store,
+            #[cfg(feature = "auth")]
             oidc_server_client,
             api_key_authenticator,
             revocation_manager,
@@ -1071,6 +1123,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let mut state = AppState::new(self.executor.clone());
 
         // Attach secrets manager if configured
+        #[cfg(feature = "secrets")]
         if let Some(ref secrets_manager) = self.secrets_manager {
             state = state.with_secrets_manager(secrets_manager.clone());
             info!("SecretsManager attached to AppState");
@@ -1095,6 +1148,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Attach state encryption service if configured
+        #[cfg(feature = "auth")]
         match &self.state_encryption {
             Some(svc) => {
                 state = state.with_state_encryption(svc.clone());
@@ -1374,6 +1428,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // PKCE OAuth2 auth routes — mounted only when both pkce and [auth] are configured.
+        #[cfg(feature = "auth")]
         if let (Some(store), Some(client)) = (&self.pkce_store, &self.oidc_server_client) {
             let auth_state = Arc::new(AuthPkceState {
                 pkce_store:              Arc::clone(store),
@@ -1390,6 +1445,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Token revocation routes — mounted only when revocation is configured.
+        #[cfg(feature = "auth")]
         if let Some(ref rev_mgr) = self.revocation_manager {
             let rev_state = Arc::new(crate::routes::RevocationRouteState {
                 revocation_manager: Arc::clone(rev_mgr),

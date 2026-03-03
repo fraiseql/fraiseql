@@ -1,6 +1,7 @@
 //! HTTP routes.
 
 pub mod api;
+#[cfg(feature = "auth")]
 pub mod auth;
 pub mod graphql;
 pub mod health;
@@ -9,6 +10,7 @@ pub mod metrics;
 pub mod playground;
 pub mod subscriptions;
 
+#[cfg(feature = "auth")]
 pub use auth::{
     AuthPkceState, RevocationRouteState, auth_callback, auth_start, revoke_all_tokens,
     revoke_token,

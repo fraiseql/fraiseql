@@ -43,9 +43,7 @@ itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
 linked-hash-map = {workspace = true}
 lru = {workspace = true}
-native-tls = {workspace = true}
 parking_lot = {workspace = true}
-postgres-native-tls = {workspace = true}
 rand = {workspace = true}
 # Kafka (optional)
 rdkafka = {workspace = true, optional = true}

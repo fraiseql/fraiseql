@@ -177,26 +177,28 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Compiled schema loaded successfully");
 
     // Initialize security configuration from schema
-    tracing::info!("Initializing security configuration from schema");
-    let schema_json_str = schema.to_json().unwrap_or_else(|e| {
-        tracing::warn!(error = %e, "Failed to serialize schema to JSON");
-        "{}".to_string()
-    });
-
-    let security_config = fraiseql_server::auth::init_security_config(&schema_json_str)
-        .unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "Failed to load security config from schema, using defaults");
-            fraiseql_server::auth::init_default_security_config()
+    #[cfg(feature = "auth")]
+    {
+        tracing::info!("Initializing security configuration from schema");
+        let schema_json_str = schema.to_json().unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "Failed to serialize schema to JSON");
+            "{}".to_string()
         });
+        let security_config = fraiseql_server::auth::init_security_config(&schema_json_str)
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to load security config from schema, using defaults");
+                fraiseql_server::auth::init_default_security_config()
+            });
 
-    // Validate security configuration
-    if let Err(e) = fraiseql_server::auth::validate_security_config(&security_config) {
-        tracing::error!(error = %e, "Security configuration validation failed");
-        anyhow::bail!(e);
+        // Validate security configuration
+        if let Err(e) = fraiseql_server::auth::validate_security_config(&security_config) {
+            tracing::error!(error = %e, "Security configuration validation failed");
+            anyhow::bail!(e);
+        }
+
+        // Log security configuration for observability
+        fraiseql_server::auth::log_security_config(&security_config);
     }
-
-    // Log security configuration for observability
-    fraiseql_server::auth::log_security_config(&security_config);
 
     // Initialize database adapter
     #[cfg(not(feature = "wire-backend"))]
@@ -253,6 +255,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize secrets manager if configured via environment
     // For development/testing, use ENV backend if FRAISEQL_SECRETS_BACKEND env var is set
+    #[cfg(feature = "secrets")]
     let secrets_manager = if env::var("FRAISEQL_SECRETS_BACKEND").is_ok() {
         tracing::info!("Initializing secrets manager from environment configuration");
         let config = fraiseql_server::secrets_manager::SecretsBackendConfig::Env;
@@ -282,6 +285,7 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
 
         // Attach secrets manager if configured
+        #[cfg(feature = "secrets")]
         if let Some(mgr) = secrets_manager {
             server.set_secrets_manager(mgr);
         }
@@ -307,6 +311,7 @@ async fn main() -> anyhow::Result<()> {
         let mut server = Server::new(config, schema, adapter, db_pool).await?;
 
         // Attach secrets manager if configured
+        #[cfg(feature = "secrets")]
         if let Some(mgr) = secrets_manager {
             server.set_secrets_manager(mgr);
         }

@@ -25,13 +25,14 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig},
     config::error_sanitization::ErrorSanitizer,
     error::{ErrorResponse, GraphQLError},
     extractors::OptionalSecurityContext,
     metrics_server::MetricsCollector,
     tracing_utils,
 };
+#[cfg(feature = "auth")]
+use crate::auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
 
 /// GraphQL request payload (for POST requests).
 #[derive(Debug, Deserialize)]
@@ -101,14 +102,18 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Metrics collector.
     pub metrics:              Arc<MetricsCollector>,
     /// Query result cache (optional).
+    #[cfg(feature = "arrow")]
     pub cache:                Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
     pub config:               Option<Arc<crate::config::ServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
+    #[cfg(feature = "auth")]
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
     /// Secrets manager (optional, configured via `[fraiseql.secrets]`).
+    #[cfg(feature = "secrets")]
     pub secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
     /// Field encryption service for transparent encrypt/decrypt of marked fields.
+    #[cfg(feature = "secrets")]
     pub field_encryption:     Option<Arc<crate::encryption::middleware::FieldEncryptionService>>,
     /// Federation circuit breaker manager (optional, enabled via `fraiseql.toml`).
     pub circuit_breaker:
@@ -116,6 +121,7 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Error sanitizer — strips internal details before sending responses to clients.
     pub error_sanitizer:  Arc<ErrorSanitizer>,
     /// State encryption service (optional, enabled via `[security.state_encryption]`).
+    #[cfg(feature = "auth")]
     pub state_encryption:
         Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
     /// API key authenticator (optional, enabled via `[security.api_keys]`).
@@ -140,15 +146,20 @@ impl<A: DatabaseAdapter> AppState<A> {
         Self {
             executor,
             metrics: Arc::new(MetricsCollector::new()),
+            #[cfg(feature = "arrow")]
             cache: None,
             config: None,
+            #[cfg(feature = "auth")]
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
                 RateLimitConfig::per_ip_standard(),
             )),
+            #[cfg(feature = "secrets")]
             secrets_manager: None,
+            #[cfg(feature = "secrets")]
             field_encryption: None,
             circuit_breaker: None,
             error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
+            #[cfg(feature = "auth")]
             state_encryption: None,
             api_key_authenticator: None,
             apq_store: None,
@@ -166,6 +177,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Create new application state with cache.
+    #[cfg(feature = "arrow")]
     #[must_use]
     pub fn with_cache(
         executor: Arc<Executor<A>>,
@@ -175,6 +187,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Create new application state with cache and config.
+    #[cfg(feature = "arrow")]
     #[must_use]
     pub fn with_cache_and_config(
         executor: Arc<Executor<A>>,
@@ -189,6 +202,7 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
+    #[cfg(feature = "arrow")]
     fn set_cache(mut self, cache: Arc<fraiseql_arrow::cache::QueryCache>) -> Self {
         self.cache = Some(cache);
         self
@@ -200,6 +214,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get query cache if configured.
+    #[cfg(feature = "arrow")]
     pub fn cache(&self) -> Option<&Arc<fraiseql_arrow::cache::QueryCache>> {
         self.cache.as_ref()
     }
@@ -217,6 +232,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Set secrets manager (for credential and secret management).
+    #[cfg(feature = "secrets")]
     #[must_use]
     pub fn with_secrets_manager(
         mut self,
@@ -227,6 +243,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get secrets manager if configured.
+    #[cfg(feature = "secrets")]
     pub fn secrets_manager(&self) -> Option<&Arc<crate::secrets_manager::SecretsManager>> {
         self.secrets_manager.as_ref()
     }
@@ -249,6 +266,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Attach a state encryption service (loaded from `compiled.security.state_encryption`).
+    #[cfg(feature = "auth")]
     #[must_use]
     pub fn with_state_encryption(
         mut self,
@@ -622,14 +640,15 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
 
-        // Extract IP for rate limiting
-        let client_ip = extract_ip_from_headers(headers);
-
         // Check rate limiting for validation errors
-        if state.graphql_rate_limiter.check(&client_ip).is_err() {
-            return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
-                "Too many validation errors. Please reduce query complexity and try again.",
-            )));
+        #[cfg(feature = "auth")]
+        {
+            let client_ip = extract_ip_from_headers(headers);
+            if state.graphql_rate_limiter.check(&client_ip).is_err() {
+                return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
+                    "Too many validation errors. Please reduce query complexity and try again.",
+                )));
+            }
         }
 
         let graphql_error = match e {
@@ -664,14 +683,15 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
 
-        // Extract IP for rate limiting
-        let client_ip = extract_ip_from_headers(headers);
-
         // Check rate limiting for validation errors
-        if state.graphql_rate_limiter.check(&client_ip).is_err() {
-            return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
-                "Too many validation errors. Please reduce query complexity and try again.",
-            )));
+        #[cfg(feature = "auth")]
+        {
+            let client_ip = extract_ip_from_headers(headers);
+            if state.graphql_rate_limiter.check(&client_ip).is_err() {
+                return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
+                    "Too many validation errors. Please reduce query complexity and try again.",
+                )));
+            }
         }
 
         return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
@@ -787,6 +807,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     })?;
 
     // Decrypt encrypted fields if field encryption is configured
+    #[cfg(feature = "secrets")]
     if let Some(ref encryption) = state.field_encryption {
         if encryption.has_encrypted_fields() {
             encryption.decrypt_response(&mut response_json).await.map_err(|e| {

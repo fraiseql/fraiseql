@@ -19,7 +19,7 @@ http = "1.1"
 prometheus = {version = "0.14", optional = true}
 rand = "0.8"
 redis = {version = "0.28", features = ["aio", "connection-manager", "tokio-comp"], optional = true}
-reqwest = {version = "0.12", features = ["json"]}
+reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 sha2 = "0.10"
@@ -57,8 +57,13 @@ multi-db = ["postgres", "mysql"]
 mysql = ["sqlx/mysql"]
 # NATS Features
 nats = ["async-nats"]
-phase8 = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
-phase9 = ["macros", "arrow"]
+# Descriptive bundles — use these instead of the deprecated phase aliases below.
+enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
+analytics = ["macros", "arrow"]
+# NOTE: phase8/phase9 are deprecated aliases from development. Use enterprise/analytics instead.
+# Will be removed in 2.3.0.
+phase8 = ["enterprise"]
+phase9 = ["analytics"]
 # Database backends (enable sqlx features)
 postgres = ["sqlx/postgres"]
 queue = ["redis"]

@@ -7,7 +7,7 @@ clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
 deadpool-postgres = {workspace = true}
 # Workspace dependencies
 fraiseql-core = {workspace = true, features = ["postgres"]}
-fraiseql-server = {workspace = true}
+fraiseql-server = {workspace = true, optional = true}
 glob = "0.3"
 # File watching (for serve command)
 notify = "7.0"
@@ -27,6 +27,10 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 # Multi-file schema loading
 walkdir = "2"
+
+[features]
+default = ["run-server"]
+run-server = ["dep:fraiseql-server"]
 
 [[bin]]
 name = "fraiseql-cli"

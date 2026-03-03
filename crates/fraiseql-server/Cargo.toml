@@ -23,15 +23,15 @@ chrono = {version = "0.4", features = ["serde"]}
 dashmap = "6.1"
 dirs = "5"
 ed25519-dalek = {version = "2", features = ["std"]}
-fraiseql-arrow = {workspace = true}
+fraiseql-arrow = {workspace = true, optional = true}
 # Authentication
-fraiseql-auth = {workspace = true}
+fraiseql-auth = {workspace = true, optional = true}
 # FraiseQL core
 fraiseql-core = {workspace = true, features = ["postgres"]}
 # Secrets management and encryption
-fraiseql-secrets = {workspace = true}
+fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks
-fraiseql-webhooks = {workspace = true}
+fraiseql-webhooks = {workspace = true, optional = true}
 fraiseql-error = {workspace = true}
 # FraiseQL observers (optional)
 fraiseql-observers = {workspace = true, optional = true}
@@ -42,14 +42,14 @@ hex = "0.4"
 # Webhook signature verification
 hmac = "0.12"
 http = "1"
-image = {version = "0.25", features = ["jpeg", "png", "webp"]}
-infer = "0.15"
+image = {version = "0.25", features = ["jpeg", "png", "webp"], optional = true}
+infer = {version = "0.15", optional = true}
 # Authentication (JWT, OAuth, OIDC)
 jsonwebtoken = "9.2"
 # Metrics (optional)
 metrics = {version = "0.22", optional = true}
 metrics-exporter-prometheus = {version = "0.18", optional = true}
-mime_guess = "2"
+mime_guess = {version = "2", optional = true}
 # OpenTelemetry (optional)
 opentelemetry = {version = "0.29", optional = true}
 opentelemetry-otlp = {version = "0.29", features = ["http-proto"], optional = true}
@@ -61,7 +61,7 @@ redis = {version = "0.28", features = ["aio", "tokio-comp", "connection-manager"
 # MCP (Model Context Protocol) server (optional)
 rmcp = {version = "0.16", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
 schemars = {version = "1", optional = true}
-reqwest = {version = "0.12", features = ["json"]}
+reqwest = {workspace = true}
 # TLS/SSL support
 rustls = "0.23"
 rustls-pemfile = "2.2"
@@ -100,7 +100,7 @@ fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 futures = "0.3"
 temp-env = {workspace = true}
 # HTTP testing
-reqwest = {version = "0.12", features = ["json"]}
+reqwest = {workspace = true}
 # YAML parsing for deployment tests
 serde_yaml = "0.9"
 # Database testing
@@ -114,20 +114,27 @@ wiremock = "0.6"
 
 [features]
 # Arrow Flight server for high-performance data delivery
-arrow = ["tonic"]
-aws-s3 = ["aws-sdk-s3", "aws-config"]
+arrow = ["dep:fraiseql-arrow", "dep:tonic"]
+auth = ["dep:fraiseql-auth"]
+aws-s3 = ["aws-sdk-s3", "aws-config", "files"]
+backup = []
 cors = []
 database = []
-default = []
+default = ["auth", "secrets", "webhooks"]
+files = ["dep:image", "dep:infer", "dep:mime_guess"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 # Observer system for reactive business logic
 observers = ["fraiseql-observers"]
-observers-full = ["observers", "fraiseql-observers/phase8", "fraiseql-observers/nats"]
+secrets = ["dep:fraiseql-secrets"]
+webhooks = ["dep:fraiseql-webhooks"]
+observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
+# Deprecated alias — use observers-enterprise instead. Will be removed in 2.3.0.
+observers-full = ["observers-enterprise"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
-redis-pkce = ["fraiseql-auth/redis-pkce"]
+redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
 testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]

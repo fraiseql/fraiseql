@@ -104,22 +104,72 @@ pub mod resilience;
 pub mod runtime_state;
 pub mod tracing_utils;
 
-// Webhooks (extracted to fraiseql-webhooks crate)
+// Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
+#[cfg(feature = "webhooks")]
 pub use fraiseql_webhooks as webhooks;
 
-// fraiseql-files modules (merged)
+// fraiseql-files modules (merged) — optional, enable with `features = ["files"]`
+#[cfg(feature = "files")]
 pub mod files;
 
-// Authentication (extracted to fraiseql-auth crate)
+// Authentication (extracted to fraiseql-auth crate) — optional, enable with `features = ["auth"]`
+#[cfg(feature = "auth")]
 pub use fraiseql_auth as auth;
+
+/// Stub auth types compiled when the `auth` feature is disabled.
+///
+/// These zero-sized types allow internal code that references `crate::auth::*` to compile
+/// in no-auth builds without requiring every call-site to be cfg-gated.  All stub methods
+/// are pure stubs that the compiler will dead-code-eliminate.
+#[cfg(not(feature = "auth"))]
+#[allow(missing_docs)]
+pub mod auth {
+    use std::sync::Arc;
+
+    /// Stub for `fraiseql_auth::state_encryption::StateEncryptionService`.
+    pub mod state_encryption {
+        /// Zero-sized stub; never instantiated when `auth` feature is off.
+        pub struct StateEncryptionService;
+        impl StateEncryptionService {
+            /// Stub: returns `None`.
+            pub fn from_compiled_schema(
+                _s: &serde_json::Value,
+            ) -> crate::Result<Option<std::sync::Arc<Self>>> {
+                Ok(None)
+            }
+        }
+    }
+
+    /// Stub for `fraiseql_auth::PkceStateStore`.
+    pub struct PkceStateStore;
+    impl PkceStateStore {
+        /// Stub: always returns `true` (in-memory).
+        pub fn is_in_memory(&self) -> bool {
+            true
+        }
+        /// Stub: no-op.
+        pub async fn cleanup_expired(&self) {}
+    }
+
+    /// Stub for `fraiseql_auth::OidcServerClient`.
+    pub struct OidcServerClient;
+    impl OidcServerClient {
+        /// Stub: always returns `None`.
+        pub fn from_compiled_schema(_schema_json: &serde_json::Value) -> Option<Arc<Self>> {
+            None
+        }
+    }
+}
 
 // Secrets management
 pub mod secrets;
 
-// Secrets management and encryption (extracted to fraiseql-secrets crate)
+// Secrets management and encryption (extracted to fraiseql-secrets crate) — optional, enable with `features = ["secrets"]`
+#[cfg(feature = "secrets")]
 pub use fraiseql_secrets::{encryption, secrets_manager};
 
-// Backup and disaster recovery
+// Backup and disaster recovery — optional, enable with `features = ["backup"]`
+#[cfg(feature = "backup")]
 pub mod backup;
 
 // TLS/SSL and encryption
