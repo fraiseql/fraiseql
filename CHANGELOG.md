@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Domain-specific string newtypes** (`schema::domain_types`): `TypeName`, `FieldName`,
+  `SqlSource`, `RoleName`, and `Scope` replace bare `String` fields on `TypeDefinition`,
+  `FieldDefinition`, and `RoleDefinition`. Passing a `FieldName` where a `TypeName` is expected
+  is now a compile-time error. All newtypes are `serde(transparent)` (JSON unchanged), `Display`,
+  `AsRef<str>`, `From<&str>`/`From<String>`, and `PartialEq<str>`.
+- **`totalCount` via fragment spreads** (Relay spec compliance): `totalCount` is now correctly
+  detected when requested inside a type-conditioned inline fragment
+  (`... on UserConnection { totalCount }`) or a named fragment spread. Named fragment spreads
+  were already flattened by `FragmentResolver`; inline fragments now recurse one level via
+  `selections_contain_field()`.
 - **MySQL `RelayDatabaseAdapter`**: `MySqlAdapter` now implements `RelayDatabaseAdapter` with
   forward and backward keyset pagination. ORDER BY fields use
   `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))`. UUID cursors compare as CHAR(36) strings.
@@ -29,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Workspace lint config hardened**: `missing_errors_doc = "warn"` and
+  `missing_panics_doc = "warn"` are now explicit entries in `[workspace.lints.clippy]` rather
+  than relying on the implicit `pedantic` group. All existing `#[allow(clippy::...)]` sites
+  carry `// Reason:` justification comments.
 - **`fraiseql-cli` decoupled from `fraiseql-server`**: `fraiseql-server` is now an optional
   dependency in `fraiseql-cli`, gated behind a `run-server` feature (enabled by default). The
   `Run` command and HTTP stack are conditionally compiled. Building with
