@@ -522,7 +522,7 @@ docker-compose scale observer-v1=0
 ### Strategy 3: Feature Flags
 
 ```rust
-if env::var("USE_PHASE_8").unwrap_or("false") == "true" {
+if env::var("FRAISEQL_OBSERVERS_V2").unwrap_or("false") == "true" {
     // Use Phase 8 features
     let executor = ConcurrentActionExecutor::new(...);
 } else {
@@ -535,10 +535,10 @@ Deploy Phase 8 code, but gate features behind flags:
 
 ```bash
 # Day 1: Deploy code, flags OFF
-USE_PHASE_8=false cargo run
+FRAISEQL_OBSERVERS_V2=false cargo run
 
 # Day 2: Enable for internal testing
-USE_PHASE_8=true cargo run
+FRAISEQL_OBSERVERS_V2=true cargo run
 
 # Day 3: Enable for 10% of traffic (feature flag in load balancer)
 
@@ -680,7 +680,7 @@ kill $(pgrep fraiseql)
 
 1. Check Troubleshooting Guide: `TROUBLESHOOTING.md`
 2. Review Configuration Examples: `CONFIGURATION_EXAMPLES.md`
-3. Check Architecture Guide: `ARCHITECTURE_PHASE_8.md`
+3. Check Architecture Guide: `../../../../docs/architecture/overview.md`
 4. Contact Platform Team
 
 ### Key Contacts

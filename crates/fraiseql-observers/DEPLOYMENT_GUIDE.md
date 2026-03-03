@@ -21,8 +21,8 @@
 
 ### Documentation Review
 
-- [ ] Read `RELEASE_NOTES_PHASE_8.md` (this release)
-- [ ] Study `docs/ARCHITECTURE_PHASE_8.md` (system design)
+- [ ] Read `CHANGELOG.md` (this release)
+- [ ] Study `docs/../../../../docs/architecture/overview.md` (system design)
 - [ ] Review `docs/CONFIGURATION_EXAMPLES.md` (config options)
 - [ ] Understand `docs/MIGRATION_GUIDE.md` (migration strategy)
 - [ ] Bookmark `docs/TROUBLESHOOTING.md` (diagnostics)
@@ -764,7 +764,7 @@ fraiseql-observers metrics | grep action_duration
 
 ## Support & Help
 
-- **Documentation**: `docs/ARCHITECTURE_PHASE_8.md`
+- **Documentation**: `docs/../../../../docs/architecture/overview.md`
 - **Troubleshooting**: `docs/TROUBLESHOOTING.md`
 - **CLI Reference**: `docs/CLI_TOOLS.md`
 - **Performance**: `docs/PERFORMANCE_TUNING.md`

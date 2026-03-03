@@ -1014,7 +1014,7 @@ let executor = executor
 
 For integration help:
 
-- Check Architecture Guide: `ARCHITECTURE_PHASE_8.md`
+- Check Architecture Guide: `../../../../docs/architecture/overview.md`
 - Review Configuration Examples: `CONFIGURATION_EXAMPLES.md`
 - Troubleshoot Issues: `TROUBLESHOOTING.md`
 - Check CLI Documentation: `CLI_TOOLS.md`

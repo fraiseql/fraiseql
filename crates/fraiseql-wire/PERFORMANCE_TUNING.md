@@ -727,4 +727,3 @@ The most important optimization is **pushing as much filtering as possible into 
 
 - [Comparison Benchmarks vs tokio-postgres](benches/COMPARISON_GUIDE.md)
 - [Benchmarking Strategy](BENCHMARKING.md)
-- [Phase 7.1.4 Completion Summary](PHASE_7_1_4_SUMMARY.md)

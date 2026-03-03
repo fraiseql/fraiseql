@@ -831,7 +831,7 @@ fraiseql-observers status --format json | head -20
 
 ## Next Steps
 
-- Read Architecture Guide: `ARCHITECTURE_PHASE_8.md`
+- Read Architecture Guide: `../../../../docs/architecture/overview.md`
 - Troubleshoot Issues: `TROUBLESHOOTING.md`
 - Performance Tuning: `PERFORMANCE_TUNING.md`
 - Integration Guide: `INTEGRATION_GUIDE.md`

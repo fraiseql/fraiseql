@@ -825,7 +825,7 @@ fraiseql-load-test \
 
 ## References
 
-- Architecture Guide: `ARCHITECTURE_PHASE_8.md`
+- Architecture Guide: `../../../../docs/architecture/overview.md`
 - Configuration Examples: `CONFIGURATION_EXAMPLES.md`
 - CLI Tools: `CLI_TOOLS.md`
 - Performance Tuning: `PERFORMANCE_TUNING.md`
