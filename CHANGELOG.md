@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MySQL `RelayDatabaseAdapter`**: `MySqlAdapter` now implements `RelayDatabaseAdapter` with
+  forward and backward keyset pagination. ORDER BY fields use
+  `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))`. UUID cursors compare as CHAR(36) strings.
+  `totalCount` is cursor-independent per the Relay Cursor Connections spec.
+- **`CheckpointStrategy` enum** (`fraiseql-observers`): `AtLeastOnce` (default, fast, suitable
+  for idempotent consumers) and `EffectivelyOnce { idempotency_table }` (records an idempotency
+  key before processing; duplicate events detected and skipped via `ON CONFLICT DO NOTHING`).
+  Methods: `is_duplicate(pool, listener_id, key)` and `record_idempotency_key(pool, listener_id,
+  key)`. Exported from crate root.
+- **k6 load testing baseline and CI workflow**: `benchmarks/load/basic.js` ramps 10→50 VUs over
+  50 s (P99 < 500 ms, GraphQL error rate < 1%). `benchmarks/load/mutations.js` targets the write
+  path (20 VUs, P99 < 1 000 ms). `.github/workflows/perf-baseline.yml` runs on push to
+  `main`/`dev` against PostgreSQL 16, archives results for 90 days; threshold failures are
+  advisory to avoid CI noise.
+- **SQL snapshot tests expanded**: 21 new `PostgresWhereGenerator` call-level snapshot tests
+  added to `tests/sql_snapshots.rs` covering all WHERE clause operators, plus 10 MySQL relay
+  snapshots (92 total snapshots).
+
+### Changed
+
+- **`fraiseql-cli` decoupled from `fraiseql-server`**: `fraiseql-server` is now an optional
+  dependency in `fraiseql-cli`, gated behind a `run-server` feature (enabled by default). The
+  `Run` command and HTTP stack are conditionally compiled. Building with
+  `--no-default-features` produces a pure compile-only binary with no server dependency.
+- **TLS consolidated to rustls; `native-tls` removed**: Dead `native-tls` and
+  `postgres-native-tls` dependencies removed from `fraiseql-core`. The workspace `reqwest`
+  declaration now uses `rustls-tls`; all crates (`fraiseql-auth`, `fraiseql-observers`,
+  `fraiseql-secrets`, `fraiseql-server`) inherit it via `{workspace = true}`. `native-tls` no
+  longer appears in the dependency tree.
+- **Error messages include "Did you mean?" suggestions**: Mutation-not-found and
+  fact-table-not-found errors now suggest similarly-named alternatives (mirrors existing
+  query-not-found behaviour via `suggest_similar`). OIDC error response body now matches the
+  `WWW-Authenticate` header: expired tokens return `"Token has expired"`, invalid tokens return
+  `"Token is invalid"`.
+
+### Fixed
+
+- **`CachedDatabaseAdapter::cache.put()` argument mismatch**: three call sites were passing 4
+  arguments to a 5-argument signature (missing `entity_type`), silently breaking cache writes.
+- **Entity-aware cache invalidation**: `executor.rs` now calls `invalidate_by_entity` for
+  UPDATE/DELETE mutations when `entity_id` is present, enabling precise cache eviction instead
+  of flushing the entire view. View-level flush is still applied for CREATE mutations and when
+  `invalidates_views` is explicitly declared.
+
 ## [2.0.0] - 2026-03-02
 
 ### Added
