@@ -110,7 +110,7 @@ impl DimensionRateLimiter {
             return Ok(());
         }
 
-        let mut records = self.records.lock().unwrap();
+        let mut records = self.records.lock().expect("records mutex poisoned");
         let now = Self::get_timestamp();
 
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
@@ -138,7 +138,7 @@ impl DimensionRateLimiter {
     }
 
     fn clear(&self) {
-        let mut records = self.records.lock().unwrap();
+        let mut records = self.records.lock().expect("records mutex poisoned");
         records.clear();
     }
 }

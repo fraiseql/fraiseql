@@ -212,7 +212,7 @@ impl ValidationRule {
                 }
 
                 if rules.len() == 1 {
-                    Ok(rules.into_iter().next().unwrap())
+                    Ok(rules.into_iter().next().expect("len checked == 1"))
                 } else {
                     Ok(ValidationRule::All(rules))
                 }

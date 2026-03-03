@@ -98,7 +98,7 @@ impl TransactionContext {
             "txn_{}_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system clock is always past UNIX epoch")
                 .as_micros(),
             &uuid::Uuid::new_v4().to_string()[..8]
         );

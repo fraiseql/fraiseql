@@ -576,8 +576,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Apply subscription lifecycle/limits from compiled schema.
         if let Some(ref subs_json) = subscriptions_config_json {
             if let Some(max) = subs_json.get("max_subscriptions_per_connection").and_then(|v| v.as_u64()) {
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: max_subscriptions_per_connection is a u32 config field; u64 → u32
+                #[allow(clippy::cast_possible_truncation)]  // Reason: max_subscriptions_per_connection is a u32 config field; u64 → u32
                 // truncation is acceptable for a limit that would never exceed u32::MAX.
                 {
                     server.max_subscriptions_per_connection = Some(max as u32);
@@ -595,8 +594,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
     /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
-    #[allow(clippy::too_many_arguments)]
-    // Reason: internal constructor that collects all pre-built subsystems; callers pass
+    #[allow(clippy::too_many_arguments)]  // Reason: internal constructor that collects all pre-built subsystems; callers pass
     // already-constructed values rather than building them here, so grouping into a
     // builder struct would not reduce call-site clarity.
     async fn from_executor(

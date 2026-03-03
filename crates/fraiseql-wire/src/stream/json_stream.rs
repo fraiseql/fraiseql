@@ -140,7 +140,7 @@ impl JsonStream {
                 pause_timeout: None,
             });
         }
-        self.pause_resume.as_mut().unwrap()
+        self.pause_resume.as_mut().expect("pause_resume initialized in the block above")
     }
 
     /// Get current stream state

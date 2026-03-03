@@ -203,7 +203,7 @@ impl DatabaseAdapter for SqliteAdapter {
             return self.execute_where_query(view, where_clause, limit, None).await;
         }
 
-        let projection = projection.unwrap();
+        let projection = projection.expect("projection is Some; None was returned above");
 
         // Build SQL with SQLite-specific json_object projection
         // The projection_template contains the SELECT clause with json_object() calls

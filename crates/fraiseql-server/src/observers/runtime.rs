@@ -326,7 +326,7 @@ impl ObserverRuntime {
                                     // Clone matcher from shared reference (cheap - EventMatcher uses Arc internally)
                                     let matcher = {
                                         let m = matcher_ref.read().await;
-                                        m.as_ref().unwrap().clone()
+                                        m.as_ref().expect("matcher initialized before processing loop starts").clone()
                                     };
 
                                     // Find matching observers
@@ -335,7 +335,7 @@ impl ObserverRuntime {
                                     // Process event (read executor from shared reference)
                                     let process_result = {
                                         let ex = executor_ref.read().await;
-                                        ex.as_ref().unwrap().process_event(&event).await
+                                        ex.as_ref().expect("executor initialized before processing loop starts").process_event(&event).await
                                     };
 
                                     match process_result {
@@ -586,7 +586,7 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
             error_message: error,
             attempts: 0,
         };
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().expect("items mutex poisoned");
         items.push(item);
         Ok(id)
     }
@@ -595,12 +595,12 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         &self,
         limit: i64,
     ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
-        let items = self.items.lock().unwrap();
+        let items = self.items.lock().expect("items mutex poisoned");
         Ok(items.iter().take(limit as usize).cloned().collect())
     }
 
     async fn mark_success(&self, id: uuid::Uuid) -> fraiseql_observers::Result<()> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().expect("items mutex poisoned");
         items.retain(|i| i.id != id);
         Ok(())
     }
@@ -610,7 +610,7 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         id: uuid::Uuid,
         _error: &str,
     ) -> fraiseql_observers::Result<()> {
-        let mut items = self.items.lock().unwrap();
+        let mut items = self.items.lock().expect("items mutex poisoned");
         items.retain(|i| i.id != id);
         Ok(())
     }

@@ -249,7 +249,7 @@ impl PostgresAdapter {
             message: format!(
                 "Failed to acquire connection after {} retries: {}. Pool exhausted (available={}/{}). Consider increasing pool size or reducing concurrent load.",
                 MAX_CONNECTION_RETRIES,
-                last_error.unwrap(),
+                last_error.expect("last_error is set on every retry iteration"),
                 pool_metrics.idle_connections,
                 pool_metrics.total_connections
             ),
@@ -302,7 +302,7 @@ impl PostgresAdapter {
             return self.execute_where_query(view, where_clause, limit, None).await;
         }
 
-        let projection = projection.unwrap();
+        let projection = projection.expect("projection is Some; None was returned above");
 
         // Build SQL with projection
         // The projection_template is expected to be the SELECT clause with projection SQL

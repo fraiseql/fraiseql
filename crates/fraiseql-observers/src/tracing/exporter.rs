@@ -142,7 +142,7 @@ pub fn init_jaeger_exporter(config: &TracingConfig) -> Result<()> {
     };
 
     // Store as global instance
-    let mut global_exporter = JAEGER_EXPORTER.lock().unwrap();
+    let mut global_exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
     *global_exporter = Some(exporter);
 
     tracing::info!(
@@ -156,10 +156,10 @@ pub fn init_jaeger_exporter(config: &TracingConfig) -> Result<()> {
 ///
 /// Buffers span data for batch export to Jaeger collector
 pub fn record_span(span: JaegerSpan) -> Result<()> {
-    let exporter = JAEGER_EXPORTER.lock().unwrap();
+    let exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
 
     if let Some(exporter) = exporter.as_ref() {
-        let mut buffer = exporter.batch_buffer.lock().unwrap();
+        let mut buffer = exporter.batch_buffer.lock().expect("batch_buffer mutex poisoned");
 
         // Add span to buffer
         buffer.push(span.clone());
@@ -182,10 +182,10 @@ pub fn record_span(span: JaegerSpan) -> Result<()> {
 
 /// Flush all pending spans to Jaeger
 pub fn flush_spans() -> Result<()> {
-    let exporter = JAEGER_EXPORTER.lock().unwrap();
+    let exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
 
     if let Some(exporter) = exporter.as_ref() {
-        let mut buffer = exporter.batch_buffer.lock().unwrap();
+        let mut buffer = exporter.batch_buffer.lock().expect("batch_buffer mutex poisoned");
 
         if !buffer.is_empty() {
             let spans_to_export = buffer.drain(..).collect::<Vec<_>>();
@@ -231,7 +231,7 @@ fn export_spans(config: &JaegerConfig, spans: Vec<JaegerSpan>) -> Result<()> {
 
 /// Get exporter configuration
 pub fn get_exporter_config() -> Result<JaegerConfig> {
-    let exporter = JAEGER_EXPORTER.lock().unwrap();
+    let exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
 
     exporter
         .as_ref()
@@ -241,7 +241,7 @@ pub fn get_exporter_config() -> Result<JaegerConfig> {
 
 /// Check if exporter is initialized
 pub fn is_initialized() -> bool {
-    JAEGER_EXPORTER.lock().unwrap().is_some()
+    JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned").is_some()
 }
 
 #[cfg(test)]

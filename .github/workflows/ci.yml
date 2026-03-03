@@ -402,6 +402,49 @@ jobs:
       - name: Run security audit
         run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0384 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2025-0134 --ignore RUSTSEC-2026-0002
 
+  # Dependency duplication audit
+  # Detects if an actionable duplicate dependency re-appears after being unified.
+  dependency-audit:
+    name: Dependency Duplication Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-depaudit-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check for actionable duplicate dependencies
+        run: |
+          set -e
+          DUPS=$(cargo tree --duplicates -e normal 2>/dev/null)
+
+          # graphql-parser 0.4 depends on thiserror 1.0 — blocked on upstream.
+          # Fail only if thiserror 1.0 appears from a source OTHER than graphql-parser.
+          THISERROR1_SOURCES=$(echo "$DUPS" | awk '/^thiserror v1\./,/^[^ ]/' | grep -v '^thiserror v1\.' | grep -v 'graphql-parser' | grep -v '^$' | head -5)
+          if [ -n "$THISERROR1_SOURCES" ]; then
+            echo "ERROR: thiserror 1.x pulled by unexpected source (not graphql-parser):"
+            echo "$THISERROR1_SOURCES"
+            exit 1
+          fi
+          echo "✅ thiserror 1.x only present via graphql-parser (known blocker)"
+
+          # rustls 0.22 is pulled by sqlx 0.8 / tokio-rustls 0.25 — blocked on sqlx 0.9.
+          RUSTLS22_SOURCES=$(echo "$DUPS" | awk '/^rustls v0\.22/,/^[^ ]/' | grep -v '^rustls v0\.22' | grep -v 'tokio-rustls\|sqlx' | grep -v '^$' | head -5)
+          if [ -n "$RUSTLS22_SOURCES" ]; then
+            echo "ERROR: rustls 0.22 pulled by unexpected source (not sqlx/tokio-rustls):"
+            echo "$RUSTLS22_SOURCES"
+            exit 1
+          fi
+          echo "✅ rustls 0.22 only present via sqlx 0.8 chain (known blocker)"
+
   # Check documentation
   docs:
     name: Documentation
@@ -433,6 +476,70 @@ jobs:
 
       - name: Check for broken links
         run: cargo doc --all-features --no-deps 2>&1 | grep -i "warning" && exit 1 || exit 0
+
+  # Cross-database parity tests (PostgreSQL + MySQL)
+  integration-cross-db:
+    name: Integration Tests (Cross-DB Parity)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ""
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-crossdb-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run cross-database parity tests
+        run: |
+          cargo nextest run \
+            --test cross_database_test \
+            --run-ignored \
+            --features test-mysql,test-postgres \
+            -p fraiseql-core
+        env:
+          RUST_LOG: warn
 
   # Integration tests for Redis (APQ storage, observer queue and lease)
   integration-redis:
@@ -1191,6 +1298,8 @@ jobs:
       - integration-http-e2e
       - coverage
       - security
+      - dependency-audit
+      - integration-cross-db
       - docs
       - federation-tests
       - sdk-parity

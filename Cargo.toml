@@ -67,6 +67,8 @@ fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0-dev"}
 futures = "0.3"
 indexmap = {version = "2", features = ["serde"]}
 # GraphQL parsing
+# NOTE: graphql-parser 0.4.1 depends on thiserror 1.0; no newer release available.
+# Unification of thiserror versions blocked on upstream graphql-parser upgrade.
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
@@ -100,6 +102,8 @@ sqlx = {version = "0.8", features = ["runtime-tokio", "json"]}
 temp-env = {version = "0.3", features = ["async_closure"]}
 tempfile = "3.25"
 # Error handling
+# NOTE: rustls 0.22 is pulled by tokio-rustls 0.25 via sqlx 0.8; rustls 0.23 by reqwest/tonic.
+# Unification blocked on sqlx 0.9 (which will upgrade to tokio-rustls 0.26 / rustls 0.23).
 thiserror = "2.0"
 # Async runtime
 tokio = {version = "1.0", features = ["full"]}
@@ -145,6 +149,9 @@ unused_async = "allow"  # Sometimes needed for trait conformance
 unused_enumerate_index = "allow"  # Sometimes index needed later
 unused_self = "allow"  # Sometimes needed for API compatibility
 use_self = "allow"  # Style preference
+# unwrap_used is warn (not deny) so tests/bench can use #[allow] without breaking CI.
+# Production code should use .expect("reason") instead of .unwrap().
+unwrap_used = "warn"
 
 [workspace.lints.rust]
 dead_code = "warn"

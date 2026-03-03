@@ -1,291 +1,332 @@
-//! Cross-Database Compatibility Tests
+//! Cross-Database Parity Tests
 //!
-//! Validates that queries execute identically across all supported databases:
-//! - PostgreSQL, MySQL, SQLite, SQL Server
-//! - Tests WHERE clause operators
-//! - Tests projection accuracy
-//! - Tests type coercion
-//! - Tests NULL handling
+//! Validates that equivalent queries produce semantically equivalent results
+//! across PostgreSQL and MySQL adapters using real database containers.
+//!
+//! All tests are `#[ignore]` and require Docker. Run with:
+//! ```bash
+//! cargo nextest run --test cross_database_test --run-ignored \
+//!     --features test-mysql,test-postgres
+//! ```
+//!
+//! The test schema uses a minimal `v_cross_item` view that returns a `data` JSON/JSONB
+//! column, matching the fraiseql adapter contract.
 
-#![allow(unused_imports)]
+#![cfg(all(feature = "test-postgres", feature = "test-mysql"))]
+#![allow(clippy::unwrap_used)]  // Reason: test setup code, panics are acceptable
 
-use std::collections::HashMap;
+use fraiseql_core::db::{
+    WhereClause, WhereOperator,
+    mysql::MySqlAdapter,
+    postgres::PostgresAdapter,
+    traits::DatabaseAdapter,
+};
+use serde_json::json;
+use testcontainers_modules::{
+    mysql::Mysql,
+    postgres::Postgres,
+    testcontainers::runners::AsyncRunner,
+};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared schema SQL (per database)
+// ─────────────────────────────────────────────────────────────────────────────
 
-    /// Test same query produces consistent schema across databases
-    ///
-    /// Verifies:
-    /// 1. Schema fields match across DBs
-    /// 2. Field types consistent
-    /// 3. Field order preserved
-    #[tokio::test]
-    async fn test_schema_consistency_across_databases() {
-        // Schema for "user" table across all databases should have:
-        // - id (TEXT/VARCHAR)
-        // - name (TEXT/VARCHAR)
-        // - email (TEXT/VARCHAR)
-        // - created_at (TIMESTAMPTZ)
+const PG_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS tb_cross_item (
+    id   CHAR(36) NOT NULL PRIMARY KEY,
+    name TEXT     NOT NULL UNIQUE,
+    age  INT,
+    data JSONB    NOT NULL
+);
+CREATE OR REPLACE VIEW v_cross_item AS
+    SELECT data FROM tb_cross_item;
+"#;
 
-        let expected_fields = ["id", "name", "email", "created_at"];
+const PG_SEED: &str = r#"
+INSERT INTO tb_cross_item (id, name, age, data) VALUES
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'alice', 30,
+     '{"name": "alice", "age": 30, "active": true,  "score": null}'),
+    ('aaaaaaaa-0000-0000-0000-000000000002', 'bob',   25,
+     '{"name": "bob",   "age": 25, "active": false, "score": 42}'),
+    ('aaaaaaaa-0000-0000-0000-000000000003', 'carol', 35,
+     '{"name": "carol", "age": 35, "active": true,  "score": 100}')
+ON CONFLICT DO NOTHING;
+"#;
 
-        // In actual implementation, would test against all DB adapters
-        assert_eq!(expected_fields.len(), 4, "User table should have 4 fields");
-        println!("✅ Schema consistency test passed");
-    }
+const MYSQL_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS tb_cross_item (
+    id   CHAR(36)     NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    age  INT,
+    data JSON         NOT NULL,
+    UNIQUE KEY uk_cross_item_name (name)
+);
+CREATE OR REPLACE VIEW v_cross_item AS
+    SELECT data FROM tb_cross_item;
+"#;
 
-    /// Test WHERE clause operator compatibility
-    ///
-    /// Verifies operators work identically across all databases:
-    /// - Equality (=)
-    /// - Inequality (<>, !=)
-    /// - Comparison (<, >, <=, >=)
-    /// - LIKE patterns
-    /// - IN lists
-    /// - IS NULL / IS NOT NULL
-    #[tokio::test]
-    async fn test_where_operator_compatibility() {
-        let operators = vec![
-            ("=", "Equality"),
-            ("<>", "Inequality"),
-            ("<", "Less than"),
-            (">", "Greater than"),
-            ("<=", "Less or equal"),
-            (">=", "Greater or equal"),
-            ("LIKE", "Pattern matching"),
-            ("IN", "List membership"),
-            ("IS NULL", "Null check"),
-            ("IS NOT NULL", "Not null check"),
-        ];
+const MYSQL_SEED: &str = r#"
+INSERT IGNORE INTO tb_cross_item (id, name, age, data) VALUES
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'alice', 30,
+     '{"name": "alice", "age": 30, "active": true,  "score": null}'),
+    ('aaaaaaaa-0000-0000-0000-000000000002', 'bob',   25,
+     '{"name": "bob",   "age": 25, "active": false, "score": 42}'),
+    ('aaaaaaaa-0000-0000-0000-000000000003', 'carol', 35,
+     '{"name": "carol", "age": 35, "active": true,  "score": 100}');
+"#;
 
-        // Each operator should work on all databases
-        for (op, desc) in operators {
-            assert!(!op.is_empty(), "Operator {} should be valid", desc);
+// ─────────────────────────────────────────────────────────────────────────────
+// Container helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+async fn setup_postgres() -> (PostgresAdapter, impl Drop) {
+    let container = Postgres::default()
+        .start()
+        .await
+        .expect("Failed to start PostgreSQL container");
+
+    let port = container
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("Failed to get container port");
+
+    let conn_str = format!("host=127.0.0.1 port={port} user=postgres password=postgres dbname=postgres");
+
+    // Apply schema and seed via tokio_postgres
+    let (client, conn) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls)
+        .await
+        .expect("Failed to connect to PG container for setup");
+    tokio::spawn(async move {
+        if let Err(e) = conn.await {
+            eprintln!("PG connection error during setup: {e}");
         }
+    });
+    client.batch_execute(PG_SCHEMA).await.expect("Failed to apply PG schema");
+    client.batch_execute(PG_SEED).await.expect("Failed to seed PG data");
 
-        println!("✅ WHERE operator compatibility test passed");
-    }
+    let adapter_str = format!(
+        "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
+    );
+    let adapter = PostgresAdapter::new(&adapter_str)
+        .await
+        .expect("Failed to create PostgresAdapter");
 
-    /// Test NULL handling consistency across databases
-    ///
-    /// Verifies:
-    /// 1. NULL in columns is handled consistently
-    /// 2. NULL comparisons work identically
-    /// 3. NULL in results properly marked
-    #[tokio::test]
-    async fn test_null_handling_consistency() {
-        // All databases should treat NULL identically:
-        // - NULL = NULL returns unknown (not true)
-        // - NULL IS NULL returns true
-        // - NULL is distinct across databases
+    (adapter, container)
+}
 
-        let null_ops = vec!["IS NULL", "IS NOT NULL", "COALESCE", "NULLIF"];
+async fn setup_mysql() -> (MySqlAdapter, impl Drop) {
+    let container = Mysql::default()
+        .start()
+        .await
+        .expect("Failed to start MySQL container");
 
-        // Each NULL operation should work on all databases
-        for op in null_ops {
-            assert!(!op.is_empty(), "NULL operation {} should be valid", op);
-        }
+    let port = container
+        .get_host_port_ipv4(3306)
+        .await
+        .expect("Failed to get container port");
 
-        println!("✅ NULL handling consistency test passed");
-    }
+    // MySQL default image: user=root, no password, db=test
+    let conn_str = format!("mysql://root@127.0.0.1:{port}/test");
 
-    /// Test type coercion across databases
-    ///
-    /// Verifies:
-    /// 1. Numeric comparisons work
-    /// 2. String comparisons consistent
-    /// 3. Timestamp comparisons work
-    /// 4. Implicit type conversions consistent
-    #[tokio::test]
-    async fn test_type_coercion_consistency() {
-        // Test cases: (value, type, expected_behavior)
-        let coercions = vec![
-            ("123", "text", "can_compare_with_number"),
-            ("2024-01-31", "date", "can_format_as_string"),
-            ("99.99", "numeric", "can_compare_with_integer"),
-        ];
+    // Apply schema and seed via sqlx
+    let pool = sqlx::MySqlPool::connect(&conn_str)
+        .await
+        .expect("Failed to connect to MySQL container");
 
-        for (value, type_name, expected) in coercions {
-            assert!(
-                !value.is_empty() && !expected.is_empty(),
-                "Type coercion test setup valid for {} ({})",
-                value,
-                type_name
-            );
-        }
+    sqlx::query(MYSQL_SCHEMA)
+        .execute(&pool)
+        .await
+        .expect("Failed to apply MySQL schema");
+    sqlx::query(MYSQL_SEED)
+        .execute(&pool)
+        .await
+        .expect("Failed to seed MySQL data");
+    drop(pool);
 
-        println!("✅ Type coercion consistency test passed");
-    }
+    let adapter = MySqlAdapter::new(&conn_str)
+        .await
+        .expect("Failed to create MySqlAdapter");
 
-    /// Test LIMIT/OFFSET pagination consistency
-    ///
-    /// Verifies:
-    /// 1. LIMIT works identically
-    /// 2. OFFSET works identically
-    /// 3. Combined LIMIT+OFFSET returns same rows
-    /// 4. Ordering is preserved
-    #[tokio::test]
-    async fn test_pagination_consistency() {
-        // Pagination parameters that should work on all DBs
-        let test_cases = vec![
-            (10, 0),  // LIMIT 10
-            (10, 10), // LIMIT 10 OFFSET 10
-            (1, 0),   // LIMIT 1 (first row)
-            (5, 3),   // LIMIT 5 OFFSET 3
-        ];
+    (adapter, container)
+}
 
-        for (limit, offset) in test_cases {
-            assert!(
-                limit > 0 && offset >= 0,
-                "Valid pagination: LIMIT {} OFFSET {}",
-                limit,
-                offset
-            );
-        }
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 1: Same query returns the same field set
+// ─────────────────────────────────────────────────────────────────────────────
 
-        println!("✅ Pagination consistency test passed");
-    }
+#[tokio::test]
+#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
+async fn same_query_returns_same_fields_on_pg_and_mysql() {
+    let (pg, _pg_c) = setup_postgres().await;
+    let (my, _my_c) = setup_mysql().await;
 
-    /// Test ORDER BY consistency
-    ///
-    /// Verifies:
-    /// 1. ASC/DESC work identically
-    /// 2. NULL ordering consistent
-    /// 3. Multi-column sort consistent
-    /// 4. Case sensitivity handling
-    #[tokio::test]
-    async fn test_order_by_consistency() {
-        let sort_specs = vec![
-            ("id ASC", "ascending"),
-            ("id DESC", "descending"),
-            ("id ASC, name DESC", "multi-column"),
-            ("LOWER(name) ASC", "case-insensitive"),
-        ];
+    let pg_rows = pg
+        .execute_where_query("v_cross_item", None, Some(10), None)
+        .await
+        .expect("PG query failed");
 
-        for (spec, description) in sort_specs {
-            assert!(!spec.is_empty(), "ORDER BY spec {} ({}) should be valid", spec, description);
-        }
+    let my_rows = my
+        .execute_where_query("v_cross_item", None, Some(10), None)
+        .await
+        .expect("MySQL query failed");
 
-        println!("✅ ORDER BY consistency test passed");
-    }
+    assert_eq!(pg_rows.len(), 3, "PG should return 3 rows");
+    assert_eq!(my_rows.len(), 3, "MySQL should return 3 rows");
 
-    /// Test aggregate function compatibility
-    ///
-    /// Verifies:
-    /// 1. COUNT(*) works identically
-    /// 2. SUM() works on numeric columns
-    /// 3. AVG() works identically
-    /// 4. MIN/MAX work identically
-    /// 5. GROUP BY consistent
-    #[tokio::test]
-    async fn test_aggregate_function_compatibility() {
-        let aggregates = vec![
-            "COUNT(*)",
-            "COUNT(id)",
-            "SUM(amount)",
-            "AVG(amount)",
-            "MIN(created_at)",
-            "MAX(created_at)",
-        ];
+    let pg_keys: std::collections::BTreeSet<_> = pg_rows[0]
+        .as_value()
+        .as_object()
+        .expect("PG row should be an object")
+        .keys()
+        .cloned()
+        .collect();
 
-        for agg in aggregates {
-            assert!(!agg.is_empty(), "Aggregate {} should be valid", agg);
-        }
+    let my_keys: std::collections::BTreeSet<_> = my_rows[0]
+        .as_value()
+        .as_object()
+        .expect("MySQL row should be an object")
+        .keys()
+        .cloned()
+        .collect();
 
-        println!("✅ Aggregate function compatibility test passed");
-    }
+    assert_eq!(pg_keys, my_keys, "Field set must match across adapters");
+}
 
-    /// Test JOIN operations consistency
-    ///
-    /// Verifies:
-    /// 1. INNER JOIN works identically
-    /// 2. LEFT JOIN works identically
-    /// 3. Join predicates consistent
-    /// 4. Result ordering consistent
-    #[tokio::test]
-    async fn test_join_consistency() {
-        let join_types = vec!["INNER JOIN", "LEFT JOIN", "LEFT OUTER JOIN", "CROSS JOIN"];
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 2: WHERE eq operator returns equivalent results
+// ─────────────────────────────────────────────────────────────────────────────
 
-        for join_type in join_types {
-            assert!(!join_type.is_empty(), "JOIN type {} should be valid", join_type);
-        }
+#[tokio::test]
+#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
+async fn where_eq_operator_returns_same_results_on_pg_and_mysql() {
+    let (pg, _pg_c) = setup_postgres().await;
+    let (my, _my_c) = setup_mysql().await;
 
-        println!("✅ JOIN consistency test passed");
-    }
+    let clause = WhereClause::Field {
+        path:     vec!["name".to_string()],
+        operator: WhereOperator::Eq,
+        value:    json!("alice"),
+    };
 
-    /// Test transaction and isolation
-    ///
-    /// Verifies:
-    /// 1. Transactions work across all DBs
-    /// 2. Isolation levels consistent (if supported)
-    /// 3. ROLLBACK behavior consistent
-    /// 4. COMMIT behavior consistent
-    #[tokio::test]
-    async fn test_transaction_consistency() {
-        let transaction_features = vec![
-            ("BEGIN", "start transaction"),
-            ("COMMIT", "commit transaction"),
-            ("ROLLBACK", "rollback transaction"),
-        ];
+    let pg_rows = pg
+        .execute_where_query("v_cross_item", Some(&clause), None, None)
+        .await
+        .expect("PG query failed");
 
-        for (keyword, description) in transaction_features {
-            assert!(
-                !keyword.is_empty(),
-                "Transaction feature {} ({}) should be valid",
-                keyword,
-                description
-            );
-        }
+    let my_rows = my
+        .execute_where_query("v_cross_item", Some(&clause), None, None)
+        .await
+        .expect("MySQL query failed");
 
-        println!("✅ Transaction consistency test passed");
-    }
+    assert_eq!(pg_rows.len(), 1, "PG should return 1 row for name=alice");
+    assert_eq!(my_rows.len(), 1, "MySQL should return 1 row for name=alice");
 
-    /// Test error messages across databases
-    ///
-    /// Verifies:
-    /// 1. Constraint violation errors caught
-    /// 2. Syntax errors detected
-    /// 3. Timeout errors consistent
-    /// 4. Connection errors handled
-    #[tokio::test]
-    async fn test_error_handling_consistency() {
-        let error_scenarios = vec![
-            "constraint_violation",
-            "syntax_error",
-            "timeout",
-            "connection_loss",
-        ];
+    let pg_name = pg_rows[0].as_value()["name"].as_str().expect("PG name should be a string");
+    let my_name = my_rows[0].as_value()["name"].as_str().expect("MySQL name should be a string");
 
-        for scenario in error_scenarios {
-            assert!(!scenario.is_empty(), "Error scenario {} should be handled", scenario);
-        }
+    assert_eq!(pg_name, "alice");
+    assert_eq!(my_name, "alice");
+    assert_eq!(pg_name, my_name, "name field must be identical across adapters");
+}
 
-        println!("✅ Error handling consistency test passed");
-    }
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 3: WHERE with numeric comparison (gte)
+// ─────────────────────────────────────────────────────────────────────────────
 
-    /// Test CAST/conversion functions consistency
-    ///
-    /// Verifies:
-    /// 1. CAST to TEXT works
-    /// 2. CAST to INT works
-    /// 3. CAST to NUMERIC works
-    /// 4. CAST to TIMESTAMP works
-    /// 5. Results consistent across DBs
-    #[tokio::test]
-    async fn test_cast_consistency() {
-        let casts = vec![
-            ("TEXT", "string conversion"),
-            ("INT", "integer conversion"),
-            ("NUMERIC", "decimal conversion"),
-            ("TIMESTAMP", "date/time conversion"),
-        ];
+#[tokio::test]
+#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
+async fn where_gte_operator_returns_same_count_on_pg_and_mysql() {
+    let (pg, _pg_c) = setup_postgres().await;
+    let (my, _my_c) = setup_mysql().await;
 
-        for (target_type, desc) in casts {
-            assert!(!target_type.is_empty(), "CAST to {} ({}) should be valid", target_type, desc);
-        }
+    let clause = WhereClause::Field {
+        path:     vec!["age".to_string()],
+        operator: WhereOperator::Gte,
+        value:    json!(30),
+    };
 
-        println!("✅ CAST consistency test passed");
-    }
+    let pg_rows = pg
+        .execute_where_query("v_cross_item", Some(&clause), None, None)
+        .await
+        .expect("PG query failed");
+
+    let my_rows = my
+        .execute_where_query("v_cross_item", Some(&clause), None, None)
+        .await
+        .expect("MySQL query failed");
+
+    assert_eq!(
+        pg_rows.len(),
+        my_rows.len(),
+        "Both adapters should return the same number of rows for age >= 30"
+    );
+    assert_eq!(pg_rows.len(), 2, "alice (30) and carol (35) match age >= 30");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 4: NULL fields represented identically
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
+async fn null_fields_represented_identically_across_adapters() {
+    let (pg, _pg_c) = setup_postgres().await;
+    let (my, _my_c) = setup_mysql().await;
+
+    // alice has "score": null
+    let clause = WhereClause::Field {
+        path:     vec!["name".to_string()],
+        operator: WhereOperator::Eq,
+        value:    json!("alice"),
+    };
+
+    let pg_rows = pg
+        .execute_where_query("v_cross_item", Some(&clause), None, None)
+        .await
+        .expect("PG query failed");
+
+    let my_rows = my
+        .execute_where_query("v_cross_item", Some(&clause), None, None)
+        .await
+        .expect("MySQL query failed");
+
+    assert_eq!(pg_rows.len(), 1);
+    assert_eq!(my_rows.len(), 1);
+
+    let pg_score = &pg_rows[0].as_value()["score"];
+    let my_score = &my_rows[0].as_value()["score"];
+
+    assert!(
+        pg_score.is_null(),
+        "PG score should be null for alice, got: {pg_score}"
+    );
+    assert!(
+        my_score.is_null(),
+        "MySQL score should be null for alice, got: {my_score}"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 5: LIMIT is respected consistently
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+#[ignore = "requires docker — cargo nextest run --test cross_database_test --run-ignored --features test-mysql,test-postgres"]
+async fn limit_is_respected_consistently_across_adapters() {
+    let (pg, _pg_c) = setup_postgres().await;
+    let (my, _my_c) = setup_mysql().await;
+
+    let pg_rows = pg
+        .execute_where_query("v_cross_item", None, Some(2), None)
+        .await
+        .expect("PG query failed");
+
+    let my_rows = my
+        .execute_where_query("v_cross_item", None, Some(2), None)
+        .await
+        .expect("MySQL query failed");
+
+    assert_eq!(pg_rows.len(), 2, "PG should honour LIMIT 2");
+    assert_eq!(my_rows.len(), 2, "MySQL should honour LIMIT 2");
 }

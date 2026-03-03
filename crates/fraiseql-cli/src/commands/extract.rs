@@ -363,7 +363,7 @@ impl SchemaExtractor for PythonExtractor {
 
             // Find class body: lines after "class Name:" that are indented
             // Match ends after "class Name", skip to next line for body
-            let match_end = cap.get(0).unwrap().end();
+            let match_end = cap.get(0).expect("regex group 0 is always Some on a successful match").end();
             let body_start_line = source[..match_end].lines().count();
             let mut fields = Vec::new();
             for line in lines.iter().skip(body_start_line) {
@@ -418,7 +418,7 @@ impl SchemaExtractor for PythonExtractor {
             let sql_source = params.get("sql_source").cloned();
 
             // Parse function arguments (skip self, *, etc.)
-            let arguments = extract_python_query_args(source, cap.get(0).unwrap().end());
+            let arguments = extract_python_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
 
             queries.push(IntermediateQuery {
                 name,
@@ -494,7 +494,7 @@ impl SchemaExtractor for TypeScriptExtractor {
 
         for cap in type_start_re.captures_iter(source) {
             let name = cap[1].to_string();
-            let after_match = cap.get(0).unwrap().end();
+            let after_match = cap.get(0).expect("regex group 0 is always Some on a successful match").end();
             if let Some(body) = extract_balanced_braces(&source[after_match..]) {
                 let fields = extract_ts_fields(&body);
                 types.push(IntermediateType {
@@ -511,7 +511,7 @@ impl SchemaExtractor for TypeScriptExtractor {
 
         for cap in query_start_re.captures_iter(source) {
             let name = cap[1].to_string();
-            let after_match = cap.get(0).unwrap().end();
+            let after_match = cap.get(0).expect("regex group 0 is always Some on a successful match").end();
             if let Some(body) = extract_balanced_braces(&source[after_match..]) {
                 let params = parse_ts_query_params(&body);
                 let return_type = params.get("returnType").cloned().unwrap_or_default();
@@ -642,7 +642,7 @@ impl SchemaExtractor for RustExtractor {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
 
-            let struct_line = source[..cap.get(0).unwrap().start()].lines().count();
+            let struct_line = source[..cap.get(0).expect("regex group 0 is always Some on a successful match").start()].lines().count();
             let mut fields = Vec::new();
             for line in lines.iter().skip(struct_line + 1) {
                 let trimmed = line.trim();
@@ -684,7 +684,7 @@ impl SchemaExtractor for RustExtractor {
             let returns_list = params.get("return_array").is_some_and(|v| v == "true");
             let sql_source = params.get("sql_source").cloned();
 
-            let arguments = extract_rust_query_args(source, cap.get(0).unwrap().end());
+            let arguments = extract_rust_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
 
             queries.push(IntermediateQuery {
                 name,
@@ -905,7 +905,7 @@ impl SchemaExtractor for KotlinExtractor {
             let returns_list = params.get("returnArray").is_some_and(|v| v == "true");
             let sql_source = params.get("sqlSource").cloned();
 
-            let arguments = extract_kotlin_query_args(source, cap.get(0).unwrap().end());
+            let arguments = extract_kotlin_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
 
             queries.push(IntermediateQuery {
                 name,
@@ -1005,7 +1005,7 @@ impl SchemaExtractor for GoExtractor {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
 
-            let struct_line = source[..cap.get(0).unwrap().end()].lines().count() - 1;
+            let struct_line = source[..cap.get(0).expect("regex group 0 is always Some on a successful match").end()].lines().count() - 1;
             let fields = extract_go_struct_fields(&lines, struct_line + 1);
 
             let description = params.get("description").cloned();
@@ -1242,7 +1242,7 @@ impl SchemaExtractor for SwiftExtractor {
             let params = parse_annotation_params(&cap[1]);
             let name = cap[2].to_string();
 
-            let struct_line = source[..cap.get(0).unwrap().end()].lines().count() - 1;
+            let struct_line = source[..cap.get(0).expect("regex group 0 is always Some on a successful match").end()].lines().count() - 1;
             let mut fields = Vec::new();
             for line in lines.iter().skip(struct_line + 1) {
                 let trimmed = line.trim();
@@ -1286,7 +1286,7 @@ impl SchemaExtractor for SwiftExtractor {
             let returns_list = params.get("returnArray").is_some_and(|v| v == "true");
             let sql_source = params.get("sqlSource").cloned();
 
-            let arguments = extract_swift_query_args(source, cap.get(0).unwrap().end());
+            let arguments = extract_swift_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
 
             queries.push(IntermediateQuery {
                 name,
@@ -1379,7 +1379,7 @@ impl SchemaExtractor for ScalaExtractor {
             let returns_list = params.get("returnArray").is_some_and(|v| v == "true");
             let sql_source = params.get("sqlSource").cloned();
 
-            let arguments = extract_scala_query_args(source, cap.get(0).unwrap().end());
+            let arguments = extract_scala_query_args(source, cap.get(0).expect("regex group 0 is always Some on a successful match").end());
 
             queries.push(IntermediateQuery {
                 name,

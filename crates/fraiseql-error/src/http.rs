@@ -144,7 +144,7 @@ impl IntoResponse for RuntimeError {
         // Add Retry-After header for rate limits
         let mut resp = (status, Json(response)).into_response();
         if let Some(retry_after) = self.retry_after_header() {
-            resp.headers_mut().insert("Retry-After", retry_after.parse().unwrap());
+            resp.headers_mut().insert("Retry-After", retry_after.parse().expect("retry_after is a numeric string and always parses as HeaderValue"));
         }
 
         resp

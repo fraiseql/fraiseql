@@ -252,7 +252,7 @@ impl DatabaseAdapter for SqlServerAdapter {
             return self.execute_where_query(view, where_clause, limit, None).await;
         }
 
-        let projection = projection.unwrap();
+        let projection = projection.expect("projection is Some; None was returned above");
 
         // Build SQL with SQL Server-specific JSON projection
         // The projection_template contains the SELECT clause with JSON functions

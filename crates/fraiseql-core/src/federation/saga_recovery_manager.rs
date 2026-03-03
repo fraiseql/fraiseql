@@ -200,7 +200,7 @@ impl SagaRecoveryManager {
     /// println!("Processed {} sagas in {} iterations", stats.sagas_processed, stats.iterations);
     /// ```
     pub fn get_stats(&self) -> RecoveryStats {
-        self.stats.lock().unwrap().clone()
+        self.stats.lock().expect("stats mutex poisoned").clone()
     }
 
     /// Start the background recovery loop
@@ -356,12 +356,12 @@ impl SagaRecoveryManager {
     ) -> SagaStoreResult<()> {
         // Increment iteration counter
         {
-            let mut s = stats.lock().unwrap();
+            let mut s = stats.lock().expect("stats mutex poisoned");
             s.iterations += 1;
         }
 
         let iteration = {
-            let s = stats.lock().unwrap();
+            let s = stats.lock().expect("stats mutex poisoned");
             s.iterations
         };
 

@@ -56,7 +56,8 @@ impl HttpSearchBackend {
         let response = self.client.head(&url).send().await;
 
         // If index doesn't exist, create it with mapping
-        if response.is_err() || response.unwrap().status().is_client_error() {
+        let needs_create = response.map_or(true, |r| r.status().is_client_error());
+        if needs_create {
             let mapping = json!({
                 "mappings": {
                     "properties": {
@@ -128,9 +129,9 @@ impl SearchBackend for HttpSearchBackend {
                 }
             });
 
-            bulk_body.push_str(&serde_json::to_string(&meta).unwrap());
+            bulk_body.push_str(&serde_json::to_string(&meta).expect("meta is always JSON-serializable"));
             bulk_body.push('\n');
-            bulk_body.push_str(&serde_json::to_string(event).unwrap());
+            bulk_body.push_str(&serde_json::to_string(event).expect("event is always JSON-serializable"));
             bulk_body.push('\n');
         }
 

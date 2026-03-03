@@ -121,7 +121,7 @@ pub fn can_access_field(
     }
 
     // Field has a scope requirement - check if user's roles grant it
-    let required_scope = field.requires_scope.as_ref().unwrap();
+    let required_scope = field.requires_scope.as_ref().expect("requires_scope is Some; None was returned above");
     context.can_access_scope(security_config, required_scope)
 }
 

@@ -617,7 +617,7 @@ fn default_database_url() -> String {
 }
 
 fn default_bind_addr() -> SocketAddr {
-    "127.0.0.1:8000".parse().unwrap()
+    "127.0.0.1:8000".parse().expect("hard-coded addr literal is always valid")
 }
 
 fn default_true() -> bool {

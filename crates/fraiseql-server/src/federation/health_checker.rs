@@ -62,7 +62,7 @@ impl RollingErrorWindow {
 
     /// Record a success.
     pub fn record_success(&self) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         if let Some(bucket) = buckets.back_mut() {
             bucket.total += 1;
         } else {
@@ -76,7 +76,7 @@ impl RollingErrorWindow {
 
     /// Record an error.
     pub fn record_error(&self) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         if let Some(bucket) = buckets.back_mut() {
             bucket.errors += 1;
             bucket.total += 1;
@@ -91,7 +91,7 @@ impl RollingErrorWindow {
 
     /// Get error count in last 60 seconds.
     pub fn error_count(&self) -> u32 {
-        let buckets = self.buckets.lock().unwrap();
+        let buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         buckets
             .iter()
@@ -102,7 +102,7 @@ impl RollingErrorWindow {
 
     /// Get error rate percentage over last 300 seconds (5 minutes).
     pub fn error_rate_percent(&self) -> f64 {
-        let buckets = self.buckets.lock().unwrap();
+        let buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         let recent: Vec<_> = buckets
             .iter()
@@ -125,7 +125,7 @@ impl RollingErrorWindow {
 
     /// Cleanup old buckets (older than 5 minutes).
     fn cleanup(&self) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("buckets mutex poisoned");
         let now = Instant::now();
         while let Some(front) = buckets.front() {
             if now.duration_since(front.timestamp) > Duration::from_secs(300) {
@@ -201,7 +201,7 @@ impl SubgraphHealthChecker {
 
         // Record result and get updated stats
         let (error_count, error_rate) = {
-            let windows = self.error_windows.lock().unwrap();
+            let windows = self.error_windows.lock().expect("error_windows mutex poisoned");
             let window = windows.get(&config.name).expect(
                 "RollingErrorWindow created for each subgraph in constructor; window must exist",
             );
@@ -260,13 +260,13 @@ impl SubgraphHealthChecker {
 
             // Update cache
             {
-                let mut cache = self.status_cache.lock().unwrap();
+                let mut cache = self.status_cache.lock().expect("status_cache mutex poisoned");
                 *cache = statuses;
             }
 
             // Cleanup old error buckets
             {
-                let windows = self.error_windows.lock().unwrap();
+                let windows = self.error_windows.lock().expect("error_windows mutex poisoned");
                 for window in windows.values() {
                     window.cleanup();
                 }
@@ -279,7 +279,7 @@ impl SubgraphHealthChecker {
 
     /// Get cached health statuses.
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
-        self.status_cache.lock().unwrap().iter().cloned().collect()
+        self.status_cache.lock().expect("status_cache mutex poisoned").iter().cloned().collect()
     }
 
     /// Get overall federation health status.

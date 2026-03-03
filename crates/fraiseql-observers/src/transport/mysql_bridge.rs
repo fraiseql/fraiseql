@@ -342,8 +342,7 @@ impl MySQLNatsBridge {
 
     /// Fetch batch from cursor.
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<MySQLChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)]
-        // Reason: batch_size is a small positive config value, well within i64 range
+        #[allow(clippy::cast_possible_wrap)]  // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<MySQLChangeLogEntry> = sqlx::query_as(
             r"
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,

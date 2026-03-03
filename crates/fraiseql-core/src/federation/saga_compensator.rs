@@ -553,7 +553,7 @@ impl SagaCompensator {
             return Ok(result);
         }
 
-        let store = self.store.as_ref().unwrap();
+        let store = self.store.as_ref().expect("store is Some; None was returned above");
 
         // 1. Load the specific step to verify it's Completed
         let steps = store.load_saga_steps(saga_id).await.map_err(|e| {

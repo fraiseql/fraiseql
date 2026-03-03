@@ -189,7 +189,7 @@ impl DatabaseAdapter for MySqlAdapter {
             return self.execute_where_query(view, where_clause, limit, None).await;
         }
 
-        let projection = projection.unwrap();
+        let projection = projection.expect("projection is Some; None was returned above");
 
         // Build SQL with MySQL-specific JSON_OBJECT projection
         // The projection_template contains the SELECT clause with JSON_OBJECT calls

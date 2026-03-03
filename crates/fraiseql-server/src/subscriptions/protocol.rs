@@ -121,7 +121,7 @@ impl ProtocolCodec {
                 if wire_type.is_none() {
                     return Ok(None);
                 }
-                let wire_type = wire_type.unwrap();
+                let wire_type = wire_type.expect("wire_type is Some; None was returned above");
 
                 // `ka` is a bare keepalive with no payload.
                 if wire_type == "ka" {

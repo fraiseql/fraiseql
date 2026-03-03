@@ -207,7 +207,7 @@ impl RLSPolicy for DefaultRLSPolicy {
         // Combine all filters with AND
         match filters.len() {
             0 => Ok(None),
-            1 => Ok(Some(filters.into_iter().next().unwrap())),
+            1 => Ok(Some(filters.into_iter().next().expect("len matched == 1"))),
             _ => Ok(Some(WhereClause::And(filters))),
         }
     }
