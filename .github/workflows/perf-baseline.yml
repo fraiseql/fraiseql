@@ -1,0 +1,151 @@
+name: Performance Baseline
+
+# Runs on every push to main/dev to establish a regression baseline.
+# Results are archived as artifacts for trend analysis over time.
+#
+# The job intentionally does NOT fail the build when thresholds are exceeded —
+# performance varies by runner hardware. Threshold failures are surfaced as
+# annotations in the job summary for human review.
+#
+# To run locally:
+#   docker compose -f docker/docker-compose.test.yml up -d postgres
+#   cargo run --release -p fraiseql-cli -- run schema.compiled.json &
+#   k6 run benchmarks/load/basic.js
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+    types: [labeled]  # Only run on PRs labeled "perf"
+
+jobs:
+  load-test:
+    name: Load test (k6)
+    runs-on: ubuntu-latest
+    # Only run if this is a push or a PR with the "perf" label
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'perf')
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fraiseql
+          POSTGRES_PASSWORD: fraiseql
+          POSTGRES_DB: fraiseql_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: perf-baseline
+
+      - name: Build release binary
+        run: cargo build --release -p fraiseql-cli
+        env:
+          RUSTFLAGS: "-C target-cpu=native"
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U fraiseql; do
+            sleep 1
+          done
+
+      - name: Apply test schema to database
+        env:
+          PGPASSWORD: fraiseql
+        run: |
+          psql -h localhost -U fraiseql -d fraiseql_test \
+            -f benchmarks/load/test_schema.sql 2>/dev/null \
+            || echo "No test schema SQL found — using empty schema"
+
+      - name: Compile test schema (if available)
+        run: |
+          if [ -f benchmarks/load/test_schema.json ]; then
+            ./target/release/fraiseql compile benchmarks/load/test_schema.json \
+              -o benchmarks/load/test_schema.compiled.json
+          else
+            echo "No test_schema.json found — creating minimal schema"
+            echo '{"types":[],"queries":[],"mutations":[]}' \
+              > benchmarks/load/test_schema.compiled.json
+          fi
+
+      - name: Start FraiseQL server
+        env:
+          DATABASE_URL: postgres://fraiseql:fraiseql@localhost:5432/fraiseql_test
+        run: |
+          ./target/release/fraiseql run \
+            benchmarks/load/test_schema.compiled.json \
+            --port 8000 &
+          echo $! > /tmp/fraiseql.pid
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health; then
+              echo "Server ready"
+              break
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 1
+          done
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run basic load test
+        continue-on-error: true  # Threshold failures are advisory, not blocking
+        run: |
+          k6 run benchmarks/load/basic.js \
+            --out json=results-basic.json \
+            --summary-export=summary-basic.json \
+            -e BASE_URL=http://localhost:8000
+
+      - name: Print summary
+        if: always()
+        run: |
+          if [ -f summary-basic.json ]; then
+            echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat summary-basic.json | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          metrics = d.get('metrics', {})
+          for name in ['http_req_duration', 'graphql_errors', 'http_reqs']:
+              m = metrics.get(name, {})
+              if 'values' in m:
+                  v = m['values']
+                  print(f'{name}:')
+                  for k, val in v.items():
+                      print(f'  {k}: {val:.2f}')
+          " 2>/dev/null || cat summary-basic.json
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Stop server
+        if: always()
+        run: |
+          [ -f /tmp/fraiseql.pid ] && kill $(cat /tmp/fraiseql.pid) || true
+
+      - name: Archive load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results-${{ github.sha }}
+          path: |
+            results-basic.json
+            summary-basic.json
+          retention-days: 90
