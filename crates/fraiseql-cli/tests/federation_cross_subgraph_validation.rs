@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Cross-subgraph consistency validation tests
 //! - @key consistency: Each @key must be unique within its type
 //! - @external field ownership: Exactly one subgraph owns each @external field

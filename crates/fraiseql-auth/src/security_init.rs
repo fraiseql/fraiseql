@@ -245,6 +245,7 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
     Ok(())
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

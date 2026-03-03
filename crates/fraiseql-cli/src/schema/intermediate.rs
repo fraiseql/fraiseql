@@ -1042,6 +1042,7 @@ pub struct IntermediateRetryConfig {
     pub max_delay_ms: u32,
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

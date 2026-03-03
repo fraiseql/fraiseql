@@ -178,6 +178,7 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::io::Write;

@@ -46,6 +46,7 @@ pub fn run(query: &str) -> Result<CommandResult> {
     Ok(CommandResult::success("cost", serde_json::to_value(&response)?))
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

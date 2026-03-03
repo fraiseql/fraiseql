@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! End-to-end schema generation tests.
 //!
 //! Tests the complete compilation pipeline:

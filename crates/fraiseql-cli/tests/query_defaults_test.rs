@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Integration tests for `[query_defaults]` in `fraiseql.toml`.
 //!
 //! Verifies the three-tier priority chain:

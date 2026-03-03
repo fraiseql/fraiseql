@@ -1991,6 +1991,7 @@ fn init_git(project_dir: &Path) -> Result<()> {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

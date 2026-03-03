@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Mock implementations of traits for testing without external dependencies.
 
 #[cfg(any(test, feature = "testing"))]

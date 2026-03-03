@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Unit tests for the four [security.*] TOML subsection structs added in Phase 01,
 //! and the `[auth]` `OidcClientConfig` added in Phase 04 (Cycle 0).
 

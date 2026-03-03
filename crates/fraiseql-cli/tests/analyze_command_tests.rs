@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Tests for analyze command - schema optimization analysis
 
 use serde_json::json;

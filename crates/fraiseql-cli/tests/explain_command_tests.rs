@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Tests for explain command - shows execution plan and complexity
 
 use serde_json::json;

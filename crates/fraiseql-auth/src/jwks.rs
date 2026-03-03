@@ -151,6 +151,7 @@ impl std::fmt::Debug for JwksCache {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;

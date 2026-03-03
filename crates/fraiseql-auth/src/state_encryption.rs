@@ -408,6 +408,7 @@ impl StateEncryptionService {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod service_tests {
     use super::*;
@@ -592,6 +593,7 @@ mod service_tests {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

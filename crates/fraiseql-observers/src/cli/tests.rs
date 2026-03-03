@@ -1,4 +1,5 @@
 //! CLI command tests
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 
 #[cfg(test)]
 mod command_tests {

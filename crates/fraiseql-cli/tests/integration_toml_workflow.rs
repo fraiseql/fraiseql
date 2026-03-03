@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Integration tests for TOML-based workflow with all 16 language SDKs
 //!
 //! This test suite verifies end-to-end compilation for each language:

@@ -94,6 +94,7 @@ pub fn run(manifest_path: &str) -> Result<bool> {
     }
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

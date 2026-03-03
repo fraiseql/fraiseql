@@ -313,6 +313,7 @@ pub struct ProjectionHint {
     pub estimated_reduction_percent: u32,
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

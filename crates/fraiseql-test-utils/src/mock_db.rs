@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Mock database implementations for testing
 //!
 //! Provides in-memory mock implementations of database traits for unit testing

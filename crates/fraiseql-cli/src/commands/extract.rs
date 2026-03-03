@@ -1460,6 +1460,7 @@ fn extract_scala_query_args(source: &str, fn_start: usize) -> Vec<IntermediateAr
 // Unit tests
 // =============================================================================
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

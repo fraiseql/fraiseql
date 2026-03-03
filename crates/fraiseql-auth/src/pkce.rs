@@ -436,6 +436,7 @@ impl PkceStateStore {
 // Unit tests
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::time::Duration;

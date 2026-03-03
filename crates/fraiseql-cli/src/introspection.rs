@@ -142,6 +142,7 @@ fn extract_examples(cmd: &Command) -> Vec<String> {
     Vec::new()
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use clap::{Arg, Command as ClapCommand};

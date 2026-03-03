@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Advanced composition scenario tests
 //! - 4+ subgraph composition with shared types
 //! - Field-level conflict detection and resolution

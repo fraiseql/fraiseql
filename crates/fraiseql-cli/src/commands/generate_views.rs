@@ -342,6 +342,7 @@ fn generate_monitoring_functions(sql: &mut String, view_name: &str) {
     sql.push_str("$$ LANGUAGE plpgsql IMMUTABLE;\n");
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

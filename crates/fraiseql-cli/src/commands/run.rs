@@ -401,6 +401,7 @@ fn auto_detect_input(base: &Path) -> Result<PathBuf> {
     )
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;

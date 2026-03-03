@@ -515,6 +515,7 @@ pub fn check_checkpoint_requirement(mode: CheckpointMode) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;

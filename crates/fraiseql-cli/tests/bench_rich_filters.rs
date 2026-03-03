@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Performance benchmarks for rich filter compiler.
 //!
 //! Tests measure compilation speed and memory usage for:

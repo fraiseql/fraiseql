@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]  // Reason: test/bench code, panics are acceptable
 //! Failure-injecting database adapter for error path testing.
 //!
 //! Provides a configurable `DatabaseAdapter` implementation that can simulate

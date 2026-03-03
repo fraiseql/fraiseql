@@ -149,9 +149,9 @@ unused_async = "allow"  # Sometimes needed for trait conformance
 unused_enumerate_index = "allow"  # Sometimes index needed later
 unused_self = "allow"  # Sometimes needed for API compatibility
 use_self = "allow"  # Style preference
-# unwrap_used is warn (not deny) so tests/bench can use #[allow] without breaking CI.
-# Production code should use .expect("reason") instead of .unwrap().
-unwrap_used = "warn"
+# unwrap_used is deny: production code must use .expect("reason") instead of .unwrap().
+# Test/bench code suppresses this with #[allow(clippy::unwrap_used)] // Reason: test code.
+unwrap_used = "deny"
 
 [workspace.lints.rust]
 dead_code = "warn"
