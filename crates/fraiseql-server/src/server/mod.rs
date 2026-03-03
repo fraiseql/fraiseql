@@ -1,0 +1,87 @@
+//! HTTP server implementation.
+
+use std::sync::Arc;
+
+use axum::{
+    Router, extract::DefaultBodyLimit, middleware,
+    routing::{get, post},
+};
+#[cfg(feature = "arrow")]
+use fraiseql_arrow::FraiseQLFlightService;
+use fraiseql_core::{
+    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
+    runtime::{Executor, SubscriptionManager},
+    schema::CompiledSchema,
+    security::OidcValidator,
+};
+use tokio::net::TcpListener;
+#[cfg(any(feature = "observers", feature = "redis-rate-limiting", feature = "redis-pkce"))]
+use tracing::error;
+use tracing::{info, warn};
+#[cfg(feature = "observers")]
+use {
+    crate::observers::{ObserverRuntime, ObserverRuntimeConfig},
+    tokio::sync::RwLock,
+};
+
+use crate::{
+    Result, ServerError,
+    middleware::{
+        BearerAuthState, OidcAuthState, RateLimiter, bearer_auth_middleware, cors_layer_restricted,
+        metrics_middleware, oidc_auth_middleware, require_json_content_type, trace_layer,
+    },
+    routes::{
+        PlaygroundState, SubscriptionState, api,
+        graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
+        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
+        subscription_handler,
+    },
+    server_config::ServerConfig,
+    tls::TlsSetup,
+};
+#[cfg(feature = "auth")]
+use crate::routes::{AuthPkceState, auth_callback, auth_start};
+
+mod builder;
+mod extensions;
+mod initialization;
+mod lifecycle;
+mod routing;
+
+/// FraiseQL HTTP Server.
+pub struct Server<A: DatabaseAdapter> {
+    pub(super) config:               ServerConfig,
+    pub(super) executor:             Arc<Executor<A>>,
+    pub(super) subscription_manager: Arc<SubscriptionManager>,
+    pub(super) subscription_lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
+    pub(super) max_subscriptions_per_connection: Option<u32>,
+    pub(super) oidc_validator:       Option<Arc<OidcValidator>>,
+    pub(super) rate_limiter:         Option<Arc<RateLimiter>>,
+    #[cfg(feature = "secrets")]
+    pub(super) secrets_manager:      Option<Arc<crate::secrets_manager::SecretsManager>>,
+    pub(super) circuit_breaker:
+        Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
+    pub(super) error_sanitizer:      Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    #[cfg(feature = "auth")]
+    pub(super) state_encryption:     Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    #[cfg(feature = "auth")]
+    pub(super) pkce_store:           Option<Arc<crate::auth::PkceStateStore>>,
+    #[cfg(feature = "auth")]
+    pub(super) oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
+    pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    pub(super) revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    pub(super) apq_store:            Option<Arc<dyn fraiseql_core::apq::ApqStorage>>,
+    pub(super) trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+
+    #[cfg(feature = "observers")]
+    pub(super) observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
+
+    #[cfg(feature = "observers")]
+    pub(super) db_pool: Option<sqlx::PgPool>,
+
+    #[cfg(feature = "arrow")]
+    pub(super) flight_service: Option<FraiseQLFlightService>,
+
+    #[cfg(feature = "mcp")]
+    pub(super) mcp_config: Option<crate::mcp::McpConfig>,
+}
