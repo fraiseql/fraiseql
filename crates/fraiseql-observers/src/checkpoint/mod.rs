@@ -202,7 +202,7 @@ pub trait CheckpointStore: Send + Sync + Clone {
 ///     idempotency_table: "observer_idempotency_keys".to_string(),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum CheckpointStrategy {
     /// At-least-once delivery (default).
     ///
@@ -213,6 +213,7 @@ pub enum CheckpointStrategy {
     /// Use this when side-effects are idempotent (e.g., cache invalidation,
     /// search re-indexing) or when the performance cost of idempotency tracking
     /// is not acceptable.
+    #[default]
     AtLeastOnce,
 
     /// Effectively-once delivery via idempotency key tracking.
@@ -251,11 +252,6 @@ pub enum CheckpointStrategy {
     },
 }
 
-impl Default for CheckpointStrategy {
-    fn default() -> Self {
-        Self::AtLeastOnce
-    }
-}
 
 impl CheckpointStrategy {
     /// Returns `true` if this strategy requires an idempotency table.

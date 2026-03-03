@@ -545,10 +545,8 @@ impl MySqlAdapter {
         // COUNT(*) returns BIGINT UNSIGNED in MySQL; try i64 first (covers most real counts).
         let cnt: u64 = if let Ok(v) = row.try_get::<i64, _>(0) {
             v as u64
-        } else if let Ok(v) = row.try_get::<u64, _>(0) {
-            v
         } else {
-            0
+            row.try_get::<u64, _>(0).unwrap_or_default()
         };
 
         Ok(cnt)

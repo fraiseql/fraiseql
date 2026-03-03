@@ -439,6 +439,7 @@ fn snapshot_aggregate_query_with_group_by() {
 mod generated_sql {
     use insta::assert_snapshot;
     use fraiseql_core::db::{WhereClause, WhereOperator, postgres::PostgresWhereGenerator};
+    #[allow(unused_imports)]
     use fraiseql_core::db::where_sql_generator::WhereSqlGenerator;
     use serde_json::json;
 

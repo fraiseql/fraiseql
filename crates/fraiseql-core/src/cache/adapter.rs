@@ -457,15 +457,20 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             return Ok(0);
         }
 
-        // Entity-aware invalidation: evict only cache entries that contain the
-        // affected entity UUIDs, leaving unrelated entries warm.
-        let mut total_evicted = 0u64;
+        // View-level invalidation: convert entity types to view names and evict all
+        // cache entries that read from those views. This is used for the cascade response
+        // path where multiple entity types can be affected by a single mutation.
+        // Unlike the executor's entity-aware path, cascade invalidation uses view-level
+        // because the cascade entities may not be indexed in the cache by entity ID.
+        let mut views_to_invalidate = std::collections::HashSet::new();
         for entity in cascade_entities.all_affected() {
-            total_evicted +=
-                self.cache.invalidate_by_entity(&entity.entity_type, &entity.entity_id)?;
+            // Derive view name from entity type (e.g., "User" → "v_user")
+            let view_name = format!("v_{}", entity.entity_type.to_lowercase());
+            views_to_invalidate.insert(view_name);
         }
 
-        Ok(total_evicted)
+        let views: Vec<String> = views_to_invalidate.into_iter().collect();
+        self.cache.invalidate_views(&views)
     }
 
     /// Evict cache entries that contain the given entity UUID.
