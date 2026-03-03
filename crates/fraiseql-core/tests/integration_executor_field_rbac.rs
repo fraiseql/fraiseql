@@ -25,11 +25,11 @@ use fraiseql_core::{
 /// Helper to create a realistic Post type with mixed public/protected fields
 fn create_post_type_with_scopes() -> TypeDefinition {
     TypeDefinition {
-        name:                "Post".to_string(),
+        name:                "Post".into(),
         fields:              vec![
             // Public fields
             FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Int,
                 nullable:       false,
                 default_value:  None,
@@ -42,7 +42,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "title".to_string(),
+                name:           "title".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -56,7 +56,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
             },
             // Protected fields
             FieldDefinition {
-                name:           "content".to_string(),
+                name:           "content".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -69,7 +69,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "draft".to_string(),
+                name:           "draft".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -83,7 +83,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
             },
             // Admin-only fields
             FieldDefinition {
-                name:           "analytics".to_string(),
+                name:           "analytics".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -97,7 +97,7 @@ fn create_post_type_with_scopes() -> TypeDefinition {
             },
         ],
         description:         Some("Post type with field-level scopes".to_string()),
-        sql_source:          "posts".to_string(),
+        sql_source:          "posts".into(),
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
@@ -272,7 +272,7 @@ fn test_executor_projection_fields_filtered_by_scope() {
     // GIVEN: All fields available (what a query might request)
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
-    let all_field_names: Vec<String> = post_type.fields.iter().map(|f| f.name.clone()).collect();
+    let all_field_names: Vec<String> = post_type.fields.iter().map(|f| f.name.to_string()).collect();
 
     let security_config =
         serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
@@ -283,7 +283,7 @@ fn test_executor_projection_fields_filtered_by_scope() {
     // WHEN: User requests all fields but can only access some
     let accessible_fields = filter_fields(&reader_context, &security_config, &post_type.fields);
     let accessible_field_names: Vec<String> =
-        accessible_fields.iter().map(|f| f.name.clone()).collect();
+        accessible_fields.iter().map(|f| f.name.to_string()).collect();
 
     // THEN: Projection should only include accessible fields
     assert!(

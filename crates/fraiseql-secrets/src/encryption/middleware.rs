@@ -87,10 +87,10 @@ impl FieldEncryptionService {
                 .fields
                 .iter()
                 .filter(|f| f.encryption.is_some())
-                .map(|f| f.name.clone())
+                .map(|f| f.name.to_string())
                 .collect();
             if !enc.is_empty() {
-                encrypted_fields.insert(type_def.name.clone(), enc);
+                encrypted_fields.insert(type_def.name.to_string(), enc);
             }
         }
 

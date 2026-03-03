@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+use super::domain_types::{RoleName, Scope, SqlSource, TypeName};
 use super::field_type::{FieldDefinition, FieldType};
 use crate::validation::{CustomTypeRegistry, ValidationRule};
 
@@ -56,7 +57,7 @@ pub enum InjectedParamSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoleDefinition {
     /// Role name (e.g., "admin", "user", "viewer").
-    pub name: String,
+    pub name: RoleName,
 
     /// Optional role description for documentation.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,17 +65,17 @@ pub struct RoleDefinition {
 
     /// List of scopes this role grants access to.
     /// Scopes follow the format: `action:resource` (e.g., "read:User.email", "admin:*")
-    pub scopes: Vec<String>,
+    pub scopes: Vec<Scope>,
 }
 
 impl RoleDefinition {
     /// Create a new role definition.
     #[must_use]
-    pub fn new(name: String, scopes: Vec<String>) -> Self {
+    pub fn new(name: impl Into<String>, scopes: Vec<String>) -> Self {
         Self {
-            name,
+            name: RoleName::new(name),
             description: None,
-            scopes,
+            scopes: scopes.into_iter().map(Scope::new).collect(),
         }
     }
 
@@ -94,6 +95,7 @@ impl RoleDefinition {
     #[must_use]
     pub fn has_scope(&self, required_scope: &str) -> bool {
         self.scopes.iter().any(|scope| {
+            let scope = scope.as_str();
             if scope == "*" {
                 return true; // Wildcard matches everything
             }
@@ -159,7 +161,9 @@ impl SecurityConfig {
     /// Get all scopes granted to a role.
     #[must_use]
     pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
-        self.find_role(role_name).map(|role| role.scopes.clone()).unwrap_or_default()
+        self.find_role(role_name)
+            .map(|role| role.scopes.iter().map(|s| s.to_string()).collect::<Vec<String>>())
+            .unwrap_or_default()
     }
 
     /// Check if a role has a specific scope.
@@ -662,7 +666,7 @@ impl CompiledSchema {
         // Check for duplicate type names
         let mut type_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for type_def in &self.types {
-            if !type_names.insert(&type_def.name) {
+            if !type_names.insert(type_def.name.as_str()) {
                 errors.push(format!("Duplicate type name: {}", type_def.name));
             }
         }
@@ -761,10 +765,10 @@ fn is_builtin_type(name: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TypeDefinition {
     /// GraphQL type name (e.g., "User").
-    pub name: String,
+    pub name: TypeName,
 
     /// SQL source table/view (e.g., `v_user`).
-    pub sql_source: String,
+    pub sql_source: SqlSource,
 
     /// JSONB column name (e.g., "data").
     #[serde(default = "default_jsonb_column")]
@@ -844,8 +848,8 @@ impl TypeDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, sql_source: impl Into<String>) -> Self {
         Self {
-            name:                name.into(),
-            sql_source:          sql_source.into(),
+            name:                TypeName::new(name),
+            sql_source:          SqlSource::new(sql_source),
             jsonb_column:        "data".to_string(),
             fields:              Vec::new(),
             description:         None,
@@ -912,7 +916,7 @@ impl TypeDefinition {
     /// Per GraphQL spec §2.7, `__typename` returns the name of the object type.
     #[must_use]
     pub fn typename(&self) -> &str {
-        &self.name
+        self.name.as_str()
     }
 }
 

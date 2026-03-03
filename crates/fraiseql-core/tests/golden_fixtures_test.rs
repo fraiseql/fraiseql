@@ -385,7 +385,7 @@ fn golden_05_security_config() {
     let admin = config.role_definitions.iter().find(|r| r.name == "admin").unwrap();
     assert_eq!(admin.description.as_deref(), Some("Full system administrator"));
     assert_eq!(admin.scopes.len(), 3);
-    assert!(admin.scopes.contains(&"admin:*".to_string()));
+    assert!(admin.scopes.iter().any(|s| s == "admin:*"));
 
     assert_eq!(config.default_role.as_deref(), Some("viewer"));
 }

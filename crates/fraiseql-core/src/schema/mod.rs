@@ -41,6 +41,7 @@
 mod compiled;
 mod config_types;
 mod dependency_graph;
+pub mod domain_types;
 mod field_type;
 mod introspection;
 mod scalar_types;

@@ -244,8 +244,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                         .types
                         .iter()
                         .find(|t| t.name == mutation_def.return_type)
-                        .filter(|t| !t.sql_source.is_empty())
-                        .map(|t| t.sql_source.clone())
+                        .filter(|t| !t.sql_source.as_str().is_empty())
+                        .map(|t| t.sql_source.to_string())
                         .into_iter()
                         .collect::<Vec<_>>()
                 } else {
@@ -309,7 +309,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                             populate_error_fields(&td.fields, &metadata);
                         fields.insert(
                             "__typename".to_string(),
-                            serde_json::Value::String(td.name.clone()),
+                            serde_json::Value::String(td.name.to_string()),
                         );
                         // Include status so the client can act on it
                         fields.insert(

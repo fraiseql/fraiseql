@@ -15,7 +15,7 @@ use serde_json::json;
 fn field(name: &str, type_str: &str) -> FieldDefinition {
     let known = std::collections::HashSet::new();
     FieldDefinition {
-        name:           name.to_string(),
+        name:           name.into(),
         field_type:     FieldType::parse(type_str, &known),
         nullable:       true,
         default_value:  None,

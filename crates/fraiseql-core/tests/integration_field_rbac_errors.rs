@@ -28,10 +28,10 @@ use fraiseql_core::{
 /// Helper to create a schema with various access levels
 fn create_schema_with_mixed_fields() -> CompiledSchema {
     let user_type = TypeDefinition {
-        name:                "User".to_string(),
+        name:                "User".into(),
         fields:              vec![
             FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Int,
                 nullable:       false,
                 default_value:  None,
@@ -44,7 +44,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "publicInfo".to_string(),
+                name:           "publicInfo".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -57,7 +57,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "email".to_string(),
+                name:           "email".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -70,7 +70,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "phone".to_string(),
+                name:           "phone".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -83,7 +83,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "ssn".to_string(),
+                name:           "ssn".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -96,7 +96,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "bankAccount".to_string(),
+                name:           "bankAccount".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -110,7 +110,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
             },
         ],
         description:         Some("User with mixed access levels".to_string()),
-        sql_source:          "users".to_string(),
+        sql_source:          "users".into(),
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],

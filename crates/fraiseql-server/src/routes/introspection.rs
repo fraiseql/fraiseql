@@ -97,7 +97,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
                 .is_none_or(|role| user_roles.contains(&role.as_str()))
         })
         .map(|t| TypeInfo {
-            name:        t.name.clone(),
+            name:        t.name.to_string(),
             description: t.description.clone(),
             field_count: t.fields.len(),
         })

@@ -121,8 +121,8 @@ pub fn populate_error_fields(
 
     for field in fields {
         // Try camelCase first, then the raw field name (snake_case)
-        let camel = to_camel_case(&field.name);
-        let raw_val = obj.get(&camel).or_else(|| obj.get(&field.name));
+        let camel = to_camel_case(field.name.as_str());
+        let raw_val = obj.get(&camel).or_else(|| obj.get(field.name.as_str()));
 
         let Some(raw_val) = raw_val else { continue };
 
@@ -130,10 +130,10 @@ pub fn populate_error_fields(
 
         if SCALAR_TYPES.contains(&base_type.as_str()) {
             // #294 fix: copy scalar values directly (string, int, datetime, uuid, …)
-            output.insert(field.name.clone(), raw_val.clone());
+            output.insert(field.name.to_string(), raw_val.clone());
         } else if raw_val.is_object() {
             // Complex entity field: nested JSON object (existing behaviour)
-            output.insert(field.name.clone(), raw_val.clone());
+            output.insert(field.name.to_string(), raw_val.clone());
         }
         // else: non-scalar, non-object value in metadata — skip
     }
@@ -185,7 +185,7 @@ mod tests {
     fn make_field(name: &str, type_str: &str) -> FieldDefinition {
         let known = std::collections::HashSet::new();
         FieldDefinition {
-            name:           name.to_string(),
+            name:           name.into(),
             field_type:     FieldType::parse(type_str, &known),
             nullable:       true,
             default_value:  None,

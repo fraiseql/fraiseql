@@ -115,7 +115,7 @@ impl SchemaOptimizer {
 
                 type_def.sql_projection_hint = Some(hint);
                 report.projection_hints.push(ProjectionHint {
-                    type_name:                   type_def.name.clone(),
+                    type_name:                   type_def.name.to_string(),
                     field_count:                 type_def.fields.len(),
                     estimated_reduction_percent: type_def
                         .sql_projection_hint
@@ -469,12 +469,12 @@ mod tests {
     fn test_large_type_warning() {
         let mut schema = CompiledSchema {
             types:          vec![TypeDefinition {
-                name:                "BigType".to_string(),
-                sql_source:          String::new(),
+                name:                "BigType".into(),
+                sql_source:          String::new().into(),
                 jsonb_column:        String::new(),
                 fields:              (0..25)
                     .map(|i| FieldDefinition {
-                        name:           format!("field{i}"),
+                        name:           format!("field{i}").into(),
                         field_type:     FieldType::String,
                         nullable:       false,
                         default_value:  None,
@@ -523,12 +523,12 @@ mod tests {
     fn test_projection_hint_for_large_type() {
         let mut schema = CompiledSchema {
             types:          vec![TypeDefinition {
-                name:                "User".to_string(),
-                sql_source:          "users".to_string(),
+                name:                "User".into(),
+                sql_source:          "users".into(),
                 jsonb_column:        "data".to_string(),
                 fields:              (0..15)
                     .map(|i| FieldDefinition {
-                        name:           format!("field{i}"),
+                        name:           format!("field{i}").into(),
                         field_type:     FieldType::String,
                         nullable:       false,
                         default_value:  None,
@@ -587,12 +587,12 @@ mod tests {
     fn test_projection_not_applied_without_jsonb() {
         let mut schema = CompiledSchema {
             types:          vec![TypeDefinition {
-                name:                "SmallType".to_string(),
-                sql_source:          "small_table".to_string(),
+                name:                "SmallType".into(),
+                sql_source:          "small_table".into(),
                 jsonb_column:        String::new(), // No JSONB column
                 fields:              (0..15)
                     .map(|i| FieldDefinition {
-                        name:           format!("field{i}"),
+                        name:           format!("field{i}").into(),
                         field_type:     FieldType::String,
                         nullable:       false,
                         default_value:  None,

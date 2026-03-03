@@ -35,11 +35,11 @@ use fraiseql_core::{
 /// Simulates Python decorator output
 fn create_user_type_with_scopes() -> TypeDefinition {
     TypeDefinition {
-        name:                "User".to_string(),
+        name:                "User".into(),
         fields:              vec![
             // Public fields (no scope required)
             FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Int,
                 nullable:       false,
                 default_value:  None,
@@ -52,7 +52,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "name".to_string(),
+                name:           "name".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -66,7 +66,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
             },
             // Protected fields
             FieldDefinition {
-                name:           "email".to_string(),
+                name:           "email".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -79,7 +79,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "phone".to_string(),
+                name:           "phone".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -93,7 +93,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
             },
             // Admin-only fields
             FieldDefinition {
-                name:           "salary".to_string(),
+                name:           "salary".into(),
                 field_type:     FieldType::Int,
                 nullable:       true,
                 default_value:  None,
@@ -106,7 +106,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "ssn".to_string(),
+                name:           "ssn".into(),
                 field_type:     FieldType::String,
                 nullable:       true,
                 default_value:  None,
@@ -120,7 +120,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
             },
         ],
         description:         Some("User type with field-level scopes".to_string()),
-        sql_source:          "users".to_string(),
+        sql_source:          "users".into(),
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],

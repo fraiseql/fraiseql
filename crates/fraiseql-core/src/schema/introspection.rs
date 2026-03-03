@@ -569,7 +569,7 @@ impl IntrospectionBuilder {
 
         IntrospectionType {
             kind:               TypeKind::Object,
-            name:               Some(type_def.name.clone()),
+            name:               Some(type_def.name.to_string()),
             description:        type_def.description.clone(),
             fields:             Some(fields),
             interfaces:         Some(interfaces),
@@ -659,7 +659,7 @@ impl IntrospectionBuilder {
             .find_implementors(&interface_def.name)
             .iter()
             .map(|t| IntrospectionTypeRef {
-                name: t.name.clone(),
+                name: t.name.to_string(),
             })
             .collect();
 
@@ -1697,8 +1697,8 @@ mod tests {
         // Create a schema with a deprecated field
         let mut schema = CompiledSchema::new();
         schema.types.push(TypeDefinition {
-            name:                "Product".to_string(),
-            sql_source:          "products".to_string(),
+            name:                "Product".into(),
+            sql_source:          "products".into(),
             jsonb_column:        "data".to_string(),
             description:         None,
             sql_projection_hint: None,
@@ -1709,7 +1709,7 @@ mod tests {
             fields:              vec![
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition {
-                    name:           "oldSku".to_string(),
+                    name:           "oldSku".into(),
                     field_type:     FieldType::String,
                     nullable:       false,
                     description:    Some("Legacy SKU field".to_string()),
@@ -1946,8 +1946,8 @@ mod tests {
 
         // Add types that implement the interface
         schema.types.push(TypeDefinition {
-            name:                "User".to_string(),
-            sql_source:          "users".to_string(),
+            name:                "User".into(),
+            sql_source:          "users".into(),
             jsonb_column:        "data".to_string(),
             description:         Some("A user".to_string()),
             sql_projection_hint: None,
@@ -1962,8 +1962,8 @@ mod tests {
         });
 
         schema.types.push(TypeDefinition {
-            name:                "Post".to_string(),
-            sql_source:          "posts".to_string(),
+            name:                "Post".into(),
+            sql_source:          "posts".into(),
             jsonb_column:        "data".to_string(),
             description:         Some("A blog post".to_string()),
             sql_projection_hint: None,
@@ -2026,8 +2026,8 @@ mod tests {
 
         // Add a type that implements both interfaces
         schema.types.push(TypeDefinition {
-            name:                "Comment".to_string(),
-            sql_source:          "comments".to_string(),
+            name:                "Comment".into(),
+            sql_source:          "comments".into(),
             jsonb_column:        "data".to_string(),
             description:         None,
             sql_projection_hint: None,

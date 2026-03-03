@@ -204,12 +204,12 @@ fn relay_schema() -> CompiledSchema {
 
     // User type (relay=true so inject_relay_types would mark it)
     let user_type = TypeDefinition {
-        name:                "User".to_string(),
-        sql_source:          "v_user".to_string(),
+        name:                "User".into(),
+        sql_source:          "v_user".into(),
         jsonb_column:        "data".to_string(),
         fields:              vec![
             FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Uuid,
                 nullable:       false,
                 description:    None,
@@ -222,7 +222,7 @@ fn relay_schema() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "name".to_string(),
+                name:           "name".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 description:    None,
@@ -249,7 +249,7 @@ fn relay_schema() -> CompiledSchema {
         InterfaceDefinition::new("Node")
             .with_description("Relay Node interface.")
             .with_field(FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Id,
                 nullable:       false,
                 description:    None,
@@ -749,12 +749,12 @@ fn uuid_relay_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
 
     let item_type = TypeDefinition {
-        name:                "Item".to_string(),
-        sql_source:          "v_item".to_string(),
+        name:                "Item".into(),
+        sql_source:          "v_item".into(),
         jsonb_column:        "data".to_string(),
         fields:              vec![
             FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Uuid,
                 nullable:       false,
                 default_value:  None,
@@ -767,7 +767,7 @@ fn uuid_relay_schema() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "name".to_string(),
+                name:           "name".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,

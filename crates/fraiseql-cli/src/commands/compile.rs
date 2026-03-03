@@ -394,10 +394,10 @@ mod tests {
     fn test_validate_schema_success() {
         let schema = CompiledSchema {
             types:            vec![TypeDefinition {
-                name:                "User".to_string(),
+                name:                "User".into(),
                 fields:              vec![
                     FieldDefinition {
-                        name:           "id".to_string(),
+                        name:           "id".into(),
                         field_type:     FieldType::Int,
                         nullable:       false,
                         default_value:  None,
@@ -410,7 +410,7 @@ mod tests {
                         encryption:     None,
                     },
                     FieldDefinition {
-                        name:           "name".to_string(),
+                        name:           "name".into(),
                         field_type:     FieldType::String,
                         nullable:       false,
                         default_value:  None,
@@ -424,7 +424,7 @@ mod tests {
                     },
                 ],
                 description:         Some("User type".to_string()),
-                sql_source:          String::new(),
+                sql_source:          String::new().into(),
                 jsonb_column:        String::new(),
                 sql_projection_hint: None,
                 implements:          vec![],

@@ -187,10 +187,10 @@ impl SchemaConverter {
             .context(format!("Failed to convert type '{}'", intermediate.name))?;
 
         Ok(TypeDefinition {
-            name: intermediate.name,
+            name: intermediate.name.into(),
             fields,
             description: intermediate.description,
-            sql_source: String::new(), // Not used for regular types (empty string)
+            sql_source: String::new().into(), // Not used for regular types (empty string)
             jsonb_column: String::new(), // Not used for regular types (empty string)
             sql_projection_hint: None, // Will be populated by optimizer in
             implements: intermediate.implements,
@@ -311,7 +311,7 @@ impl SchemaConverter {
         });
 
         Ok(FieldDefinition {
-            name: intermediate.name,
+            name: intermediate.name.into(),
             field_type,
             nullable: intermediate.nullable,
             default_value: None,
@@ -780,9 +780,9 @@ impl SchemaConverter {
         info!("Validating compiled schema");
 
         // Build type registry
-        let mut type_names = HashSet::new();
+        let mut type_names: HashSet<String> = HashSet::new();
         for type_def in &schema.types {
-            type_names.insert(type_def.name.clone());
+            type_names.insert(type_def.name.to_string());
         }
 
         // Build interface registry
@@ -935,7 +935,7 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
         .types
         .iter()
         .filter(|t| t.relay)
-        .map(|t| t.name.clone())
+        .map(|t| t.name.to_string())
         .collect();
 
     if relay_types.is_empty() {
@@ -946,7 +946,7 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
     let has_node_interface = schema.interfaces.iter().any(|i| i.name == "Node");
     if !has_node_interface {
         let node_id_field = FieldDefinition {
-            name:           "id".to_string(),
+            name:           "id".into(),
             field_type:     FieldType::Id,
             nullable:       false,
             description:    Some("Globally unique identifier (UUID).".to_string()),
@@ -969,7 +969,7 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
     let has_page_info = schema.types.iter().any(|t| t.name == "PageInfo");
     if !has_page_info {
         let make_field = |name: &str, ft: FieldType, nullable: bool, desc: &str| FieldDefinition {
-            name:           name.to_string(),
+            name:           name.into(),
             field_type:     ft,
             nullable,
             description:    Some(desc.to_string()),
@@ -982,8 +982,8 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
             encryption:     None,
         };
         let page_info = TypeDefinition {
-            name:                "PageInfo".to_string(),
-            sql_source:          String::new(), // synthetic — no DB source
+            name:                "PageInfo".into(),
+            sql_source:          String::new().into(), // synthetic — no DB source
             jsonb_column:        String::new(),
             fields:              vec![
                 make_field(
@@ -1030,7 +1030,7 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
 
     // --- Generate XxxEdge and XxxConnection for each relay type ---
     let make_field = |name: &str, ft: FieldType, nullable: bool, desc: &str| FieldDefinition {
-        name:           name.to_string(),
+        name:           name.into(),
         field_type:     ft,
         nullable,
         description:    Some(desc.to_string()),
@@ -1053,8 +1053,8 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
         let has_edge = schema.types.iter().any(|t| t.name == edge_name);
         if !has_edge {
             new_types.push(TypeDefinition {
-                name:                edge_name.clone(),
-                sql_source:          String::new(),
+                name:                edge_name.clone().into(),
+                sql_source:          String::new().into(),
                 jsonb_column:        String::new(),
                 fields:              vec![
                     make_field(
@@ -1084,8 +1084,8 @@ fn inject_relay_types(schema: &mut CompiledSchema) {
         let has_conn = schema.types.iter().any(|t| t.name == conn_name);
         if !has_conn {
             new_types.push(TypeDefinition {
-                name:                conn_name,
-                sql_source:          String::new(),
+                name:                conn_name.into(),
+                sql_source:          String::new().into(),
                 jsonb_column:        String::new(),
                 fields:              vec![
                     make_field(

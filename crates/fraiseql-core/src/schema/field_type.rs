@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::domain_types::FieldName;
 use super::scalar_types;
 
 // ============================================================================
@@ -250,7 +251,7 @@ pub enum FieldDenyPolicy {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     /// Field name - the key in the JSONB `data` column (e.g., "email").
-    pub name: String,
+    pub name: FieldName,
 
     /// Field type.
     pub field_type: FieldType,
@@ -382,7 +383,7 @@ impl FieldDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, field_type: FieldType) -> Self {
         Self {
-            name: name.into(),
+            name: FieldName::new(name),
             field_type,
             nullable: false,
             description: None,
@@ -400,7 +401,7 @@ impl FieldDefinition {
     #[must_use]
     pub fn nullable(name: impl Into<String>, field_type: FieldType) -> Self {
         Self {
-            name: name.into(),
+            name: FieldName::new(name),
             field_type,
             nullable: true,
             description: None,
@@ -426,7 +427,7 @@ impl FieldDefinition {
     #[must_use]
     pub fn vector(name: impl Into<String>, config: VectorConfig) -> Self {
         Self {
-            name:           name.into(),
+            name:           FieldName::new(name),
             field_type:     FieldType::Vector,
             nullable:       false,
             description:    None,
@@ -511,7 +512,7 @@ impl FieldDefinition {
     /// This is the key name that appears in the GraphQL JSON response.
     #[must_use]
     pub fn output_name(&self) -> &str {
-        self.alias.as_deref().unwrap_or(&self.name)
+        self.alias.as_deref().unwrap_or(self.name.as_str())
     }
 
     /// Get the JSONB key name for this field.
@@ -521,7 +522,7 @@ impl FieldDefinition {
     /// - Building WHERE clause paths
     #[must_use]
     pub fn jsonb_key(&self) -> &str {
-        &self.name
+        self.name.as_str()
     }
 
     /// Check if this field has an alias.

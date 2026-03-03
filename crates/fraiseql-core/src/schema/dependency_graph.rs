@@ -146,9 +146,9 @@ impl SchemaDependencyGraph {
 
         // Collect all type names first
         for type_def in &schema.types {
-            all_types.insert(type_def.name.clone());
-            outgoing.entry(type_def.name.clone()).or_default();
-            incoming.entry(type_def.name.clone()).or_default();
+            all_types.insert(type_def.name.to_string());
+            outgoing.entry(type_def.name.to_string()).or_default();
+            incoming.entry(type_def.name.to_string()).or_default();
         }
 
         for enum_def in &schema.enums {
@@ -200,8 +200,8 @@ impl SchemaDependencyGraph {
             for field in &type_def.fields {
                 if let Some(ref_type) = Self::extract_referenced_type(&field.field_type) {
                     if all_types.contains(&ref_type) {
-                        outgoing.entry(type_def.name.clone()).or_default().insert(ref_type.clone());
-                        incoming.entry(ref_type.clone()).or_default().insert(type_def.name.clone());
+                        outgoing.entry(type_def.name.to_string()).or_default().insert(ref_type.clone());
+                        incoming.entry(ref_type.clone()).or_default().insert(type_def.name.to_string());
                     }
                 }
             }
@@ -210,13 +210,13 @@ impl SchemaDependencyGraph {
             for interface_name in &type_def.implements {
                 if all_types.contains(interface_name) {
                     outgoing
-                        .entry(type_def.name.clone())
+                        .entry(type_def.name.to_string())
                         .or_default()
                         .insert(interface_name.clone());
                     incoming
                         .entry(interface_name.clone())
                         .or_default()
-                        .insert(type_def.name.clone());
+                        .insert(type_def.name.to_string());
                 }
             }
         }
@@ -591,8 +591,8 @@ mod tests {
     /// Helper to create a simple type with the given fields.
     fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         TypeDefinition {
-            name:                name.to_string(),
-            sql_source:          format!("v_{}", name.to_lowercase()),
+            name:                name.into(),
+            sql_source:          format!("v_{}", name.to_lowercase()).into(),
             jsonb_column:        "data".to_string(),
             fields:              fields
                 .into_iter()
@@ -1002,8 +1002,8 @@ mod tests {
     fn test_interface_dependencies() {
         let schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "User".to_string(),
-                sql_source:          "v_user".to_string(),
+                name:                "User".into(),
+                sql_source:          "v_user".into(),
                 jsonb_column:        "data".to_string(),
                 fields:              vec![FieldDefinition::new("id", FieldType::Id)],
                 description:         None,

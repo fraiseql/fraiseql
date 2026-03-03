@@ -132,7 +132,7 @@ mod tests {
 
     fn create_test_field(name: &str, requires_scope: Option<&str>) -> FieldDefinition {
         FieldDefinition {
-            name:           name.to_string(),
+            name:           name.into(),
             field_type:     FieldType::String,
             nullable:       false,
             default_value:  None,
@@ -254,7 +254,7 @@ mod tests {
         on_deny: FieldDenyPolicy,
     ) -> FieldDefinition {
         FieldDefinition {
-            name:           name.to_string(),
+            name:           name.into(),
             field_type:     FieldType::String,
             nullable:       false,
             default_value:  None,

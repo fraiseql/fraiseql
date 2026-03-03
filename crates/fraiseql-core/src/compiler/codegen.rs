@@ -22,6 +22,7 @@ use crate::{
         InputFieldDefinition,
         InputObjectDefinition, InterfaceDefinition, MutationDefinition, QueryDefinition,
         SubscriptionDefinition, TypeDefinition, UnionDefinition,
+        domain_types::{SqlSource, TypeName},
     },
     validation::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegistryConfig},
 };
@@ -109,8 +110,8 @@ impl CodeGenerator {
             .iter()
             .map(|t| {
                 TypeDefinition {
-                    name:                t.name.clone(),
-                    sql_source:          t.sql_source.clone().unwrap_or_else(|| t.name.clone()),
+                    name:                TypeName::new(t.name.clone()),
+                    sql_source:          SqlSource::new(t.sql_source.clone().unwrap_or_else(|| t.name.clone())),
                     jsonb_column:        "data".to_string(),
                     fields:              Self::map_fields(&t.fields, &known_types),
                     description:         t.description.clone(),
@@ -236,7 +237,7 @@ impl CodeGenerator {
             .map(|f| {
                 let field_type = FieldType::parse(&f.field_type, known_types);
                 FieldDefinition {
-                    name: f.name.clone(),
+                    name: f.name.clone().into(),
                     field_type,
                     nullable: f.nullable,
                     description: f.description.clone(),

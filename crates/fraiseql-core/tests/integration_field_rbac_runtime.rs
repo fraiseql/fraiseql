@@ -14,10 +14,10 @@ use fraiseql_core::schema::{
 /// Helper to create a test schema with scoped fields
 fn create_schema_with_scoped_fields() -> CompiledSchema {
     let user_type = TypeDefinition {
-        name:                "User".to_string(),
+        name:                "User".into(),
         fields:              vec![
             FieldDefinition {
-                name:           "id".to_string(),
+                name:           "id".into(),
                 field_type:     FieldType::Int,
                 nullable:       false,
                 default_value:  None,
@@ -30,7 +30,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "name".to_string(),
+                name:           "name".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -43,7 +43,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "email".to_string(),
+                name:           "email".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -56,7 +56,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
                 encryption:     None,
             },
             FieldDefinition {
-                name:           "password_hash".to_string(),
+                name:           "password_hash".into(),
                 field_type:     FieldType::String,
                 nullable:       false,
                 default_value:  None,
@@ -70,7 +70,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
             },
         ],
         description:         None,
-        sql_source:          "users".to_string(),
+        sql_source:          "users".into(),
         jsonb_column:        String::new(),
         sql_projection_hint: None,
         implements:          vec![],
@@ -236,9 +236,9 @@ fn test_scope_matching_exact_match() {
 
     // Verify this scope can be matched by a role with "read:User.*"
     let viewer_role = RoleDefinition {
-        name:        "viewer".to_string(),
+        name:        "viewer".into(),
         description: None,
-        scopes:      vec!["read:User.*".to_string()],
+        scopes:      vec!["read:User.*".into()],
     };
 
     // Test wildcard matching: "read:User.*" should match "read:User.email"
@@ -251,9 +251,9 @@ fn test_scope_matching_exact_match() {
 #[test]
 fn test_scope_matching_wildcard_all() {
     let admin_role = RoleDefinition {
-        name:        "admin".to_string(),
+        name:        "admin".into(),
         description: None,
-        scopes:      vec!["*".to_string()],
+        scopes:      vec!["*".into()],
     };
 
     assert!(admin_role.has_scope("admin:*"), "Global wildcard should match admin:*");
@@ -267,9 +267,9 @@ fn test_scope_matching_wildcard_all() {
 #[test]
 fn test_scope_matching_action_wildcard() {
     let admin_role = RoleDefinition {
-        name:        "admin".to_string(),
+        name:        "admin".into(),
         description: None,
-        scopes:      vec!["admin:*".to_string()],
+        scopes:      vec!["admin:*".into()],
     };
 
     assert!(admin_role.has_scope("admin:delete"), "admin:* should match admin:delete");

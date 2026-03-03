@@ -182,7 +182,7 @@ fn validate_entity(schema: &CompiledSchema, entity: &str) -> Result<()> {
     if schema.types.iter().any(|t| t.name == entity) {
         Ok(())
     } else {
-        let available = schema.types.iter().map(|t| t.name.clone()).collect::<Vec<_>>().join(", ");
+        let available = schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
         anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
     }
 }
