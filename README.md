@@ -147,7 +147,7 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 ## Documentation
 
 - [Getting Started](docs/guides/getting-started.md) -- 5-minute quick start
-- [Architecture Principles](ARCHITECTURE_PRINCIPLES.md) -- System design
+- [Architecture Documentation](docs/architecture/README.md) -- System design, compiler internals, security model
 - [Value Proposition](docs/VALUE_PROPOSITION.md) -- What FraiseQL does and does not do
 - [Roadmap](ROADMAP.md) -- Prioritized next steps
 - [Changelog](CHANGELOG.md) -- User-facing changes per version
