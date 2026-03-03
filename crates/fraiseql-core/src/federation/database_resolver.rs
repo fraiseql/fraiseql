@@ -10,7 +10,7 @@ use tracing::warn;
 
 use crate::{
     db::traits::DatabaseAdapter,
-    error::Result,
+    error::{FraiseQLError, Result},
     federation::{
         metadata_helpers::find_federation_type,
         query_builder::construct_where_in_clause,
@@ -19,6 +19,7 @@ use crate::{
         tracing::FederationTraceContext,
         types::{EntityRepresentation, FederatedType, FederationMetadata},
     },
+    schema::is_safe_sql_identifier,
 };
 
 /// Resolves federation entities from local databases.
@@ -88,10 +89,23 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             return Ok(Vec::new());
         }
 
-        // Find type definition using metadata helpers
+        // Validate typename is a safe SQL identifier before any SQL interpolation.
+        // Defense-in-depth: find_federation_type already acts as a whitelist, but
+        // we also reject names that would be unsafe if somehow they passed validation.
+        if !is_safe_sql_identifier(typename) {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Federation entity type '{}' contains unsafe characters for SQL interpolation",
+                    typename
+                ),
+                path:    None,
+            });
+        }
+
+        // Find type definition using metadata helpers (whitelist check)
         let fed_type = find_federation_type(typename, &self.metadata)?;
 
-        // Get table name (simplified: use lowercase type name)
+        // Get table name from typename (already validated as safe identifier above)
         let table_name = typename.to_lowercase();
 
         // Build WHERE IN clause for batch query
