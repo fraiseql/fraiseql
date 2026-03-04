@@ -66,9 +66,8 @@ fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0-dev"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0-dev"}
 futures = "0.3"
 indexmap = {version = "2", features = ["serde"]}
-# GraphQL parsing
-# NOTE: graphql-parser 0.4.1 depends on thiserror 1.0; no newer release available.
-# Unification of thiserror versions blocked on upstream graphql-parser upgrade.
+# GraphQL parsing — patched via vendor/graphql-parser to use thiserror 2.x.
+# See [patch.crates-io] at the bottom of this file.
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
@@ -171,3 +170,8 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.88"  # MSRV — driven by dependency requirements
 version = "2.1.0-dev"
+
+[patch.crates-io]
+# Local patch: upgrade thiserror dependency from 1.x to 2.x to eliminate
+# duplicate thiserror versions in the build. Pending upstream PR to graphql-rust/graphql-parser.
+graphql-parser = { path = "vendor/graphql-parser" }
