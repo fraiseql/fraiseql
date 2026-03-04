@@ -633,7 +633,7 @@ impl WindowFunctionPlanner {
     ///   "select": ["revenue", "category"],
     ///   "windows": [
     ///     {
-    ///       "function": {"row_number": {}},
+    ///       "function": {"type": "row_number"},
     ///       "alias": "rank",
     ///       "partitionBy": ["data->>'category'"],
     ///       "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -768,132 +768,9 @@ impl WindowFunctionPlanner {
     }
 
     fn parse_window_function_type(func: &serde_json::Value) -> Result<WindowFunctionType> {
-        // Try each function type
-        if func.get("row_number").is_some() {
-            return Ok(WindowFunctionType::RowNumber);
-        }
-        if func.get("rank").is_some() {
-            return Ok(WindowFunctionType::Rank);
-        }
-        if func.get("dense_rank").is_some() {
-            return Ok(WindowFunctionType::DenseRank);
-        }
-        if let Some(ntile) = func.get("ntile") {
-            let n = ntile["n"]
-                .as_u64()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'n' in NTILE function"))?
-                as u32;
-            return Ok(WindowFunctionType::Ntile { n });
-        }
-        if func.get("percent_rank").is_some() {
-            return Ok(WindowFunctionType::PercentRank);
-        }
-        if func.get("cume_dist").is_some() {
-            return Ok(WindowFunctionType::CumeDist);
-        }
-
-        // Value functions
-        if let Some(lag) = func.get("lag") {
-            let field = lag["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in LAG"))?
-                .to_string();
-            let offset = lag.get("offset").and_then(|o| o.as_i64()).unwrap_or(1) as i32;
-            let default = lag.get("default").cloned();
-            return Ok(WindowFunctionType::Lag {
-                field,
-                offset,
-                default,
-            });
-        }
-        if let Some(lead) = func.get("lead") {
-            let field = lead["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in LEAD"))?
-                .to_string();
-            let offset = lead.get("offset").and_then(|o| o.as_i64()).unwrap_or(1) as i32;
-            let default = lead.get("default").cloned();
-            return Ok(WindowFunctionType::Lead {
-                field,
-                offset,
-                default,
-            });
-        }
-        if let Some(first_val) = func.get("first_value") {
-            let field = first_val["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in FIRST_VALUE"))?
-                .to_string();
-            return Ok(WindowFunctionType::FirstValue { field });
-        }
-        if let Some(last_val) = func.get("last_value") {
-            let field = last_val["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in LAST_VALUE"))?
-                .to_string();
-            return Ok(WindowFunctionType::LastValue { field });
-        }
-        if let Some(nth_val) = func.get("nth_value") {
-            let field = nth_val["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in NTH_VALUE"))?
-                .to_string();
-            let n = nth_val["n"]
-                .as_u64()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'n' in NTH_VALUE"))?
-                as u32;
-            return Ok(WindowFunctionType::NthValue { field, n });
-        }
-
-        // Aggregate as window
-        if let Some(sum) = func.get("sum") {
-            let field = sum["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in SUM"))?
-                .to_string();
-            return Ok(WindowFunctionType::Sum { field });
-        }
-        if let Some(avg) = func.get("avg") {
-            let field = avg["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in AVG"))?
-                .to_string();
-            return Ok(WindowFunctionType::Avg { field });
-        }
-        if let Some(count) = func.get("count") {
-            let field = count.get("field").and_then(|f| f.as_str()).map(String::from);
-            return Ok(WindowFunctionType::Count { field });
-        }
-        if let Some(min) = func.get("min") {
-            let field = min["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in MIN"))?
-                .to_string();
-            return Ok(WindowFunctionType::Min { field });
-        }
-        if let Some(max) = func.get("max") {
-            let field = max["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in MAX"))?
-                .to_string();
-            return Ok(WindowFunctionType::Max { field });
-        }
-        if let Some(stddev) = func.get("stddev") {
-            let field = stddev["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in STDDEV"))?
-                .to_string();
-            return Ok(WindowFunctionType::Stddev { field });
-        }
-        if let Some(variance) = func.get("variance") {
-            let field = variance["field"]
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("Missing 'field' in VARIANCE"))?
-                .to_string();
-            return Ok(WindowFunctionType::Variance { field });
-        }
-
-        Err(FraiseQLError::validation("Unknown window function type"))
+        serde_json::from_value(func.clone()).map_err(|e| {
+            FraiseQLError::validation(format!("Unknown or invalid window function: {e}"))
+        })
     }
 
     fn parse_window_frame(frame: &serde_json::Value) -> Result<WindowFrame> {
@@ -1458,7 +1335,7 @@ mod tests {
             "table": "tf_sales",
             "select": ["revenue"],
             "windows": [{
-                "function": {"row_number": {}},
+                "function": {"type": "row_number"},
                 "alias": "rank",
                 "partitionBy": ["category"],
                 "orderBy": [{"field": "revenue", "direction": "DESC"}]
@@ -1481,11 +1358,10 @@ mod tests {
             "table": "tf_sales",
             "windows": [{
                 "function": {
-                    "lag": {
-                        "field": "revenue",
-                        "offset": 1,
-                        "default": 0
-                    }
+                    "type": "lag",
+                    "field": "revenue",
+                    "offset": 1,
+                    "default": 0
                 },
                 "alias": "prev_revenue",
                 "orderBy": [{"field": "occurred_at"}]

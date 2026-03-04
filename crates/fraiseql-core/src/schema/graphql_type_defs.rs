@@ -20,8 +20,8 @@ use crate::validation::ValidationRule;
 /// use fraiseql_core::schema::{TypeDefinition, FieldDefinition, FieldType};
 ///
 /// let user_type = TypeDefinition {
-///     name: "User".to_string(),
-///     sql_source: "v_user".to_string(),
+///     name: "User".into(),
+///     sql_source: "v_user".into(),
 ///     jsonb_column: "data".to_string(),
 ///     fields: vec![
 ///         FieldDefinition::new("id", FieldType::Id),

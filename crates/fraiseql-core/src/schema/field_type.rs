@@ -235,7 +235,7 @@ pub enum FieldDenyPolicy {
 /// use fraiseql_core::schema::{FieldDefinition, FieldDenyPolicy, FieldType};
 ///
 /// let field = FieldDefinition {
-///     name: "email".to_string(),
+///     name: "email".into(),
 ///     field_type: FieldType::String,
 ///     nullable: true,
 ///     description: Some("User's email address".to_string()),
@@ -295,7 +295,7 @@ pub struct FieldDefinition {
     /// use fraiseql_core::schema::{FieldDefinition, FieldDenyPolicy, FieldType};
     ///
     /// let field = FieldDefinition {
-    ///     name: "salary".to_string(),
+    ///     name: "salary".into(),
     ///     field_type: FieldType::Int,
     ///     nullable: false,
     ///     description: None,
