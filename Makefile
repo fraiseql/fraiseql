@@ -369,7 +369,7 @@ e2e-python: e2e-setup
 	@echo ""
 	@echo "========== PYTHON E2E TEST =========="
 	@export PATH="$(PWD)/target/release:$$PATH" && \
-		cd fraiseql-python && \
+		cd sdks/official/fraiseql-python && \
 		. .venv/bin/activate && \
 		echo "✅ Python environment ready" && \
 		echo "" && \
@@ -384,7 +384,7 @@ e2e-typescript: e2e-setup
 	@echo "========== TYPESCRIPT E2E TEST =========="
 	@echo "✅ TypeScript environment ready"
 	@echo "Running E2E tests..."
-	@npm test --prefix fraiseql-typescript
+	@npm test --prefix sdks/official/fraiseql-typescript
 	@echo "✅ TypeScript E2E tests passed"
 	@echo ""
 
@@ -401,7 +401,7 @@ e2e-go: e2e-setup
 	@echo "========== GO E2E TEST =========="
 	@echo "✅ Go environment ready"
 	@echo "Running E2E tests..."
-	@cd fraiseql-go && go test ./fraiseql/... -v
+	@cd sdks/official/fraiseql-go && go test ./fraiseql/... -v
 	@echo "✅ Go E2E tests passed"
 	@echo ""
 
@@ -417,7 +417,7 @@ e2e-velocitybench: e2e-setup
 	@echo ""
 	@echo "========== VELOCITYBENCH E2E TEST =========="
 	@export PATH="$(PWD)/target/release:$$PATH" && \
-		. fraiseql-python/.venv/bin/activate && \
+		. sdks/official/fraiseql-python/.venv/bin/activate && \
 		echo "✅ Test environment ready" && \
 		echo "" && \
 		echo "Running VelocityBench blogging app E2E test..." && \
@@ -461,17 +461,17 @@ PARITY_GOLDEN := tests/fixtures/golden/parity-schema.json
 ## Generate parity schemas from all 5 authoring SDKs into /tmp/parity-*.json
 parity-generate:
 	@echo "=== Generating parity schemas ==="
-	@cd fraiseql-python && uv run python tests/generate_parity_schema.py \
+	@cd sdks/official/fraiseql-python && uv run python tests/generate_parity_schema.py \
 	    > /tmp/parity-python.json
 	@echo "  [1/5] Python done"
-	@cd fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
+	@cd sdks/official/fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
 	    bun run tests/generate-parity-schema.ts > /tmp/parity-typescript.json
 	@echo "  [2/5] TypeScript done"
-	@cd fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
+	@cd sdks/official/fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
 	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
 	    > /tmp/parity-go.json
 	@echo "  [3/5] Go done"
-	@cd fraiseql-java && \
+	@cd sdks/official/fraiseql-java && \
 	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \
 	    mvn -q test -Dtest=GenerateParitySchema "-DschemaOutputFile=/tmp/parity-java.json"
 	@echo "  [4/5] Java done"

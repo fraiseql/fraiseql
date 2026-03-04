@@ -1228,7 +1228,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "fraiseql-python/uv.lock"
+          cache-dependency-glob: "sdks/official/fraiseql-python/uv.lock"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -1238,7 +1238,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('fraiseql-typescript/bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('sdks/official/fraiseql-typescript/bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
       - uses: actions/setup-go@v5
@@ -1267,10 +1267,10 @@ jobs:
           sudo mv composer.phar /usr/local/bin/composer
 
       - name: Install Python SDK deps
-        run: cd fraiseql-python && uv sync
+        run: cd sdks/official/fraiseql-python && uv sync
 
       - name: Install TypeScript SDK deps
-        run: cd fraiseql-typescript && bun install
+        run: cd sdks/official/fraiseql-typescript && bun install
 
       - name: Install PHP SDK deps
         run: cd fraiseql-php && composer install --no-interaction --prefer-dist

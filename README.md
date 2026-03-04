@@ -168,6 +168,20 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 - Load testing infrastructure (k6)
 - 12 operational runbooks
 
+## Repository Layout
+
+```
+crates/               # Rust engine crates (fraiseql-core, fraiseql-server, fraiseql-cli, …)
+sdks/official/        # Official authoring SDKs (Python, TypeScript, Java, Go, Rust, PHP, …)
+sdks/community/       # Community-maintained SDKs
+docs/                 # Architecture docs, guides, runbooks
+vendor/               # Vendored Rust patch dependencies ([patch.crates-io])
+fraisier/             # Deployment orchestrator — separate product, co-located for convenience
+tutorial/             # Interactive tutorial platform — separate product, co-located for convenience
+```
+
+See [`sdks/official/README.md`](sdks/official/README.md) for the full SDK inventory.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

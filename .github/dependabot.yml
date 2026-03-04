@@ -31,9 +31,9 @@ updates:
       - "dependencies"
       - "github-actions"
 
-  # Python dependencies (fraiseql-python)
+  # Python dependencies (sdks/official/fraiseql-python)
   - package-ecosystem: "pip"
-    directory: "/fraiseql-python"
+    directory: "/sdks/official/fraiseql-python"
     schedule:
       interval: "weekly"
     labels:
@@ -42,7 +42,7 @@ updates:
 
   # TypeScript dependencies
   - package-ecosystem: "npm"
-    directory: "/fraiseql-typescript"
+    directory: "/sdks/official/fraiseql-typescript"
     schedule:
       interval: "weekly"
     labels:

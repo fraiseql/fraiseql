@@ -305,12 +305,12 @@ jobs:
 
       - name: Build distributions
         id: build-python
-        working-directory: fraiseql-python
+        working-directory: sdks/official/fraiseql-python
         run: python -m build
 
       - name: Publish to PyPI
         id: publish-pypi
-        working-directory: fraiseql-python
+        working-directory: sdks/official/fraiseql-python
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
@@ -323,7 +323,7 @@ jobs:
           echo "Waiting for PyPI to index..."
           sleep 10
           echo "Testing PyPI package installation..."
-          VERSION=$(grep '^version = ' fraiseql-python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          VERSION=$(grep '^version = ' sdks/official/fraiseql-python/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           python -m pip install --upgrade "fraiseql==${VERSION}"
           python -c "import fraiseql; print(f'✅ fraiseql {fraiseql.__version__} successfully published to PyPI')"
         continue-on-error: true

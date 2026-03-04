@@ -132,6 +132,12 @@ mutants.out/
 # PHP (composer vendor directories, not the Rust vendor/ at repo root)
 sdks/**/vendor/
 composer.phar
+
+# SDK build artifacts
+sdks/**/target/
+sdks/**/node_modules/
+sdks/**/.venv/
+sdks/**/dist/
 composer-setup.php
 .phpunit.cache/
 .phpunit.result.cache
