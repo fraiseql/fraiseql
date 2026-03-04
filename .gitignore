@@ -27,12 +27,16 @@ MANIFEST
 
 # Rust
 target/
-Cargo.lock
+# Cargo.lock intentionally excluded: this is primarily a library workspace.
+# Downstream applications pin their own lockfiles.
+# Re-add if fraiseql-cli is published as a standalone install.
+# Cargo.lock
 **/*.rs.bk
 *.pdb
 rustc-ice-*.txt
 **/fuzz/corpus/
 **/fuzz/artifacts/
+**/fuzz/target/
 
 # PyO3 / Rust-Python FFI
 # .cargo/ - We DO commit .cargo/config.toml for team tooling
