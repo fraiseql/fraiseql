@@ -135,6 +135,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Ok(())
     }
 
+    /// Start server on an externally created listener.
+    ///
+    /// Used in tests to discover the bound port before serving.
+    /// Skips TLS, Flight, and observer startup — suitable for unit/integration tests only.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the server encounters a runtime error.
+    pub async fn serve_on_listener<F>(self, listener: TcpListener, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let app = self.build_router();
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown)
+            .await
+            .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+        Ok(())
+    }
+
     /// Listen for shutdown signals (Ctrl+C or SIGTERM)
     pub async fn shutdown_signal() {
         use tokio::signal;

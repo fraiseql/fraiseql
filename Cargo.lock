@@ -2930,6 +2930,8 @@ dependencies = [
  "subtle",
  "temp-env",
  "tempfile",
+ "testcontainers",
+ "testcontainers-modules",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls 0.25.0",

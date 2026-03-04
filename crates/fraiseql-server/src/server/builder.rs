@@ -66,23 +66,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
         let trusted_docs = Self::trusted_docs_from_schema(&schema);
 
-        // Warn when query-result caching is active without RLS verification.
+        // Validate cache + RLS safety at startup.
         // Cache isolation relies entirely on per-user WHERE clauses in the cache key.
         // Without RLS, users with the same query and variables share the same cached
-        // response, which can leak data between tenants.
-        //
-        // For multi-tenant deployments using CachedDatabaseAdapter, call
-        // `adapter.enforce_rls(cache_config.rls_enforcement).await?` at startup
-        // to verify that PostgreSQL RLS is active before serving traffic.
-        if config.cache_enabled && !schema.has_rls_configured() && !schema.is_multi_tenant() {
+        // response, which can leak data across tenants.
+        if config.cache_enabled && !schema.has_rls_configured() {
+            if schema.is_multi_tenant() {
+                // Multi-tenant + cache + no RLS is a hard safety violation.
+                return Err(ServerError::ConfigError(
+                    "Cache is enabled in a multi-tenant schema but no Row-Level Security \
+                     policies are declared. This would allow cross-tenant cache hits and \
+                     data leakage. Either disable caching, declare RLS policies, or set \
+                     `security.multi_tenant = false` to acknowledge single-tenant mode."
+                        .to_string(),
+                ));
+            }
+            // Single-tenant with cache and no RLS: safe, but warn in case of misconfiguration.
             warn!(
-                "Query-result caching is enabled but no Row-Level Security policies are declared \
-                 in the compiled schema. Cache isolation relies on per-user WHERE clauses in cache \
-                 keys. Without RLS, users with the same query and variables will receive the same \
-                 cached response. This is safe for single-tenant deployments but WILL LEAK DATA \
-                 between tenants in multi-tenant deployments. \
-                 For multi-tenant deployments, set `security.multi_tenant = true` in your schema \
-                 and call `CachedDatabaseAdapter::enforce_rls()` at server startup."
+                "Query-result caching is enabled but no Row-Level Security policies are \
+                 declared in the compiled schema. This is safe for single-tenant deployments. \
+                 For multi-tenant deployments, declare RLS policies and set \
+                 `security.multi_tenant = true` in your schema."
             );
         }
 

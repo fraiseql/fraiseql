@@ -107,6 +107,9 @@ serde_yaml = "0.9"
 # Database testing
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
 tempfile = "3.13"
+# Container-based integration tests
+testcontainers = {version = "0.26", features = ["watchdog"]}
+testcontainers-modules = {version = "0.14", features = ["postgres"]}
 # Testing
 tokio-test = "0.4"
 # Utilities for E2E tests

@@ -100,6 +100,35 @@ The main CI pipeline (`ci.yml`) runs selected ignored tests automatically:
 
 The complete `Ignored Tests` job only runs on manual workflow dispatch (GitHub Actions → CI → "Run workflow").
 
+### 4. Federation Integration Tests (Real Subgraph)
+
+**Location**: `crates/fraiseql-server/tests/federation_integration_test.rs`
+
+**Why ignored**: These tests run FraiseQL as a real Apollo Federation subgraph.
+Tests 2 and 3 pull Docker images via testcontainers (PostgreSQL + optionally Apollo Router).
+Tests 1 and 4 use `FailingAdapter` (no real DB) but are still `#[ignore]` to keep them out of the default run.
+
+**Gate environment variable**: `FRAISEQL_DOCKER=1` (set in CI to signal Docker is available)
+
+**How to run**:
+```bash
+# All 4 tests (Docker must be available):
+cargo nextest run -p fraiseql-server --test federation_integration_test \
+  -- --include-ignored
+
+# SDL + null-entity tests only (no real DB needed, but still #[ignore]):
+cargo nextest run -p fraiseql-server --test federation_integration_test \
+  -E 'test(service_sdl) | test(entities_returns_null)' -- --include-ignored
+```
+
+**Tests**:
+| Test | Requires | Purpose |
+|------|----------|---------|
+| `service_sdl_contains_federation_directives` | FailingAdapter | SDL has inline `@key` directives |
+| `entities_resolves_user_by_id` | PostgreSQL container | `_entities` resolves real DB row |
+| `apollo_router_routes_query_to_fraiseql_subgraph` | PostgreSQL + Apollo Router containers | Full gateway-to-subgraph flow |
+| `entities_returns_null_for_missing_entity` | FailingAdapter | Missing entity → null (not error) |
+
 ## Adding New Ignored Tests
 
 When adding a new ignored test:

@@ -10,6 +10,30 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
 
     let mut sdl = String::new();
 
+    // Inject @key directives inline into type definition headers.
+    // Replaces `type Foo {` with `type Foo @key(fields: "id") {` for each federated type.
+    let mut modified_schema = base_schema.to_string();
+    for fed_type in &metadata.types {
+        if !fed_type.keys.is_empty() {
+            let key_directives: String = fed_type
+                .keys
+                .iter()
+                .map(|key| {
+                    let fields_str = key.fields.join(" ");
+                    if key.resolvable {
+                        format!("@key(fields: \"{fields_str}\") ")
+                    } else {
+                        format!("@key(fields: \"{fields_str}\", resolvable: false) ")
+                    }
+                })
+                .collect();
+
+            let old = format!("type {} {{", fed_type.name);
+            let new = format!("type {} {}{{", fed_type.name, key_directives);
+            modified_schema = modified_schema.replace(&old, &new);
+        }
+    }
+
     // Add federation schema directives
     let federation_schema = r"
 directive @key(fields: String!, resolvable: Boolean = true) repeatable on OBJECT
@@ -37,31 +61,16 @@ scalar _Any
     };
 
     // Build complete schema
-    sdl.push_str(base_schema);
+    sdl.push_str(&modified_schema);
     sdl.push_str("\n\n");
     sdl.push_str(federation_schema);
     sdl.push('\n');
     sdl.push_str(&union_str);
 
-    // Add @key directives to types in schema (simplified - would need proper schema parsing)
     sdl.push_str("\nextend type Query {\n");
     sdl.push_str("  _service: _Service!\n");
     sdl.push_str("  _entities(representations: [_Any!]!): [_Entity]!\n");
     sdl.push_str("}\n");
-
-    // Add @key directives as comments
-    for fed_type in &metadata.types {
-        if !fed_type.keys.is_empty() {
-            sdl.push_str("\n# @key directives for ");
-            sdl.push_str(&fed_type.name);
-            sdl.push_str(":\n");
-            for key in &fed_type.keys {
-                sdl.push_str("# @key(fields: \"");
-                sdl.push_str(&key.fields.join(" "));
-                sdl.push_str("\")\n");
-            }
-        }
-    }
 
     sdl
 }
@@ -127,5 +136,32 @@ mod tests {
     fn test_validate_sdl_invalid() {
         let invalid_sdl = "type Query { test: String }";
         assert!(!validate_sdl(invalid_sdl));
+    }
+
+    #[test]
+    fn test_key_directives_emitted_inline() {
+        use crate::federation::types::{FederatedType, KeyDirective};
+
+        let metadata = FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types:   vec![FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:      vec!["id".to_string()],
+                    resolvable:  true,
+                }],
+                is_extends:       false,
+                external_fields:  Vec::new(),
+                shareable_fields: Vec::new(),
+                field_directives: std::collections::HashMap::new(),
+            }],
+        };
+
+        let base_schema = "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}";
+        let sdl = generate_service_sdl(base_schema, &metadata);
+
+        assert!(sdl.contains("type User @key(fields: \"id\") {"), "SDL: {}", sdl);
+        assert!(!sdl.contains("# @key"), "must not contain commented @key: {}", sdl);
     }
 }

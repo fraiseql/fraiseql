@@ -366,13 +366,26 @@ impl CompiledSchema {
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
         self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
+            let types = fed
+                .entities
+                .iter()
+                .map(|e| crate::federation::types::FederatedType {
+                    name:             e.name.clone(),
+                    keys:             vec![crate::federation::types::KeyDirective {
+                        fields:     e.key_fields.clone(),
+                        resolvable: true,
+                    }],
+                    is_extends:       false,
+                    external_fields:  Vec::new(),
+                    shareable_fields: Vec::new(),
+                    field_directives: std::collections::HashMap::new(),
+                })
+                .collect();
+
             crate::federation::FederationMetadata {
                 enabled: fed.enabled,
-                version: fed
-                    .version
-                    .clone()
-                    .unwrap_or_else(|| "v2".to_string()),
-                types: Vec::new(),
+                version: fed.version.clone().unwrap_or_else(|| "v2".to_string()),
+                types,
             }
         })
     }

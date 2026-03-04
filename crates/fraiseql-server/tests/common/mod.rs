@@ -2,6 +2,8 @@
 
 pub mod database_fixture;
 pub mod graphql_executor;
+#[allow(dead_code)]
+pub mod server_harness;
 // Each integration test binary compiles this module independently and uses
 // only a subset of helpers, so unused-function warnings are expected.
 #[allow(dead_code)]
