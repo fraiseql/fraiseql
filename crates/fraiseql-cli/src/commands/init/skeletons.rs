@@ -3,7 +3,7 @@ use std::{fs, path::Path, process::Command};
 use anyhow::{Context, Result};
 use tracing::info;
 
-use super::{Database, InitConfig, Language};
+use super::{InitConfig, Language};
 
 pub(super) fn create_authoring_skeleton(project_dir: &Path, config: &InitConfig) -> Result<()> {
     match config.language {
