@@ -129,8 +129,8 @@ temp/
 TODO_*/
 mutants.out/
 
-# PHP
-vendor/
+# PHP (composer vendor directories, not the Rust vendor/ at repo root)
+sdks/**/vendor/
 composer.phar
 composer-setup.php
 .phpunit.cache/
