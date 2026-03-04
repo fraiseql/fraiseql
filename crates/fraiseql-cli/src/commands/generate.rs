@@ -510,7 +510,10 @@ fn generate_rust_query(out: &mut String, query: &IntermediateQuery) {
             .collect();
         out.push_str(&format!("pub fn {}({}) -> {ret_type} {{\n", query.name, args.join(", ")));
     }
-    out.push_str("    unimplemented!()\n}\n\n");
+    // Emit a stub body. FraiseQL Rust SDK functions are authoring constructs
+    // (compile-time decorators) — their bodies are never called at runtime.
+    // Users may leave the stub in place or replace it with their own logic.
+    out.push_str("    todo!(\"Replace with your implementation or leave as stub\")\n}\n\n");
 }
 
 // =============================================================================
