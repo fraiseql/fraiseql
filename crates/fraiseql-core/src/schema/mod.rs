@@ -43,6 +43,7 @@ mod config_types;
 mod dependency_graph;
 pub mod domain_types;
 mod field_type;
+pub mod graphql_value;
 mod graphql_type_defs;
 mod introspection;
 pub mod introspection_types;
@@ -76,6 +77,7 @@ pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
     FieldType, VectorConfig, VectorIndexType,
 };
+pub use graphql_value::GraphQLValue;
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,

@@ -153,7 +153,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         if !arg.nullable && arg.default_value.is_none() {
                             missing_required.push(&arg.name);
                         }
-                        arg.default_value.clone().unwrap_or(serde_json::Value::Null)
+                        arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
                     },
                 }
             })

@@ -264,9 +264,9 @@ pub struct FieldDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
-    /// Default value (JSON representation).
+    /// Default value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default_value: Option<serde_json::Value>,
+    pub default_value: Option<super::graphql_value::GraphQLValue>,
 
     /// Vector configuration (for pgvector fields).
     /// Only present when `field_type` is Vector.
@@ -473,7 +473,7 @@ impl FieldDefinition {
 
     /// Add default value to field.
     #[must_use]
-    pub fn with_default(mut self, value: serde_json::Value) -> Self {
+    pub fn with_default(mut self, value: super::graphql_value::GraphQLValue) -> Self {
         self.default_value = Some(value);
         self
     }

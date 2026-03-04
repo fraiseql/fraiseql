@@ -43,7 +43,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::validation::ValidationRule;
+use crate::{schema::GraphQLValue, validation::ValidationRule};
 
 /// Authoring Intermediate Representation.
 ///
@@ -228,8 +228,8 @@ pub struct IRArgument {
     /// Is argument nullable?
     pub nullable: bool,
 
-    /// Default value (as JSON).
-    pub default_value: Option<serde_json::Value>,
+    /// Default value.
+    pub default_value: Option<GraphQLValue>,
 
     /// Argument description.
     pub description: Option<String>,
@@ -348,8 +348,8 @@ pub struct IRInputField {
     /// Is field nullable?
     pub nullable: bool,
 
-    /// Default value (as JSON).
-    pub default_value: Option<serde_json::Value>,
+    /// Default value.
+    pub default_value: Option<GraphQLValue>,
 
     /// Field description.
     pub description: Option<String>,

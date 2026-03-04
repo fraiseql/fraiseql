@@ -36,6 +36,8 @@
 
 use serde_json::Value;
 
+use crate::schema::GraphQLValue;
+
 use super::{
     enum_validator::EnumValidator,
     ir::{
@@ -459,7 +461,10 @@ impl SchemaParser {
             name,
             arg_type,
             nullable,
-            default_value: obj.get("default_value").cloned(),
+            default_value: obj
+                .get("default_value")
+                .map(GraphQLValue::from_json)
+                .transpose()?,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
@@ -668,7 +673,10 @@ impl SchemaParser {
             name,
             field_type,
             nullable,
-            default_value: obj.get("default_value").cloned(),
+            default_value: obj
+                .get("default_value")
+                .map(GraphQLValue::from_json)
+                .transpose()?,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
         })
     }
@@ -1130,8 +1138,8 @@ mod tests {
         }"#;
 
         let ir = parser.parse(json).unwrap();
-        assert_eq!(ir.input_types[0].fields[0].default_value, Some(serde_json::json!(10)));
-        assert_eq!(ir.input_types[0].fields[1].default_value, Some(serde_json::json!(true)));
+        assert_eq!(ir.input_types[0].fields[0].default_value, Some(GraphQLValue::Int(10)));
+        assert_eq!(ir.input_types[0].fields[1].default_value, Some(GraphQLValue::Boolean(true)));
     }
 
     #[test]

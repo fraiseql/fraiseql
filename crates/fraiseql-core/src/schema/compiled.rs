@@ -1044,9 +1044,9 @@ pub struct ArgumentDefinition {
     #[serde(default)]
     pub nullable: bool,
 
-    /// Default value (JSON representation).
+    /// Default value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default_value: Option<serde_json::Value>,
+    pub default_value: Option<super::graphql_value::GraphQLValue>,
 
     /// Description.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -163,11 +163,19 @@ impl SchemaConverter {
             .deprecated
             .map(|d| fraiseql_core::schema::DeprecationInfo { reason: d.reason });
 
+        let default_value = intermediate
+            .default
+            .map(|v| fraiseql_core::schema::GraphQLValue::from_json(&v))
+            .transpose()
+            .with_context(|| {
+                format!("invalid default value for argument `{}`", intermediate.name)
+            })?;
+
         Ok(ArgumentDefinition {
             name: intermediate.name,
             arg_type,
             nullable: intermediate.nullable,
-            default_value: intermediate.default,
+            default_value,
             description: None,
             deprecation,
         })

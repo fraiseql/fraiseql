@@ -382,7 +382,7 @@ impl CodeGenerator {
                     field_type:       f.field_type.clone(), /* InputFieldDefinition uses String,
                                                              * not FieldType */
                     description:      f.description.clone(),
-                    default_value:    f.default_value.as_ref().map(|v| v.to_string()),
+                    default_value:    f.default_value.as_ref().map(|v| v.to_json().to_string()),
                     deprecation:      None, // Note: IR input fields don't have deprecation yet
                     validation_rules: Vec::new(), /* Validation rules set separately from @validate
                                              * directives */
@@ -426,7 +426,7 @@ mod tests {
         super::ir::{AutoParams, IRArgument, IRField, IRQuery, IRSubscription, IRType},
         *,
     };
-    use crate::schema::CursorType;
+    use crate::schema::{CursorType, GraphQLValue};
 
     #[test]
     fn test_code_generator_new() {
@@ -546,7 +546,7 @@ mod tests {
                 name:          "limit".to_string(),
                 arg_type:      "Int".to_string(),
                 nullable:      true,
-                default_value: Some(serde_json::json!(10)),
+                default_value: Some(GraphQLValue::Int(10)),
                 description:   None,
             }],
             sql_source:   Some("v_user".to_string()),
@@ -585,7 +585,7 @@ mod tests {
         );
         assert!(users_query.auto_params.has_where);
         assert!(users_query.auto_params.has_order_by);
-        assert_eq!(users_query.arguments[0].default_value, Some(serde_json::json!(10)));
+        assert_eq!(users_query.arguments[0].default_value, Some(GraphQLValue::Int(10)));
         assert_eq!(users_query.relay_cursor_type, CursorType::Int64);
         assert!(users_query.inject_params.is_empty());
         assert!(users_query.cache_ttl_seconds.is_none());
@@ -841,7 +841,7 @@ mod tests {
                     name:          "age".to_string(),
                     field_type:    "Int".to_string(),
                     nullable:      true,
-                    default_value: Some(serde_json::json!(18)),
+                    default_value: Some(GraphQLValue::Int(18)),
                     description:   None,
                 },
             ],
