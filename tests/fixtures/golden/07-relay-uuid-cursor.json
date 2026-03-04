@@ -50,15 +50,17 @@
     }
   },
   "debug_config": {
-    "log_sql": false,
-    "explain_queries": false,
-    "slow_query_threshold_ms": 500
+    "enabled": true,
+    "database_explain": true,
+    "expose_sql": true
   },
   "mcp_config": {
     "enabled": true,
-    "server_name": "fraiseql-items",
-    "description": "MCP server exposing items data",
-    "expose_queries": ["items"]
+    "transport": "http",
+    "path": "/mcp",
+    "require_auth": true,
+    "include": ["items"],
+    "exclude": []
   },
   "schema_sdl": "type Item { id: UUID! name: String! slug: String! }\ntype Query { items(first: Int, after: String, last: Int, before: String): ItemConnection! }"
 }

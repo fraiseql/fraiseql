@@ -3,8 +3,9 @@
 //! Language-agnostic schema representation that all language libraries output.
 //! See .`claude/INTERMEDIATE_SCHEMA_FORMAT.md` for full specification.
 
-use indexmap::IndexMap;
+use fraiseql_core::schema::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig};
 use fraiseql_core::validation::ValidationRule;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 /// Intermediate schema - universal format from all language libraries
@@ -99,28 +100,28 @@ pub struct IntermediateSchema {
     /// Compiled from the `[subscriptions]` TOML section. Embedded verbatim into
     /// the compiled schema for server-side consumption.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subscriptions_config: Option<serde_json::Value>,
+    pub subscriptions_config: Option<SubscriptionsConfig>,
 
     /// Query validation config (depth/complexity limits).
     ///
     /// Compiled from `[validation]` in `fraiseql.toml`. Embedded into the compiled
     /// schema for server-side consumption.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub validation_config: Option<serde_json::Value>,
+    pub validation_config: Option<ValidationConfig>,
 
     /// Debug/development configuration.
     ///
     /// Compiled from `[debug]` in `fraiseql.toml`. Embedded into the compiled
     /// schema for server-side consumption.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub debug_config: Option<serde_json::Value>,
+    pub debug_config: Option<DebugConfig>,
 
     /// MCP (Model Context Protocol) server configuration.
     ///
     /// Compiled from `[mcp]` in `fraiseql.toml`. Embedded into the compiled
     /// schema for server-side consumption.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_config: Option<serde_json::Value>,
+    pub mcp_config: Option<McpConfig>,
 
     /// Global auto-param defaults for list queries (injected from TOML by the merger).
     ///

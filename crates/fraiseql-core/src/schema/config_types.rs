@@ -286,6 +286,111 @@ pub struct EventHandler {
     pub rate_limit:       Option<u32>,
 }
 
+/// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DebugConfig {
+    /// Master switch — all debug features require this to be `true`.
+    pub enabled:          bool,
+    /// When `true`, the explain endpoint also runs `EXPLAIN` against the database.
+    pub database_explain: bool,
+    /// When `true`, the explain endpoint includes the generated SQL in the response.
+    pub expose_sql:       bool,
+}
+
+impl Default for DebugConfig {
+    fn default() -> Self {
+        Self {
+            enabled:          false,
+            database_explain: false,
+            expose_sql:       true,
+        }
+    }
+}
+
+/// Query validation limits (compiled from `[validation]` in `fraiseql.toml`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ValidationConfig {
+    /// Maximum allowed query nesting depth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_query_depth:      Option<u32>,
+    /// Maximum allowed query complexity score.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_query_complexity: Option<u32>,
+}
+
+/// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct McpConfig {
+    /// Whether MCP is enabled.
+    pub enabled:      bool,
+    /// Transport mode: "http", "stdio", or "both".
+    pub transport:    String,
+    /// HTTP path for MCP endpoint (e.g., "/mcp").
+    pub path:         String,
+    /// Require authentication for MCP requests.
+    pub require_auth: bool,
+    /// Whitelist of query/mutation names to expose (empty = all).
+    pub include:      Vec<String>,
+    /// Blacklist of query/mutation names to hide.
+    pub exclude:      Vec<String>,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self {
+            enabled:      false,
+            transport:    "http".to_string(),
+            path:         "/mcp".to_string(),
+            require_auth: true,
+            include:      Vec::new(),
+            exclude:      Vec::new(),
+        }
+    }
+}
+
+/// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SubscriptionsConfig {
+    /// Maximum subscriptions per WebSocket connection (`None` = unlimited).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_subscriptions_per_connection: Option<u32>,
+    /// Webhook lifecycle hooks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hooks:                            Option<SubscriptionHooksConfig>,
+}
+
+/// Webhook URLs invoked during subscription lifecycle events.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SubscriptionHooksConfig {
+    /// URL to POST on WebSocket `connection_init` (fail-closed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_connect:    Option<String>,
+    /// URL to POST on WebSocket disconnect (fire-and-forget).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_disconnect: Option<String>,
+    /// URL to POST before a subscription is registered (fail-closed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_subscribe:  Option<String>,
+    /// Timeout in milliseconds for fail-closed hooks (default: 500).
+    pub timeout_ms:    u64,
+}
+
+impl Default for SubscriptionHooksConfig {
+    fn default() -> Self {
+        Self {
+            on_connect:    None,
+            on_disconnect: None,
+            on_subscribe:  None,
+            timeout_ms:    500,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -82,27 +82,19 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
 
         // Initialize MCP config from compiled schema when the feature is compiled in.
         #[cfg(feature = "mcp")]
-        {
-            if let Some(ref mcp_json) = server.executor.schema().mcp_config {
-                match serde_json::from_value::<crate::mcp::McpConfig>(mcp_json.clone()) {
-                    Ok(cfg) if cfg.enabled => {
-                        let tool_count = crate::mcp::tools::schema_to_tools(
-                            server.executor.schema(),
-                            &cfg,
-                        ).len();
-                        info!(
-                            path = %cfg.path,
-                            transport = %cfg.transport,
-                            tools = tool_count,
-                            "MCP server configured"
-                        );
-                        server.mcp_config = Some(cfg);
-                    }
-                    Ok(_) => {}
-                    Err(e) => {
-                        warn!(error = %e, "Invalid mcp_config in compiled schema — MCP disabled");
-                    }
-                }
+        if let Some(ref cfg) = server.executor.schema().mcp_config {
+            if cfg.enabled {
+                let tool_count = crate::mcp::tools::schema_to_tools(
+                    server.executor.schema(),
+                    cfg,
+                ).len();
+                info!(
+                    path = %cfg.path,
+                    transport = %cfg.transport,
+                    tools = tool_count,
+                    "MCP server configured"
+                );
+                server.mcp_config = Some(cfg.clone());
             }
         }
 

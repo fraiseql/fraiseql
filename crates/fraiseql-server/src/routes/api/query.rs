@@ -340,15 +340,8 @@ fn estimate_cost(complexity: &ComplexityInfo) -> usize {
 }
 
 /// Check whether DB-level EXPLAIN is enabled in the debug configuration.
-fn is_db_explain_enabled(debug_config: Option<&serde_json::Value>) -> bool {
-    debug_config
-        .and_then(|c| c.get("enabled"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
-        && debug_config
-            .and_then(|c| c.get("database_explain"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false)
+fn is_db_explain_enabled(debug_config: Option<&fraiseql_core::schema::DebugConfig>) -> bool {
+    debug_config.is_some_and(|c| c.enabled && c.database_explain)
 }
 
 /// Validate GraphQL query syntax.
@@ -526,33 +519,30 @@ mod tests {
 
     #[test]
     fn test_debug_disabled_no_db_explain() {
+        use fraiseql_core::schema::DebugConfig;
+
         // Default (no debug config) → DB explain disabled
         assert!(!is_db_explain_enabled(None));
 
         // Enabled but database_explain false
-        let config = serde_json::json!({
-            "enabled": true,
-            "database_explain": false,
-        });
+        let config = DebugConfig { enabled: true, database_explain: false, ..Default::default() };
         assert!(!is_db_explain_enabled(Some(&config)));
     }
 
     #[test]
     fn test_debug_enabled_db_explain() {
-        let config = serde_json::json!({
-            "enabled": true,
-            "database_explain": true,
-        });
+        use fraiseql_core::schema::DebugConfig;
+
+        let config = DebugConfig { enabled: true, database_explain: true, ..Default::default() };
         assert!(is_db_explain_enabled(Some(&config)));
     }
 
     #[test]
     fn test_debug_master_switch_required() {
+        use fraiseql_core::schema::DebugConfig;
+
         // database_explain true but master switch off → disabled
-        let config = serde_json::json!({
-            "enabled": false,
-            "database_explain": true,
-        });
+        let config = DebugConfig { enabled: false, database_explain: true, ..Default::default() };
         assert!(!is_db_explain_enabled(Some(&config)));
     }
 }

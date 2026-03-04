@@ -853,8 +853,8 @@ max_query_complexity = 25
 
         // validation_config should be populated
         let vc = schema.validation_config.as_ref().expect("validation_config should be set");
-        assert_eq!(vc.get("max_query_depth").and_then(serde_json::Value::as_u64), Some(3));
-        assert_eq!(vc.get("max_query_complexity").and_then(serde_json::Value::as_u64), Some(25));
+        assert_eq!(vc.max_query_depth, Some(3));
+        assert_eq!(vc.max_query_complexity, Some(25));
 
         let _ = std::fs::remove_file(temp_path);
     }

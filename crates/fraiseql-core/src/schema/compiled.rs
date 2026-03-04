@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+use super::config_types::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig};
 use super::field_type::FieldType;
 use super::graphql_type_defs::{
     EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -114,22 +115,22 @@ pub struct CompiledSchema {
     /// WebSocket subscription configuration (hooks, limits).
     /// Compiled from the `[subscriptions]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subscriptions_config: Option<serde_json::Value>,
+    pub subscriptions_config: Option<SubscriptionsConfig>,
 
     /// Query validation config (depth/complexity limits).
     /// Compiled from the `[validation]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub validation_config: Option<serde_json::Value>,
+    pub validation_config: Option<ValidationConfig>,
 
     /// Debug/development configuration.
     /// Compiled from the `[debug]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub debug_config: Option<serde_json::Value>,
+    pub debug_config: Option<DebugConfig>,
 
     /// MCP (Model Context Protocol) server configuration.
     /// Compiled from the `[mcp]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp_config: Option<serde_json::Value>,
+    pub mcp_config: Option<McpConfig>,
 
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -162,6 +163,9 @@ impl PartialEq for CompiledSchema {
             && self.security == other.security
             && self.observers_config == other.observers_config
             && self.subscriptions_config == other.subscriptions_config
+            && self.validation_config == other.validation_config
+            && self.debug_config == other.debug_config
+            && self.mcp_config == other.mcp_config
             && self.schema_sdl == other.schema_sdl
     }
 }

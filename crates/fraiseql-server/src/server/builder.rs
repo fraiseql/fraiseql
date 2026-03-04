@@ -87,7 +87,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Read subscription config from compiled schema (hooks, limits).
-        let subscriptions_config_json = schema.subscriptions_config.clone();
+        let subscriptions_config = schema.subscriptions_config.clone();
 
         let executor = Arc::new(Executor::new(schema.clone(), adapter));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
@@ -111,27 +111,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Initialize MCP config from compiled schema when the feature is compiled in.
         #[cfg(feature = "mcp")]
-        {
-            if let Some(ref mcp_json) = server.executor.schema().mcp_config {
-                match serde_json::from_value::<crate::mcp::McpConfig>(mcp_json.clone()) {
-                    Ok(cfg) if cfg.enabled => {
-                        let tool_count = crate::mcp::tools::schema_to_tools(
-                            server.executor.schema(),
-                            &cfg,
-                        ).len();
-                        info!(
-                            path = %cfg.path,
-                            transport = %cfg.transport,
-                            tools = tool_count,
-                            "MCP server configured"
-                        );
-                        server.mcp_config = Some(cfg);
-                    }
-                    Ok(_) => {}
-                    Err(e) => {
-                        warn!(error = %e, "Invalid mcp_config in compiled schema — MCP disabled");
-                    }
-                }
+        if let Some(ref cfg) = server.executor.schema().mcp_config {
+            if cfg.enabled {
+                let tool_count = crate::mcp::tools::schema_to_tools(
+                    server.executor.schema(),
+                    cfg,
+                ).len();
+                info!(
+                    path = %cfg.path,
+                    transport = %cfg.transport,
+                    tools = tool_count,
+                    "MCP server configured"
+                );
+                server.mcp_config = Some(cfg.clone());
             }
         }
 
@@ -144,15 +136,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Apply subscription lifecycle/limits from compiled schema.
-        if let Some(ref subs_json) = subscriptions_config_json {
-            if let Some(max) = subs_json.get("max_subscriptions_per_connection").and_then(|v| v.as_u64()) {
-                #[allow(clippy::cast_possible_truncation)]  // Reason: max_subscriptions_per_connection is a u32 config field; u64 → u32
-                // truncation is acceptable for a limit that would never exceed u32::MAX.
-                {
-                    server.max_subscriptions_per_connection = Some(max as u32);
-                }
+        if let Some(ref subs) = subscriptions_config {
+            if let Some(max) = subs.max_subscriptions_per_connection {
+                server.max_subscriptions_per_connection = Some(max);
             }
-            if let Some(lifecycle) = crate::subscriptions::WebhookLifecycle::from_schema_json(subs_json) {
+            if let Some(lifecycle) = crate::subscriptions::WebhookLifecycle::from_config(subs) {
                 server.subscription_lifecycle = Arc::new(lifecycle);
             }
         }

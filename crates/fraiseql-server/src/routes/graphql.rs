@@ -136,7 +136,7 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Request validator (depth/complexity limits, configured from compiled schema).
     pub validator:    crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
-    pub debug_config: Option<serde_json::Value>,
+    pub debug_config: Option<fraiseql_core::schema::DebugConfig>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -208,6 +208,7 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
+    #[cfg(feature = "arrow")]
     fn set_config(mut self, config: Arc<crate::config::ServerConfig>) -> Self {
         self.config = Some(config);
         self

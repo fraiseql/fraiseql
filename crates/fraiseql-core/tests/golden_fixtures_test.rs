@@ -458,11 +458,13 @@ fn golden_07_federation_debug_mcp_sdl() {
     assert!(fed.get("circuit_breaker").is_some());
 
     let debug = schema.debug_config.as_ref().expect("debug_config must be present");
-    assert_eq!(debug["slow_query_threshold_ms"], 500);
+    assert!(debug.enabled);
+    assert!(debug.database_explain);
 
     let mcp = schema.mcp_config.as_ref().expect("mcp_config must be present");
-    assert_eq!(mcp["enabled"], true);
-    assert_eq!(mcp["server_name"], "fraiseql-items");
+    assert!(mcp.enabled);
+    assert_eq!(mcp.path, "/mcp");
+    assert_eq!(mcp.include, ["items"]);
 
     let sdl = schema.schema_sdl.as_ref().expect("schema_sdl must be present");
     assert!(sdl.contains("type Item"));

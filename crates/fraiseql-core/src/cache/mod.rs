@@ -73,6 +73,7 @@
 //!     max_entries: 50_000,
 //!     ttl_seconds: 86_400,  // 24 hours
 //!     cache_list_queries: true,
+//!     ..Default::default()
 //! };
 //!
 //! // Development (disable for deterministic tests)

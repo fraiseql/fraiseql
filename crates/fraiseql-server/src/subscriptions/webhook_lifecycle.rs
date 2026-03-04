@@ -49,6 +49,25 @@ impl WebhookLifecycle {
         }
     }
 
+    /// Build from typed subscriptions configuration.
+    ///
+    /// Returns `None` if no hooks are configured.
+    #[must_use]
+    pub fn from_config(
+        config: &fraiseql_core::schema::SubscriptionsConfig,
+    ) -> Option<Self> {
+        let hooks = config.hooks.as_ref()?;
+        if hooks.on_connect.is_none() && hooks.on_disconnect.is_none() && hooks.on_subscribe.is_none() {
+            return None;
+        }
+        Some(Self::new(
+            hooks.on_connect.clone(),
+            hooks.on_disconnect.clone(),
+            hooks.on_subscribe.clone(),
+            hooks.timeout_ms,
+        ))
+    }
+
     /// Build from compiled schema JSON (`subscriptions.hooks` section).
     ///
     /// Returns `None` if no hooks are configured.

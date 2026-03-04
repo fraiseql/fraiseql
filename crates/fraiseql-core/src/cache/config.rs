@@ -51,6 +51,7 @@
 //!     max_entries: 5_000,
 //!     ttl_seconds: 3_600, // 1 hour
 //!     cache_list_queries: true,
+//!     ..Default::default()
 //! };
 //! ```
 //!

@@ -83,5 +83,5 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) flight_service: Option<FraiseQLFlightService>,
 
     #[cfg(feature = "mcp")]
-    pub(super) mcp_config: Option<crate::mcp::McpConfig>,
+    pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,
 }

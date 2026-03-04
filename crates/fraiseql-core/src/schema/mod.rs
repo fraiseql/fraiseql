@@ -67,8 +67,9 @@ pub use subscription_types::{
 pub use security_config::{InjectedParamSource, RoleDefinition, SecurityConfig};
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CircuitBreakerConfig, CompiledSecurityConfig,
-    EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler, FederationConfig,
-    FederationEntity, FieldAuthRule, ObserversConfig,
+    DebugConfig, EnterpriseSecurityConfig, EntityCircuitBreakerOverride, EventHandler,
+    FederationConfig, FederationEntity, FieldAuthRule, McpConfig, ObserversConfig,
+    SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{

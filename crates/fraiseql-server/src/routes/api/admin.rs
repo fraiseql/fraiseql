@@ -74,7 +74,7 @@ pub struct AdminConfigResponse {
 ///
 /// Requires admin token authentication.
 pub async fn reload_schema_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+    State(_state): State<AppState<A>>,
     Json(req): Json<ReloadSchemaRequest>,
 ) -> Result<Json<ApiResponse<ReloadSchemaResponse>>, ApiError> {
     if req.schema_path.is_empty() {
@@ -153,7 +153,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
     #[cfg(not(feature = "arrow"))]
     {
         let _ = (state, req);
-        return Err(ApiError::internal_error("Cache not configured"));
+        Err(ApiError::internal_error("Cache not configured"))
     }
 
     #[cfg(feature = "arrow")]

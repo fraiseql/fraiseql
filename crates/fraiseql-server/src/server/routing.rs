@@ -47,11 +47,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Build RequestValidator from compiled schema validation config
         let mut validator = crate::validation::RequestValidator::new();
         if let Some(ref vc) = self.executor.schema().validation_config {
-            if let Some(depth) = vc.get("max_query_depth").and_then(serde_json::Value::as_u64) {
+            if let Some(depth) = vc.max_query_depth {
                 validator = validator.with_max_depth(depth as usize);
                 info!(max_query_depth = depth, "Custom query depth limit configured");
             }
-            if let Some(complexity) = vc.get("max_query_complexity").and_then(serde_json::Value::as_u64) {
+            if let Some(complexity) = vc.max_query_complexity {
                 validator = validator.with_max_complexity(complexity as usize);
                 info!(max_query_complexity = complexity, "Custom query complexity limit configured");
             }
