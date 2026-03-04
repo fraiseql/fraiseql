@@ -174,7 +174,7 @@ use crate::{
     },
     error::{FraiseQLError, Result},
     schema::{
-        CompiledSchema, InjectedParamSource, IntrospectionResponses, SecurityConfig,
+        CompiledSchema, InjectedParamSource, IntrospectionResponses,
     },
     security::{FieldAccessError, SecurityContext},
 };
@@ -1009,17 +1009,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         use super::field_filter::FieldAccessResult;
 
         // Try to extract security config from compiled schema
-        if let Some(ref security_json) = self.schema.security {
-            let security_config: SecurityConfig = serde_json::from_value(security_json.clone())
-                .map_err(|_| FraiseQLError::Validation {
-                    message: "Invalid security configuration in compiled schema".to_string(),
-                    path:    Some("schema.security".to_string()),
-                })?;
-
+        if let Some(security_config) = self.schema.security.as_ref() {
             if let Some(type_def) = self.schema.types.iter().find(|t| t.name == return_type) {
                 return classify_field_access(
                     security_context,
-                    &security_config,
+                    security_config,
                     &type_def.fields,
                     projection_fields,
                 )

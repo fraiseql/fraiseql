@@ -18,7 +18,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         match schema.security.as_ref() {
             None => Ok(None),
             Some(s) => {
-                crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(s)
+                let s_val = serde_json::to_value(s).unwrap_or_default();
+                crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(&s_val)
                     .map_err(|e| ServerError::ConfigError(e.to_string()))
             },
         }
@@ -35,7 +36,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         state_encryption: Option<&Arc<crate::auth::state_encryption::StateEncryptionService>>,
     ) -> Option<Arc<crate::auth::PkceStateStore>> {
         let security = schema.security.as_ref()?;
-        let pkce_cfg = security.get("pkce")?;
+        let pkce_cfg = security.additional.get("pkce")?;
 
         #[derive(serde::Deserialize)]
         struct PkceCfgMinimal {
@@ -170,7 +171,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let sec: crate::middleware::RateLimitingSecurityConfig = schema
             .security
             .as_ref()
-            .and_then(|s| s.get("rate_limiting"))
+            .and_then(|s| s.additional.get("rate_limiting"))
             .and_then(|v| serde_json::from_value(v.clone()).ok())?;
 
         if !sec.enabled {
@@ -231,7 +232,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let sanitizer = schema
             .security
             .as_ref()
-            .and_then(|s| s.get("error_sanitization"))
+            .and_then(|s| s.additional.get("error_sanitization"))
             .and_then(|v| {
                 serde_json::from_value::<
                     crate::config::error_sanitization::ErrorSanitizationConfig,
@@ -249,7 +250,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         schema: &CompiledSchema,
     ) -> Option<Arc<crate::trusted_documents::TrustedDocumentStore>> {
         let security = schema.security.as_ref()?;
-        let td_cfg = security.get("trusted_documents")?;
+        let td_cfg = security.additional.get("trusted_documents")?;
 
         #[derive(serde::Deserialize)]
         struct TdCfgMinimal {

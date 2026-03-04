@@ -77,9 +77,9 @@ fn test_rich_filter_compilation_pipeline() {
     // 5. Verify lookup data is present
     assert!(compiled.security.is_some(), "Security section should exist for lookup data");
     let security = compiled.security.as_ref().unwrap();
-    assert!(security.get("lookup_data").is_some(), "Lookup data should be embedded");
+    assert!(security.additional.contains_key("lookup_data"), "Lookup data should be embedded");
 
-    let lookup = security["lookup_data"].as_object().unwrap();
+    let lookup = security.additional["lookup_data"].as_object().unwrap();
     assert!(lookup.contains_key("countries"), "Countries lookup should be present");
     assert!(lookup.contains_key("currencies"), "Currencies lookup should be present");
     assert!(lookup.contains_key("timezones"), "Timezones lookup should be present");
@@ -302,7 +302,7 @@ fn test_lookup_data_integrity() {
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
 
     let security = compiled.security.as_ref().expect("Security section should exist");
-    let lookup = security["lookup_data"].as_object().expect("Lookup data should be an object");
+    let lookup = security.additional["lookup_data"].as_object().expect("Lookup data should be an object");
 
     // Verify countries
     let countries = lookup["countries"].as_object().expect("Countries should exist");

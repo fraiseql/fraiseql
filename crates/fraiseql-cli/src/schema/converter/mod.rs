@@ -137,9 +137,21 @@ impl SchemaConverter {
             fact_tables, // Analytics metadata
             observers: Vec::new(), /* Observer definitions (populated from
                           * IntermediateSchema) */
-            federation: intermediate.federation_config,    // Federation config from TOML
-            security: intermediate.security,               // Security configuration from TOML
-            observers_config: intermediate.observers_config,         // Observers config from TOML
+            federation: intermediate
+                .federation_config
+                .map(serde_json::from_value)
+                .transpose()
+                .context("federation_config: invalid JSON structure")?,
+            security: intermediate
+                .security
+                .map(serde_json::from_value)
+                .transpose()
+                .context("security: invalid JSON structure")?,
+            observers_config: intermediate
+                .observers_config
+                .map(serde_json::from_value)
+                .transpose()
+                .context("observers_config: invalid JSON structure")?,
             subscriptions_config: intermediate.subscriptions_config, // Subscriptions config from TOML
             validation_config: intermediate.validation_config,       // Validation limits from TOML
             debug_config: intermediate.debug_config,                 // Debug config from TOML

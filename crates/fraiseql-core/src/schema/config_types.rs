@@ -12,7 +12,14 @@ pub struct FederationConfig {
     #[serde(default)]
     pub enabled:         bool,
     /// Federation specification version (e.g., "v2").
+    #[serde(default)]
     pub version:         Option<String>,
+    /// Subgraph service name (used in Apollo Studio).
+    #[serde(default)]
+    pub service_name:    Option<String>,
+    /// Subgraph SDL URL (exposed at `/__subgraph_schema`).
+    #[serde(default)]
+    pub schema_url:      Option<String>,
     /// Federated entities defined in this subgraph.
     #[serde(default)]
     pub entities:        Vec<FederationEntity>,
@@ -476,9 +483,11 @@ mod tests {
     #[test]
     fn test_roundtrip_serialization() {
         let config = FederationConfig {
-            enabled:         true,
-            version:         Some("v2".to_string()),
-            entities:        vec![FederationEntity {
+            enabled:      true,
+            version:      Some("v2".to_string()),
+            service_name: Some("my-service".to_string()),
+            schema_url:   None,
+            entities:     vec![FederationEntity {
                 name:       "User".to_string(),
                 key_fields: vec!["id".to_string()],
             }],

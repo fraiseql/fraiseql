@@ -146,7 +146,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         observers:      vec![],
         fact_tables:    HashMap::default(),
         federation:     None,
-        security:       Some(serde_json::to_value(security_config).unwrap()),
+        security:       Some(security_config),
         observers_config: None,
             subscriptions_config: None,
             validation_config: None,
@@ -184,8 +184,7 @@ fn test_field_filtering_partial_access() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -215,8 +214,7 @@ fn test_field_filtering_all_fields_denied() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 
@@ -239,8 +237,7 @@ fn test_field_filtering_empty_request() {
     // GIVEN: Empty field request
     let schema = create_schema_with_mixed_fields();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
     let empty_fields = vec![];
@@ -258,8 +255,7 @@ fn test_field_filtering_respects_field_order() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -286,8 +282,7 @@ fn test_field_filtering_duplicate_requests() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -313,8 +308,7 @@ fn test_field_access_denied_for_single_field() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 
@@ -335,8 +329,7 @@ fn test_field_access_public_fields_always_allowed() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 
@@ -358,8 +351,7 @@ fn test_field_filtering_with_null_fields() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -380,8 +372,7 @@ fn test_field_filtering_consistency_across_calls() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -407,8 +398,7 @@ fn test_field_filtering_mixed_nullability() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_context("viewer");
 
@@ -458,8 +448,7 @@ fn test_field_filtering_preserves_metadata_on_filtered() {
     let schema = create_schema_with_mixed_fields();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize");
+        schema.security.as_ref().expect("security config present").clone();
 
     let restricted_context = create_context("restricted");
 

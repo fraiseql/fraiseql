@@ -138,7 +138,7 @@ fn create_executor_test_schema() -> CompiledSchema {
         observers:      vec![],
         fact_tables:    HashMap::default(),
         federation:     None,
-        security:       Some(serde_json::to_value(security_config).unwrap()),
+        security:       Some(security_config),
         observers_config: None,
             subscriptions_config: None,
             validation_config: None,
@@ -176,8 +176,7 @@ fn test_executor_reader_sees_only_readable_fields() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 
@@ -203,8 +202,7 @@ fn test_executor_editor_sees_read_and_write_fields() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let editor_context = create_executor_context("editor");
 
@@ -227,8 +225,7 @@ fn test_executor_admin_sees_all_fields() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let admin_context = create_executor_context("admin");
 
@@ -245,8 +242,7 @@ fn test_executor_field_filtering_preserves_field_metadata() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 
@@ -275,8 +271,7 @@ fn test_executor_projection_fields_filtered_by_scope() {
     let all_field_names: Vec<String> = post_type.fields.iter().map(|f| f.name.to_string()).collect();
 
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 
@@ -317,8 +312,7 @@ fn test_executor_multiple_roles_scope_union() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let mut multi_role_context = create_executor_context("reader");
     multi_role_context.roles.push("editor".to_string());
@@ -338,8 +332,7 @@ fn test_executor_public_fields_in_all_scopes() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     // Test with minimal reader role
     let reader_context = create_executor_context("reader");
@@ -369,8 +362,7 @@ fn test_executor_field_access_check_pattern() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let content_field = post_type.fields.iter().find(|f| f.name == "content").unwrap();
     let analytics_field = post_type.fields.iter().find(|f| f.name == "analytics").unwrap();
@@ -392,11 +384,8 @@ fn test_executor_default_role_applied() {
     let schema = create_executor_test_schema();
     let security_value = schema.security.as_ref().expect("Should have security config");
 
-    // WHEN: Check default role
-    let default_role = &security_value["default_role"];
-
     // THEN: Should have default role set to "reader"
-    assert_eq!(default_role, "reader");
+    assert_eq!(security_value.default_role.as_deref(), Some("reader"));
 }
 
 #[test]
@@ -404,8 +393,7 @@ fn test_executor_field_filtering_idempotent() {
     let schema = create_executor_test_schema();
     let post_type = schema.types.iter().find(|t| t.name == "Post").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let reader_context = create_executor_context("reader");
 

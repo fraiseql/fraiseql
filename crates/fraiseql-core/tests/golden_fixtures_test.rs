@@ -396,9 +396,9 @@ fn golden_05_observers_config_and_validation_config() {
     assert!(schema.observers_config.is_some());
     assert!(schema.validation_config.is_some());
 
-    let obs_cfg = schema.observers_config.as_ref().unwrap();
-    assert_eq!(obs_cfg["backend"], "nats");
-    assert!(obs_cfg.get("nats_url").is_some());
+    let obs_cfg = schema.observers_config.as_ref().expect("observers_config present");
+    assert_eq!(obs_cfg.backend, "nats");
+    assert!(obs_cfg.nats_url.is_some());
 }
 
 #[test]
@@ -453,9 +453,9 @@ fn golden_07_federation_debug_mcp_sdl() {
     let schema = load_golden("07-relay-uuid-cursor.json");
 
     let fed = schema.federation.as_ref().expect("federation must be present");
-    assert_eq!(fed["enabled"], true);
-    assert_eq!(fed["service_name"], "items-service");
-    assert!(fed.get("circuit_breaker").is_some());
+    assert!(fed.enabled);
+    assert_eq!(fed.service_name.as_deref(), Some("items-service"));
+    assert!(fed.circuit_breaker.is_some());
 
     let debug = schema.debug_config.as_ref().expect("debug_config must be present");
     assert!(debug.enabled);

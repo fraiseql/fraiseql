@@ -106,7 +106,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         observers:      vec![],
         fact_tables:    HashMap::default(),
         federation:     None,
-        security:       Some(serde_json::to_value(security_config).unwrap()),
+        security:       Some(security_config),
         observers_config: None,
             subscriptions_config: None,
             validation_config: None,
@@ -140,25 +140,18 @@ fn test_user_with_viewer_role_can_access_public_fields() {
     let context = create_security_context(vec!["viewer".to_string()]);
 
     // Get the security config
-    let security_json = &schema.security;
-    assert!(security_json.is_some(), "Schema should have security config");
+    let security = schema.security.as_ref().expect("Schema should have security config");
 
     // Verify viewer role exists
-    let security_value = security_json.as_ref().unwrap();
-    let roles = &security_value["role_definitions"];
-    assert!(roles.is_array(), "Should have role definitions");
-
-    let viewer_role = roles
-        .as_array()
-        .unwrap()
+    let viewer_role = security
+        .role_definitions
         .iter()
-        .find(|r| r["name"] == "viewer")
+        .find(|r| r.name == "viewer")
         .expect("Viewer role should exist");
 
     // Verify viewer has read:User.* scope
-    let scopes = viewer_role["scopes"].as_array().expect("Should have scopes");
     assert!(
-        scopes.iter().any(|s| s == "read:User.*"),
+        viewer_role.scopes.iter().any(|s| s.as_str() == "read:User.*"),
         "Viewer should have read:User.* scope"
     );
 
@@ -194,22 +187,19 @@ fn test_user_with_admin_role_can_access_all_fields() {
     let context = create_security_context(vec!["admin".to_string()]);
 
     // Get security config
-    let security_json = &schema.security;
-    assert!(security_json.is_some(), "Schema should have security config");
+    let security = schema.security.as_ref().expect("Schema should have security config");
 
-    let security_value = security_json.as_ref().unwrap();
-    let roles = &security_value["role_definitions"];
-
-    let admin_role = roles
-        .as_array()
-        .unwrap()
+    let admin_role = security
+        .role_definitions
         .iter()
-        .find(|r| r["name"] == "admin")
+        .find(|r| r.name == "admin")
         .expect("Admin role should exist");
 
     // Verify admin has admin:* scope
-    let scopes = admin_role["scopes"].as_array().expect("Should have scopes");
-    assert!(scopes.iter().any(|s| s == "admin:*"), "Admin should have admin:* scope");
+    assert!(
+        admin_role.scopes.iter().any(|s| s.as_str() == "admin:*"),
+        "Admin should have admin:* scope"
+    );
 
     // Verify user has admin role
     assert!(context.roles.contains(&"admin".to_string()), "User should have admin role");
@@ -337,9 +327,8 @@ fn test_default_role_fallback() {
     let schema = create_schema_with_scoped_fields();
 
     // Get security config
-    let security_json = &schema.security;
-    let security_value = security_json.as_ref().unwrap();
+    let security = schema.security.as_ref().expect("Schema should have security config");
 
     // Verify default role is set
-    assert_eq!(security_value["default_role"], "viewer", "Should have viewer as default role");
+    assert_eq!(security.default_role.as_deref(), Some("viewer"), "Should have viewer as default role");
 }

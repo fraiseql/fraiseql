@@ -752,11 +752,11 @@
         assert!(compiled.security.is_some(), "Security section should exist");
         let security = compiled.security.as_ref().expect("test");
         assert!(
-            security.get("lookup_data").is_some(),
+            security.additional.contains_key("lookup_data"),
             "Lookup data should be in security section"
         );
 
-        let lookup_data = security["lookup_data"].as_object().expect("test");
+        let lookup_data = security.additional["lookup_data"].as_object().expect("test");
 
         // Verify all lookup tables are present
         assert!(lookup_data.contains_key("countries"), "Countries lookup should be present");

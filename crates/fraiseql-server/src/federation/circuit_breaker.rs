@@ -315,6 +315,50 @@ impl FederationCircuitBreakerManager {
         }
     }
 
+    /// Construct a manager from a typed [`fraiseql_core::schema::FederationConfig`].
+    ///
+    /// Returns `None` when `circuit_breaker` is absent or `enabled` is `false`.
+    #[must_use]
+    pub fn from_config(fed: &fraiseql_core::schema::FederationConfig) -> Option<Arc<Self>> {
+        let cb = fed.circuit_breaker.as_ref()?;
+        if !cb.enabled {
+            return None;
+        }
+        let default_config = CircuitBreakerConfig {
+            failure_threshold:     cb.failure_threshold,
+            recovery_timeout_secs: cb.recovery_timeout_secs,
+            success_threshold:     cb.success_threshold,
+        };
+        let manager = Arc::new(Self::new(default_config));
+        for override_entry in &cb.per_entity {
+            let entity_config = CircuitBreakerConfig {
+                failure_threshold:     override_entry
+                    .failure_threshold
+                    .unwrap_or(manager.default_config.failure_threshold),
+                recovery_timeout_secs: override_entry
+                    .recovery_timeout
+                    .unwrap_or(manager.default_config.recovery_timeout_secs),
+                success_threshold:     override_entry
+                    .success_threshold
+                    .unwrap_or(manager.default_config.success_threshold),
+            };
+            manager.per_entity_config.insert(override_entry.entity.clone(), entity_config);
+        }
+        let override_keys: Vec<String> =
+            manager.per_entity_config.iter().map(|r| r.key().clone()).collect();
+        for entity_type in override_keys {
+            manager.get_or_create(&entity_type);
+        }
+        info!(
+            failure_threshold = manager.default_config.failure_threshold,
+            recovery_timeout_secs = manager.default_config.recovery_timeout_secs,
+            success_threshold = manager.default_config.success_threshold,
+            per_entity_overrides = manager.per_entity_config.len(),
+            "Federation circuit breaker initialized"
+        );
+        Some(manager)
+    }
+
     /// Construct a manager from the `federation` JSON blob embedded in the compiled schema.
     ///
     /// Returns `None` when the circuit breaker section is absent or `enabled` is `false`.

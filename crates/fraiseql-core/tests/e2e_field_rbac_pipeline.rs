@@ -173,7 +173,7 @@ fn create_compiled_schema_with_rbac() -> CompiledSchema {
         observers:      vec![],
         fact_tables:    HashMap::default(),
         federation:     None,
-        security:       Some(serde_json::to_value(security_config).unwrap()),
+        security:       Some(security_config),
         observers_config: None,
             subscriptions_config: None,
             validation_config: None,
@@ -229,14 +229,11 @@ fn test_e2e_role_definitions_from_toml() {
     let security_value = schema.security.as_ref().expect("Should have security config");
 
     // THEN: Role definitions should be present
-    let roles = &security_value["role_definitions"];
-    assert!(roles.is_array(), "Should have role definitions array");
-
-    let role_array = roles.as_array().unwrap();
-    assert_eq!(role_array.len(), 4, "Should have 4 roles (public, viewer, moderator, admin)");
+    let roles = &security_value.role_definitions;
+    assert_eq!(roles.len(), 4, "Should have 4 roles (public, viewer, moderator, admin)");
 
     // Verify specific roles
-    let role_names: Vec<&str> = role_array.iter().filter_map(|r| r["name"].as_str()).collect();
+    let role_names: Vec<&str> = roles.iter().map(|r| r.name.as_str()).collect();
     assert!(role_names.contains(&"viewer"));
     assert!(role_names.contains(&"admin"));
 }
@@ -247,8 +244,7 @@ fn test_e2e_viewer_cannot_access_admin_fields() {
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
     let viewer_context = create_user_context("viewer");
 
     // WHEN: Viewer filters fields
@@ -271,8 +267,7 @@ fn test_e2e_admin_accesses_all_fields() {
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
     let admin_context = create_user_context("admin");
 
     // WHEN: Admin filters fields
@@ -288,8 +283,7 @@ fn test_e2e_public_role_no_scoped_fields() {
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
     let public_context = create_user_context("public");
 
     // WHEN: Public user filters fields
@@ -308,8 +302,7 @@ fn test_e2e_multiple_roles_aggregate() {
     let schema = create_compiled_schema_with_rbac();
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let mut multi_role_context = create_user_context("viewer");
     multi_role_context.roles.push("moderator".to_string());
@@ -334,8 +327,7 @@ fn test_e2e_wildcard_matching_read_star() {
     let email_field = user_type.fields.iter().find(|f| f.name == "email").unwrap();
 
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
     let viewer_context = create_user_context("viewer");
 
     // WHEN: Check if viewer can access email
@@ -352,8 +344,7 @@ fn test_e2e_global_wildcard_matches_all() {
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
 
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
     let admin_context = create_user_context("admin");
 
     // WHEN: Admin checks access to any field
@@ -370,11 +361,8 @@ fn test_e2e_missing_role_defaults_to_public() {
     let schema = create_compiled_schema_with_rbac();
     let security_value = schema.security.as_ref().expect("Should have security config");
 
-    // WHEN: Check default role
-    let default_role = &security_value["default_role"];
-
     // THEN: Should have default role set
-    assert_eq!(default_role, "public", "Should default to public role");
+    assert_eq!(security_value.default_role.as_deref(), Some("public"), "Should default to public role");
 }
 
 #[test]
@@ -384,8 +372,7 @@ fn test_e2e_multi_tenant_field_filtering() {
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
 
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let mut tenant_context = create_user_context("viewer");
     tenant_context.tenant_id = Some("tenant-acme".to_string());
@@ -410,8 +397,7 @@ fn test_e2e_scope_requirement_none_always_accessible() {
     let id_field = user_type.fields.iter().find(|f| f.name == "id").unwrap();
 
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
     let public_context = create_user_context("public");
 
     // WHEN: Public user (zero scopes) checks access to public field
@@ -562,8 +548,7 @@ fn test_e2e_concurrent_user_contexts() {
     let user_type = schema.types.iter().find(|t| t.name == "User").unwrap();
 
     let security_config =
-        serde_json::from_value::<SecurityConfig>(schema.security.as_ref().unwrap().clone())
-            .expect("Should deserialize security config");
+        schema.security.as_ref().expect("security config present").clone();
 
     let viewer_context = create_user_context("viewer");
     let admin_context = create_user_context("admin");

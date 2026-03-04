@@ -317,7 +317,7 @@ pub fn revocation_manager_from_schema(
     schema: &fraiseql_core::schema::CompiledSchema,
 ) -> Option<Arc<TokenRevocationManager>> {
     let security = schema.security.as_ref()?;
-    let revocation_val = security.get("token_revocation")?;
+    let revocation_val = security.additional.get("token_revocation")?;
     let config: TokenRevocationConfig = serde_json::from_value(revocation_val.clone())
         .map_err(|e| {
             warn!(error = %e, "Failed to parse security.token_revocation config");

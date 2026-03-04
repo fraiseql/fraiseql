@@ -41,7 +41,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let circuit_breaker = schema
             .federation
             .as_ref()
-            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_schema_json);
+            .and_then(crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config);
         let error_sanitizer    = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
         let state_encryption   = Self::state_encryption_from_schema(&schema)?;

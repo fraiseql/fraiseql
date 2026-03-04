@@ -18,7 +18,9 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use super::config_types::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig};
+use super::config_types::{
+    DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig, ValidationConfig,
+};
 use super::field_type::FieldType;
 use super::graphql_type_defs::{
     EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -99,18 +101,18 @@ pub struct CompiledSchema {
 
     /// Federation metadata for Apollo Federation v2 support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub federation: Option<serde_json::Value>,
+    pub federation: Option<FederationConfig>,
 
     /// Security configuration (from fraiseql.toml).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub security: Option<serde_json::Value>,
+    pub security: Option<SecurityConfig>,
 
     /// Observers/event system configuration (from fraiseql.toml).
     ///
     /// Contains backend connection settings (redis_url, nats_url, etc.) and
     /// event handler definitions compiled from the `[observers]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub observers_config: Option<serde_json::Value>,
+    pub observers_config: Option<ObserversConfig>,
 
     /// WebSocket subscription configuration (hooks, limits).
     /// Compiled from the `[subscriptions]` TOML section.
@@ -363,9 +365,16 @@ impl CompiledSchema {
     /// Federation metadata if configured in schema
     #[must_use]
     pub fn federation_metadata(&self) -> Option<crate::federation::FederationMetadata> {
-        self.federation
-            .as_ref()
-            .and_then(|fed_json| serde_json::from_value(fed_json.clone()).ok())
+        self.federation.as_ref().filter(|fed| fed.enabled).map(|fed| {
+            crate::federation::FederationMetadata {
+                enabled: fed.enabled,
+                version: fed
+                    .version
+                    .clone()
+                    .unwrap_or_else(|| "v2".to_string()),
+                types: Vec::new(),
+            }
+        })
     }
 
     /// Get security configuration from schema.
@@ -374,10 +383,8 @@ impl CompiledSchema {
     ///
     /// Security configuration if present (includes role definitions)
     #[must_use]
-    pub fn security_config(&self) -> Option<SecurityConfig> {
-        self.security
-            .as_ref()
-            .and_then(|sec_json| serde_json::from_value(sec_json.clone()).ok())
+    pub fn security_config(&self) -> Option<&SecurityConfig> {
+        self.security.as_ref()
     }
 
     /// Returns `true` if this schema declares a multi-tenant deployment.
@@ -389,7 +396,7 @@ impl CompiledSchema {
     /// Detection is based on `security.multi_tenant` in the compiled schema JSON.
     #[must_use]
     pub fn is_multi_tenant(&self) -> bool {
-        self.security_config().map(|s| s.multi_tenant).unwrap_or(false)
+        self.security.as_ref().is_some_and(|s| s.multi_tenant)
     }
 
     /// Find a role definition by name.
@@ -403,7 +410,7 @@ impl CompiledSchema {
     /// Role definition if found
     #[must_use]
     pub fn find_role(&self, role_name: &str) -> Option<RoleDefinition> {
-        self.security_config().and_then(|config| config.find_role(role_name).cloned())
+        self.security.as_ref().and_then(|config| config.find_role(role_name).cloned())
     }
 
     /// Get scopes for a role.
@@ -417,7 +424,8 @@ impl CompiledSchema {
     /// Vector of scopes granted to the role
     #[must_use]
     pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
-        self.security_config()
+        self.security
+            .as_ref()
             .map(|config| config.get_role_scopes(role_name))
             .unwrap_or_default()
     }
@@ -434,9 +442,9 @@ impl CompiledSchema {
     /// true if role has the scope, false otherwise
     #[must_use]
     pub fn role_has_scope(&self, role_name: &str, scope: &str) -> bool {
-        self.security_config()
-            .map(|config| config.role_has_scope(role_name, scope))
-            .unwrap_or(false)
+        self.security
+            .as_ref()
+            .is_some_and(|config| config.role_has_scope(role_name, scope))
     }
 
     /// Returns a 32-character hex SHA-256 content hash of this schema's canonical JSON.
@@ -490,8 +498,9 @@ impl CompiledSchema {
         self.security
             .as_ref()
             .map(|s| {
-                !s.get("policies")
-                    .and_then(|p| p.as_array())
+                !s.additional
+                    .get("policies")
+                    .and_then(|p: &serde_json::Value| p.as_array())
                     .is_none_or(|a| a.is_empty())
             })
             .unwrap_or(false)
@@ -1539,30 +1548,28 @@ mod tests {
 
     #[test]
     fn test_has_rls_configured_with_empty_policies() {
-        let schema = CompiledSchema {
-            security: Some(serde_json::json!({"policies": []})),
-            ..CompiledSchema::default()
-        };
+        let mut sec = SecurityConfig::default();
+        sec.additional.insert("policies".to_string(), serde_json::json!([]));
+        let schema = CompiledSchema { security: Some(sec), ..CompiledSchema::default() };
         assert!(!schema.has_rls_configured(), "Empty policies array must return false");
     }
 
     #[test]
     fn test_has_rls_configured_with_policies() {
-        let schema = CompiledSchema {
-            security: Some(serde_json::json!({
-                "policies": [{"name": "tenant_isolation", "condition": "tenant_id = $1"}]
-            })),
-            ..CompiledSchema::default()
-        };
+        let mut sec = SecurityConfig::default();
+        sec.additional.insert(
+            "policies".to_string(),
+            serde_json::json!([{"name": "tenant_isolation", "condition": "tenant_id = $1"}]),
+        );
+        let schema = CompiledSchema { security: Some(sec), ..CompiledSchema::default() };
         assert!(schema.has_rls_configured(), "Non-empty policies array must return true");
     }
 
     #[test]
     fn test_has_rls_configured_no_policies_key() {
-        let schema = CompiledSchema {
-            security: Some(serde_json::json!({"rate_limiting": {"enabled": true}})),
-            ..CompiledSchema::default()
-        };
+        let mut sec = SecurityConfig::default();
+        sec.additional.insert("rate_limiting".to_string(), serde_json::json!({"enabled": true}));
+        let schema = CompiledSchema { security: Some(sec), ..CompiledSchema::default() };
         assert!(!schema.has_rls_configured(), "Security without policies key must return false");
     }
 }
