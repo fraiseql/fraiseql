@@ -18,6 +18,8 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+use crate::compiler::fact_table::FactTableMetadata;
+
 use super::config_types::{
     DebugConfig, FederationConfig, McpConfig, ObserversConfig, SubscriptionsConfig, ValidationConfig,
 };
@@ -93,7 +95,7 @@ pub struct CompiledSchema {
     /// Fact table metadata (for analytics queries).
     /// Key: table name (e.g., `tf_sales`)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub fact_tables: HashMap<String, serde_json::Value>,
+    pub fact_tables: HashMap<String, FactTableMetadata>,
 
     /// Observer definitions (database change event listeners).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -293,8 +295,8 @@ impl CompiledSchema {
     /// # Arguments
     ///
     /// * `table_name` - Fact table name (e.g., `tf_sales`)
-    /// * `metadata` - Serialized `FactTableMetadata`
-    pub fn add_fact_table(&mut self, table_name: String, metadata: serde_json::Value) {
+    /// * `metadata` - Typed `FactTableMetadata`
+    pub fn add_fact_table(&mut self, table_name: String, metadata: FactTableMetadata) {
         self.fact_tables.insert(table_name, metadata);
     }
 
@@ -308,7 +310,7 @@ impl CompiledSchema {
     ///
     /// Fact table metadata if found
     #[must_use]
-    pub fn get_fact_table(&self, name: &str) -> Option<&serde_json::Value> {
+    pub fn get_fact_table(&self, name: &str) -> Option<&FactTableMetadata> {
         self.fact_tables.get(name)
     }
 

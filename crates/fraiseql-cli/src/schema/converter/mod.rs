@@ -16,13 +16,14 @@ use std::collections::HashSet;
 
 use anyhow::{Context, Result};
 use fraiseql_core::{
+    compiler::fact_table::{DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
     schema::{CompiledSchema, FieldType},
     validation::CustomTypeRegistry,
 };
 use tracing::{info, warn};
 
 use super::{
-    intermediate::IntermediateSchema,
+    intermediate::{IntermediateFactTable, IntermediateSchema},
     rich_filters::{RichFilterConfig, compile_rich_filters},
 };
 
@@ -37,11 +38,6 @@ impl SchemaConverter {
     /// 2. Field name normalization (type → `field_type`)
     /// 3. Validation (type references, circular refs, etc.)
     /// 4. Optimization
-    ///
-    /// # Panics
-    ///
-    /// Panics if fact table metadata serialization fails (which should never happen
-    /// for valid `FactTable` structures).
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
         info!("Converting intermediate schema to compiled format");
 
@@ -112,15 +108,15 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert directives")?;
 
-        // Convert fact tables from Vec to HashMap<String, serde_json::Value>
+        // Convert fact tables from Vec<IntermediateFactTable> to HashMap<String, FactTableMetadata>
         let fact_tables = intermediate
             .fact_tables
             .unwrap_or_default()
             .into_iter()
             .map(|ft| {
-                let metadata =
-                    serde_json::to_value(&ft).expect("Failed to serialize fact table metadata");
-                (ft.table_name, metadata)
+                let name = ft.table_name.clone();
+                let metadata = Self::convert_fact_table(ft);
+                (name, metadata)
             })
             .collect();
 
@@ -316,6 +312,67 @@ impl SchemaConverter {
             FieldType::Interface(name) => name.clone(),
             FieldType::Union(name) => name.clone(),
             FieldType::List(inner) => Self::extract_type_name(inner),
+        }
+    }
+
+    /// Convert `IntermediateFactTable` to `FactTableMetadata`.
+    fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:           ft.table_name,
+            measures:             ft
+                .measures
+                .into_iter()
+                .map(|m| MeasureColumn {
+                    name:     m.name,
+                    sql_type: Self::parse_sql_type(&m.sql_type),
+                    nullable: m.nullable,
+                })
+                .collect(),
+            dimensions:           DimensionColumn {
+                name:  ft.dimensions.name,
+                paths: ft
+                    .dimensions
+                    .paths
+                    .into_iter()
+                    .map(|p| DimensionPath {
+                        name:      p.name,
+                        json_path: p.json_path,
+                        data_type: p.data_type,
+                    })
+                    .collect(),
+            },
+            denormalized_filters: ft
+                .denormalized_filters
+                .into_iter()
+                .map(|f| FilterColumn {
+                    name:     f.name,
+                    sql_type: Self::parse_sql_type(&f.sql_type),
+                    indexed:  f.indexed,
+                })
+                .collect(),
+            calendar_dimensions:  vec![],
+        }
+    }
+
+    /// Parse a SQL type string into a `SqlType` enum variant.
+    fn parse_sql_type(s: &str) -> SqlType {
+        match s.to_uppercase().as_str() {
+            "INT" | "INTEGER" | "SMALLINT" | "INT4" | "INT2" => SqlType::Int,
+            "BIGINT" | "INT8" => SqlType::BigInt,
+            "DECIMAL" | "NUMERIC" | "MONEY" => SqlType::Decimal,
+            "REAL" | "FLOAT" | "DOUBLE" | "FLOAT8" | "FLOAT4" | "DOUBLE PRECISION" => {
+                SqlType::Float
+            },
+            "JSONB" => SqlType::Jsonb,
+            "JSON" => SqlType::Json,
+            "TEXT" | "VARCHAR" | "STRING" | "CHAR" | "CHARACTER VARYING" => SqlType::Text,
+            "UUID" => SqlType::Uuid,
+            "TIMESTAMP" | "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" | "DATETIME" => {
+                SqlType::Timestamp
+            },
+            "DATE" => SqlType::Date,
+            "BOOLEAN" | "BOOL" => SqlType::Boolean,
+            _ => SqlType::Other(s.to_string()),
         }
     }
 }

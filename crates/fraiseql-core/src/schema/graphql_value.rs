@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn roundtrip_float() {
-        let v = GraphQLValue::Float(3.14);
+        let v = GraphQLValue::Float(1.5);
         let rt = GraphQLValue::from_json(&v.to_json()).expect("roundtrip");
         assert!(matches!(rt, GraphQLValue::Float(_)));
     }

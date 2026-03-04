@@ -107,6 +107,7 @@ pub struct FactTableMetadata {
     /// Denormalized filter columns
     pub denormalized_filters: Vec<FilterColumn>,
     /// Calendar dimensions for optimized temporal aggregations
+    #[serde(default)]
     pub calendar_dimensions:  Vec<CalendarDimension>,
 }
 

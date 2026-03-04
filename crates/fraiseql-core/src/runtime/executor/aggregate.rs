@@ -25,7 +25,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+        let metadata = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             let known: Vec<&str> = self.schema.list_fact_tables();
             let suggestion = suggest_similar(&fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
@@ -39,16 +39,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // Parse metadata into FactTableMetadata
-        let metadata: crate::compiler::fact_table::FactTableMetadata =
-            serde_json::from_value(metadata_json.clone())?;
-
         // Parse query variables into aggregate query JSON
         let empty_json = serde_json::json!({});
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute aggregate query
-        self.execute_aggregate_query(query_json, query_name, &metadata).await
+        self.execute_aggregate_query(query_json, query_name, metadata).await
     }
 
     /// Execute a window query dispatch.
@@ -67,7 +63,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata_json = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+        let metadata = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
             let known: Vec<&str> = self.schema.list_fact_tables();
             let suggestion = suggest_similar(&fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
@@ -81,16 +77,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // Parse metadata into FactTableMetadata
-        let metadata: crate::compiler::fact_table::FactTableMetadata =
-            serde_json::from_value(metadata_json.clone())?;
-
         // Parse query variables into window query JSON
         let empty_json = serde_json::json!({});
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute window query
-        self.execute_window_query(query_json, query_name, &metadata).await
+        self.execute_window_query(query_json, query_name, metadata).await
     }
 
     /// Execute an aggregate query.

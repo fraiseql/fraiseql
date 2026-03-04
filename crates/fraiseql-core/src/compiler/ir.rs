@@ -43,7 +43,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{schema::GraphQLValue, validation::ValidationRule};
+use crate::{compiler::fact_table::FactTableMetadata, schema::GraphQLValue, validation::ValidationRule};
 
 /// Authoring Intermediate Representation.
 ///
@@ -85,9 +85,8 @@ pub struct AuthoringIR {
 
     /// Fact table metadata (from authoring-language decorators).
     /// Key: table name (e.g., "tf_sales")
-    /// Value: FactTableMetadata as JSON
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub fact_tables: HashMap<String, serde_json::Value>,
+    pub fact_tables: HashMap<String, FactTableMetadata>,
 }
 
 impl AuthoringIR {

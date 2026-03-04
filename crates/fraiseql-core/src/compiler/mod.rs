@@ -339,32 +339,30 @@ mod tests {
 
     #[test]
     fn test_compiled_schema_fact_table_operations() {
+        use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
+
         let mut schema = CompiledSchema::new();
 
-        // Test adding fact table
-        let metadata = serde_json::json!({
-            "table_name": "tf_sales",
-            "measures": [],
-            "dimensions": {"name": "data"},
-            "denormalized_filters": []
-        });
+        let metadata = FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        };
 
         schema.add_fact_table("tf_sales".to_string(), metadata.clone());
 
-        // Test has_fact_tables
         assert!(schema.has_fact_tables());
 
-        // Test list_fact_tables
         let tables = schema.list_fact_tables();
         assert_eq!(tables.len(), 1);
         assert!(tables.contains(&"tf_sales"));
 
-        // Test get_fact_table
         let retrieved = schema.get_fact_table("tf_sales");
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap(), &metadata);
 
-        // Test get non-existent table
         assert!(schema.get_fact_table("tf_nonexistent").is_none());
     }
 }

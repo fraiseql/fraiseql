@@ -105,9 +105,26 @@ impl SchemaParser {
         let fact_tables = obj
             .get("fact_tables")
             .and_then(Value::as_object)
-            .map_or_else(std::collections::HashMap::new, |o| {
-                o.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-            });
+            .map_or_else::<Result<_>, _, _>(
+                || Ok(std::collections::HashMap::new()),
+                |o| {
+                    o.iter()
+                        .map(|(k, v)| {
+                            let meta: crate::compiler::fact_table::FactTableMetadata =
+                                serde_json::from_value(v.clone()).map_err(|e| {
+                                    FraiseQLError::Parse {
+                                        message: format!(
+                                            "Invalid fact table metadata for '{}': {e}",
+                                            k
+                                        ),
+                                        location: format!("fact_tables.{}", k),
+                                    }
+                                })?;
+                            Ok((k.clone(), meta))
+                        })
+                        .collect()
+                },
+            )?;
         let enums = obj.get("enums").map_or(Ok(vec![]), |v| EnumValidator::parse_enums(v))?;
         let interfaces =
             obj.get("interfaces").map_or(Ok(vec![]), |v| self.parse_interfaces(v))?;

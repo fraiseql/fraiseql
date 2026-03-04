@@ -222,10 +222,8 @@ impl SchemaValidator {
     /// Validate fact table metadata structure.
     ///
     /// Ensures that fact table metadata follows the required structure:
-    /// - Has table_name field
-    /// - Has measures array (at least one measure)
-    /// - Has dimensions object
-    /// - Denormalized filters are valid
+    /// - Table name uses `tf_*` prefix
+    /// - Has at least one measure
     fn validate_fact_tables(&self, ir: &AuthoringIR) -> Result<()> {
         for (table_name, metadata) in &ir.fact_tables {
             // Validate table name follows tf_* pattern
@@ -236,94 +234,19 @@ impl SchemaValidator {
                 });
             }
 
-            // Validate metadata is an object
-            let obj = metadata.as_object().ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Fact table '{}' metadata must be an object", table_name),
-                path:    Some(format!("fact_tables.{}", table_name)),
-            })?;
-
-            // Validate measures exist and is an array
-            let measures = obj.get("measures").ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Fact table '{}' missing 'measures' field", table_name),
-                path:    Some(format!("fact_tables.{}.measures", table_name)),
-            })?;
-
-            let measures_arr = measures.as_array().ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Fact table '{}' measures must be an array", table_name),
-                path:    Some(format!("fact_tables.{}.measures", table_name)),
-            })?;
-
-            if measures_arr.is_empty() {
+            if metadata.measures.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: format!("Fact table '{}' must have at least one measure", table_name),
                     path:    Some(format!("fact_tables.{}.measures", table_name)),
                 });
             }
 
-            // Validate each measure has required fields
-            for (idx, measure) in measures_arr.iter().enumerate() {
-                let measure_obj = measure.as_object().ok_or_else(|| FraiseQLError::Validation {
-                    message: format!(
-                        "Fact table '{}' measure {} must be an object",
-                        table_name, idx
-                    ),
-                    path:    Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
-                })?;
-
-                // Validate measure has name field
-                if !measure_obj.contains_key("name") {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Fact table '{}' measure {} missing 'name' field",
-                            table_name, idx
-                        ),
-                        path:    Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
-                    });
-                }
-
-                // Validate measure has sql_type field
-                if !measure_obj.contains_key("sql_type") {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Fact table '{}' measure {} missing 'sql_type' field",
-                            table_name, idx
-                        ),
-                        path:    Some(format!("fact_tables.{}.measures[{}]", table_name, idx)),
-                    });
-                }
-            }
-
-            // Validate dimensions exist
-            let dimensions = obj.get("dimensions").ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Fact table '{}' missing 'dimensions' field", table_name),
-                path:    Some(format!("fact_tables.{}.dimensions", table_name)),
-            })?;
-
-            let dimensions_obj =
-                dimensions.as_object().ok_or_else(|| FraiseQLError::Validation {
-                    message: format!("Fact table '{}' dimensions must be an object", table_name),
-                    path:    Some(format!("fact_tables.{}.dimensions", table_name)),
-                })?;
-
-            // Validate dimension has name field
-            if !dimensions_obj.contains_key("name") {
+            // Validate dimensions name is not empty
+            if metadata.dimensions.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: format!("Fact table '{}' dimensions missing 'name' field", table_name),
                     path:    Some(format!("fact_tables.{}.dimensions", table_name)),
                 });
-            }
-
-            // Validate denormalized_filters is an array (if present)
-            if let Some(filters) = obj.get("denormalized_filters") {
-                if !filters.is_array() {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Fact table '{}' denormalized_filters must be an array",
-                            table_name
-                        ),
-                        path:    Some(format!("fact_tables.{}.denormalized_filters", table_name)),
-                    });
-                }
             }
         }
 
@@ -402,7 +325,7 @@ impl Default for SchemaValidator {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType};
 
     use super::{
         super::ir::{IRField, IRType},
@@ -425,41 +348,41 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    fn make_fact_table(measures: Vec<MeasureColumn>, dim_name: &str) -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:           String::new(),
+            measures,
+            dimensions:           DimensionColumn { name: dim_name.to_string(), paths: vec![] },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+        }
+    }
+
     #[test]
     fn test_validate_fact_table_with_valid_metadata() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "table_name": "tf_sales",
-            "measures": [
-                {"name": "revenue", "sql_type": "Decimal", "nullable": false}
-            ],
-            "dimensions": {
-                "name": "data",
-                "paths": []
-            },
-            "denormalized_filters": []
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
-        let result = validator.validate(ir);
-        assert!(result.is_ok());
+        ir.fact_tables.insert(
+            "tf_sales".to_string(),
+            make_fact_table(
+                vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+                "data",
+            ),
+        );
+        assert!(validator.validate(ir).is_ok());
     }
 
     #[test]
     fn test_validate_fact_table_invalid_prefix() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [{"name": "revenue", "sql_type": "Decimal"}],
-            "dimensions": {"name": "data"}
-        });
-
-        ir.fact_tables.insert("sales".to_string(), metadata);
-
+        ir.fact_tables.insert(
+            "sales".to_string(),
+            make_fact_table(
+                vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+                "data",
+            ),
+        );
         let result = validator.validate(ir);
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
@@ -468,35 +391,10 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_fact_table_missing_measures() {
-        let validator = SchemaValidator::new();
-        let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "dimensions": {"name": "data"}
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
-        let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("missing 'measures' field"));
-        }
-    }
-
-    #[test]
     fn test_validate_fact_table_empty_measures() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [],
-            "dimensions": {"name": "data"}
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
+        ir.fact_tables.insert("tf_sales".to_string(), make_fact_table(vec![], "data"));
         let result = validator.validate(ir);
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
@@ -505,109 +403,20 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_fact_table_measure_missing_name() {
-        let validator = SchemaValidator::new();
-        let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [
-                {"sql_type": "Decimal"}
-            ],
-            "dimensions": {"name": "data"}
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
-        let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("missing 'name' field"));
-        }
-    }
-
-    #[test]
-    fn test_validate_fact_table_measure_missing_sql_type() {
-        let validator = SchemaValidator::new();
-        let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [
-                {"name": "revenue"}
-            ],
-            "dimensions": {"name": "data"}
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
-        let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("missing 'sql_type' field"));
-        }
-    }
-
-    #[test]
-    fn test_validate_fact_table_missing_dimensions() {
-        let validator = SchemaValidator::new();
-        let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [
-                {"name": "revenue", "sql_type": "Decimal"}
-            ]
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
-        let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("missing 'dimensions' field"));
-        }
-    }
-
-    #[test]
     fn test_validate_fact_table_dimensions_missing_name() {
         let validator = SchemaValidator::new();
         let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [
-                {"name": "revenue", "sql_type": "Decimal"}
-            ],
-            "dimensions": {
-                "paths": []
-            }
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
+        ir.fact_tables.insert(
+            "tf_sales".to_string(),
+            make_fact_table(
+                vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+                "",
+            ),
+        );
         let result = validator.validate(ir);
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
             assert!(message.contains("dimensions missing 'name' field"));
-        }
-    }
-
-    #[test]
-    fn test_validate_fact_table_invalid_filters() {
-        let validator = SchemaValidator::new();
-        let mut ir = AuthoringIR::new();
-
-        let metadata = json!({
-            "measures": [
-                {"name": "revenue", "sql_type": "Decimal"}
-            ],
-            "dimensions": {"name": "data"},
-            "denormalized_filters": "not an array"
-        });
-
-        ir.fact_tables.insert("tf_sales".to_string(), metadata);
-
-        let result = validator.validate(ir);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("denormalized_filters must be an array"));
         }
     }
 

@@ -105,20 +105,16 @@ fn test_schema_with_fact_tables_validation() {
     let mut ir = AuthoringIR::new();
 
     // Add fact table metadata
-    let metadata = json!({
-        "table_name": "tf_sales",
-        "measures": [
-            {"name": "revenue", "sql_type": "Decimal", "nullable": false},
-            {"name": "quantity", "sql_type": "Int", "nullable": false}
+    ir.fact_tables.insert("tf_sales".to_string(), FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![
+            MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
+            MeasureColumn { name: "quantity".to_string(), sql_type: SqlType::Int, nullable: false },
         ],
-        "dimensions": {
-            "name": "data",
-            "paths": []
-        },
-        "denormalized_filters": []
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
     });
-
-    ir.fact_tables.insert("tf_sales".to_string(), metadata);
 
     // Validate
     let validator = SchemaValidator::new();
@@ -132,12 +128,13 @@ fn test_schema_with_fact_tables_validation() {
 fn test_validator_rejects_invalid_fact_table_prefix() {
     let mut ir = AuthoringIR::new();
 
-    let metadata = json!({
-        "measures": [{"name": "revenue", "sql_type": "Decimal"}],
-        "dimensions": {"name": "data"}
-    });
-
-    ir.fact_tables.insert("sales".to_string(), metadata); // Missing tf_ prefix
+    ir.fact_tables.insert("sales".to_string(), FactTableMetadata {
+        table_name:           "sales".to_string(),
+        measures:             vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+    }); // Missing tf_ prefix
 
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
@@ -154,11 +151,13 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
 fn test_validator_rejects_fact_table_without_measures() {
     let mut ir = AuthoringIR::new();
 
-    let metadata = json!({
-        "dimensions": {"name": "data"}
+    ir.fact_tables.insert("tf_sales".to_string(), FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
     });
-
-    ir.fact_tables.insert("tf_sales".to_string(), metadata);
 
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
@@ -166,7 +165,7 @@ fn test_validator_rejects_fact_table_without_measures() {
     assert!(result.is_err());
     if let Err(e) = result {
         let error_msg = format!("{}", e);
-        assert!(error_msg.contains("missing 'measures' field"));
+        assert!(error_msg.contains("must have at least one measure"));
     }
 }
 
@@ -290,19 +289,13 @@ async fn test_executor_classifies_aggregate_query() {
     let mut schema = CompiledSchema::new();
 
     // Add fact table metadata
-    let metadata = json!({
-        "table_name": "tf_sales",
-        "measures": [
-            {"name": "revenue", "sql_type": "Decimal", "nullable": false}
-        ],
-        "dimensions": {
-            "name": "data",
-            "paths": []
-        },
-        "denormalized_filters": []
+    schema.add_fact_table("tf_sales".to_string(), FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
     });
-
-    schema.add_fact_table("tf_sales".to_string(), metadata);
 
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
@@ -373,8 +366,7 @@ fn test_end_to_end_fact_table_flow() {
     assert_eq!(validated_ir.types.len(), 1);
 
     let fact_table = validated_ir.fact_tables.get("tf_sales").unwrap();
-    let measures = fact_table["measures"].as_array().unwrap();
-    assert_eq!(measures.len(), 2);
+    assert_eq!(fact_table.measures.len(), 2);
 
     let aggregate_type = &validated_ir.types[0];
     assert_eq!(aggregate_type.name, "SalesAggregate");

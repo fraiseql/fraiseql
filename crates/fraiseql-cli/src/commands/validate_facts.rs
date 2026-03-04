@@ -159,11 +159,10 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
         // Introspect actual table structure
         match FactTableDetector::introspect(&introspector, table_name).await {
             Ok(actual_metadata) => {
-                // Get declared metadata
-                if let Some(declared_json) = ir.fact_tables.get(table_name) {
-                    // Compare structures
+                // Compare structures against declared metadata
+                if let Some(declared) = ir.fact_tables.get(table_name) {
                     let comparison_issues =
-                        compare_metadata(table_name, declared_json, &actual_metadata);
+                        compare_metadata(table_name, declared, &actual_metadata);
                     issues.extend(comparison_issues);
                 }
                 validated_count += 1;
@@ -225,144 +224,90 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 /// Compare declared metadata with actual database metadata
 fn compare_metadata(
     table_name: &str,
-    declared: &serde_json::Value,
+    declared: &FactTableMetadata,
     actual: &FactTableMetadata,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
-    // Extract declared measures
-    if let Some(declared_measures) = declared.get("measures").and_then(|m| m.as_array()) {
-        let declared_measure_names: HashSet<String> = declared_measures
-            .iter()
-            .filter_map(|m| m.get("name").and_then(|n| n.as_str()))
-            .map(String::from)
-            .collect();
+    let declared_measure_names: HashSet<&str> =
+        declared.measures.iter().map(|m| m.name.as_str()).collect();
+    let actual_measure_names: HashSet<&str> =
+        actual.measures.iter().map(|m| m.name.as_str()).collect();
 
-        let actual_measure_names: HashSet<String> =
-            actual.measures.iter().map(|m| m.name.clone()).collect();
-
-        // Check for missing measures in actual
-        for name in &declared_measure_names {
-            if !actual_measure_names.contains(name) {
-                issues.push(ValidationIssue::error(
-                    table_name.to_string(),
-                    format!("Declared measure '{name}' not found in database"),
-                ));
-            }
-        }
-
-        // Check for extra measures in actual (warning)
-        for name in &actual_measure_names {
-            if !declared_measure_names.contains(name) {
-                issues.push(ValidationIssue::warning(
-                    table_name.to_string(),
-                    format!("Database has measure '{name}' not declared in schema"),
-                ));
-            }
-        }
-
-        // Validate measure types
-        for declared_measure in declared_measures {
-            if let (Some(name), Some(declared_type)) = (
-                declared_measure.get("name").and_then(|n| n.as_str()),
-                declared_measure.get("sql_type").and_then(|t| t.as_str()),
-            ) {
-                if let Some(actual_measure) = actual.measures.iter().find(|m| m.name == name) {
-                    let actual_type_str = format!("{:?}", actual_measure.sql_type);
-                    if !types_compatible(declared_type, &actual_type_str) {
-                        issues.push(ValidationIssue::warning(
-                            table_name.to_string(),
-                            format!(
-                                "Measure '{name}' type mismatch: declared '{declared_type}', actual '{actual_type_str}'"
-                            ),
-                        ));
-                    }
-                }
-            }
+    // Check for missing measures in actual
+    for name in &declared_measure_names {
+        if !actual_measure_names.contains(name) {
+            issues.push(ValidationIssue::error(
+                table_name.to_string(),
+                format!("Declared measure '{name}' not found in database"),
+            ));
         }
     }
 
-    // Validate dimensions column
-    if let Some(declared_dims) = declared.get("dimensions") {
-        if let Some(declared_name) = declared_dims.get("name").and_then(|n| n.as_str()) {
-            if declared_name != actual.dimensions.name {
-                issues.push(ValidationIssue::error(
+    // Check for extra measures in actual (warning)
+    for name in &actual_measure_names {
+        if !declared_measure_names.contains(name) {
+            issues.push(ValidationIssue::warning(
+                table_name.to_string(),
+                format!("Database has measure '{name}' not declared in schema"),
+            ));
+        }
+    }
+
+    // Validate measure types
+    for declared_measure in &declared.measures {
+        if let Some(actual_measure) =
+            actual.measures.iter().find(|m| m.name == declared_measure.name)
+        {
+            let declared_type = format!("{:?}", declared_measure.sql_type);
+            let actual_type = format!("{:?}", actual_measure.sql_type);
+            if declared_type != actual_type {
+                issues.push(ValidationIssue::warning(
                     table_name.to_string(),
                     format!(
-                        "Dimensions column mismatch: declared '{}', actual '{}'",
-                        declared_name, actual.dimensions.name
+                        "Measure '{}' type mismatch: declared '{declared_type}', actual \
+                         '{actual_type}'",
+                        declared_measure.name
                     ),
                 ));
             }
         }
     }
 
+    // Validate dimensions column
+    if declared.dimensions.name != actual.dimensions.name {
+        issues.push(ValidationIssue::error(
+            table_name.to_string(),
+            format!(
+                "Dimensions column mismatch: declared '{}', actual '{}'",
+                declared.dimensions.name, actual.dimensions.name
+            ),
+        ));
+    }
+
     // Validate denormalized filters
-    if let Some(declared_filters) = declared.get("denormalized_filters").and_then(|f| f.as_array())
-    {
-        let declared_filter_names: HashSet<String> = declared_filters
-            .iter()
-            .filter_map(|f| f.get("name").and_then(|n| n.as_str()))
-            .map(String::from)
-            .collect();
+    let declared_filter_names: HashSet<&str> =
+        declared.denormalized_filters.iter().map(|f| f.name.as_str()).collect();
+    let actual_filter_names: HashSet<&str> =
+        actual.denormalized_filters.iter().map(|f| f.name.as_str()).collect();
 
-        let actual_filter_names: HashSet<String> =
-            actual.denormalized_filters.iter().map(|f| f.name.clone()).collect();
-
-        for name in &declared_filter_names {
-            if !actual_filter_names.contains(name) {
-                issues.push(ValidationIssue::warning(
-                    table_name.to_string(),
-                    format!("Declared filter '{name}' not found in database"),
-                ));
-            }
+    for name in &declared_filter_names {
+        if !actual_filter_names.contains(name) {
+            issues.push(ValidationIssue::warning(
+                table_name.to_string(),
+                format!("Declared filter '{name}' not found in database"),
+            ));
         }
     }
 
     issues
 }
 
-/// Check if two SQL types are compatible
-fn types_compatible(declared: &str, actual: &str) -> bool {
-    let declared_lower = declared.to_lowercase();
-    let actual_lower = actual.to_lowercase();
-
-    // Exact match
-    if declared_lower == actual_lower {
-        return true;
-    }
-
-    // Common aliases
-    let aliases: &[(&[&str], &[&str])] = &[
-        (&["int", "integer", "int4"], &["int", "integer", "int4"]),
-        (&["bigint", "int8"], &["bigint", "int8"]),
-        (&["decimal", "numeric", "money"], &["decimal", "numeric", "money"]),
-        (&["float", "double", "real", "float8"], &["float", "double", "real", "float8"]),
-        (&["text", "varchar", "string"], &["text", "varchar", "string"]),
-        (&["uuid"], &["uuid"]),
-        (
-            &["timestamp", "timestamptz", "datetime"],
-            &["timestamp", "timestamptz", "datetime"],
-        ),
-        (&["json", "jsonb"], &["json", "jsonb"]),
-        (&["bool", "boolean"], &["bool", "boolean"]),
-    ];
-
-    for (group1, group2) in aliases {
-        let in_group1 = group1.iter().any(|t| declared_lower.contains(t));
-        let in_group2 = group2.iter().any(|t| actual_lower.contains(t));
-        if in_group1 && in_group2 {
-            return true;
-        }
-    }
-
-    false
-}
 
 #[cfg(test)]
 mod tests {
     use fraiseql_core::compiler::fact_table::{
-        DimensionColumn, FilterColumn, MeasureColumn, SqlType,
+        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     };
 
     use super::*;
@@ -383,101 +328,54 @@ mod tests {
         assert_eq!(issue.severity, IssueSeverity::Warning);
     }
 
-    #[test]
-    fn test_types_compatible() {
-        // Exact match
-        assert!(types_compatible("Int", "Int"));
-        assert!(types_compatible("Decimal", "Decimal"));
-
-        // Aliases
-        assert!(types_compatible("integer", "Int"));
-        assert!(types_compatible("int4", "Int"));
-        assert!(types_compatible("bigint", "BigInt"));
-        assert!(types_compatible("numeric", "Decimal"));
-        assert!(types_compatible("float", "Float"));
-        assert!(types_compatible("double", "Float"));
-        assert!(types_compatible("text", "Text"));
-        assert!(types_compatible("varchar", "Text"));
-
-        // Incompatible
-        assert!(!types_compatible("Int", "Text"));
-        assert!(!types_compatible("Decimal", "Boolean"));
+    fn make_metadata(
+        measures: Vec<MeasureColumn>,
+        dim_name: &str,
+        filters: Vec<FilterColumn>,
+    ) -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures,
+            dimensions:           DimensionColumn { name: dim_name.to_string(), paths: vec![] },
+            denormalized_filters: filters,
+            calendar_dimensions:  vec![],
+        }
     }
 
     #[test]
     fn test_compare_metadata_matching() {
-        let declared = serde_json::json!({
-            "measures": [
-                {"name": "revenue", "sql_type": "Decimal"},
-                {"name": "quantity", "sql_type": "Int"}
+        let declared = make_metadata(
+            vec![
+                MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
+                MeasureColumn { name: "quantity".to_string(), sql_type: SqlType::Int, nullable: false },
             ],
-            "dimensions": {"name": "data"},
-            "denormalized_filters": [
-                {"name": "customer_id"}
-            ]
-        });
-
-        let actual = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
-                },
-            ],
-            dimensions:           DimensionColumn {
-                name:  "data".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters: vec![FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Uuid,
-                indexed:  true,
-            }],
-            calendar_dimensions:  vec![],
-        };
+            "data",
+            vec![FilterColumn { name: "customer_id".to_string(), sql_type: SqlType::Uuid, indexed: true }],
+        );
+        let actual = declared.clone();
 
         let issues = compare_metadata("tf_sales", &declared, &actual);
-
-        // No errors expected for matching metadata
         let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
         assert!(errors.is_empty(), "Unexpected errors: {errors:?}");
     }
 
     #[test]
     fn test_compare_metadata_missing_measure() {
-        let declared = serde_json::json!({
-            "measures": [
-                {"name": "revenue", "sql_type": "Decimal"},
-                {"name": "profit", "sql_type": "Decimal"}  // Not in actual
+        let declared = make_metadata(
+            vec![
+                MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false },
+                MeasureColumn { name: "profit".to_string(), sql_type: SqlType::Decimal, nullable: false },
             ],
-            "dimensions": {"name": "data"}
-        });
-
-        let actual = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
-            }],
-            dimensions:           DimensionColumn {
-                name:  "data".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-        };
+            "data",
+            vec![],
+        );
+        let actual = make_metadata(
+            vec![MeasureColumn { name: "revenue".to_string(), sql_type: SqlType::Decimal, nullable: false }],
+            "data",
+            vec![],
+        );
 
         let issues = compare_metadata("tf_sales", &declared, &actual);
-
-        // Should have error for missing 'profit' measure
         let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
         assert_eq!(errors.len(), 1);
         assert!(errors[0].message.contains("profit"));

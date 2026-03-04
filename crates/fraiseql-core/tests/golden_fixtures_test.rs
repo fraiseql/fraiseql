@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use fraiseql_core::schema::{
-    CompiledSchema, CursorType, MutationOperation, RetryConfig,
+    CompiledSchema, CursorType, GraphQLValue, MutationOperation, RetryConfig,
     SqlProjectionHint,
 };
 
@@ -116,7 +116,7 @@ fn golden_01_queries_all_fields() {
     // Argument with default_value
     let limit_arg = users_q.arguments.iter().find(|a| a.name == "limit").unwrap();
     assert!(!limit_arg.nullable);
-    assert_eq!(limit_arg.default_value, Some(serde_json::json!(10)));
+    assert_eq!(limit_arg.default_value, Some(GraphQLValue::Int(10)));
 
     // nullable argument
     let email_arg = users_q.arguments.iter().find(|a| a.name == "email").unwrap();
