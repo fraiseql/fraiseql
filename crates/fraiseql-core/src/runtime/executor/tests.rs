@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use super::*;
 use crate::{
-    db::{types::JsonbValue, where_clause::WhereClause},
+    db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
     schema::{AutoParams, CompiledSchema, QueryDefinition},
 };
@@ -75,6 +75,8 @@ impl DatabaseAdapter for MockAdapter {
     }
 
 }
+
+impl MutationCapable for MockAdapter {}
 
 fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
