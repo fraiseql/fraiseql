@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -157,6 +157,8 @@ impl DatabaseAdapter for RecordingMockAdapter {
         Ok(vec![self.response_row.clone()])
     }
 }
+
+impl MutationCapable for RecordingMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // Mutation executor uses sql_source from compiled schema

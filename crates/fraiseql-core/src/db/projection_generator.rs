@@ -557,12 +557,14 @@ mod tests {
         // This fails because JSONB has snake_case keys: first_name, created_at
         // Result: data->>'firstName' returns NULL (key not found)
 
-        // Test the bug: SQL should NOT have camelCase JSONB access
-        // We expect this to FAIL until we implement field mapping
+        // Regression guard: SQL must use snake_case keys for JSONB access.
+        // camelCase field names in the schema (firstName, createdAt) must be
+        // mapped to snake_case in generated SQL (first_name, created_at) because
+        // PostgreSQL stores JSONB keys verbatim and FraiseQL always writes snake_case.
         assert!(
             !sql.contains("->>'firstName'") && !sql.contains("->>'createdAt'"),
-            "BUG: SQL is using camelCase keys for JSONB access. \
-             JSONB has snake_case keys like 'first_name', 'created_at'. SQL: {}",
+            "Regression: SQL is using camelCase keys for JSONB access. \
+             JSONB has snake_case keys ('first_name', 'created_at'). SQL: {}",
             sql
         );
     }

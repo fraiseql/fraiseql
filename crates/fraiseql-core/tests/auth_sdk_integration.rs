@@ -15,7 +15,7 @@ use fraiseql_core::{
         validator::SchemaValidator,
     },
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::{WhereClause, WhereOperator},
     },
@@ -96,6 +96,8 @@ impl DatabaseAdapter for MockAdapter {
     }
 
 }
+
+impl MutationCapable for MockAdapter {}
 
 /// Test that schema with fact tables can be parsed and validated
 #[test]

@@ -10,7 +10,7 @@ use crate::{
     compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_sqlserver_identifier,
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult},
+        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -649,6 +649,8 @@ fn build_relay_where_sql(
         (Some(c), Some(u)) => format!(" WHERE {c} AND ({u})"),
     }
 }
+
+impl MutationCapable for SqlServerAdapter {}
 
 #[async_trait]
 impl RelayDatabaseAdapter for SqlServerAdapter {

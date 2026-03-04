@@ -15,7 +15,7 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        DatabaseAdapter, DatabaseType, WhereClause,
+        DatabaseAdapter, DatabaseType, MutationCapable, WhereClause,
         types::{JsonbValue, PoolMetrics},
     },
     error::{FraiseQLError, Result},
@@ -347,6 +347,8 @@ impl DatabaseAdapter for FailingAdapter {
     }
 
 }
+
+impl MutationCapable for FailingAdapter {}
 
 #[cfg(test)]
 mod tests {

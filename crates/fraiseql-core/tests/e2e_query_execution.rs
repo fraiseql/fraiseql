@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -174,6 +174,8 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     }
 
 }
+
+impl MutationCapable for MockDatabaseAdapter {}
 
 // ============================================================================
 // Seed Data Tests

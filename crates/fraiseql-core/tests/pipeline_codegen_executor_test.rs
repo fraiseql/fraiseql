@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use fraiseql_core::{
     compiler::Compiler,
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -91,6 +91,8 @@ impl DatabaseAdapter for PipelineMockAdapter {
         Ok(vec![])
     }
 }
+
+impl MutationCapable for PipelineMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // compile() → execute() — full pipeline regression for issue #53

@@ -9,7 +9,7 @@ use crate::{
     compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_postgres_identifier,
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult},
+        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
         types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
         where_clause::WhereClause,
     },
@@ -591,6 +591,8 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 }
+
+impl MutationCapable for PostgresAdapter {}
 
 #[async_trait]
 impl RelayDatabaseAdapter for PostgresAdapter {

@@ -1,4 +1,16 @@
-//! SQLite database adapter implementation.
+//! SQLite database adapter — **read-only** (queries only, no mutations).
+//!
+//! This adapter supports query execution (`execute_where_query`, `execute_raw_query`)
+//! but does **not** implement [`MutationCapable`](crate::db::MutationCapable). Attempting
+//! to compile a schema with mutations and run it against SQLite will produce a
+//! **compile-time error** at the mutation executor call site.
+//!
+//! # When to use SQLite
+//!
+//! - Unit testing queries without a real database
+//! - Schema exploration and local development (read-only)
+//!
+//! For mutation support, use PostgreSQL, MySQL, or SQL Server.
 
 use async_trait::async_trait;
 use sqlx::{
@@ -363,20 +375,6 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(results)
     }
 
-    async fn execute_function_call(
-        &self,
-        function_name: &str,
-        _args: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Unsupported {
-            message: format!(
-                "Mutations via function calls are not supported on SQLite. \
-                 Function '{function_name}' cannot be executed. \
-                 Use PostgreSQL or SQL Server for mutation support."
-            ),
-        })
-    }
-
     async fn explain_query(
         &self,
         sql: &str,
@@ -564,6 +562,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_function_call_returns_unsupported_error() {
+        // Primary enforcement is at compile time: `SqliteAdapter` does not implement
+        // `MutationCapable`, so the mutation executor won't accept it as a type parameter.
+        // This test verifies the runtime fallback for the rare case where
+        // `execute_function_call` is called directly on the `DatabaseAdapter` trait object.
         let adapter = SqliteAdapter::in_memory().await.expect("Failed to create SQLite adapter");
 
         let err = adapter

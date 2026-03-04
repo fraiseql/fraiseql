@@ -11,7 +11,7 @@ use crate::{
     compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_mysql_identifier,
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult},
+        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -592,6 +592,8 @@ impl MySqlAdapter {
         Ok(cnt)
     }
 }
+
+impl MutationCapable for MySqlAdapter {}
 
 // ── RelayDatabaseAdapter ───────────────────────────────────────────────────
 

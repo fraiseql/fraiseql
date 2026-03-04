@@ -496,6 +496,20 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
 
 ## Common Patterns
 
+### Database Backend Capability Matrix
+
+| Backend | Queries | Mutations | Relay Pagination |
+|---------|---------|-----------|-----------------|
+| PostgreSQL | ✅ | ✅ | ✅ |
+| MySQL | ✅ | ✅ | ✅ |
+| SQL Server | ✅ | ✅ | ✅ |
+| SQLite | ✅ | ❌ | ❌ |
+
+Mutation support is enforced at **compile time** via the `MutationCapable` marker trait.
+`SqliteAdapter` intentionally does not implement `MutationCapable` — code that tries to
+run mutations against SQLite will fail to compile. Use SQLite for read-only development
+and unit testing.
+
 ### Adding a New Database Backend
 
 1. Implement `DatabaseAdapter` trait

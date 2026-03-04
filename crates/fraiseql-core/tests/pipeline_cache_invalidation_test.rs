@@ -23,7 +23,7 @@ use fraiseql_core::{
         QueryResultCache,
     },
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -109,6 +109,8 @@ impl DatabaseAdapter for InnerMockAdapter {
         Ok(vec![self.mutation_row.clone()])
     }
 }
+
+impl MutationCapable for InnerMockAdapter {}
 
 // ---------------------------------------------------------------------------
 // Helpers

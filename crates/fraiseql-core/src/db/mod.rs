@@ -86,7 +86,8 @@ pub use sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
 pub use sqlserver::SqlServerAdapter;
 pub use traits::{
-    CursorValue, DatabaseAdapter, DatabaseCapabilities, RelayDatabaseAdapter, RelayPageResult,
+    CursorValue, DatabaseAdapter, DatabaseCapabilities, MutationCapable, RelayDatabaseAdapter,
+    RelayPageResult,
 };
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};

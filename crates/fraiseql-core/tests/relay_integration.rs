@@ -12,7 +12,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter},
+        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -139,6 +139,8 @@ impl DatabaseAdapter for RelayMockAdapter {
         Ok(vec![])
     }
 }
+
+impl MutationCapable for RelayMockAdapter {}
 
 #[async_trait]
 impl RelayDatabaseAdapter for RelayMockAdapter {
@@ -744,6 +746,8 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         Ok(vec![])
     }
 }
+
+impl MutationCapable for UuidRelayMockAdapter {}
 
 #[async_trait]
 impl RelayDatabaseAdapter for UuidRelayMockAdapter {

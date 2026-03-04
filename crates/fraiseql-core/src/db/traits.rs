@@ -6,7 +6,7 @@ use super::{
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
-use crate::{compiler::aggregation::OrderByClause, error::Result, schema::SqlProjectionHint};
+use crate::{compiler::aggregation::OrderByClause, error::{FraiseQLError, Result}, schema::SqlProjectionHint};
 
 /// Result from a relay pagination query, containing rows and an optional total count.
 #[derive(Debug, Clone)]
@@ -394,7 +394,7 @@ pub trait DatabaseAdapter: Send + Sync {
         sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
-    /// Execute a PostgreSQL function call and return all columns as rows.
+    /// Execute a database function call and return all columns as rows.
     ///
     /// Builds `SELECT * FROM {function_name}($1, $2, ...)` with one positional placeholder per
     /// argument, executes it with the provided JSON values, and returns each result row as a
@@ -407,17 +407,27 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `function_name` - Fully-qualified PostgreSQL function name (e.g. `fn_create_machine`)
+    /// * `function_name` - Fully-qualified function name (e.g. `fn_create_machine`)
     /// * `args` - Positional JSON arguments passed as `$1, $2, …` bind parameters
     ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Database` on query execution failure.
+    /// Returns `FraiseQLError::Unsupported` on adapters that do not support mutations
+    /// (default implementation — see [`MutationCapable`]).
     async fn execute_function_call(
         &self,
         function_name: &str,
-        args: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
+        _args: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Err(FraiseQLError::Unsupported {
+            message: format!(
+                "Mutations via function calls are not supported by this adapter. \
+                 Function '{function_name}' cannot be executed. \
+                 Use PostgreSQL, MySQL, or SQL Server for mutation support."
+            ),
+        })
+    }
 
     /// Bump fact table version counters after a successful mutation.
     ///
@@ -628,3 +638,31 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
         include_total_count: bool,
     ) -> Result<RelayPageResult>;
 }
+
+/// Marker trait for database adapters that support write operations via stored functions.
+///
+/// Adapters that implement this trait can execute GraphQL mutations by calling stored
+/// database functions (e.g. `fn_create_user`, `fn_update_order`).
+///
+/// # Which adapters implement this?
+///
+/// | Adapter | Implements |
+/// |---------|-----------|
+/// | [`PostgresAdapter`](crate::db::postgres::PostgresAdapter) | ✅ Yes |
+/// | [`MySqlAdapter`](crate::db::mysql::MySqlAdapter) | ✅ Yes |
+/// | [`SqlServerAdapter`](crate::db::sqlserver::SqlServerAdapter) | ✅ Yes |
+/// | [`SqliteAdapter`](crate::db::sqlite::SqliteAdapter) | ❌ No — SQLite does not support stored-function mutations |
+/// | [`FraiseWireAdapter`](crate::db::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
+/// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` |
+///
+/// # Compile-time enforcement
+///
+/// The mutation executor requires `A: MutationCapable`. Code that attempts to run mutations
+/// against a `SqliteAdapter` or `FraiseWireAdapter` will fail to compile, surfacing the
+/// limitation before any runtime behavior.
+///
+/// # Usage
+///
+/// SQLite is suitable for read-only development and testing. Use PostgreSQL, MySQL, or
+/// SQL Server when your schema includes mutations.
+pub trait MutationCapable: DatabaseAdapter {}

@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, MutationCapable},
         types::{DatabaseType, JsonbValue, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -106,6 +106,8 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 
 }
 
+impl MutationCapable for MockDatabaseAdapter {}
+
 /// Mock database adapter for mutation tests (returns empty results).
 pub struct MockMutationDatabaseAdapter {
     #[allow(dead_code)]
@@ -172,6 +174,8 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
     }
 
 }
+
+impl MutationCapable for MockMutationDatabaseAdapter {}
 
 // =============================================================================
 // FederationMetadata Builders
