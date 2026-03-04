@@ -66,19 +66,23 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
         let trusted_docs = Self::trusted_docs_from_schema(&schema);
 
-        // Warn when query-result caching is active but no RLS policies are declared.
-        // Cache isolation relies on per-user WHERE clauses in the cache key.  Without RLS,
-        // all users share the same (empty) WHERE clause and therefore share cache entries,
-        // which can leak data between tenants in multi-tenant deployments.
-        if config.cache_enabled && !schema.has_rls_configured() {
+        // Warn when query-result caching is active without RLS verification.
+        // Cache isolation relies entirely on per-user WHERE clauses in the cache key.
+        // Without RLS, users with the same query and variables share the same cached
+        // response, which can leak data between tenants.
+        //
+        // For multi-tenant deployments using CachedDatabaseAdapter, call
+        // `adapter.enforce_rls(cache_config.rls_enforcement).await?` at startup
+        // to verify that PostgreSQL RLS is active before serving traffic.
+        if config.cache_enabled && !schema.has_rls_configured() && !schema.is_multi_tenant() {
             warn!(
                 "Query-result caching is enabled but no Row-Level Security policies are declared \
                  in the compiled schema. Cache isolation relies on per-user WHERE clauses in cache \
                  keys. Without RLS, users with the same query and variables will receive the same \
                  cached response. This is safe for single-tenant deployments but WILL LEAK DATA \
-                 between tenants in multi-tenant deployments. Declare policies in fraiseql.toml \
-                 or set cache_enabled = false if you are using PostgreSQL-native RLS without \
-                 FraiseQL policy injection."
+                 between tenants in multi-tenant deployments. \
+                 For multi-tenant deployments, set `security.multi_tenant = true` in your schema \
+                 and call `CachedDatabaseAdapter::enforce_rls()` at server startup."
             );
         }
 

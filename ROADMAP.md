@@ -1,12 +1,13 @@
 # FraiseQL v2 Roadmap
 
-**Current Version**: v2.0.0 (Released March 2026)
+**Current Stable**: v2.0.0 (Released March 2026)
+**In Development**: v2.1.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
 ---
 
-## v2.0.0 - Stability and Correctness (Current)
+## v2.0.0 - Stability and Correctness ✅ Released March 2026
 
 **Released**: March 2026
 
@@ -52,26 +53,31 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 
 ## v2.1.0 - Performance and Observability
 
-**Target**: Q3-Q4 2026
+**Target**: Q3 2026
 
 With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query optimization, and performance guarantees.
 
-### Query Optimization
-- **Automatic persisted queries (APQ)** - Client-side compiled query caching with smart invalidation
-- **Query plan analysis** - Introspection endpoint showing generated SQL and execution plan
-- **N+1 query detection** - Automated warnings when queries would cause multiple database round-trips
+### Completed (in active development on `dev`)
+- **Automatic persisted queries (APQ)** - Redis-backed query caching with smart invalidation (`fraiseql-core/src/apq/`)
+- **Prometheus metrics** - Query latency percentiles, connection pool health, error rates (`fraiseql-server/src/observability/metrics.rs`)
+- **Structured logging** - Request/response logging with correlation IDs (`fraiseql-server/src/observability/logging.rs`)
+- **OpenTelemetry tracing** - Distributed tracing integration (`fraiseql-server/src/observability/tracing.rs`)
+- **Domain-specific newtypes** - Type-safe schema identifiers (`TypeName`, `FieldName`, `SqlSource`, `RoleName`)
+- **64-shard LRU cache** - Reduced lock contention with per-entry TTL and cascade invalidation
+- **MySQL RelayDatabaseAdapter** - Keyset cursor pagination with UUID support
+- **CheckpointStrategy enum** - `AtLeastOnce` and `EffectivelyOnce` delivery guarantees for observers
+- **PHP SDK** - Schema authoring and CLI integration
+- **C#, Elixir, F# SDK stubs** - Schema authoring support
+- **Federation circuit breaker** - Per-entity-type thresholds with half-open recovery
+
+### Remaining
+- **N+1 query detection** - Automated warnings when queries cause multiple database round-trips
+- **Query plan analysis** - Introspection endpoint showing generated SQL and EXPLAIN output
 - **Intelligent projection optimization** - Automatically select only requested fields from database
-
-### Observability and Metrics
-- **Prometheus metrics** - Query latency percentiles, database connection pool health, error rates by type
-- **Structured logging** - Request/response logging with correlation IDs, formatted for production log aggregation
-- **Tracing integration** - OpenTelemetry support for distributed tracing across services
-- **Performance dashboard** - Pre-built Grafana dashboard for query performance analysis
-
-### Database Performance
 - **Connection pool auto-tuning** - Adaptive pool sizing based on query patterns and latency percentiles
 - **Statement caching** - Eliminate prepare-statement overhead for repeated queries
 - **Batch query optimization** - Combine multiple requested queries into single database round-trip where safe
+- **Performance dashboard** - Pre-built Grafana dashboard for query performance analysis
 
 ---
 
@@ -167,7 +173,7 @@ Maintaining multiple API versions is an organizational problem, not a technical 
 
 ### Version Support
 - **LTS versions**: v1.x (through 2026), v2.x (through 2027)
-- **Current**: v2.0.0 (stable, March 2026)
+- **Current stable**: v2.0.0 (released March 2026); v2.1.0-dev active on `dev` branch
 - **EOL policy**: Previous major version supported for 12 months after new major release
 
 ### Breaking Changes

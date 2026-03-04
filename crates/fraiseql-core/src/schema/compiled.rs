@@ -376,6 +376,18 @@ impl CompiledSchema {
             .and_then(|sec_json| serde_json::from_value(sec_json.clone()).ok())
     }
 
+    /// Returns `true` if this schema declares a multi-tenant deployment.
+    ///
+    /// Multi-tenant schemas require Row-Level Security (RLS) to be active whenever
+    /// query result caching is enabled. Without RLS, all tenants sharing the same
+    /// query parameters would receive the same cached response.
+    ///
+    /// Detection is based on `security.multi_tenant` in the compiled schema JSON.
+    #[must_use]
+    pub fn is_multi_tenant(&self) -> bool {
+        self.security_config().map(|s| s.multi_tenant).unwrap_or(false)
+    }
+
     /// Find a role definition by name.
     ///
     /// # Arguments

@@ -219,7 +219,7 @@ pub use adapter::CachedDatabaseAdapter;
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;
-pub use config::CacheConfig;
+pub use config::{CacheConfig, RlsEnforcement};
 // Export dependency tracker (used in doctests and advanced use cases)
 pub use dependency_tracker::DependencyTracker;
 pub use entity_key::EntityKey;

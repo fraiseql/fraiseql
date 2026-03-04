@@ -64,6 +64,35 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Controls what happens when caching is enabled in a multi-tenant deployment but
+/// Row-Level Security does not appear to be active.
+///
+/// Configure via `rls_enforcement` in `CacheConfig` or `fraiseql.toml`.
+///
+/// # Security implication
+///
+/// Without RLS, all authenticated users sharing the same query and variables will
+/// receive the **same cached response**, potentially leaking data across tenants.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RlsEnforcement {
+    /// Refuse server startup if RLS appears inactive (default, safest).
+    ///
+    /// Use this in production to prevent silent cross-tenant data leakage.
+    #[default]
+    Error,
+
+    /// Log a warning and continue if RLS appears inactive.
+    ///
+    /// Use during migration or for non-critical workloads.
+    Warn,
+
+    /// Skip the RLS check entirely.
+    ///
+    /// Use for single-tenant deployments where RLS is not needed.
+    Off,
+}
+
 /// Cache configuration - **disabled by default** as of v2.0.0-rc.12.
 ///
 /// FraiseQL's architecture (precomputed views + optimized PostgreSQL) makes
@@ -128,6 +157,23 @@ pub struct CacheConfig {
     ///
     /// Default: `true`
     pub cache_list_queries: bool,
+
+    /// Row-Level Security enforcement mode for multi-tenant deployments.
+    ///
+    /// When caching is enabled alongside a multi-tenant schema (detected via
+    /// `is_multi_tenant()` on the compiled schema), FraiseQL checks that RLS is active.
+    /// Without RLS, two users sharing the same query may receive each other's data
+    /// from the cache.
+    ///
+    /// | Mode | Behaviour |
+    /// |------|-----------|
+    /// | `Error` | Server refuses to start (default, safest) |
+    /// | `Warn` | Logs a warning and continues |
+    /// | `Off` | Skips the check (single-tenant deployments) |
+    ///
+    /// Default: [`RlsEnforcement::Error`]
+    #[serde(default)]
+    pub rls_enforcement: RlsEnforcement,
 }
 
 impl Default for CacheConfig {
@@ -154,6 +200,7 @@ impl Default for CacheConfig {
             max_entries:        10_000,
             ttl_seconds:        86_400, // 24 hours
             cache_list_queries: true,
+            rls_enforcement:    RlsEnforcement::Error,
         }
     }
 }
@@ -179,10 +226,11 @@ impl CacheConfig {
     #[must_use]
     pub const fn with_max_entries(max_entries: usize) -> Self {
         Self {
-            enabled: false, // Consistent with new default
+            enabled:         false, // Consistent with new default
             max_entries,
-            ttl_seconds: 86_400,
+            ttl_seconds:        86_400,
             cache_list_queries: true,
+            rls_enforcement:    RlsEnforcement::Error,
         }
     }
 
@@ -206,10 +254,11 @@ impl CacheConfig {
     #[must_use]
     pub const fn with_ttl(ttl_seconds: u64) -> Self {
         Self {
-            enabled: false, // Consistent with new default
-            max_entries: 10_000,
+            enabled:            false, // Consistent with new default
+            max_entries:        10_000,
             ttl_seconds,
             cache_list_queries: true,
+            rls_enforcement:    RlsEnforcement::Error,
         }
     }
 
@@ -234,6 +283,7 @@ impl CacheConfig {
             max_entries:        10_000,
             ttl_seconds:        86_400,
             cache_list_queries: true,
+            rls_enforcement:    RlsEnforcement::Error,
         }
     }
 
@@ -257,6 +307,7 @@ impl CacheConfig {
             max_entries:        10_000,
             ttl_seconds:        86_400,
             cache_list_queries: true,
+            rls_enforcement:    RlsEnforcement::Error,
         }
     }
 

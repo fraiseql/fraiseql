@@ -120,6 +120,17 @@ pub struct SecurityConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_role: Option<String>,
 
+    /// Whether this schema serves multiple tenants with data isolation via RLS.
+    ///
+    /// When `true` and caching is enabled, FraiseQL verifies that Row-Level Security
+    /// is active on the database at startup. This prevents silent cross-tenant data
+    /// leakage through the cache.
+    ///
+    /// Set `rls_enforcement` in `CacheConfig` to control whether a missing RLS check
+    /// causes a startup failure or only emits a warning.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub multi_tenant: bool,
+
     /// Additional security settings (rate limiting, audit logging, etc.)
     #[serde(flatten)]
     pub additional: HashMap<String, serde_json::Value>,
