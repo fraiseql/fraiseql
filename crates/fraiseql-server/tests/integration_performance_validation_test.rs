@@ -9,7 +9,7 @@
 //! **Documented Integration Targets:**
 //! - Complex cached queries: <50ms with cache hit (vs 200-500ms without)
 //! - High concurrency: 50+ simultaneous requests, pooling prevents exhaustion
-//! - Query optimization + caching: 37% latency improvement + cache speedup
+//! - Query optimization + caching: reduced latency (see cargo bench for hardware-specific numbers)
 //! - Metrics overhead during sustained load: <2% additional latency
 //! - No negative interactions between components
 //! - Throughput scaling: 5K+ req/sec with all optimizations

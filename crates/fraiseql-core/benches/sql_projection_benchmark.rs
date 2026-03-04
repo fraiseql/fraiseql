@@ -1,7 +1,8 @@
 //! SQL Projection Performance Benchmarks
 //!
-//! This benchmark suite measures the performance of the SQL projection optimization system
-//! validating the 37% latency improvement and 95% payload reduction.
+//! This benchmark suite measures the performance of the SQL projection optimization system.
+//! Run `cargo bench --bench sql_projection_benchmark` to get hardware-specific numbers.
+//! Cross-framework comparisons live in `../velocitybench`.
 //!
 //! # Metrics Measured
 //!
@@ -24,16 +25,15 @@
 //! cargo bench --bench sql_projection_benchmark -- --baseline main
 //! ```
 //!
-//! # Expected Results (Target)
+//! # Design Targets (run the benchmarks above for actual numbers on your hardware)
 //!
-//! | Operation | Time | Improvement |
-//! |-----------|------|-------------|
-//! | PostgreSQL projection SQL (5 fields) | ~2µs | N/A |
-//! | PostgreSQL projection SQL (20 fields) | ~8µs | N/A |
-//! | Result projection (1K rows) | ~50µs | N/A |
-//! | __typename addition (1K rows) | ~100µs | N/A |
-//! | Complete pipeline (100K rows) | ~5ms | 37% faster than non-projected |
-//! | Payload size (100K rows) | ~450B | 95% smaller |
+//! | Operation | Design target |
+//! |-----------|---------------|
+//! | PostgreSQL projection SQL (5 fields) | ~2µs |
+//! | PostgreSQL projection SQL (20 fields) | ~8µs |
+//! | Result projection (1K rows) | ~50µs |
+//! | __typename addition (1K rows) | ~100µs |
+//! | Complete pipeline (100K rows) | ~5ms |
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_core::{

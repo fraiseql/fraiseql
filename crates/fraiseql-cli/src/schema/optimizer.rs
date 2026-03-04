@@ -100,7 +100,8 @@ impl SchemaOptimizer {
     /// Detection heuristics:
     /// - Type must have a JSONB column
     /// - Type should have sufficient fields (>10) or estimated large payload (>1KB)
-    /// - PostgreSQL benefit: 95% payload reduction, 37% latency improvement
+    /// - PostgreSQL benefit: reduced payload and latency (proportional to fields omitted;
+    ///   run `cargo bench --bench sql_projection_benchmark` for hardware-specific numbers)
     fn apply_sql_projection_hints(schema: &mut CompiledSchema, report: &mut OptimizationReport) {
         for type_def in &mut schema.types {
             if Self::should_use_projection(type_def) {
@@ -164,9 +165,8 @@ impl SchemaOptimizer {
     /// - Projection template: `jsonb_build_object('field1', data->>'field1', ...)`
     /// - Estimated reduction: Based on field count and typical JSONB overhead
     fn create_projection_hint(type_def: &TypeDefinition) -> SqlProjectionHint {
-        // Estimate payload reduction based on field count and JSONB overhead
-        // Formula: Each unselected field = ~250 bytes saved (conservative estimate)
-        // Average type: 20 fields, 5 selected = 15 fields × 250B = 3750B saved = 95% reduction
+        // Rough estimate: each unselected field ≈ 250 bytes saved (conservative).
+        // Actual reduction varies by schema and query pattern; not a guaranteed figure.
         let estimated_reduction = Self::estimate_reduction_percent(type_def.fields.len());
 
         SqlProjectionHint {
