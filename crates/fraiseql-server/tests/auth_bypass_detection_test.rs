@@ -54,7 +54,7 @@ fn test_valid_token_accepted() {
     let token = generate_hs256_token(&claims, SECRET).expect("token generation failed");
     let result = validator().validate_hmac(&token, SECRET);
     assert!(result.is_ok(), "Valid token should be accepted; got: {result:?}");
-    let validated = result.unwrap();
+    let validated = result.expect("valid token should unwrap");
     assert_eq!(validated.sub, "user123");
     assert_eq!(validated.iss, ISSUER);
 }
@@ -138,7 +138,7 @@ fn test_algorithm_mismatch_rejected() {
 
     // Replace first segment (header) with an RS256 header
     let rs256_header = base64_url_no_pad(br#"{"alg":"RS256","typ":"JWT"}"#);
-    let rest = token.splitn(2, '.').nth(1).expect("token has two dots");
+    let rest = token.split_once('.').map(|x| x.1).expect("token has two dots");
     let modified = format!("{rs256_header}.{rest}");
 
     let err = validator()

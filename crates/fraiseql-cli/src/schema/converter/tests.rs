@@ -34,7 +34,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         assert_eq!(compiled.types.len(), 0);
         assert_eq!(compiled.queries.len(), 0);
         assert_eq!(compiled.mutations.len(), 0);
@@ -95,7 +95,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         assert_eq!(compiled.types.len(), 1);
         assert_eq!(compiled.types[0].name, "User");
         assert_eq!(compiled.types[0].fields.len(), 2);
@@ -150,7 +150,7 @@
 
         let result = SchemaConverter::convert(intermediate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("unknown type 'UnknownType'"));
+        assert!(result.expect_err("test").to_string().contains("unknown type 'UnknownType'"));
     }
 
     #[test]
@@ -217,7 +217,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         assert_eq!(compiled.queries.len(), 1);
         assert_eq!(compiled.queries[0].arguments.len(), 1);
         assert_eq!(compiled.queries[0].arguments[0].arg_type, FieldType::Int);
@@ -277,7 +277,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         let params = &compiled.queries[0].auto_params;
         assert!(params.has_limit);
         assert!(params.has_offset);
@@ -338,7 +338,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         let params = &compiled.queries[0].auto_params;
         assert!(!params.has_limit);
         assert!(!params.has_offset);
@@ -406,7 +406,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         assert_eq!(compiled.types.len(), 1);
         assert_eq!(compiled.types[0].fields.len(), 2);
 
@@ -477,7 +477,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         assert_eq!(compiled.enums.len(), 1);
 
         let status_enum = &compiled.enums[0];
@@ -564,29 +564,29 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         // 1 user-defined input type + 49 rich type WhereInput types
         assert_eq!(compiled.input_types.len(), 50);
 
         // Find the UserFilter type (rich types are added at the end)
-        let filter = compiled.input_types.iter().find(|t| t.name == "UserFilter").unwrap();
+        let filter = compiled.input_types.iter().find(|t| t.name == "UserFilter").expect("test");
         assert_eq!(filter.name, "UserFilter");
         assert_eq!(filter.description, Some("User filter input".to_string()));
         assert_eq!(filter.fields.len(), 3);
 
         // Check name field
-        let name_field = filter.find_field("name").unwrap();
+        let name_field = filter.find_field("name").expect("test");
         assert_eq!(name_field.field_type, "String");
         assert!(!name_field.is_deprecated());
 
         // Check active field with default value
-        let active_field = filter.find_field("active").unwrap();
+        let active_field = filter.find_field("active").expect("test");
         assert_eq!(active_field.field_type, "Boolean");
         assert_eq!(active_field.default_value, Some("true".to_string()));
         assert_eq!(active_field.description, Some("Filter by active status".to_string()));
 
         // Check deprecated field
-        let old_field = filter.find_field("oldField").unwrap();
+        let old_field = filter.find_field("oldField").expect("test");
         assert!(old_field.is_deprecated());
     }
 
@@ -618,7 +618,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
 
         // Should have 49 rich type WhereInput types
         assert_eq!(compiled.input_types.len(), 49);
@@ -676,7 +676,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
 
         // Check that EmailAddressWhereInput has SQL template metadata
         let email_where = compiled
@@ -690,13 +690,13 @@
             email_where.metadata.is_some(),
             "Metadata should exist for EmailAddressWhereInput"
         );
-        let metadata = email_where.metadata.as_ref().unwrap();
+        let metadata = email_where.metadata.as_ref().expect("test");
         assert!(
             metadata.get("operators").is_some(),
             "Operators should be in metadata: {metadata:?}"
         );
 
-        let operators = metadata["operators"].as_object().unwrap();
+        let operators = metadata["operators"].as_object().expect("test");
         // Should have templates for email-specific operators
         assert!(!operators.is_empty(), "Operators map should not be empty: {operators:?}");
         assert!(
@@ -706,14 +706,14 @@
         );
 
         // Verify domainEq has templates for all 4 databases
-        let email_domain_eq = operators["domainEq"].as_object().unwrap();
+        let email_domain_eq = operators["domainEq"].as_object().expect("test");
         assert!(email_domain_eq.contains_key("postgres"));
         assert!(email_domain_eq.contains_key("mysql"));
         assert!(email_domain_eq.contains_key("sqlite"));
         assert!(email_domain_eq.contains_key("sqlserver"));
 
         // Verify PostgreSQL template is correct
-        let postgres_template = email_domain_eq["postgres"].as_str().unwrap();
+        let postgres_template = email_domain_eq["postgres"].as_str().expect("test");
         assert!(postgres_template.contains("SPLIT_PART"));
         assert!(postgres_template.contains("$field"));
     }
@@ -746,17 +746,17 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
 
         // Verify lookup data is embedded in schema.security
         assert!(compiled.security.is_some(), "Security section should exist");
-        let security = compiled.security.as_ref().unwrap();
+        let security = compiled.security.as_ref().expect("test");
         assert!(
             security.get("lookup_data").is_some(),
             "Lookup data should be in security section"
         );
 
-        let lookup_data = security["lookup_data"].as_object().unwrap();
+        let lookup_data = security["lookup_data"].as_object().expect("test");
 
         // Verify all lookup tables are present
         assert!(lookup_data.contains_key("countries"), "Countries lookup should be present");
@@ -765,36 +765,36 @@
         assert!(lookup_data.contains_key("languages"), "Languages lookup should be present");
 
         // Verify countries data
-        let countries = lookup_data["countries"].as_object().unwrap();
+        let countries = lookup_data["countries"].as_object().expect("test");
         assert!(countries.contains_key("US"), "US should be in countries");
         assert!(countries.contains_key("FR"), "France should be in countries");
         assert!(countries.contains_key("GB"), "UK should be in countries");
 
         // Verify US data
-        let us = countries["US"].as_object().unwrap();
-        assert_eq!(us["continent"].as_str().unwrap(), "North America");
-        assert!(!us["in_eu"].as_bool().unwrap());
+        let us = countries["US"].as_object().expect("test");
+        assert_eq!(us["continent"].as_str().expect("test"), "North America");
+        assert!(!us["in_eu"].as_bool().expect("test"));
 
         // Verify France is EU and Schengen
-        let fr = countries["FR"].as_object().unwrap();
-        assert!(fr["in_eu"].as_bool().unwrap());
-        assert!(fr["in_schengen"].as_bool().unwrap());
+        let fr = countries["FR"].as_object().expect("test");
+        assert!(fr["in_eu"].as_bool().expect("test"));
+        assert!(fr["in_schengen"].as_bool().expect("test"));
 
         // Verify currencies data
-        let currencies = lookup_data["currencies"].as_object().unwrap();
+        let currencies = lookup_data["currencies"].as_object().expect("test");
         assert!(currencies.contains_key("USD"));
         assert!(currencies.contains_key("EUR"));
-        let usd = currencies["USD"].as_object().unwrap();
-        assert_eq!(usd["symbol"].as_str().unwrap(), "$");
-        assert_eq!(usd["decimal_places"].as_i64().unwrap(), 2);
+        let usd = currencies["USD"].as_object().expect("test");
+        assert_eq!(usd["symbol"].as_str().expect("test"), "$");
+        assert_eq!(usd["decimal_places"].as_i64().expect("test"), 2);
 
         // Verify timezones data
-        let timezones = lookup_data["timezones"].as_object().unwrap();
+        let timezones = lookup_data["timezones"].as_object().expect("test");
         assert!(timezones.contains_key("UTC"));
         assert!(timezones.contains_key("EST"));
-        let est = timezones["EST"].as_object().unwrap();
-        assert_eq!(est["offset_minutes"].as_i64().unwrap(), -300);
-        assert!(est["has_dst"].as_bool().unwrap());
+        let est = timezones["EST"].as_object().expect("test");
+        assert_eq!(est["offset_minutes"].as_i64().expect("test"), -300);
+        assert!(est["has_dst"].as_bool().expect("test"));
     }
 
     #[test]
@@ -839,7 +839,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
         assert_eq!(compiled.interfaces.len(), 1);
 
         let interface = &compiled.interfaces[0];
@@ -921,7 +921,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
 
         // Check type implements interface
         assert_eq!(compiled.types.len(), 1);
@@ -980,7 +980,7 @@
 
         let result = SchemaConverter::convert(intermediate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("unknown interface"));
+        assert!(result.expect_err("test").to_string().contains("unknown interface"));
     }
 
     #[test]
@@ -1048,7 +1048,7 @@
 
         let result = SchemaConverter::convert(intermediate);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("missing field 'id'"));
+        assert!(result.expect_err("test").to_string().contains("missing field 'id'"));
     }
 
     #[test]
@@ -1120,7 +1120,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
 
         // Check union exists
         assert_eq!(compiled.unions.len(), 1);
@@ -1207,7 +1207,7 @@
             query_defaults:    None,
         };
 
-        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        let compiled = SchemaConverter::convert(intermediate).expect("test");
 
         assert_eq!(compiled.types.len(), 1);
         let employee_type = &compiled.types[0];
