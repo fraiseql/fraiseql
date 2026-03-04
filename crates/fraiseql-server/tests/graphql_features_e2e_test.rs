@@ -25,7 +25,7 @@ use std::collections::HashMap;
 // Common test utilities
 mod common;
 #[allow(unused_imports)]
-use common::{DatabaseFixture, GraphQLResult, TestDataBuilder, TestGraphQLExecutor};
+use common::{DatabaseFixture, GraphQLResult, TestDataBuilder, FakeGraphQLExecutor};
 
 // ============================================================================
 // Mock GraphQL Schema & Query Builder
@@ -125,7 +125,7 @@ fn test_simple_field_query_structure() {
     assert!(query.query_string.contains("name"));
 
     // Execute against test data
-    let executor = TestGraphQLExecutor::new();
+    let executor = FakeGraphQLExecutor::new();
     let result = executor.execute(&query.query_string);
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
 
@@ -255,7 +255,7 @@ fn test_one_to_many_relationship_structure() {
     assert!(query.query_string.contains("posts"));
 
     // Execute against test data
-    let executor = TestGraphQLExecutor::new();
+    let executor = FakeGraphQLExecutor::new();
     let result = executor.execute(&query.query_string);
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
 
@@ -410,7 +410,7 @@ fn test_limit_offset_pagination_structure() {
     assert!(query.validate().is_ok());
 
     // Execute basic users query (pagination tested through data limits)
-    let executor = TestGraphQLExecutor::new();
+    let executor = FakeGraphQLExecutor::new();
     let result = executor.execute("{ users { id name } }");
     assert!(result.is_ok(), "Query execution failed: {:?}", result);
 

@@ -383,49 +383,6 @@ mod integration_performance_tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_payload_reduction_under_concurrent_load() {
-        // Verify payload reduction persists under concurrent load
-        let num_concurrent = 30;
-        let total_payloads = Arc::new(AtomicU64::new(0));
-        let reduced_payloads = Arc::new(AtomicU64::new(0));
-
-        let mut tasks = vec![];
-
-        for _ in 0..num_concurrent {
-            let total = Arc::clone(&total_payloads);
-            let reduced = Arc::clone(&reduced_payloads);
-
-            let task = tokio::spawn(async move {
-                for _ in 0..20 {
-                    let baseline_bytes = 10_000u64; // 10KB unoptimized
-                    let optimized_bytes = 500u64; // 500B optimized (95% reduction)
-
-                    total.fetch_add(baseline_bytes, Ordering::Relaxed);
-                    reduced.fetch_add(optimized_bytes, Ordering::Relaxed);
-                }
-            });
-
-            tasks.push(task);
-        }
-
-        for task in tasks {
-            let _ = task.await;
-        }
-
-        let total_bytes = total_payloads.load(Ordering::Relaxed);
-        let reduced_bytes = reduced_payloads.load(Ordering::Relaxed);
-
-        let reduction_percent = ((total_bytes - reduced_bytes) as f64 / total_bytes as f64) * 100.0;
-
-        // Should achieve 90%+ reduction across all concurrent requests
-        assert!(
-            reduction_percent > 90.0,
-            "Payload reduction should maintain >90% across concurrent load (actual: {:.1}%)",
-            reduction_percent
-        );
-    }
-
     #[test]
     fn test_optimization_maintains_correctness_under_aliases() {
         // Verify field aliasing doesn't interfere with optimization

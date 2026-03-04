@@ -1,20 +1,37 @@
-//! Test GraphQL executor - minimal implementation for testing
+//! Fake in-memory GraphQL executor for documentation and example tests.
 //!
-//! This is a simplified GraphQL executor for testing purposes.
-//! It provides basic query execution against in-memory test data.
+//! **This is NOT the real FraiseQL execution engine.**
+//! It matches query strings by substring and returns hand-crafted JSON responses.
+//! It does not parse GraphQL, validate schemas, or generate SQL.
+//!
+//! For tests that exercise real execution, use:
+//! ```ignore
+//! use fraiseql_core::runtime::executor::Executor;
+//! use fraiseql_test_utils::FailingAdapter;
+//! let executor = Executor::new(schema, adapter);
+//! ```
 
 use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
-/// Simple GraphQL executor for test purposes
+/// Fake in-memory GraphQL executor for documentation and example tests.
+///
+/// **Does NOT use `fraiseql-core`'s real execution engine.**
+/// Matches query strings by substring and returns hardcoded JSON. Use this
+/// only for documentation examples and high-level HTTP layer tests where
+/// the specific response payload is not under test.
+///
+/// For tests that verify real execution behavior (SQL generation, field
+/// projection, error propagation), use `Executor::new(schema, adapter)` with
+/// a [`FailingAdapter`](fraiseql_test_utils::FailingAdapter) or a live database.
 #[derive(Debug, Clone)]
-pub struct TestGraphQLExecutor {
+pub struct FakeGraphQLExecutor {
     /// In-memory test data
     data: HashMap<String, Value>,
 }
 
-impl TestGraphQLExecutor {
+impl FakeGraphQLExecutor {
     /// Create a new test executor
     pub fn new() -> Self {
         let mut data = HashMap::new();
@@ -245,7 +262,7 @@ impl TestGraphQLExecutor {
     }
 }
 
-impl Default for TestGraphQLExecutor {
+impl Default for FakeGraphQLExecutor {
     fn default() -> Self {
         Self::new()
     }
@@ -257,13 +274,13 @@ mod tests {
 
     #[test]
     fn test_executor_creation() {
-        let executor = TestGraphQLExecutor::new();
+        let executor = FakeGraphQLExecutor::new();
         assert!(!executor.data.is_empty());
     }
 
     #[test]
     fn test_users_query() {
-        let executor = TestGraphQLExecutor::new();
+        let executor = FakeGraphQLExecutor::new();
         let query = "{ users { id name } }";
         let result = executor.execute(query);
         assert!(result.is_ok());
@@ -271,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_posts_query() {
-        let executor = TestGraphQLExecutor::new();
+        let executor = FakeGraphQLExecutor::new();
         let query = "{ posts { id title } }";
         let result = executor.execute(query);
         assert!(result.is_ok());
@@ -279,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_unsupported_query() {
-        let executor = TestGraphQLExecutor::new();
+        let executor = FakeGraphQLExecutor::new();
         let query = "{ comments { id } }";
         let result = executor.execute(query);
         assert!(result.is_err());

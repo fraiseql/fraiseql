@@ -1,20 +1,8 @@
-//! End-to-End GraphQL Execution Tests
+//! GraphQL request structure and validation tests.
 //!
-//! These tests verify the complete flow from HTTP request to database response:
-//! 1. GraphQL request accepted and parsed
-//! 2. Query validated (depth, complexity, variables)
-//! 3. Executor invoked with query and variables
-//! 4. Database adapter executes SQL
-//! 5. Results projected and formatted
-//! 6. Response returned in GraphQL spec format
-//!
-//! Tests cover:
-//! - Simple queries without arguments
-//! - Queries with variables
-//! - Multiple fields and nested types
-//! - Pagination (limit/offset)
-//! - Error handling and validation
-//! - Response formatting and structure
+//! Tests that `GraphQLRequest` deserialization and `RequestValidator` work
+//! correctly for well-formed and malformed inputs. These tests do not invoke
+//! an executor or a database — they cover the HTTP input layer only.
 
 use fraiseql_server::{
     error::GraphQLError, routes::graphql::GraphQLRequest, validation::RequestValidator,

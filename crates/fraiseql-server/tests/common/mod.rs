@@ -14,4 +14,4 @@ pub use database_fixture::{
 #[allow(unused_imports)]
 pub use fraiseql_test_utils::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
 #[allow(unused_imports)]
-pub use graphql_executor::TestGraphQLExecutor;
+pub use graphql_executor::FakeGraphQLExecutor;
