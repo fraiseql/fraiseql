@@ -17,6 +17,7 @@ async-trait = {workspace = true}
 tokio = {workspace = true}
 tempfile = {workspace = true}
 serde_json = {workspace = true}
+uuid = {workspace = true}
 fraiseql-core = {workspace = true, features = ["test-utils"]}
 
 [dev-dependencies]

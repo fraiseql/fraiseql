@@ -225,3 +225,18 @@ expected values.
 | Security paths need negative tests | Code review | Reviewer explicit approval |
 | No shared global state in tests | Code review | Block merge |
 | New SQL paths need snapshot tests | Code review | Block merge |
+
+## Test Utility Adoption
+
+New integration tests MUST import from `fraiseql-test-utils` for:
+
+- Database URL resolution (`database_url()`)
+- Schema compilation in tests (`setup_test_schema()`)
+- GraphQL response assertions (`assert_graphql_success()`, `assert_no_graphql_errors()`,
+  `assert_has_data()`, `assert_graphql_error_contains()`, `assert_graphql_error_code()`,
+  `assert_field_path()`)
+- Observer test namespacing (`get_test_id()`)
+
+The `tools/check-test-imports.sh` script enforces this in CI.
+Adding a new bare `std::env::var("DATABASE_URL")` call in `tests/` will
+cause the CI `check-test-imports` step to fail.

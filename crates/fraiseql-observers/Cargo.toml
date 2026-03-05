@@ -37,6 +37,7 @@ uuid = {version = "1.0", features = ["v4", "serde"]}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 tokio-test = "0.4"
 
 [features]

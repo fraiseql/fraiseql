@@ -15,6 +15,7 @@
 
 use std::{sync::Arc, time::Duration};
 
+use fraiseql_test_utils::database_url;
 use serde_json::json;
 use sqlx::PgPool;
 use tokio::sync::Mutex;
@@ -23,17 +24,11 @@ use wiremock::{
     matchers::{method, path},
 };
 
-/// Get database URL from environment or use default
-pub fn get_database_url() -> String {
-    std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost/fraiseql_test".to_string())
-}
-
 /// Create a PostgreSQL connection pool for tests
 pub async fn create_test_pool() -> PgPool {
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
-        .connect(&get_database_url())
+        .connect(&database_url())
         .await
         .expect("Failed to connect to test database")
 }
@@ -546,12 +541,6 @@ pub async fn wait_for_runtime_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_database_url() {
-        let url = get_database_url();
-        assert!(!url.is_empty());
-    }
 
     #[tokio::test]
     async fn test_mock_webhook_server_creation() {

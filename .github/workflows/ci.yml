@@ -33,6 +33,16 @@ jobs:
       - name: Check formatting
         run: cargo +nightly fmt --all -- --check
 
+  # Enforce test utility adoption (no bare DATABASE_URL in test files)
+  check-test-imports:
+    name: Check Test Imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check test imports
+        run: bash tools/check-test-imports.sh
+
   # Lint with Clippy
   clippy:
     name: Clippy Lints

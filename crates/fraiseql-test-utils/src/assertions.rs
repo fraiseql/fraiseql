@@ -122,6 +122,83 @@ pub fn assert_graphql_error_contains(response: &serde_json::Value, expected: &st
     );
 }
 
+/// Assert that a GraphQL response contains an error with the given extension code.
+///
+/// # Panics
+///
+/// Panics if the response has no errors, or none of the errors have an
+/// `extensions.code` field matching `code`.
+///
+/// # Example
+///
+/// ```ignore
+/// assert_graphql_error_code(&response, "UNAUTHENTICATED");
+/// ```
+pub fn assert_graphql_error_code(response: &serde_json::Value, code: &str) {
+    let errors = response
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .expect("Response should have an 'errors' array");
+
+    assert!(
+        !errors.is_empty(),
+        "Expected at least one GraphQL error with code '{}', but errors array is empty",
+        code
+    );
+
+    let found = errors.iter().any(|e| {
+        e.get("extensions")
+            .and_then(|ext| ext.get("code"))
+            .and_then(|c| c.as_str())
+            .is_some_and(|c| c == code)
+    });
+
+    assert!(
+        found,
+        "Expected an error with extension code '{}', but got: {:?}",
+        code,
+        errors
+            .iter()
+            .map(|e| {
+                e.get("extensions")
+                    .and_then(|ext| ext.get("code"))
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("<no code>")
+            })
+            .collect::<Vec<_>>()
+    );
+}
+
+/// Assert the value at the given dot-separated field path equals `expected`.
+///
+/// # Panics
+///
+/// Panics if any segment of the path is missing, or if the final value does
+/// not equal `expected`.
+///
+/// # Example
+///
+/// ```ignore
+/// assert_field_path(&response, "data.user.email", &json!("alice@example.com"));
+/// ```
+pub fn assert_field_path(
+    response: &serde_json::Value,
+    path: &str,
+    expected: &serde_json::Value,
+) {
+    let mut current = response;
+    for part in path.split('.') {
+        match current.get(part) {
+            Some(v) => current = v,
+            None => panic!(
+                "assert_field_path: segment '{}' not found in path '{}'\nJSON was: {}",
+                part, path, current
+            ),
+        }
+    }
+    assert_eq!(current, expected, "at path '{path}'");
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
@@ -209,5 +286,47 @@ mod tests {
     fn test_graphql_error_contains_empty_errors() {
         let response = json!({"errors": []});
         assert_graphql_error_contains(&response, "error");
+    }
+
+    #[test]
+    fn test_graphql_error_code_match() {
+        let response =
+            json!({"errors": [{"message": "Not allowed", "extensions": {"code": "FORBIDDEN"}}]});
+        assert_graphql_error_code(&response, "FORBIDDEN");
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected an error with extension code")]
+    fn test_graphql_error_code_no_match() {
+        let response =
+            json!({"errors": [{"message": "Not allowed", "extensions": {"code": "FORBIDDEN"}}]});
+        assert_graphql_error_code(&response, "UNAUTHENTICATED");
+    }
+
+    #[test]
+    #[should_panic(expected = "errors' array")]
+    fn test_graphql_error_code_no_errors() {
+        let response = json!({"data": {}});
+        assert_graphql_error_code(&response, "FORBIDDEN");
+    }
+
+    #[test]
+    fn test_assert_field_path_simple() {
+        let response = json!({"data": {"user": {"id": 42}}});
+        assert_field_path(&response, "data.user.id", &json!(42));
+    }
+
+    #[test]
+    #[should_panic(expected = "segment 'missing' not found in path")]
+    fn test_assert_field_path_missing_segment() {
+        let response = json!({"data": {}});
+        assert_field_path(&response, "data.missing.field", &json!("x"));
+    }
+
+    #[test]
+    #[should_panic(expected = "at path 'data.user.name'")]
+    fn test_assert_field_path_value_mismatch() {
+        let response = json!({"data": {"user": {"name": "alice"}}});
+        assert_field_path(&response, "data.user.name", &json!("bob"));
     }
 }

@@ -15,13 +15,12 @@ use std::{path::PathBuf, sync::Arc};
 
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{CompiledSchemaLoader, ServerConfig};
+use fraiseql_test_utils::database_url;
 
 /// Test PostgreSQL adapter initialization with default configuration.
 #[tokio::test]
 async fn test_postgres_adapter_initialization() {
-    // Get DATABASE_URL from environment or use test database
-    let db_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+    let db_url = database_url();
 
     // Initialize adapter with default pool size
     let adapter = PostgresAdapter::new(&db_url).await;
@@ -34,7 +33,7 @@ async fn test_postgres_adapter_initialization() {
 #[tokio::test]
 async fn test_postgres_adapter_with_pool_config() {
     let db_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+        database_url();
 
     let min_size = 5;
     let max_size = 20;
@@ -102,7 +101,7 @@ fn test_server_config_database_url_override() {
 #[tokio::test]
 async fn test_postgres_adapter_arc_compatibility() {
     let db_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string());
+        database_url();
 
     let adapter = PostgresAdapter::new(&db_url).await.expect("Failed to create adapter");
 
