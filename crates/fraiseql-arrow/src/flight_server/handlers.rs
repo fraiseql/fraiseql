@@ -111,8 +111,14 @@ impl FlightService for FraiseQLFlightService {
             },
         };
 
-        // Create session token
-        let session_token = create_session_token(&authenticated_user)?;
+        // Create session token using the secret cached at service startup
+        let secret = self.session_secret.as_deref().ok_or_else(|| {
+            Status::internal(
+                "FLIGHT_SESSION_SECRET not configured; set the environment variable \
+                 or call FraiseQLFlightService::with_session_secret() before use",
+            )
+        })?;
+        let session_token = create_session_token(&authenticated_user, secret)?;
         info!(user_id = %authenticated_user.user_id, "Handshake complete");
 
         // Create response with session token
@@ -250,7 +256,10 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::DoGetStream>, Status> {
         // Validate session token from metadata
         let session_token = extract_session_token(&request)?;
-        let authenticated_user = validate_session_token(&session_token)?;
+        let secret = self.session_secret.as_deref().ok_or_else(|| {
+            Status::internal("FLIGHT_SESSION_SECRET not configured")
+        })?;
+        let authenticated_user = validate_session_token(&session_token, secret)?;
 
         info!(
             user_id = %authenticated_user.user_id,
@@ -328,7 +337,10 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::DoPutStream>, Status> {
         // Validate session token for data uploads
         let session_token = extract_session_token(&request)?;
-        let authenticated_user = validate_session_token(&session_token)?;
+        let secret = self.session_secret.as_deref().ok_or_else(|| {
+            Status::internal("FLIGHT_SESSION_SECRET not configured")
+        })?;
+        let authenticated_user = validate_session_token(&session_token, secret)?;
 
         info!(
             user_id = %authenticated_user.user_id,
@@ -501,7 +513,10 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::DoActionStream>, Status> {
         // Validate session token for admin operations
         let session_token = extract_session_token(&request)?;
-        let authenticated_user = validate_session_token(&session_token)?;
+        let secret = self.session_secret.as_deref().ok_or_else(|| {
+            Status::internal("FLIGHT_SESSION_SECRET not configured")
+        })?;
+        let authenticated_user = validate_session_token(&session_token, secret)?;
 
         let action = request.into_inner();
         info!(
@@ -599,7 +614,10 @@ impl FlightService for FraiseQLFlightService {
     ) -> std::result::Result<Response<Self::DoExchangeStream>, Status> {
         // Validate session token for bidirectional streams
         let session_token = extract_session_token(&request)?;
-        let authenticated_user = validate_session_token(&session_token)?;
+        let secret = self.session_secret.as_deref().ok_or_else(|| {
+            Status::internal("FLIGHT_SESSION_SECRET not configured")
+        })?;
+        let authenticated_user = validate_session_token(&session_token, secret)?;
 
         info!(
             user_id = %authenticated_user.user_id,

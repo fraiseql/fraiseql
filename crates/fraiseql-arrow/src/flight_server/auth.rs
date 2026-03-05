@@ -30,9 +30,13 @@ pub(crate) fn map_security_error_to_status(
 }
 
 /// Create a short-lived session token (5 minutes).
+///
+/// `secret` is the HMAC-SHA256 key, read once at service startup from
+/// `FLIGHT_SESSION_SECRET` and cached in [`FraiseQLFlightService::session_secret`].
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
+    secret: &str,
 ) -> std::result::Result<String, Status> {
     let now = Utc::now();
     let exp = now + chrono::Duration::minutes(5);
@@ -44,18 +48,6 @@ pub(crate) fn create_session_token(
         scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
     };
-
-    // Use HMAC-SHA256 for session tokens (fast, doesn't require JWKS)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET").map_err(|_| {
-        Status::internal(
-            "FLIGHT_SESSION_SECRET environment variable not set; \
-             generate one with: openssl rand -hex 32",
-        )
-    })?;
-
-    if secret.is_empty() {
-        return Err(Status::internal("FLIGHT_SESSION_SECRET must not be empty"));
-    }
 
     let key = EncodingKey::from_secret(secret.as_bytes());
     let header = Header::new(Algorithm::HS256);
@@ -73,6 +65,7 @@ pub(crate) fn create_session_token(
 ///
 /// # Arguments
 /// * `token` - Session token string from Authorization header
+/// * `secret` - HMAC-SHA256 key, cached at service startup in `FraiseQLFlightService`
 ///
 /// # Returns
 /// * `Ok(AuthenticatedUser)` - Valid token with user identity
@@ -80,18 +73,8 @@ pub(crate) fn create_session_token(
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
 pub(crate) fn validate_session_token(
     token: &str,
+    secret: &str,
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
-    // Get secret (same as create_session_token)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET").map_err(|_| {
-        Status::unauthenticated(
-            "FLIGHT_SESSION_SECRET environment variable not set; perform handshake after configuring it",
-        )
-    })?;
-
-    if secret.is_empty() {
-        return Err(Status::unauthenticated("FLIGHT_SESSION_SECRET is empty"));
-    }
-
     let key = DecodingKey::from_secret(secret.as_bytes());
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true; // Check expiration

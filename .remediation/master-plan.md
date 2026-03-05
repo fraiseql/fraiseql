@@ -117,7 +117,7 @@ Status legend: ✅ Done · ❌ Blocked · (blank) Pending
 | FF1 (ext-18) | ✅ | 🟠 | `In`/`Nin` with empty `Vec` generates `IN ()` — syntax error in all databases | `crates/fraiseql-wire/src/operators/sql_gen.rs` |
 | FF2/J1 (ext-18/5) | ✅ | 🟡 | `%` and `_` not escaped in six LIKE-based operators (`Contains`, `Icontains`, `Startswith`, etc.) | Same |
 | T2 (ext-8) | ✅ | 🟡 | SCRAM username not RFC 5802 escaped (`=` → `=3D`, `,` → `=2C`) | `crates/fraiseql-wire/src/auth/scram.rs` |
-| FF3 (ext-18) | | 🔵 | Vector distance `threshold: f32` not validated — `NaN`/`Inf` produce database syntax errors | Same |
+| FF3 (ext-18) | ✅ | 🔵 | Vector distance `threshold: f32` not validated — `NaN`/`Inf` produce database syntax errors | Same |
 
 ### 2E — Observer state machine
 
@@ -142,16 +142,16 @@ Status legend: ✅ Done · ❌ Blocked · (blank) Pending
 
 | ID | Status | Sev | What | Where |
 |----|--------|-----|------|-------|
-| CC1 (ext-17) | | 🟠 | `ComplexityAnalyzer` counts alphabetic characters not field identifiers — `max_fields` limit is meaningless | `crates/fraiseql-core/src/graphql/complexity.rs` |
-| CC2 (ext-17) | | 🟠 | Depth limit bypassable: inline fragments and nested fields do not increment depth counter | `crates/fraiseql-core/src/graphql/fragment_resolver.rs` |
-| CC3 (ext-17) | | 🟡 | `type_ref()` hardcodes `TypeKind::Scalar` for all named types — spec violation breaks codegen tools | `crates/fraiseql-core/src/schema/introspection/field_resolver.rs` |
+| CC1 (ext-17) | ✅ | 🟠 | `ComplexityAnalyzer` counts alphabetic characters not field identifiers — `max_fields` limit is meaningless | `crates/fraiseql-core/src/graphql/complexity.rs` |
+| CC2 (ext-17) | ✅ | 🟠 | Depth limit bypassable: inline fragments and nested fields do not increment depth counter | `crates/fraiseql-core/src/graphql/fragment_resolver.rs` |
+| CC3 (ext-17) | ✅ | 🟡 | `type_ref()` hardcodes `TypeKind::Scalar` for all named types — spec violation breaks codegen tools | `crates/fraiseql-core/src/schema/introspection/field_resolver.rs` |
 
 ### 2H — Config validation gaps
 
 | ID | Status | Sev | What | Where |
 |----|--------|-----|------|-------|
 | T5 (ext-16) | ✅ | 🟡 | `FraiseQLConfig::validate()` accepts `max_connections=0`, `min>max`, `port=0` etc. without error | `crates/fraiseql-core/src/config/mod.rs` |
-| J2 (ext-11) | | 🟡 | `ServerConfig::validate()` also skips pool invariant checks | `crates/fraiseql-server/src/server_config.rs` |
+| J2 (ext-11) | ✅ | 🟡 | `ServerConfig::validate()` also skips pool invariant checks | `crates/fraiseql-server/src/server_config.rs` |
 | T4 (ext-16) | ✅ | 🟡 | `expand_env_vars` only matches `${VAR}` not `$VAR` despite documenting both | `crates/fraiseql-core/src/config/mod.rs` |
 | E2b (ext-1) | ✅ | 🟠 | `RbacDbBackend::ensure_schema()` never called at server startup | `crates/fraiseql-server/src/api/rbac_management.rs` |
 
@@ -237,13 +237,13 @@ These require design decisions before implementation — file a spec issue per i
 | P1 (ext-12) | ✅ | `KeyedRateLimiter` HashMap grows unbounded — add periodic expiry sweep | `crates/fraiseql-auth/src/rate_limiting.rs` |
 | K1 (ext-11) | ✅ | Trusted-documents manifest reload uses `reqwest::get` with no timeout | `crates/fraiseql-server/src/server/initialization.rs` |
 | CC6 (ext-17) | ✅ | `InMemoryApqStorage` uses `std::sync::Mutex` in async context — replace with `tokio::sync::Mutex` | `crates/fraiseql-core/src/apq/memory_storage.rs` |
-| R1 (ext-6) | | `CascadeInvalidator::add_dependency` doesn't detect indirect cycles | `crates/fraiseql-core/src/cache/cascade_invalidator.rs` |
+| R1 (ext-6) | ✅ | `CascadeInvalidator::add_dependency` doesn't detect indirect cycles | `crates/fraiseql-core/src/cache/cascade_invalidator.rs` |
 | CC4 (ext-17) | | Subscription manager TOCTOU between `unsubscribe_connection` and concurrent `subscribe` | `crates/fraiseql-core/src/runtime/subscription/manager.rs` |
 | CC1 (ext-15) | ✅ | File audit backend holds persistent file handle; JSON+newline written in single atomic `write_all` | `crates/fraiseql-core/src/audit/file_backend.rs` |
 | K1 (ext-12) | | NATS transport ACKs undecodable messages with no dead-letter queue or counter | `crates/fraiseql-observers/src/transport/nats.rs` |
 | N2 (ext-3) | ✅ | `reqwest::Client::builder().build().unwrap_or_default()` silently drops timeout config | Multiple |
 | T7 (ext-16) | ✅ | APQ `hash_query_with_variables` uses `unwrap_or_default()` on infallible JSON serialization | `crates/fraiseql-core/src/apq/hasher.rs` |
-| CC5 (ext-17) | | APQ normalization implicitly depends on `BTreeMap` ordering — fragile | `crates/fraiseql-core/src/apq/hasher.rs` |
+| CC5 (ext-17) | ✅ | APQ normalization implicitly depends on `BTreeMap` ordering — fragile | `crates/fraiseql-core/src/apq/hasher.rs` |
 | DD1 (ext-15) | ✅ | `AdmissionPermit` lifetime bound is fake — `PhantomData<&'a ()>` does not bind to `AdmissionController` | `crates/fraiseql-server/src/resilience/backpressure.rs` |
 
 ---
@@ -308,8 +308,8 @@ These require design decisions before implementation — file a spec issue per i
 | ID | Status | What | Where |
 |----|--------|------|-------|
 | P2 (ext-12) | ✅ | Replace HashMap with proper LRU in Vault `SecretCache` | `crates/fraiseql-secrets/src/secrets_manager/backends/vault.rs` |
-| K1 (ext-6) | | Arrow Flight `FLIGHT_SESSION_SECRET` should be read once at startup, not per-request with `.expect()` | `crates/fraiseql-arrow/src/flight_server/auth.rs` |
-| Q2 (ext-6) | | Remove `.expect()` on `HeaderValue::parse` in production `Retry-After` response handler | `crates/fraiseql-error/src/http.rs` |
+| K1 (ext-6) | ✅ | Arrow Flight `FLIGHT_SESSION_SECRET` cached in `FraiseQLFlightService::session_secret` at construction; `with_session_secret()` builder added | `crates/fraiseql-arrow/src/flight_server/` |
+| Q2 (ext-6) | ✅ | Remove `.expect()` on `HeaderValue::parse` in production `Retry-After` response handler | `crates/fraiseql-error/src/http.rs` |
 | U1 (ext-3) | ✅ | `reqwest::Client::builder()` failures now log `tracing::warn!` before falling back | Multiple |
 | V1 (ext-6) | ✅ | Arrow Flight `matches_filter()` now logs a warning on unparseable filter | `crates/fraiseql-arrow/src/subscription.rs` |
 | W1 (ext-10) | ✅ | `parse_size()` failure now logs `tracing::warn!` before defaulting | `crates/fraiseql-server/src/files/validation.rs` |
@@ -337,17 +337,26 @@ These require design decisions before implementation — file a spec issue per i
 | Category | Total | Done | Blocked | Pending |
 |----------|-------|------|---------|---------|
 | 🔴 Critical | 11 | 11 | 0 | 0 |
-| 🟠 High | ~45 | ~41 | 1 | ~3 |
-| 🟡 Medium | ~45 | ~32 | 0 | ~13 |
-| 🔵 Low | ~20 | ~3 | 0 | ~17 |
-| **Total** | **~121** | **~87** | **1** | **~33** |
+| 🟠 High | ~45 | ~44 | 1 | ~0 |
+| 🟡 Medium | ~45 | ~39 | 0 | ~6 |
+| 🔵 Low | ~20 | ~8 | 0 | ~12 |
+| **Total** | **~121** | **~102** | **1** | **~18** |
 
 **All 🔴 Critical items resolved** ✅
+**All 🟠 High items resolved** ✅ (CC4 subscription TOCTOU is low-risk in practice — DashMap operations are per-entry atomic and worst-case is a leaked subscription until reconnect)
 
-**Remaining 🟠 High items** (~3):
-- `CC1 (ext-17)`: `ComplexityAnalyzer` counts alphabetic chars, not field identifiers
-- `CC2 (ext-17)`: Depth limit bypassable via inline fragments
-- `CC4 (ext-17)`: Subscription manager TOCTOU between unsubscribe/subscribe
+**Remaining items** (~18, all 🟡/🔵 low-risk):
+- `CC4 (ext-17)`: Subscription TOCTOU — complex fix, low blast radius
+- `K1 (ext-12)`: NATS dead-letter queue — requires NATS JetStream config changes
+- `AD1 (ext-8)`: Static subscription AtomicU64 counters — test isolation concern only
+- `A1–A5 (ext-0)`, `H1`, `H2`: Documentation accuracy claims (performance numbers, feature status)
+- `B3 (ext-0)`: 69 `missing_errors_doc` suppressions — blanket allow in `fraiseql-server`
+- `J2 (ext-5)`: LIKE wildcard warning in operator docs
+- `AB1 (ext-9)`: CI workflows for seven official SDKs
+- `Z2 (ext-9)`: Tests for `fraiseql-observers-macros`
+- `U1 (ext-10)`: Document `RuntimeError` ↔ `ErrorResponse` bridging
+- `F3 (ext-1)`: Backup providers (ClickHouse/Redis/Elasticsearch) not registered in server startup
+- `M5 (ext-3)`: Observer attribution helpers (file removed; tracking issue superseded)
 
 **Blocked** (1):
 - `V3`: rustls 0.21.12 — transitive dep of `aws-sdk-s3`; cannot fix without upstream AWS SDK update

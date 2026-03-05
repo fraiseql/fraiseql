@@ -158,6 +158,11 @@ pub struct FraiseQLFlightService {
     /// to execute arbitrary SQL, which bypasses RLS and query-level authorization.
     /// Only enable for trusted internal tooling with explicit intent.
     pub(crate) allow_raw_sql: bool,
+    /// HMAC-SHA256 secret used to sign and verify Flight session tokens.
+    ///
+    /// Read once at service construction from `FLIGHT_SESSION_SECRET` environment
+    /// variable, or supplied via [`FraiseQLFlightService::with_session_secret`].
+    pub(crate) session_secret: Option<String>,
 }
 
 /// Security context for authenticated Flight requests.

@@ -26,6 +26,30 @@ use crate::{
     subscription::SubscriptionManager,
 };
 
+/// Read `FLIGHT_SESSION_SECRET` from the environment once.
+///
+/// Returns `None` (and logs a warning) if the variable is unset or empty.
+/// This is called at service construction so every request reuses the cached value.
+fn read_flight_session_secret() -> Option<String> {
+    match std::env::var("FLIGHT_SESSION_SECRET") {
+        Ok(s) if s.is_empty() => {
+            tracing::warn!(
+                "FLIGHT_SESSION_SECRET is set but empty; Flight authentication will fail. \
+                 Generate a secret with: openssl rand -hex 32"
+            );
+            None
+        },
+        Ok(s) => Some(s),
+        Err(_) => {
+            tracing::warn!(
+                "FLIGHT_SESSION_SECRET is not set; Flight handshake authentication \
+                 will return an error. Set this variable before starting the server."
+            );
+            None
+        },
+    }
+}
+
 impl FraiseQLFlightService {
     /// Create a new Flight service with placeholder data (for testing/development).
     #[must_use]
@@ -42,7 +66,8 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
-            allow_raw_sql:         false,
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
         }
     }
 
@@ -83,7 +108,8 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
-            allow_raw_sql:         false,
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
         }
     }
 
@@ -122,7 +148,8 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
-            allow_raw_sql:         false,
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
         }
     }
 
@@ -169,7 +196,8 @@ impl FraiseQLFlightService {
             oidc_validator: Some(oidc_validator),
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
-            allow_raw_sql:         false,
+            allow_raw_sql: false,
+            session_secret: read_flight_session_secret(),
         }
     }
 
@@ -221,6 +249,16 @@ impl FraiseQLFlightService {
     #[must_use]
     pub fn schema_registry(&self) -> &SchemaRegistry {
         &self.schema_registry
+    }
+
+    /// Set the HMAC-SHA256 secret used to sign Flight session tokens.
+    ///
+    /// Overrides the value read from the `FLIGHT_SESSION_SECRET` environment variable
+    /// at construction. Use this in tests or when managing the secret programmatically.
+    #[must_use]
+    pub fn with_session_secret(mut self, secret: impl Into<String>) -> Self {
+        self.session_secret = Some(secret.into());
+        self
     }
 
     /// Enable raw SQL execution via `BatchedQueries` tickets.
