@@ -8,7 +8,6 @@ use sqlx::{
 
 use super::where_generator::MySqlWhereGenerator;
 use crate::{
-    compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_mysql_identifier,
         traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
@@ -16,6 +15,7 @@ use crate::{
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
+    types::sql_hints::{OrderByClause, OrderDirection},
 };
 
 /// MySQL database adapter with connection pooling.
@@ -189,7 +189,7 @@ impl DatabaseAdapter for MySqlAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&crate::schema::SqlProjectionHint>,
+        projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
@@ -830,7 +830,7 @@ mod unit_tests {
 
     #[test]
     fn relay_order_sql_forward_with_desc_custom_order() {
-        use crate::compiler::aggregation::{OrderByClause, OrderDirection};
+        use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
         let order_by =
             vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Desc }];
@@ -841,7 +841,7 @@ mod unit_tests {
 
     #[test]
     fn relay_order_sql_backward_flips_asc_to_desc() {
-        use crate::compiler::aggregation::{OrderByClause, OrderDirection};
+        use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
         let order_by =
             vec![OrderByClause { field: "created_at".to_string(), direction: OrderDirection::Asc }];

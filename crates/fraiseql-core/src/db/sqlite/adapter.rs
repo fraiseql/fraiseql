@@ -206,7 +206,7 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&crate::schema::SqlProjectionHint>,
+        projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
@@ -832,7 +832,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_projection_filters_fields() {
-        use crate::schema::SqlProjectionHint;
+        use crate::types::SqlProjectionHint;
 
         let adapter = setup_user_table(3).await;
         let projection = SqlProjectionHint {

@@ -6,6 +6,8 @@ use super::domain_types::{SqlSource, TypeName};
 use super::field_type::{DeprecationInfo, FieldDefinition};
 use crate::validation::ValidationRule;
 
+pub use crate::types::sql_hints::SqlProjectionHint;
+
 // =============================================================================
 // Object Type Definitions
 // =============================================================================
@@ -91,25 +93,6 @@ pub struct TypeDefinition {
     /// Cursor-based pagination uses `pk_{snake_case(name)}` (BIGINT) for keyset ordering.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub relay: bool,
-}
-
-/// SQL projection hint for database-specific field projection optimization.
-///
-/// When a type has a large JSONB payload, the compiler can generate
-/// SQL that projects only the requested fields, reducing network payload
-/// and JSON deserialization overhead.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SqlProjectionHint {
-    /// Database type (e.g., "postgresql", "mysql", "sqlite").
-    pub database: String,
-
-    /// The projection SQL template.
-    /// Example for PostgreSQL:
-    /// `jsonb_build_object('id', data->>'id', 'email', data->>'email')`
-    pub projection_template: String,
-
-    /// Estimated reduction in payload size (percentage 0-100).
-    pub estimated_reduction_percent: u32,
 }
 
 pub(super) fn default_jsonb_column() -> String {

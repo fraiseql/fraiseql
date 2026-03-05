@@ -6,7 +6,7 @@ use super::{
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
-use crate::{compiler::aggregation::OrderByClause, error::{FraiseQLError, Result}, schema::SqlProjectionHint};
+use crate::{error::{FraiseQLError, Result}, types::sql_hints::{OrderByClause, SqlProjectionHint}};
 
 /// Result from a relay pagination query, containing rows and an optional total count.
 #[derive(Debug, Clone)]

@@ -114,10 +114,10 @@ restructuring).
 
 | ID    | Sev | Status | What | Where |
 |-------|-----|--------|------|-------|
-| CS-1  | 🟡  |        | Relocate `compiler::aggregation::OrderByClause` and `schema::SqlProjectionHint` to a new `crates/fraiseql-core/src/types/sql_hints.rs` module — removes the import that blocks `fraiseql-db` extraction (CA-1 blocker) | `crates/fraiseql-core/src/compiler/aggregation.rs`, `schema/compiled.rs` |
-| CS-2  | 🟡  |        | Introduce `ExecutorAdapter` trait in `crates/fraiseql-core/src/cache/adapter/mod.rs` that `runtime/executor/` implements — removes the direct type import that creates the circular dependency blocking CA-2 | `crates/fraiseql-core/src/cache/adapter/mod.rs`, `runtime/executor/mod.rs` |
-| CS-3  | 🟡  |        | Extract `crates/fraiseql-core/src/db/` into `crates/fraiseql-db/` — unblocked after CS-1; update `fraiseql-core/Cargo.toml` to depend on `fraiseql-db` | New crate `crates/fraiseql-db/` (resolves CA-1) |
-| CS-4  | 🟡  |        | Extract `crates/fraiseql-core/src/runtime/executor/` into `crates/fraiseql-executor/` — unblocked after CS-2; update `fraiseql-core/Cargo.toml` to depend on `fraiseql-executor` | New crate `crates/fraiseql-executor/` (resolves CA-2) |
+| CS-1  | 🟡  | ✅ Done | Relocate `compiler::aggregation::OrderByClause` and `schema::SqlProjectionHint` to a new `crates/fraiseql-core/src/types/sql_hints.rs` module — removes the import that blocks `fraiseql-db` extraction (CA-1 blocker) | `crates/fraiseql-core/src/compiler/aggregation.rs`, `schema/compiled.rs` |
+| CS-2  | 🟡  | ❌ N/A  | `cache/adapter/` does NOT import from `runtime/executor/` — no circular dep exists. The plan was based on incorrect analysis. No `Arc<Executor>` exists in cache/adapter. Skipping. | — |
+| CS-3  | 🟡  | ❌ Blocked | Blocked by additional deps beyond what plan accounted for: `db/postgres/introspector.rs` imports `compiler::fact_table`, `db/collation.rs` imports `config::CollationConfig`, `db/*_where_generator.rs` implement `filters::ExtendedOperatorHandler`. Full extraction requires first splitting those into neutral crates (future campaign). | New crate `crates/fraiseql-db/` (resolves CA-1) |
+| CS-4  | 🟡  | ❌ Blocked | `runtime/executor/` imports from `compiler::aggregation`, `schema::CompiledSchema`, `security::SecurityContext`, `db::` — extracting to a separate crate while fraiseql-core depends on it would create a cycle. Requires fraiseql-types extraction first (future campaign). | New crate `crates/fraiseql-executor/` (resolves CA-2) |
 
 See `batches/batch-5-core-split.md` for the full dependency graph analysis,
 migration steps, and the `ExecutorAdapter` trait design.

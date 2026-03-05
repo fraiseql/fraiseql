@@ -8,7 +8,6 @@ use tracing;
 
 use super::where_generator::SqlServerWhereGenerator;
 use crate::{
-    compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_sqlserver_identifier,
         traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
@@ -16,6 +15,7 @@ use crate::{
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
+    types::sql_hints::{OrderByClause, OrderDirection},
 };
 
 /// Map an MSSQL server error code to the closest ANSI SQLSTATE string.
@@ -245,7 +245,7 @@ impl DatabaseAdapter for SqlServerAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&crate::schema::SqlProjectionHint>,
+        projection: Option<&crate::types::SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
@@ -903,7 +903,7 @@ mod error_code_tests {
 #[cfg(test)]
 mod relay_sql_tests {
     use super::*;
-    use crate::compiler::aggregation::{OrderByClause, OrderDirection};
+    use crate::types::sql_hints::{OrderByClause, OrderDirection};
 
     // ── build_relay_order_sql ──────────────────────────────────────────────
 

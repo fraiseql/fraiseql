@@ -6,7 +6,6 @@ use tokio_postgres::{NoTls, Row};
 
 use super::where_generator::PostgresWhereGenerator;
 use crate::{
-    compiler::aggregation::{OrderByClause, OrderDirection},
     db::{
         identifier::quote_postgres_identifier,
         traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
@@ -14,7 +13,7 @@ use crate::{
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
-    schema::SqlProjectionHint,
+    types::sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
 };
 
 /// Default maximum pool size for PostgreSQL connections.
