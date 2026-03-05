@@ -10,10 +10,34 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 use crate::{signature::SignatureError, traits::SignatureVerifier};
 
-/// Maximum age of a Discord webhook timestamp before it is considered a replay.
-const MAX_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
+/// Default maximum age of a Discord webhook timestamp before it is considered a replay.
+const DEFAULT_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
 
-pub struct DiscordVerifier;
+pub struct DiscordVerifier {
+    /// Maximum acceptable age of a timestamp in seconds.
+    tolerance_secs: i64,
+}
+
+impl DiscordVerifier {
+    /// Create a verifier with the default 5-minute timestamp tolerance.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { tolerance_secs: DEFAULT_TIMESTAMP_AGE_SECS }
+    }
+
+    /// Set a custom timestamp tolerance (in seconds).
+    #[must_use]
+    pub fn with_tolerance(mut self, seconds: u64) -> Self {
+        self.tolerance_secs = seconds as i64;
+        self
+    }
+}
+
+impl Default for DiscordVerifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SignatureVerifier for DiscordVerifier {
     fn name(&self) -> &'static str {
@@ -40,7 +64,7 @@ impl SignatureVerifier for DiscordVerifier {
         let now: i64 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(i64::MAX, |d| d.as_secs() as i64);
-        if (now - ts_secs).abs() > MAX_TIMESTAMP_AGE_SECS {
+        if (now - ts_secs).abs() > self.tolerance_secs {
             return Err(SignatureError::TimestampExpired);
         }
 
@@ -81,14 +105,14 @@ mod tests {
 
     #[test]
     fn test_missing_timestamp() {
-        let verifier = DiscordVerifier;
+        let verifier = DiscordVerifier::new();
         let result = verifier.verify(b"test", "abc", "deadbeef", None, None);
         assert!(matches!(result, Err(SignatureError::MissingTimestamp)));
     }
 
     #[test]
     fn test_expired_timestamp_rejected() {
-        let verifier = DiscordVerifier;
+        let verifier = DiscordVerifier::new();
         let old_ts = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -102,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_invalid_public_key_hex() {
-        let verifier = DiscordVerifier;
+        let verifier = DiscordVerifier::new();
         let ts = fresh_timestamp();
         let result = verifier.verify(b"test", "abc123", "not-hex!", Some(&ts), None);
         assert!(matches!(result, Err(SignatureError::Crypto(_))));

@@ -13,10 +13,34 @@ use crate::{
     traits::SignatureVerifier,
 };
 
-/// Maximum age of a Slack webhook timestamp before it is considered a replay.
-const MAX_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
+/// Default maximum age of a Slack webhook timestamp before it is considered a replay.
+const DEFAULT_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
 
-pub struct SlackVerifier;
+pub struct SlackVerifier {
+    /// Maximum acceptable age of a timestamp in seconds.
+    tolerance_secs: i64,
+}
+
+impl SlackVerifier {
+    /// Create a verifier with the default 5-minute timestamp tolerance.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { tolerance_secs: DEFAULT_TIMESTAMP_AGE_SECS }
+    }
+
+    /// Set a custom timestamp tolerance (in seconds).
+    #[must_use]
+    pub fn with_tolerance(mut self, seconds: u64) -> Self {
+        self.tolerance_secs = seconds as i64;
+        self
+    }
+}
+
+impl Default for SlackVerifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SignatureVerifier for SlackVerifier {
     fn name(&self) -> &'static str {
@@ -41,12 +65,11 @@ impl SignatureVerifier for SlackVerifier {
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 
         // SECURITY: Reject replayed requests by checking timestamp freshness.
-        // Timestamps older than MAX_TIMESTAMP_AGE_SECS are rejected.
         let ts_secs: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
         let now: i64 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(i64::MAX, |d| d.as_secs() as i64);
-        if (now - ts_secs).abs() > MAX_TIMESTAMP_AGE_SECS {
+        if (now - ts_secs).abs() > self.tolerance_secs {
             return Err(SignatureError::TimestampExpired);
         }
 
@@ -85,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_valid_signature() {
-        let verifier = SlackVerifier;
+        let verifier = SlackVerifier::new();
         let payload = b"hello world";
         let secret = "8f742231b10e8888abcd99yyyzzz85a5";
         let ts = fresh_timestamp();
@@ -96,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_invalid_signature() {
-        let verifier = SlackVerifier;
+        let verifier = SlackVerifier::new();
         let ts = fresh_timestamp();
         let result = verifier.verify(b"test", "v0=invalidsig", "secret", Some(&ts), None);
         assert!(matches!(result, Ok(false)));
@@ -104,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_missing_prefix() {
-        let verifier = SlackVerifier;
+        let verifier = SlackVerifier::new();
         let ts = fresh_timestamp();
         let result = verifier.verify(b"test", "invalidsig", "secret", Some(&ts), None);
         assert!(matches!(result, Err(SignatureError::InvalidFormat)));
@@ -112,14 +135,14 @@ mod tests {
 
     #[test]
     fn test_missing_timestamp() {
-        let verifier = SlackVerifier;
+        let verifier = SlackVerifier::new();
         let result = verifier.verify(b"test", "v0=abc", "secret", None, None);
         assert!(matches!(result, Err(SignatureError::MissingTimestamp)));
     }
 
     #[test]
     fn test_expired_timestamp_rejected() {
-        let verifier = SlackVerifier;
+        let verifier = SlackVerifier::new();
         // Timestamp 10 minutes in the past
         let old_ts = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
