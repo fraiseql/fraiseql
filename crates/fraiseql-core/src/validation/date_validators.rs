@@ -20,6 +20,8 @@
 
 use std::cmp::Ordering;
 
+use chrono::Datelike;
+
 use crate::error::{FraiseQLError, Result};
 
 /// Parse a date string in ISO 8601 format (YYYY-MM-DD).
@@ -86,12 +88,10 @@ fn get_days_in_month(month: u32, year: u32) -> u32 {
     }
 }
 
-/// Get today's date as (year, month, day).
-/// For testing purposes, this can be overridden.
+/// Get today's date as (year, month, day) in UTC.
 fn get_today() -> (u32, u32, u32) {
-    // In a real implementation, this would use chrono or std::time
-    // For now, we'll use a fixed date for testing consistency
-    (2026, 2, 8)
+    let today = chrono::Utc::now().date_naive();
+    (today.year_ce().1, today.month(), today.day())
 }
 
 /// Compare two dates: -1 if left < right, 0 if equal, 1 if left > right.
@@ -238,7 +238,25 @@ pub fn validate_max_days_in_past(date_str: &str, max_days: i64) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Datelike;
+
     use super::*;
+
+    // ── Helpers for time-independent tests ──────────────────────────────────
+
+    /// Returns "YYYY-MM-DD" for `years` years before today.
+    fn years_ago(years: u32) -> String {
+        let today = chrono::Utc::now().date_naive();
+        let y = today.year() - i32::try_from(years).unwrap_or(0);
+        format!("{y}-{:02}-{:02}", today.month(), today.day())
+    }
+
+    /// Returns "YYYY-MM-DD" for today.
+    fn today_str() -> String {
+        chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string()
+    }
+
+    // ── parse_date ───────────────────────────────────────────────────────────
 
     #[test]
     fn test_parse_date_valid() {
@@ -265,6 +283,8 @@ mod tests {
         assert!(parse_date("2026-04-31").is_err());
     }
 
+    // ── leap year / days in month ────────────────────────────────────────────
+
     #[test]
     fn test_leap_year_detection() {
         assert!(is_leap_year(2024));
@@ -282,6 +302,32 @@ mod tests {
     }
 
     #[test]
+    fn test_february_leap_year_edge_case() {
+        assert!(parse_date("2024-02-29").is_ok());
+        assert!(parse_date("2024-02-30").is_err());
+    }
+
+    #[test]
+    fn test_february_non_leap_year_edge_case() {
+        assert!(parse_date("2025-02-28").is_ok());
+        assert!(parse_date("2025-02-29").is_err());
+    }
+
+    #[test]
+    fn test_year_2000_leap_year() {
+        assert!(is_leap_year(2000));
+        assert!(parse_date("2000-02-29").is_ok());
+    }
+
+    #[test]
+    fn test_year_1900_not_leap_year() {
+        assert!(!is_leap_year(1900));
+        assert!(parse_date("1900-02-29").is_err());
+    }
+
+    // ── compare_dates / days_between ────────────────────────────────────────
+
+    #[test]
     fn test_compare_dates() {
         assert!(compare_dates((2026, 2, 8), (2026, 2, 7)) > 0);
         assert!(compare_dates((2026, 2, 7), (2026, 2, 8)) < 0);
@@ -289,6 +335,19 @@ mod tests {
         assert!(compare_dates((2026, 3, 1), (2026, 2, 28)) > 0);
         assert!(compare_dates((2027, 1, 1), (2026, 12, 31)) > 0);
     }
+
+    #[test]
+    fn test_days_between_same_date() {
+        assert_eq!(days_between((2026, 2, 8), (2026, 2, 8)), 0);
+    }
+
+    #[test]
+    fn test_days_between_year_difference() {
+        let diff = days_between((2027, 2, 8), (2026, 2, 8));
+        assert!(diff > 0);
+    }
+
+    // ── validate_min_date / validate_max_date / validate_date_range ─────────
 
     #[test]
     fn test_min_date_passes() {
@@ -327,119 +386,67 @@ mod tests {
         assert!(validate_date_range("2027-01-01", "2026-01-01", "2026-12-31").is_err());
     }
 
+    // ── validate_min_age / validate_max_age (time-independent) ──────────────
+
     #[test]
-    fn test_min_age_passes() {
-        // Today is 2026-02-08, person born 2000-01-01 is 26 years old
-        assert!(validate_min_age("2000-01-01", 25).is_ok());
-        assert!(validate_min_age("2000-01-01", 26).is_ok());
+    fn test_min_age_passes_clearly_old_enough() {
+        // Born 50 years ago: definitely passes min_age = 18
+        assert!(validate_min_age(&years_ago(50), 18).is_ok());
     }
 
     #[test]
-    fn test_min_age_fails() {
-        // Person born 2010-03-15 is 15 years old (hasn't turned 16 yet)
-        assert!(validate_min_age("2010-03-15", 16).is_err());
+    fn test_min_age_fails_too_young() {
+        // Born 5 years ago: cannot pass min_age = 18
+        assert!(validate_min_age(&years_ago(5), 18).is_err());
     }
 
     #[test]
-    fn test_min_age_birthday_today() {
-        // Today is 2026-02-08, person born 2008-02-08 is exactly 18 years old
-        assert!(validate_min_age("2008-02-08", 18).is_ok());
+    fn test_min_age_birthday_today_exactly_18() {
+        // Born exactly 18 years ago today → passes min_age = 18
+        assert!(validate_min_age(&years_ago(18), 18).is_ok());
     }
 
     #[test]
-    fn test_min_age_before_birthday_this_year() {
-        // Today is 2026-02-08, person born 2008-03-15 is 17 (not yet 18)
-        assert!(validate_min_age("2008-03-15", 18).is_err());
+    fn test_max_age_passes_clearly_young_enough() {
+        // Born 5 years ago: definitely passes max_age = 18
+        assert!(validate_max_age(&years_ago(5), 18).is_ok());
     }
 
     #[test]
-    fn test_max_age_passes() {
-        // Today is 2026-02-08, person born 2010-01-01 is 16 years old
-        assert!(validate_max_age("2010-01-01", 17).is_ok());
-        assert!(validate_max_age("2010-01-01", 16).is_ok());
+    fn test_max_age_fails_too_old() {
+        // Born 100 years ago: cannot pass max_age = 90
+        assert!(validate_max_age(&years_ago(100), 90).is_err());
+    }
+
+    // ── validate_max_days_in_future / validate_max_days_in_past ─────────────
+
+    #[test]
+    fn test_max_days_in_future_today_passes() {
+        // Today is 0 days in the future — always passes
+        assert!(validate_max_days_in_future(&today_str(), 0).is_ok());
     }
 
     #[test]
-    fn test_max_age_fails() {
-        // Person born 1990-01-01 is 36 years old
-        assert!(validate_max_age("1990-01-01", 35).is_err());
+    fn test_max_days_in_future_past_date_passes() {
+        // A date in 2000 is never in the future
+        assert!(validate_max_days_in_future("2000-01-01", 0).is_ok());
     }
 
     #[test]
-    fn test_max_days_in_future_passes() {
-        // 2026-02-08 (today) + 30 days = 2026-03-10
-        assert!(validate_max_days_in_future("2026-02-10", 30).is_ok());
+    fn test_max_days_in_future_far_future_fails() {
+        // Year 9999 is always more than 30 days in the future
+        assert!(validate_max_days_in_future("9999-12-31", 30).is_err());
     }
 
     #[test]
-    fn test_max_days_in_future_fails() {
-        // Date more than 30 days in future should fail
-        assert!(validate_max_days_in_future("2026-03-15", 30).is_err());
+    fn test_max_days_in_past_today_passes() {
+        // Today is 0 days in the past — always passes
+        assert!(validate_max_days_in_past(&today_str(), 0).is_ok());
     }
 
     #[test]
-    fn test_max_days_in_past_passes() {
-        // 2026-02-08 (today) - 30 days = 2026-01-09
-        assert!(validate_max_days_in_past("2026-02-01", 30).is_ok());
-    }
-
-    #[test]
-    fn test_max_days_in_past_fails() {
-        // Date more than 30 days in past should fail
-        assert!(validate_max_days_in_past("2026-01-01", 30).is_err());
-    }
-
-    #[test]
-    fn test_days_between_same_date() {
-        assert_eq!(days_between((2026, 2, 8), (2026, 2, 8)), 0);
-    }
-
-    #[test]
-    fn test_days_between_year_difference() {
-        let diff = days_between((2027, 2, 8), (2026, 2, 8));
-        assert!(diff > 0);
-    }
-
-    #[test]
-    fn test_february_leap_year_edge_case() {
-        // 2024 is a leap year, so Feb has 29 days
-        assert!(parse_date("2024-02-29").is_ok());
-        assert!(parse_date("2024-02-30").is_err());
-    }
-
-    #[test]
-    fn test_february_non_leap_year_edge_case() {
-        // 2025 is not a leap year, so Feb has 28 days
-        assert!(parse_date("2025-02-28").is_ok());
-        assert!(parse_date("2025-02-29").is_err());
-    }
-
-    #[test]
-    fn test_year_2000_leap_year() {
-        // 2000 is divisible by 400, so it's a leap year
-        assert!(is_leap_year(2000));
-        assert!(parse_date("2000-02-29").is_ok());
-    }
-
-    #[test]
-    fn test_year_1900_not_leap_year() {
-        // 1900 is divisible by 100 but not 400, so not a leap year
-        assert!(!is_leap_year(1900));
-        assert!(parse_date("1900-02-29").is_err());
-    }
-
-    #[test]
-    fn test_age_calculation_before_birthday() {
-        // Today is 2026-02-08
-        // Person born 2000-05-15 is 25 (not yet 26)
-        assert!(validate_min_age("2000-05-15", 26).is_err());
-        assert!(validate_min_age("2000-05-15", 25).is_ok());
-    }
-
-    #[test]
-    fn test_age_calculation_after_birthday() {
-        // Today is 2026-02-08
-        // Person born 2000-01-15 is 26 (already had their birthday)
-        assert!(validate_min_age("2000-01-15", 26).is_ok());
+    fn test_max_days_in_past_far_past_fails() {
+        // A date 50 years ago is more than 30 days in the past
+        assert!(validate_max_days_in_past(&years_ago(50), 30).is_err());
     }
 }
