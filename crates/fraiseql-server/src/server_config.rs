@@ -552,6 +552,17 @@ impl ServerConfig {
             }
         }
 
+        // Pool invariants
+        if self.pool_max_size == 0 {
+            return Err("pool_max_size must be at least 1".to_string());
+        }
+        if self.pool_min_size > self.pool_max_size {
+            return Err(format!(
+                "pool_min_size ({}) must not exceed pool_max_size ({})",
+                self.pool_min_size, self.pool_max_size
+            ));
+        }
+
         // Validate database TLS config if present
         if let Some(ref db_tls) = self.database_tls {
             // Validate PostgreSQL SSL mode

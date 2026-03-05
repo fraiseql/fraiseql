@@ -771,6 +771,25 @@ impl FraiseQLConfig {
             });
         }
 
+        // Pool invariants
+        if self.database.max_connections == 0 {
+            return Err(FraiseQLError::Configuration {
+                message: "database.max_connections must be at least 1".to_string(),
+            });
+        }
+        if self.database.min_connections > self.database.max_connections {
+            return Err(FraiseQLError::Configuration {
+                message: format!(
+                    "database.min_connections ({}) must not exceed max_connections ({})",
+                    self.database.min_connections, self.database.max_connections
+                ),
+            });
+        }
+
+        // Server port (0 means "pick a random OS port" which is valid in tests
+        // but not in production; we only reject it if a non-zero port is expected)
+        // Note: port = 0 is allowed by design (OS-assigned). No check added here.
+
         // Validate auth config
         if self.auth.enabled {
             match self.auth.provider {
@@ -808,32 +827,44 @@ impl FraiseQLConfig {
 
 /// Expand environment variables in a string.
 ///
-/// Supports `${VAR}` and `$VAR` syntax.
-#[allow(clippy::expect_used)] // Reason: regex pattern is a compile-time constant guaranteed to be valid
+/// Supports both `${VAR}` and `$VAR` syntax. The `${VAR}` form is matched
+/// first (higher priority) so that `${FOO}BAR` expands the braced form only.
+#[allow(clippy::expect_used)] // Reason: regex patterns are compile-time constants guaranteed to be valid
 fn expand_env_vars(content: &str) -> String {
     use std::sync::LazyLock;
 
-    // The regex pattern is a compile-time constant and is guaranteed to be valid
-    static ENV_VAR_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("env var regex is valid")
+    // Matches ${VAR} (braced form)
+    static BRACED_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("braced env var regex is valid")
     });
 
-    let mut result = content.to_string();
+    // Matches $VAR (bare form). Applied after the braced pass so any ${VAR}
+    // patterns have already been resolved and won't be double-matched.
+    static BARE_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("bare env var regex is valid")
+    });
 
-    for cap in ENV_VAR_REGEX.captures_iter(content) {
-        if let Some(full_match) = cap.get(0) {
-            if let Some(var_name_match) = cap.get(1) {
-                let full_match_str = full_match.as_str();
-                let var_name = var_name_match.as_str();
-
-                if let Ok(value) = std::env::var(var_name) {
-                    result = result.replace(full_match_str, &value);
-                }
-            }
+    let expand = |input: &str, re: &regex::Regex| -> String {
+        let mut result = input.to_string();
+        // Collect matches before replacing to avoid offset issues
+        let replacements: Vec<(String, String)> = re
+            .captures_iter(input)
+            .filter_map(|cap| {
+                let full = cap.get(0)?.as_str().to_string();
+                let var_name = cap.get(1)?.as_str();
+                let value = std::env::var(var_name).ok()?;
+                Some((full, value))
+            })
+            .collect();
+        for (pattern, value) in replacements {
+            result = result.replace(&pattern, &value);
         }
-    }
+        result
+    };
 
-    result
+    // Expand braced form first, then bare form on the result
+    let after_braced = expand(content, &BRACED_REGEX);
+    expand(&after_braced, &BARE_REGEX)
 }
 
 /// Configuration builder.
