@@ -100,12 +100,20 @@ impl MultiListenerCoordinator {
         Ok(())
     }
 
-    /// Update listener checkpoint
+    /// Update listener checkpoint.
+    ///
+    /// The checkpoint is stored as its raw bit pattern in an `AtomicU64` so that
+    /// negative sentinel values (e.g. `-1` for "no checkpoint yet") round-trip
+    /// correctly without silent truncation.
     pub fn update_checkpoint(&self, listener_id: &str, checkpoint: i64) -> Result<()> {
         let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
             message: format!("Listener {listener_id} not found"),
         })?;
 
+        // `i64 as u64` in Rust is a two's-complement bit-preserving cast:
+        // -1i64 becomes u64::MAX and round-trips correctly when read back as `as i64`.
+        // This preserves negative sentinel values (e.g. -1 = "no checkpoint yet").
+        #[allow(clippy::cast_sign_loss)] // Reason: intentional bit-preserving reinterpretation
         handle.checkpoint.store(checkpoint as u64, Ordering::SeqCst);
         Ok(())
     }
@@ -118,6 +126,7 @@ impl MultiListenerCoordinator {
             let handle = entry.value();
             let state = handle.state_machine.get_state().await;
             let last_heartbeat = *handle.last_heartbeat.lock().await;
+            #[allow(clippy::cast_possible_wrap)] // Reason: intentional bit-preserving reinterpretation
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;
 
             // Healthy if Running and heartbeat within 60s
