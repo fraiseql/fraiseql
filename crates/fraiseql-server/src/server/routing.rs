@@ -276,25 +276,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .with_state(state.clone());
                 app = app.nest("/api/v1", design_router);
             } else {
+                // SECURITY: design_api_require_auth is true but no OIDC validator is configured.
+                // Fail-closed: do NOT mount design endpoints unprotected.
                 warn!(
-                    "design_api_require_auth is true but no OIDC configured - design endpoints unprotected"
+                    "SECURITY: design_api_require_auth is true but no OIDC configured — \
+                     design API endpoints are DISABLED. Configure an OIDC validator \
+                     or set design_api_require_auth = false (development only)."
                 );
-                // Add unprotected design endpoints
-                let design_router = Router::new()
-                    .route(
-                        "/design/federation-audit",
-                        post(api::design::federation_audit_handler::<A>),
-                    )
-                    .route("/design/cost-audit", post(api::design::cost_audit_handler::<A>))
-                    .route("/design/cache-audit", post(api::design::cache_audit_handler::<A>))
-                    .route("/design/auth-audit", post(api::design::auth_audit_handler::<A>))
-                    .route(
-                        "/design/compilation-audit",
-                        post(api::design::compilation_audit_handler::<A>),
-                    )
-                    .route("/design/audit", post(api::design::overall_design_audit_handler::<A>))
-                    .with_state(state.clone());
-                app = app.nest("/api/v1", design_router);
             }
         } else {
             info!("Design audit API endpoints enabled (no auth required)");
@@ -348,25 +336,58 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "mcp")]
         if let Some(ref mcp_cfg) = self.mcp_config {
             if mcp_cfg.transport == "http" || mcp_cfg.transport == "both" {
-                use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
-                use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+                // SECURITY: Check require_auth flag before mounting.
+                // If require_auth=true but no OIDC is configured, refuse to mount (fail-closed).
+                // Full per-request OIDC enforcement for MCP is tracked separately.
+                let mount_mcp = if mcp_cfg.require_auth {
+                    if self.oidc_validator.is_some() {
+                        warn!(
+                            path = %mcp_cfg.path,
+                            "MCP HTTP endpoint: require_auth=true, OIDC validator present. \
+                             Note: per-request MCP auth enforcement requires MCP middleware. \
+                             Ensure your MCP transport layer validates tokens."
+                        );
+                        true
+                    } else {
+                        // SECURITY: require_auth=true but no OIDC — fail closed.
+                        error!(
+                            path = %mcp_cfg.path,
+                            "MCP HTTP endpoint NOT mounted — require_auth=true but no OIDC \
+                             validator is configured. Configure an OIDC validator or set \
+                             require_auth=false (development only)."
+                        );
+                        false
+                    }
+                } else {
+                    warn!(
+                        path = %mcp_cfg.path,
+                        "MCP HTTP endpoint mounted without authentication (require_auth=false). \
+                         Enable require_auth in production."
+                    );
+                    true
+                };
 
-                let schema = Arc::new(self.executor.schema().clone());
-                let executor = self.executor.clone();
-                let cfg = mcp_cfg.clone();
-                let mcp_service = StreamableHttpService::new(
-                    move || {
-                        Ok(crate::mcp::handler::FraiseQLMcpService::new(
-                            schema.clone(),
-                            executor.clone(),
-                            cfg.clone(),
-                        ))
-                    },
-                    Arc::new(LocalSessionManager::default()),
-                    StreamableHttpServerConfig::default(),
-                );
-                app = app.nest_service(&mcp_cfg.path, mcp_service);
-                info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
+                if mount_mcp {
+                    use rmcp::transport::{StreamableHttpServerConfig, StreamableHttpService};
+                    use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+
+                    let schema = Arc::new(self.executor.schema().clone());
+                    let executor = self.executor.clone();
+                    let cfg = mcp_cfg.clone();
+                    let mcp_service = StreamableHttpService::new(
+                        move || {
+                            Ok(crate::mcp::handler::FraiseQLMcpService::new(
+                                schema.clone(),
+                                executor.clone(),
+                                cfg.clone(),
+                            ))
+                        },
+                        Arc::new(LocalSessionManager::default()),
+                        StreamableHttpServerConfig::default(),
+                    );
+                    app = app.nest_service(&mcp_cfg.path, mcp_service);
+                    info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
+                }
             }
         }
 
@@ -375,15 +396,30 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         app = app.nest("/api/v1", api_router);
 
         // RBAC Management API (if database pool available)
+        // SECURITY: RBAC endpoints must be protected by admin bearer token.
+        // Without auth, any client could read or modify role assignments.
         #[cfg(feature = "observers")]
         if let Some(ref db_pool) = self.db_pool {
-            info!("Adding RBAC Management API endpoints");
-            let rbac_backend = Arc::new(
-                crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
-            );
-            let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
-            let rbac_router = crate::api::rbac_management_router(rbac_state);
-            app = app.merge(rbac_router);
+            if let Some(ref token) = self.config.admin_token {
+                info!("RBAC Management API endpoints enabled (admin bearer token required)");
+                let rbac_backend = Arc::new(
+                    crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
+                );
+                let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
+                let auth_state = BearerAuthState::new(token.clone());
+                let rbac_router = crate::api::rbac_management_router(rbac_state)
+                    .route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        bearer_auth_middleware,
+                    ));
+                app = app.merge(rbac_router);
+            } else {
+                // SECURITY: Refuse to mount RBAC endpoints without authentication.
+                error!(
+                    "RBAC Management API disabled — admin_token is not set. \
+                     Set admin_token in server configuration to enable RBAC management endpoints."
+                );
+            }
         }
 
         // Add HTTP metrics middleware (tracks requests and response status codes)

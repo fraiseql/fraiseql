@@ -56,10 +56,17 @@ fn build_graphql_query(
         if args.is_empty() {
             String::new()
         } else {
-            let pairs: Vec<String> = args
-                .iter()
-                .map(|(k, v)| format!("{k}: {}", graphql_value(v)))
-                .collect();
+            let mut pairs = Vec::with_capacity(args.len());
+            for (k, v) in args {
+                // Validate argument name: must be a GraphQL identifier [_A-Za-z][_0-9A-Za-z]*
+                // to prevent injection via malformed argument names.
+                if !is_valid_graphql_name(k) {
+                    return Err(format!(
+                        "Invalid argument name: '{k}'. Only [_A-Za-z][_0-9A-Za-z]* is allowed."
+                    ));
+                }
+                pairs.push(format!("{k}: {}", graphql_value(v)));
+            }
             format!("({})", pairs.join(", "))
         }
     } else {
@@ -97,10 +104,41 @@ fn build_graphql_query(
     Ok(format!("{op_type} {{ {name}{args_str}{fields_str} }}"))
 }
 
+/// Validate that `name` is a legal GraphQL name: `[_A-Za-z][_0-9A-Za-z]*`.
+fn is_valid_graphql_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        },
+        _ => false,
+    }
+}
+
+/// Escape a string for safe embedding in a GraphQL string literal.
+///
+/// Escapes `\`, `"`, and common control characters per the GraphQL spec.
+fn escape_graphql_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// Convert a JSON value to its GraphQL literal representation.
+///
+/// String values are escaped to prevent GraphQL injection.
 fn graphql_value(value: &serde_json::Value) -> String {
     match value {
-        serde_json::Value::String(s) => format!("\"{s}\""),
+        serde_json::Value::String(s) => format!("\"{}\"", escape_graphql_string(s)),
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::Bool(b) => b.to_string(),
         serde_json::Value::Null => "null".to_string(),
@@ -177,6 +215,35 @@ mod tests {
     fn test_graphql_value_string() {
         let v = serde_json::Value::String("hello".to_string());
         assert_eq!(graphql_value(&v), "\"hello\"");
+    }
+
+    #[test]
+    fn test_graphql_value_string_escapes_quotes() {
+        let v = serde_json::Value::String("say \"hi\"".to_string());
+        assert_eq!(graphql_value(&v), r#""say \"hi\"""#);
+    }
+
+    #[test]
+    fn test_graphql_value_string_escapes_backslash() {
+        let v = serde_json::Value::String(r"a\b".to_string());
+        assert_eq!(graphql_value(&v), r#""a\\b""#);
+    }
+
+    #[test]
+    fn test_graphql_value_string_escapes_newline() {
+        let v = serde_json::Value::String("line1\nline2".to_string());
+        assert_eq!(graphql_value(&v), "\"line1\\nline2\"");
+    }
+
+    #[test]
+    fn test_is_valid_graphql_name() {
+        assert!(is_valid_graphql_name("limit"));
+        assert!(is_valid_graphql_name("_private"));
+        assert!(is_valid_graphql_name("field1"));
+        assert!(!is_valid_graphql_name(""));
+        assert!(!is_valid_graphql_name("1abc"));
+        assert!(!is_valid_graphql_name("has space"));
+        assert!(!is_valid_graphql_name("inject: bad"));
     }
 
     #[test]
