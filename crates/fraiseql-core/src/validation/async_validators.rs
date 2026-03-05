@@ -450,14 +450,16 @@ mod tests {
     }
 
     #[test]
-    fn test_email_validator_timeout_zero() {
+    fn test_email_validator_timeout_is_max() {
+        // Duration::MAX signals no-timeout for local-only (regex) validators
         let v = EmailFormatValidator::new();
-        assert_eq!(v.timeout(), Duration::from_millis(0));
+        assert_eq!(v.timeout(), Duration::MAX);
     }
 
     #[test]
-    fn test_phone_validator_timeout_zero() {
+    fn test_phone_validator_timeout_is_max() {
+        // Duration::MAX signals no-timeout for local-only (regex) validators
         let v = PhoneE164Validator::new();
-        assert_eq!(v.timeout(), Duration::from_millis(0));
+        assert_eq!(v.timeout(), Duration::MAX);
     }
 }
