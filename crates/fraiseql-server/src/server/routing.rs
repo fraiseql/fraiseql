@@ -425,54 +425,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.layer(DefaultBodyLimit::max(self.config.max_request_body_bytes));
         }
 
-        // Add rate limiting middleware if configured
+        // Add rate limiting middleware if configured.
+        // Uses a named function (not an inline closure) to keep the Axum layer type
+        // tree shallow — anonymous closure types caused rustc-ICE on nightly due to
+        // type-checker stack overflow when inferring deeply-nested Layered<…> types.
+        // The limiter is threaded via `Extension` so `rate_limit_middleware` can read
+        // it from request extensions without capturing it in a closure.
         if let Some(ref limiter) = self.rate_limiter {
-            use std::net::SocketAddr;
+            use axum::Extension;
 
-            use axum::extract::ConnectInfo;
+            use crate::middleware::rate_limit::rate_limit_middleware;
 
             info!("Enabling rate limiting middleware");
-            let limiter_clone = limiter.clone();
-            app = app.layer(middleware::from_fn(move |ConnectInfo(addr): ConnectInfo<SocketAddr>, req, next: axum::middleware::Next| {
-                let limiter = limiter_clone.clone();
-                async move {
-                    let ip = addr.ip().to_string();
-
-                    // Check rate limit
-                    let check = limiter.check_ip_limit(&ip).await;
-                    if !check.allowed {
-                        warn!(ip = %ip, "IP rate limit exceeded");
-                        use axum::http::StatusCode;
-                        use axum::response::IntoResponse;
-                        let retry = check.retry_after_secs;
-                        let retry_str = retry.to_string();
-                        let body = format!(
-                            r#"{{"errors":[{{"message":"Rate limit exceeded. Please retry after {retry} second{s}."}}]}}"#,
-                            s = if retry == 1 { "" } else { "s" }
-                        );
-                        return (
-                            StatusCode::TOO_MANY_REQUESTS,
-                            [("Content-Type", "application/json"), ("Retry-After", retry_str.as_str())],
-                            body,
-                        ).into_response();
-                    }
-
-                    // Get remaining tokens for headers
-                    let remaining = check.remaining;
-                    let mut response = next.run(req).await;
-
-                    // Add rate limit headers
-                    let headers = response.headers_mut();
-                    if let Ok(limit_value) = format!("{}", limiter.config().rps_per_ip).parse() {
-                        headers.insert("X-RateLimit-Limit", limit_value);
-                    }
-                    if let Ok(remaining_value) = format!("{}", remaining as u32).parse() {
-                        headers.insert("X-RateLimit-Remaining", remaining_value);
-                    }
-
-                    response
-                }
-            }));
+            app = app
+                .layer(middleware::from_fn(rate_limit_middleware))
+                .layer(Extension(limiter.clone()));
         }
 
         app
