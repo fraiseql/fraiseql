@@ -166,6 +166,23 @@ impl MultiListenerCoordinator {
         Ok(new_leader)
     }
 
+    /// Transition a listener to a new state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the listener is not registered or if the transition
+    /// is not permitted by the listener's state machine.
+    pub async fn transition_listener_state(
+        &self,
+        listener_id: &str,
+        next_state: ListenerState,
+    ) -> Result<()> {
+        let handle = self.listeners.get(listener_id).ok_or(ObserverError::InvalidConfig {
+            message: format!("Listener {listener_id} not found"),
+        })?;
+        handle.state_machine.transition(next_state).await
+    }
+
     /// Get number of listeners
     #[must_use]
     pub fn listener_count(&self) -> usize {

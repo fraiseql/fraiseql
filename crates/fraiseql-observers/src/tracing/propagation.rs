@@ -129,13 +129,26 @@ impl TraceContext {
         Some(ctx)
     }
 
-    /// Generate a new child span ID for this context
+    /// Generate a new child span ID for this context.
     ///
-    /// Creates a new span ID while maintaining the same trace ID
+    /// Creates a cryptographically random W3C-compliant span ID (8 bytes, 16 hex chars)
+    /// while maintaining the same trace ID.
+    #[must_use]
     pub fn child_span_id(&self) -> String {
-        // In production, this would generate a proper random span ID
-        // For now, we'll use a simple counter-based approach
-        format!("{:016x}", (u64::from_str_radix(&self.span_id, 16).unwrap_or(0) + 1))
+        let uuid_bytes = *uuid::Uuid::new_v4().as_bytes();
+        format!(
+            "{:016x}",
+            u64::from_be_bytes([
+                uuid_bytes[0],
+                uuid_bytes[1],
+                uuid_bytes[2],
+                uuid_bytes[3],
+                uuid_bytes[4],
+                uuid_bytes[5],
+                uuid_bytes[6],
+                uuid_bytes[7],
+            ])
+        )
     }
 }
 

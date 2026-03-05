@@ -103,8 +103,9 @@ impl FailoverManager {
         // Transition listener to Running state (if in Recovering)
         if let Ok(state) = self.coordinator.get_listener_state(listener_id).await {
             if state == ListenerState::Recovering {
-                // In production, would transition state here
-                // For now, checkpoint is updated and listener should resume
+                self.coordinator
+                    .transition_listener_state(listener_id, ListenerState::Running)
+                    .await?;
             }
         }
 

@@ -2,21 +2,46 @@
 //!
 //! This module provides traits and helpers for validators that need to perform
 //! asynchronous operations like network requests or database lookups.
+//!
+//! The built-in implementations (`EmailFormatValidator`, `PhoneE164Validator`) perform
+//! local regex validation only — no network I/O. They implement `AsyncValidator` so they
+//! compose with the same dispatch infrastructure as future network-backed validators.
 
-use std::time::Duration;
+use std::{sync::LazyLock, time::Duration};
+
+use regex::Regex;
 
 use crate::error::{FraiseQLError, Result};
 
 /// Async validator result type.
 pub type AsyncValidatorResult = Result<()>;
 
+/// Email format regex (RFC 5321 practical subset).
+///
+/// Validates `local-part@domain` where the domain contains at least one dot-separated
+/// label. Identical to the pattern used in `rich_scalars`.
+static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$",
+    )
+    .expect("email format regex is valid")
+});
+
+/// E.164 phone number regex.
+///
+/// Accepts `+` followed by a non-zero leading digit and 6–14 more digits
+/// (7–15 total digits after the `+`), covering all valid ITU-T E.164 numbers.
+static PHONE_E164_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\+[1-9]\d{6,14}$").expect("E.164 phone regex is valid")
+});
+
 /// Provider types for async validators.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum AsyncValidatorProvider {
-    /// Email domain MX record verification
-    EmailDomainCheck,
-    /// Phone number validation via provider (e.g., Twilio)
-    PhoneNumberValidation,
+    /// Email format validation (RFC 5321 regex)
+    EmailFormatCheck,
+    /// Phone number E.164 format validation
+    PhoneE164Check,
     /// IBAN/VIN checksum validation
     ChecksumValidation,
     /// Custom provider
@@ -27,8 +52,8 @@ impl AsyncValidatorProvider {
     /// Get provider name for logging/debugging
     pub fn name(&self) -> String {
         match self {
-            Self::EmailDomainCheck => "email_domain_check".to_string(),
-            Self::PhoneNumberValidation => "phone_validation".to_string(),
+            Self::EmailFormatCheck => "email_format_check".to_string(),
+            Self::PhoneE164Check => "phone_e164_check".to_string(),
             Self::ChecksumValidation => "checksum_validation".to_string(),
             Self::Custom(name) => name.clone(),
         }
@@ -90,7 +115,7 @@ pub trait AsyncValidator: Send + Sync {
     /// * `field` - The field name (for error reporting)
     ///
     /// # Returns
-    /// Ok(()) if valid, Err(FraiseQLError) if invalid
+    /// `Ok(())` if valid, `Err(FraiseQLError)` if invalid
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult;
 
     /// Get the provider this validator uses
@@ -100,64 +125,51 @@ pub trait AsyncValidator: Send + Sync {
     fn timeout(&self) -> Duration;
 }
 
-/// Mock email domain validator for testing.
+/// Email format validator.
 ///
-/// In production, this would perform actual MX record lookups.
-pub struct MockEmailDomainValidator {
-    config:        AsyncValidatorConfig,
-    /// List of valid domains (for testing)
-    valid_domains: Vec<String>,
+/// Validates that a string is a well-formed email address using the RFC 5321
+/// practical regex (`local-part@domain.tld`). No network I/O is performed.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::validation::async_validators::{AsyncValidator, EmailFormatValidator};
+///
+/// # #[tokio::main]
+/// # async fn main() {
+/// let v = EmailFormatValidator::new();
+/// assert!(v.validate_async("alice@example.com", "email").await.is_ok());
+/// assert!(v.validate_async("not-an-email", "email").await.is_err());
+/// # }
+/// ```
+pub struct EmailFormatValidator {
+    config: AsyncValidatorConfig,
 }
 
-impl MockEmailDomainValidator {
-    /// Create a new mock email domain validator.
-    pub fn new(timeout_ms: u64) -> Self {
-        let config =
-            AsyncValidatorConfig::new(AsyncValidatorProvider::EmailDomainCheck, timeout_ms);
+impl EmailFormatValidator {
+    /// Create a new email format validator.
+    #[must_use]
+    pub fn new() -> Self {
         Self {
-            config,
-            valid_domains: vec![
-                "gmail.com".to_string(),
-                "yahoo.com".to_string(),
-                "outlook.com".to_string(),
-                "example.com".to_string(),
-            ],
+            config: AsyncValidatorConfig::new(AsyncValidatorProvider::EmailFormatCheck, 0),
         }
     }
+}
 
-    /// Add a valid domain for testing.
-    pub fn add_valid_domain(&mut self, domain: impl Into<String>) {
-        self.valid_domains.push(domain.into());
+impl Default for EmailFormatValidator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[async_trait::async_trait]
-impl AsyncValidator for MockEmailDomainValidator {
+impl AsyncValidator for EmailFormatValidator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
-        // Extract domain from email
-        if let Some(at_index) = value.find('@') {
-            let domain = &value[at_index + 1..];
-
-            // Simulate async operation with small delay
-            tokio::time::sleep(Duration::from_millis(10)).await;
-
-            if self.valid_domains.iter().any(|d| d.eq_ignore_ascii_case(domain)) {
-                Ok(())
-            } else {
-                Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Email domain validation failed: {} (domain {} not found)",
-                        field, domain
-                    ),
-                    path:    Some(field.to_string()),
-                })
-            }
+        if EMAIL_REGEX.is_match(value) {
+            Ok(())
         } else {
             Err(FraiseQLError::Validation {
-                message: format!(
-                    "Email domain validation failed: {} (invalid email format)",
-                    field
-                ),
+                message: format!("Invalid email format for field '{field}'"),
                 path:    Some(field.to_string()),
             })
         }
@@ -172,55 +184,55 @@ impl AsyncValidator for MockEmailDomainValidator {
     }
 }
 
-/// Mock phone number validator for testing.
+/// E.164 phone number validator.
 ///
-/// In production, this would integrate with Twilio or similar service.
-pub struct MockPhoneNumberValidator {
-    config:          AsyncValidatorConfig,
-    /// List of valid country codes (for testing)
-    valid_countries: Vec<String>,
+/// Validates that a string is a valid E.164 international phone number:
+/// a `+` followed by a non-zero country code digit and 6–14 more digits
+/// (7–15 digits total after the `+`). No network I/O is performed.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::validation::async_validators::{AsyncValidator, PhoneE164Validator};
+///
+/// # #[tokio::main]
+/// # async fn main() {
+/// let v = PhoneE164Validator::new();
+/// assert!(v.validate_async("+14155552671", "phone").await.is_ok());
+/// assert!(v.validate_async("0044207946000", "phone").await.is_err()); // missing +
+/// assert!(v.validate_async("+123", "phone").await.is_err());           // too short
+/// # }
+/// ```
+pub struct PhoneE164Validator {
+    config: AsyncValidatorConfig,
 }
 
-impl MockPhoneNumberValidator {
-    /// Create a new mock phone number validator.
-    pub fn new(timeout_ms: u64) -> Self {
-        let config =
-            AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneNumberValidation, timeout_ms);
+impl PhoneE164Validator {
+    /// Create a new E.164 phone number validator.
+    #[must_use]
+    pub fn new() -> Self {
         Self {
-            config,
-            valid_countries: vec![
-                "1".to_string(),  // US
-                "44".to_string(), // UK
-                "33".to_string(), // France
-                "49".to_string(), // Germany
-            ],
+            config: AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneE164Check, 0),
         }
     }
+}
 
-    /// Add a valid country code for testing.
-    pub fn add_valid_country(&mut self, code: impl Into<String>) {
-        self.valid_countries.push(code.into());
+impl Default for PhoneE164Validator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[async_trait::async_trait]
-impl AsyncValidator for MockPhoneNumberValidator {
+impl AsyncValidator for PhoneE164Validator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
-        let phone_clean = value.trim_start_matches('+');
-
-        // Simulate async operation
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        // Check if starts with valid country code
-        let is_valid = self.valid_countries.iter().any(|cc| phone_clean.starts_with(cc));
-
-        if is_valid && phone_clean.len() >= 10 {
+        if PHONE_E164_REGEX.is_match(value) {
             Ok(())
         } else {
             Err(FraiseQLError::Validation {
                 message: format!(
-                    "Phone number validation failed: {} (invalid phone number)",
-                    field
+                    "Invalid E.164 phone number for field '{field}': \
+                     expected '+' followed by 7–15 digits (e.g. +14155552671)"
                 ),
                 path:    Some(field.to_string()),
             })
@@ -240,55 +252,125 @@ impl AsyncValidator for MockPhoneNumberValidator {
 mod tests {
     use super::*;
 
+    // ── EmailFormatValidator ──────────────────────────────────────────────────
+
     #[tokio::test]
-    async fn test_mock_email_domain_valid() {
-        let validator = MockEmailDomainValidator::new(5000);
-        let result = validator.validate_async("user@gmail.com", "email").await;
-        assert!(result.is_ok());
+    async fn test_email_valid_simple() {
+        let v = EmailFormatValidator::new();
+        assert!(v.validate_async("user@example.com", "email").await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_mock_email_domain_invalid() {
-        let validator = MockEmailDomainValidator::new(5000);
-        let result = validator.validate_async("user@invalid-domain.com", "email").await;
-        assert!(result.is_err());
+    async fn test_email_valid_subdomain() {
+        let v = EmailFormatValidator::new();
+        assert!(v.validate_async("user@mail.example.co.uk", "email").await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_mock_email_domain_no_at() {
-        let validator = MockEmailDomainValidator::new(5000);
-        let result = validator.validate_async("invalid-email", "email").await;
-        assert!(result.is_err());
+    async fn test_email_valid_plus_addressing() {
+        let v = EmailFormatValidator::new();
+        assert!(v.validate_async("user+tag@example.com", "email").await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_mock_phone_valid() {
-        let validator = MockPhoneNumberValidator::new(5000);
-        let result = validator.validate_async("+14155552671", "phone").await;
-        assert!(result.is_ok());
+    async fn test_email_valid_corporate_domain() {
+        let v = EmailFormatValidator::new();
+        // Must accept any valid domain, not a hardcoded allowlist
+        assert!(v.validate_async("alice@my-company.io", "email").await.is_ok());
+        assert!(v.validate_async("bob@university.edu", "email").await.is_ok());
     }
 
     #[tokio::test]
-    async fn test_mock_phone_invalid_country() {
-        let validator = MockPhoneNumberValidator::new(5000);
-        let result = validator.validate_async("+999999999999", "phone").await;
-        assert!(result.is_err());
+    async fn test_email_invalid_no_at() {
+        let v = EmailFormatValidator::new();
+        assert!(v.validate_async("notanemail", "email").await.is_err());
     }
 
     #[tokio::test]
-    async fn test_mock_phone_too_short() {
-        let validator = MockPhoneNumberValidator::new(5000);
-        let result = validator.validate_async("+123", "phone").await;
-        assert!(result.is_err());
+    async fn test_email_invalid_no_tld() {
+        let v = EmailFormatValidator::new();
+        // Single label after @ has no dot — rejected
+        assert!(v.validate_async("user@localhost", "email").await.is_err());
     }
+
+    #[tokio::test]
+    async fn test_email_invalid_empty() {
+        let v = EmailFormatValidator::new();
+        assert!(v.validate_async("", "email").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_email_error_message_contains_field() {
+        let v = EmailFormatValidator::new();
+        let err = v.validate_async("bad", "contact_email").await.unwrap_err();
+        assert!(err.to_string().contains("contact_email"));
+    }
+
+    // ── PhoneE164Validator ────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_phone_valid_us() {
+        let v = PhoneE164Validator::new();
+        assert!(v.validate_async("+14155552671", "phone").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_phone_valid_uk() {
+        let v = PhoneE164Validator::new();
+        assert!(v.validate_async("+447911123456", "phone").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_phone_valid_any_country_code() {
+        let v = PhoneE164Validator::new();
+        // Must accept all country codes, not a hardcoded subset
+        assert!(v.validate_async("+819012345678", "phone").await.is_ok()); // Japan
+        assert!(v.validate_async("+5511987654321", "phone").await.is_ok()); // Brazil
+        assert!(v.validate_async("+27821234567", "phone").await.is_ok()); // South Africa
+    }
+
+    #[tokio::test]
+    async fn test_phone_invalid_missing_plus() {
+        let v = PhoneE164Validator::new();
+        assert!(v.validate_async("14155552671", "phone").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_phone_invalid_too_short() {
+        let v = PhoneE164Validator::new();
+        // 5 digits after + — below E.164 minimum of 7
+        assert!(v.validate_async("+12345", "phone").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_phone_invalid_too_long() {
+        let v = PhoneE164Validator::new();
+        // 16 digits after + — above E.164 maximum of 15
+        assert!(v.validate_async("+1234567890123456", "phone").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_phone_invalid_leading_zero_country_code() {
+        let v = PhoneE164Validator::new();
+        assert!(v.validate_async("+0441234567890", "phone").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_phone_error_message_contains_field() {
+        let v = PhoneE164Validator::new();
+        let err = v.validate_async("bad", "mobile_number").await.unwrap_err();
+        assert!(err.to_string().contains("mobile_number"));
+    }
+
+    // ── AsyncValidatorConfig ──────────────────────────────────────────────────
 
     #[test]
     fn test_async_validator_config() {
-        let config = AsyncValidatorConfig::new(AsyncValidatorProvider::EmailDomainCheck, 5000)
+        let config = AsyncValidatorConfig::new(AsyncValidatorProvider::EmailFormatCheck, 5000)
             .with_cache_ttl(3600)
             .with_field_pattern("*.email");
 
-        assert_eq!(config.provider, AsyncValidatorProvider::EmailDomainCheck);
+        assert_eq!(config.provider, AsyncValidatorProvider::EmailFormatCheck);
         assert_eq!(config.timeout, Duration::from_secs(5));
         assert_eq!(config.cache_ttl_secs, 3600);
         assert_eq!(config.field_pattern, "*.email");
@@ -296,13 +378,25 @@ mod tests {
 
     #[test]
     fn test_provider_display() {
-        assert_eq!(AsyncValidatorProvider::EmailDomainCheck.to_string(), "email_domain_check");
-        assert_eq!(AsyncValidatorProvider::PhoneNumberValidation.to_string(), "phone_validation");
+        assert_eq!(
+            AsyncValidatorProvider::EmailFormatCheck.to_string(),
+            "email_format_check"
+        );
+        assert_eq!(
+            AsyncValidatorProvider::PhoneE164Check.to_string(),
+            "phone_e164_check"
+        );
     }
 
-    #[tokio::test]
-    async fn test_timeout_duration() {
-        let validator = MockEmailDomainValidator::new(2000);
-        assert_eq!(validator.timeout(), Duration::from_secs(2));
+    #[test]
+    fn test_email_validator_timeout_zero() {
+        let v = EmailFormatValidator::new();
+        assert_eq!(v.timeout(), Duration::from_millis(0));
+    }
+
+    #[test]
+    fn test_phone_validator_timeout_zero() {
+        let v = PhoneE164Validator::new();
+        assert_eq!(v.timeout(), Duration::from_millis(0));
     }
 }
