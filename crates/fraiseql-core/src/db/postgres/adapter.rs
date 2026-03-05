@@ -834,7 +834,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 /// # Stop test database
 #[cfg(test)]
 mod unit_tests {
-    use super::escape_jsonb_key;
+    use super::{escape_jsonb_key, PostgresAdapter};
+    use crate::error::FraiseQLError;
 
     #[test]
     fn test_escape_jsonb_key_no_quotes() {
@@ -846,6 +847,32 @@ mod unit_tests {
     fn test_escape_jsonb_key_doubles_single_quotes() {
         assert_eq!(escape_jsonb_key("it's"), "it''s");
         assert_eq!(escape_jsonb_key("a''b"), "a''''b");
+    }
+
+    // ── EP-5: Connection pool failure paths ───────────────────────────────────
+
+    #[tokio::test]
+    async fn test_new_with_malformed_url_returns_connection_pool_error() {
+        // A completely unparseable URL causes deadpool-postgres to fail immediately
+        // at pool creation or the initial `pool.get()`, both mapped to ConnectionPool.
+        let result = PostgresAdapter::new("not-a-postgres-url").await;
+        assert!(result.is_err(), "expected error for malformed URL");
+        let err = result.err().expect("error confirmed above");
+        assert!(
+            matches!(err, FraiseQLError::ConnectionPool { .. }),
+            "expected ConnectionPool error for malformed URL, got: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_with_pool_size_malformed_url_returns_connection_pool_error() {
+        let result = PostgresAdapter::with_pool_size("://bad-url", 1).await;
+        assert!(result.is_err(), "expected error for bad URL");
+        let err = result.err().expect("error confirmed above");
+        assert!(
+            matches!(err, FraiseQLError::ConnectionPool { .. }),
+            "expected ConnectionPool error for bad URL with custom pool size, got: {err:?}"
+        );
     }
 }
 

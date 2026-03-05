@@ -286,6 +286,59 @@ impl Default for Compiler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::FraiseQLError;
+
+    // ── EP-1: Parse error paths ───────────────────────────────────────────────
+
+    #[test]
+    fn test_compile_rejects_invalid_json() {
+        let err = Compiler::new().compile("not json").unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_non_object_schema() {
+        let err = Compiler::new().compile(r#"["not", "an", "object"]"#).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_types_not_array() {
+        let err = Compiler::new().compile(r#"{"types": "wrong"}"#).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_type_without_name() {
+        // A type object that is missing the required "name" field.
+        let schema = r#"{"types": [{"fields": []}]}"#;
+        let err = Compiler::new().compile(schema).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "got: {err:?}");
+    }
+
+    // ── EP-2: Validation error paths ─────────────────────────────────────────
+
+    #[test]
+    fn test_compile_rejects_unknown_field_type() {
+        let schema = r#"{"types": [{"name": "User", "fields": [
+            {"name": "id", "type": "NonExistentType"}
+        ]}]}"#;
+        let err = Compiler::new().compile(schema).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "got: {err:?}");
+    }
+
+    #[test]
+    fn test_compile_rejects_query_with_unknown_return_type() {
+        // "User" is not defined in types, so the query return type is unknown.
+        let schema = r#"{"types": [], "queries": [
+            {"name": "getUser", "return_type": "User", "returns_list": false}
+        ]}"#;
+        let err = Compiler::new().compile(schema).unwrap_err();
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "got: {err:?}");
+        if let FraiseQLError::Validation { message, .. } = err {
+            assert!(message.contains("User"), "error message should name the unknown type: {message}");
+        }
+    }
 
     #[test]
     fn test_compiler_new() {

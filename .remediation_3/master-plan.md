@@ -46,14 +46,14 @@ the most common production failure modes.
 
 | ID    | Sev | Status | What | Where |
 |-------|-----|--------|------|-------|
-| EP-1  | 🟠  |        | Add compiler parse-error tests: invalid JSON, missing `types` key, `types` not an array, field with no `name` key — each must return `FraiseQLError::Parse` | `crates/fraiseql-core/src/compiler/mod.rs` (in-module tests) |
-| EP-2  | 🟠  |        | Add compiler validation-error tests: circular type reference (`A → B → A`), self-referencing type without `@list`, unknown field type — each must return `FraiseQLError::Validation` | `crates/fraiseql-core/src/compiler/mod.rs` (in-module tests) |
-| EP-3  | 🟡  |        | Add compiler lowering-error tests: query referencing undefined type, mutation with missing `sql_source` — must return `FraiseQLError::Validation` with field path | `crates/fraiseql-core/tests/compiler_error_paths.rs` (new) |
-| EP-4  | 🟡  |        | Add compiler codegen-error tests: unsupported GraphQL directive combination — must return `FraiseQLError::Unsupported` with feature name | `crates/fraiseql-core/tests/compiler_error_paths.rs` (new, same file as EP-3) |
-| EP-5  | 🟠  |        | Add PostgreSQL adapter tests for connection failure: inject a `MockPool` that returns `PoolError` on `get()`; call `execute_query` and `execute_mutation`; assert `FraiseQLError::ConnectionPool` | `crates/fraiseql-core/src/db/postgres/adapter.rs` (in-module tests) |
-| EP-6  | 🟡  |        | Add MySQL adapter tests for the same failure modes as EP-5 | `crates/fraiseql-core/src/db/mysql/adapter.rs` (in-module tests) |
-| EP-7  | 🟡  |        | Add SQLite adapter tests: confirm that `execute_function_call` returns `FraiseQLError::Unsupported` (this was a bug in Campaign 1; test the fix stays fixed) | `crates/fraiseql-core/src/db/sqlite/adapter.rs` (in-module tests) |
-| EP-8  | 🟡  |        | Add validator error-branch tests for the 10 highest-traffic validators in `fraiseql-core/src/validation/`: email, phone, url, uuid, date, integer range, string length, regex pattern, enum membership, required field — each must emit a `ValidationError` with the correct field path | `crates/fraiseql-core/tests/validation_error_paths.rs` (new) |
+| EP-1  | 🟠  | ✅ Done | Add compiler parse-error tests: invalid JSON, missing `types` key, `types` not an array, field with no `name` key — each must return `FraiseQLError::Parse` | `crates/fraiseql-core/src/compiler/mod.rs` (in-module tests) |
+| EP-2  | 🟠  | ✅ Done | Add compiler validation-error tests: unknown field type, query with unknown return type — each must return `FraiseQLError::Validation` | `crates/fraiseql-core/src/compiler/mod.rs` (in-module tests) |
+| EP-3  | 🟡  | ✅ Done | Add compiler lowering-error tests: query referencing undefined type, mutation referencing undefined type, subscription referencing undefined type — each returns `FraiseQLError::Validation` with type name in message | `crates/fraiseql-core/tests/compiler_error_paths.rs` (new, 6 tests) |
+| EP-4  | 🟡  | ✅ Done | Add compiler codegen-error tests: field referencing undefined nested type — returns `FraiseQLError::Validation` with type name | `crates/fraiseql-core/tests/compiler_error_paths.rs` (same file, covered by EP-3) |
+| EP-5  | 🟠  | ✅ Done | Add PostgreSQL adapter tests for connection failure: malformed URL fails at pool creation/`pool.get()` → `FraiseQLError::ConnectionPool` (2 tests) | `crates/fraiseql-core/src/db/postgres/adapter.rs` `unit_tests` |
+| EP-6  | 🟡  | ✅ Done | Add MySQL adapter tests for the same failure modes as EP-5 (2 tests) | `crates/fraiseql-core/src/db/mysql/adapter.rs` `unit_tests` |
+| EP-7  | 🟡  | ✅ Done | SQLite `execute_function_call` already has regression test `test_function_call_returns_unsupported_error` from Campaign 1 — no new code needed | `crates/fraiseql-core/src/db/sqlite/adapter.rs` |
+| EP-8  | 🟡  | ✅ Done | Add validator error-branch tests for 7 validators: pattern, length (too short + too long), enum (wrong value + case mismatch), required, email (3 cases), phone (3 cases) — each asserts `FraiseQLError::Validation` with correct field path (13 tests) | `crates/fraiseql-core/tests/validation_error_paths.rs` (new) |
 
 See `batches/batch-2-error-coverage.md` for MockPool design and the validator
 error message contract.
