@@ -156,13 +156,15 @@ impl PkceChallenge {
 /// 2. Consistency: predictable length for tests and monitoring
 /// 3. Compatibility: all OAuth providers support 128-char verifiers
 fn generate_pkce_verifier() -> Result<String> {
-    use rand::Rng;
+    use rand::{Rng, rngs::OsRng};
 
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     const VERIFIER_LENGTH: usize = 128; // Maximum allowed by RFC 7636
     const MIN_VERIFIER_LENGTH: usize = 43; // Minimum allowed by RFC 7636
 
-    let mut rng = rand::thread_rng();
+    // SECURITY: OsRng is used instead of thread_rng() to guarantee OS-level
+    // entropy for PKCE verifiers, regardless of process startup state.
+    let mut rng = OsRng;
     let verifier: String = (0..VERIFIER_LENGTH)
         .map(|_| {
             let idx = rng.gen_range(0..CHARSET.len());

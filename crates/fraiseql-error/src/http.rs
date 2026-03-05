@@ -56,7 +56,9 @@ impl IntoResponse for RuntimeError {
         let (status, response) = match &self {
             RuntimeError::Config(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::new("configuration_error", self.to_string(), error_code),
+                // SECURITY: Config errors may contain connection strings or secrets.
+                // Return a generic message; details are in server logs only.
+                ErrorResponse::new("configuration_error", "A configuration error occurred", error_code),
             ),
 
             RuntimeError::Auth(e) => {
@@ -104,7 +106,12 @@ impl IntoResponse for RuntimeError {
                     InvalidInput { .. } => StatusCode::BAD_REQUEST,
                     _ => StatusCode::INTERNAL_SERVER_ERROR,
                 };
-                (status, ErrorResponse::new("notification_error", self.to_string(), error_code))
+                // SECURITY: Provider details (API keys, endpoints) must not appear in responses.
+                let msg = match e {
+                    InvalidInput { .. } => self.to_string(),
+                    _ => "Notification service unavailable".to_string(),
+                };
+                (status, ErrorResponse::new("notification_error", msg, error_code))
             },
 
             RuntimeError::RateLimited { retry_after } => {

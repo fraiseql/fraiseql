@@ -33,7 +33,8 @@ jobs:
         fetch-depth: 0
 
     - name: Run TruffleHog OSS
-      uses: trufflesecurity/trufflehog@main
+      # SECURITY: pinned to v3.93.7 to prevent supply-chain attacks via @main
+      uses: trufflesecurity/trufflehog@c3e599b7163e8198a55467f3133db0e7b2a492cb # v3.93.7
       with:
         path: ./
         base: ${{ github.event.pull_request.base.sha }}
@@ -78,7 +79,8 @@ jobs:
            .
 
      - name: Scan container with Trivy (SARIF for GitHub)
-       uses: aquasecurity/trivy-action@master
+       # SECURITY: pinned to 0.34.2 to prevent supply-chain attacks via @master
+       uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
        with:
          scan-type: 'image'
          scan-ref: ${{ matrix.dockerfile.tag }}
@@ -96,7 +98,8 @@ jobs:
          category: 'container-${{ matrix.dockerfile.label }}'
 
      - name: Scan container with Trivy (JSON for detailed analysis)
-       uses: aquasecurity/trivy-action@master
+       # SECURITY: pinned to 0.34.2 to prevent supply-chain attacks via @master
+       uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
        with:
          scan-type: 'image'
          scan-ref: ${{ matrix.dockerfile.tag }}

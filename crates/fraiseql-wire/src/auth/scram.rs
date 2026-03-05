@@ -6,7 +6,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
-use rand::Rng;
+use rand::{Rng, rngs::OsRng};
 use sha2::{Digest, Sha256};
 use std::fmt;
 
@@ -57,8 +57,8 @@ pub struct ScramClient {
 impl ScramClient {
     /// Create a new SCRAM client
     pub fn new(username: String, password: String) -> Self {
-        // Generate random client nonce (24 bytes, base64 encoded = 32 chars)
-        let mut rng = rand::thread_rng();
+        // SECURITY: OsRng guarantees OS-level entropy for SCRAM nonces.
+        let mut rng = OsRng;
         let nonce_bytes: Vec<u8> = (0..24).map(|_| rng.gen()).collect();
         let nonce = BASE64.encode(&nonce_bytes);
 

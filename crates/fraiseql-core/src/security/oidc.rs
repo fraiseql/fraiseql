@@ -151,6 +151,10 @@ fn default_algorithms() -> Vec<String> {
     vec!["RS256".to_string()]
 }
 
+/// Maximum clock skew tolerance enforced regardless of configuration.
+/// Prevents accepting arbitrarily old expired tokens due to misconfiguration.
+const MAX_CLOCK_SKEW_SECS: u64 = 300;
+
 fn default_clock_skew() -> u64 {
     60
 }
@@ -601,8 +605,9 @@ impl OidcValidator {
             validation.validate_aud = false;
         }
 
-        // Set clock skew tolerance
-        validation.leeway = self.config.clock_skew_secs;
+        // Set clock skew tolerance — capped to prevent accepting arbitrarily
+        // old expired tokens due to misconfiguration.
+        validation.leeway = self.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS);
 
         // Decode and validate token
         let token_data = decode::<JwtClaims>(token, &decoding_key, &validation).map_err(|e| {

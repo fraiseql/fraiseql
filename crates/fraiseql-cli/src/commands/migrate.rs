@@ -139,8 +139,11 @@ fn run_up(database_url: &str, dir: &str) -> Result<()> {
     info!("Running migrations up from {dir}");
     println!("Applying migrations from {dir}...");
 
+    // SECURITY: Pass database URL via environment variable, not argv, so it
+    // is not visible to other users via `ps aux` or `/proc/<pid>/cmdline`.
     let status = Command::new("confiture")
-        .args(["up", "--source", dir, "--database-url", database_url])
+        .args(["up", "--source", dir])
+        .env("DATABASE_URL", database_url)
         .status()
         .context("Failed to execute confiture")?;
 
@@ -158,15 +161,8 @@ fn run_down(database_url: &str, dir: &str, steps: u32) -> Result<()> {
 
     let steps_str = steps.to_string();
     let status = Command::new("confiture")
-        .args([
-            "down",
-            "--source",
-            dir,
-            "--database-url",
-            database_url,
-            "--steps",
-            &steps_str,
-        ])
+        .args(["down", "--source", dir, "--steps", &steps_str])
+        .env("DATABASE_URL", database_url)
         .status()
         .context("Failed to execute confiture")?;
 
@@ -182,7 +178,8 @@ fn run_status(database_url: &str, dir: &str) -> Result<()> {
     info!("Checking migration status for {dir}");
 
     let status = Command::new("confiture")
-        .args(["status", "--source", dir, "--database-url", database_url])
+        .args(["status", "--source", dir])
+        .env("DATABASE_URL", database_url)
         .status()
         .context("Failed to execute confiture")?;
 
