@@ -17,6 +17,10 @@
 //! ```bash
 //! cargo test --test error_handling_validation_test -- --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![cfg(test)]
 

@@ -1,6 +1,10 @@
 //! Observability Integration Tests
 //!
 //! Tests for observability features integrated into actual HTTP handlers
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![allow(unused_imports)]
 

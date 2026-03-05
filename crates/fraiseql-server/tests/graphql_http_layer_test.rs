@@ -1,22 +1,13 @@
-//! End-to-End GraphQL Features Tests
+//! # HTTP Layer Tests: GraphQL Request Routing
 //!
-//! Tests complete GraphQL functionality against live database:
-//! 1. Query execution (simple, nested, with variables)
-//! 2. Mutations (create, update, delete)
-//! 3. Relationships and joins
-//! 4. Aggregations (count, sum, avg, group by)
-//! 5. Filtering and sorting
-//! 6. Pagination
-//! 7. Subscriptions (real-time updates)
-//! 8. Error handling
+//! Tests HTTP routing, content-type negotiation, request parsing, and response
+//! shaping for the GraphQL endpoint. Verifies that valid requests reach the
+//! executor and that malformed requests are rejected before execution.
 //!
-//! # Running Tests
-//!
-//! Start test database first:
-//! ```bash
-//! docker compose -f docker-compose.test.yml up -d
-//! cargo test --test graphql_features_e2e_test -- --nocapture --ignored
-//! ```
+//! **Execution engine:** `FakeGraphQLExecutor` (hardcoded responses, no SQL generated)
+//! **Infrastructure:** none
+//! **Note:** These tests do NOT verify SQL generation or result correctness.
+//!           For SQL behavioral tests, see `crates/fraiseql-core/tests/sql_behavioral.rs`.
 
 #![cfg(test)]
 

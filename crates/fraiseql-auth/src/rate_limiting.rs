@@ -85,53 +85,56 @@ struct RequestRecord {
 pub struct KeyedRateLimiter {
     records: Arc<Mutex<HashMap<String, RequestRecord>>>,
     config:  RateLimitConfig,
+    /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
+    /// Overridable via [`KeyedRateLimiter::with_clock`] for testing.
+    clock:   Box<dyn Fn() -> u64 + Send + Sync>,
+}
+
+/// Default clock that reads wall-clock time.
+///
+/// On system time error, returns `u64::MAX` (fail-open): see
+/// [`KeyedRateLimiter`] documentation for the security rationale.
+fn system_clock() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => duration.as_secs(),
+        Err(e) => {
+            // CRITICAL: System time error — fail-safe to allow requests during time issues.
+            // u64::MAX causes the window-expiry check to always be true (overflow wraps),
+            // so every request resets the window and is allowed through.
+            // Once system time is fixed, normal rate limiting resumes.
+            eprintln!(
+                "CRITICAL: System time error in rate limiter: {}. \
+                 Rate limiting is temporarily disabled. \
+                 System clock may have moved backward or time source is unavailable.",
+                e
+            );
+            u64::MAX
+        },
+    }
 }
 
 impl KeyedRateLimiter {
-    /// Create a new keyed rate limiter
+    /// Create a new keyed rate limiter using wall-clock time.
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
             records: Arc::new(Mutex::new(HashMap::new())),
             config,
+            clock: Box::new(system_clock),
         }
     }
 
-    /// Get current Unix timestamp in seconds
+    /// Create a rate limiter with an injectable clock (for testing).
     ///
-    /// # Error Handling (Fail-Safe)
-    ///
-    /// If system time cannot be determined (e.g., clock moved backward), returns u64::MAX.
-    ///
-    /// This value guarantees that:
-    /// - The check `now >= record.window_start + window_secs` will always be true
-    /// - This resets the rate limit window for this request (allowing it through)
-    /// - Subsequent requests will establish a new window starting at u64::MAX
-    /// - Until the system time issue is fixed, rate limiting effectively allows all requests
-    ///
-    /// Rationale: It's safer to fail open (allow requests) during system time errors than to
-    /// permanently block all requests (fail closed). System time errors are usually temporary
-    /// (clock adjustments, NTP sync issues) and this allows the service to remain available.
-    /// Once the system time is fixed, normal rate limiting resumes.
-    ///
-    /// # Security Implications
-    ///
-    /// This means a compromised or misconfigured system (with broken clock) can temporarily
-    /// bypass rate limiting. This is an acceptable trade-off for availability. The system
-    /// should be monitored for persistent time errors which could indicate tampering.
-    fn current_timestamp() -> u64 {
-        match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(duration) => duration.as_secs(),
-            Err(e) => {
-                // CRITICAL: System time error - fail-safe to allow requests during time issues
-                // This resets rate limit windows and allows subsequent requests through
-                eprintln!(
-                    "CRITICAL: System time error in rate limiter: {}. \
-                     Rate limiting is temporarily disabled. \
-                     System clock may have moved backward or time source is unavailable.",
-                    e
-                );
-                u64::MAX
-            },
+    /// The `clock` function is called on every `check()` to obtain the current Unix timestamp.
+    /// Pass `|| u64::MAX` to simulate a broken system clock and verify fail-open behavior.
+    pub fn with_clock<F>(config: RateLimitConfig, clock: F) -> Self
+    where
+        F: Fn() -> u64 + Send + Sync + 'static,
+    {
+        Self {
+            records: Arc::new(Mutex::new(HashMap::new())),
+            config,
+            clock: Box::new(clock),
         }
     }
 
@@ -176,7 +179,7 @@ impl KeyedRateLimiter {
             .records
             .lock()
             .expect("rate limiter mutex poisoned - system in critical state");
-        let now = Self::current_timestamp();
+        let now = (self.clock)();
 
         // Get or create record for this key (first request from this key)
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
@@ -185,7 +188,7 @@ impl KeyedRateLimiter {
         });
 
         // Thread-safe decision: all branches update state atomically while holding the lock
-        if now >= record.window_start + self.config.window_secs {
+        if now >= record.window_start.saturating_add(self.config.window_secs) {
             // CASE 1: Window has expired - start a new window
             // This request is the first in the new window, so it's allowed
             record.count = 1;

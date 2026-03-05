@@ -2934,6 +2934,7 @@ dependencies = [
  "testcontainers-modules",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-postgres",
  "tokio-rustls 0.25.0",
  "tokio-test",
  "tokio-util",

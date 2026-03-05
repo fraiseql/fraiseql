@@ -4,6 +4,10 @@
 //! - Playground disabled by default
 //! - CORS must be explicitly configured in production
 //! - Production mode detection via FRAISEQL_ENV
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::ServerConfig;
 
@@ -36,12 +40,29 @@ fn test_playground_can_be_enabled() {
 
 #[test]
 fn test_production_mode_default() {
-    // When FRAISEQL_ENV is not set, should default to production
-    // (we can't easily test this in a unit test since it reads env vars,
-    // but the code shows the default is production)
-    let _env = std::env::var("FRAISEQL_ENV");
-    // Just verify the function exists and returns a bool
-    let _is_prod = ServerConfig::is_production_mode();
+    // When FRAISEQL_ENV is not set, defaults to production mode.
+    // When set to "development"/"dev", returns false.
+    let original = std::env::var("FRAISEQL_ENV").ok();
+
+    // Simulate unset: production
+    unsafe { std::env::remove_var("FRAISEQL_ENV") };
+    assert!(
+        ServerConfig::is_production_mode(),
+        "without FRAISEQL_ENV, must default to production mode"
+    );
+
+    // Simulate development mode
+    unsafe { std::env::set_var("FRAISEQL_ENV", "development") };
+    assert!(
+        !ServerConfig::is_production_mode(),
+        "FRAISEQL_ENV=development must not be production mode"
+    );
+
+    // Restore original env state
+    match original {
+        Some(v) => unsafe { std::env::set_var("FRAISEQL_ENV", v) },
+        None => unsafe { std::env::remove_var("FRAISEQL_ENV") },
+    }
 }
 
 // =============================================================================
@@ -91,22 +112,26 @@ fn test_cors_multiple_origins_passes_validation() {
 
 #[test]
 fn test_development_allows_playground_and_empty_cors() {
-    // Simulate development mode by setting FRAISEQL_ENV=development
-    // Note: This test assumes FRAISEQL_ENV is not already set to production
-    // In actual testing environment, this would need to be controlled
+    // In development mode, playground=true with empty cors_origins must pass validation.
+    let original = std::env::var("FRAISEQL_ENV").ok();
+    unsafe { std::env::set_var("FRAISEQL_ENV", "development") };
 
     let config = ServerConfig {
         playground_enabled: true,
         cors_enabled: true,
-        cors_origins: vec![], // Empty origins might be acceptable in dev
+        cors_origins: vec![], // Empty origins are acceptable in development
         ..ServerConfig::default()
     };
 
-    // The validation logic checks FRAISEQL_ENV at runtime
-    // In development mode, this would pass
-    // We can't easily control the env var in a unit test,
-    // so we test the structure is valid
-    let _ = config;
+    assert!(
+        config.validate().is_ok(),
+        "in development mode, playground + empty cors_origins must pass validation"
+    );
+
+    match original {
+        Some(v) => unsafe { std::env::set_var("FRAISEQL_ENV", v) },
+        None => unsafe { std::env::remove_var("FRAISEQL_ENV") },
+    }
 }
 
 // =============================================================================

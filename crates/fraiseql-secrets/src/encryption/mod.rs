@@ -31,6 +31,8 @@ pub mod rotation_api;
 pub mod schema;
 pub mod transaction;
 
+pub use credential_rotation::KeyVersion;
+
 const NONCE_SIZE: usize = 12; // 96 bits for GCM
 const KEY_SIZE: usize = 32; // 256 bits for AES-256
 
@@ -260,6 +262,131 @@ impl FieldEncryption {
         })?;
 
         Self::bytes_to_utf8(plaintext_bytes, "decrypted data with context")
+    }
+}
+
+/// Versioned ciphertext layout: `[version: 2 bytes LE][nonce: 12 bytes][ciphertext + 16-byte tag]`.
+const VERSION_PREFIX_SIZE: usize = 2;
+
+/// Multi-key cipher that supports decrypting data from rotated-out keys.
+///
+/// Ciphertexts are prefixed with a 2-byte key version number (little-endian)
+/// so the correct key can be selected during decryption. New data is always
+/// encrypted with the primary key; old ciphertexts encrypted with a
+/// secondary/fallback key remain readable until data is migrated.
+///
+/// # Key rotation workflow
+///
+/// 1. Promote the new key: `VersionedFieldEncryption::new(new_version, new_key_bytes)`
+/// 2. Register the old key as a fallback: `.with_fallback(old_version, old_key_bytes)`
+/// 3. All new records are encrypted with the primary (new) key.
+/// 4. Existing records encrypted with the old key are decrypted successfully
+///    via the fallback.
+/// 5. Migrate old records by reading → decrypting → re-encrypting (see
+///    `reencrypt_from_fallback`).
+/// 6. Once migration is complete, remove the fallback.
+pub struct VersionedFieldEncryption {
+    primary_version: KeyVersion,
+    primary:         FieldEncryption,
+    fallbacks:       Vec<(KeyVersion, FieldEncryption)>,
+}
+
+impl VersionedFieldEncryption {
+    /// Create with a single primary key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if `key` is not 32 bytes.
+    pub fn new(primary_version: KeyVersion, primary_key: &[u8]) -> Result<Self, SecretsError> {
+        Ok(Self {
+            primary_version,
+            primary: FieldEncryption::new(primary_key)?,
+            fallbacks: Vec::new(),
+        })
+    }
+
+    /// Register an additional key that can be used for decryption only.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::ValidationError` if `key` is not 32 bytes.
+    pub fn with_fallback(
+        mut self,
+        version: KeyVersion,
+        key: &[u8],
+    ) -> Result<Self, SecretsError> {
+        self.fallbacks.push((version, FieldEncryption::new(key)?));
+        Ok(self)
+    }
+
+    /// Encrypt plaintext, embedding the primary key version as a 2-byte LE prefix.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` on failure.
+    pub fn encrypt(&self, plaintext: &str) -> Result<Vec<u8>, SecretsError> {
+        let inner = self.primary.encrypt(plaintext)?;
+        let mut out = Vec::with_capacity(VERSION_PREFIX_SIZE + inner.len());
+        out.extend_from_slice(&self.primary_version.to_le_bytes());
+        out.extend_from_slice(&inner);
+        Ok(out)
+    }
+
+    /// Extract the key version from an encrypted blob.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if `encrypted` is too short to contain the version prefix.
+    pub fn extract_version(encrypted: &[u8]) -> Result<KeyVersion, SecretsError> {
+        if encrypted.len() < VERSION_PREFIX_SIZE {
+            return Err(SecretsError::EncryptionError(format!(
+                "Versioned ciphertext too short (need ≥{VERSION_PREFIX_SIZE} bytes, got {})",
+                encrypted.len()
+            )));
+        }
+        Ok(u16::from_le_bytes([encrypted[0], encrypted[1]]))
+    }
+
+    /// Decrypt an encrypted blob by selecting the key matching the embedded version.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SecretsError::EncryptionError` if:
+    /// - The blob is too short to contain the version prefix.
+    /// - The version is unknown (not primary and not a registered fallback).
+    /// - Decryption fails (wrong key, corrupted data).
+    pub fn decrypt(&self, encrypted: &[u8]) -> Result<String, SecretsError> {
+        let version = Self::extract_version(encrypted)?;
+        let inner = &encrypted[VERSION_PREFIX_SIZE..];
+
+        if version == self.primary_version {
+            return self.primary.decrypt(inner);
+        }
+
+        for (fb_version, fb_cipher) in &self.fallbacks {
+            if *fb_version == version {
+                return fb_cipher.decrypt(inner);
+        }
+        }
+
+        Err(SecretsError::EncryptionError(format!(
+            "Unknown key version {version}; known versions: primary={}, fallbacks=[{}]",
+            self.primary_version,
+            self.fallbacks.iter().map(|(v, _)| v.to_string()).collect::<Vec<_>>().join(", ")
+        )))
+    }
+
+    /// Re-encrypt a ciphertext from a fallback key to the current primary key.
+    ///
+    /// Use this during key rotation to migrate old records without exposing the
+    /// plaintext outside this function.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if decryption or re-encryption fails.
+    pub fn reencrypt_from_fallback(&self, old_ciphertext: &[u8]) -> Result<Vec<u8>, SecretsError> {
+        let plaintext = self.decrypt(old_ciphertext)?;
+        self.encrypt(&plaintext)
     }
 }
 

@@ -2,6 +2,10 @@
 //!
 //! Tests to verify rate limiting middleware is properly integrated into the server
 //! and functions correctly for GraphQL and other endpoints.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #[cfg(test)]
 mod tests {

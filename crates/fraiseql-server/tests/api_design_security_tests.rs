@@ -4,6 +4,10 @@
 //! - Input validation attacks
 //! - DoS/resource exhaustion
 //! - Information disclosure
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::routes::api::design::DesignAuditRequest;
 use serde_json::json;

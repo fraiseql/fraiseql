@@ -18,6 +18,10 @@
 //! Each test creates a SecurityContext with specific user roles/scopes
 //! and verifies that field access is correctly granted or denied based
 //! on the RBAC rules.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use std::collections::HashSet;
 

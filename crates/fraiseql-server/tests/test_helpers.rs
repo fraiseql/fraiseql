@@ -5,6 +5,10 @@
 //! - Creating test databases
 //! - Managing test resources
 //! - Common assertions
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![allow(dead_code)] // Test helper utilities may not be used in all test files
 use tokio::{net::TcpListener, task::JoinHandle};

@@ -1,4 +1,8 @@
 //! Integration tests for OpenAPI specification
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #[test]
 fn test_openapi_spec_is_valid_json() {

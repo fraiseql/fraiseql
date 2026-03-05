@@ -1,4 +1,8 @@
 //! Integration tests for federation API endpoints
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #[test]
 fn test_federation_subgraphs_response_structure() {

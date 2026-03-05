@@ -8,6 +8,10 @@
 //!
 //! These tests require a running PostgreSQL instance.
 //! Run with: `cargo test -p fraiseql-server --test database_query_test -- --ignored`
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 use std::time::{Duration, Instant};
 

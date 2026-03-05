@@ -13,6 +13,10 @@
 //! ```bash
 //! cargo test --test documentation_examples_test -- --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![cfg(test)]
 #![allow(dead_code)]

@@ -18,6 +18,10 @@
 //! # Test against Docker E2E server
 //! FRAISEQL_TEST_URL=http://localhost:9001 cargo test -p fraiseql-server --test http_server_e2e_test -- --include-ignored
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod test_helpers;
 

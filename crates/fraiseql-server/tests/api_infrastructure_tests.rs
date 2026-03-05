@@ -1,4 +1,8 @@
 //! Tests for API infrastructure - routing, authentication, middleware
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 /// Helper test to verify API infrastructure is properly structured.
 #[test]

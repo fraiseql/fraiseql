@@ -9,6 +9,10 @@
 //! - Input validation
 //! - Error message sanitization
 //! - TLS/HTTPS enforcement
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![allow(unused_imports)]
 

@@ -6,6 +6,10 @@
 //! - Database connectivity and health checks
 //! - Configuration loading and defaults
 //! - Error handling for missing databases
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 use std::{path::PathBuf, sync::Arc};
 

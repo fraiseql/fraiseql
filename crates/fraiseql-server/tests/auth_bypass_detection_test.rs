@@ -6,6 +6,10 @@
 //!    manipulation, malformed structure, …).
 //! 3. Calls the real [`JwtValidator`] and asserts the exact [`AuthError`]
 //!    variant returned — **not** just that two strings differ.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use std::collections::HashMap;
 

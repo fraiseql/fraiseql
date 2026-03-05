@@ -32,6 +32,10 @@
 //! ```bash
 //! cargo test --test observer_e2e_test --features observers -- --ignored --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 #![cfg(feature = "observers")]
 

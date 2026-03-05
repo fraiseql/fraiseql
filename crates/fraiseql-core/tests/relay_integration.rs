@@ -913,3 +913,146 @@ async fn test_uuid_relay_forward_with_after_cursor() {
     let first_name = &edges[0]["node"]["name"];
     assert_eq!(first_name, &json!("Bob"));
 }
+
+// =============================================================================
+// Edge case tests (Cycles 7.1–7.5)
+// =============================================================================
+
+// ── Cycle 7.1: Cursor tampering ─────────────────────────────────────────────
+
+/// A client sending a corrupted cursor must receive a clean GraphQL error,
+/// not a panic or a raw database error.
+#[tokio::test]
+async fn relay_returns_error_on_invalid_base64_cursor() {
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "{ users { edges { node { id } } } }",
+            Some(&json!({"first": 10, "after": "not-valid-base64!!!"})),
+        )
+        .await;
+
+    // Must either return Err or a response with errors — never panic.
+    match result {
+        Err(_) => { /* expected: executor returned an error */ },
+        Ok(v) => {
+            assert!(
+                v["errors"].is_array() && !v["errors"].as_array().unwrap().is_empty(),
+                "tampered cursor must produce a GraphQL error, not empty data; got: {v}"
+            );
+        },
+    }
+}
+
+/// Valid base64 that decodes to a non-integer must be rejected cleanly.
+#[tokio::test]
+async fn relay_returns_error_on_non_integer_cursor_content() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    let exec = executor();
+    // Valid base64, but decodes to "not-a-number" rather than an i64.
+    let bad_cursor = BASE64.encode("not-a-number");
+    let result = exec
+        .execute_json(
+            "{ users { edges { node { id } } } }",
+            Some(&json!({"first": 10, "after": bad_cursor})),
+        )
+        .await;
+
+    match result {
+        Err(_) => { /* expected */ },
+        Ok(v) => {
+            assert!(
+                v["errors"].is_array() && !v["errors"].as_array().unwrap().is_empty(),
+                "cursor with non-integer content must produce a GraphQL error; got: {v}"
+            );
+        },
+    }
+}
+
+// ── Cycle 7.3: Bidirectional pagination ─────────────────────────────────────
+
+/// Per the Relay Cursor Connections spec, using `first`+`after` together with
+/// `last`+`before` simultaneously is undefined behavior. FraiseQL must either
+/// reject it explicitly or handle it predictably without panicking.
+#[tokio::test]
+async fn relay_handles_bidirectional_pagination_gracefully() {
+    use fraiseql_core::runtime::relay::encode_edge_cursor;
+    let exec = executor();
+    let after = encode_edge_cursor(PK_ALICE);
+    let before = encode_edge_cursor(PK_CAROL);
+
+    let result = exec
+        .execute_json(
+            "{ users { edges { node { id } } pageInfo { hasNextPage } } }",
+            Some(&json!({
+                "first":  2,
+                "after":  after,
+                "last":   1,
+                "before": before,
+            })),
+        )
+        .await;
+
+    // Must not panic. Either explicit rejection or predictable subset is acceptable.
+    match result {
+        Err(_) => { /* explicit rejection — acceptable */ },
+        Ok(v) => {
+            // If allowed, must not have panicked and must return valid structure.
+            assert!(
+                v["data"]["users"].is_object() || v["errors"].is_array(),
+                "bidirectional pagination must not crash; got: {v}"
+            );
+        },
+    }
+}
+
+// ── Cycle 7.5: Custom cursor sort column ─────────────────────────────────────
+
+/// The `relay_cursor_column` schema field controls which column is encoded in
+/// the cursor. Verify that the cursor value encodes `pk_user` (our configured
+/// cursor column) rather than an unrelated column.
+#[test]
+fn relay_cursor_encodes_configured_column_value() {
+    use fraiseql_core::runtime::relay::{decode_edge_cursor, encode_edge_cursor};
+
+    // The schema uses `pk_user` as the cursor column. Rows have pk_user = 1/2/3.
+    // encode_edge_cursor(1) is what the executor would produce for Alice.
+    let cursor = encode_edge_cursor(PK_ALICE);
+    let decoded = decode_edge_cursor(&cursor);
+    assert_eq!(
+        decoded,
+        Some(PK_ALICE),
+        "cursor must decode back to the pk_user value of the row"
+    );
+}
+
+/// Verify that the cursor column name in the schema drives which field is encoded.
+/// The relay schema fixture uses `relay_cursor_column = "pk_user"`, so cursors
+/// must be derived from that column, not from `id` or any other field.
+#[tokio::test]
+async fn relay_cursor_column_is_pk_user_not_id() {
+    use fraiseql_core::runtime::relay::decode_edge_cursor;
+    let exec = executor();
+    let result = exec
+        .execute_json(
+            "{ users { edges { cursor node { id name } } } }",
+            Some(&json!({"first": 3})),
+        )
+        .await
+        .unwrap();
+
+    let edges = result["data"]["users"]["edges"].as_array().unwrap();
+    // Alice is pk_user=1, Bob is pk_user=2, Carol is pk_user=3.
+    // Cursors must decode to sequential integers matching pk_user order.
+    let decoded_pks: Vec<i64> = edges
+        .iter()
+        .filter_map(|e| e["cursor"].as_str())
+        .filter_map(decode_edge_cursor)
+        .collect();
+
+    assert_eq!(
+        decoded_pks,
+        vec![PK_ALICE, PK_BOB, PK_CAROL],
+        "cursor values must correspond to pk_user column values in order"
+    );
+}

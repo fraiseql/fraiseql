@@ -5,6 +5,10 @@
 //! 2. Server loads and parses configuration
 //! 3. Environment variable overrides are applied
 //! 4. Security subsystems are initialized
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #[cfg(test)]
 mod tests {

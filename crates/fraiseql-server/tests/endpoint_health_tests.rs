@@ -3,6 +3,10 @@
 //! These tests exercise the real `health_handler` and `introspection_handler`
 //! through axum's `tower::ServiceExt::oneshot`, verifying actual HTTP response
 //! codes, JSON structure, and database health-check integration.
+//!
+//! **Execution engine:** real FraiseQL executor
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod common;
 

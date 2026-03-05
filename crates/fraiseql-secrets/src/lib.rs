@@ -40,7 +40,7 @@ pub mod encryption;
 pub mod secrets_manager;
 
 // Re-exports for convenience
-pub use encryption::FieldEncryption;
+pub use encryption::{FieldEncryption, VersionedFieldEncryption};
 pub use secrets_manager::{
     LeaseRenewalTask, SecretsBackendConfig, SecretsError, SecretsManager, VaultAuth,
     backends::{EnvBackend, FileBackend, VaultBackend},

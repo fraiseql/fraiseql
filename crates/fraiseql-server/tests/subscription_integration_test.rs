@@ -20,6 +20,10 @@
 //! # Run subscription tests
 //! cargo test --test subscription_integration_test --features observers -- --ignored --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 #![cfg(test)]
 

@@ -7,6 +7,10 @@
 //! - Provider-specific configurations (Auth0, Google, Okta, Microsoft)
 //!
 //! Uses wiremock to mock provider endpoints without needing real credentials.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::auth::{OAuthProvider, oidc_provider::OidcProvider};
 use serde_json::json;

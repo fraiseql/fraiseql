@@ -1,3 +1,6 @@
 [toolchain]
+# Nightly is used for development tooling only (cargo-expand, advanced clippy).
+# Production MSRV is 1.88 stable. See .github/workflows/ci.yml for MSRV enforcement
+# (test matrix includes rust: ["1.88"]).
 channel = "nightly-2026-02-15"
 components = ["rustfmt", "clippy", "rust-analyzer"]

@@ -30,6 +30,10 @@
 //! # With logging
 //! RUST_LOG=debug cargo test --test metrics_monitoring_validation_test -r -- --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use std::{
     sync::{

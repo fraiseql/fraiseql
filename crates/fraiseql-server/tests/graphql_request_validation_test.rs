@@ -3,6 +3,10 @@
 //! Tests that `GraphQLRequest` deserialization and `RequestValidator` work
 //! correctly for well-formed and malformed inputs. These tests do not invoke
 //! an executor or a database — they cover the HTTP input layer only.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::{
     error::GraphQLError, routes::graphql::GraphQLRequest, validation::RequestValidator,

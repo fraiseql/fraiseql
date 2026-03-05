@@ -20,6 +20,10 @@
 //! - Verify optimized queries execute faster than unoptimized baseline
 //! - Verify metrics don't bottleneck high-throughput workloads
 //! - Verify end-to-end latency satisfies SLO (<200ms p99)
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use std::{
     sync::{

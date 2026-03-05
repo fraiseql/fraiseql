@@ -4,6 +4,10 @@
 //! - Error response construction and information leakage prevention
 //! - Request validation (depth, complexity, malformed queries)
 //! - Security error hierarchy and serialization
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::{
     error::{ErrorCode, ErrorResponse, GraphQLError},

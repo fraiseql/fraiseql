@@ -7,6 +7,10 @@
 //! - STANDARD profile shows detailed error messages (safe for development/debugging)
 //! - REGULATED profile shows generic error messages (production-safe)
 //! - RESTRICTED profile shows minimal error messages (maximum security)
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::error::{ErrorCode, ErrorResponse, GraphQLError};
 

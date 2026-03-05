@@ -334,15 +334,52 @@ impl<A: DatabaseAdapter> Executor<A> {
             vars.and_then(|v| v.get("before")).and_then(|v| v.as_str());
 
         // Decode base64 cursors — type depends on relay_cursor_type.
+        // If a cursor string is provided but fails to decode, return a validation
+        // error immediately. Silently ignoring an invalid cursor would return a
+        // full result set, violating the client's pagination intent.
         let (after_pk, before_pk) = match query_def.relay_cursor_type {
-            CursorType::Int64 => (
-                after_cursor.and_then(decode_edge_cursor).map(CursorValue::Int64),
-                before_cursor.and_then(decode_edge_cursor).map(CursorValue::Int64),
-            ),
-            CursorType::Uuid => (
-                after_cursor.and_then(decode_uuid_cursor).map(CursorValue::Uuid),
-                before_cursor.and_then(decode_uuid_cursor).map(CursorValue::Uuid),
-            ),
+            CursorType::Int64 => {
+                let after = match after_cursor {
+                    Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `after`: {s:?}"),
+                            path:    Some("after".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                let before = match before_cursor {
+                    Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `before`: {s:?}"),
+                            path:    Some("before".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                (after, before)
+            },
+            CursorType::Uuid => {
+                let after = match after_cursor {
+                    Some(s) => Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `after`: {s:?}"),
+                            path:    Some("after".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                let before = match before_cursor {
+                    Some(s) => Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(
+                        || FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `before`: {s:?}"),
+                            path:    Some("before".to_string()),
+                        },
+                    )?),
+                    None => None,
+                };
+                (after, before)
+            },
         };
 
         // Determine direction and limit.

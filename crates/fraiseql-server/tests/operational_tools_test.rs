@@ -7,6 +7,10 @@
 //! - Configuration validation
 //! - Graceful shutdown
 //! - Signal handling
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![allow(unused_imports, dead_code)]
 

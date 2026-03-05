@@ -1,11 +1,11 @@
-//! Integration tests for FraiseQL HTTP server.
+//! # Config Struct Tests: ServerConfig Defaults and Validation
 //!
-//! These tests verify:
-//! - Configuration loading from files and defaults
-//! - Schema file validation
-//! - HTTP endpoint routing
-//! - Request/response handling
-//! - Error handling and status codes
+//! Tests `ServerConfig` default values, field validation, and serialization
+//! round-trips. Verifies that configuration defaults match documented behavior.
+//!
+//! **Execution engine:** none (config struct only, no server started)
+//! **Infrastructure:** none
+//! **Parallelism:** safe (no shared mutable state)
 
 use std::{io::Write, path::PathBuf};
 

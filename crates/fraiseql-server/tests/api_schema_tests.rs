@@ -2,6 +2,10 @@
 //!
 //! Exercises the real `export_sdl_handler` and `export_json_handler`
 //! through axum's `tower::ServiceExt::oneshot`.
+//!
+//! **Execution engine:** real FraiseQL executor
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod common;
 

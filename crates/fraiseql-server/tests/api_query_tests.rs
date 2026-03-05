@@ -2,6 +2,10 @@
 //!
 //! Exercises the real `explain_handler`, `validate_handler`, and `stats_handler`
 //! through axum's `tower::ServiceExt::oneshot`.
+//!
+//! **Execution engine:** real FraiseQL executor
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod common;
 

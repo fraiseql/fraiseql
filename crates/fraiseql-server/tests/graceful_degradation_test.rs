@@ -11,6 +11,10 @@
 //! ```bash
 //! cargo test --test graceful_degradation_test -- --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![cfg(test)]
 

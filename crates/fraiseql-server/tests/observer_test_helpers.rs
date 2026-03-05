@@ -6,6 +6,10 @@
 //! - Observer configuration builders
 //! - Change log entry insertion with Debezium envelopes
 //! - Assertion helpers
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
 

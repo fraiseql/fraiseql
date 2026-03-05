@@ -21,6 +21,10 @@
 //! ```bash
 //! cargo test --test federation_saga_validation_test -- --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #![cfg(test)]
 #![allow(dead_code)]

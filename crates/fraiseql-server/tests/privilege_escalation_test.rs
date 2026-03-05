@@ -9,6 +9,10 @@
 //! - Scope manipulation in custom claims
 //!
 //! All tests should FAIL with 403 Forbidden or 401 Unauthorized errors.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::{
     error::{ErrorCode, GraphQLError},

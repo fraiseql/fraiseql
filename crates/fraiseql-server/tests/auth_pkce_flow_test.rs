@@ -16,6 +16,10 @@
 //! `auth_start` → encrypted outbound token → `auth_callback` → state consumed
 //! through the real HTTP router.  This composed test catches integration bugs
 //! that per-stage unit tests cannot see.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use std::sync::Arc;
 

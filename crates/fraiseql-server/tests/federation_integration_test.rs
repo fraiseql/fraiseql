@@ -13,6 +13,10 @@
 //! cargo nextest run -p fraiseql-server --test federation_integration_test \
 //!   -- --include-ignored
 //! ```
+//!
+//! **Execution engine:** real FraiseQL executor
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 mod common;
 
@@ -200,7 +204,7 @@ async fn entities_resolves_user_by_id() {
 #[tokio::test]
 #[ignore = "requires Docker (testcontainers pulls Apollo Router image + postgres)"]
 async fn apollo_router_routes_query_to_fraiseql_subgraph() {
-    use testcontainers::{GenericImage, core::WaitFor};
+    use testcontainers::{GenericImage, ImageExt as _, core::WaitFor};
 
     // Start PostgreSQL
     let pg = Postgres::default()
@@ -241,9 +245,9 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
     // Apollo Router on host network so it can reach the FraiseQL server on 127.0.0.1.
     // The wait condition checks stderr for "GraphQL endpoint exposed".
     let _router = GenericImage::new("ghcr.io/apollographql/router", "v1.45.0")
+        .with_wait_for(WaitFor::message_on_stderr("GraphQL endpoint exposed"))
         .with_network("host")
         .with_env_var("APOLLO_ROUTER_SUPERGRAPH_PATH", "/supergraph.graphql")
-        .with_wait_for(WaitFor::message_on_stderr("GraphQL endpoint exposed"))
         .start()
         .await
         .expect("start Apollo Router container");

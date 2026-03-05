@@ -1,4 +1,8 @@
 //! Integration tests for SecretsManager initialization and wiring into AppState.
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_secrets::secrets_manager::{SecretsBackendConfig, VaultAuth, create_secrets_manager};
 

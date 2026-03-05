@@ -133,7 +133,7 @@ must_use_candidate = "allow"  # We'll use this selectively
 nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
 option_if_let_else = "allow"  # Style preference
 or_fun_call = "allow"  # Often clearer to keep explicit
-pedantic = {level = "warn", priority = -1}  # Changed to warn - too many false positives
+pedantic = {level = "deny", priority = -1}
 redundant_closure_for_method_calls = "allow"  # Style preference
 return_self_not_must_use = "allow"  # Builder pattern compatibility
 significant_drop_tightening = "allow"  # Too aggressive, false positives

@@ -34,6 +34,10 @@
 //! ```bash
 //! cargo test --test observer_runtime_integration_test --features observers -- --ignored --nocapture
 //! ```
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** PostgreSQL
+//! **Parallelism:** safe
 
 #![cfg(feature = "observers")]
 

@@ -5,6 +5,10 @@
 //! - Error handling and validation
 //! - Response formatting
 //! - Concurrent request handling
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::{
     error::{ErrorCode, ErrorExtensions, ErrorResponse, GraphQLError},

@@ -6,6 +6,10 @@
 //! 3. Resource management (connection pooling)
 //! 4. Error handling under load
 //! 5. Throughput and latency measurements
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod test_helpers;
 

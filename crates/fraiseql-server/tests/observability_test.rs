@@ -4,6 +4,10 @@
 //! - `MetricsCollector` atomic counters
 //! - `TraceContext` W3C traceparent generation and child spans
 //! - `tracing_utils::extract_trace_context` header parsing
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod common;
 

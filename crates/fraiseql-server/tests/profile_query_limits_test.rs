@@ -7,6 +7,10 @@
 //! - STANDARD profile: Higher limits (depth 15, complexity 1000)
 //! - REGULATED profile: Strict limits (depth 10, complexity 500)
 //! - RESTRICTED profile: Maximum strictness (depth 5, complexity 250)
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::{
     routes::graphql::GraphQLRequest,

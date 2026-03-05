@@ -1,4 +1,8 @@
 //! Integration tests for admin API endpoints
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 #[test]
 fn test_reload_schema_response_structure() {

@@ -10,6 +10,10 @@
 //! Run with:
 //! - Default (PostgreSQL): `cargo test --test wire_backend_feature_test`
 //! - Wire-backend: `cargo test --test wire_backend_feature_test --features wire-backend`
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 mod common;
 

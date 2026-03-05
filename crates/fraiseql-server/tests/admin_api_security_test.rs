@@ -4,6 +4,10 @@
 //! - Admin endpoints disabled by default
 //! - Admin endpoints require valid bearer token
 //! - Configuration validation for admin settings
+//!
+//! **Execution engine:** none
+//! **Infrastructure:** none
+//! **Parallelism:** safe
 
 use fraiseql_server::ServerConfig;
 
