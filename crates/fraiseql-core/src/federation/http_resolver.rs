@@ -67,7 +67,14 @@ impl HttpEntityResolver {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    error = %e,
+                    "Failed to build reqwest client for federation HTTP resolver; \
+                     using default client. Configured timeout will not be applied."
+                );
+                reqwest::Client::default()
+            });
 
         Self { client, config }
     }

@@ -273,7 +273,14 @@ fn export_spans(config: &JaegerConfig, spans: Vec<JaegerSpan>) -> Result<()> {
                 let client = reqwest::Client::builder()
                     .timeout(timeout)
                     .build()
-                    .unwrap_or_default();
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to build reqwest client for Jaeger exporter; \
+                             using default client. Configured timeout will not be applied."
+                        );
+                        reqwest::Client::default()
+                    });
 
                 match client
                     .post(&endpoint)

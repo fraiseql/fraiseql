@@ -411,6 +411,7 @@ impl StateEncryptionService {
 #[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod service_tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn chacha_svc() -> StateEncryptionService {
@@ -596,6 +597,7 @@ mod service_tests {
 #[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn test_key() -> [u8; 32] {

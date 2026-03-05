@@ -13,12 +13,12 @@
 #![allow(clippy::similar_names)] // Reason: domain terms are conventional pairs
 #![allow(clippy::unused_self)] // Reason: trait implementations require &self
 #![allow(clippy::unnecessary_wraps)] // Reason: handler signatures must return Result
-#![allow(clippy::too_many_lines)] // Reason: OAuth/OIDC flows are inherently verbose
+//  clippy::too_many_lines — removed from module level; applied per-function where warranted.
+//  clippy::wildcard_imports — removed from module level; applied per-site on `use super::*`.
 #![allow(clippy::struct_excessive_bools)] // Reason: config structs use bools for feature flags
 #![allow(clippy::struct_field_names)] // Reason: field prefixes match domain terminology
 #![allow(clippy::doc_markdown)] // Reason: technical terms don't need backtick wrapping
 #![allow(clippy::return_self_not_must_use)] // Reason: builder pattern compatibility
-#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports
 #![allow(clippy::items_after_statements)] // Reason: helper structs near point of use in tests
 #![allow(clippy::cast_possible_truncation)] // Reason: intentional casts for metrics
 #![allow(clippy::cast_sign_loss)] // Reason: timestamp values are positive

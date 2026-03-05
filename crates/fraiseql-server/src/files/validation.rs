@@ -1,6 +1,7 @@
 //! File validation with magic bytes detection
 
 use bytes::Bytes;
+use tracing::warn;
 
 use crate::files::{
     config::{FileConfig, parse_size},
@@ -31,7 +32,15 @@ pub fn validate_file(
     config: &FileConfig,
 ) -> Result<ValidatedFile, FileError> {
     // Check size
-    let max_size = parse_size(&config.max_size).unwrap_or(10 * 1024 * 1024);
+    let max_size = parse_size(&config.max_size).unwrap_or_else(|e| {
+        warn!(
+            raw = %config.max_size,
+            error = %e,
+            "Failed to parse max_size from FileConfig; defaulting to 10 MiB. \
+             Check the `max_size` value in your configuration."
+        );
+        10 * 1024 * 1024
+    });
 
     if data.len() > max_size {
         return Err(FileError::TooLarge {

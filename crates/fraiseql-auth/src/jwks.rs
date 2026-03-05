@@ -161,6 +161,7 @@ mod tests {
         matchers::{method, path},
     };
 
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     fn jwks_fixture() -> serde_json::Value {

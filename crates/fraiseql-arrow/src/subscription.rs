@@ -135,7 +135,11 @@ impl SubscriptionManager {
             return event.data.get(field.trim()).and_then(|v| v.as_str()) == Some(expected);
         }
 
-        // Unparseable filter — reject
+        // Unparseable filter — log a warning and treat as no-match (conservative: reject).
+        tracing::warn!(
+            filter = %filter_str,
+            "Arrow Flight subscription filter could not be parsed — treating as no filter match"
+        );
         false
     }
 

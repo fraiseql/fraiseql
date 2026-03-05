@@ -326,6 +326,7 @@ impl<T, E: std::fmt::Display> AuditableResult<T, E> for Result<T, E> {
 mod tests {
     use std::sync::Mutex;
 
+    #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
     struct TestAuditLogger {

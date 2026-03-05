@@ -77,3 +77,91 @@ pub trait CustomScalar: Send + Sync + fmt::Debug {
 
 /// Result of custom scalar validation.
 pub type CustomScalarResult = Result<Value>;
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::CustomScalar;
+    use crate::error::{FraiseQLError, Result};
+
+    /// Minimal email scalar for testing the trait.
+    #[derive(Debug)]
+    struct EmailScalar;
+
+    #[allow(clippy::unnecessary_literal_bound)] // Reason: test impl of trait returning a literal
+    impl CustomScalar for EmailScalar {
+        fn name(&self) -> &str {
+            "Email"
+        }
+
+        fn serialize(&self, value: &Value) -> Result<Value> {
+            Ok(value.clone())
+        }
+
+        fn parse_value(&self, value: &Value) -> Result<Value> {
+            let s = value
+                .as_str()
+                .ok_or_else(|| FraiseQLError::validation("Email must be a string"))?;
+            if !s.contains('@') {
+                return Err(FraiseQLError::validation(format!(
+                    "invalid email: {s}"
+                )));
+            }
+            Ok(Value::String(s.to_string()))
+        }
+
+        fn parse_literal(&self, ast: &Value) -> Result<Value> {
+            self.parse_value(ast)
+        }
+    }
+
+    #[test]
+    fn test_name() {
+        let scalar = EmailScalar;
+        assert_eq!(scalar.name(), "Email");
+    }
+
+    #[test]
+    fn test_serialize_returns_value_unchanged() {
+        let scalar = EmailScalar;
+        let v = json!("user@example.com");
+        assert_eq!(scalar.serialize(&v).unwrap(), v);
+    }
+
+    #[test]
+    fn test_parse_value_valid_email() {
+        let scalar = EmailScalar;
+        let v = json!("user@example.com");
+        assert_eq!(scalar.parse_value(&v).unwrap(), v);
+    }
+
+    #[test]
+    fn test_parse_value_invalid_email_no_at() {
+        let scalar = EmailScalar;
+        let v = json!("notanemail");
+        assert!(scalar.parse_value(&v).is_err());
+    }
+
+    #[test]
+    fn test_parse_value_non_string_input() {
+        let scalar = EmailScalar;
+        let v = json!(42);
+        let err = scalar.parse_value(&v).unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("string") || msg.contains("Email"), "unexpected: {msg}");
+    }
+
+    #[test]
+    fn test_parse_literal_delegates_to_parse_value() {
+        let scalar = EmailScalar;
+        let v = json!("lit@example.com");
+        assert_eq!(scalar.parse_literal(&v).unwrap(), v);
+    }
+
+    #[test]
+    fn test_custom_scalar_result_type_alias_is_result_value() {
+        let result: super::CustomScalarResult = Ok(json!("ok"));
+        assert!(result.is_ok());
+    }
+}

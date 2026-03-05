@@ -30,7 +30,7 @@ pub struct RuntimeConfig {
     pub database: DatabaseConfig,
 
     #[serde(default)]
-    pub webhooks: HashMap<String, WebhookConfig>,
+    pub webhooks: HashMap<String, WebhookRouteConfig>,
 
     #[serde(default)]
     pub files: HashMap<String, FileConfig>,
@@ -227,7 +227,7 @@ fn default_ready_path() -> String {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct WebhookConfig {
+pub struct WebhookRouteConfig {
     pub secret_env: String,
     pub provider:   String,
     #[serde(default)]

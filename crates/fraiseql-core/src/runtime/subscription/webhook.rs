@@ -4,7 +4,7 @@ use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionE
 
 /// Webhook transport adapter configuration.
 #[derive(Debug, Clone)]
-pub struct WebhookConfig {
+pub struct WebhookTransportConfig {
     /// Target URL for webhook delivery.
     pub url: String,
 
@@ -24,7 +24,7 @@ pub struct WebhookConfig {
     pub headers: std::collections::HashMap<String, String>,
 }
 
-impl WebhookConfig {
+impl WebhookTransportConfig {
     /// Create a new webhook configuration.
     #[must_use]
     pub fn new(url: impl Into<String>) -> Self {
@@ -134,9 +134,9 @@ impl WebhookPayload {
 /// # Example
 ///
 /// ```ignore
-/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookConfig};
+/// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookTransportConfig};
 ///
-/// let config = WebhookConfig::new("https://api.example.com/webhooks")
+/// let config = WebhookTransportConfig::new("https://api.example.com/webhooks")
 ///     .with_secret("my_secret_key")
 ///     .with_max_retries(3);
 ///
@@ -144,7 +144,7 @@ impl WebhookPayload {
 /// adapter.deliver(&event, "orderCreated").await?;
 /// ```
 pub struct WebhookAdapter {
-    config: WebhookConfig,
+    config: WebhookTransportConfig,
     client: reqwest::Client,
 }
 
@@ -155,7 +155,7 @@ impl WebhookAdapter {
     ///
     /// Panics if the HTTP client cannot be built (should not happen in practice).
     #[must_use]
-    pub fn new(config: WebhookConfig) -> Self {
+    pub fn new(config: WebhookTransportConfig) -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(config.timeout_ms))
             .build()

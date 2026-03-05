@@ -40,7 +40,14 @@ impl WebhookLifecycle {
         let client = reqwest::Client::builder()
             .timeout(timeout)
             .build()
-            .unwrap_or_default();
+            .unwrap_or_else(|e| {
+                warn!(
+                    error = %e,
+                    "Failed to build reqwest client with timeout; using default client. \
+                     Webhook lifecycle hooks may not respect the configured timeout."
+                );
+                reqwest::Client::default()
+            });
         Self {
             client,
             on_connect_url,

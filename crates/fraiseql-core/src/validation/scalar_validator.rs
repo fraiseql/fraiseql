@@ -153,3 +153,184 @@ pub fn validate_custom_scalar_parse_value(
 ) -> Result<Value> {
     validate_custom_scalar(scalar, value, ValidationContext::ParseValue)
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::*;
+    use crate::error::{FraiseQLError, Result};
+
+    /// Passthrough scalar that always succeeds (for happy-path tests).
+    #[derive(Debug)]
+    struct PassthroughScalar;
+
+    #[allow(clippy::unnecessary_literal_bound)] // Reason: test impl of trait returning a literal
+    impl CustomScalar for PassthroughScalar {
+        fn name(&self) -> &str {
+            "Passthrough"
+        }
+
+        fn serialize(&self, value: &Value) -> Result<Value> {
+            Ok(value.clone())
+        }
+
+        fn parse_value(&self, value: &Value) -> Result<Value> {
+            Ok(value.clone())
+        }
+
+        fn parse_literal(&self, ast: &Value) -> Result<Value> {
+            Ok(ast.clone())
+        }
+    }
+
+    /// Scalar that always fails with a descriptive error.
+    #[derive(Debug)]
+    struct FailScalar;
+
+    #[allow(clippy::unnecessary_literal_bound)] // Reason: test impl of trait returning a literal
+    impl CustomScalar for FailScalar {
+        fn name(&self) -> &str {
+            "AlwaysFail"
+        }
+
+        fn serialize(&self, _: &Value) -> Result<Value> {
+            Err(FraiseQLError::validation("serialize always fails"))
+        }
+
+        fn parse_value(&self, _: &Value) -> Result<Value> {
+            Err(FraiseQLError::validation("parse_value always fails"))
+        }
+
+        fn parse_literal(&self, _: &Value) -> Result<Value> {
+            Err(FraiseQLError::validation("parse_literal always fails"))
+        }
+    }
+
+    // ── ValidationContext tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_validation_context_as_str_serialize() {
+        assert_eq!(ValidationContext::Serialize.as_str(), "serialize");
+    }
+
+    #[test]
+    fn test_validation_context_as_str_parse_value() {
+        assert_eq!(ValidationContext::ParseValue.as_str(), "parseValue");
+    }
+
+    #[test]
+    fn test_validation_context_as_str_parse_literal() {
+        assert_eq!(ValidationContext::ParseLiteral.as_str(), "parseLiteral");
+    }
+
+    #[test]
+    fn test_validation_context_eq() {
+        assert_eq!(ValidationContext::Serialize, ValidationContext::Serialize);
+        assert_ne!(ValidationContext::Serialize, ValidationContext::ParseValue);
+    }
+
+    // ── ScalarValidationError tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_scalar_validation_error_new() {
+        let err = ScalarValidationError::new("Email", "parseValue", "not an email");
+        assert_eq!(err.scalar_name, "Email");
+        assert_eq!(err.context, "parseValue");
+        assert_eq!(err.message, "not an email");
+    }
+
+    #[test]
+    fn test_scalar_validation_error_display() {
+        let err = ScalarValidationError::new("Email", "parseValue", "bad input");
+        let s = format!("{err}");
+        assert!(s.contains("Email"), "missing scalar name: {s}");
+        assert!(s.contains("parseValue"), "missing context: {s}");
+        assert!(s.contains("bad input"), "missing message: {s}");
+    }
+
+    #[test]
+    fn test_scalar_validation_error_into_fraiseql_error() {
+        let err = ScalarValidationError::new("T", "serialize", "oops");
+        let fraiseql_err = err.into_fraiseql_error();
+        let msg = format!("{fraiseql_err}");
+        assert!(msg.contains("oops"), "error message lost: {msg}");
+    }
+
+    // ── validate_custom_scalar tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_validate_serialize_success() {
+        let scalar = PassthroughScalar;
+        let v = json!("hello");
+        let result = validate_custom_scalar(&scalar, &v, ValidationContext::Serialize);
+        assert_eq!(result.unwrap(), v);
+    }
+
+    #[test]
+    fn test_validate_parse_value_success() {
+        let scalar = PassthroughScalar;
+        let v = json!(42);
+        let result = validate_custom_scalar(&scalar, &v, ValidationContext::ParseValue);
+        assert_eq!(result.unwrap(), v);
+    }
+
+    #[test]
+    fn test_validate_parse_literal_success() {
+        let scalar = PassthroughScalar;
+        let v = json!(true);
+        let result = validate_custom_scalar(&scalar, &v, ValidationContext::ParseLiteral);
+        assert_eq!(result.unwrap(), v);
+    }
+
+    #[test]
+    fn test_validate_serialize_failure_wraps_error() {
+        let scalar = FailScalar;
+        let err = validate_custom_scalar(&scalar, &json!("x"), ValidationContext::Serialize)
+            .unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("AlwaysFail") || msg.contains("serialize"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_parse_value_failure_wraps_error() {
+        let scalar = FailScalar;
+        let err = validate_custom_scalar(&scalar, &json!("x"), ValidationContext::ParseValue)
+            .unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("AlwaysFail") || msg.contains("parseValue"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_parse_literal_failure_wraps_error() {
+        let scalar = FailScalar;
+        let err = validate_custom_scalar(&scalar, &json!("x"), ValidationContext::ParseLiteral)
+            .unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("AlwaysFail") || msg.contains("parseLiteral"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    // ── validate_custom_scalar_parse_value convenience fn ─────────────────────
+
+    #[test]
+    fn test_convenience_fn_success() {
+        let scalar = PassthroughScalar;
+        let v = json!("text");
+        assert_eq!(validate_custom_scalar_parse_value(&scalar, &v).unwrap(), v);
+    }
+
+    #[test]
+    fn test_convenience_fn_failure() {
+        let scalar = FailScalar;
+        assert!(validate_custom_scalar_parse_value(&scalar, &json!("x")).is_err());
+    }
+}

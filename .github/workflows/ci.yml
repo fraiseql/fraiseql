@@ -385,7 +385,17 @@ jobs:
             --workspace \
             --lcov \
             --output-path lcov.info \
-            --fail-under-lines 60 \
+            --fail-under-lines 70 \
+            -- --test-threads=1
+
+      - name: Check security-critical crate coverage
+        run: |
+          # fraiseql-auth and fraiseql-secrets must maintain ≥80% line coverage.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-auth \
+            -p fraiseql-secrets \
+            --fail-under-lines 80 \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql

@@ -209,9 +209,21 @@ impl ObserverRuntime {
             ))
         })?;
 
-        // Parse retry config
+        // Parse retry config — fall back to default if deserialization fails, but warn so
+        // operators know the stored value is invalid and the observer may behave unexpectedly.
         let retry_config: ObserverRetryConfig =
-            serde_json::from_value(observer.retry_config.clone()).unwrap_or_default();
+            match serde_json::from_value(observer.retry_config.clone()) {
+                Ok(cfg) => cfg,
+                Err(e) => {
+                    warn!(
+                        observer = %observer.name,
+                        error = %e,
+                        "Observer retry_config could not be deserialized; using defaults. \
+                         Check the stored JSON in tb_observer."
+                    );
+                    ObserverRetryConfig::default()
+                },
+            };
 
         Ok(ObserverDefinition {
             event_type: observer.event_type.clone().unwrap_or_else(|| "INSERT".to_string()),
