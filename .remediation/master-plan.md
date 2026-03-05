@@ -35,14 +35,14 @@ Status legend: ✅ Done · ❌ Blocked · (blank) Pending
 
 | ID | Status | Sev | What | Where |
 |----|--------|-----|------|-------|
-| E1 | | 🔴 | GET GraphQL handler passes `security_context: None` — RLS and field-level auth silently bypassed for all GET queries | `crates/fraiseql-server/src/routes/graphql.rs` |
+| E1 | ✅ | 🔴 | GET GraphQL handler passes `security_context: None` — RLS and field-level auth silently bypassed for all GET queries | `crates/fraiseql-server/src/routes/graphql.rs` |
 | E2a | ✅ | 🔴 | RBAC management router merged without any authentication middleware | `crates/fraiseql-server/src/server/routing.rs` |
 | T1 (ext-16) | ✅ | 🔴 | Design API endpoints mounted unauthenticated when `design_api_require_auth = true` but OIDC absent — fail-open instead of fail-closed | `crates/fraiseql-server/src/server/routing.rs` |
 | I1 (ext-11) | ✅ | 🔴 | MCP HTTP endpoint always mounted without auth regardless of `require_auth` flag | `crates/fraiseql-server/src/mcp/handler.rs` |
-| W1 (ext-7) | | 🟠 | `auth_refresh` never calls `session.is_expired()` — expired sessions grant tokens indefinitely | `crates/fraiseql-auth/src/handlers.rs` |
-| W3 (ext-7) | | 🟠 | Rate limiter clock failure sets `now = u64::MAX`, resetting every window and disabling brute-force protection | `crates/fraiseql-auth/src/rate_limiting.rs` |
-| I1 (ext-5) | | 🟠 | `JwtValidator::new()` defaults `validate_aud = false` — tokens from any audience accepted | `crates/fraiseql-auth/src/jwt.rs` |
-| S1 (ext-6) | | 🟠 | `oidc.rs` and `auth_middleware.rs` silently disable audience validation when `audience` field absent from config | `crates/fraiseql-core/src/security/oidc.rs`, `auth_middleware.rs` |
+| W1 (ext-7) | ✅ | 🟠 | `auth_refresh` never calls `session.is_expired()` — expired sessions grant tokens indefinitely | `crates/fraiseql-auth/src/handlers.rs` |
+| W3 (ext-7) | ✅ | 🟠 | Rate limiter clock failure sets `now = u64::MAX`, resetting every window and disabling brute-force protection | `crates/fraiseql-auth/src/rate_limiting.rs` |
+| I1 (ext-5) | ✅ | 🟠 | `JwtValidator::new()` defaults `validate_aud = false` — tokens from any audience accepted | `crates/fraiseql-auth/src/jwt.rs` |
+| S1 (ext-6) | ✅ | 🟠 | `oidc.rs` and `auth_middleware.rs` silently disable audience validation when `audience` field absent from config | `crates/fraiseql-core/src/security/oidc.rs`, `auth_middleware.rs` |
 
 ### 1B — SQL injection
 
@@ -54,7 +54,7 @@ Status legend: ✅ Done · ❌ Blocked · (blank) Pending
 | Q2 (ext-8) | ✅ | 🔴 | Arrow Flight `BulkExport.table` interpolated unquoted into `SELECT * FROM {table}` | `crates/fraiseql-arrow/src/flight_server/service.rs` |
 | Q3 (ext-8) | ✅ | 🔴 | Arrow Flight `BatchedQueries` executes raw client-supplied SQL strings | `crates/fraiseql-arrow/src/ticket.rs` |
 | R1 (ext-10) | ✅ | 🔴 | MCP executor embeds raw user strings between unescaped double-quotes → GraphQL injection | `crates/fraiseql-server/src/mcp/executor.rs` |
-| I2 (ext-11) | | 🟠 | `escape_identifier()` silently passes unsafe identifiers through unchanged | `crates/fraiseql-core/src/db/projection_generator.rs` |
+| I2 (ext-11) | ✅ | 🟠 | `escape_identifier()` silently passes unsafe identifiers through unchanged | `crates/fraiseql-core/src/db/projection_generator.rs` |
 
 ### 1C — Webhook signature protocol errors
 
@@ -62,22 +62,22 @@ Status legend: ✅ Done · ❌ Blocked · (blank) Pending
 |----|--------|-----|------|-------|
 | O1 (ext-4) | ✅ | 🔴 | `TwilioVerifier` uses wrong algorithm (HMAC-SHA1 of body instead of URL+sorted-params); trait also lacks `url` parameter | `crates/fraiseql-webhooks/src/signature/twilio.rs` |
 | O2 (ext-4) | ✅ | 🔴 | `SendGridVerifier` uses HMAC-SHA256 instead of ECDSA P-256 — completely wrong algorithm | `crates/fraiseql-webhooks/src/signature/sendgrid.rs` |
-| O3/N2 (ext-4/12) | | 🟠 | `PaddleVerifier` implements deprecated v1 SHA1 format; Paddle Billing v2 uses `ts:body` HMAC-SHA256 | `crates/fraiseql-webhooks/src/signature/paddle.rs` |
+| O3/N2 (ext-4/12) | ✅ | 🟠 | `PaddleVerifier` implements deprecated v1 SHA1 format; Paddle Billing v2 uses `ts:body` HMAC-SHA256 | `crates/fraiseql-webhooks/src/signature/paddle.rs` |
 | O4/N1 (ext-4/12) | ✅ | 🟠 | Slack and Discord verifiers never check timestamp freshness — indefinite replay permitted | `crates/fraiseql-webhooks/src/signature/slack.rs`, `discord.rs` |
-| R2 (ext-8) | | 🟠 | OAuth2 PKCE flag stored but `authorization_url` never generates `code_challenge` | `crates/fraiseql-auth/src/oauth.rs` |
-| R2b (ext-8) | | 🟠 | `authorization_url` generates OAuth state but never returns it — CSRF verification impossible | `crates/fraiseql-auth/src/oauth.rs` |
+| R2 (ext-8) | ✅ | 🟠 | OAuth2 PKCE flag stored but `authorization_url` never generates `code_challenge` | `crates/fraiseql-auth/src/oauth.rs` |
+| R2b (ext-8) | ✅ | 🟠 | `authorization_url` generates OAuth state but never returns it — CSRF verification impossible | `crates/fraiseql-auth/src/oauth.rs` |
 
 ### 1D — Secrets / cryptography
 
 | ID | Status | Sev | What | Where |
 |----|--------|-----|------|-------|
 | V3 (ext-14) | ❌ | 🟠 | `rustls 0.21.12` (EOL, unpatched GHSA-6g18-jhpc-69jc RSA-PSS CVE) in `Cargo.lock` — **blocked**: transitive dep of `aws-sdk-s3` via `hyper-rustls 0.24.2`; requires AWS SDK update | `Cargo.lock` |
-| P2 (ext-4) | | 🟡 | `thread_rng()` in SCRAM nonce, PKCE verifier, AES-GCM nonce where `OsRng` is required | Multiple |
-| T3 (ext-16) | | 🟠 | `migrate` command passes DB URL (with password) as process argv — visible in `ps aux` | `crates/fraiseql-cli/src/commands/migrate.rs` |
-| AA1 (ext-9) | | 🟠 | `trufflehog@main` and `trivy-action@master` unpinned in CI — supply-chain attack vector | `.github/workflows/security-compliance.yml` |
-| X1 (ext-7) | | 🟡 | `compare_padded` silently caps at 1024 bytes — tokens > 1024 bytes compared incorrectly | `crates/fraiseql-auth/src/constant_time.rs` |
-| T6 (ext-16) | | 🟡 | `clock_skew_secs` uncapped — misconfiguration accepts arbitrarily old expired tokens | `crates/fraiseql-core/src/security/oidc.rs` |
-| AC1 (ext-9) | | 🟡 | `RuntimeError::IntoResponse` calls `self.to_string()` bypassing `ErrorSanitizer` | `crates/fraiseql-error/src/http.rs` |
+| P2 (ext-4) | ✅ | 🟡 | `thread_rng()` in SCRAM nonce, PKCE verifier, AES-GCM nonce where `OsRng` is required | Multiple |
+| T3 (ext-16) | ✅ | 🟠 | `migrate` command passes DB URL (with password) as process argv — visible in `ps aux` | `crates/fraiseql-cli/src/commands/migrate.rs` |
+| AA1 (ext-9) | ✅ | 🟠 | `trufflehog@main` and `trivy-action@master` unpinned in CI — supply-chain attack vector | `.github/workflows/security-compliance.yml` |
+| X1 (ext-7) | ✅ | 🟡 | `compare_padded` silently caps at 1024 bytes — tokens > 1024 bytes compared incorrectly | `crates/fraiseql-auth/src/constant_time.rs` |
+| T6 (ext-16) | ✅ | 🟡 | `clock_skew_secs` uncapped — misconfiguration accepts arbitrarily old expired tokens | `crates/fraiseql-core/src/security/oidc.rs` |
+| AC1 (ext-9) | ✅ | 🟡 | `RuntimeError::IntoResponse` calls `self.to_string()` bypassing `ErrorSanitizer` | `crates/fraiseql-error/src/http.rs` |
 
 ---
 
@@ -89,7 +89,7 @@ Status legend: ✅ Done · ❌ Blocked · (blank) Pending
 
 | ID | Status | Sev | What | Where |
 |----|--------|-----|------|-------|
-| I2 (ext-2) | | 🟠 | Window query `where` clause silently replaced with `WHERE 1=1` — all filters discarded | `crates/fraiseql-core/src/runtime/window.rs` |
+| I2 (ext-2) | ✅ | 🟠 | Window query `where` clause silently replaced with `WHERE 1=1` — all filters discarded | `crates/fraiseql-core/src/runtime/window.rs` |
 
 ### 2B — Date / time
 
@@ -175,14 +175,14 @@ the capability claim from documentation.
 | F1 (ext-1) | ✅ | All four backup providers return `Ok(())` without backing up anything — now return `NotImplemented` error | `crates/fraiseql-server/src/backup/` |
 | F2 (ext-1) | ✅ | Syslog audit backend now sends actual UDP packets | `crates/fraiseql-core/src/audit/syslog_backend.rs` |
 | F3 (ext-1) | | ClickHouse/Redis/Elasticsearch backup providers compiled but never registered | `crates/fraiseql-server/src/backup/` |
-| W2 (ext-7) | | `auth_refresh` returns `"new_access_token_<uuid>"` string instead of a JWT | `crates/fraiseql-auth/src/handlers.rs` |
+| W2 (ext-7) | ✅ | `auth_refresh` returns explicit error instead of placeholder — JWT signing requires OIDC provider to be wired | `crates/fraiseql-auth/src/handlers.rs` |
 | M1 (ext-3) | ✅ | Jaeger exporter now makes real HTTP POST to Jaeger collector endpoint | `crates/fraiseql-observers/src/tracing/exporter.rs` |
 | M2 (ext-3) | ✅ | Global `JAEGER_EXPORTER` static replaced with per-`Server` instance | `crates/fraiseql-observers/src/tracing/exporter.rs` |
 | M3 (ext-3) | ✅ | `export_sdl_handler` / `export_json_handler` now return actual compiled schema | `crates/fraiseql-server/src/routes/api/schema.rs` |
 | M4 (ext-3) | ✅ | `federation_health_handler` now reads `schema.federation` instead of hardcoding "healthy" | `crates/fraiseql-server/src/routes/health.rs` |
 | M5 (ext-3) | | Observer attribution helpers always return `None` — every event unattributed | `crates/fraiseql-observers/src/handlers.rs` |
 | Q1 (ext-4) | ✅ | Federation discovery endpoints now return real subgraph data from compiled schema | `crates/fraiseql-server/src/routes/api/federation.rs` |
-| T2 (ext-16) | | Field-level encryption: builder never wires it, codegen always emits `None` | `crates/fraiseql-server/src/server/builder.rs`, `crates/fraiseql-core/src/compiler/codegen.rs` |
+| T2 (ext-16) | ✅ | Field-level encryption: builder wired via `with_field_encryption()`; `FieldEncryptionService::from_schema()` builds from compiled schema | `crates/fraiseql-server/src/routes/graphql.rs`, `crates/fraiseql-server/src/server/routing.rs` |
 | M1 (ext-11) | ✅ | Arrow Flight no-executor path returns `Status::unavailable` instead of hardcoded fake rows | `crates/fraiseql-arrow/src/flight_server/service.rs` |
 | I4 (ext-2) | ✅ | `InputObjectRule::Custom` error message now directs users to `InputValidatorRegistry` | `crates/fraiseql-core/src/validation/input_object.rs` |
 | J1 (ext-2) | ✅ | `cache_list_queries` now actively suppresses caching multi-row results when `false` | `crates/fraiseql-core/src/cache/result.rs` |
@@ -203,13 +203,13 @@ Fix together to avoid merge conflicts.
 | Priority | ID | Status | What | Where |
 |----------|----|--------|------|-------|
 | 1 | I3 (ext-2) | ✅ | Replace hardcoded `(2026, 2, 8)` in `get_today()` | `crates/fraiseql-core/src/validation/date_validators.rs` |
-| 2 | II1 (ext-20) | | Add `ValidationRule::Email` and `ValidationRule::Phone` variants; wire into `validate_string_field()` and `create_validator_from_rule()` | `rules.rs`, `input_validator.rs`, `validators.rs` |
+| 2 | II1 (ext-20) | ✅ | Add `ValidationRule::Email` and `ValidationRule::Phone` variants; wire into `validate_string_field()` and `create_validator_from_rule()` | `rules.rs`, `input_validator.rs`, `validators.rs` |
 | 3 | II2 (ext-20) | ✅ | Fix `AsyncValidator::timeout()` returning `Duration::ZERO`; use `Duration::MAX` sentinel or expose a sync `Validator` impl | `async_validators.rs` |
 | 4 | L1 (ext-5) | ✅ | Implement or remove `AsyncValidatorProvider::ChecksumValidation` | `async_validators.rs` |
 | 5 | J1 (ext-11) | ✅ | Stop silently swallowing regex compilation errors in `create_validator_from_rule` | `crates/fraiseql-core/src/validation/validators.rs` |
 | 6 | T1 (ext-6) | ✅ | Double-quote column names in `generate_sql_constraint` | `crates/fraiseql-core/src/validation/compile_time.rs` |
-| 7 | V1/V2 (ext-14) | | Add tests for `custom_scalar.rs` and `scalar_validator.rs` | `crates/fraiseql-core/src/validation/` |
-| 8 | V4 (ext-14) | | Rename one of the two `validate_custom_scalar` functions | Same |
+| 7 | V1/V2 (ext-14) | ✅ | Add tests for `custom_scalar.rs` and `scalar_validator.rs` | `crates/fraiseql-core/src/validation/` |
+| 8 | V4 (ext-14) | ✅ | Rename one of the two `validate_custom_scalar` functions — renamed to `validate_custom_scalar_from_schema` | `crates/fraiseql-core/src/runtime/input_validator.rs` |
 
 ---
 
@@ -222,7 +222,7 @@ These require design decisions before implementation — file a spec issue per i
 | HH1 (ext-20) | ✅ | `fraiseql-cli` not optional in facade; `cli = []` feature is inert — add `optional = true` and `#[cfg(feature = "cli")]` guard | `crates/fraiseql/Cargo.toml`, `lib.rs` |
 | K2 (ext-11) | ✅ | Add `schema_format_version` field to `CompiledSchema`; reject mismatched versions at startup | `crates/fraiseql-core/src/schema/compiled.rs` |
 | FF4 (ext-18) | ✅ | Add `#[non_exhaustive]` to `WhereOperator` to avoid semver breaks | `crates/fraiseql-wire/src/operators/where_operator.rs` |
-| O3 (ext-12) | | Consolidate three structs all named `WebhookConfig` across three crates | Multiple |
+| O3 (ext-12) | ✅ | Consolidate three structs all named `WebhookConfig` across three crates — renamed to `WebhookRouteConfig` (server) and `WebhookTransportConfig` (subscription) | Multiple |
 | X1 (ext-10) | | Document the bridging contract between `fraiseql-error::RuntimeError` and `fraiseql-server::error::ErrorResponse`; consider unifying | Multiple |
 | R1 (ext-12) | ✅ | Change all 12 `ExternalProviderRegistry` methods from `Result<_, String>` to `Result<_, AuthError>` | `crates/fraiseql-auth/src/oauth.rs` |
 | P1 (ext-4) | ✅ | Make Arrow Flight bind address configurable (env var + config field) | `crates/fraiseql-server/src/server/lifecycle.rs` |
@@ -256,7 +256,7 @@ These require design decisions before implementation — file a spec issue per i
 | Z2 (ext-9) | | `fraiseql-observers-macros` has zero tests | Same |
 | AA2 (ext-9) | ✅ | `actions/setup-python@v6` does not exist — fix to `@v5` | `.github/workflows/` |
 | AB1 (ext-9) | | Seven official SDKs have no CI workflow | `.github/workflows/` |
-| AA1 (ext-9) | | Pin `trufflehog` and `trivy-action` to SHA digests | `.github/workflows/security-compliance.yml` |
+| AA1 (ext-9) | ✅ | Pin `trufflehog` and `trivy-action` to SHA digests | `.github/workflows/security-compliance.yml` |
 | S1 (ext-10) | ✅ | `tracing_server` now generates trace IDs using full 128-bit `uuid::Uuid::new_v4()` entropy | `crates/fraiseql-server/src/tracing_server.rs` |
 
 ---
@@ -283,7 +283,7 @@ These require design decisions before implementation — file a spec issue per i
 | G2 (ext-1) | ✅ | Remove deprecated `X-XSS-Protection` header from production CSP middleware | `crates/fraiseql-server/src/middleware/cors.rs` |
 | G3 (ext-1) | ✅ | Remove `'unsafe-inline'` from production Content-Security-Policy | Same |
 | G6 (ext-1) | | Remove blanket `#[allow(unused_imports)]` from five production modules | Multiple |
-| G7 (ext-1) | | Reduce 38 module-level `#![allow]` in `fraiseql-auth/src/lib.rs` to per-site | `crates/fraiseql-auth/src/lib.rs` |
+| G7 (ext-1) | ✅ | Reduce module-level `#![allow]` in `fraiseql-auth/src/lib.rs` — removed `wildcard_imports` and `too_many_lines` | `crates/fraiseql-auth/src/lib.rs` |
 | O1 (ext-12) | ✅ | Fix `HmacSha256Verifier` constructor `name`/`header` args that are silently ignored | `crates/fraiseql-webhooks/src/signature/generic.rs` |
 | O2/N1 (ext-12/3) | ✅ | Move webhook mock implementations behind `#[cfg(any(test, feature="testing"))]` | `crates/fraiseql-webhooks/src/lib.rs` |
 | CC2 (ext-15) | ✅ | Parameterize `LIMIT`/`OFFSET` in PostgreSQL audit backend | `crates/fraiseql-core/src/audit/postgres_backend.rs` |
@@ -297,10 +297,10 @@ These require design decisions before implementation — file a spec issue per i
 | ID | Status | What | Where |
 |----|--------|------|-------|
 | S5 (ext-13) | | Add unit tests for ~7500 LOC in `fraiseql-secrets/src/encryption/` | `crates/fraiseql-secrets/src/encryption/` |
-| V1/V2 (ext-14) | | Add tests for `custom_scalar.rs` and `scalar_validator.rs` | `crates/fraiseql-core/src/validation/` |
+| V1/V2 (ext-14) | ✅ | Add tests for `custom_scalar.rs` (7 tests) and `scalar_validator.rs` (16 tests) | `crates/fraiseql-core/src/validation/` |
 | Z2 (ext-9) | | Add tests for `fraiseql-observers-macros` | `crates/fraiseql-observers-macros/src/lib.rs` |
 | U1/U2 (ext-6) | | Fix and test `assert_json_key!` macro (returns `Null` for missing keys) | `crates/fraiseql-test-utils/src/assertions.rs` |
-| B1 (ext-0) | | Raise CI coverage threshold from 60% to 70%; add 80% gate for security crates | `.github/workflows/ci.yml` |
+| B1 (ext-0) | ✅ | Raise CI coverage threshold from 60% to 70%; add 80% gate for security crates | `.github/workflows/ci.yml` |
 | AB1 (ext-9) | | Add CI workflows for seven official SDKs | `.github/workflows/` |
 
 ### 8D — Hygiene / repo cleanup
@@ -310,12 +310,12 @@ These require design decisions before implementation — file a spec issue per i
 | P2 (ext-12) | ✅ | Replace HashMap with proper LRU in Vault `SecretCache` | `crates/fraiseql-secrets/src/secrets_manager/backends/vault.rs` |
 | K1 (ext-6) | | Arrow Flight `FLIGHT_SESSION_SECRET` should be read once at startup, not per-request with `.expect()` | `crates/fraiseql-arrow/src/flight_server/auth.rs` |
 | Q2 (ext-6) | | Remove `.expect()` on `HeaderValue::parse` in production `Retry-After` response handler | `crates/fraiseql-error/src/http.rs` |
-| U1 (ext-3) | | `reqwest::Client::builder()` failures should propagate as errors not silently use defaults | Multiple |
-| V1 (ext-6) | | Arrow Flight `matches_filter()` should log a warning on unparseable filter | `crates/fraiseql-arrow/src/subscription.rs` |
-| W1 (ext-10) | | `parse_size()` failure should log and default explicitly, not silently fall back | `crates/fraiseql-server/src/files/validation.rs` |
-| L2 (ext-11) | | Establish removal timeline for nine deprecated community SDKs | `sdks/community/` |
-| AB2 (ext-9) | | Deduplicate Dart/Elixir/Ruby SDKs from `sdks/community/` | `sdks/` |
-| G5 (ext-1) | | Log a warning when observer retry config deserialization falls back to default | `crates/fraiseql-server/src/observers/runtime.rs` |
+| U1 (ext-3) | ✅ | `reqwest::Client::builder()` failures now log `tracing::warn!` before falling back | Multiple |
+| V1 (ext-6) | ✅ | Arrow Flight `matches_filter()` now logs a warning on unparseable filter | `crates/fraiseql-arrow/src/subscription.rs` |
+| W1 (ext-10) | ✅ | `parse_size()` failure now logs `tracing::warn!` before defaulting | `crates/fraiseql-server/src/files/validation.rs` |
+| L2 (ext-11) | ✅ | Establish removal timeline for nine deprecated community SDKs | `sdks/community/README.md` |
+| AB2 (ext-9) | ✅ | Deduplicate Dart/Elixir/Ruby SDKs from `sdks/community/` — documented in README.md | `sdks/community/README.md` |
+| G5 (ext-1) | ✅ | Log a warning when observer retry config deserialization falls back to default | `crates/fraiseql-server/src/observers/runtime.rs` |
 | K1 (ext-2) | ✅ | Fix `MetricsCollector` `{{{N}}}` format producing `{42}` instead of `42` in Prometheus output | `crates/fraiseql-server/src/operational/metrics.rs` |
 | U1 (ext-10) | | Document `fraiseql-error::RuntimeError` ↔ `fraiseql-server::error::ErrorResponse` bridging | `crates/fraiseql-error/src/lib.rs` |
 
@@ -336,19 +336,23 @@ These require design decisions before implementation — file a spec issue per i
 
 | Category | Total | Done | Blocked | Pending |
 |----------|-------|------|---------|---------|
-| 🔴 Critical | 11 | 9 | 0 | 2 |
-| 🟠 High | ~45 | ~28 | 1 | ~16 |
-| 🟡 Medium | ~45 | ~13 | 0 | ~32 |
-| 🔵 Low | ~20 | 0 | 0 | ~20 |
-| **Total** | **~121** | **~50** | **1** | **~70** |
+| 🔴 Critical | 11 | 11 | 0 | 0 |
+| 🟠 High | ~45 | ~41 | 1 | ~3 |
+| 🟡 Medium | ~45 | ~32 | 0 | ~13 |
+| 🔵 Low | ~20 | ~3 | 0 | ~17 |
+| **Total** | **~121** | **~87** | **1** | **~33** |
 
-**Remaining 🔴 Critical items** (2):
-- `E1`: GET GraphQL handler bypasses RLS — needs design decision (anonymous vs authenticated schema)
-- `I2 (ext-11)`: `escape_identifier()` passes unsafe identifiers through silently
+**All 🔴 Critical items resolved** ✅
+
+**Remaining 🟠 High items** (~3):
+- `CC1 (ext-17)`: `ComplexityAnalyzer` counts alphabetic chars, not field identifiers
+- `CC2 (ext-17)`: Depth limit bypassable via inline fragments
+- `CC4 (ext-17)`: Subscription manager TOCTOU between unsubscribe/subscribe
 
 **Blocked** (1):
 - `V3`: rustls 0.21.12 — transitive dep of `aws-sdk-s3`; cannot fix without upstream AWS SDK update
 
-> Issues EXT-34 (`MockEmailDomainValidator`), EXT-61 (`InMemoryTransport` bounded), EXT-38/GG1
-> (`update_checkpoint` cast), and EXT-35/GG2 (`stop_health_monitor` no-op) have been
-> **addressed** in recent commits (2026-03 dev branch).
+> All Batch 1 (security), Batch 2 (correctness), Batch 3 (feature theater), Batch 4 (validation),
+> Batch 5 (architecture), Batch 6 (reliability), Batch 7 (proc-macro/CI), and Batch 8 (quality)
+> items have been substantially addressed as of 2026-03-05. Remaining items are either
+> blocked on upstream dependencies (V3) or require design decisions (E1).
