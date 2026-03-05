@@ -66,10 +66,53 @@ impl JaegerConfig {
     }
 }
 
-/// Jaeger trace exporter state
+/// Jaeger trace exporter — one instance per Server, not a global singleton.
 pub struct JaegerExporter {
     config: JaegerConfig,
     batch_buffer: Arc<Mutex<Vec<JaegerSpan>>>,
+}
+
+impl JaegerExporter {
+    /// Record a span for export to Jaeger.
+    ///
+    /// Buffers span data for batch export to the Jaeger collector.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the internal batch buffer lock is poisoned or if
+    /// the HTTP export call to Jaeger fails.
+    pub fn record_span(&self, span: JaegerSpan) -> Result<()> {
+        let mut buffer = self.batch_buffer.lock().expect("batch_buffer mutex poisoned");
+        buffer.push(span);
+        if buffer.len() >= self.config.max_batch_size {
+            let spans_to_export = buffer.drain(..).collect::<Vec<_>>();
+            drop(buffer);
+            export_spans(&self.config, spans_to_export)?;
+        }
+        Ok(())
+    }
+
+    /// Flush all pending spans to Jaeger.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the HTTP export call to Jaeger fails.
+    pub fn flush_spans(&self) -> Result<()> {
+        let mut buffer = self.batch_buffer.lock().expect("batch_buffer mutex poisoned");
+        if !buffer.is_empty() {
+            let spans_to_export = buffer.drain(..).collect::<Vec<_>>();
+            drop(buffer);
+            export_spans(&self.config, spans_to_export)?;
+        }
+        tracing::debug!("Flushed pending spans to Jaeger");
+        Ok(())
+    }
+
+    /// Return the Jaeger configuration for this exporter.
+    #[must_use]
+    pub fn config(&self) -> &JaegerConfig {
+        &self.config
+    }
 }
 
 /// Simplified span representation for Jaeger export
@@ -100,13 +143,11 @@ pub struct JaegerSpan {
     pub status: String,
 }
 
-/// Global Jaeger exporter instance
-static JAEGER_EXPORTER: Arc<Mutex<Option<JaegerExporter>>> = Arc::new(Mutex::new(None));
-
-/// Initialize Jaeger trace exporter
+/// Initialize a Jaeger trace exporter and return it as an owned instance.
 ///
-/// Sets up Jaeger HTTP collector integration with batch processing.
-/// Configures sampling strategy and span export behavior.
+/// The returned [`JaegerExporter`] should be stored per-`Server` instance
+/// rather than in a global. This enables multiple servers to export to
+/// different Jaeger endpoints simultaneously.
 ///
 /// # Arguments
 ///
@@ -114,15 +155,23 @@ static JAEGER_EXPORTER: Arc<Mutex<Option<JaegerExporter>>> = Arc::new(Mutex::new
 ///
 /// # Errors
 ///
-/// Returns error if initialization fails or config is invalid
+/// Returns error if the config fails validation.
 ///
 /// # Example
 ///
 /// ```no_run
-/// let config = TracingConfig::from_env()?;
-/// init_jaeger_exporter(&config)?;
+/// # use fraiseql_observers::tracing::TracingConfig;
+/// # use fraiseql_observers::tracing::exporter::init_jaeger_exporter;
+/// let config = TracingConfig {
+///     enabled: true,
+///     service_name: "my-service".to_string(),
+///     jaeger_endpoint: "http://localhost:14268/api/traces".to_string(),
+///     sample_rate: 1.0,
+/// };
+/// let exporter = init_jaeger_exporter(&config)?;
+/// # Ok::<_, fraiseql_observers::error::Error>(())
 /// ```
-pub fn init_jaeger_exporter(config: &TracingConfig) -> Result<()> {
+pub fn init_jaeger_exporter(config: &TracingConfig) -> Result<JaegerExporter> {
     config.validate()?;
 
     let jaeger_config = JaegerConfig::from_tracing_config(config);
@@ -135,70 +184,14 @@ pub fn init_jaeger_exporter(config: &TracingConfig) -> Result<()> {
         "Initializing Jaeger exporter"
     );
 
-    // Create exporter instance
     let exporter = JaegerExporter {
         config: jaeger_config,
         batch_buffer: Arc::new(Mutex::new(Vec::new())),
     };
 
-    // Store as global instance
-    let mut global_exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
-    *global_exporter = Some(exporter);
+    tracing::info!("Jaeger exporter initialized successfully, ready to export traces");
 
-    tracing::info!(
-        "Jaeger exporter initialized successfully, ready to export traces"
-    );
-
-    Ok(())
-}
-
-/// Record a span for export to Jaeger
-///
-/// Buffers span data for batch export to Jaeger collector
-pub fn record_span(span: JaegerSpan) -> Result<()> {
-    let exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
-
-    if let Some(exporter) = exporter.as_ref() {
-        let mut buffer = exporter.batch_buffer.lock().expect("batch_buffer mutex poisoned");
-
-        // Add span to buffer
-        buffer.push(span.clone());
-
-        // Export if batch is full
-        if buffer.len() >= exporter.config.max_batch_size {
-            let spans_to_export = buffer.drain(..).collect::<Vec<_>>();
-            drop(buffer); // Release lock before export
-
-            export_spans(&exporter.config, spans_to_export)?;
-        }
-
-        Ok(())
-    } else {
-        Err(Error::Tracing(
-            "Jaeger exporter not initialized".to_string(),
-        ))
-    }
-}
-
-/// Flush all pending spans to Jaeger
-pub fn flush_spans() -> Result<()> {
-    let exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
-
-    if let Some(exporter) = exporter.as_ref() {
-        let mut buffer = exporter.batch_buffer.lock().expect("batch_buffer mutex poisoned");
-
-        if !buffer.is_empty() {
-            let spans_to_export = buffer.drain(..).collect::<Vec<_>>();
-            drop(buffer); // Release lock before export
-
-            export_spans(&exporter.config, spans_to_export)?;
-        }
-
-        tracing::debug!("Flushed pending spans to Jaeger");
-        Ok(())
-    } else {
-        Ok(()) // No-op if not initialized
-    }
+    Ok(exporter)
 }
 
 /// Export spans to Jaeger HTTP collector
@@ -229,32 +222,19 @@ fn export_spans(config: &JaegerConfig, spans: Vec<JaegerSpan>) -> Result<()> {
     Ok(())
 }
 
-/// Get exporter configuration
-pub fn get_exporter_config() -> Result<JaegerConfig> {
-    let exporter = JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned");
-
-    exporter
-        .as_ref()
-        .map(|e| e.config.clone())
-        .ok_or_else(|| Error::Tracing("Jaeger exporter not initialized".to_string()))
-}
-
-/// Check if exporter is initialized
-pub fn is_initialized() -> bool {
-    JAEGER_EXPORTER.lock().expect("JAEGER_EXPORTER static mutex poisoned").is_some()
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn init_test_exporter() {
-        let _ = init_jaeger_exporter(&TracingConfig {
+    fn make_test_exporter() -> JaegerExporter {
+        init_jaeger_exporter(&TracingConfig {
             enabled: true,
             service_name: "test-service".to_string(),
             jaeger_endpoint: "http://localhost:14268/api/traces".to_string(),
             sample_rate: 0.5,
-        });
+        })
+        .expect("test exporter should initialize")
     }
 
     #[test]
@@ -362,7 +342,6 @@ mod tests {
 
         let result = init_jaeger_exporter(&config);
         assert!(result.is_ok());
-        assert!(is_initialized());
     }
 
     #[test]
@@ -433,12 +412,8 @@ mod tests {
 
     #[test]
     fn test_get_exporter_config() {
-        init_test_exporter();
-
-        let config = get_exporter_config();
-        assert!(config.is_ok());
-
-        let config = config.unwrap();
+        let exporter = make_test_exporter();
+        let config = exporter.config();
         assert_eq!(config.service_name, "test-service");
     }
 }

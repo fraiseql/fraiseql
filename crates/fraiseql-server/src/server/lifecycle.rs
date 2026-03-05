@@ -82,8 +82,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Start both HTTP and gRPC servers concurrently if Arrow Flight is enabled
         #[cfg(feature = "arrow")]
         if let Some(flight_service) = self.flight_service {
-            // Flight server runs on port 50051
-            let flight_addr = "0.0.0.0:50051".parse().expect("Valid Flight address");
+            let flight_addr = self.config.flight_bind_addr;
             info!("Arrow Flight server listening on grpc://{}", flight_addr);
 
             // Spawn Flight server in background

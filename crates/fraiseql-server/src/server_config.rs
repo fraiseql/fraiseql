@@ -114,6 +114,14 @@ pub struct ServerConfig {
     #[serde(default = "default_bind_addr")]
     pub bind_addr: SocketAddr,
 
+    /// Arrow Flight gRPC bind address (requires `arrow` feature).
+    ///
+    /// Defaults to `0.0.0.0:50051`. Override with `FRAISEQL_FLIGHT_BIND_ADDR`
+    /// environment variable or this field in the config file.
+    #[cfg(feature = "arrow")]
+    #[serde(default = "default_flight_bind_addr")]
+    pub flight_bind_addr: SocketAddr,
+
     /// Enable CORS.
     #[serde(default = "default_true")]
     pub cors_enabled: bool,
@@ -413,6 +421,8 @@ impl Default for ServerConfig {
             schema_path: default_schema_path(),
             database_url: default_database_url(),
             bind_addr: default_bind_addr(),
+            #[cfg(feature = "arrow")]
+            flight_bind_addr: default_flight_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: true,
@@ -625,6 +635,14 @@ fn default_schema_path() -> PathBuf {
 
 fn default_database_url() -> String {
     "postgresql://localhost/fraiseql".to_string()
+}
+
+#[cfg(feature = "arrow")]
+fn default_flight_bind_addr() -> SocketAddr {
+    std::env::var("FRAISEQL_FLIGHT_BIND_ADDR")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| "0.0.0.0:50051".parse().expect("valid Flight bind address"))
 }
 
 fn default_bind_addr() -> SocketAddr {

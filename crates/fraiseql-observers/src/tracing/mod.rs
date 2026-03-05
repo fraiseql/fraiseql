@@ -33,17 +33,18 @@ use crate::error::{Error, Result};
 use config::TracingConfig;
 
 pub use config::TracingConfig;
-pub use exporter::{init_tracing, init_jaeger_exporter, JaegerConfig, JaegerSpan, record_span, flush_spans, is_initialized};
+pub use exporter::{JaegerConfig, JaegerExporter, JaegerSpan, init_jaeger_exporter};
 pub use propagation::TraceContext;
 pub use spans::{create_event_span, create_action_span, create_phase_span};
 pub use instrumentation::{ListenerTracer, ExecutorTracer, ConditionTracer};
 pub use action_tracing::{WebhookTracer, EmailTracer, SlackTracer, ActionSpan};
 pub use action_integration::{ActionBatchExecutor, ActionChain};
 
-/// Initialize tracing provider with configuration
+/// Initialize tracing provider with configuration.
 ///
-/// This must be called at application startup to enable tracing.
-/// If tracing is disabled in config, this is a no-op.
+/// Returns a [`JaegerExporter`] when tracing is enabled, or `None` when
+/// tracing is disabled. Store the returned exporter in your `Server` struct
+/// rather than using a global singleton.
 ///
 /// # Arguments
 ///
@@ -56,13 +57,21 @@ pub use action_integration::{ActionBatchExecutor, ActionChain};
 /// # Example
 ///
 /// ```no_run
-/// let config = TracingConfig::from_env()?;
-/// fraiseql_observers::tracing::init_tracing(config)?;
+/// # use fraiseql_observers::tracing::{TracingConfig, init_tracing};
+/// let config = TracingConfig {
+///     enabled: true,
+///     service_name: "my-service".to_string(),
+///     jaeger_endpoint: "http://localhost:14268/api/traces".to_string(),
+///     sample_rate: 1.0,
+/// };
+/// let exporter = init_tracing(config)?;
+/// // `exporter` is `Some(JaegerExporter)` when tracing is enabled
+/// # Ok::<_, fraiseql_observers::error::Error>(())
 /// ```
-pub fn init_tracing(config: TracingConfig) -> Result<()> {
+pub fn init_tracing(config: TracingConfig) -> Result<Option<JaegerExporter>> {
     if !config.enabled {
         tracing::debug!("Tracing disabled");
-        return Ok(());
+        return Ok(None);
     }
 
     tracing::info!(
@@ -72,10 +81,10 @@ pub fn init_tracing(config: TracingConfig) -> Result<()> {
         "Initializing tracing"
     );
 
-    exporter::init_jaeger_exporter(&config)?;
+    let exporter = exporter::init_jaeger_exporter(&config)?;
 
     tracing::info!("Tracing initialized successfully");
-    Ok(())
+    Ok(Some(exporter))
 }
 
 #[cfg(test)]

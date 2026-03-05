@@ -7,6 +7,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::jwks::JwksCache;
+use crate::error::AuthError;
 
 /// OAuth2 token response from provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -635,27 +636,35 @@ impl ProviderRegistry {
     }
 
     /// Register provider
-    pub fn register(&self, provider: ExternalAuthProvider) -> Result<(), String> {
-        let mut providers = self.providers.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn register(&self, provider: ExternalAuthProvider) -> std::result::Result<(), AuthError> {
+        let mut providers = self.providers.lock().map_err(|_| AuthError::Internal {
+            message: "provider registry mutex poisoned".to_string(),
+        })?;
         providers.insert(provider.provider_name.clone(), provider);
         Ok(())
     }
 
     /// Get provider by name
-    pub fn get(&self, name: &str) -> Result<Option<ExternalAuthProvider>, String> {
-        let providers = self.providers.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn get(&self, name: &str) -> std::result::Result<Option<ExternalAuthProvider>, AuthError> {
+        let providers = self.providers.lock().map_err(|_| AuthError::Internal {
+            message: "provider registry mutex poisoned".to_string(),
+        })?;
         Ok(providers.get(name).cloned())
     }
 
     /// List all enabled providers
-    pub fn list_enabled(&self) -> Result<Vec<ExternalAuthProvider>, String> {
-        let providers = self.providers.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn list_enabled(&self) -> std::result::Result<Vec<ExternalAuthProvider>, AuthError> {
+        let providers = self.providers.lock().map_err(|_| AuthError::Internal {
+            message: "provider registry mutex poisoned".to_string(),
+        })?;
         Ok(providers.values().filter(|p| p.enabled).cloned().collect())
     }
 
     /// Disable provider
-    pub fn disable(&self, name: &str) -> Result<bool, String> {
-        let mut providers = self.providers.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn disable(&self, name: &str) -> std::result::Result<bool, AuthError> {
+        let mut providers = self.providers.lock().map_err(|_| AuthError::Internal {
+            message: "provider registry mutex poisoned".to_string(),
+        })?;
         if let Some(provider) = providers.get_mut(name) {
             provider.set_enabled(false);
             Ok(true)
@@ -665,8 +674,10 @@ impl ProviderRegistry {
     }
 
     /// Enable provider
-    pub fn enable(&self, name: &str) -> Result<bool, String> {
-        let mut providers = self.providers.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn enable(&self, name: &str) -> std::result::Result<bool, AuthError> {
+        let mut providers = self.providers.lock().map_err(|_| AuthError::Internal {
+            message: "provider registry mutex poisoned".to_string(),
+        })?;
         if let Some(provider) = providers.get_mut(name) {
             provider.set_enabled(true);
             Ok(true)
@@ -823,16 +834,20 @@ impl TokenRefreshScheduler {
         &self,
         session_id: String,
         refresh_time: DateTime<Utc>,
-    ) -> Result<(), String> {
-        let mut queue = self.refresh_queue.lock().map_err(|_| "Lock failed".to_string())?;
+    ) -> std::result::Result<(), AuthError> {
+        let mut queue = self.refresh_queue.lock().map_err(|_| AuthError::Internal {
+            message: "token refresh scheduler mutex poisoned".to_string(),
+        })?;
         queue.push((session_id, refresh_time));
         queue.sort_by_key(|(_, time)| *time);
         Ok(())
     }
 
     /// Get next session to refresh
-    pub fn get_next_refresh(&self) -> Result<Option<String>, String> {
-        let mut queue = self.refresh_queue.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn get_next_refresh(&self) -> std::result::Result<Option<String>, AuthError> {
+        let mut queue = self.refresh_queue.lock().map_err(|_| AuthError::Internal {
+            message: "token refresh scheduler mutex poisoned".to_string(),
+        })?;
         if let Some((_, refresh_time)) = queue.first() {
             if *refresh_time <= Utc::now() {
                 let (id, _) = queue.remove(0);
@@ -843,8 +858,10 @@ impl TokenRefreshScheduler {
     }
 
     /// Cancel scheduled refresh
-    pub fn cancel_refresh(&self, session_id: &str) -> Result<bool, String> {
-        let mut queue = self.refresh_queue.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn cancel_refresh(&self, session_id: &str) -> std::result::Result<bool, AuthError> {
+        let mut queue = self.refresh_queue.lock().map_err(|_| AuthError::Internal {
+            message: "token refresh scheduler mutex poisoned".to_string(),
+        })?;
         let len_before = queue.len();
         queue.retain(|(id, _)| id != session_id);
         Ok(queue.len() < len_before)
@@ -866,7 +883,10 @@ pub trait TokenRefresher: Send + Sync {
     /// Should look up the session, call the appropriate OAuth2 provider's
     /// `refresh_token()`, update the stored session, and return the new expiry.
     /// Returns `None` if the session no longer exists or has no refresh token.
-    async fn refresh_session(&self, session_id: &str) -> Result<Option<DateTime<Utc>>, String>;
+    async fn refresh_session(
+        &self,
+        session_id: &str,
+    ) -> std::result::Result<Option<DateTime<Utc>>, AuthError>;
 }
 
 /// Background worker that polls the `TokenRefreshScheduler` and refreshes
@@ -979,8 +999,10 @@ impl ProviderFailoverManager {
     }
 
     /// Get next available provider
-    pub fn get_available_provider(&self) -> Result<String, String> {
-        let unavailable = self.unavailable.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn get_available_provider(&self) -> std::result::Result<String, AuthError> {
+        let unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
+            message: "failover manager mutex poisoned".to_string(),
+        })?;
         let now = Utc::now();
 
         // Check if primary is available
@@ -998,19 +1020,29 @@ impl ProviderFailoverManager {
             }
         }
 
-        Err("No providers available".to_string())
+        Err(AuthError::Internal {
+            message: "no OAuth providers available".to_string(),
+        })
     }
 
     /// Mark provider as unavailable
-    pub fn mark_unavailable(&self, provider: String, duration_seconds: u64) -> Result<(), String> {
-        let mut unavailable = self.unavailable.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn mark_unavailable(
+        &self,
+        provider: String,
+        duration_seconds: u64,
+    ) -> std::result::Result<(), AuthError> {
+        let mut unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
+            message: "failover manager mutex poisoned".to_string(),
+        })?;
         unavailable.push((provider, Utc::now() + Duration::seconds(duration_seconds as i64)));
         Ok(())
     }
 
     /// Mark provider as available
-    pub fn mark_available(&self, provider: &str) -> Result<(), String> {
-        let mut unavailable = self.unavailable.lock().map_err(|_| "Lock failed".to_string())?;
+    pub fn mark_available(&self, provider: &str) -> std::result::Result<(), AuthError> {
+        let mut unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
+            message: "failover manager mutex poisoned".to_string(),
+        })?;
         unavailable.retain(|(name, _)| name != provider);
         Ok(())
     }
@@ -1566,7 +1598,7 @@ mod tests {
             async fn refresh_session(
                 &self,
                 _session_id: &str,
-            ) -> Result<Option<DateTime<Utc>>, String> {
+            ) -> std::result::Result<Option<DateTime<Utc>>, AuthError> {
                 self.call_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 Ok(Some(Utc::now() + Duration::hours(1)))
             }
@@ -1603,7 +1635,7 @@ mod tests {
             async fn refresh_session(
                 &self,
                 _session_id: &str,
-            ) -> Result<Option<DateTime<Utc>>, String> {
+            ) -> std::result::Result<Option<DateTime<Utc>>, AuthError> {
                 Ok(None) // Session doesn't exist
             }
         }
@@ -1633,7 +1665,7 @@ mod tests {
             async fn refresh_session(
                 &self,
                 _session_id: &str,
-            ) -> Result<Option<DateTime<Utc>>, String> {
+            ) -> std::result::Result<Option<DateTime<Utc>>, AuthError> {
                 panic!("Should not be called");
             }
         }
