@@ -119,25 +119,31 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
 /// Federation health check handler.
 ///
-/// Returns federation-specific health status including per-subgraph availability.
+/// Returns federation-specific health status.
 ///
-/// Note: This handler requires a SubgraphHealthChecker instance to be provided.
-/// For now, it returns a placeholder response.
+/// When federation is configured in the compiled schema, reports `healthy`.
+/// When federation is not configured, reports `not_configured`.
 ///
 /// # Response Codes
 ///
-/// - 200: Federation status retrieved (see status field for actual status)
-/// - 503: Federation unhealthy
-pub async fn federation_health_handler() -> impl IntoResponse {
+/// - 200: Federation status retrieved
+pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+) -> impl IntoResponse {
     debug!("Federation health check requested");
 
+    let schema = state.executor.schema();
+    let (status, status_code) = match schema.federation.as_ref() {
+        Some(fed) if fed.enabled => ("healthy", StatusCode::OK),
+        _ => ("not_configured", StatusCode::OK),
+    };
+
     let response = FederationHealthResponse {
-        status:    "healthy".to_string(),
+        status:    status.to_string(),
         subgraphs: vec![],
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
 
-    let status_code = StatusCode::OK;
     (status_code, Json(response))
 }
 

@@ -62,7 +62,10 @@ impl BackupProvider for PostgresBackupProvider {
     }
 
     async fn list_backups(&self) -> BackupResult<Vec<BackupInfo>> {
-        Ok(Vec::new())
+        Err(BackupError::NotImplemented {
+            store:     "postgres".to_string(),
+            operation: "list_backups".to_string(),
+        })
     }
 
     async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
