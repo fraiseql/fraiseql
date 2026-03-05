@@ -328,7 +328,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 ticker.tick().await;
-                match reqwest::get(&url).await {
+                const MANIFEST_FETCH_TIMEOUT: std::time::Duration =
+                    std::time::Duration::from_secs(30);
+                let client = reqwest::Client::builder()
+                    .timeout(MANIFEST_FETCH_TIMEOUT)
+                    .build()
+                    .expect("reqwest client with timeout should always build");
+                match client.get(&url).send().await {
                     Ok(resp) => match resp.text().await {
                         Ok(body) => {
                             #[derive(serde::Deserialize)]

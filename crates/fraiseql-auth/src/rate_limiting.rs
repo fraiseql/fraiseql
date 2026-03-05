@@ -12,7 +12,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -82,12 +85,20 @@ struct RequestRecord {
 
 /// Per-key rate limiter using in-memory tracking
 /// Maintains separate rate limits for each key (IP, user ID, etc.)
+/// Purge expired entries every this many `check()` calls.
+///
+/// Bounded memory: at most `PURGE_INTERVAL` stale entries can accumulate
+/// between sweeps. For high-traffic endpoints this is effectively constant.
+const PURGE_INTERVAL: u64 = 1_000;
+
 pub struct KeyedRateLimiter {
-    records: Arc<Mutex<HashMap<String, RequestRecord>>>,
-    config:  RateLimitConfig,
+    records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
+    config:      RateLimitConfig,
+    /// Monotonically increasing call counter for triggering periodic sweeps.
+    check_count: AtomicU64,
     /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
     /// Overridable via [`KeyedRateLimiter::with_clock`] for testing.
-    clock:   Box<dyn Fn() -> u64 + Send + Sync>,
+    clock:       Box<dyn Fn() -> u64 + Send + Sync>,
 }
 
 /// Default clock that reads wall-clock time.
@@ -119,9 +130,10 @@ impl KeyedRateLimiter {
     /// Create a new keyed rate limiter using wall-clock time.
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
-            records: Arc::new(Mutex::new(HashMap::new())),
+            records:     Arc::new(Mutex::new(HashMap::new())),
             config,
-            clock: Box::new(system_clock),
+            check_count: AtomicU64::new(0),
+            clock:       Box::new(system_clock),
         }
     }
 
@@ -134,9 +146,10 @@ impl KeyedRateLimiter {
         F: Fn() -> u64 + Send + Sync + 'static,
     {
         Self {
-            records: Arc::new(Mutex::new(HashMap::new())),
+            records:     Arc::new(Mutex::new(HashMap::new())),
             config,
-            clock: Box::new(clock),
+            check_count: AtomicU64::new(0),
+            clock:       Box::new(clock),
         }
     }
 
@@ -182,6 +195,13 @@ impl KeyedRateLimiter {
             .lock()
             .expect("rate limiter mutex poisoned - system in critical state");
         let now = (self.clock)();
+
+        // Periodic expiry sweep to bound HashMap growth.
+        // Runs every PURGE_INTERVAL calls; overflow wraps silently which is fine.
+        let count = self.check_count.fetch_add(1, Ordering::Relaxed);
+        if count % PURGE_INTERVAL == 0 {
+            records.retain(|_, r| now < r.window_start.saturating_add(self.config.window_secs));
+        }
 
         // Get or create record for this key (first request from this key)
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {

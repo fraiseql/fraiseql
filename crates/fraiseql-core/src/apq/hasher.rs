@@ -116,7 +116,9 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
 
     // Step 3: Normalize variables - serialize to JSON with sorted keys
     // This ensures {"a":1,"b":2} and {"b":2,"a":1} produce the same hash
-    let variables_json = serde_json::to_string(variables).unwrap_or_default();
+    // serde_json::Value serialization is infallible for all valid JSON values
+    let variables_json =
+        serde_json::to_string(variables).expect("serde_json::Value serialization is infallible");
 
     // Step 4: Combine query hash and normalized variables
     let combined = format!("{query_hash}:{variables_json}");
