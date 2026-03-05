@@ -1,7 +1,5 @@
 //! PostgreSQL backup provider.
 
-use std::collections::HashMap;
-
 use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 
 /// PostgreSQL backup provider.
@@ -43,54 +41,27 @@ impl BackupProvider for PostgresBackupProvider {
     }
 
     async fn health_check(&self) -> BackupResult<()> {
-        // In production, would connect and run: SELECT 1;
-        // For now, simulate success
-        Ok(())
-    }
-
-    async fn backup(&self) -> BackupResult<BackupInfo> {
-        let backup_id = Self::generate_backup_id();
-
-        // In production, would:
-        // 1. Run: pg_dump -h localhost -U postgres fraiseql > backup.sql
-        // 2. Gzip the output
-        // 3. Store to backup_dir
-        // 4. Verify by connecting and checking WAL position
-
-        Ok(BackupInfo {
-            backup_id,
-            store_name: "postgres".to_string(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0),
-            size_bytes: 0,
-            verified: false,
-            compression: Some("gzip".to_string()),
-            metadata: {
-                let mut m = HashMap::new();
-                m.insert("method".to_string(), "pg_dump".to_string());
-                m.insert("wal_archived".to_string(), "true".to_string());
-                m
-            },
+        Err(BackupError::NotImplemented {
+            store:     "postgres".to_string(),
+            operation: "health_check".to_string(),
         })
     }
 
-    async fn restore(&self, backup_id: &str, verify: bool) -> BackupResult<()> {
-        // In production, would:
-        // 1. Stop all applications
-        // 2. Restore from backup: psql fraiseql < backup.sql
-        // 3. Recover WAL files if point-in-time recovery needed
-        // 4. Run ANALYZE and VACUUM
-        // 5. Verify constraints and indexes
-        if verify {
-            self.verify_backup(backup_id).await?;
-        }
-        Ok(())
+    async fn backup(&self) -> BackupResult<BackupInfo> {
+        Err(BackupError::NotImplemented {
+            store:     "postgres".to_string(),
+            operation: "backup".to_string(),
+        })
+    }
+
+    async fn restore(&self, _backup_id: &str, _verify: bool) -> BackupResult<()> {
+        Err(BackupError::NotImplemented {
+            store:     "postgres".to_string(),
+            operation: "restore".to_string(),
+        })
     }
 
     async fn list_backups(&self) -> BackupResult<Vec<BackupInfo>> {
-        // In production, would list files in backup_dir
         Ok(Vec::new())
     }
 
@@ -102,16 +73,17 @@ impl BackupProvider for PostgresBackupProvider {
     }
 
     async fn delete_backup(&self, _backup_id: &str) -> BackupResult<()> {
-        // In production, would delete from backup_dir
-        Ok(())
+        Err(BackupError::NotImplemented {
+            store:     "postgres".to_string(),
+            operation: "delete_backup".to_string(),
+        })
     }
 
     async fn verify_backup(&self, _backup_id: &str) -> BackupResult<()> {
-        // In production, would:
-        // 1. Extract backup to temp database
-        // 2. Run integrity checks
-        // 3. Verify all tables and indexes exist
-        Ok(())
+        Err(BackupError::NotImplemented {
+            store:     "postgres".to_string(),
+            operation: "verify_backup".to_string(),
+        })
     }
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
@@ -142,24 +114,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_health_check() {
+    async fn test_health_check_not_implemented() {
         let provider = PostgresBackupProvider::new(
             "postgresql://localhost/test".to_string(),
             "/tmp/backups".to_string(),
         );
-        assert!(provider.health_check().await.is_ok());
+        let err = provider.health_check().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
     }
 
     #[tokio::test]
-    async fn test_backup_creates_backup_info() {
+    async fn test_backup_not_implemented() {
         let provider = PostgresBackupProvider::new(
             "postgresql://localhost/test".to_string(),
             "/tmp/backups".to_string(),
         );
-
-        let backup = provider.backup().await.unwrap();
-        assert_eq!(backup.store_name, "postgres");
-        assert!(backup.backup_id.starts_with("postgres-"));
-        assert_eq!(backup.compression, Some("gzip".to_string()));
+        let err = provider.backup().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
     }
 }

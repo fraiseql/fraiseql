@@ -1,7 +1,5 @@
 //! Elasticsearch backup provider.
 
-use std::collections::HashMap;
-
 use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 
 /// Elasticsearch backup provider.
@@ -24,14 +22,6 @@ impl ElasticsearchBackupProvider {
             repository,
         }
     }
-
-    fn generate_backup_id() -> String {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        format!("elasticsearch-{}", timestamp)
-    }
 }
 
 #[async_trait::async_trait]
@@ -41,47 +31,24 @@ impl BackupProvider for ElasticsearchBackupProvider {
     }
 
     async fn health_check(&self) -> BackupResult<()> {
-        // In production: GET _cluster/health
-        Ok(())
-    }
-
-    async fn backup(&self) -> BackupResult<BackupInfo> {
-        let backup_id = Self::generate_backup_id();
-
-        // In production:
-        // 1. Check repository configured: GET _snapshot/{repo}
-        // 2. Trigger snapshot: PUT _snapshot/{repo}/{snap_name}
-        // 3. Wait for completion: GET _snapshot/{repo}/{snap_name}
-        // 4. Verify all shards successful
-
-        Ok(BackupInfo {
-            backup_id:   backup_id.clone(),
-            store_name:  "elasticsearch".to_string(),
-            timestamp:   std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0),
-            size_bytes:  0,
-            verified:    false,
-            compression: None, // Elasticsearch snapshot handles compression
-            metadata:    {
-                let mut m = HashMap::new();
-                m.insert("snapshot_id".to_string(), backup_id);
-                m.insert("repository".to_string(), self.repository.clone());
-                m
-            },
+        Err(BackupError::NotImplemented {
+            store:     "elasticsearch".to_string(),
+            operation: "health_check".to_string(),
         })
     }
 
-    async fn restore(&self, backup_id: &str, verify: bool) -> BackupResult<()> {
-        // In production:
-        // 1. Trigger restore: POST _snapshot/{repo}/{snapshot_id}/_restore
-        // 2. Wait for restore completion
-        // 3. Verify indices and shards recovered
-        if verify {
-            self.verify_backup(backup_id).await?;
-        }
-        Ok(())
+    async fn backup(&self) -> BackupResult<BackupInfo> {
+        Err(BackupError::NotImplemented {
+            store:     "elasticsearch".to_string(),
+            operation: "backup".to_string(),
+        })
+    }
+
+    async fn restore(&self, _backup_id: &str, _verify: bool) -> BackupResult<()> {
+        Err(BackupError::NotImplemented {
+            store:     "elasticsearch".to_string(),
+            operation: "restore".to_string(),
+        })
     }
 
     async fn list_backups(&self) -> BackupResult<Vec<BackupInfo>> {
@@ -96,13 +63,17 @@ impl BackupProvider for ElasticsearchBackupProvider {
     }
 
     async fn delete_backup(&self, _backup_id: &str) -> BackupResult<()> {
-        // In production: DELETE _snapshot/{repo}/{snapshot_id}
-        Ok(())
+        Err(BackupError::NotImplemented {
+            store:     "elasticsearch".to_string(),
+            operation: "delete_backup".to_string(),
+        })
     }
 
     async fn verify_backup(&self, _backup_id: &str) -> BackupResult<()> {
-        // In production: GET _snapshot/{repo}/{snapshot_id} and check status
-        Ok(())
+        Err(BackupError::NotImplemented {
+            store:     "elasticsearch".to_string(),
+            operation: "verify_backup".to_string(),
+        })
     }
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
@@ -120,12 +91,12 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_elasticsearch_backup() {
+    async fn test_elasticsearch_backup_not_implemented() {
         let provider = ElasticsearchBackupProvider::new(
             "http://localhost:9200".to_string(),
             "default".to_string(),
         );
-        let backup = provider.backup().await.unwrap();
-        assert_eq!(backup.store_name, "elasticsearch");
+        let err = provider.backup().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
     }
 }

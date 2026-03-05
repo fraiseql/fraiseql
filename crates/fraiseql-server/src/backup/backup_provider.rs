@@ -25,6 +25,8 @@ pub enum BackupError {
     },
     /// Timeout
     Timeout { store: String },
+    /// Operation not yet implemented
+    NotImplemented { store: String, operation: String },
 }
 
 impl std::fmt::Display for BackupError {
@@ -47,6 +49,9 @@ impl std::fmt::Display for BackupError {
                 write!(f, "Backup not found for {}: {}", store, backup_id)
             },
             Self::Timeout { store } => write!(f, "Backup timeout for {}", store),
+            Self::NotImplemented { store, operation } => {
+                write!(f, "Backup operation '{}' not yet implemented for {}", operation, store)
+            },
         }
     }
 }

@@ -25,11 +25,13 @@ struct VaultResponse {
     data:           HashMap<String, serde_json::Value>,
 }
 
-/// Cached secret with expiry metadata.
+/// Cached secret with expiry metadata and LRU tracking.
 #[derive(Debug, Clone)]
 struct CachedSecret {
-    value:      String,
-    expires_at: chrono::DateTime<Utc>,
+    value:         String,
+    expires_at:    chrono::DateTime<Utc>,
+    /// Last access time, used for LRU eviction ordering.
+    last_accessed: chrono::DateTime<Utc>,
 }
 
 // Constants for Vault API and caching
@@ -53,11 +55,12 @@ impl SecretCache {
         }
     }
 
-    /// Get cached secret with expiry information
+    /// Get cached secret with expiry information, updating last-access time for LRU.
     async fn get_with_expiry(&self, key: &str) -> Option<(String, chrono::DateTime<Utc>)> {
-        let entries = self.entries.read().await;
-        if let Some(cached) = entries.get(key) {
+        let mut entries = self.entries.write().await;
+        if let Some(cached) = entries.get_mut(key) {
             if cached.expires_at > Utc::now() {
+                cached.last_accessed = Utc::now();
                 return Some((cached.value.clone(), cached.expires_at));
             }
         }
@@ -73,21 +76,23 @@ impl SecretCache {
     async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
 
-        // Simple LRU: if at capacity, clear oldest 10% of entries
+        // LRU eviction: if at capacity, remove the least-recently-accessed 10% of entries.
         if entries.len() >= self.max_entries {
             let remove_count = (self.max_entries / 10).max(1);
-            let keys_to_remove: Vec<_> =
-                entries.iter().take(remove_count).map(|(k, _)| k.clone()).collect();
-            for key in keys_to_remove {
+            let mut by_access: Vec<_> = entries.iter().map(|(k, v)| (k.clone(), v.last_accessed)).collect();
+            by_access.sort_by_key(|(_, accessed)| *accessed);
+            for (key, _) in by_access.into_iter().take(remove_count) {
                 entries.remove(&key);
             }
         }
 
+        let now = Utc::now();
         entries.insert(
             key,
             CachedSecret {
-                value: secret,
+                value:         secret,
                 expires_at,
+                last_accessed: now,
             },
         );
     }

@@ -148,27 +148,23 @@ impl SyslogAuditBackend {
         )
     }
 
-    /// Send message to syslog server via UDP
+    /// Send message to syslog server via UDP (RFC 3164, §4).
     async fn send_to_syslog(&self, message: &str) -> AuditResult<()> {
-        // Truncate message if it exceeds syslog size limit (1024 bytes)
-        let _message = if message.len() > 1024 {
-            &message[..1024]
-        } else {
-            message
-        };
-
-        // NOTE: In production, this would use tokio::net::UdpSocket to send the message.
-        // For now, we'll implement a minimal version that returns success.
-        // The actual implementation would:
-        // 1. Create a UDP socket via tokio::net::UdpSocket::bind("0.0.0.0:0")
-        // 2. Send message to syslog server at self.host:self.port
-        // 3. Handle network errors and timeouts appropriately
-
-        // Validate that host and port are set
         if self.host.is_empty() {
             return Err(AuditError::NetworkError("Syslog host not configured".to_string()));
         }
 
+        // Truncate to 1024 bytes as required by RFC 3164.
+        let payload = if message.len() > 1024 { &message[..1024] } else { message };
+
+        let addr = format!("{}:{}", self.host, self.port);
+        let socket = tokio::net::UdpSocket::bind("0.0.0.0:0")
+            .await
+            .map_err(|e| AuditError::NetworkError(format!("Failed to bind UDP socket: {e}")))?;
+        socket
+            .send_to(payload.as_bytes(), &addr)
+            .await
+            .map_err(|e| AuditError::NetworkError(format!("Failed to send syslog packet to {addr}: {e}")))?;
         Ok(())
     }
 }
