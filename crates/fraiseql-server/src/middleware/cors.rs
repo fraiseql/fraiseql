@@ -72,7 +72,6 @@ pub fn cors_layer_restricted(allowed_origins: Vec<String>) -> CorsLayer {
 /// * `X-Content-Type-Options: nosniff` - Prevents MIME type sniffing
 /// * `X-Frame-Options: DENY` - Prevents embedding in iframes
 /// * `Strict-Transport-Security` - Enforces HTTPS
-/// * `X-XSS-Protection: 1; mode=block` - Enable XSS protections
 /// * `Referrer-Policy: strict-origin-when-cross-origin` - Control referrer leakage
 ///
 /// # Example
@@ -101,9 +100,6 @@ pub async fn security_headers_middleware(
         "max-age=31536000; includeSubDomains".parse().expect("valid header value"),
     );
 
-    // Enable XSS protection in older browsers
-    headers.insert("X-XSS-Protection", "1; mode=block".parse().expect("valid header value"));
-
     // Control referrer leakage
     headers.insert(
         "Referrer-Policy",
@@ -111,9 +107,11 @@ pub async fn security_headers_middleware(
     );
 
     // Content Security Policy - restrict resource loading
+    // Note: 'unsafe-inline' is intentionally omitted; callers that need
+    // inline styles for a GraphQL playground should set their own CSP.
     headers.insert(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+        "default-src 'self'; script-src 'self'; style-src 'self'"
             .parse()
             .expect("valid header value"),
     );
@@ -178,29 +176,27 @@ mod tests {
         assert!(header.contains("max-age=31536000"));
         assert!(header.contains("includeSubDomains"));
 
-        // X-XSS-Protection
-        let header = "1; mode=block";
-        assert_eq!(header, "1; mode=block");
-
         // Referrer-Policy
         let header = "strict-origin-when-cross-origin";
         assert_eq!(header, "strict-origin-when-cross-origin");
 
         // Content-Security-Policy
-        let header = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'";
+        let header = "default-src 'self'; script-src 'self'; style-src 'self'";
         assert!(header.contains("default-src 'self'"));
+        assert!(!header.contains("'unsafe-inline'"), "CSP must not include unsafe-inline");
     }
 
     #[test]
     fn test_security_headers_csp_structure() {
         // Verify CSP headers are properly structured
-        let csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'";
+        let csp = "default-src 'self'; script-src 'self'; style-src 'self'";
         let directives: Vec<&str> = csp.split(';').map(|s| s.trim()).collect();
 
         assert_eq!(directives.len(), 3);
         assert!(directives[0].contains("default-src"));
         assert!(directives[1].contains("script-src"));
         assert!(directives[2].contains("style-src"));
+        assert!(!csp.contains("'unsafe-inline'"), "CSP must not include unsafe-inline");
     }
 
     #[test]
@@ -235,9 +231,10 @@ mod tests {
 
     #[test]
     fn test_csp_policy_compliance() {
-        // CSP should restrict resource loading to same-origin
-        let csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'";
+        // CSP should restrict resource loading to same-origin without unsafe-inline
+        let csp = "default-src 'self'; script-src 'self'; style-src 'self'";
         assert!(csp.contains("'self'"), "CSP should restrict to same-origin");
         assert!(!csp.contains("*"), "CSP should not allow wildcards");
+        assert!(!csp.contains("'unsafe-inline'"), "CSP must not include unsafe-inline");
     }
 }

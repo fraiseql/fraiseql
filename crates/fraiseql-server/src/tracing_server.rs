@@ -339,24 +339,29 @@ impl fmt::Display for TraceParseError {
 
 impl std::error::Error for TraceParseError {}
 
-/// Generate random trace ID (32 hex characters).
+/// Generate a cryptographically random trace ID (32 hex characters, 128-bit entropy).
+///
+/// Uses UUID v4 (random) to produce unique IDs. The previous `nanos XOR pid`
+/// approach could produce collisions at nanosecond granularity from the same process.
 fn generate_trace_id() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-
-    format!("{:032x}", nanos ^ u128::from(std::process::id()))
+    let bytes = *uuid::Uuid::new_v4().as_bytes();
+    bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
-/// Generate random span ID (16 hex characters).
+/// Generate a cryptographically random span ID (16 hex characters, 64-bit entropy).
+///
+/// Uses the first 8 bytes of a UUID v4 for full 64-bit randomness.
 fn generate_span_id() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-
-    // Use process ID as thread ID is unstable
-    let process_id = u128::from(std::process::id());
-    format!("{:016x}", (nanos ^ process_id) as u64)
+    let bytes = *uuid::Uuid::new_v4().as_bytes();
+    bytes[..8].iter().fold(String::with_capacity(16), |mut s, b| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 /// Get current time as Unix milliseconds.

@@ -100,9 +100,22 @@ pub enum WhereOperator {
     Iendswith(Field, String),
 
     /// LIKE pattern matching: `field LIKE pattern`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The pattern string is passed to the database as-is. Characters `%` (any
+    /// sequence) and `_` (any single character) are SQL LIKE wildcards. If the
+    /// pattern originates from user input, callers **must** escape these
+    /// characters (e.g. replace `%` → `\%` and `_` → `\_`) before constructing
+    /// this variant, and append the appropriate `ESCAPE '\'` clause.
     Like(Field, String),
 
     /// Case-insensitive LIKE: `field ILIKE pattern`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Like`]. The `%` and `_`
+    /// wildcards apply to ILIKE patterns as well.
     Ilike(Field, String),
 
     // ============ Null Operator ============

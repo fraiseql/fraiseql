@@ -53,15 +53,19 @@ pub fn traced(args: TokenStream, input: TokenStream) -> TokenStream {
     let is_async = input_fn.sig.asyncness.is_some();
 
     let expanded = if is_async {
+        // Use `tracing::Instrument` instead of `span.enter()` to avoid holding
+        // the synchronous `Entered` guard across `.await` points. Holding
+        // `Entered` across an await causes incorrect span nesting when the task
+        // is resumed on a different thread.
         quote! {
             #fn_visibility #fn_sig {
+                use ::tracing::Instrument as _;
                 let span = tracing::debug_span!(#span_name);
-                let _guard = span.enter();
                 let start = std::time::Instant::now();
 
                 let result = async {
                     #fn_body
-                }.await;
+                }.instrument(span).await;
 
                 let duration_ms = start.elapsed().as_millis();
                 match &result {
