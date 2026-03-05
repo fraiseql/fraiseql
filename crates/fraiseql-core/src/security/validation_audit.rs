@@ -6,6 +6,7 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
+use tracing;
 use serde::{Deserialize, Serialize};
 
 /// Redaction policy for sensitive fields in audit logs
@@ -100,8 +101,11 @@ impl ValidationAuditLogger {
             match self.entries.lock() {
                 Ok(mut entries) => entries.push(entry),
                 Err(e) => {
-                    eprintln!("CRITICAL: Audit log mutex poisoned, entry lost. Error: {:?}", e);
-                    eprintln!("Lost entry: {:?}", entry);
+                    tracing::error!(
+                        error = ?e,
+                        lost_entry = ?entry,
+                        "CRITICAL: Audit log mutex poisoned, entry lost"
+                    );
                     // In production, this should trigger an alert/metric
                 },
             }

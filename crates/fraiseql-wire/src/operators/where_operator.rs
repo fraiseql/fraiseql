@@ -53,6 +53,13 @@ pub enum WhereOperator {
     Nin(Field, Vec<Value>),
 
     /// String contains substring: `field LIKE '%substring%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The substring is embedded between `%` anchors. Characters `%` (any sequence) and
+    /// `_` (any single character) in the substring itself are **also** treated as LIKE
+    /// wildcards, causing broader matches than intended. Escape user-supplied values
+    /// (replace `%` → `\%` and `_` → `\_`) before constructing this variant.
     Contains(Field, String),
 
     /// Array contains element: PostgreSQL array operator `@>`
@@ -85,18 +92,41 @@ pub enum WhereOperator {
 
     // ============ String Operators ============
     /// Case-insensitive contains: `field ILIKE '%substring%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Contains`]. ILIKE applies the same
+    /// wildcard semantics, so `%` and `_` in the substring expand unexpectedly.
     Icontains(Field, String),
 
     /// Starts with: `field LIKE 'prefix%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The prefix string is passed verbatim before the trailing `%`. Characters `%` and `_`
+    /// in the prefix are treated as wildcards; escape user-supplied values before use.
     Startswith(Field, String),
 
     /// Starts with (case-insensitive): `field ILIKE 'prefix%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Startswith`].
     Istartswith(Field, String),
 
     /// Ends with: `field LIKE '%suffix'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The suffix string is passed verbatim after the leading `%`. Characters `%` and `_`
+    /// in the suffix are treated as wildcards; escape user-supplied values before use.
     Endswith(Field, String),
 
     /// Ends with (case-insensitive): `field ILIKE '%suffix'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Endswith`].
     Iendswith(Field, String),
 
     /// LIKE pattern matching: `field LIKE pattern`

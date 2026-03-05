@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use bb8::Pool;
 use bb8_tiberius::ConnectionManager;
 use tiberius::Config;
+use tracing;
 
 use super::where_generator::SqlServerWhereGenerator;
 use crate::{
@@ -133,9 +134,10 @@ impl SqlServerAdapter {
         max_size: u32,
     ) -> Result<Self> {
         if min_size > 0 {
-            eprintln!(
-                "Warning: SQL Server adapter does not support min_size parameter (min_size={}) - connections are created on-demand. Consider warmup_connections() if pre-allocation is needed.",
-                min_size
+            tracing::warn!(
+                min_size,
+                "SQL Server adapter does not support min_size parameter - connections are created \
+                 on-demand. Consider warmup_connections() if pre-allocation is needed."
             );
         }
         Self::with_pool_size(connection_string, max_size).await

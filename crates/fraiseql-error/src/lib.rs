@@ -1,6 +1,40 @@
 //! Unified error types for FraiseQL runtime crates.
 //!
 //! All runtime crates depend on this crate for error handling.
+//!
+//! # Error bridging contract
+//!
+//! [`RuntimeError`] is the domain-level error enum that aggregates all business-logic errors
+//! (auth, webhooks, files, notifications, etc.). It implements [`axum::response::IntoResponse`]
+//! via [`http::IntoResponse`], which converts it to an [`ErrorResponse`] JSON body with the
+//! appropriate HTTP status code:
+//!
+//! ```text
+//! RuntimeError (domain)
+//!     ↓  IntoResponse (via fraiseql-error::http)
+//! ErrorResponse { error, error_description, error_code, error_uri, details, retry_after }
+//!     ↓  Json(response) + StatusCode
+//! HTTP response body (application/json)
+//! ```
+//!
+//! ## Mapping rules
+//!
+//! | `RuntimeError` variant            | HTTP status                  |
+//! |-----------------------------------|------------------------------|
+//! | `Auth(InsufficientPermissions)`   | 403 Forbidden                |
+//! | `Auth(*)`                         | 401 Unauthorized             |
+//! | `Webhook(InvalidSignature)`       | 401 Unauthorized             |
+//! | `RateLimited`                     | 429 Too Many Requests        |
+//! | `ServiceUnavailable`              | 503 Service Unavailable      |
+//! | `NotFound`                        | 404 Not Found                |
+//! | `Database`                        | 500 Internal Server Error    |
+//! | `Config` / `Internal`             | 500 Internal Server Error    |
+//!
+//! ## Security note
+//!
+//! All variants that might leak internal details (database messages, config values,
+//! provider endpoints) return **generic** descriptions in the HTTP response body.
+//! Raw error details are available only in structured server logs.
 
 // Error variants and fields are self-documenting via their #[error(...)] messages
 #![allow(missing_docs)]
