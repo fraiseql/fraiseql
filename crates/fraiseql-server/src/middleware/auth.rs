@@ -95,6 +95,16 @@ pub async fn bearer_auth_middleware(
     next.run(request).await
 }
 
+/// Extract the bearer token from an `Authorization` header value.
+///
+/// Returns `Some(token)` if the header has the `Bearer ` prefix (with trailing space),
+/// `None` for all other formats (Basic, Digest, missing prefix, etc.).
+///
+/// Exposed as `pub` for property testing.
+pub fn extract_bearer_token(header_value: &str) -> Option<&str> {
+    header_value.strip_prefix("Bearer ")
+}
+
 /// Constant-time string comparison to prevent timing attacks.
 ///
 /// Returns true if both strings are equal, false otherwise.

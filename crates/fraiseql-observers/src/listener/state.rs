@@ -136,9 +136,12 @@ impl ListenerStateMachine {
         self.inner.lock().await.recovery_attempts < self.max_recovery_attempts
     }
 
-    /// Validate state transition
+    /// Validate state transition.
+    ///
+    /// Exposed as `pub` to enable property-based testing of the transition table
+    /// in integration test files.
     #[allow(clippy::unnested_or_patterns)] // Reason: flat pattern list with comments is clearer for state machine transitions
-    const fn is_valid_transition(current: ListenerState, next: ListenerState) -> bool {
+    pub const fn is_valid_transition(current: ListenerState, next: ListenerState) -> bool {
         matches!(
             (current, next),
             // Initial transitions

@@ -146,6 +146,23 @@ impl CheckResult {
     }
 }
 
+/// Build a namespaced rate-limiting key for use in both in-memory and Redis backends.
+///
+/// Format: `fraiseql:rl:{strategy}:{identifier}` for simple strategies, or
+/// `fraiseql:rl:{strategy}:{prefix}:{identifier}` when an optional path prefix is supplied.
+///
+/// Exposed as `pub` for property testing.
+pub fn build_rate_limit_key(
+    strategy: &str,
+    identifier: &str,
+    prefix: Option<&str>,
+) -> String {
+    match prefix {
+        Some(p) => format!("fraiseql:rl:{strategy}:{p}:{identifier}"),
+        None => format!("fraiseql:rl:{strategy}:{identifier}"),
+    }
+}
+
 /// Returns `true` if `ip` is a loopback or RFC 1918 private address.
 ///
 /// Used to warn operators that rate limiting may be inoperative when running
