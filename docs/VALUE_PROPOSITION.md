@@ -9,7 +9,7 @@
 
 FraiseQL is a compiled GraphQL execution engine that eliminates runtime interpretation overhead by transforming schema definitions into optimized SQL at build time. This compilation boundary enables deterministic, production-grade query execution without the performance penalties of traditional GraphQL resolvers.
 
-As a result, applications built with FraiseQL achieve 10-20x faster query execution, automatic SQL injection protection, and zero runtime parsing overhead—all while maintaining type safety across the entire stack.
+As a result, applications built with FraiseQL achieve significantly faster query execution (SQL is pre-compiled at build time), automatic SQL injection protection, and lower runtime parsing overhead—all while maintaining type safety across the entire stack.
 
 ---
 
@@ -22,7 +22,7 @@ As a result, applications built with FraiseQL achieve 10-20x faster query execut
 **Hasura/PostGraphile**: Runtime interpretation of GraphQL queries into SQL. Resolvers execute sequentially; N+1 prevention requires careful schema design.
 
 **Advantage**: FraiseQL achieves:
-- 10-20x faster query execution (measured end-to-end)
+- Faster query execution (SQL pre-compiled at build time; measured speedup varies by workload)
 - Automatic elimination of N+1 queries (determined at compile time)
 - Bounded memory usage with streaming support for large result sets
 - Connection pooling optimized at compile time
@@ -198,10 +198,12 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 **Disaster Recovery & Backup**
 
 - Backup and restore procedures for compiled schemas
-- Point-in-time recovery support
-- Automated backup scheduling
-- Integration with cloud storage (S3, GCS)
+- Backup provider interface (`BackupProvider` trait) for custom integrations
 - Backup encryption and signing
+
+> **Note**: Automated scheduling, cloud storage (S3/GCS) integration, and point-in-time recovery
+> are planned for a future release. The current `BackupManager` provides the provider registry
+> and execution infrastructure; scheduling must be handled externally (e.g. cron, K8s CronJob).
 
 **Enabled**: Built-in (no feature flag required)
 **Documentation**: Runbooks at `docs/runbooks/`
@@ -255,7 +257,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 | Aspect | FraiseQL | Hasura |
 |--------|----------|--------|
 | **Architecture** | Compiled, statically-analyzed | Runtime interpretation |
-| **Performance** | 10-20x faster (benchmarked) | Baseline (interpreted) |
+| **Performance** | Faster (compiled SQL, workload-dependent) | Baseline (interpreted) |
 | **Databases** | PostgreSQL, MySQL, SQLite, SQL Server | Postgres-first, others secondary |
 | **Schema Authoring** | 6 languages (Python, TS, Java, Go, PHP, Rust) | Manual YAML/API |
 | **N+1 Prevention** | Automatic at compile time | Manual via schema design |
@@ -274,7 +276,7 @@ JVM language users should use the Java SDK with interop libraries (Kotlin, Cloju
 | Aspect | FraiseQL | PostGraphile |
 |--------|----------|--------------|
 | **Database** | PostgreSQL, MySQL, SQLite, SQL Server | PostgreSQL only |
-| **Performance** | 10-20x faster (compiled) | Baseline (interpreted) |
+| **Performance** | Faster (compiled SQL, workload-dependent) | Baseline (interpreted) |
 | **Build Step** | Required (schema → compiled JSON) | No build step |
 | **Type Safety** | Compile-time guarantee | Runtime reflection |
 | **Extensibility** | Trait-based adapters | PostgreSQL plugins |

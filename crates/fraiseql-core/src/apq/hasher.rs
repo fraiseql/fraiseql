@@ -114,11 +114,13 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
         return query_hash;
     }
 
-    // Step 3: Normalize variables - serialize to JSON with sorted keys
-    // This ensures {"a":1,"b":2} and {"b":2,"a":1} produce the same hash
-    // serde_json::Value serialization is infallible for all valid JSON values
+    // Step 3: Normalize variables by explicitly sorting object keys at every
+    // nesting level before serialization. Without this, hashing depends on the
+    // serde_json internal map type (currently BTreeMap = sorted, but that is
+    // an implementation detail that could change if preserve_order is enabled).
+    let normalized = normalize_json_value(variables.clone());
     let variables_json =
-        serde_json::to_string(variables).expect("serde_json::Value serialization is infallible");
+        serde_json::to_string(&normalized).expect("serde_json::Value serialization is infallible");
 
     // Step 4: Combine query hash and normalized variables
     let combined = format!("{query_hash}:{variables_json}");
@@ -127,6 +129,28 @@ pub fn hash_query_with_variables(query: &str, variables: &JsonValue) -> String {
     let mut hasher = Sha256::new();
     hasher.update(combined.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+/// Recursively normalize a JSON value by sorting object keys at every level.
+///
+/// This makes hashing robust against key-order variance in the source (e.g.
+/// if serde_json's internal map type changes from BTreeMap to a non-sorted type).
+fn normalize_json_value(value: JsonValue) -> JsonValue {
+    match value {
+        JsonValue::Object(map) => {
+            // Collect into a Vec, sort by key, re-insert in order.
+            let mut pairs: Vec<(String, JsonValue)> = map
+                .into_iter()
+                .map(|(k, v)| (k, normalize_json_value(v)))
+                .collect();
+            pairs.sort_by(|(a, _), (b, _)| a.cmp(b));
+            JsonValue::Object(pairs.into_iter().collect())
+        },
+        JsonValue::Array(arr) => {
+            JsonValue::Array(arr.into_iter().map(normalize_json_value).collect())
+        },
+        other => other,
+    }
 }
 
 /// Verify that query + variables match the provided combined hash

@@ -62,36 +62,90 @@ impl IntoResponse for RuntimeError {
             ),
 
             RuntimeError::Auth(e) => {
-                let status = match e {
-                    AuthError::InsufficientPermissions { .. } | AuthError::AccountLocked { .. } => {
-                        StatusCode::FORBIDDEN
+                let (status, msg) = match e {
+                    AuthError::InsufficientPermissions { .. } => {
+                        (StatusCode::FORBIDDEN, "Insufficient permissions")
                     },
-                    _ => StatusCode::UNAUTHORIZED,
+                    AuthError::AccountLocked { .. } => {
+                        (StatusCode::FORBIDDEN, "Account locked")
+                    },
+                    AuthError::InvalidCredentials => {
+                        (StatusCode::UNAUTHORIZED, "Invalid credentials")
+                    },
+                    AuthError::TokenExpired => (StatusCode::UNAUTHORIZED, "Token expired"),
+                    // SECURITY: InvalidToken, ProviderError messages may contain internal details
+                    // (JWT parsing reasons, provider endpoint URLs). Return generic message.
+                    AuthError::InvalidToken { .. } | AuthError::ProviderError { .. } => {
+                        (StatusCode::UNAUTHORIZED, "Authentication failed")
+                    },
+                    AuthError::InvalidState => {
+                        (StatusCode::UNAUTHORIZED, "Invalid OAuth state")
+                    },
+                    AuthError::UserDenied => (StatusCode::UNAUTHORIZED, "User denied authorization"),
+                    AuthError::SessionNotFound | AuthError::SessionExpired => {
+                        (StatusCode::UNAUTHORIZED, "Session not found or expired")
+                    },
+                    AuthError::RefreshTokenInvalid => {
+                        (StatusCode::UNAUTHORIZED, "Refresh token invalid or expired")
+                    },
                 };
-                (status, ErrorResponse::new("authentication_error", self.to_string(), error_code))
+                (status, ErrorResponse::new("authentication_error", msg, error_code))
             },
 
             RuntimeError::Webhook(e) => {
-                let status = match e {
-                    WebhookError::InvalidSignature => StatusCode::UNAUTHORIZED,
-                    WebhookError::DuplicateEvent { .. } => StatusCode::OK,
-                    _ => StatusCode::BAD_REQUEST,
+                let (status, msg) = match e {
+                    WebhookError::InvalidSignature => {
+                        (StatusCode::UNAUTHORIZED, "Invalid webhook signature")
+                    },
+                    WebhookError::DuplicateEvent { .. } => (StatusCode::OK, "Duplicate event"),
+                    WebhookError::TimestampExpired { .. } => {
+                        (StatusCode::BAD_REQUEST, "Webhook timestamp expired — check your clock")
+                    },
+                    WebhookError::TimestampFuture { .. } => {
+                        (StatusCode::BAD_REQUEST, "Webhook timestamp is in the future")
+                    },
+                    WebhookError::MissingSignature { .. } => {
+                        (StatusCode::BAD_REQUEST, "Missing webhook signature header")
+                    },
+                    WebhookError::UnknownEvent { .. } => {
+                        (StatusCode::BAD_REQUEST, "Unknown webhook event type")
+                    },
+                    WebhookError::ProviderNotConfigured { .. } => {
+                        (StatusCode::BAD_REQUEST, "Webhook provider not configured")
+                    },
+                    // SECURITY: PayloadError and IdempotencyError messages may contain
+                    // internal parsing details. Return generic messages.
+                    WebhookError::PayloadError { .. } | WebhookError::IdempotencyError { .. } => {
+                        (StatusCode::BAD_REQUEST, "Webhook processing failed")
+                    },
                 };
-                (status, ErrorResponse::new("webhook_error", self.to_string(), error_code))
+                (status, ErrorResponse::new("webhook_error", msg, error_code))
             },
 
             RuntimeError::File(e) => {
-                let status = match e {
-                    FileError::TooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
-                    FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
-                        StatusCode::UNSUPPORTED_MEDIA_TYPE
+                let (status, msg) = match e {
+                    FileError::TooLarge { size, max } => (
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        // Safe to expose size info — helps client fix the request.
+                        format!("File too large: {} bytes exceeds maximum {}", size, max),
+                    ),
+                    FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => (
+                        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                        "Unsupported file type".to_string(),
+                    ),
+                    FileError::NotFound { .. } => {
+                        // SECURITY: Do not expose internal file paths.
+                        (StatusCode::NOT_FOUND, "File not found".to_string())
                     },
-                    FileError::NotFound { .. } => StatusCode::NOT_FOUND,
-                    FileError::VirusDetected { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-                    FileError::QuotaExceeded => StatusCode::INSUFFICIENT_STORAGE,
-                    _ => StatusCode::BAD_REQUEST,
+                    FileError::VirusDetected { .. } => {
+                        (StatusCode::UNPROCESSABLE_ENTITY, "File failed security scan".to_string())
+                    },
+                    FileError::QuotaExceeded => {
+                        (StatusCode::INSUFFICIENT_STORAGE, "Storage quota exceeded".to_string())
+                    },
+                    _ => (StatusCode::BAD_REQUEST, "File operation failed".to_string()),
                 };
-                (status, ErrorResponse::new("file_error", self.to_string(), error_code))
+                (status, ErrorResponse::new("file_error", msg, error_code))
             },
 
             RuntimeError::Notification(e) => {
@@ -124,8 +178,13 @@ impl IntoResponse for RuntimeError {
             },
 
             RuntimeError::ServiceUnavailable { retry_after, .. } => {
-                let mut resp =
-                    ErrorResponse::new("service_unavailable", self.to_string(), error_code);
+                // SECURITY: ServiceUnavailable may contain internal service names or endpoints.
+                // Return a generic message; details are in server logs only.
+                let mut resp = ErrorResponse::new(
+                    "service_unavailable",
+                    "Service temporarily unavailable",
+                    error_code,
+                );
                 if let Some(secs) = retry_after {
                     resp = resp.with_retry_after(*secs);
                 }
@@ -134,7 +193,8 @@ impl IntoResponse for RuntimeError {
 
             RuntimeError::NotFound { .. } => (
                 StatusCode::NOT_FOUND,
-                ErrorResponse::new("not_found", self.to_string(), error_code),
+                // SECURITY: Do not expose internal resource names or IDs.
+                ErrorResponse::new("not_found", "Resource not found", error_code),
             ),
 
             RuntimeError::Database(_) => (

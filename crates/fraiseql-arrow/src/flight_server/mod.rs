@@ -43,7 +43,6 @@ use std::{pin::Pin, sync::Arc};
 use arrow_flight::{ActionType, FlightData, FlightInfo, HandshakeResponse, PutResult};
 use async_trait::async_trait;
 use fraiseql_core::security::OidcValidator;
-#[allow(unused_imports)]
 use futures::Stream; // Stream required for type aliases
 use serde::{Deserialize, Serialize};
 use tonic::Status;

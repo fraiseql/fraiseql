@@ -32,4 +32,7 @@ pub mod storage;
 pub use backup_config::BackupConfig;
 pub use backup_manager::BackupManager;
 pub use backup_provider::BackupProvider;
+pub use clickhouse_backup::ClickhouseBackupProvider;
+pub use elasticsearch_backup::ElasticsearchBackupProvider;
+pub use redis_backup::RedisBackupProvider;
 pub use recovery::{RecoveryChecklist, RecoveryStatus};

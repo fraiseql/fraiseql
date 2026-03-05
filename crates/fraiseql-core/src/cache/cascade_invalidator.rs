@@ -120,6 +120,20 @@ impl CascadeInvalidator {
             });
         }
 
+        // Check for indirect cycles: would adding dependent → dependency create a cycle?
+        // That happens if dependency_view can already reach dependent_view via existing edges.
+        // We traverse the `dependents` graph (reverse edges) from dependency_view and check
+        // whether we ever reach dependent_view.
+        if self.can_reach(dependency_view, dependent_view) {
+            return Err(crate::error::FraiseQLError::Validation {
+                message: format!(
+                    "Adding dependency '{}' → '{}' would create a cycle",
+                    dependent_view, dependency_view
+                ),
+                path:    Some("cascade_invalidator::add_dependency".to_string()),
+            });
+        }
+
         let dependent = dependent_view.to_string();
         let dependency = dependency_view.to_string();
 
@@ -133,6 +147,40 @@ impl CascadeInvalidator {
         self.dependents.entry(dependency).or_insert_with(HashSet::new).insert(dependent);
 
         Ok(())
+    }
+
+    /// Check whether `from` can reach `target` by following the forward dependency graph.
+    ///
+    /// Uses BFS over `view_dependencies` (from dependent to what it depends on). Returns
+    /// `true` if `target` is reachable from `from`, meaning `from` transitively depends on
+    /// `target`.
+    ///
+    /// This is used to detect cycles before adding a new edge: if `dependency_view` can
+    /// already reach `dependent_view`, adding `dependent_view → dependency_view` would
+    /// create a cycle.
+    fn can_reach(&self, from: &str, target: &str) -> bool {
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(from.to_string());
+
+        while let Some(current) = queue.pop_front() {
+            if current == target {
+                return true;
+            }
+            if !visited.insert(current.clone()) {
+                continue; // already visited
+            }
+            // Follow forward edges: what does `current` depend on?
+            if let Some(deps) = self.view_dependencies.get(&current) {
+                for dep in deps {
+                    if !visited.contains(dep.as_str()) {
+                        queue.push_back(dep.clone());
+                    }
+                }
+            }
+        }
+
+        false
     }
 
     /// Cascade invalidate a view and all dependent views.
@@ -520,10 +568,33 @@ mod tests {
         let mut invalidator = CascadeInvalidator::new();
         invalidator.add_dependency("v_user", "v_raw_user").unwrap();
         invalidator.add_dependency("v_analytics", "v_user").unwrap();
-        // Note: Can't actually add cycle due to self-dependency check
 
-        // Verify no cycles in what we added
+        // Verify no forward path from leaf to root
         assert!(!invalidator.has_dependency_path("v_raw_user", "v_analytics"));
+    }
+
+    #[test]
+    fn test_indirect_cycle_detection() {
+        let mut invalidator = CascadeInvalidator::new();
+        // Build chain: A depends on B, B depends on C
+        invalidator.add_dependency("B", "A").unwrap();
+        invalidator.add_dependency("C", "B").unwrap();
+
+        // Adding C → A would create the cycle C→B→A→...→C — must be rejected.
+        // (C depends on B which depends on A; adding A→C would close the loop)
+        let result = invalidator.add_dependency("A", "C");
+        assert!(result.is_err(), "indirect cycle A→C→B→A should be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("cycle"), "error message should mention cycle, got: {msg}");
+    }
+
+    #[test]
+    fn test_three_node_cycle_rejected() {
+        let mut invalidator = CascadeInvalidator::new();
+        invalidator.add_dependency("B", "A").unwrap(); // B depends on A
+        invalidator.add_dependency("C", "B").unwrap(); // C depends on B
+        // A depends on C would close: A→C→B→A
+        assert!(invalidator.add_dependency("A", "C").is_err());
     }
 
     #[test]

@@ -5,8 +5,12 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// Elasticsearch backup provider.
 ///
 /// Uses Elasticsearch snapshot/restore API.
-// Reason: implemented but not yet registered in BackupManager
-#[allow(dead_code)]
+///
+/// # Note
+///
+/// All operations currently return `BackupError::NotImplemented`.
+/// Register this provider with `BackupManager::register_provider` when real
+/// Elasticsearch backup support is added.
 pub struct ElasticsearchBackupProvider {
     /// Elasticsearch endpoint URL
     endpoint_url: String,

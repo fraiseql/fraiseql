@@ -43,11 +43,10 @@ impl Claims {
             Err(e) => {
                 // CRITICAL: System time failure - treat token as expired (fail-safe)
                 // Log this critical error for operators to investigate
-                eprintln!(
-                    "CRITICAL: System time error in token expiry check: {}. \
-                     This indicates a system clock issue or other critical failure. \
-                     Token will be rejected as a safety measure.",
-                    e
+                tracing::error!(
+                    error = %e,
+                    "CRITICAL: System time error in token expiry check — \
+                     this indicates a system clock issue. Token rejected as safety measure."
                 );
                 // Return current time as far in the future to ensure token is expired
                 u64::MAX

@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-FraiseQL is a compiled GraphQL execution engine built on Rust with zero-runtime overhead for deterministic query execution. This document defines our service level commitments, performance targets, and operational guardrails for production deployments.
+FraiseQL is a compiled GraphQL execution engine built on Rust that eliminates query-planning overhead at runtime by generating SQL at build time. This document defines our service level commitments, performance targets, and operational guardrails for production deployments.
 
 **Key Philosophy**: FraiseQL's deterministic SQL generation at compile-time enables predictable, measurable performance characteristics that form the foundation of these SLOs.
 

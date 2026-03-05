@@ -249,6 +249,17 @@ impl<A: DatabaseAdapter> AppState<A> {
         self.secrets_manager.as_ref()
     }
 
+    /// Attach a field encryption service (derived from schema and secrets manager).
+    #[cfg(feature = "secrets")]
+    #[must_use]
+    pub fn with_field_encryption(
+        mut self,
+        service: Arc<crate::encryption::middleware::FieldEncryptionService>,
+    ) -> Self {
+        self.field_encryption = Some(service);
+        self
+    }
+
     /// Attach a federation circuit breaker manager.
     #[must_use]
     pub fn with_circuit_breaker(

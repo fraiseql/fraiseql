@@ -59,8 +59,8 @@ impl ProviderRegistry {
         );
 
         // Generic verifiers
-        providers.insert("hmac-sha256".into(), Arc::new(HmacSha256Verifier::default()));
-        providers.insert("hmac-sha1".into(), Arc::new(HmacSha1Verifier::default()));
+        providers.insert("hmac-sha256".into(), Arc::new(HmacSha256Verifier));
+        providers.insert("hmac-sha1".into(), Arc::new(HmacSha1Verifier));
 
         Self { providers }
     }

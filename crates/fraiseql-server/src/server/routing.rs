@@ -12,6 +12,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let Some(ref secrets_manager) = self.secrets_manager {
             state = state.with_secrets_manager(secrets_manager.clone());
             info!("SecretsManager attached to AppState");
+
+            // Wire field encryption: scan schema for encrypted fields and build the service.
+            // Requires the secrets manager (for key fetch) and the schema field map.
+            let field_keys: std::collections::HashMap<String, String> = self
+                .executor
+                .schema()
+                .types
+                .iter()
+                .flat_map(|t| t.fields.iter())
+                .filter_map(|f| {
+                    f.encryption
+                        .as_ref()
+                        .map(|enc| (f.name.to_string(), enc.key_reference.clone()))
+                })
+                .collect();
+
+            if !field_keys.is_empty() {
+                use fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter;
+                use fraiseql_secrets::encryption::middleware::FieldEncryptionService;
+                let adapter = std::sync::Arc::new(DatabaseFieldAdapter::new(
+                    secrets_manager.clone(),
+                    field_keys,
+                ));
+                let svc = std::sync::Arc::new(FieldEncryptionService::from_schema(
+                    self.executor.schema(),
+                    adapter,
+                ));
+                state = state.with_field_encryption(svc);
+                info!("Field encryption service wired from schema");
+            }
         }
 
         // Attach federation circuit breaker if configured

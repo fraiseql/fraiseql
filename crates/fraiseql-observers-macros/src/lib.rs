@@ -27,22 +27,28 @@ use syn::{FnArg, ItemFn, Meta, parse_macro_input};
 #[proc_macro_attribute]
 pub fn traced(args: TokenStream, input: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(input as ItemFn);
-    let args = parse_macro_input!(args as Meta);
 
-    // Extract function name from attribute or use function name
-    let span_name = match args {
-        Meta::NameValue(nv) if nv.path.is_ident("name") => {
-            if let syn::Expr::Lit(expr_lit) = &nv.value {
-                if let syn::Lit::Str(lit_str) = &expr_lit.lit {
-                    lit_str.value()
+    // Extract function name from attribute or use function name.
+    // When #[traced] is used without arguments, args is an empty TokenStream
+    // and must not be passed to parse_macro_input!(... as Meta).
+    let span_name = if args.is_empty() {
+        input_fn.sig.ident.to_string()
+    } else {
+        let meta = parse_macro_input!(args as Meta);
+        match meta {
+            Meta::NameValue(nv) if nv.path.is_ident("name") => {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        lit_str.value()
+                    } else {
+                        input_fn.sig.ident.to_string()
+                    }
                 } else {
                     input_fn.sig.ident.to_string()
                 }
-            } else {
-                input_fn.sig.ident.to_string()
-            }
-        },
-        _ => input_fn.sig.ident.to_string(),
+            },
+            _ => input_fn.sig.ident.to_string(),
+        }
     };
 
     let fn_body = &input_fn.block;

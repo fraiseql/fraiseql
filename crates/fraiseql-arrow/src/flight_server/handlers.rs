@@ -11,8 +11,7 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
     flight_service_server::FlightService,
 };
-#[allow(unused_imports)]
-use futures::StreamExt; // StreamExt required for .next() on Pin<Box<dyn Stream>>
+
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 

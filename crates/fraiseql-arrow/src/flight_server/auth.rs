@@ -46,8 +46,12 @@ pub(crate) fn create_session_token(
     };
 
     // Use HMAC-SHA256 for session tokens (fast, doesn't require JWKS)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .expect("FLIGHT_SESSION_SECRET environment variable must be set for Flight authentication (use 'openssl rand -hex 32' to generate)");
+    let secret = std::env::var("FLIGHT_SESSION_SECRET").map_err(|_| {
+        Status::internal(
+            "FLIGHT_SESSION_SECRET environment variable not set; \
+             generate one with: openssl rand -hex 32",
+        )
+    })?;
 
     if secret.is_empty() {
         return Err(Status::internal("FLIGHT_SESSION_SECRET must not be empty"));
@@ -78,8 +82,11 @@ pub(crate) fn validate_session_token(
     token: &str,
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
     // Get secret (same as create_session_token)
-    let secret = std::env::var("FLIGHT_SESSION_SECRET")
-        .expect("FLIGHT_SESSION_SECRET environment variable must be set for Flight authentication");
+    let secret = std::env::var("FLIGHT_SESSION_SECRET").map_err(|_| {
+        Status::unauthenticated(
+            "FLIGHT_SESSION_SECRET environment variable not set; perform handshake after configuring it",
+        )
+    })?;
 
     if secret.is_empty() {
         return Err(Status::unauthenticated("FLIGHT_SESSION_SECRET is empty"));

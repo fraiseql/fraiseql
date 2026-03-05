@@ -57,10 +57,10 @@ impl BackupManager {
         for (name, provider) in providers.iter() {
             match provider.health_check().await {
                 Ok(_) => {
-                    eprintln!("✓ Backup provider '{}' healthy", name);
+                    tracing::info!(provider = %name, "Backup provider healthy");
                 },
                 Err(e) => {
-                    eprintln!("✗ Backup provider '{}' failed health check: {:?}", name, e);
+                    tracing::warn!(provider = %name, error = ?e, "Backup provider failed health check");
                 },
             }
         }

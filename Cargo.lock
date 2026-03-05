@@ -2928,6 +2928,9 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3084,6 +3087,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "socket2 0.5.10",
  "subtle",
  "testcontainers",
  "testcontainers-modules",

@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_hmac_sha256() {
-        let verifier = HmacSha256Verifier::default();
+        let verifier = HmacSha256Verifier;
         let payload = b"test";
         let secret = "secret";
 
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_hmac_sha1() {
-        let verifier = HmacSha1Verifier::default();
+        let verifier = HmacSha1Verifier;
         let payload = b"test";
         let secret = "secret";
 

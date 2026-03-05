@@ -44,7 +44,7 @@ curl -X POST http://localhost:8080/graphql \
 
 ## Why FraiseQL?
 
-1. **Compile-time SQL generation.** Zero runtime overhead for deterministic queries. Your schema is analyzed once at build; queries execute without interpretation.
+1. **Compile-time SQL generation.** SQL is generated at build time for deterministic queries. Your schema is analyzed once at build; queries execute without interpretation or query-planning overhead.
 
 2. **Schema-as-code authoring.** Define schemas in Python or TypeScript with decorators, compile to optimized JSON. No runtime language bridge, no FFI.
 

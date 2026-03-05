@@ -3,9 +3,6 @@
 //! Usage: fraiseql cost `<query>` `[--json]`
 
 use anyhow::Result;
-// Suppress unused import warning
-#[allow(unused_imports)]
-use fraiseql_core::graphql::complexity;
 use fraiseql_core::graphql::{complexity::ComplexityAnalyzer, parse_query};
 use serde::Serialize;
 

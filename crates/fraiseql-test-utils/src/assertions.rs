@@ -2,7 +2,10 @@
 //!
 //! Provides helper macros and functions for asserting common test conditions.
 
-/// Assert that a JSON value has a specific key at the given path
+/// Assert that a JSON value has a specific key at the given path and matches the expected value.
+///
+/// Fails with a descriptive message if any segment of the path is missing
+/// (i.e. returns `null` for the key), rather than silently comparing against `null`.
 ///
 /// # Example
 ///
@@ -12,16 +15,24 @@
 /// ```
 #[macro_export]
 macro_rules! assert_json_key {
-    ($value:expr, $key:expr, $expected:expr) => {
+    ($value:expr, $key:expr, $expected:expr) => {{
         let parts: Vec<&str> = $key.split('.').collect();
-        let mut current = $value;
+        let mut current: &serde_json::Value = $value;
 
-        for part in parts {
-            current = &current[part];
+        for part in &parts {
+            match current.get(part) {
+                Some(v) => current = v,
+                None => panic!(
+                    "assert_json_key!: key '{}' not found in path '{}'\nJSON was: {}",
+                    part,
+                    $key,
+                    current
+                ),
+            }
         }
 
-        assert_eq!(current, $expected);
-    };
+        assert_eq!(current, &serde_json::json!($expected), "at path '{}'", $key);
+    }};
 }
 
 /// Assert that a response has no errors

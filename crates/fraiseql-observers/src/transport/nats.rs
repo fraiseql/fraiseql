@@ -6,7 +6,13 @@
 //! - Automatic reconnection with exponential backoff
 //! - Subject-based routing: `entity.change.{entity_type}.{operation}`
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 #[cfg(feature = "nats")]
 use async_nats::jetstream;
@@ -112,6 +118,12 @@ pub struct NatsTransport {
     client:    Arc<async_nats::Client>,
     jetstream: Arc<jetstream::Context>,
     config:    NatsConfig,
+    /// Count of messages that could not be deserialized.
+    ///
+    /// Undecodable messages are ACKed (preventing infinite redelivery) and
+    /// counted here so operators can monitor message format drift or schema
+    /// version mismatches without a dead-letter queue infrastructure.
+    pub undecodable_count: Arc<AtomicU64>,
 }
 
 #[cfg(feature = "nats")]
@@ -141,9 +153,10 @@ impl NatsTransport {
         Self::ensure_stream(&jetstream, &config).await?;
 
         Ok(Self {
-            client: Arc::new(client),
-            jetstream: Arc::new(jetstream),
+            client:           Arc::new(client),
+            jetstream:        Arc::new(jetstream),
             config,
+            undecodable_count: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -194,6 +207,14 @@ impl NatsTransport {
         })
     }
 
+    /// Return the number of messages that could not be deserialized since startup.
+    ///
+    /// Useful for monitoring message format drift or schema version mismatches.
+    #[must_use]
+    pub fn undecodable_count(&self) -> u64 {
+        self.undecodable_count.load(Ordering::Relaxed)
+    }
+
     /// Build subject filter from `EventFilter`
     fn build_subject_filter(&self, filter: &EventFilter) -> String {
         if let Some(ref entity_type) = filter.entity_type {
@@ -241,6 +262,7 @@ impl EventTransport for NatsTransport {
         // Clone filter fields for use in async closure (wrapped in Arc for sharing)
         let filter_operation = Arc::new(filter.operation.clone());
         let filter_tenant_id = Arc::new(filter.tenant_id.clone());
+        let undecodable_count = Arc::clone(&self.undecodable_count);
 
         // Convert JetStream messages to Result<EntityEvent>
         let event_stream = messages.filter_map(move |msg_result| {
@@ -300,11 +322,17 @@ impl EventTransport for NatsTransport {
                                 Some(Ok(event))
                             },
                             Err(e) => {
-                                tracing::error!("Failed to parse NATS message: {}", e);
-                                // Acknowledge invalid message to prevent redelivery
+                                // Increment counter so operators can monitor decode failures.
+                                let total = undecodable_count.fetch_add(1, Ordering::Relaxed) + 1;
+                                tracing::error!(
+                                    undecodable_total = total,
+                                    "NATS message failed to decode — ACKing to prevent \
+                                     redelivery; check undecodable_count metric for drift"
+                                );
+                                // ACK to prevent infinite redelivery loop.
                                 if let Err(ack_err) = msg.ack().await {
                                     tracing::error!(
-                                        "Failed to acknowledge invalid message: {}",
+                                        "Failed to acknowledge undecodable message: {}",
                                         ack_err
                                     );
                                 }

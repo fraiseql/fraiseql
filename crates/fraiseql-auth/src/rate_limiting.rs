@@ -199,7 +199,7 @@ impl KeyedRateLimiter {
         // Periodic expiry sweep to bound HashMap growth.
         // Runs every PURGE_INTERVAL calls; overflow wraps silently which is fine.
         let count = self.check_count.fetch_add(1, Ordering::Relaxed);
-        if count % PURGE_INTERVAL == 0 {
+        if count.is_multiple_of(PURGE_INTERVAL) {
             records.retain(|_, r| now < r.window_start.saturating_add(self.config.window_secs));
         }
 

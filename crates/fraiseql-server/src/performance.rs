@@ -3,10 +3,8 @@
 //! Tracks query performance metrics, builds performance profiles, and enables
 //! analysis of query execution patterns for optimization.
 
-#[allow(unused_imports)]
-use std::sync::Arc;
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{Arc, atomic::{AtomicU64, Ordering}},
     time::Instant,
 };
 

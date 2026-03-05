@@ -5,8 +5,12 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// ClickHouse backup provider.
 ///
 /// Creates backups using ClickHouse's native backup mechanism.
-// Reason: implemented but not yet registered in BackupManager
-#[allow(dead_code)]
+///
+/// # Note
+///
+/// All operations currently return `BackupError::NotImplemented`.
+/// Register this provider with `BackupManager::register_provider` when real
+/// ClickHouse backup support is added.
 pub struct ClickhouseBackupProvider {
     /// ClickHouse HTTP endpoint
     endpoint_url: String,

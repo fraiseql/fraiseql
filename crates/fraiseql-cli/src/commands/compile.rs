@@ -538,8 +538,9 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:       None,
-            custom_scalars:   CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -587,8 +588,9 @@ mod tests {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
-            schema_sdl:       None,
-            custom_scalars:   CustomTypeRegistry::default(),
+            schema_sdl:            None,
+            schema_format_version: None,
+            custom_scalars:        CustomTypeRegistry::default(),
         };
 
         // Note: Validation is private to SchemaConverter
