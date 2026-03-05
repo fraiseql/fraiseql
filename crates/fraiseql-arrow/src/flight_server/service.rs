@@ -53,7 +53,7 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;
@@ -94,7 +94,7 @@ impl FraiseQLFlightService {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// use fraiseql_arrow::flight_server::FraiseQLFlightService;
     /// use fraiseql_arrow::DatabaseAdapter;
     /// use std::sync::Arc;

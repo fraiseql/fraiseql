@@ -144,7 +144,7 @@ impl ToSql for QueryParam {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// let param = QueryParam::BigInt(42);
 /// let boxed = to_sql_param(&param);
 /// // boxed can be passed to tokio-postgres query methods

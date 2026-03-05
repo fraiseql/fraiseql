@@ -2,7 +2,7 @@
 //!
 //! # Usage
 //!
-//! ```rust,ignore
+//! ```no_run
 //! let server = TestServer::start(schema, adapter).await;
 //! // server.url is "http://127.0.0.1:{port}"
 //! // Server shuts down when TestServer is dropped.

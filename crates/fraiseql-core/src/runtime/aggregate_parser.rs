@@ -24,7 +24,7 @@
 //!
 //! # Parsed Result
 //!
-//! ```rust,ignore
+//! ```ignore
 //! AggregationRequest {
 //!     table_name: "tf_sales",
 //!     where_clause: Some(...),

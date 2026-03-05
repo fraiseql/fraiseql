@@ -17,9 +17,11 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use fraiseql_core::audit::AuditEvent;
+//! ```no_run
+//! use fraiseql_core::audit::{AuditEvent, AuditBackend};
+//! # use std::error::Error;
 //!
+//! # async fn example(backend: &impl AuditBackend) -> Result<(), Box<dyn Error>> {
 //! let event = AuditEvent::new_user_action(
 //!     "user123",
 //!     "alice",
@@ -31,6 +33,8 @@
 //!
 //! // Log to backend
 //! backend.log_event(event).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use chrono::Utc;

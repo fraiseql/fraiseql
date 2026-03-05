@@ -281,7 +281,7 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Example: Direct Usage (Advanced)
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// use fraiseql_core::schema::SqlProjectionHint;
     /// use fraiseql_core::db::DatabaseAdapter;
     ///
@@ -305,7 +305,7 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Example: Fallback (No Projection)
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // For debugging or when projection not available
     /// let results = adapter
     ///     .execute_with_projection("v_user", None, None, Some(100))

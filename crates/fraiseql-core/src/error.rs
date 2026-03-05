@@ -64,7 +64,7 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///
 /// Use constructor methods for common errors:
 ///
-/// ```rust,ignore
+/// ```ignore
 /// use fraiseql_core::error::FraiseQLError;
 ///
 /// // Parse error
@@ -95,7 +95,7 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///
 /// # Example: Error Handling
 ///
-/// ```rust,ignore
+/// ```ignore
 /// use fraiseql_core::error::FraiseQLError;
 ///
 /// async fn execute_query(executor: &Executor, query: &str) -> Result<String> {

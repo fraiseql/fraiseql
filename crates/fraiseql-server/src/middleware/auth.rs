@@ -40,7 +40,7 @@ impl BearerAuthState {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// use axum::{Router, middleware};
 /// use fraiseql_server::middleware::{bearer_auth_middleware, BearerAuthState};
 ///

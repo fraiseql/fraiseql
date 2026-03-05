@@ -6,7 +6,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_test_utils::saga::{TestSagaExecutor, SagaStepDef};
 //! use serde_json::json;
 //!

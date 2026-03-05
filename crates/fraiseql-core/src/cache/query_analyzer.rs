@@ -31,14 +31,28 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::cache::query_analyzer::{QueryAnalyzer, QueryCardinality};
+//! use fraiseql_core::compiler::ir::IRQuery;
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
 //!
 //! let analyzer = QueryAnalyzer::new();
-//! let profile = analyzer.analyze_query(query_def, query_str)?;
+//! let query_def = IRQuery {
+//!     name: "user".to_string(),
+//!     return_type: "User".to_string(),
+//!     returns_list: false,
+//!     nullable: false,
+//!     arguments: vec![],
+//!     sql_source: Some("v_user".to_string()),
+//!     description: None,
+//!     auto_params: Default::default(),
+//! };
+//! let profile = analyzer.analyze_query(&query_def, "SELECT * FROM v_user WHERE id = ?")?;
 //!
-//! assert_eq!(profile.entity_type, Some("User"));
 //! assert_eq!(profile.cardinality, QueryCardinality::Single);
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{compiler::ir::IRQuery, error::Result};
@@ -141,10 +155,26 @@ impl QueryAnalyzer {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let profile = analyzer.analyze_query(query_def, "SELECT * FROM users WHERE id = ?")?;
-    /// assert_eq!(profile.entity_type, Some("User"));
+    /// ```rust
+    /// use fraiseql_core::cache::query_analyzer::{QueryAnalyzer, QueryCardinality};
+    /// use fraiseql_core::compiler::ir::IRQuery;
+    /// # use fraiseql_core::error::Result;
+    /// # fn example() -> Result<()> {
+    /// let analyzer = QueryAnalyzer::new();
+    /// let query_def = IRQuery {
+    ///     name: "user".to_string(),
+    ///     return_type: "User".to_string(),
+    ///     returns_list: false,
+    ///     nullable: false,
+    ///     arguments: vec![],
+    ///     sql_source: None,
+    ///     description: None,
+    ///     auto_params: Default::default(),
+    /// };
+    /// let profile = analyzer.analyze_query(&query_def, "SELECT * FROM users WHERE id = ?")?;
     /// assert_eq!(profile.cardinality, QueryCardinality::Single);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn analyze_query(
         &self,

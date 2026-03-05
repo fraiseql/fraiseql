@@ -643,7 +643,7 @@ impl MSSQLNatsBridge {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// let pool = create_mssql_pool(
 ///     "Server=localhost;Database=mydb;User Id=sa;Password=secret;TrustServerCertificate=true"
 /// ).await?;

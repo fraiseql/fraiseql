@@ -127,7 +127,7 @@
 //!
 //! # Example Usage
 //!
-//! ```rust,ignore
+//! ```ignore
 //! use fraiseql_core::runtime::Executor;
 //! use fraiseql_core::schema::CompiledSchema;
 //! use fraiseql_core::db::postgres::PostgresAdapter;
@@ -359,7 +359,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new(schema, Arc::new(adapter));
@@ -404,7 +404,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new_with_relay(schema, Arc::new(adapter));
     /// ```
@@ -480,7 +480,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// use fraiseql_core::runtime::Executor;
     ///
     /// // Simple query without variables
@@ -690,7 +690,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let query = r#"query { users { id name salary } }"#;
     /// let user_scopes = user.scopes.iter().map(|s| s.as_str()).collect::<Vec<_>>();
     /// let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
@@ -784,7 +784,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let ctx = ExecutionContext::new("user-query-123".to_string());
     /// let cancel_token = ctx.cancellation_token().clone();
     ///
@@ -871,7 +871,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let query = r#"query { posts { id title } }"#;
     /// let context = SecurityContext {
     ///     user_id: "user1".to_string(),
@@ -1141,7 +1141,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 /// query { currentUser { id name email } }
 /// ```
 ///
-/// ```rust,ignore
+/// ```ignore
 /// // Executor does this:
 /// let user_id = resolve_inject_value("userId", "jwt:sub", &security_ctx)?;
 /// let tenant_id = resolve_inject_value("tenantId", "jwt:tenant_id", &security_ctx)?;

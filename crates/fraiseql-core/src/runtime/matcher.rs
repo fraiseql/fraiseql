@@ -67,7 +67,7 @@ impl QueryMatcher {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let matcher = QueryMatcher::new(schema);
     /// let query = "query { users { id name } }";
     /// let matched = matcher.match_query(query, None)?;

@@ -45,7 +45,7 @@ const MAX_SECURITY_CONFIG_SIZE: usize = 100 * 1024; // 100 KB
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// let schema = schema_loader.load().await?;
 /// let json_str = schema.to_json()?;
 /// let security_config = init_security_config(&json_str)?;

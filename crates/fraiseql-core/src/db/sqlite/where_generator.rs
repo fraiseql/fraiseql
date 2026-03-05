@@ -12,7 +12,7 @@ use crate::{
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
 /// use fraiseql_core::db::sqlite::SqliteWhereGenerator;
 /// use fraiseql_core::db::{WhereClause, WhereOperator};
 /// use serde_json::json;

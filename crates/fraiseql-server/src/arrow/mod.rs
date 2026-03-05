@@ -69,7 +69,7 @@ use fraiseql_core::db::postgres::PostgresAdapter;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
 /// // PostgreSQL (default)
 /// let pg_adapter = PostgresAdapter::new(&db_url).await?;
 /// let flight_service = create_flight_service(Arc::new(pg_adapter));

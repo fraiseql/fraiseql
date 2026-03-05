@@ -73,7 +73,7 @@ impl QueryPlanner {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;
     /// assert!(!plan.sql.is_empty());

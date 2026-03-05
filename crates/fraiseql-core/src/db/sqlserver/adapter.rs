@@ -55,7 +55,7 @@ fn map_mssql_error_code(code: u32) -> Option<String> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
 /// use fraiseql_core::db::sqlserver::SqlServerAdapter;
 /// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;

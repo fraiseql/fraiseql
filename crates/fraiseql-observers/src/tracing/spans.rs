@@ -20,7 +20,7 @@ use crate::event::Event;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use fraiseql_observers::tracing::create_event_span;
 ///
 /// let span = create_event_span(&event);

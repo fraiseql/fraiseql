@@ -47,7 +47,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}

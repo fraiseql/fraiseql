@@ -36,7 +36,7 @@ use crate::{
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
 /// use fraiseql_core::db::sqlite::SqliteAdapter;
 /// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;

@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// use fraiseql_core::filters::ExtendedOperator;
 ///
 /// // Email domain extraction

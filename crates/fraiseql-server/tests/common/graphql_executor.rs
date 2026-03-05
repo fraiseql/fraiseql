@@ -5,7 +5,7 @@
 //! It does not parse GraphQL, validate schemas, or generate SQL.
 //!
 //! For tests that exercise real execution, use:
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::runtime::executor::Executor;
 //! use fraiseql_test_utils::FailingAdapter;
 //! let executor = Executor::new(schema, adapter);

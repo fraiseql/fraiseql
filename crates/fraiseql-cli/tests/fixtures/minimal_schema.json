@@ -1,0 +1,26 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "fields": [
+        {"name": "id", "type": "Int", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false}
+      ],
+      "sql_source": "v_user",
+      "is_input": false
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "sql_source": "v_user",
+      "nullable": false,
+      "arguments": []
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "version": "2.0.0"
+}

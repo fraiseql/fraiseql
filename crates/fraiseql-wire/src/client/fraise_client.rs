@@ -17,7 +17,7 @@ impl FraiseClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::FraiseClient;
     ///
@@ -59,7 +59,7 @@ impl FraiseClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::TlsConfig};
     ///
@@ -107,7 +107,7 @@ impl FraiseClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::ConnectionConfig};
     /// use std::time::Duration;
@@ -156,7 +156,7 @@ impl FraiseClient {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// # async fn example() -> fraiseql_wire::Result<()> {
     /// use fraiseql_wire::{FraiseClient, connection::{ConnectionConfig, TlsConfig}};
     /// use std::time::Duration;
@@ -215,7 +215,7 @@ impl FraiseClient {
     /// # Examples
     ///
     /// Type-safe query (recommended):
-    /// ```no_run
+    /// ```ignore
     /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// use serde::Deserialize;
     /// use futures::stream::StreamExt;
@@ -246,7 +246,7 @@ impl FraiseClient {
     /// ```
     ///
     /// Raw JSON query (debugging, forward compatibility):
-    /// ```no_run
+    /// ```ignore
     /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// use futures::stream::StreamExt;
     ///

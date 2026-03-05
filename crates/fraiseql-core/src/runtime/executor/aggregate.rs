@@ -108,7 +108,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let query_json = json!({
     ///     "table": "tf_sales",
     ///     "groupBy": { "category": true },
@@ -171,7 +171,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let query_json = json!({
     ///     "table": "tf_sales",
     ///     "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],

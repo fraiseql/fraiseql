@@ -353,7 +353,7 @@ fn test_http_query_deduplicates_fields() {
 /// `Ok(())` if all required fields are present, `Err` with details if not
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// // User.orders requires "email", but representation only has id
 /// let result = validate_http_requires(&metadata, "User", &["orders"], &repr);
 /// // Returns Err: "HTTP Validation Error: Required field missing..."
@@ -410,7 +410,7 @@ fn validate_http_requires(
 /// Vector of all field names needed (requested + required), deduplicated
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// // Requesting Order.shippingEstimate which requires Order.weight
 /// let fields = vec!["shippingEstimate".to_string()];
 /// let augmented = compute_augmented_fields(&metadata, "Order", &fields);

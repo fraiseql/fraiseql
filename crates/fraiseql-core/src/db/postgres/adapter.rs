@@ -279,16 +279,23 @@ impl PostgresAdapter {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
+    /// use fraiseql_core::db::postgres::PostgresAdapter;
+    /// use fraiseql_core::db::projection_generator::SqlProjectionHint;
+    /// # use fraiseql_core::error::Result;
+    ///
+    /// # async fn example(adapter: &PostgresAdapter) -> Result<()> {
     /// let projection = SqlProjectionHint {
     ///     database: "postgresql".to_string(),
-    ///     projection_template: "...".to_string(),
+    ///     projection_template: "jsonb_build_object('id', data->>'id')".to_string(),
     ///     estimated_reduction_percent: 75,
     /// };
     ///
     /// let results = adapter
     ///     .execute_with_projection("v_user", Some(&projection), None, Some(10))
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn execute_with_projection(
         &self,

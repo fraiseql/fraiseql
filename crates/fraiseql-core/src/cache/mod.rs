@@ -82,9 +82,9 @@
 //!
 //! # Usage Example
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::cache::{CachedDatabaseAdapter, QueryResultCache, CacheConfig, InvalidationContext};
-//! use fraiseql_core::db::postgres::PostgresAdapter;
+//! use fraiseql_core::db::{postgres::PostgresAdapter, DatabaseAdapter};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create database adapter

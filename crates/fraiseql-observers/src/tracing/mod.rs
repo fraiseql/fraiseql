@@ -5,7 +5,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_observers::tracing::{init_tracing, TracingConfig};
 //!
 //! let config = TracingConfig {
@@ -55,7 +55,7 @@ pub use action_integration::{ActionBatchExecutor, ActionChain};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// let config = TracingConfig::from_env()?;
 /// fraiseql_observers::tracing::init_tracing(config)?;
 /// ```

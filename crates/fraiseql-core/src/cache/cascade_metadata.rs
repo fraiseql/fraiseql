@@ -24,12 +24,12 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::cache::cascade_metadata::CascadeMetadata;
-//! use fraiseql_core::schema::CompiledSchema;
 //!
-//! let schema = CompiledSchema::from_file("schema.json")?;
-//! let metadata = CascadeMetadata::from_schema(&schema);
+//! let mut metadata = CascadeMetadata::new();
+//! metadata.add_mutation("createUser", "User");
+//! metadata.add_mutation("updatePost", "Post");
 //!
 //! assert_eq!(metadata.get_entity_type("createUser"), Some("User"));
 //! assert_eq!(metadata.get_entity_type("updatePost"), Some("Post"));
@@ -99,7 +99,10 @@ impl CascadeMetadata {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_core::cache::cascade_metadata::CascadeMetadata;
+    /// let mut metadata = CascadeMetadata::new();
+    /// metadata.add_mutation("createUser", "User");
     /// let entity = metadata.get_entity_type("createUser");
     /// assert_eq!(entity, Some("User"));
     /// ```

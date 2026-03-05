@@ -118,7 +118,7 @@ static JAEGER_EXPORTER: Arc<Mutex<Option<JaegerExporter>>> = Arc::new(Mutex::new
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// let config = TracingConfig::from_env()?;
 /// init_jaeger_exporter(&config)?;
 /// ```

@@ -24,7 +24,7 @@ use crate::{
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
 /// use fraiseql_core::db::mysql::MySqlAdapter;
 /// use fraiseql_core::db::{DatabaseAdapter, WhereClause, WhereOperator};
 /// use serde_json::json;

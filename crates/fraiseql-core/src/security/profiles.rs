@@ -24,7 +24,7 @@
 //!
 //! ## Usage
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_core::security::profiles::SecurityProfile;
 //!
 //! // Create a profile

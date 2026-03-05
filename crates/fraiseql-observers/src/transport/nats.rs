@@ -82,7 +82,7 @@ impl Default for NatsConfig {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```no_run
 /// use fraiseql_observers::transport::{EventFilter, EventTransport, NatsTransport, NatsConfig};
 /// use futures::StreamExt;
 ///

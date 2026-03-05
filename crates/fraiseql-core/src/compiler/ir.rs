@@ -16,27 +16,25 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::compiler::ir::{AuthoringIR, IRType, IRField};
 //!
-//! let ir = AuthoringIR {
-//!     types: vec![
-//!         IRType {
-//!             name: "User".to_string(),
-//!             fields: vec![
-//!                 IRField {
-//!                     name: "id".to_string(),
-//!                     field_type: "Int!".to_string(),
-//!                     nullable: false,
-//!                 }
-//!             ],
-//!             sql_source: Some("v_user".to_string()),
+//! let mut ir = AuthoringIR::new();
+//! ir.types.push(IRType {
+//!     name: "User".to_string(),
+//!     fields: vec![
+//!         IRField {
+//!             name: "id".to_string(),
+//!             field_type: "Int!".to_string(),
+//!             nullable: false,
+//!             description: None,
+//!             sql_column: None,
 //!         }
 //!     ],
-//!     queries: vec![],
-//!     mutations: vec![],
-//!     subscriptions: vec![],
-//! };
+//!     sql_source: Some("v_user".to_string()),
+//!     description: None,
+//! });
+//! assert_eq!(ir.types.len(), 1);
 //! ```
 
 use std::collections::HashMap;

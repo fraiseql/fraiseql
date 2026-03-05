@@ -59,7 +59,7 @@ impl AggregationProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let rows = vec![
     ///     hashmap!{
     ///         "category" => json!("Electronics"),
@@ -107,7 +107,7 @@ impl AggregationProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let projected = json!([{"count": 42}]);
     /// let response = AggregationProjector::wrap_in_data_envelope(projected, "sales_aggregate");
     /// // response: {"data": {"sales_aggregate": [{"count": 42}]}}
@@ -126,7 +126,7 @@ impl AggregationProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let row = hashmap!{"count" => json!(100), "revenue_sum" => json!(5000.0)};
     /// let result = AggregationProjector::project_single(row, &plan)?;
     /// // result: {"count": 100, "revenue_sum": 5000.0}

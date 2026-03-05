@@ -38,9 +38,11 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::cache::CascadeResponseParser;
 //! use serde_json::json;
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
 //!
 //! let parser = CascadeResponseParser::new();
 //!
@@ -57,6 +59,8 @@
 //! let entities = parser.parse_cascade_response(&response)?;
 //! assert_eq!(entities.updated.len(), 1);
 //! assert_eq!(entities.updated[0].entity_type, "User");
+//! # Ok(())
+//! # }
 //! ```
 
 use serde_json::Value;
@@ -124,7 +128,12 @@ impl CascadeResponseParser {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_core::cache::CascadeResponseParser;
+    /// use serde_json::json;
+    /// # use fraiseql_core::error::Result;
+    /// # fn example() -> Result<()> {
+    /// let parser = CascadeResponseParser::new();
     /// let response = json!({
     ///   "createPost": {
     ///     "cascade": {
@@ -136,6 +145,9 @@ impl CascadeResponseParser {
     /// });
     ///
     /// let entities = parser.parse_cascade_response(&response)?;
+    /// assert_eq!(entities.updated.len(), 1);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn parse_cascade_response(&self, response: &Value) -> Result<CascadeEntities> {
         // Find cascade field in response

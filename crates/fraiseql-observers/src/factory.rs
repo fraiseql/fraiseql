@@ -22,7 +22,7 @@
 //!
 //! # Examples
 //!
-//! ```rust,ignore
+//! ```ignore
 //! use fraiseql_observers::factory::ExecutorFactory;
 //! use fraiseql_observers::config::ObserverRuntimeConfig;
 //!
@@ -85,7 +85,7 @@ impl ExecutorFactory {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
     /// let dlq = Arc::new(PostgresDLQ::new(pool.clone()));
     ///

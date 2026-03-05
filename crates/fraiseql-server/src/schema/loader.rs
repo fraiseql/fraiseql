@@ -44,7 +44,7 @@ impl CompiledSchemaLoader {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let loader = CompiledSchemaLoader::new("schema.compiled.json");
     /// let schema = loader.load().await?;
     /// ```
@@ -69,7 +69,7 @@ impl CompiledSchemaLoader {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let loader = CompiledSchemaLoader::new("schema.compiled.json");
     /// let schema = loader.load().await?;
     /// ```

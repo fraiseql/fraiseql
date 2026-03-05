@@ -291,7 +291,7 @@ struct ProvidesValidationResult {
 /// fields that were promised but not delivered
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// // Order.shippingEstimate @provides weight but result doesn't include it
 /// let result = json!({"id": "123"});
 /// let validation = validate_provides_contract(&metadata, "Order", "shippingEstimate", &result);
@@ -353,7 +353,7 @@ fn validate_provides_contract(
 /// `true` if the field/path exists in the result, `false` otherwise
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
 /// let result = json!({"user": {"address": {"city": "SF"}}});
 /// assert!(has_field_in_result(&result, &["user".into(), "address".into(), "city".into()]));
 /// assert!(!has_field_in_result(&result, &["user".into(), "email".into()]));

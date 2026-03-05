@@ -30,7 +30,7 @@
 //!
 //! ## Usage Example
 //!
-//! ```ignore
+//! ```no_run
 //! let config = RecoveryConfig {
 //!     max_attempts: 5,
 //!     base_backoff_ms: 100,
@@ -144,7 +144,7 @@ impl BackoffStrategy for FixedDelayStrategy {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// let config = RecoveryConfig::default();
 /// // max_attempts: 5, base: 100ms, max: 30s, cleanup: 24h
 ///
@@ -277,7 +277,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// let config = RecoveryConfig::default();
     /// let manager = SagaRecoveryManager::new(config, RecoveryStrategy::ExponentialBackoff);
     /// ```
@@ -342,7 +342,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// for attempt in 1..=5 {
     ///     match manager.retry_saga(saga_id, attempt).await {
     ///         Ok(()) => {
@@ -390,7 +390,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// let backoff = manager.calculate_backoff(1); // 100ms (base delay)
     /// let backoff = manager.calculate_backoff(2); // 200ms (exponential)
     /// let backoff = manager.calculate_backoff(3); // 400ms (exponential)
@@ -438,7 +438,7 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// let metrics = manager.get_metrics();
     /// println!("Recovered: {}", metrics.total_sagas_recovered);
     /// println!("Failed: {}", metrics.failed_recovery_attempts);

@@ -63,11 +63,7 @@ pub struct CategoryScores {
 pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
     // Check if file exists
     if !Path::new(schema_path).exists() {
-        return Ok(CommandResult::error(
-            "lint",
-            &format!("Schema file not found: {schema_path}"),
-            "FILE_NOT_FOUND",
-        ));
+        return Err(anyhow::anyhow!("Schema file not found: {schema_path}"));
     }
 
     // Read schema file
@@ -209,11 +205,7 @@ mod tests {
     #[test]
     fn test_lint_file_not_found() {
         let result = run("nonexistent_schema.json", default_opts());
-        assert!(result.is_ok());
-
-        let cmd_result = result.unwrap();
-        assert_eq!(cmd_result.status, "error");
-        assert_eq!(cmd_result.code, Some("FILE_NOT_FOUND".to_string()));
+        assert!(result.is_err(), "file-not-found must return Err");
     }
 
     #[test]

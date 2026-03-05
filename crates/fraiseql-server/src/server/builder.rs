@@ -23,7 +23,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let config = ServerConfig::default();
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);

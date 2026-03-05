@@ -43,9 +43,12 @@
 //!
 //! # High-Level Example (WindowRequest)
 //!
-//! ```rust,ignore
+//! ```ignore
 //! use fraiseql_core::compiler::window_functions::*;
-//!
+//! use fraiseql_core::compiler::fact_table::FactTableMetadata;
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
+//! let metadata = FactTableMetadata::default();
 //! let request = WindowRequest {
 //!     table_name: "tf_sales".to_string(),
 //!     select: vec![
@@ -68,6 +71,8 @@
 //! };
 //!
 //! let plan = WindowPlanner::plan(request, metadata)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # SQL Example (WindowExecutionPlan output)

@@ -26,7 +26,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
     /// server.serve().await?;

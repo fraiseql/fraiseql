@@ -13,7 +13,8 @@
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_core::db::quote_postgres_identifier;
 /// assert_eq!(quote_postgres_identifier("v_user"), "\"v_user\"");
 /// assert_eq!(quote_postgres_identifier("benchmark.v_user"), "\"benchmark\".\"v_user\"");
 /// assert_eq!(
@@ -38,7 +39,8 @@ pub fn quote_postgres_identifier(identifier: &str) -> String {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_core::db::quote_mysql_identifier;
 /// assert_eq!(quote_mysql_identifier("v_user"), "`v_user`");
 /// assert_eq!(quote_mysql_identifier("mydb.v_user"), "`mydb`.`v_user`");
 /// assert_eq!(
@@ -63,7 +65,8 @@ pub fn quote_mysql_identifier(identifier: &str) -> String {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_core::db::quote_sqlite_identifier;
 /// assert_eq!(quote_sqlite_identifier("v_user"), "\"v_user\"");
 /// assert_eq!(quote_sqlite_identifier("main.v_user"), "\"main\".\"v_user\"");
 /// assert_eq!(
@@ -88,7 +91,8 @@ pub fn quote_sqlite_identifier(identifier: &str) -> String {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_core::db::quote_sqlserver_identifier;
 /// assert_eq!(quote_sqlserver_identifier("v_user"), "[v_user]");
 /// assert_eq!(quote_sqlserver_identifier("dbo.v_user"), "[dbo].[v_user]");
 /// assert_eq!(

@@ -140,7 +140,7 @@ impl KafkaMessage {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use fraiseql_core::runtime::subscription::{KafkaAdapter, KafkaConfig};
 ///
 /// let config = KafkaConfig::new("localhost:9092", "fraiseql-events")

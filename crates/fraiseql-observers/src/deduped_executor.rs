@@ -37,7 +37,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```no_run
 //! use fraiseql_observers::executor::ObserverExecutor;
 //! use fraiseql_observers::deduped_executor::{DedupedObserverExecutor, TenantScope};
 //! use fraiseql_observers::dedup::redis::RedisDeduplicationStore;

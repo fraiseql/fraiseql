@@ -12,7 +12,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
 //! use fraiseql_server::backup::BackupManager;
 //!
 //! let manager = BackupManager::new(config).await?;

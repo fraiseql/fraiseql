@@ -56,7 +56,7 @@ impl WindowProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let rows = vec![
     ///     hashmap!{
     ///         "revenue" => json!(100.00),
@@ -106,7 +106,7 @@ impl WindowProjector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let projected = json!([{"rank": 1}, {"rank": 2}]);
     /// let response = WindowProjector::wrap_in_data_envelope(projected, "sales_window");
     /// // { "data": { "sales_window": [{"rank": 1}, {"rank": 2}] } }

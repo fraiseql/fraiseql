@@ -200,10 +200,17 @@ impl PostgresIntrospector {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```no_run
+    /// use fraiseql_core::db::postgres::PostgresIntrospector;
+    /// # use fraiseql_core::error::Result;
+    /// use deadpool_postgres::Pool;
+    ///
+    /// # async fn example(pool: Pool) -> Result<()> {
     /// let introspector = PostgresIntrospector::new(pool);
     /// let indexed_cols = introspector.get_indexed_nested_columns("v_order_items").await?;
     /// // Returns: {"items__product__category__code", "f200100__code", ...}
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn get_indexed_nested_columns(
         &self,

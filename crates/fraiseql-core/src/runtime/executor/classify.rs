@@ -34,7 +34,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// // Regular query
     /// let query_type = executor.classify_query("{ users { id } }")?;
     /// assert_eq!(query_type, QueryType::Regular);

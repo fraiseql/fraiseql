@@ -15,13 +15,16 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust
 //! use fraiseql_core::db::projection_generator::PostgresProjectionGenerator;
-//!
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
 //! let generator = PostgresProjectionGenerator::new();
 //! let fields = vec!["id".to_string(), "name".to_string(), "email".to_string()];
-//! let sql = generator.generate_projection_sql("user_data", &fields)?;
-//! // Returns: jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email')
+//! let sql = generator.generate_projection_sql(&fields)?;
+//! assert!(sql.contains("jsonb_build_object"));
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::error::Result;
@@ -34,7 +37,7 @@ use crate::error::Result;
 ///
 /// # Examples
 ///
-/// ```rust,ignore
+/// ```ignore
 /// assert_eq!(to_snake_case("firstName"), "first_name");
 /// assert_eq!(to_snake_case("id"), "id");
 /// ```
@@ -101,12 +104,18 @@ impl PostgresProjectionGenerator {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use fraiseql_core::db::projection_generator::PostgresProjectionGenerator;
+    /// # use fraiseql_core::error::Result;
+    /// # fn example() -> Result<()> {
     /// let generator = PostgresProjectionGenerator::new();
     /// let fields = vec!["id".to_string(), "email".to_string()];
     /// let sql = generator.generate_projection_sql(&fields)?;
     /// // Returns:
     /// // jsonb_build_object('id', data->>'id', 'email', data->>'email')
+    /// assert!(sql.contains("jsonb_build_object"));
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
@@ -144,7 +153,7 @@ impl PostgresProjectionGenerator {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let sql = generator.generate_select_clause("t", &fields)?;
     /// // Returns: SELECT jsonb_build_object(...) as data
     /// ```

@@ -56,7 +56,7 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```ignore
 /// // Implemented by a wrapper in fraiseql-server
 /// struct FlightDatabaseAdapter {
 ///     inner: Arc<PostgresAdapter>,

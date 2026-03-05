@@ -20,13 +20,18 @@
 //!
 //! ```ignore
 //! use fraiseql_core::compiler::lowering::{SqlTemplateGenerator, DatabaseTarget};
-//!
+//! use fraiseql_core::compiler::ir::AuthoringIR;
+//! # use fraiseql_core::error::Result;
+//! # fn example() -> Result<()> {
+//! let ir = AuthoringIR::new();
 //! let generator = SqlTemplateGenerator::new(DatabaseTarget::PostgreSQL);
 //! let templates = generator.generate(&ir)?;
 //!
 //! for template in templates {
 //!     println!("{}: {}", template.name, template.template);
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use super::ir::{AuthoringIR, IRArgument, IRMutation, IRQuery, MutationOperation};

@@ -87,14 +87,16 @@ impl CodeGenerator {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// use fraiseql_core::compiler::*;
-    ///
-    /// // Given an AuthoringIR from the compiler pipeline:
+    /// ```rust
+    /// use fraiseql_core::compiler::{CodeGenerator, AuthoringIR};
+    /// # use fraiseql_core::error::Result;
+    /// # fn example() -> Result<()> {
+    /// let authoring_ir = AuthoringIR::new();
     /// let codegen = CodeGenerator::new(true);
     /// let compiled_schema = codegen.generate(&authoring_ir, &[])?;
-    ///
     /// // Runtime uses compiled_schema for query execution
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # See Also

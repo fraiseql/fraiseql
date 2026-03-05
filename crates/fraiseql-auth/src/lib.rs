@@ -38,7 +38,6 @@
 #![allow(clippy::map_unwrap_or)] // Reason: map().unwrap_or() reads left-to-right
 #![allow(clippy::cast_lossless)] // Reason: explicit cast preferred for readability
 #![allow(clippy::unnecessary_map_or)] // Reason: map_or reads left-to-right at call site
-#![allow(clippy::duration_suboptimal_units)] // Reason: explicit millis clearer for timeout configs
 #![allow(clippy::single_char_pattern)] // Reason: single-char str patterns are conventional
 #![allow(clippy::float_cmp)] // Reason: exact float comparison intentional in timing tests
 #![allow(clippy::ignored_unit_patterns)] // Reason: _ pattern in Ok(()) destructuring
