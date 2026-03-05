@@ -17,7 +17,7 @@ use crate::{
             WindowFunction, WindowFunctionType,
         },
     },
-    db::types::DatabaseType,
+    db::{WhereSqlGenerator, types::DatabaseType},
     error::{FraiseQLError, Result},
 };
 
@@ -85,8 +85,10 @@ impl WindowSqlGenerator {
         sql.push_str(&format!(" FROM {}", plan.table));
 
         // WHERE clause (if any)
-        if plan.where_clause.is_some() {
-            sql.push_str(" WHERE 1=1"); // Placeholder
+        if let Some(clause) = &plan.where_clause {
+            let where_sql = WhereSqlGenerator::to_sql(clause)?;
+            sql.push_str(" WHERE ");
+            sql.push_str(&where_sql);
         }
 
         // ORDER BY clause
@@ -143,7 +145,7 @@ impl WindowSqlGenerator {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
                 };
-                sql.push_str(&format!("{} {}", self.quote_identifier(&order.field), dir));
+                sql.push_str(&format!("{} {}", order.field, dir));
             }
         }
 
@@ -310,9 +312,12 @@ impl WindowSqlGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compiler::{
-        aggregation::{OrderByClause, OrderDirection},
-        window_functions::*,
+    use crate::{
+        compiler::{
+            aggregation::{OrderByClause, OrderDirection},
+            window_functions::*,
+        },
+        db::{WhereClause, WhereOperator},
     };
 
     #[test]
@@ -539,5 +544,65 @@ mod tests {
         // SQL Server uses STDEV/VAR instead of STDDEV/VARIANCE
         assert!(sql.complete_sql.contains("STDEV(revenue)"));
         assert!(sql.complete_sql.contains("VAR(revenue)"));
+    }
+
+    #[test]
+    fn test_where_clause_applied() {
+        let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let plan = WindowExecutionPlan {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
+                expression: "revenue".to_string(),
+                alias:      "revenue".to_string(),
+            }],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
+                partition_by: vec![],
+                order_by:     vec![],
+                frame:        None,
+            }],
+            where_clause: Some(WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!("active"),
+            }),
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        let sql = generator.generate(&plan).unwrap();
+
+        // WHERE clause must be rendered, not replaced with 1=1
+        assert!(sql.complete_sql.contains("WHERE data->>'status' = 'active'"));
+        assert!(!sql.complete_sql.contains("WHERE 1=1"));
+    }
+
+    #[test]
+    fn test_no_where_clause_omitted() {
+        let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let plan = WindowExecutionPlan {
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
+                partition_by: vec![],
+                order_by:     vec![],
+                frame:        None,
+            }],
+            where_clause: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        let sql = generator.generate(&plan).unwrap();
+
+        // No WHERE clause in output
+        assert!(!sql.complete_sql.contains("WHERE"));
     }
 }
