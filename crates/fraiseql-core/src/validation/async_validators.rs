@@ -150,9 +150,10 @@ impl EmailFormatValidator {
     /// Create a new email format validator.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            config: AsyncValidatorConfig::new(AsyncValidatorProvider::EmailFormatCheck, 0),
-        }
+        // Duration::MAX signals "no timeout" — this validator is purely local (regex only).
+        let mut config = AsyncValidatorConfig::new(AsyncValidatorProvider::EmailFormatCheck, 0);
+        config.timeout = Duration::MAX;
+        Self { config }
     }
 }
 
@@ -211,9 +212,10 @@ impl PhoneE164Validator {
     /// Create a new E.164 phone number validator.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            config: AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneE164Check, 0),
-        }
+        // Duration::MAX signals "no timeout" — this validator is purely local (regex only).
+        let mut config = AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneE164Check, 0);
+        config.timeout = Duration::MAX;
+        Self { config }
     }
 }
 
@@ -235,6 +237,65 @@ impl AsyncValidator for PhoneE164Validator {
                      expected '+' followed by 7–15 digits (e.g. +14155552671)"
                 ),
                 path:    Some(field.to_string()),
+            })
+        }
+    }
+
+    fn provider(&self) -> AsyncValidatorProvider {
+        self.config.provider.clone()
+    }
+
+    fn timeout(&self) -> Duration {
+        self.config.timeout
+    }
+}
+
+/// Checksum validator supporting Luhn and Mod-97 algorithms.
+///
+/// Validates credit card numbers (Luhn) and IBANs (Mod-97) locally.
+/// Implements `AsyncValidator` for composition with other async validators,
+/// but performs no I/O.
+pub struct ChecksumAsyncValidator {
+    config:    AsyncValidatorConfig,
+    algorithm: String,
+}
+
+impl ChecksumAsyncValidator {
+    /// Create a new checksum validator.
+    ///
+    /// `algorithm` must be `"luhn"` or `"mod97"`.
+    #[must_use]
+    pub fn new(algorithm: impl Into<String>) -> Self {
+        let mut config = AsyncValidatorConfig::new(AsyncValidatorProvider::ChecksumValidation, 0);
+        config.timeout = Duration::MAX;
+        Self { config, algorithm: algorithm.into() }
+    }
+}
+
+#[async_trait::async_trait]
+impl AsyncValidator for ChecksumAsyncValidator {
+    async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
+        use crate::validation::checksum::{LuhnValidator, Mod97Validator};
+        let valid = match self.algorithm.as_str() {
+            "luhn" => LuhnValidator::validate(value),
+            "mod97" => Mod97Validator::validate(value),
+            other => {
+                return Err(crate::error::FraiseQLError::Validation {
+                    message: format!(
+                        "Unknown checksum algorithm '{}' for field '{}'", other, field
+                    ),
+                    path: Some(field.to_string()),
+                });
+            },
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(crate::error::FraiseQLError::Validation {
+                message: format!(
+                    "Checksum validation ({}) failed for field '{}'", self.algorithm, field
+                ),
+                path: Some(field.to_string()),
             })
         }
     }

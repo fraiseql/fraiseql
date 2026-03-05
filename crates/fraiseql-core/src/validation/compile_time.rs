@@ -340,16 +340,12 @@ impl CompileTimeValidator {
             _ => return None,
         };
 
-        // Build constraint based on field type
+        // Build constraint based on field type, quoting column names to avoid SQL injection.
+        let left_quoted = format!("\"{}\"", left_field.replace('"', "\"\""));
+        let right_quoted = format!("\"{}\"", right_field.replace('"', "\"\""));
         let constraint = match left_type {
-            FieldType::Date | FieldType::DateTime => {
-                format!("CHECK ({} {} {})", left_field, sql_op, right_field)
-            },
-            FieldType::Integer | FieldType::Float => {
-                format!("CHECK ({} {} {})", left_field, sql_op, right_field)
-            },
-            FieldType::String => {
-                format!("CHECK ({} {} {})", left_field, sql_op, right_field)
+            FieldType::Date | FieldType::DateTime | FieldType::Integer | FieldType::Float | FieldType::String => {
+                format!("CHECK ({} {} {})", left_quoted, sql_op, right_quoted)
             },
             _ => return None,
         };

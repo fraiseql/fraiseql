@@ -8,6 +8,7 @@ use regex::Regex;
 use super::rules::ValidationRule;
 use crate::error::{FraiseQLError, Result, ValidationFieldError};
 
+
 /// Basic validator trait for field validation.
 pub trait Validator {
     /// Validate a value and return an error if validation fails.
@@ -222,14 +223,33 @@ impl Validator for RequiredValidator {
     }
 }
 
-/// Create a validator from a ValidationRule.
+/// RFC 5321 practical email regex, shared with `async_validators`.
+const EMAIL_PATTERN: &str =
+    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$";
+
+/// E.164 international phone number regex, shared with `async_validators`.
+const PHONE_E164_PATTERN: &str = r"^\+[1-9]\d{6,14}$";
+
+/// Create a validator from a `ValidationRule`.
+///
+/// Returns `None` for rule types that are handled elsewhere (e.g. cross-field,
+/// composite, or async validators). Logs a warning if a `Pattern` rule
+/// contains an invalid regex instead of silently discarding the validator.
 pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Validator>> {
     match rule {
         ValidationRule::Pattern { pattern, message } => {
             let msg = message.clone().unwrap_or_else(|| "Pattern mismatch".to_string());
-            PatternValidator::new(pattern.clone(), msg)
-                .ok()
-                .map(|v| Box::new(v) as Box<dyn Validator>)
+            match PatternValidator::new(pattern.clone(), msg) {
+                Ok(v) => Some(Box::new(v) as Box<dyn Validator>),
+                Err(e) => {
+                    tracing::warn!(
+                        pattern = %pattern,
+                        error = %e,
+                        "Invalid regex in ValidationRule::Pattern — validator skipped"
+                    );
+                    None
+                },
+            }
         },
         ValidationRule::Length { min, max } => {
             Some(Box::new(LengthValidator::new(*min, *max)) as Box<dyn Validator>)
@@ -238,7 +258,19 @@ pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Valid
             Some(Box::new(EnumValidator::new(values.clone())) as Box<dyn Validator>)
         },
         ValidationRule::Required => Some(Box::new(RequiredValidator) as Box<dyn Validator>),
-        _ => None, // Other validators handled separately
+        ValidationRule::Email => {
+            // Reuse the same regex as EmailFormatValidator in async_validators.
+            PatternValidator::new(EMAIL_PATTERN, "Invalid email address format")
+                .ok()
+                .map(|v| Box::new(v) as Box<dyn Validator>)
+        },
+        ValidationRule::Phone => {
+            // Reuse the same regex as PhoneE164Validator in async_validators.
+            PatternValidator::new(PHONE_E164_PATTERN, "Invalid E.164 phone number (expected +<country><number>)")
+                .ok()
+                .map(|v| Box::new(v) as Box<dyn Validator>)
+        },
+        _ => None, // Other validators handled separately (cross-field, composite, async)
     }
 }
 

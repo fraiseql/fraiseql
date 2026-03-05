@@ -299,6 +299,32 @@ pub(super) fn build_validation_rule(
             field_list:      None,
             description:     None,
         },
+        ValidationRule::Email => IntrospectionValidationRule {
+            rule_type:       "email".to_string(),
+            pattern:         None,
+            pattern_message: None,
+            min:             None,
+            max:             None,
+            allowed_values:  None,
+            algorithm:       None,
+            field_reference: None,
+            operator:        None,
+            field_list:      None,
+            description:     Some("Must be a valid email address".to_string()),
+        },
+        ValidationRule::Phone => IntrospectionValidationRule {
+            rule_type:       "phone".to_string(),
+            pattern:         None,
+            pattern_message: None,
+            min:             None,
+            max:             None,
+            allowed_values:  None,
+            algorithm:       None,
+            field_reference: None,
+            operator:        None,
+            field_list:      None,
+            description:     Some("Must be a valid E.164 phone number".to_string()),
+        },
     }
 }
 

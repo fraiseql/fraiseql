@@ -154,6 +154,14 @@ pub enum ValidationRule {
         /// Then these fields are required
         then_required: Vec<String>,
     },
+
+    /// Field must be a valid email address (RFC 5321 practical subset).
+    #[serde(rename = "email")]
+    Email,
+
+    /// Field must be a valid E.164 international phone number (e.g. `+14155552671`).
+    #[serde(rename = "phone")]
+    Phone,
 }
 
 impl ValidationRule {
@@ -213,6 +221,8 @@ impl ValidationRule {
                     then_required.join(", ")
                 )
             },
+            Self::Email => "Must be a valid email address".to_string(),
+            Self::Phone => "Must be a valid E.164 phone number (e.g. +14155552671)".to_string(),
         }
     }
 }
