@@ -4,7 +4,7 @@
 //! Implements the `SecretsBackend` trait for HashiCorp Vault,
 //! providing dynamic database credentials, TTL management, and encryption.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
 use chrono::Utc;
@@ -64,6 +64,11 @@ impl SecretCache {
         None
     }
 
+    /// Remove a cached entry, forcing the next read to fetch fresh from Vault.
+    async fn invalidate(&self, key: &str) {
+        self.entries.write().await.remove(key);
+    }
+
     /// Store secret in cache with expiry
     async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
@@ -86,6 +91,21 @@ impl SecretCache {
             },
         );
     }
+}
+
+/// Vault HTTP request timeout.
+const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Build a shared `reqwest::Client` for Vault HTTP calls.
+///
+/// The client is created once per `VaultBackend` instance and reused across
+/// all requests to avoid per-call TLS handshake overhead.
+fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> {
+    reqwest::Client::builder()
+        .danger_accept_invalid_certs(!tls_verify)
+        .timeout(VAULT_REQUEST_TIMEOUT)
+        .build()
+        .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))
 }
 
 /// Secrets backend for HashiCorp Vault
@@ -125,6 +145,8 @@ pub struct VaultBackend {
     token:      Zeroizing<String>,
     namespace:  Option<String>,
     tls_verify: bool,
+    /// Shared HTTP client — built once to reuse TLS sessions across requests.
+    client:     reqwest::Client,
     cache:      Arc<RwLock<SecretCache>>,
 }
 
@@ -135,6 +157,7 @@ impl Clone for VaultBackend {
             token:      Zeroizing::new((*self.token).clone()),
             namespace:  self.namespace.clone(),
             tls_verify: self.tls_verify,
+            client:     self.client.clone(),
             cache:      Arc::clone(&self.cache),
         }
     }
@@ -185,7 +208,12 @@ impl SecretsBackend for VaultBackend {
     async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // Rotate by requesting new credentials (old lease is implicitly superseded)
+        // Invalidate the cache so get_secret_with_expiry fetches fresh credentials
+        // instead of returning the stale (pre-rotation) cached value.
+        let cache = self.cache.read().await;
+        cache.invalidate(name).await;
+        drop(cache);
+
         let (new_secret, _) = self.get_secret_with_expiry(name).await?;
         Ok(new_secret)
     }
@@ -193,13 +221,20 @@ impl SecretsBackend for VaultBackend {
 
 impl VaultBackend {
     /// Create new VaultBackend with server address and authentication token
+    ///
+    /// # Panics
+    ///
+    /// Panics if the HTTP client cannot be built (this should never happen in
+    /// practice — only invalid TLS configuration can trigger this path).
     #[must_use]
     pub fn new<S: Into<String>>(addr: S, token: S) -> Self {
+        let client = build_http_client(true).expect("Failed to build Vault HTTP client");
         VaultBackend {
             addr:       addr.into(),
             token:      Zeroizing::new(token.into()),
             namespace:  None,
             tls_verify: true,
+            client,
             cache:      Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
         }
     }
@@ -212,9 +247,15 @@ impl VaultBackend {
     }
 
     /// Set TLS certificate verification.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the HTTP client cannot be rebuilt (should not happen in practice).
     #[must_use]
     pub fn with_tls_verify(mut self, verify: bool) -> Self {
         self.tls_verify = verify;
+        // Rebuild the shared client with the updated TLS setting.
+        self.client = build_http_client(verify).expect("Failed to rebuild Vault HTTP client");
         self
     }
 
@@ -321,13 +362,6 @@ impl VaultBackend {
     /// on 503 (Service Unavailable), 429 (Too Many Requests), or connection errors.
     /// Non-retryable errors (403, 404) fail immediately.
     async fn fetch_secret(&self, name: &str) -> Result<VaultResponse, SecretsError> {
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(!self.tls_verify)
-            .build()
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {e}"))
-            })?;
-
         let url = self.build_vault_url(name);
         let delays = [
             std::time::Duration::from_millis(100),
@@ -337,7 +371,8 @@ impl VaultBackend {
 
         let mut last_error = None;
         for (attempt, delay) in delays.iter().enumerate() {
-            match client
+            match self
+                .client
                 .get(&url)
                 .header("X-Vault-Token", &*self.token)
                 .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
@@ -454,13 +489,6 @@ impl VaultBackend {
     ) -> Result<String, SecretsError> {
         validate_vault_secret_name(key_name)?;
 
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(!self.tls_verify)
-            .build()
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {}", e))
-            })?;
-
         let url = format!(
             "{}/{}/transit/encrypt/{}",
             self.addr.trim_end_matches('/'),
@@ -473,7 +501,7 @@ impl VaultBackend {
         });
 
         let response = self
-            .build_vault_request(&client, url)
+            .build_vault_request(&self.client, url)
             .json(&request_body)
             .send()
             .await
@@ -499,13 +527,6 @@ impl VaultBackend {
     ) -> Result<String, SecretsError> {
         validate_vault_secret_name(key_name)?;
 
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(!self.tls_verify)
-            .build()
-            .map_err(|e| {
-                SecretsError::BackendError(format!("Failed to create HTTP client: {}", e))
-            })?;
-
         let url = format!(
             "{}/{}/transit/decrypt/{}",
             self.addr.trim_end_matches('/'),
@@ -518,7 +539,7 @@ impl VaultBackend {
         });
 
         let response = self
-            .build_vault_request(&client, url)
+            .build_vault_request(&self.client, url)
             .json(&request_body)
             .send()
             .await
