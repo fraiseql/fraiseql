@@ -2,10 +2,12 @@
 //!
 //! Provides integration with Jaeger for distributed tracing via HTTP collector.
 
-use super::config::TracingConfig;
-use crate::error::{Error, Result};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
+
+use super::config::TracingConfig;
+use crate::error::{Error, Result};
 
 /// Jaeger HTTP collector configuration
 #[derive(Debug, Clone)]
@@ -194,29 +196,128 @@ pub fn init_jaeger_exporter(config: &TracingConfig) -> Result<JaegerExporter> {
     Ok(exporter)
 }
 
-/// Export spans to Jaeger HTTP collector
+/// Serialize spans to Jaeger's JSON API format.
+///
+/// Produces a payload suitable for POST to `/api/traces` on the Jaeger HTTP collector.
+fn serialize_jaeger_batch(service_name: &str, spans: &[JaegerSpan]) -> serde_json::Value {
+    let jaeger_spans: Vec<serde_json::Value> = spans
+        .iter()
+        .map(|span| {
+            let mut tags: Vec<serde_json::Value> = span
+                .tags
+                .iter()
+                .map(|(k, v)| serde_json::json!({"key": k, "type": "string", "value": v}))
+                .collect();
+            tags.push(serde_json::json!({"key": "status", "type": "string", "value": span.status}));
+
+            let mut obj = serde_json::json!({
+                "traceID": span.trace_id,
+                "spanID": span.span_id,
+                "operationName": span.operation_name,
+                // Jaeger expects microseconds
+                "startTime": span.start_time_ms * 1000,
+                "duration": span.duration_ms * 1000,
+                "tags": tags,
+                "logs": [],
+                "processID": "p1",
+                "warnings": null
+            });
+            if let Some(ref parent) = span.parent_span_id {
+                obj["references"] = serde_json::json!([{
+                    "refType": "CHILD_OF",
+                    "traceID": span.trace_id,
+                    "spanID": parent
+                }]);
+            }
+            obj
+        })
+        .collect();
+
+    serde_json::json!({
+        "data": [{
+            "traceID": spans.first().map(|s| s.trace_id.as_str()).unwrap_or(""),
+            "spans": jaeger_spans,
+            "processes": {
+                "p1": {
+                    "serviceName": service_name,
+                    "tags": []
+                }
+            },
+            "warnings": null
+        }]
+    })
+}
+
+/// Export spans to Jaeger HTTP collector.
+///
+/// Serializes spans to Jaeger's JSON format and POSTs them to the configured
+/// endpoint. The HTTP call is spawned as a fire-and-forget tokio task so that
+/// export failures never block the calling thread. Errors are logged as warnings.
 fn export_spans(config: &JaegerConfig, spans: Vec<JaegerSpan>) -> Result<()> {
     if spans.is_empty() {
         return Ok(());
     }
 
-    tracing::debug!(
-        span_count = spans.len(),
-        endpoint = %config.endpoint,
-        "Exporting spans to Jaeger"
-    );
+    let span_count = spans.len();
+    tracing::debug!(span_count, endpoint = %config.endpoint, "Exporting spans to Jaeger");
 
-    // In production, this would make actual HTTP request to Jaeger
-    // For now, this is a placeholder that validates configuration
+    let payload = serialize_jaeger_batch(&config.service_name, &spans);
+    let endpoint = config.endpoint.clone();
+    let timeout = Duration::from_millis(config.export_timeout_ms);
 
-    for span in &spans {
-        tracing::trace!(
-            trace_id = %span.trace_id,
-            span_id = %span.span_id,
-            operation = %span.operation_name,
-            duration_ms = span.duration_ms,
-            "Exported span to Jaeger"
-        );
+    // Fire-and-forget: spawn an async task for the HTTP call so callers are
+    // never blocked. Export errors are logged as warnings, not propagated.
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => {
+            handle.spawn(async move {
+                let client = reqwest::Client::builder()
+                    .timeout(timeout)
+                    .build()
+                    .unwrap_or_default();
+
+                match client
+                    .post(&endpoint)
+                    .header("Content-Type", "application/json")
+                    .json(&payload)
+                    .send()
+                    .await
+                {
+                    Ok(resp) if resp.status().is_success() => {
+                        tracing::debug!(span_count, "Spans exported to Jaeger successfully");
+                    },
+                    Ok(resp) => {
+                        tracing::warn!(
+                            status = %resp.status(),
+                            endpoint = %endpoint,
+                            "Jaeger export returned non-success status"
+                        );
+                    },
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            endpoint = %endpoint,
+                            "Failed to export spans to Jaeger"
+                        );
+                    },
+                }
+            });
+        },
+        Err(_) => {
+            // No tokio runtime available (e.g., called from a sync test context).
+            // Log the spans at trace level so they are not silently lost.
+            tracing::warn!(
+                span_count,
+                "No tokio runtime available; spans not sent to Jaeger (logged at trace level)"
+            );
+            for span in &spans {
+                tracing::trace!(
+                    trace_id = %span.trace_id,
+                    span_id = %span.span_id,
+                    operation = %span.operation_name,
+                    "Jaeger span (not exported)"
+                );
+            }
+        },
     }
 
     Ok(())

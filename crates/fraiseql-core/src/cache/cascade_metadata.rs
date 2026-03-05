@@ -37,7 +37,6 @@
 
 use std::collections::HashMap;
 
-#[cfg(test)]
 use crate::schema::CompiledSchema;
 
 /// Maps mutation names to the entity types they modify.
@@ -139,19 +138,18 @@ impl CascadeMetadata {
         self.mutation_entity_map.contains_key(mutation_name)
     }
 
-    #[cfg(test)]
-    /// Build metadata from a compiled schema (for testing).
+    /// Build cascade metadata from a compiled schema.
     ///
-    /// In production, this would be called during server initialization
-    /// to extract all mutations and their return types from the compiled schema.
-    pub fn from_schema(_schema: &CompiledSchema) -> Self {
-        // In a real implementation, this would:
-        // 1. Extract mutations from schema.mutations()
-        // 2. For each mutation, extract its return_type
-        // 3. Map return_type to entity name
-        //
-        // For now, return empty - tests will build metadata manually
-        Self::new()
+    /// Extracts all mutations from the schema and maps each to the entity type
+    /// it returns. Called during server initialization to pre-build the mapping
+    /// for use by the cache invalidation system.
+    #[must_use]
+    pub fn from_schema(schema: &CompiledSchema) -> Self {
+        let mut metadata = Self::new();
+        for mutation in &schema.mutations {
+            metadata.add_mutation(&mutation.name, &mutation.return_type);
+        }
+        metadata
     }
 }
 
