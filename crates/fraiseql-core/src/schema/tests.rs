@@ -207,6 +207,7 @@ fn test_schema_to_json_roundtrip() {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
+        schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
@@ -402,6 +403,7 @@ fn test_operation_count() {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
+        schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };
@@ -778,6 +780,7 @@ fn test_vector_field_roundtrip() {
             validation_config: None,
             debug_config:      None,
             mcp_config:        None,
+        schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: CustomTypeRegistry::default(),
     };

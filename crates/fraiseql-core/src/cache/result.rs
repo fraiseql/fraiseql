@@ -301,6 +301,11 @@ impl QueryResultCache {
             return Ok(());
         }
 
+        // Respect cache_list_queries: a result with more than one row is considered a list.
+        if !self.config.cache_list_queries && result.len() > 1 {
+            return Ok(());
+        }
+
         let now = current_timestamp();
         let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);

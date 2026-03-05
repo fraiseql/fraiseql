@@ -151,10 +151,8 @@ pub struct CacheConfig {
     /// Whether to cache list queries.
     ///
     /// List queries (e.g., `users(limit: 100)`) can have large result sets that
-    /// consume significant memory. Set to `false` to only cache single-object queries.
-    ///
-    /// **Note**: Currently not implemented (all queries are cached).
-    /// This field is reserved for future use.
+    /// consume significant memory. Set to `false` to only cache single-object queries
+    /// (results with a single row). Results with more than one row are skipped.
     ///
     /// Default: `true`
     pub cache_list_queries: bool,
