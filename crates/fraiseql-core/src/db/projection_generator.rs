@@ -127,11 +127,12 @@ impl PostgresProjectionGenerator {
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
-                // Response key uses the GraphQL field name (camelCase)
-                let safe_field = Self::escape_identifier(field);
-                // JSONB key uses the original schema field name (snake_case)
+                // Response key uses the GraphQL field name (camelCase).
+                // Used as a SQL *string literal* key (inside single-quotes): escape ' → ''.
+                let safe_field = Self::escape_sql_string(field);
+                // JSONB key uses the original schema field name (snake_case).
                 let jsonb_key = to_snake_case(field);
-                let safe_jsonb_key = Self::escape_identifier(&jsonb_key);
+                let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
                 format!("'{}', \"{}\"->>'{}' ", safe_field, self.jsonb_column, safe_jsonb_key)
             })
             .collect();
@@ -165,26 +166,24 @@ impl PostgresProjectionGenerator {
         ))
     }
 
-    /// Check if field name is safe for SQL (no injection).
+    /// Escape a value for use as a SQL *string literal* (inside single quotes).
     ///
-    /// PostgreSQL identifiers can contain alphanumeric, underscore, and dollar signs.
-    /// This is a conservative check - in production, use parameterized queries.
-    fn is_safe_identifier(field: &str) -> bool {
-        !field.is_empty() && field.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    /// Doubles any embedded single-quote (`'` → `''`) to prevent SQL injection
+    /// when the field name is embedded as a string literal key, e.g. in
+    /// `jsonb_build_object('key', ...)` or `data->>'key'`.
+    fn escape_sql_string(s: &str) -> String {
+        s.replace('\'', "''")
     }
 
-    /// Escape SQL identifier safely.
+    /// Escape a SQL identifier using PostgreSQL double-quote quoting.
     ///
-    /// For production use, should be parameterized. This is defensive escaping
-    /// by replacing single quotes with double quotes (PostgreSQL convention).
+    /// Double-quote delimiters prevent identifier injection: any `"` within
+    /// the identifier is doubled (`""`), and the whole name is wrapped in `"`.
+    /// Use this when the name appears in an *identifier* position (column name,
+    /// table alias) rather than as a string literal.
+    #[allow(dead_code)] // Reason: available for callers embedding names as SQL identifiers
     fn escape_identifier(field: &str) -> String {
-        // Validate field name
-        if !Self::is_safe_identifier(field) {
-            // In production, would reject or sanitize more strictly
-            // For now, pass through with warning logged at runtime
-            return field.to_string();
-        }
-        field.to_string()
+        format!("\"{}\"", field.replace('"', "\"\""))
     }
 }
 
@@ -254,9 +253,9 @@ impl MySqlProjectionGenerator {
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
-                // Response key uses the GraphQL field name (camelCase)
-                let safe_field = Self::escape_identifier(field);
-                // JSON key uses the original schema field name (snake_case)
+                // Response key used as SQL string literal key — escape ' → ''.
+                let safe_field = Self::escape_sql_string(field);
+                // JSON key uses the original schema field name (snake_case).
                 let json_key = to_snake_case(field);
                 format!("'{}', JSON_EXTRACT(`{}`, '$.{}')", safe_field, self.json_column, json_key)
             })
@@ -265,17 +264,18 @@ impl MySqlProjectionGenerator {
         Ok(format!("JSON_OBJECT({})", field_pairs.join(",")))
     }
 
-    /// Check if field name is safe for SQL.
-    fn is_safe_identifier(field: &str) -> bool {
-        !field.is_empty() && field.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    /// Escape a value for use as a SQL *string literal* (inside single quotes).
+    fn escape_sql_string(s: &str) -> String {
+        s.replace('\'', "''")
     }
 
-    /// Escape SQL identifier safely.
+    /// Escape a SQL identifier using MySQL backtick quoting.
+    ///
+    /// Use this when the name appears in an *identifier* position (column name,
+    /// table alias), not as a string literal.
+    #[allow(dead_code)] // Reason: available for callers embedding names as SQL identifiers
     fn escape_identifier(field: &str) -> String {
-        if !Self::is_safe_identifier(field) {
-            return field.to_string();
-        }
-        field.to_string()
+        format!("`{}`", field.replace('`', "``"))
     }
 }
 
@@ -344,9 +344,9 @@ impl SqliteProjectionGenerator {
         let field_pairs: Vec<String> = fields
             .iter()
             .map(|field| {
-                // Response key uses the GraphQL field name (camelCase)
-                let safe_field = Self::escape_identifier(field);
-                // JSON key uses the original schema field name (snake_case)
+                // Response key used as SQL string literal key — escape ' → ''.
+                let safe_field = Self::escape_sql_string(field);
+                // JSON key uses the original schema field name (snake_case).
                 let json_key = to_snake_case(field);
                 format!(
                     "'{}', json_extract(\"{}\", '$.{}')",
@@ -358,17 +358,20 @@ impl SqliteProjectionGenerator {
         Ok(format!("json_object({})", field_pairs.join(",")))
     }
 
-    /// Check if field name is safe for SQL.
-    fn is_safe_identifier(field: &str) -> bool {
-        !field.is_empty() && field.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    /// Escape a value for use as a SQL *string literal* (inside single quotes).
+    fn escape_sql_string(s: &str) -> String {
+        s.replace('\'', "''")
     }
 
-    /// Escape SQL identifier safely.
+    /// Escape a SQL identifier using SQLite double-quote quoting.
+    ///
+    /// Double-quote delimiters prevent identifier injection: any `"` within
+    /// the identifier is doubled (`""`), and the whole name is wrapped in `"`.
+    /// Use this when the name appears in an *identifier* position (column name,
+    /// table alias), not as a string literal.
+    #[allow(dead_code)] // Reason: available for callers that embed field names as identifiers
     fn escape_identifier(field: &str) -> String {
-        if !Self::is_safe_identifier(field) {
-            return field.to_string();
-        }
-        field.to_string()
+        format!("\"{}\"", field.replace('"', "\"\""))
     }
 }
 
@@ -434,14 +437,18 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_validation() {
-        assert!(PostgresProjectionGenerator::is_safe_identifier("id"));
-        assert!(PostgresProjectionGenerator::is_safe_identifier("user_id"));
-        assert!(PostgresProjectionGenerator::is_safe_identifier("user$data"));
-        assert!(PostgresProjectionGenerator::is_safe_identifier("field123"));
-        assert!(!PostgresProjectionGenerator::is_safe_identifier("field-name")); // hyphen not allowed
-        assert!(!PostgresProjectionGenerator::is_safe_identifier("field.name")); // dot not allowed
-        assert!(!PostgresProjectionGenerator::is_safe_identifier("")); // empty not allowed
+    fn test_escape_identifier_quoting() {
+        // Simple identifiers are wrapped in double-quotes.
+        assert_eq!(PostgresProjectionGenerator::escape_identifier("id"), "\"id\"");
+        assert_eq!(PostgresProjectionGenerator::escape_identifier("user_id"), "\"user_id\"");
+        // Special chars (hyphens, dots) are safe inside quotes.
+        assert_eq!(PostgresProjectionGenerator::escape_identifier("field-name"), "\"field-name\"");
+        assert_eq!(PostgresProjectionGenerator::escape_identifier("field.name"), "\"field.name\"");
+        // Double-quote chars inside the name are doubled.
+        assert_eq!(
+            PostgresProjectionGenerator::escape_identifier("col\"inject"),
+            "\"col\"\"inject\""
+        );
     }
 
     // MySQL Projection Generator Tests

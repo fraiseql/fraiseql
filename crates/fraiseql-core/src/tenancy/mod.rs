@@ -149,6 +149,18 @@ impl TenantContext {
     /// Returns a WHERE clause that restricts data to this tenant.
     /// Can be combined with existing WHERE clauses using AND.
     ///
+    /// # Panics
+    ///
+    /// Panics if the tenant ID contains characters outside the safe set
+    /// (`[A-Za-z0-9._-]`). Tenant IDs are validated at context creation
+    /// so this should never trigger in practice.
+    ///
+    /// # Security
+    ///
+    /// Prefer [`where_clause_postgresql`] or [`where_clause_parameterized`]
+    /// for production query execution. This method embeds the tenant ID
+    /// directly into SQL and is only safe because the ID is strictly validated.
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -157,6 +169,7 @@ impl TenantContext {
     /// ```
     #[must_use]
     pub fn where_clause(&self) -> String {
+        validate_tenant_id_for_interpolation(&self.id);
         format!("tenant_id = '{}'", self.id)
     }
 
@@ -199,10 +212,30 @@ impl TenantContext {
 // Query Filtering
 // ============================================================================
 
+/// Validate that a tenant ID is safe to interpolate directly into SQL.
+///
+/// Allows only `[A-Za-z0-9._-]` to prevent SQL injection. Panics on
+/// violation so callers catch programming errors at development time.
+///
+/// Production code should use the parameterized WHERE clause helpers instead.
+fn validate_tenant_id_for_interpolation(tenant_id: &str) {
+    assert!(
+        !tenant_id.is_empty() && tenant_id.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-')),
+        "SECURITY: tenant_id '{tenant_id}' contains characters that are unsafe for SQL interpolation. \
+         Use where_clause_postgresql() or where_clause_parameterized() instead."
+    );
+}
+
 /// Generates a WHERE clause for tenant filtering.
 ///
 /// Returns a WHERE clause that restricts data to a specific tenant.
 /// Can be combined with existing WHERE clauses using AND.
+///
+/// # Panics
+///
+/// Panics if `tenant_id` contains characters outside `[A-Za-z0-9._-]`.
+/// Use [`where_clause_postgresql`] or [`where_clause_parameterized`] for
+/// production code where tenant IDs come from external input.
 ///
 /// # Example
 ///
@@ -211,6 +244,7 @@ impl TenantContext {
 /// let clause = tenant.where_clause();  // "tenant_id = 'acme-corp'"
 /// ```
 pub fn where_clause(tenant_id: &str) -> String {
+    validate_tenant_id_for_interpolation(tenant_id);
     format!("tenant_id = '{}'", tenant_id)
 }
 
