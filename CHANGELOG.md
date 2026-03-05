@@ -73,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added to `tests/sql_snapshots.rs` covering all WHERE clause operators, plus 10 MySQL relay
   snapshots (92 total snapshots).
 
+### Deprecated
+
+- **`observers-full` feature flag** (`fraiseql-observers`): the `observers-full` Cargo feature
+  is deprecated and will be removed in v2.2. It is now a no-op alias for enabling all observer
+  sub-features individually. Migrate by listing the specific features you need
+  (`nats`, `tracing`, `in-memory`, etc.) in your `Cargo.toml` instead of `observers-full`.
+
 ### Changed
 
 - **Workspace lint config hardened**: `missing_errors_doc = "warn"` and

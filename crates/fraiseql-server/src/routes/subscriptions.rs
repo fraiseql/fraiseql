@@ -70,6 +70,18 @@ pub fn subscription_metrics() -> SubscriptionMetrics {
     }
 }
 
+/// Reset all subscription counters to zero.
+///
+/// Call this at the start of each test that checks counter values to avoid
+/// cross-test interference from the module-level statics.
+#[cfg(test)]
+pub fn reset_metrics_for_test() {
+    WS_CONNECTIONS_ACCEPTED.store(0, Ordering::SeqCst);
+    WS_CONNECTIONS_REJECTED.store(0, Ordering::SeqCst);
+    WS_SUBSCRIPTIONS_ACCEPTED.store(0, Ordering::SeqCst);
+    WS_SUBSCRIPTIONS_REJECTED.store(0, Ordering::SeqCst);
+}
+
 /// Snapshot of subscription counters.
 pub struct SubscriptionMetrics {
     /// Total WebSocket connections accepted (after on_connect).
