@@ -1,6 +1,6 @@
 # Fact Table Module
 
-**Source file**: `crates/fraiseql-core/src/compiler/fact_table.rs` (~1,771 lines)
+**Source file**: `crates/fraiseql-core/src/compiler/fact_table/` (split into `mod.rs`, `detector.rs`, `tests.rs`)
 
 **Tests**: 30+ unit tests in `#[cfg(test)] mod tests` at the bottom of the file. Run with:
 ```bash

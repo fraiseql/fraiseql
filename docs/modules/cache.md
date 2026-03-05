@@ -1,7 +1,7 @@
 # Cache Module
 
 **Source files**:
-- `crates/fraiseql-core/src/cache/adapter.rs` (~1,836 lines) — `CachedDatabaseAdapter`, the main entry point
+- `crates/fraiseql-core/src/cache/adapter/` — `CachedDatabaseAdapter`, the main entry point (split into `mod.rs`, `query.rs`, `mutation.rs`, `tests.rs`)
 - `crates/fraiseql-core/src/cache/result.rs` (~1,177 lines) — `QueryResultCache` (64-shard LRU) and `CachedResult`
 - `crates/fraiseql-core/src/cache/key.rs` (~632 lines) — cache key construction and security model
 - `crates/fraiseql-core/src/cache/cascade_invalidator.rs` — view dependency graph and cascade invalidation

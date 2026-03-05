@@ -1,6 +1,6 @@
 # Window Functions Module
 
-**Source file**: `crates/fraiseql-core/src/compiler/window_functions.rs` (~1,926 lines)
+**Source file**: `crates/fraiseql-core/src/compiler/window_functions/` (split into `mod.rs`, `planner.rs`, `codegen.rs`, `tests.rs`)
 
 **Tests**: 50+ unit tests in `#[cfg(test)] mod tests` at the bottom of the file. Run with:
 ```bash
