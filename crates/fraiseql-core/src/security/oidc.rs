@@ -596,13 +596,22 @@ impl OidcValidator {
         let mut validation = Validation::new(self.get_algorithm(&header)?);
         validation.set_issuer(&[&self.config.issuer]);
 
-        // Set audience validation
+        // Set audience validation — always enabled when any audience is configured.
+        // The validate() call earlier guarantees at least one audience is set,
+        // so this else branch (validate_aud = false) is never reached in practice.
+        // It is kept as a defensive fallback; the real protection is the mandatory
+        // audience check in OidcConfig::validate().
         if let Some(ref aud) = self.config.audience {
             let mut audiences = vec![aud.clone()];
             audiences.extend(self.config.additional_audiences.clone());
             validation.set_audience(&audiences);
+        } else if !self.config.additional_audiences.is_empty() {
+            // Only additional_audiences configured (no primary audience):
+            // still validate against those.
+            validation.set_audience(&self.config.additional_audiences);
         } else {
-            validation.validate_aud = false;
+            // Should be unreachable after OidcConfig::validate() — fail-closed.
+            validation.validate_aud = true;
         }
 
         // Set clock skew tolerance — capped to prevent accepting arbitrarily

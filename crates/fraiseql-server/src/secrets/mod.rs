@@ -212,9 +212,10 @@ impl SecretManager {
 
     /// Generate a 96-bit nonce for AES-GCM.
     fn generate_nonce() -> [u8; 12] {
-        use rand::RngCore;
+        use rand::{RngCore, rngs::OsRng};
+        // SECURITY: OsRng ensures OS-level entropy for AES-GCM nonces.
         let mut nonce = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce);
+        OsRng.fill_bytes(&mut nonce);
         nonce
     }
 }

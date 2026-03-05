@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -131,8 +130,9 @@ pub fn hash_token(token: &str) -> String {
 /// Generate a cryptographically secure refresh token
 pub fn generate_refresh_token() -> String {
     use base64::Engine;
-    let mut rng = rand::thread_rng();
-    let random_bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+    use rand::{Rng, rngs::OsRng};
+    // SECURITY: OsRng ensures OS-level entropy for refresh tokens.
+    let random_bytes: Vec<u8> = (0..32).map(|_| OsRng.gen()).collect();
     base64::engine::general_purpose::STANDARD.encode(&random_bytes)
 }
 
