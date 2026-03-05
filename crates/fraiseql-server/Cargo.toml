@@ -135,8 +135,6 @@ observers = ["fraiseql-observers"]
 secrets = ["dep:fraiseql-secrets"]
 webhooks = ["dep:fraiseql-webhooks"]
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
-# Deprecated alias — use observers-enterprise instead. Will be removed in 2.3.0.
-observers-full = ["observers-enterprise"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]

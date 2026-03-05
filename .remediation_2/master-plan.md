@@ -102,14 +102,12 @@ See `batches/batch-5-crate-split.md` for dependency graph analysis and migration
 
 ## BATCH 6 — Deprecation enforcement
 
-**Risk**: `observers-full` feature alias is marked deprecated with a target
-removal version (2.3.0) but emits no compile-time signal; users will be
-surprised at removal.
+**Risk**: Resolved. `observers-full` removed entirely (no users).
 
 | ID    | Sev | Status | What | Where |
 |-------|-----|--------|------|-------|
-| DA-1  | 🟡  |        | Emit `cargo::warning=` from `fraiseql-server`'s `build.rs` when `observers-full` feature is active, explaining the migration path to `observers-enterprise` | `crates/fraiseql-server/build.rs` |
-| DA-2  | 🔵  |        | Add `CHANGELOG` note and `docs/migrations/observers-full-removal.md` with exact version timeline and sed one-liner for dependents | `docs/migrations/` (new) |
+| DA-1  | 🟡  | ✅     | Removed `observers-full` feature entirely from `fraiseql-server/Cargo.toml` — no deprecation dance needed, no users | `crates/fraiseql-server/Cargo.toml:139` |
+| DA-2  | 🔵  | ✅     | No migration guide needed — feature removed directly | N/A |
 
 See `batches/batch-6-deprecation.md`.
 
