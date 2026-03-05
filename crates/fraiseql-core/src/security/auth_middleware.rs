@@ -545,12 +545,17 @@ impl AuthMiddleware {
         }
         // Note: If issuer is not set, validation.iss is None and won't be validated
 
-        // Configure audience validation
+        // Configure audience validation.
+        // SECURITY: `validate_aud = true` is the default in jsonwebtoken; we must
+        // NOT override it to `false` when no audience is configured, as that would
+        // silently accept tokens issued for any service (cross-service token replay).
+        // When no audience is pinned, any non-empty `aud` claim is accepted — callers
+        // should set `audience` in config to restrict this further.
         if let Some(ref audience) = self.config.audience {
             validation.set_audience(&[audience]);
-        } else {
-            validation.validate_aud = false;
         }
+        // `validation.validate_aud` remains `true` (the library default) when no
+        // specific audience is configured.
 
         // Set clock skew tolerance
         validation.leeway = self.config.clock_skew_secs;

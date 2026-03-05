@@ -380,6 +380,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
+    OptionalSecurityContext(security_context): OptionalSecurityContext,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     // Parse variables from JSON string
@@ -422,9 +423,11 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         document_id: None,
     };
 
-    // NOTE: SecurityContext extraction will be handled via middleware in next iteration
-    // For now, execute without security context
-    execute_graphql_request(state, request, trace_context, None, &headers).await
+    if security_context.is_some() {
+        debug!("Authenticated GET request with security context");
+    }
+
+    execute_graphql_request(state, request, trace_context, security_context, &headers).await
 }
 
 /// Extract client IP address from headers.

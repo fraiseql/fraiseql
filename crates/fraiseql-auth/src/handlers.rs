@@ -278,6 +278,21 @@ pub async fn auth_refresh(
     let token_hash = hash_token(&req.refresh_token);
     let session = state.session_store.get_session(&token_hash).await?;
 
+    // SECURITY: Reject expired sessions before any further processing.
+    // Without this check, a stolen refresh token from an expired session
+    // could be used indefinitely to mint new access tokens.
+    if session.is_expired() {
+        let audit_logger = get_audit_logger();
+        audit_logger.log_failure(
+            AuditEventType::JwtRefresh,
+            SecretType::RefreshToken,
+            Some(session.user_id.clone()),
+            "refresh",
+            "Session expired",
+        );
+        return Err(AuthError::TokenExpired);
+    }
+
     // SECURITY: Check rate limiting for auth/refresh endpoint (per user)
     if state.rate_limiters.auth_refresh.check(&session.user_id).is_err() {
         return Err(AuthError::RateLimited {
