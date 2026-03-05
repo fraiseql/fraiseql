@@ -12,9 +12,11 @@ use tracing::{info, warn};
 
 use super::{
     ActionResultStream, FlightDataStream, FraiseQLFlightService, QueryExecutor, SecurityContext,
-    build_optimized_sql, execute_placeholder_query, record_batch_to_flight_data,
+    build_optimized_sql, encode_json_to_arrow_batch, record_batch_to_flight_data,
     schema_to_flight_data,
 };
+#[cfg(any(test, feature = "testing"))]
+use super::execute_placeholder_query;
 use crate::{
     cache::QueryCache,
     convert::{ConvertConfig, RowToArrowConverter},
@@ -465,16 +467,78 @@ impl FraiseQLFlightService {
         }
     }
 
-    /// Helper: Convert JSON result to Arrow RecordBatches.
+    /// Convert a GraphQL JSON result to Arrow `RecordBatch`es.
     ///
-    /// Infers Arrow schema from JSON structure and converts data rows.
+    /// Handles the standard GraphQL response envelope `{"data": {...}}`.
+    /// Finds the first field inside `data` that is a non-empty array of objects,
+    /// infers an Arrow schema from the first row, and converts all rows to columnar
+    /// Arrow format.
+    ///
+    /// Falls back to wrapping the entire JSON as a single `result` string column when:
+    /// - The result is a scalar (no array of objects found)
+    /// - The `data` field contains only non-array values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if schema inference or Arrow conversion fails.
     fn convert_json_to_arrow_batches(
         &self,
-        _json: &serde_json::Value,
+        json: &serde_json::Value,
     ) -> Result<Vec<RecordBatch>, String> {
-        // For now, return empty batches - full conversion would require inferring schema from JSON
-        // and handling nested types. This is a placeholder that can be enhanced later.
-        Ok(Vec::new())
+        // Extract the data payload from a GraphQL response envelope.
+        // Typical structure: {"data": {"field": [...]}, "errors": [...]}.
+        let data = json.get("data").unwrap_or(json);
+
+        // Find a non-empty array of objects to convert to columnar Arrow format.
+        let rows: Vec<std::collections::HashMap<String, serde_json::Value>> = match data {
+            serde_json::Value::Array(arr) => arr
+                .iter()
+                .filter_map(|v| {
+                    v.as_object()
+                        .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                })
+                .collect(),
+            serde_json::Value::Object(map) => map
+                .values()
+                .find_map(|v| {
+                    if let serde_json::Value::Array(arr) = v {
+                        let converted: Vec<_> = arr
+                            .iter()
+                            .filter_map(|item| {
+                                item.as_object().map(|obj| {
+                                    obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                                })
+                            })
+                            .collect();
+                        (!converted.is_empty()).then_some(converted)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default(),
+            _ => vec![],
+        };
+
+        if rows.is_empty() {
+            // No columnar data found — wrap the entire JSON as a single string column.
+            // This handles scalar results and error-only responses gracefully.
+            return encode_json_to_arrow_batch(&json.to_string()).map(|b| vec![b]);
+        }
+
+        // Infer Arrow schema from the first row, then convert all rows.
+        let schema = crate::schema_gen::infer_schema_from_rows(&rows)
+            .map_err(|e| format!("Schema inference failed: {e}"))?;
+
+        let arrow_rows = convert_db_rows_to_arrow(&rows, &schema)
+            .map_err(|e| format!("Row conversion failed: {e}"))?;
+
+        let config = ConvertConfig { batch_size: 10_000, max_rows: None };
+        let converter = RowToArrowConverter::new(schema, config);
+        arrow_rows
+            .chunks(config.batch_size)
+            .map(|chunk| converter.convert_batch(chunk.to_vec()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Arrow conversion failed: {e}"))
     }
 
     /// Execute optimized query on pre-compiled va_* view.
@@ -542,7 +606,18 @@ impl FraiseQLFlightService {
                     .await
                     .map_err(|e| Status::internal(format!("Database query failed: {e}")))?
             } else {
-                execute_placeholder_query(view, limit)
+                #[cfg(any(test, feature = "testing"))]
+                {
+                    execute_placeholder_query(view, limit)
+                }
+                #[cfg(not(any(test, feature = "testing")))]
+                {
+                    return Err(Status::failed_precondition(
+                        "Arrow Flight server started without a database adapter. \
+                         Configure a database adapter or enable the `testing` feature \
+                         for development use.",
+                    ));
+                }
             }
         };
 
@@ -1037,5 +1112,64 @@ impl FraiseQLFlightService {
 impl Default for FraiseQLFlightService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod convert_tests {
+    //! Unit tests for `convert_json_to_arrow_batches`.
+    //!
+    //! These live in `service.rs` so they can access the private method directly.
+    use super::*;
+
+    /// A flat JSON array of objects converts to a non-empty batch.
+    #[test]
+    fn test_flat_array_produces_batches() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!([
+            {"id": 1, "name": "Alice"},
+            {"id": 2, "name": "Bob"},
+        ]);
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty(), "Must produce at least one batch");
+        assert_eq!(batches[0].num_rows(), 2);
+        assert_eq!(batches[0].num_columns(), 2);
+    }
+
+    /// Standard GraphQL response envelope: first array field in `data` is extracted.
+    #[test]
+    fn test_graphql_envelope_finds_array() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!({
+            "data": {
+                "users": [
+                    {"id": 1, "email": "a@test.com"},
+                    {"id": 2, "email": "b@test.com"},
+                    {"id": 3, "email": "c@test.com"},
+                ]
+            }
+        });
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty());
+        assert_eq!(batches[0].num_rows(), 3);
+    }
+
+    /// A scalar (non-array) response falls back to a single `result` string column.
+    #[test]
+    fn test_scalar_falls_back_to_string_column() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!({"data": {"ok": true}});
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty(), "Must produce the fallback batch");
+        assert_eq!(batches[0].num_columns(), 1, "Fallback uses a single 'result' column");
+    }
+
+    /// An empty JSON object produces the fallback batch.
+    #[test]
+    fn test_empty_object_produces_fallback() {
+        let service = FraiseQLFlightService::new();
+        let json = serde_json::json!({});
+        let batches = service.convert_json_to_arrow_batches(&json).unwrap();
+        assert!(!batches.is_empty());
     }
 }

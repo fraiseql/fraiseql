@@ -8,6 +8,7 @@ use arrow::{
 };
 use arrow_flight::FlightData;
 use tonic::Status;
+#[cfg(any(test, feature = "testing"))]
 use tracing::warn;
 
 /// Convert RecordBatch to FlightData using Arrow IPC encoding.
@@ -215,6 +216,7 @@ fn build_safe_order_by(order_by: &str) -> Result<String, Status> {
 /// # Returns
 ///
 /// Vec of rows as HashMap<column_name, json_value>
+#[cfg(any(test, feature = "testing"))]
 pub(crate) fn execute_placeholder_query(
     view: &str,
     limit: Option<usize>,

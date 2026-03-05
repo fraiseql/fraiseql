@@ -222,8 +222,14 @@ impl FlightService for FraiseQLFlightService {
                 .get(&view)
                 .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?,
             FlightTicket::BulkExport { .. } => {
-                // Will be implemented in future versions
-                return Err(Status::unimplemented("BulkExport not implemented yet"));
+                // BulkExport schema varies by table and export format.
+                // Use do_get with a BulkExport ticket to export data directly;
+                // the Arrow schema is returned as the first FlightData message in the stream.
+                return Err(Status::unimplemented(
+                    "BulkExport schema introspection is not supported: the schema varies by \
+                     table and export format. Use do_get with a BulkExport ticket to export \
+                     data directly; the Arrow schema is included in the response stream.",
+                ));
             },
             FlightTicket::BatchedQueries { .. } => {
                 // Batched queries don't have a single schema; each query has its own
@@ -1083,8 +1089,14 @@ impl FlightService for FraiseQLFlightService {
                 })?
             },
             FlightTicket::BulkExport { .. } => {
-                // Bulk export not implemented yet
-                return Err(Status::unimplemented("BulkExport not supported"));
+                // BulkExport schema varies by table and export format.
+                // Use do_get with a BulkExport ticket to export data directly;
+                // the Arrow schema is returned as the first FlightData message in the stream.
+                return Err(Status::unimplemented(
+                    "BulkExport schema introspection is not supported: the schema varies by \
+                     table and export format. Use do_get with a BulkExport ticket to export \
+                     data directly; the Arrow schema is included in the response stream.",
+                ));
             },
             FlightTicket::BatchedQueries { .. } => {
                 // Batched queries have per-query schemas in the data stream
@@ -1119,14 +1131,38 @@ impl FlightService for FraiseQLFlightService {
         Ok(Response::new(flight_info))
     }
 
-    /// Poll for flight info updates (for long-running operations).
+    /// Poll for flight info (synchronous implementation).
     ///
-    /// Not needed for FraiseQL use cases (queries are synchronous).
+    /// Executes the query inline and returns a completed `PollInfo` with
+    /// `flight_descriptor = None`, which signals to the client that the result
+    /// is immediately available and no further polling is needed.
+    ///
+    /// `progress` is set to `1.0` (100 %) to reflect that execution is complete.
+    ///
+    /// This satisfies the Arrow Flight SQL 1.2 contract for synchronous servers:
+    /// a server that always completes within the first call is fully spec-compliant.
     async fn poll_flight_info(
         &self,
-        _request: Request<FlightDescriptor>,
+        request: Request<FlightDescriptor>,
     ) -> std::result::Result<Response<PollInfo>, Status> {
-        info!("PollFlightInfo called");
-        Err(Status::unimplemented("PollFlightInfo not implemented yet"))
+        let descriptor = request.into_inner();
+        info!("PollFlightInfo called: {:?}", descriptor);
+
+        // Reuse get_flight_info logic to build the FlightInfo.
+        let flight_info = self
+            .get_flight_info(Request::new(descriptor))
+            .await?
+            .into_inner();
+
+        // flight_descriptor = None signals "complete — no need to poll again".
+        // progress = 1.0 confirms 100 % complete.
+        let poll_info = PollInfo {
+            info:               Some(flight_info),
+            flight_descriptor:  None,
+            progress:           Some(1.0),
+            expiration_time:    None,
+        };
+
+        Ok(Response::new(poll_info))
     }
 }

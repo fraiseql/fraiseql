@@ -22,10 +22,10 @@
 //! | Feature | Status | Reason |
 //! |---------|--------|--------|
 //! | Subscribe (do_exchange) | v2.1 | Real-time event streaming requires observer integration |
-//! | BulkExport ticket | v2.1 | Complex export formats (Parquet, CSV, JSON) |
+//! | BulkExport GetSchema/GetFlightInfo | — | Schema varies by table; use do_get directly |
 //! | RefreshSchemaRegistry action | v2.1 | Requires safe schema update mechanism for running queries |
 //! | Observer events (do_get) | v2.1 | Requires observer system integration |
-//! | PollFlightInfo | v2.1 | Low priority, not used in initial deployment |
+//! | PollFlightInfo | ✅ v2.1 | Synchronous: delegates to `get_flight_info`, returns `progress=1.0` |
 //! | Zero-copy Arrow conversion | v2.1 | Significant complexity for moderate performance gain |
 //!
 //! All deferred features return `Status::unimplemented()` or descriptive error messages
@@ -55,9 +55,10 @@ pub(crate) use self::auth::{
 // Re-export convert functions for use across submodules
 pub(crate) use self::convert::{
     build_insert_query, build_optimized_sql, decode_flight_data_to_batch, decode_upload_batch,
-    encode_json_to_arrow_batch, execute_placeholder_query, record_batch_to_flight_data,
-    schema_to_flight_data,
+    encode_json_to_arrow_batch, record_batch_to_flight_data, schema_to_flight_data,
 };
+#[cfg(any(test, feature = "testing"))]
+pub(crate) use self::convert::execute_placeholder_query;
 use crate::{
     cache::QueryCache, db::DatabaseAdapter, event_storage::EventStorage, metadata::SchemaRegistry,
     subscription::SubscriptionManager,
