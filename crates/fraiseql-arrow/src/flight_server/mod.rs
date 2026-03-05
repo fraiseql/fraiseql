@@ -153,6 +153,12 @@ pub struct FraiseQLFlightService {
     pub(crate) event_storage:        Option<Arc<dyn EventStorage>>,
     /// Subscription manager for real-time event streaming
     pub(crate) subscription_manager: Arc<SubscriptionManager>,
+    /// Allow clients to submit raw SQL via BatchedQueries tickets.
+    ///
+    /// **SECURITY**: Disabled by default. Enabling this allows authenticated clients
+    /// to execute arbitrary SQL, which bypasses RLS and query-level authorization.
+    /// Only enable for trusted internal tooling with explicit intent.
+    pub(crate) allow_raw_sql: bool,
 }
 
 /// Security context for authenticated Flight requests.

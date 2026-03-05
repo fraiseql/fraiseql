@@ -42,6 +42,7 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql:         false,
         }
     }
 
@@ -82,6 +83,7 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql:         false,
         }
     }
 
@@ -120,6 +122,7 @@ impl FraiseQLFlightService {
             oidc_validator: None,
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql:         false,
         }
     }
 
@@ -166,6 +169,7 @@ impl FraiseQLFlightService {
             oidc_validator: Some(oidc_validator),
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
+            allow_raw_sql:         false,
         }
     }
 
@@ -217,6 +221,17 @@ impl FraiseQLFlightService {
     #[must_use]
     pub fn schema_registry(&self) -> &SchemaRegistry {
         &self.schema_registry
+    }
+
+    /// Enable raw SQL execution via `BatchedQueries` tickets.
+    ///
+    /// **SECURITY WARNING**: Only call this for trusted internal tooling.
+    /// Enabling raw SQL allows authenticated clients to bypass RLS and execute
+    /// arbitrary queries. It is disabled by default.
+    #[must_use]
+    pub fn with_raw_sql_enabled(mut self) -> Self {
+        self.allow_raw_sql = true;
+        self
     }
 
     /// Set the query executor for GraphQL query execution.
@@ -514,8 +529,8 @@ impl FraiseQLFlightService {
             .get(view)
             .map_err(|e| Status::not_found(format!("Schema not found for view {view}: {e}")))?;
 
-        // 2. Build optimized SQL query
-        let sql = build_optimized_sql(view, filter, order_by, limit, offset);
+        // 2. Build optimized SQL query (validates filter/order_by for injection safety).
+        let sql = build_optimized_sql(view, filter, order_by, limit, offset)?;
         info!(
             user_id = %security_context.user_id,
             "Executing optimized view with RLS: {}",
@@ -623,6 +638,15 @@ impl FraiseQLFlightService {
         security_context: &fraiseql_core::security::SecurityContext,
     ) -> std::result::Result<impl Stream<Item = std::result::Result<FlightData, Status>>, Status>
     {
+        // SECURITY: Raw SQL execution is disabled by default.
+        // Clients can supply arbitrary SQL in BatchedQueries tickets, bypassing RLS.
+        // Only allow this if explicitly enabled via `with_raw_sql_enabled()`.
+        if !self.allow_raw_sql {
+            return Err(Status::permission_denied(
+                "BatchedQueries raw SQL execution is disabled. Enable with with_raw_sql_enabled().",
+            ));
+        }
+
         if queries.is_empty() {
             return Err(Status::invalid_argument("BatchedQueries must contain at least one query"));
         }
@@ -801,18 +825,22 @@ impl FraiseQLFlightService {
             "Starting bulk export"
         );
 
+        // SECURITY: Reject raw WHERE clause filters — they allow SQL injection.
+        // Use server-side RLS (SecurityContext) for row filtering instead.
+        if filter.is_some() {
+            return Err(Status::invalid_argument(
+                "BulkExport filter parameter is not supported. Use server-side RLS for row filtering.",
+            ));
+        }
+
         // Get database adapter
         let db_adapter = self.db_adapter.as_ref().ok_or_else(|| {
             Status::failed_precondition("Database adapter not configured - cannot export data")
         })?;
 
-        // Build SQL query
-        let mut sql = format!("SELECT * FROM {}", table);
-
-        if let Some(f) = &filter {
-            sql.push_str(" WHERE ");
-            sql.push_str(f);
-        }
+        // Build SQL query with quoted table identifier to prevent SQL injection.
+        let quoted_table = format!("\"{}\"", table.replace('"', "\"\""));
+        let mut sql = format!("SELECT * FROM {quoted_table}");
 
         if let Some(l) = limit {
             sql.push_str(" LIMIT ");

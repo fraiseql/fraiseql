@@ -81,27 +81,28 @@ pub(crate) fn schema_to_flight_data(
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "va_orders")
-/// * `filter` - Optional WHERE clause
-/// * `order_by` - Optional ORDER BY clause
+/// * `view` - View name (e.g., "va_orders"); quoted as a SQL identifier
+/// * `filter` - Must be `None`; raw WHERE clauses are rejected to prevent SQL injection
+/// * `order_by` - Optional ORDER BY as `"col [ASC|DESC], ..."` (validated, identifiers quoted)
 /// * `limit` - Optional LIMIT
 /// * `offset` - Optional OFFSET
 ///
-/// # Returns
+/// # Errors
 ///
-/// SQL query string
+/// Returns `Status::invalid_argument` if `filter` is `Some` or `order_by` contains
+/// characters outside the safe set `[A-Za-z0-9_]` or directions other than ASC/DESC.
 ///
 /// # Example
 ///
 /// ```ignore
 /// let sql = build_optimized_sql(
 ///     "va_orders",
-///     Some("created_at > '2026-01-01'"),
-///     Some("created_at DESC"),
+///     None,
+///     Some("created_at DESC".to_string()),
 ///     Some(100),
 ///     Some(0)
-/// );
-/// // Returns: "SELECT * FROM va_orders WHERE created_at > '2026-01-01' ORDER BY created_at DESC LIMIT 100 OFFSET 0"
+/// )?;
+/// // Returns: "SELECT * FROM \"va_orders\" ORDER BY \"created_at\" DESC LIMIT 100 OFFSET 0"
 /// ```
 pub(crate) fn build_optimized_sql(
     view: &str,
@@ -109,15 +110,22 @@ pub(crate) fn build_optimized_sql(
     order_by: Option<String>,
     limit: Option<usize>,
     offset: Option<usize>,
-) -> String {
-    let mut sql = format!("SELECT * FROM {view}");
-
-    if let Some(where_clause) = filter {
-        sql.push_str(&format!(" WHERE {where_clause}"));
+) -> Result<String, Status> {
+    // SECURITY: Reject raw WHERE clause filters — they allow SQL injection.
+    // RLS filtering is applied server-side via SecurityContext.
+    if filter.is_some() {
+        return Err(Status::invalid_argument(
+            "OptimizedView filter parameter is not supported. Use server-side RLS for row filtering.",
+        ));
     }
 
+    // Quote view name as a SQL identifier to prevent identifier injection.
+    let quoted_view = format!("\"{}\"", view.replace('"', "\"\""));
+    let mut sql = format!("SELECT * FROM {quoted_view}");
+
     if let Some(order_clause) = order_by {
-        sql.push_str(&format!(" ORDER BY {order_clause}"));
+        let safe_order = build_safe_order_by(&order_clause)?;
+        sql.push_str(&format!(" ORDER BY {safe_order}"));
     }
 
     if let Some(limit_value) = limit {
@@ -128,7 +136,66 @@ pub(crate) fn build_optimized_sql(
         sql.push_str(&format!(" OFFSET {offset_value}"));
     }
 
-    sql
+    Ok(sql)
+}
+
+/// Parse and validate an ORDER BY clause, quoting each column identifier.
+///
+/// Only allows `[A-Za-z_][A-Za-z0-9_]*` column names with optional `ASC` or `DESC`
+/// direction, comma-separated.  Returns `Status::invalid_argument` on any violation.
+fn build_safe_order_by(order_by: &str) -> Result<String, Status> {
+    let mut parts = Vec::new();
+
+    for term in order_by.split(',') {
+        let tokens: Vec<&str> = term.split_whitespace().collect();
+
+        let (col, dir) = match tokens.as_slice() {
+            [col] => (*col, ""),
+            [col, dir] => (*col, *dir),
+            _ => {
+                return Err(Status::invalid_argument(format!(
+                    "Invalid ORDER BY term: '{term}'. Expected 'column [ASC|DESC]'."
+                )));
+            },
+        };
+
+        // Validate column name: must be a simple SQL identifier.
+        if col.is_empty()
+            || !col
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            || !col.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(Status::invalid_argument(format!(
+                "Invalid column name in ORDER BY: '{col}'. Only [A-Za-z_][A-Za-z0-9_]* is allowed."
+            )));
+        }
+
+        // Validate direction.
+        let dir_upper = dir.to_uppercase();
+        match dir_upper.as_str() {
+            "" | "ASC" | "DESC" => {},
+            _ => {
+                return Err(Status::invalid_argument(format!(
+                    "Invalid ORDER BY direction: '{dir}'. Only ASC or DESC is allowed."
+                )));
+            },
+        }
+
+        let quoted_col = format!("\"{}\"", col);
+        if dir_upper.is_empty() {
+            parts.push(quoted_col);
+        } else {
+            parts.push(format!("{quoted_col} {dir_upper}"));
+        }
+    }
+
+    if parts.is_empty() {
+        return Err(Status::invalid_argument("ORDER BY clause must not be empty."));
+    }
+
+    Ok(parts.join(", "))
 }
 
 /// Generate placeholder database rows for development/testing.
