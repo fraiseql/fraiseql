@@ -74,8 +74,10 @@ impl ScramClient {
         // RFC 5802 format: gs2-header client-first-message-bare
         // gs2-header = "n,," (n = no channel binding, empty authorization identity)
         // client-first-message-bare = "n=<username>,r=<nonce>"
-        // Note: "n=" is the username, "a=" would be authorization identity (not supported by PostgreSQL)
-        format!("n,,n={},r={}", self.username, self.nonce)
+        // RFC 5802 §5.1: username must have ',' escaped as '=2C' and '=' escaped as '=3D'.
+        let escaped_username =
+            self.username.replace('=', "=3D").replace(',', "=2C");
+        format!("n,,n={},r={}", escaped_username, self.nonce)
     }
 
     /// Process server first message and generate client final message

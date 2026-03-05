@@ -497,13 +497,22 @@ impl WhereOperator {
             | WhereOperator::IsNull(f, _)
             | WhereOperator::StrictlyContains(f, _) => f.validate(),
 
-            WhereOperator::L2Distance { field, .. }
-            | WhereOperator::CosineDistance { field, .. }
-            | WhereOperator::InnerProduct { field, .. }
-            | WhereOperator::L1Distance { field, .. }
-            | WhereOperator::HammingDistance { field, .. }
-            | WhereOperator::JaccardDistance { field, .. }
-            | WhereOperator::Matches { field, .. }
+            WhereOperator::L2Distance { field, threshold, .. }
+            | WhereOperator::CosineDistance { field, threshold, .. }
+            | WhereOperator::InnerProduct { field, threshold, .. }
+            | WhereOperator::L1Distance { field, threshold, .. }
+            | WhereOperator::HammingDistance { field, threshold, .. }
+            | WhereOperator::JaccardDistance { field, threshold, .. } => {
+                if !threshold.is_finite() {
+                    return Err(format!(
+                        "Vector distance threshold must be a finite number, got {}",
+                        threshold
+                    ));
+                }
+                field.validate()
+            }
+
+            WhereOperator::Matches { field, .. }
             | WhereOperator::PlainQuery { field, .. }
             | WhereOperator::PhraseQuery { field, .. }
             | WhereOperator::WebsearchQuery { field, .. }
