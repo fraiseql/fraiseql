@@ -227,6 +227,8 @@ impl CodeGenerator {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
+            // Embed the current format version so the server can detect compiler/runtime skew.
+            schema_format_version: Some(crate::schema::CURRENT_SCHEMA_FORMAT_VERSION),
             // Custom scalar types registry
             custom_scalars,
         })

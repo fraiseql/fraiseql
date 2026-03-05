@@ -33,6 +33,12 @@ use super::security_config::{InjectedParamSource, RoleDefinition, SecurityConfig
 use super::subscription_types::SubscriptionDefinition;
 use crate::validation::CustomTypeRegistry;
 
+/// Current schema format version.
+///
+/// Increment this constant when the compiled schema JSON format changes in a
+/// backward-incompatible way so that startup rejects stale compiled schemas.
+pub const CURRENT_SCHEMA_FORMAT_VERSION: u32 = 1;
+
 /// Complete compiled schema - all type information for serving.
 ///
 /// This is the central type that holds the entire GraphQL schema
@@ -136,6 +142,13 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config: Option<McpConfig>,
 
+    /// Schema format version emitted by the compiler.
+    ///
+    /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,
+    /// `validate_format_version()` returns an error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_format_version: Option<u32>,
+
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sdl: Option<String>,
@@ -152,7 +165,8 @@ pub struct CompiledSchema {
 impl PartialEq for CompiledSchema {
     fn eq(&self, other: &Self) -> bool {
         // Compare all fields except custom_scalars (runtime state)
-        self.types == other.types
+        self.schema_format_version == other.schema_format_version
+            && self.types == other.types
             && self.enums == other.enums
             && self.input_types == other.input_types
             && self.interfaces == other.interfaces
@@ -179,6 +193,30 @@ impl CompiledSchema {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Verify that the compiled schema was produced by a compatible compiler version.
+    ///
+    /// Schemas without a `schema_format_version` field (produced before v2.1) are
+    /// accepted with a warning. Schemas with a mismatched version are rejected to
+    /// prevent silent data corruption from structural changes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the version is present and incompatible.
+    pub fn validate_format_version(&self) -> Result<(), String> {
+        match self.schema_format_version {
+            None => {
+                // Pre-versioning schema — accept but callers may want to warn.
+                Ok(())
+            },
+            Some(v) if v == CURRENT_SCHEMA_FORMAT_VERSION => Ok(()),
+            Some(v) => Err(format!(
+                "Schema format version mismatch: compiled schema has version {v}, \
+                 but this runtime expects version {CURRENT_SCHEMA_FORMAT_VERSION}. \
+                 Please recompile your schema with the matching fraiseql-cli version."
+            )),
+        }
     }
 
     /// Deserialize from JSON string.

@@ -1,6 +1,6 @@
 [dependencies]
 fraiseql-arrow = {workspace = true, optional = true}
-fraiseql-cli = {workspace = true}
+fraiseql-cli = {workspace = true, optional = true}
 # Core (always included)
 fraiseql-core = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true}
@@ -12,10 +12,10 @@ fraiseql-wire = {workspace = true, optional = true}
 
 [features]
 arrow = ["dep:fraiseql-arrow", "fraiseql-core/arrow", "server"]
-cli = []
+cli = ["dep:fraiseql-cli"]
 default = ["postgres"]
 # Feature bundles
-full = ["server", "observers", "arrow", "wire", "postgres", "mysql", "sqlite"]
+full = ["server", "observers", "arrow", "wire", "postgres", "mysql", "sqlite", "cli"]
 minimal = []
 mysql = ["fraiseql-core/mysql"]
 observers = ["dep:fraiseql-observers", "fraiseql-server?/observers"]
@@ -30,6 +30,7 @@ wire = ["dep:fraiseql-wire", "fraiseql-core/wire-backend"]
 [[bin]]
 name = "fraiseql"
 path = "src/main.rs"
+required-features = ["cli"]
 
 [lints]
 workspace = true

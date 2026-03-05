@@ -24,6 +24,7 @@ use super::field::{Field, Value};
 /// - **LTree**: AncestorOf, DescendantOf, MatchesLquery, MatchesLtxtquery, MatchesAnyLquery,
 ///   DepthEq, DepthNeq, DepthGt, DepthGte, DepthLt, DepthLte, Lca
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum WhereOperator {
     // ============ Comparison Operators ============
     /// Equal: `field = value`

@@ -53,9 +53,9 @@ pub mod security_config;
 mod subscription_types;
 
 pub use compiled::{
-    ArgumentDefinition, AutoParams, CompiledSchema, CursorType, DirectiveDefinition,
-    DirectiveLocationKind, MutationDefinition, MutationOperation, QueryDefinition,
-    is_safe_sql_identifier,
+    ArgumentDefinition, AutoParams, CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION, CursorType,
+    DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
+    QueryDefinition, is_safe_sql_identifier,
 };
 pub use graphql_type_defs::{
     EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
