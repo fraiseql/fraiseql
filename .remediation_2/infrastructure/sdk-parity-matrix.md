@@ -12,6 +12,31 @@ This document is a living record. Update it when:
 
 ---
 
+## Batch 4 Audit Results (2026-03-05)
+
+All 11 official SDK CI workflows were audited. **All run a test runner** —
+none are build-only. Key findings:
+
+| SDK | CI file | Test command | Functional tests | Test file count |
+|-----|---------|-------------|------------------|-----------------|
+| Python | `python-sdk.yml` | `uv run pytest tests -v` | ✅ Yes | 10 test files |
+| TypeScript | `typescript-sdk.yml` | `npm test` (jest) | ✅ Yes | 13 test files |
+| Go | `go-sdk.yml` | `go test -v -race ./...` | ✅ Yes | 8 `*_test.go` files |
+| Java | `java-sdk.yml` | `mvn -B verify` | ✅ Yes (Maven verify runs tests) | Maven standard structure |
+| PHP | `php-sdk.yml` | `vendor/bin/phpunit` | ✅ Yes | 17 test files |
+| Rust | `rust-sdk.yml` | `cargo test --all-features` | ✅ Yes | 3 test files |
+| C# | `csharp-sdk.yml` | `dotnet test --no-build --configuration Release` | ✅ Yes | .NET test project |
+| Ruby | `ruby-sdk.yml` | `bundle exec rspec` | ✅ Yes | RSpec suite |
+| Dart | `dart-sdk.yml` | `dart test` | ✅ Yes | Test directory present |
+| F# | `fsharp-sdk.yml` | `dotnet test --collect:"XPlat Code Coverage"` | ✅ Yes | .NET test project |
+| Elixir | `elixir-sdk.yml` | `mix test` (matrix: Elixir 1.15/1.16/1.17 × OTP 26/27) | ✅ Yes | ExUnit suite + Dialyzer |
+
+**SDK-2 conclusion**: Go SDK was already fixed — CI runs `go test -v -race ./...` with
+8 inline test files covering: completeness, custom scalars, export types, golden schema,
+parity schema, registry, scope extraction, and types.
+
+---
+
 ## Feature Coverage Matrix
 
 For each feature, "✅" means the SDK has a functional test that exercises
@@ -20,26 +45,41 @@ assertion). "❌" means untested. "(skip)" means not applicable.
 
 | Feature | Python | TypeScript | Go | Java | PHP | Rust | C# | Ruby | Dart | F# | Elixir |
 |---------|--------|------------|-----|------|-----|------|-----|------|------|----|--------|
-| `@type` basic | ✅ | (check) | ❌ | (check) | (check) | ✅ | (check) | (check) | (check) | (check) | (check) |
-| `@type` with nested types | ✅ | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@query` with SQL source | ✅ | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@mutation` with invalidates | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@subscription` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `fraiseql.field()` scope | ✅ | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@interface` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@union` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@enum` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@input` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@scalar` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| `@error` | (check) | (check) | ❌ | (check) | (check) | (check) | (check) | (check) | (check) | (check) | (check) |
-| Schema export to JSON | ✅ | (check) | ❌ | (check) | (check) | ✅ | (check) | (check) | (check) | (check) | ✅ |
-| Schema roundtrip (export → CLI compile) | ✅ | (check) | ❌ | ❌ | ❌ | (check) | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Golden schema comparison | ✅ | (check) | ❌ | ❌ | ❌ | (check) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `@type` basic | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+| `@type` with nested types | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@query` with SQL source | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@mutation` with invalidates | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@subscription` | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `fraiseql.field()` scope | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+| `@interface` | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@union` | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@enum` | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@input` | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@scalar` | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| `@error` | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ |
+| Schema export to JSON | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+| Schema roundtrip (export → CLI compile) | ✅ | ⚠️ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Golden schema comparison | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-**Key gaps** (confirmed ❌):
-- Go SDK: zero functional tests
-- Roundtrip test (SDK → CLI compile): only Python and Rust
-- Most SDKs lack golden schema comparison
+**Remaining gaps** in official SDKs (⚠️ = test exists but depth insufficient; ❌ = untested):
+- Java, C#, F#, Ruby, Dart: golden schema comparison and roundtrip missing
+- `@subscription`, `@interface`, `@union`, `@enum`, `@input`, `@error`: only Python, TypeScript, PHP have full test coverage
+
+---
+
+## Community SDK Audit
+
+| SDK | Test files before Batch 4 | Schema roundtrip test added |
+|-----|--------------------------|---------------------------|
+| Clojure | `export_types_test.clj`, `scope_extraction_test.clj` | ✅ `schema_roundtrip_test.clj` |
+| NodeJS | `export-types.test.ts`, `scope-extraction.test.ts` | ✅ `schema-roundtrip.test.ts` |
+| Groovy | `SchemaSpec.groovy`, `Phase18Cycle18ScopeExtractionSpec.groovy` | ✅ `SchemaRoundtripSpec.groovy` |
+| Kotlin | `ExportTypesTest.kt`, `Phase18Cycle12ScopeExtractionTest.kt` | ✅ `SchemaRoundtripTest.kt` |
+| Scala | `ExportTypesSpec.scala`, `Phase18Cycle17ScopeExtractionSpec.scala` | ✅ `SchemaRoundtripSpec.scala` |
+| Swift | `ExportTypesTests.swift`, `Phase18Cycle19ScopeExtractionTests.swift` | ✅ `SchemaRoundtripTests.swift` |
+| Elixir | `export_types_test.exs`, `scope_extraction_test.exs` | archived (DEPRECATED) |
+| Dart | `export_types_test.dart`, `scope_extraction_test.dart` | archived (DEPRECATED) |
+| Ruby | see official SDK | see official SDK |
 
 ---
 
@@ -57,8 +97,8 @@ it must have:
 5. **Roundtrip test** (recommended) — exported schema passes `fraiseql-cli compile`
    without validation errors
 
-Current official SDKs that do not meet this bar: Go (confirmed), others TBD
-from Batch 4 audit.
+Current official SDKs that fully meet this bar: Python, TypeScript, Go, Rust.
+SDKs that meet the CI gate but lack golden/roundtrip: Java, PHP, C#, Ruby, Dart, F#, Elixir.
 
 ---
 
@@ -75,10 +115,15 @@ must happen before the feature is documented as available:
 
 ---
 
-## Update Process
+## Duplication Resolution (SDK-4)
 
-After completing the Batch 4 SDK audit, fill in all "(check)" cells above
-based on actual test file inspection. Replace "(check)" with ✅, ⚠️, or ❌.
+Both Elixir and Dart appeared in `sdks/official/` and `sdks/community/`.
+Resolution:
 
-Then create GitHub issues for each ❌ in the official SDK rows, labelled
-`sdk-parity` and assigned to the SDK maintainer.
+| SDK | Authoritative | Archived |
+|-----|--------------|---------|
+| Elixir | `sdks/official/fraiseql-elixir/` | `sdks/community/fraiseql-elixir/` → `sdks/archived/` |
+| Dart | `sdks/official/fraiseql-dart/` | `sdks/community/fraiseql-dart/` → `sdks/archived/` |
+
+The community versions had `DEPRECATED.md` files explaining migration to
+the official HTTP-based approach for v2.

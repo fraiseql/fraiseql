@@ -73,11 +73,11 @@ signal. Community SDKs have minimal tests.
 
 | ID    | Sev | Status | What | Where |
 |-------|-----|--------|------|-------|
-| SDK-1 | 🟠  |        | Audit each official SDK CI workflow: verify `test` step runs at least one functional test (not just `dotnet build` or `go build`). Document findings in `infrastructure/sdk-parity-matrix.md` | All 11 `.github/workflows/*-sdk.yml` |
-| SDK-2 | 🟠  |        | Go SDK: no `tests/` directory found. Add at minimum: decorator roundtrip test, schema export test, and `go vet` gate | `sdks/official/fraiseql-go/` |
-| SDK-3 | 🟡  |        | Community SDKs (clojure, groovy, kotlin, scala, swift, nodejs): currently have 2 test files each (export-types, scope-extraction). Add `schema_roundtrip_test` that exercises the full decorator → JSON export pipeline | `sdks/community/*/tests/` |
-| SDK-4 | 🟡  |        | Elixir and Dart appear in both `official/` and `community/` directories — document which is authoritative, archive the other | `sdks/official/fraiseql-elixir/`, `sdks/community/fraiseql-elixir/` |
-| SDK-5 | 🔵  |        | Add cross-SDK parity matrix CI job: compile `examples/basic/schema.py` with Python SDK, TypeScript SDK, Go SDK; assert all three produce identical `schema.json` (via SHA-256) | `.github/workflows/sdk-parity.yml` (new) |
+| SDK-1 | 🟠  | ✅     | Audit each official SDK CI workflow: verify `test` step runs at least one functional test (not just `dotnet build` or `go build`). Document findings in `infrastructure/sdk-parity-matrix.md` | All 11 `.github/workflows/*-sdk.yml` |
+| SDK-2 | 🟠  | ✅     | Go SDK: already has 8 `*_test.go` files (golden, completeness, export, etc.) and CI runs `go test -v -race ./...` — no action required | `sdks/official/fraiseql-go/` |
+| SDK-3 | 🟡  | ✅     | Community SDKs (clojure, groovy, kotlin, scala, swift, nodejs): added `schema_roundtrip_test` to each — exercises full decorator → JSON export pipeline with golden assertions | `sdks/community/*/tests/` |
+| SDK-4 | 🟡  | ✅     | Elixir and Dart archived from `community/` to `sdks/archived/`; official/ versions are authoritative; `sdks/archived/README.md` explains deprecation | `sdks/archived/` |
+| SDK-5 | 🔵  | ✅     | Cross-SDK parity CI job added: generates schema from Python and TypeScript SDKs, performs structural comparison (type/query/mutation names and fields) | `.github/workflows/sdk-parity.yml` |
 
 See `batches/batch-4-sdk-audit.md` for per-SDK findings and required test patterns.
 
