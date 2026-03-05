@@ -59,6 +59,15 @@ pub struct NatsConfig {
 
     /// `JetStream` retention policy: max bytes
     pub retention_max_bytes: i64,
+
+    /// Subject for dead-letter queue messages.
+    ///
+    /// When set, messages that cannot be deserialized are published to this NATS subject
+    /// before being ACK-ed. Operators can subscribe to this subject to inspect or replay
+    /// malformed payloads. If `None`, undecodable messages are only counted and logged.
+    ///
+    /// Example: `"entity.change.dead-letter"`.
+    pub dead_letter_subject: Option<String>,
 }
 
 impl Default for NatsConfig {
@@ -73,6 +82,7 @@ impl Default for NatsConfig {
             ack_wait_secs:          30,
             retention_max_messages: 1_000_000,
             retention_max_bytes:    1_073_741_824, // 1 GB
+            dead_letter_subject:    None,
         }
     }
 }
@@ -263,11 +273,16 @@ impl EventTransport for NatsTransport {
         let filter_operation = Arc::new(filter.operation.clone());
         let filter_tenant_id = Arc::new(filter.tenant_id.clone());
         let undecodable_count = Arc::clone(&self.undecodable_count);
+        let dead_letter_subject = Arc::new(self.config.dead_letter_subject.clone());
+        let dlq_client = Arc::clone(&self.client);
 
         // Convert JetStream messages to Result<EntityEvent>
         let event_stream = messages.filter_map(move |msg_result| {
             let filter_op = Arc::clone(&filter_operation);
             let filter_tenant = Arc::clone(&filter_tenant_id);
+            let dlq_subject = Arc::clone(&dead_letter_subject);
+            let dlq_client = Arc::clone(&dlq_client);
+            let undecodable_count = Arc::clone(&undecodable_count);
 
             async move {
                 match msg_result {
@@ -329,6 +344,27 @@ impl EventTransport for NatsTransport {
                                     "NATS message failed to decode — ACKing to prevent \
                                      redelivery; check undecodable_count metric for drift"
                                 );
+
+                                // Publish raw payload to dead-letter queue if configured.
+                                if let Some(ref subject) = dlq_subject.as_ref() {
+                                    if let Err(dlq_err) = dlq_client
+                                        .publish(subject.clone(), msg.payload.clone())
+                                        .await
+                                    {
+                                        tracing::error!(
+                                            error = %dlq_err,
+                                            dead_letter_subject = %subject,
+                                            "Failed to publish undecodable message to dead-letter queue"
+                                        );
+                                    } else {
+                                        tracing::warn!(
+                                            dead_letter_subject = %subject,
+                                            undecodable_total = total,
+                                            "Undecodable NATS message forwarded to dead-letter queue"
+                                        );
+                                    }
+                                }
+
                                 // ACK to prevent infinite redelivery loop.
                                 if let Err(ack_err) = msg.ack().await {
                                     tracing::error!(
