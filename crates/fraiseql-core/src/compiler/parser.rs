@@ -135,8 +135,8 @@ impl SchemaParser {
 
         // Warn about unsupported fragments feature
         if obj.contains_key("fragments") {
-            eprintln!(
-                "Warning: 'fragments' feature in schema is not yet supported and will be ignored"
+            tracing::warn!(
+                "'fragments' feature in schema is not yet supported and will be ignored"
             );
         }
 

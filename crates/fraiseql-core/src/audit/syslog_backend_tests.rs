@@ -584,7 +584,11 @@ async fn test_syslog_e2e_all_statuses() {
 }
 
 /// Test builder pattern fluency
+///
+/// Ignored by default: requires a reachable syslog server at `syslog.example.com:514`.
+/// Run with `cargo test -- --ignored` in an environment with network access.
 #[tokio::test]
+#[ignore = "requires network: UDP send to syslog.example.com:514"]
 async fn test_syslog_builder_pattern() {
     let backend = SyslogAuditBackend::new("syslog.example.com", 514)
         .with_facility(SyslogFacility::Local5)
