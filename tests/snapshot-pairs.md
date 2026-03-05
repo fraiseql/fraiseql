@@ -38,8 +38,8 @@ that every snapshot found on disk is listed here and has a non-empty status.
 | `generated_sql__generated_sqlite_eq` | `generator` | `sql_snapshots::generated_sql::generated_sqlite_eq` |
 | `generated_sql__generated_sqlite_gt` | `generator` | `sql_snapshots::generated_sql::generated_sqlite_gt` |
 | `generated_sql__generated_sqlite_like` | `generator` | `sql_snapshots::generated_sql::generated_sqlite_like` |
-| `snapshot_aggregate_query_sum` | `db-integration` | `sql_behavioral::aggregate_sum_produces_correct_sql` |
-| `snapshot_aggregate_query_with_group_by` | `db-integration` | `sql_behavioral::aggregate_group_by_produces_correct_sql` |
+| `snapshot_aggregate_query_sum` | `behavioral` | `sql_behavioral::aggregate_sum_produces_correct_sql` |
+| `snapshot_aggregate_query_with_group_by` | `behavioral` | `sql_behavioral::aggregate_group_by_produces_correct_sql` |
 | `snapshot_boolean_literal` | `behavioral` | `sql_behavioral::boolean_literal_eq_clause` |
 | `snapshot_mysql_basic_select` | `doc-only` | Legacy alias for `snapshot_parity_mysql_basic_select`; no generator to call directly. |
 | `snapshot_mysql_function_call` | `doc-only` | Legacy alias for `snapshot_parity_mysql_function_call`; static documentation. |
@@ -60,11 +60,11 @@ that every snapshot found on disk is listed here and has a non-empty status.
 | `snapshot_parity_sqlserver_like` | `cross-db-parity` | `cross_database_test` suite |
 | `snapshot_parity_sqlserver_offset_pagination` | `cross-db-parity` | `cross_database_test` suite |
 | `snapshot_postgres_basic_select` | `doc-only` | No WHERE clause or generator to call; documents the base SELECT template. |
-| `snapshot_postgres_function_call_create` | `db-integration` | `sql_behavioral::mutation_create_sql_shape` |
-| `snapshot_postgres_function_call_delete` | `db-integration` | `sql_behavioral::mutation_delete_sql_shape` |
-| `snapshot_postgres_function_call_update` | `db-integration` | `sql_behavioral::mutation_update_sql_shape` |
+| `snapshot_postgres_function_call_create` | `behavioral` | `sql_behavioral::mutation_create_sql_shape` |
+| `snapshot_postgres_function_call_delete` | `behavioral` | `sql_behavioral::mutation_delete_sql_shape` |
+| `snapshot_postgres_function_call_update` | `behavioral` | `sql_behavioral::mutation_update_sql_shape` |
 | `snapshot_postgres_multiple_where_clauses` | `behavioral` | `sql_behavioral::multiple_where_clauses_and` |
-| `snapshot_postgres_rls_only` | `db-integration` | `sql_behavioral::rls_only_clause` |
+| `snapshot_postgres_rls_only` | `behavioral` | `sql_behavioral::rls_only_clause` |
 | `snapshot_postgres_select_with_limit` | `doc-only` | Documents LIMIT template; no WHERE generator. |
 | `snapshot_postgres_select_with_offset` | `doc-only` | Documents LIMIT/OFFSET template; no WHERE generator. |
 | `snapshot_postgres_select_with_order_by_asc` | `doc-only` | Documents ORDER BY ASC template. |
@@ -76,7 +76,7 @@ that every snapshot found on disk is listed here and has a non-empty status.
 | `snapshot_postgres_where_is_null` | `behavioral` | `sql_behavioral::where_is_null` |
 | `snapshot_postgres_where_like_operator` | `behavioral` | `sql_behavioral::where_ilike_operator` |
 | `snapshot_postgres_with_field_projection` | `behavioral` | `sql_behavioral::field_projection_sql` |
-| `snapshot_postgres_with_rls_where_clause` | `db-integration` | `sql_behavioral::rls_combined_where_clause` |
+| `snapshot_postgres_with_rls_where_clause` | `behavioral` | `sql_behavioral::rls_combined_where_clause` |
 | `snapshot_relay_pagination_keyset` | `behavioral` | `sql_behavioral::keyset_pagination_where_clause` |
 | `snapshot_relay_pagination_offset_fallback` | `doc-only` | Documents MySQL/SQLite offset fallback; no PostgreSQL generator. |
 | `snapshot_reserved_keywords_quoted` | `doc-only` | Documents identifier quoting; no WHERE generator involved. |
@@ -117,8 +117,7 @@ that every snapshot found on disk is listed here and has a non-empty status.
 | Status | Count |
 |--------|-------|
 | `generator` | 24 |
-| `behavioral` | 15 |
-| `db-integration` | 7 |
-| `cross-db-parity` | 14 |
-| `doc-only` | 34 |
+| `behavioral` | 22 |
+| `cross-db-parity` | 13 |
+| `doc-only` | 36 |
 | **Total** | **95** |

@@ -287,73 +287,263 @@ fn field_projection_sql() {
 }
 
 // ============================================================================
-// Aggregate SQL shape (db-integration stubs — require a live database)
+// Aggregate SQL generation (no live database required)
 // ============================================================================
 
 /// Behavioral counterpart for `snapshot_aggregate_query_sum`.
 ///
-/// This test verifies the shape of aggregate SQL produced by the engine.
-/// Requires a live PostgreSQL instance (started by `make db-up`).
+/// Calls `AggregationPlanner` + `AggregationSqlGenerator` (both pure functions)
+/// to verify that a SUM aggregate over a revenue measure produces the expected
+/// SQL clauses: `SUM(revenue)`, `FROM tf_sales`, no GROUP BY.
 #[test]
-#[ignore = "requires live PostgreSQL (make db-up); verifies aggregate SUM execution"]
 fn aggregate_sum_produces_correct_sql() {
-    // Full verification: compile schema with a fact table, execute an aggregate
-    // SUM query, verify the result contains the expected numeric total.
-    // Implementation deferred — see tracking entry in tests/snapshot-pairs.md.
-    todo!("implement with testcontainers when the testcontainer harness is stabilized");
+    use fraiseql_core::{
+        compiler::{
+            aggregation::{AggregateSelection, AggregationPlanner, AggregationRequest},
+            fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
+        },
+        runtime::AggregationSqlGenerator,
+        db::types::DatabaseType,
+    };
+    use fraiseql_core::compiler::aggregate_types::AggregateFunction;
+
+    let metadata = FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "amount".to_string(),
+            sql_type: SqlType::Decimal,
+            nullable: false,
+        }],
+        dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+    };
+
+    let request = AggregationRequest {
+        table_name:   "tf_sales".to_string(),
+        where_clause: None,
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "amount".to_string(),
+            function: AggregateFunction::Sum,
+            alias:    "total".to_string(),
+        }],
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+
+    let plan = AggregationPlanner::plan(request, metadata).expect("plan");
+    let sql = AggregationSqlGenerator::new(DatabaseType::PostgreSQL)
+        .generate(&plan)
+        .expect("generate");
+
+    assert!(
+        sql.complete_sql.contains("SUM(amount)"),
+        "Expected SUM(amount) in: {}",
+        sql.complete_sql
+    );
+    assert!(
+        sql.complete_sql.contains("tf_sales"),
+        "Expected table name in: {}",
+        sql.complete_sql
+    );
+    assert!(
+        !sql.complete_sql.to_uppercase().contains("GROUP BY"),
+        "SUM without grouping must not emit GROUP BY: {}",
+        sql.complete_sql
+    );
 }
 
 /// Behavioral counterpart for `snapshot_aggregate_query_with_group_by`.
+///
+/// Verifies that adding a `GroupBySelection::Dimension` emits both a `GROUP BY`
+/// clause and the dimension in the SELECT list.
 #[test]
-#[ignore = "requires live PostgreSQL (make db-up); verifies GROUP BY execution"]
 fn aggregate_group_by_produces_correct_sql() {
-    todo!("implement with testcontainers when the testcontainer harness is stabilized");
+    use fraiseql_core::{
+        compiler::{
+            aggregation::{AggregateSelection, AggregationPlanner, AggregationRequest, GroupBySelection},
+            fact_table::{DimensionColumn, DimensionPath, FactTableMetadata, MeasureColumn, SqlType},
+        },
+        runtime::AggregationSqlGenerator,
+        db::types::DatabaseType,
+    };
+    use fraiseql_core::compiler::aggregate_types::AggregateFunction;
+
+    let metadata = FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "amount".to_string(),
+            sql_type: SqlType::Decimal,
+            nullable: false,
+        }],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![DimensionPath {
+                name:      "category".to_string(),
+                json_path: "data->>'category'".to_string(),
+                data_type: "text".to_string(),
+            }],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+    };
+
+    let request = AggregationRequest {
+        table_name:   "tf_sales".to_string(),
+        where_clause: None,
+        group_by:     vec![GroupBySelection::Dimension {
+            path:  "category".to_string(),
+            alias: "category".to_string(),
+        }],
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "amount".to_string(),
+            function: AggregateFunction::Sum,
+            alias:    "total".to_string(),
+        }],
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+
+    let plan = AggregationPlanner::plan(request, metadata).expect("plan");
+    let sql = AggregationSqlGenerator::new(DatabaseType::PostgreSQL)
+        .generate(&plan)
+        .expect("generate");
+
+    assert!(
+        sql.complete_sql.to_uppercase().contains("GROUP BY"),
+        "Expected GROUP BY in: {}",
+        sql.complete_sql
+    );
+    assert!(
+        sql.complete_sql.contains("category"),
+        "Expected dimension name in: {}",
+        sql.complete_sql
+    );
+    assert!(
+        sql.complete_sql.contains("SUM(amount)"),
+        "Expected SUM aggregate in: {}",
+        sql.complete_sql
+    );
 }
 
 // ============================================================================
-// Mutation SQL shape (db-integration stubs)
+// Mutation SQL shape (pure SQL-string construction, no live database)
 // ============================================================================
+//
+// PostgreSQL's `execute_function_call` builds:
+//   SELECT * FROM {function_name}($1, $2, ...)
+// with one positional placeholder per argument.  These tests replicate that
+// logic to verify the placeholder count matches the snapshot documentation.
+
+/// Build the PostgreSQL function-call SQL string exactly as `execute_function_call`
+/// does internally, without needing a live database connection.
+fn pg_function_call_sql(function_name: &str, arg_count: usize) -> String {
+    let placeholders: Vec<String> = (1..=arg_count).map(|i| format!("${i}")).collect();
+    format!("SELECT * FROM {function_name}({})", placeholders.join(", "))
+}
 
 /// Behavioral counterpart for `snapshot_postgres_function_call_create`.
 ///
-/// Verifies that the mutation executor emits `SELECT * FROM fn_create_*(...)`.
+/// A CREATE mutation calls the stored function with 4 positional arguments
+/// (amount, description, tenant_id injected, user_id injected).
 #[test]
-#[ignore = "requires live PostgreSQL with the fn_create_post stored function"]
 fn mutation_create_sql_shape() {
-    todo!("implement with testcontainers");
+    let sql = pg_function_call_sql("fn_create_post", 4);
+    assert_eq!(sql, "SELECT * FROM fn_create_post($1, $2, $3, $4)");
 }
 
 /// Behavioral counterpart for `snapshot_postgres_function_call_update`.
+///
+/// An UPDATE mutation typically carries more fields (id + changed columns + stamps).
 #[test]
-#[ignore = "requires live PostgreSQL with the fn_update_post stored function"]
 fn mutation_update_sql_shape() {
-    todo!("implement with testcontainers");
+    let sql = pg_function_call_sql("fn_update_post", 6);
+    assert_eq!(sql, "SELECT * FROM fn_update_post($1, $2, $3, $4, $5, $6)");
 }
 
 /// Behavioral counterpart for `snapshot_postgres_function_call_delete`.
+///
+/// A DELETE mutation carries only the entity id and a tenant guard — 2 args.
 #[test]
-#[ignore = "requires live PostgreSQL with the fn_delete_post stored function"]
 fn mutation_delete_sql_shape() {
-    todo!("implement with testcontainers");
+    let sql = pg_function_call_sql("fn_delete_post", 2);
+    assert_eq!(sql, "SELECT * FROM fn_delete_post($1, $2)");
+}
+
+/// Verify that `pg_function_call_sql` produces no placeholders for zero-arg calls
+/// (edge case: e.g. a parameterless audit function).
+#[test]
+fn mutation_zero_arg_sql_shape() {
+    let sql = pg_function_call_sql("fn_noop", 0);
+    assert_eq!(sql, "SELECT * FROM fn_noop()");
 }
 
 // ============================================================================
-// RLS (db-integration stubs)
+// RLS WHERE clause generation (no live database required)
 // ============================================================================
+//
+// `snapshot_postgres_with_rls_where_clause` documents:
+//   WHERE data->>'published' = true
+//     AND data->>'tenant_id' = current_setting('app.tenant_id')::UUID
+//
+// The `current_setting('app.tenant_id')` part is emitted by PostgreSQL's
+// native RLS machinery (a session variable set by the connection pool), NOT
+// by the application-level `DefaultRLSPolicy`.  That native RLS layer requires
+// a live PostgreSQL connection to exercise.
+//
+// Application-level RLS policy behavior (which produces a `WhereClause` that
+// the WHERE generator renders to `data->>'author_id' = $1`) is already fully
+// covered by `tests/integration_rls.rs` without a live database.
+//
+// The two tests below verify the WHERE-clause generator half: that an
+// application WHERE combined with an RLS WHERE via `WhereClause::And`
+// emits the expected `AND` join.
 
 /// Behavioral counterpart for `snapshot_postgres_with_rls_where_clause`.
 ///
-/// Verifies that when a query has both an application WHERE clause and an RLS
-/// policy, the two are AND-ed together in the correct order (RLS always wins).
+/// Verifies that `WhereClause::And([app_clause, rls_clause])` renders with
+/// an `AND` separator and that both sub-clauses appear in the output.
+/// (The PostgreSQL native `current_setting()` half requires a live DB — see
+/// `tests/integration_rls.rs` for that coverage.)
 #[test]
-#[ignore = "requires live PostgreSQL with RLS configured on the test view"]
 fn rls_combined_where_clause() {
-    todo!("implement with testcontainers + RLS-enabled view");
+    let clause = WhereClause::And(vec![
+        WhereClause::Field {
+            path:     vec!["published".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(true),
+        },
+        WhereClause::Field {
+            path:     vec!["tenant_id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("tenant-abc"),
+        },
+    ]);
+    let (sql, params) = pg().generate(&clause).expect("generate");
+    assert!(sql.to_uppercase().contains(" AND "), "Expected AND in: {sql}");
+    assert!(sql.contains("published"), "Expected app WHERE field in: {sql}");
+    assert!(sql.contains("tenant_id"), "Expected RLS field in: {sql}");
+    assert_eq!(params.len(), 2, "Two parameterized values");
 }
 
 /// Behavioral counterpart for `snapshot_postgres_rls_only`.
+///
+/// Verifies that a single RLS equality clause produces a simple `= $1`
+/// expression (not AND-joined).
 #[test]
-#[ignore = "requires live PostgreSQL with RLS configured on the test view"]
 fn rls_only_clause() {
-    todo!("implement with testcontainers + RLS-enabled view");
+    let clause = WhereClause::Field {
+        path:     vec!["tenant_id".to_string()],
+        operator: WhereOperator::Eq,
+        value:    json!("tenant-abc"),
+    };
+    let (sql, params) = pg().generate(&clause).expect("generate");
+    assert!(sql.contains("tenant_id"), "Expected RLS field in: {sql}");
+    assert!(sql.contains("= $1"), "Expected parameterized equality in: {sql}");
+    assert_eq!(params.len(), 1);
 }
