@@ -464,7 +464,17 @@ execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
   - Structured logging for compliance tooling
 - **Error Sanitization**: Hide implementation details from error messages
 - **Rate Limiting on Auth Endpoints**: Brute-force protection with configurable thresholds
-- **RBAC Database Schema**: Role-based access control with permission system
+- **RBAC Management API**: Role-based access control with a built-in REST management API
+  - Endpoints: `POST /api/rbac/roles`, `GET /api/rbac/roles`, `POST /api/rbac/permissions`,
+    `GET /api/rbac/permissions`, `POST /api/rbac/assignments`, `GET /api/rbac/assignments`
+  - **Authentication**: All RBAC endpoints require admin-level authentication. Requests without
+    valid credentials receive `401 Unauthorized`. The OIDC middleware must be configured and the
+    principal must hold a scope that grants admin access (default: `fraiseql:admin`).
+  - **Schema initialization**: `RbacDbBackend::ensure_schema()` is called automatically at
+    server startup; no manual migration is required.
+  - **Tenant isolation**: All RBAC tables include a `tenant_id` column. Every query is
+    scoped to the authenticated tenant; cross-tenant access is blocked at the query level.
+    Multi-tenant deployments share a single schema; row-level security enforces isolation.
 - **Multi-Tenant Isolation**: Per-tenant data scoping with strict isolation
 
 ---

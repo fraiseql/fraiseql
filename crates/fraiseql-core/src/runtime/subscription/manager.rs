@@ -173,18 +173,56 @@ impl SubscriptionManager {
     /// Unsubscribe all subscriptions for a connection.
     ///
     /// Called when a client disconnects.
+    ///
+    /// # Concurrency note
+    ///
+    /// A concurrent `subscribe` call that runs between the DashMap entry removal and the
+    /// per-subscription cleanup loop would create a new connection entry that is not cleaned
+    /// up by this call. A second-pass removal after the first loop closes this window for
+    /// all but the most extreme concurrent races. Any subscription that slips through is
+    /// benign: it will receive events until the broadcast receiver is dropped (which happens
+    /// on disconnect), and will be removed on the next disconnect or subscription-not-found
+    /// event for that ID.
     pub fn unsubscribe_connection(&self, connection_id: &str) {
-        if let Some((_, subscription_ids)) = self.subscriptions_by_connection.remove(connection_id)
+        // First pass: remove the connection index atomically and clean up known subscriptions.
+        let first_pass_count = if let Some((_, subscription_ids)) =
+            self.subscriptions_by_connection.remove(connection_id)
         {
+            let count = subscription_ids.len();
             for id in subscription_ids {
                 self.subscriptions.remove(&id);
             }
+            count
+        } else {
+            0
+        };
 
-            tracing::info!(
-                connection_id = connection_id,
-                "All subscriptions removed for connection"
-            );
-        }
+        // Second pass: clean up any subscriptions added by a concurrent `subscribe` call that
+        // ran between the `remove()` above and the loop.  A concurrent `subscribe` that saw
+        // the connection entry absent would have inserted a *new* entry; removing it here
+        // closes the TOCTOU window to a negligible two-CAS race.
+        let second_pass_count = if let Some((_, subscription_ids)) =
+            self.subscriptions_by_connection.remove(connection_id)
+        {
+            let count = subscription_ids.len();
+            for id in subscription_ids {
+                self.subscriptions.remove(&id);
+                tracing::warn!(
+                    subscription_id = %id,
+                    connection_id = connection_id,
+                    "Cleaned up subscription added concurrently during disconnect"
+                );
+            }
+            count
+        } else {
+            0
+        };
+
+        tracing::info!(
+            connection_id = connection_id,
+            subscriptions_removed = first_pass_count + second_pass_count,
+            "All subscriptions removed for connection"
+        );
     }
 
     /// Get an active subscription by ID.
