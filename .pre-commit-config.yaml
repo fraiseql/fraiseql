@@ -52,6 +52,17 @@ repos:
       - id: markdownlint
         args: [--fix]
 
+  # Snapshot pairing policy
+  - repo: local
+    hooks:
+      - id: check-snapshot-pairing
+        name: check snapshot pairing
+        description: Every .snap file must be registered in tests/snapshot-pairs.md
+        entry: ./tools/check-snapshot-pairing.sh
+        language: script
+        pass_filenames: false
+        files: ^(crates/fraiseql-core/tests/snapshots/|tests/snapshot-pairs\.md)
+
   # Security check
   - repo: local
     hooks:

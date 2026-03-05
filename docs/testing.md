@@ -57,6 +57,28 @@ git commit -m "test(sql): update SQL snapshots after compiler change"
 **Important**: Review every changed snapshot to verify the new SQL is correct,
 not just different.
 
+#### Snapshot Pairing Policy
+
+Every snapshot in `crates/fraiseql-core/tests/snapshots/` must be registered in
+`tests/snapshot-pairs.md` and must have one of the following coverage statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `generator` | The snapshot is produced by calling a real generator (e.g. `PostgresWhereGenerator`) in the snapshot test itself. Changes to the generator will cause the test to fail, providing true regression protection. |
+| `behavioral` | A separate test in `tests/sql_behavioral.rs` calls the same generator with identical inputs and asserts `==` (not a snapshot). Best for WHERE-clause operators and projection logic. |
+| `db-integration` | The snapshot's correctness is verified by a `#[ignore]` integration test that executes against a real database. Required for mutations, RLS, and aggregate queries. |
+| `cross-db-parity` | Covered by `cross_database_test.rs` — the identical logical query is executed on ≥2 databases and results are compared. |
+| `doc-only` | Pure documentation snapshot (e.g. basic SELECT without WHERE). No generator to call; the snapshot serves as a spec, not a regression test. Must include a comment explaining why. |
+
+**A snapshot may never be left unregistered.** The `tools/check-snapshot-pairing.sh`
+script (run as a pre-commit hook) enforces this. When you add a new snapshot, register it:
+
+```bash
+# 1. Add entry to tests/snapshot-pairs.md
+# 2. Confirm the pairing script passes
+./tools/check-snapshot-pairing.sh
+```
+
 ---
 
 ### 3. Behavioral Integration Tests
