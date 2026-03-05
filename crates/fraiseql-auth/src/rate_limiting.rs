@@ -92,23 +92,25 @@ pub struct KeyedRateLimiter {
 
 /// Default clock that reads wall-clock time.
 ///
-/// On system time error, returns `u64::MAX` (fail-open): see
-/// [`KeyedRateLimiter`] documentation for the security rationale.
+/// On system time error, returns `0` (fail-closed): a timestamp of `0` is
+/// before any real `window_start`, so existing windows will not expire and
+/// rate limiting continues to be enforced with existing counters. New windows
+/// started while the clock is broken will have `window_start = 0`; when the
+/// clock recovers, those windows will immediately expire (since any real
+/// timestamp ≥ 0 + `window_secs`) and reset naturally.
 fn system_clock() -> u64 {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(duration) => duration.as_secs(),
         Err(e) => {
-            // CRITICAL: System time error — fail-safe to allow requests during time issues.
-            // u64::MAX causes the window-expiry check to always be true (overflow wraps),
-            // so every request resets the window and is allowed through.
-            // Once system time is fixed, normal rate limiting resumes.
-            eprintln!(
-                "CRITICAL: System time error in rate limiter: {}. \
-                 Rate limiting is temporarily disabled. \
-                 System clock may have moved backward or time source is unavailable.",
-                e
+            tracing::warn!(
+                error = %e,
+                "System time error in rate limiter — brute-force protection \
+                 continues using frozen timestamps. System clock may have moved \
+                 backward or time source is unavailable."
             );
-            u64::MAX
+            // Return 0 (not u64::MAX): existing windows will not expire,
+            // so rate limiting remains enforced during the clock failure.
+            0
         },
     }
 }
