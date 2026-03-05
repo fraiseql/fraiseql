@@ -52,6 +52,7 @@ impl SignatureVerifier for HmacSha256Verifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
@@ -104,6 +105,7 @@ impl SignatureVerifier for HmacSha1Verifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
@@ -130,7 +132,7 @@ mod tests {
         mac.update(payload);
         let signature = hex::encode(mac.finalize().into_bytes());
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
@@ -143,6 +145,6 @@ mod tests {
         mac.update(payload);
         let signature = hex::encode(mac.finalize().into_bytes());
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 }

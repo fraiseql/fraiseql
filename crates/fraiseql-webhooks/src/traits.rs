@@ -25,6 +25,7 @@ pub trait SignatureVerifier: Send + Sync {
     /// * `signature` - Signature from header
     /// * `secret` - Webhook signing secret
     /// * `timestamp` - Optional timestamp from headers (for replay protection)
+    /// * `url` - Full request URL (required by Twilio; ignored by most providers)
     ///
     /// # Returns
     ///
@@ -35,6 +36,7 @@ pub trait SignatureVerifier: Send + Sync {
         signature: &str,
         secret: &str,
         timestamp: Option<&str>,
+        url: Option<&str>,
     ) -> std::result::Result<bool, SignatureError>;
 
     /// Optional: Extract timestamp from signature or headers

@@ -67,6 +67,7 @@ pub mod mocks {
             signature: &str,
             _secret: &str,
             _timestamp: Option<&str>,
+            _url: Option<&str>,
         ) -> std::result::Result<bool, SignatureError> {
             self.calls.lock().unwrap().push(MockVerifyCall {
                 payload:   payload.to_vec(),

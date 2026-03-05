@@ -3,10 +3,15 @@
 //! Discord uses Ed25519 signatures. The public key is provided by Discord
 //! in the developer portal. The signature is sent in the X-Signature-Ed25519
 //! header, with the timestamp in X-Signature-Timestamp.
+//!
+//! Timestamps older than 5 minutes are rejected to prevent replay attacks.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 use crate::{signature::SignatureError, traits::SignatureVerifier};
+
+/// Maximum age of a Discord webhook timestamp before it is considered a replay.
+const MAX_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
 
 pub struct DiscordVerifier;
 
@@ -25,8 +30,19 @@ impl SignatureVerifier for DiscordVerifier {
         signature: &str,
         secret: &str,
         timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
+
+        // SECURITY: Reject replayed requests by checking timestamp freshness.
+        // Discord timestamps are Unix seconds as decimal strings.
+        let ts_secs: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
+        let now: i64 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(i64::MAX, |d| d.as_secs() as i64);
+        if (now - ts_secs).abs() > MAX_TIMESTAMP_AGE_SECS {
+            return Err(SignatureError::TimestampExpired);
+        }
 
         // Decode the hex-encoded public key from secret
         let pk_bytes = hex::decode(secret)
@@ -47,5 +63,48 @@ impl SignatureVerifier for DiscordVerifier {
         message.extend_from_slice(payload);
 
         Ok(public_key.verify(&message, &sig).is_ok())
+    }
+}
+
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fresh_timestamp() -> String {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string()
+    }
+
+    #[test]
+    fn test_missing_timestamp() {
+        let verifier = DiscordVerifier;
+        let result = verifier.verify(b"test", "abc", "deadbeef", None, None);
+        assert!(matches!(result, Err(SignatureError::MissingTimestamp)));
+    }
+
+    #[test]
+    fn test_expired_timestamp_rejected() {
+        let verifier = DiscordVerifier;
+        let old_ts = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            - 600)
+            .to_string();
+        // Even with a valid signature format, an old timestamp should be rejected.
+        let result = verifier.verify(b"payload", "deadbeef", "deadbeef", Some(&old_ts), None);
+        assert!(matches!(result, Err(SignatureError::TimestampExpired)));
+    }
+
+    #[test]
+    fn test_invalid_public_key_hex() {
+        let verifier = DiscordVerifier;
+        let ts = fresh_timestamp();
+        let result = verifier.verify(b"test", "abc123", "not-hex!", Some(&ts), None);
+        assert!(matches!(result, Err(SignatureError::Crypto(_))));
     }
 }

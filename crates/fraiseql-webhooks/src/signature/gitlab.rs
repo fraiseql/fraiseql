@@ -24,6 +24,7 @@ impl SignatureVerifier for GitLabVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         // GitLab uses a simple token comparison
         Ok(constant_time_eq(signature.as_bytes(), secret.as_bytes()))

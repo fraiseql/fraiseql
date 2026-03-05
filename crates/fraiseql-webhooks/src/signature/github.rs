@@ -28,6 +28,7 @@ impl SignatureVerifier for GitHubVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         // GitHub format: sha256=<hex>
         let sig_hex = signature.strip_prefix("sha256=").ok_or(SignatureError::InvalidFormat)?;
@@ -60,7 +61,7 @@ mod tests {
         let secret = "secret";
         let signature = generate_signature(payload, secret);
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
@@ -68,13 +69,13 @@ mod tests {
         let verifier = GitHubVerifier;
         let signature = "sha256=invalid";
 
-        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
+        assert!(!verifier.verify(b"test", signature, "secret", None, None).unwrap());
     }
 
     #[test]
     fn test_missing_prefix() {
         let verifier = GitHubVerifier;
-        let result = verifier.verify(b"test", "abc123", "secret", None);
+        let result = verifier.verify(b"test", "abc123", "secret", None, None);
         assert!(matches!(result, Err(SignatureError::InvalidFormat)));
     }
 }

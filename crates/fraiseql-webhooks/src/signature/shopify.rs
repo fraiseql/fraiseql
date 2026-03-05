@@ -28,6 +28,7 @@ impl SignatureVerifier for ShopifyVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| SignatureError::Crypto(e.to_string()))?;
@@ -57,12 +58,12 @@ mod tests {
         let secret = "secret";
         let signature = generate_signature(payload, secret);
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
     fn test_invalid_signature() {
         let verifier = ShopifyVerifier;
-        assert!(!verifier.verify(b"test", "invalid", "secret", None).unwrap());
+        assert!(!verifier.verify(b"test", "invalid", "secret", None, None).unwrap());
     }
 }

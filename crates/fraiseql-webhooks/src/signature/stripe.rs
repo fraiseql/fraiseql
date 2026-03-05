@@ -64,6 +64,7 @@ impl SignatureVerifier for StripeVerifier {
         signature: &str,
         secret: &str,
         _timestamp: Option<&str>,
+        _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
         // Parse Stripe signature format: t=timestamp,v1=signature
         let parts: HashMap<&str, &str> = signature
@@ -133,7 +134,7 @@ mod tests {
         let signature =
             generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
 
-        assert!(verifier.verify(payload, &signature, secret, None).unwrap());
+        assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
     }
 
     #[test]
@@ -142,7 +143,7 @@ mod tests {
         let verifier = StripeVerifier::with_clock(clock);
         let signature = "t=1679076299,v1=invalid";
 
-        assert!(!verifier.verify(b"test", signature, "secret", None).unwrap());
+        assert!(!verifier.verify(b"test", signature, "secret", None, None).unwrap());
     }
 
     #[test]
@@ -151,7 +152,7 @@ mod tests {
         let verifier = StripeVerifier::with_clock(clock);
         let signature = generate_signature("test", "secret", 1_679_076_299);
 
-        let result = verifier.verify(b"test", &signature, "secret", None);
+        let result = verifier.verify(b"test", &signature, "secret", None, None);
         assert!(matches!(result, Err(SignatureError::TimestampExpired)));
     }
 
