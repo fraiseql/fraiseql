@@ -17,6 +17,7 @@ use fraiseql_auth::{KeyedRateLimiter, RateLimitConfig};
 // ── Cycle 5.2: Window expiry ────────────────────────────────────────────────
 
 #[test]
+#[ignore = "uses real 2 s sleep; run with --ignored in a dedicated slow-test CI job"]
 fn rate_limiter_resets_after_window_expires() {
     // Use a 1-second window so the test completes quickly.
     let config = RateLimitConfig {
@@ -46,6 +47,7 @@ fn rate_limiter_resets_after_window_expires() {
 }
 
 #[test]
+#[ignore = "uses real 2 s sleep; run with --ignored in a dedicated slow-test CI job"]
 fn rate_limiter_allows_exactly_max_requests_then_resets() {
     // Verify reset after window, not just the initial fill.
     let config = RateLimitConfig {

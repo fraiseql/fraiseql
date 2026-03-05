@@ -482,7 +482,7 @@ mod tests {
     async fn test_expired_state_returns_state_expired_not_not_found() {
         let store = store_no_enc(1);
         let (token, _) = store.create_state("https://example.com").await.unwrap();
-        std::thread::sleep(Duration::from_millis(1100));
+        tokio::time::sleep(Duration::from_millis(1100)).await;
         assert!(
             matches!(store.consume_state(&token).await, Err(PkceError::StateExpired)),
             "expired state must be StateExpired, not StateNotFound"
@@ -576,7 +576,7 @@ mod tests {
     async fn test_cleanup_removes_expired_leaves_valid() {
         let store = store_no_enc(1);
         store.create_state("https://a.example.com").await.unwrap();
-        std::thread::sleep(Duration::from_millis(1100));
+        tokio::time::sleep(Duration::from_millis(1100)).await;
         store.cleanup_expired().await;
         assert_eq!(store.len(), 0, "expired entry must be removed by cleanup");
 
