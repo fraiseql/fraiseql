@@ -145,22 +145,17 @@ impl TraceContext {
     ///
     /// Creates a cryptographically random W3C-compliant span ID (8 bytes, 16 hex chars)
     /// while maintaining the same trace ID.
+    ///
+    /// XORs the two 64-bit halves of a single UUID v4 so that the 4 fixed version
+    /// bits (byte 6 high nibble) and the 2 fixed variant bits (byte 8 high bits)
+    /// are masked by fully-random bytes from the other half, yielding full 64-bit
+    /// entropy without requiring additional random generation.
     #[must_use]
     pub fn child_span_id(&self) -> String {
         let uuid_bytes = *uuid::Uuid::new_v4().as_bytes();
-        format!(
-            "{:016x}",
-            u64::from_be_bytes([
-                uuid_bytes[0],
-                uuid_bytes[1],
-                uuid_bytes[2],
-                uuid_bytes[3],
-                uuid_bytes[4],
-                uuid_bytes[5],
-                uuid_bytes[6],
-                uuid_bytes[7],
-            ])
-        )
+        let lo = u64::from_be_bytes(uuid_bytes[0..8].try_into().expect("slice is 8 bytes"));
+        let hi = u64::from_be_bytes(uuid_bytes[8..16].try_into().expect("slice is 8 bytes"));
+        format!("{:016x}", lo ^ hi)
     }
 }
 

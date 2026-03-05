@@ -33,11 +33,8 @@ pub mod transaction;
 // Re-exports
 pub use config::{WebhookConfig, WebhookEventConfig};
 pub use signature::SignatureError;
-// Re-export testing mocks for tests
-#[cfg(test)]
-pub use testing::mocks;
-// Also export mocks for integration tests (tests/ directory)
-#[cfg(not(test))]
+// Re-export testing mocks for unit tests and integration tests with `testing` feature
+#[cfg(any(test, feature = "testing"))]
 pub use testing::mocks;
 pub use traits::{Clock, EventHandler, IdempotencyStore, SecretProvider, SignatureVerifier};
 pub use transaction::{WebhookIsolation, execute_in_transaction};

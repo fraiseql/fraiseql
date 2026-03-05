@@ -333,12 +333,18 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
 
         # cache_ttl_seconds validation — fail fast at authoring time
         if (ttl := cfg.get("cache_ttl_seconds")) is not None:
-            if not isinstance(ttl, int) or ttl < 0:
+            if not isinstance(ttl, int):
                 msg = (
                     f"@fraiseql.query cache_ttl_seconds= on {f.__name__!r} must be a "
                     f"non-negative integer (got {ttl!r})."
                 )
                 raise TypeError(msg)
+            if ttl < 0:
+                msg = (
+                    f"@fraiseql.query cache_ttl_seconds= on {f.__name__!r} must be a "
+                    f"non-negative integer (got {ttl!r})."
+                )
+                raise ValueError(msg)
 
         # additional_views validation — fail fast at authoring time
         if (av := cfg.get("additional_views")) is not None:

@@ -212,9 +212,13 @@ impl AuditBackend for PostgresAuditBackend {
 
         query.push_str(" ORDER BY timestamp DESC");
 
-        let limit = filters.limit.unwrap_or(100);
-        let offset = filters.offset.unwrap_or(0);
-        query.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
+        // Parameterize LIMIT/OFFSET to avoid interpolating user-controlled values into SQL.
+        // PostgreSQL requires bigint for LIMIT/OFFSET parameters.
+        let limit = i64::try_from(filters.limit.unwrap_or(100)).unwrap_or(100);
+        let offset = i64::try_from(filters.offset.unwrap_or(0)).unwrap_or(0);
+        let limit_param_idx = where_parts.len() + 1;
+        let offset_param_idx = where_parts.len() + 2;
+        query.push_str(&format!(" LIMIT ${limit_param_idx} OFFSET ${offset_param_idx}"));
 
         // Build parameter vector in correct order
         let mut param_strs: Vec<String> = vec![];
@@ -241,11 +245,13 @@ impl AuditBackend for PostgresAuditBackend {
             param_strs.push(val.clone());
         }
 
-        // Convert owned strings to references for query parameters
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_strs
+        // Convert owned strings to references for query parameters, then append limit/offset
+        let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_strs
             .iter()
             .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
+        params.push(&limit);
+        params.push(&offset);
 
         let rows = client
             .query(query.as_str(), params.as_slice())

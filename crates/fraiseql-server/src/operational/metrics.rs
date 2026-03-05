@@ -69,15 +69,15 @@ impl MetricsCollector {
         let mut prometheus_lines = Vec::new();
         prometheus_lines.push("# HELP graphql_requests_total Total GraphQL requests".to_string());
         prometheus_lines.push("# TYPE graphql_requests_total counter".to_string());
-        prometheus_lines.push(format!("graphql_requests_total {{{}}}", request_count));
+        prometheus_lines.push(format!("graphql_requests_total {}", request_count));
 
         prometheus_lines.push("# HELP graphql_errors_total Total GraphQL errors".to_string());
         prometheus_lines.push("# TYPE graphql_errors_total counter".to_string());
-        prometheus_lines.push(format!("graphql_errors_total {{{}}}", error_count));
+        prometheus_lines.push(format!("graphql_errors_total {}", error_count));
 
         prometheus_lines.push("# HELP graphql_duration_ms Average duration".to_string());
         prometheus_lines.push("# TYPE graphql_duration_ms gauge".to_string());
-        prometheus_lines.push(format!("graphql_duration_ms {{{}}}", avg_duration_ms));
+        prometheus_lines.push(format!("graphql_duration_ms {}", avg_duration_ms));
 
         MetricsSummary {
             request_count,
