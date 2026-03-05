@@ -85,17 +85,16 @@ See `batches/batch-4-sdk-audit.md` for per-SDK findings and required test patter
 
 ## BATCH 5 — Crate architecture: fraiseql-core split
 
-**Risk**: `fraiseql-core` at 209,277 lines across a single crate makes
-incremental compilation ineffective and makes it difficult to reason about
-the dependency graph. Any change to `db/` forces recompilation of `cache/`,
-`graphql/`, etc.
+**Risk**: `fraiseql-core` at 107,712 lines (actual, 2026-03-05 audit) across a
+single crate makes incremental compilation ineffective. Any change to `db/`
+forces recompilation of `cache/`, `graphql/`, etc.
 
 | ID    | Sev | Status | What | Where |
 |-------|-----|--------|------|-------|
-| CA-1  | 🟡  |        | Extract `crates/fraiseql-core/src/db/` into `crates/fraiseql-db/` — pure database adapter trait + 4 backend implementations; no GraphQL dependency | New crate |
-| CA-2  | 🟡  |        | Extract `crates/fraiseql-core/src/runtime/executor/` into `crates/fraiseql-executor/` — depends on `fraiseql-db` + `fraiseql-core` schema types only | New crate |
-| CA-3  | 🔵  |        | Update `fraiseql-core/Cargo.toml` to depend on `fraiseql-db` and `fraiseql-executor`; re-export their public items from `fraiseql-core` for backwards compatibility | `crates/fraiseql-core/Cargo.toml` |
-| CA-4  | 🔵  |        | Add `[workspace.metadata.crate-size-budget]` TOML section and `tools/check-crate-sizes.sh` that fails CI if any crate exceeds 150K lines | `tools/`, `Cargo.toml` |
+| CA-1  | 🟡  | ❌     | Extract `crates/fraiseql-core/src/db/` into `crates/fraiseql-db/` — **BLOCKED**: `db/traits.rs` imports `compiler::aggregation::OrderByClause` and `schema::SqlProjectionHint` (used in 30+ files); these must be relocated first to avoid circular dependency | New crate |
+| CA-2  | 🟡  | ❌     | Extract `crates/fraiseql-core/src/runtime/executor/` into `crates/fraiseql-executor/` — **BLOCKED**: circular dependency between `cache/adapter/` and `runtime/executor/` requires trait abstraction before split | New crate |
+| CA-3  | 🔵  | ❌     | Update `fraiseql-core/Cargo.toml` — deferred pending CA-1/CA-2 | `crates/fraiseql-core/Cargo.toml` |
+| CA-4  | 🔵  | ✅     | Added `[workspace.metadata.crate-size-budget]` to `Cargo.toml` and `tools/check-crate-sizes.sh`; all 12 crates pass; fraiseql-core budgeted at 150K (split threshold) | `tools/check-crate-sizes.sh`, `Cargo.toml` |
 
 See `batches/batch-5-crate-split.md` for dependency graph analysis and migration steps.
 

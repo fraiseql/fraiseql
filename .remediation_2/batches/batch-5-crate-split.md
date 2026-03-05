@@ -2,7 +2,7 @@
 
 ## Problem
 
-`fraiseql-core` contains 209,277 lines of Rust in a single crate. This has
+`fraiseql-core` contains 107,712 lines of Rust in a single crate. This has
 two concrete consequences:
 
 1. **Incremental compilation is ineffective.** Any change to `db/mysql/adapter.rs`
@@ -15,7 +15,9 @@ two concrete consequences:
    compilation, and security utilities. External consumers of the crate cannot
    take a minimal dependency.
 
-## Dependency Analysis
+---
+
+## Actual Dependency Analysis (2026-03-05 Audit)
 
 Current module structure of `fraiseql-core/src/`:
 
@@ -25,7 +27,7 @@ audit/           ← depends on: db, security
 cache/           ← depends on: db, schema, graphql
 compiler/        ← depends on: schema, db
 config/          ← standalone
-db/              ← depends on: schema, utils, types  ← SPLIT TARGET
+db/              ← SPLIT TARGET — but see coupling blockers below
 design/          ← depends on: schema
 error.rs         ← standalone
 federation/      ← depends on: db, schema, graphql, cache
@@ -33,7 +35,7 @@ filters/         ← depends on: schema, db
 graphql/         ← depends on: schema
 observability/   ← standalone
 runtime/         ← depends on: db, graphql, cache, schema, security
-schema/          ← depends on: types, config  ← SPLIT TARGET (executor dep)
+schema/          ← depends on: types, config
 security/        ← depends on: db, schema
 tenancy/         ← depends on: db, schema
 types/           ← standalone
@@ -41,111 +43,130 @@ utils/           ← standalone
 validation/      ← depends on: schema, types
 ```
 
-## Proposed Split
+### db/ Module Size
 
-### Step 1 — Extract `fraiseql-db`
+24 files, 16,164 lines across:
+- 4 database adapters (PostgreSQL 2,172L, SQL Server 1,718L, MySQL 916L, SQLite 911L)
+- Traits, WHERE clause types, projection generator, collation, identifier utilities
 
-Move `crates/fraiseql-core/src/db/` to `crates/fraiseql-db/src/`.
+### runtime/executor/ Module Size
 
-**Contents**:
-- `traits.rs` — `DatabaseAdapter`, `MutationCapable`, `RelayDatabaseAdapter`
-- `postgres/` — full PostgreSQL adapter
-- `mysql/` — full MySQL adapter
-- `sqlite/` — read-only SQLite adapter
-- `sqlserver/` — SQL Server adapter
-- Supporting: `collation.rs`, `identifier.rs`, `path_escape.rs`,
-  `projection_generator.rs`, `types.rs`, `where_clause.rs`, `where_sql_generator.rs`,
-  `wire_pool.rs`, `fraiseql_wire_adapter.rs`
+7 files, 3,396 lines — GraphQL operation execution, mutation, aggregate, federation.
 
-**Dependencies** of `fraiseql-db`:
-- `fraiseql-error` (errors)
-- `fraiseql-wire` (wire backend, optional feature)
-- Standard database drivers (tokio-postgres, sqlx, tiberius)
-- No dependency on `fraiseql-core`
+---
 
-**`fraiseql-core` after step 1**:
-- Adds `fraiseql-db` as a dependency
-- Re-exports all public items from `fraiseql-db` via `pub use fraiseql_db::*;`
-  in `crates/fraiseql-core/src/db/mod.rs` (kept as a thin re-export shim)
-- All downstream crates that import from `fraiseql-core::db` continue to work
-  without changes (backwards compatible)
+## Coupling Blockers (CA-1 and CA-2)
 
-### Step 2 — Extract `fraiseql-executor`
+### CA-1 Blocker: db/ → compiler + schema imports
 
-Move `crates/fraiseql-core/src/runtime/executor/` to `crates/fraiseql-executor/src/`.
+The `db/` module is NOT cleanly isolated. It imports from outside its own
+subtree:
 
-**Contents**:
-- The GraphQL executor — the component that translates a parsed GraphQL
-  operation into `fraiseql-db` calls and assembles the response
-- APQ cache integration
-- Field-level auth enforcement
+| File | Imports from fraiseql-core |
+|------|---------------------------|
+| `db/traits.rs` | `compiler::aggregation::OrderByClause` (used in trait method signature) |
+| `db/traits.rs` | `schema::SqlProjectionHint` (used in trait method signature) |
+| `db/postgres/adapter.rs` | `compiler::aggregation::{OrderByClause, OrderDirection}` |
+| `db/mysql/adapter.rs` | `compiler::aggregation::{OrderByClause, OrderDirection}` |
+| `db/sqlserver/adapter.rs` | `compiler::aggregation::{OrderByClause, OrderDirection}` |
+| `db/collation.rs` | `config::CollationConfig` |
 
-**Dependencies** of `fraiseql-executor`:
-- `fraiseql-db` (database calls)
-- `fraiseql-core` (schema types, security context, graphql parsing)
+**Usage breadth**:
+- `OrderByClause`/`OrderDirection`: 16 files throughout runtime, compiler, cache
+- `SqlProjectionHint`: 14 files throughout schema, runtime, cache, db
+- `CollationConfig`: config module
 
-Note: `fraiseql-executor` depends on `fraiseql-core` for schema types.
-This is a one-way dependency (no cycle). The executor uses schema types
-but does not own them.
+**Why this blocks the split**: If `fraiseql-db` is created as a standalone crate,
+it cannot import `OrderByClause` or `SqlProjectionHint` from `fraiseql-core`
+because that would create a circular dependency (`fraiseql-core` → `fraiseql-db`
+→ `fraiseql-core`).
 
-### Step 3 — Update workspace
+**Required prerequisite**: Move `OrderByClause`, `OrderDirection`, `SqlProjectionHint`,
+and `CollationConfig` to `fraiseql-db` (since they are fundamentally DB-query-construction
+types) and update all 30+ import sites in the compiler, runtime, and cache modules.
+This is a separate refactoring campaign.
 
-```toml
-# Cargo.toml workspace members, add:
-"crates/fraiseql-db",
-"crates/fraiseql-executor",
+### CA-2 Blocker: executor/ ↔ cache circular dependency
 
-# fraiseql-core/Cargo.toml:
-[dependencies]
-fraiseql-db = { path = "../fraiseql-db" }
+The `runtime/executor/` calls into `cache/adapter/` for result caching, and
+`cache/adapter/` calls back into the executor (callback pattern). This circular
+relationship prevents clean extraction of `fraiseql-executor` without first
+introducing a trait abstraction between them.
 
-# fraiseql-server/Cargo.toml:
-# No change needed — it depends on fraiseql-core which re-exports everything.
+---
 
-# Optional: add fraiseql-db as a direct dependency where only DB
-# functionality is needed, bypassing the full core crate.
+## What Was Done (CA-4)
+
+CA-4 was implemented independently as it has no coupling dependencies:
+
+### `[workspace.metadata.crate-size-budget]` in `Cargo.toml`
+
+Per-crate line-count budgets have been added to the workspace root `Cargo.toml`.
+fraiseql-core is budgeted at 150,000 lines (split threshold). After the
+CA-1 split, the budget should be lowered to ~70,000.
+
+### `tools/check-crate-sizes.sh`
+
+Enforcement script that:
+- Parses budgets from `[workspace.metadata.crate-size-budget]`
+- Counts `.rs` source lines for each budgeted crate
+- Warns at 85% of budget, fails at 100%
+- Prints a summary table with current/budget/status
+- Exits 0 if all pass, 1 if any crate is over budget
+
+Usage:
+```bash
+tools/check-crate-sizes.sh              # check all crates
+tools/check-crate-sizes.sh fraiseql-core # check a single crate
 ```
 
-### Step 4 — Add crate size enforcement
+Current check results (all pass):
 
-See infrastructure document `crate-size-policy.md`.
-
----
-
-## Migration Steps
-
-1. Create `crates/fraiseql-db/` with `Cargo.toml` and `src/lib.rs`
-2. Move (not copy) all files from `fraiseql-core/src/db/` to `fraiseql-db/src/`
-3. Add `fraiseql-db` to workspace and to `fraiseql-core`'s dependencies
-4. Replace `fraiseql-core/src/db/mod.rs` with a thin re-export:
-   ```rust
-   // Backwards-compatible re-export. Direct imports from fraiseql-db
-   // are preferred for new code.
-   pub use fraiseql_db::*;
-   ```
-5. Run `cargo check --workspace` — fix any import path breakage
-6. Run `cargo test --workspace` — no test should fail
-7. Repeat for `fraiseql-executor`
+| Crate | Lines | Budget | Status |
+|-------|-------|--------|--------|
+| fraiseql-core | 107,712 | 150,000 | ✅ OK |
+| fraiseql-server | 34,010 | 55,000 | ✅ OK |
+| fraiseql-observers | 27,504 | 45,000 | ✅ OK |
+| fraiseql-cli | 26,070 | 40,000 | ✅ OK |
+| fraiseql-auth | 15,761 | 25,000 | ✅ OK |
+| fraiseql-secrets | 10,785 | 20,000 | ✅ OK |
+| fraiseql-wire | 10,041 | 20,000 | ✅ OK |
+| fraiseql-arrow | 8,076 | 15,000 | ✅ OK |
+| fraiseql-webhooks | 2,139 | 10,000 | ✅ OK |
+| fraiseql-test-utils | 1,248 | 5,000 | ✅ OK |
+| fraiseql-error | 686 | 5,000 | ✅ OK |
+| fraiseql-observers-macros | 192 | 2,000 | ✅ OK |
 
 ---
 
-## Expected Impact
+## Deferred Work (CA-1, CA-2, CA-3)
 
-| Metric | Before | After (estimate) |
-|--------|--------|-----------------|
-| `fraiseql-core` lines | 209K | ~140K (db removed) |
-| `fraiseql-db` lines | — | ~30K |
-| `fraiseql-executor` lines | — | ~25K |
-| Rebuild after `db/mysql/adapter.rs` change | Full core rebuild | Only `fraiseql-db` + dependents |
-| Rebuild after `graphql/` change | Full core rebuild | Only `fraiseql-core` + dependents |
+CA-1 and CA-2 require a prerequisite types refactoring campaign:
+
+**Step 0 (prerequisite, not yet planned)**:
+Move `OrderByClause`, `OrderDirection`, `SqlProjectionHint`, `CollationConfig`
+to a standalone location (either to a new `fraiseql-types` crate, or define them
+in `fraiseql-db` and update all import sites). Approximately 30–40 files to touch.
+
+**CA-1 (deferred)**:
+Once Step 0 is complete, move `crates/fraiseql-core/src/db/**` to `crates/fraiseql-db/`,
+add re-export shim in `fraiseql-core/src/db/mod.rs`.
+
+**CA-2 (deferred)**:
+After CA-1, resolve the executor↔cache circular dependency via a trait abstraction,
+then move `runtime/executor/**` to `crates/fraiseql-executor/`.
+
+**CA-3 (deferred)**:
+Update `fraiseql-core/Cargo.toml` and workspace as part of CA-1/CA-2.
 
 ---
 
 ## Verification Checklist
 
-- [ ] `cargo check --workspace` passes after each step
-- [ ] `cargo test --workspace` passes after both steps
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
-- [ ] `wc -l crates/fraiseql-core/src/**/*.rs | tail -1` shows < 150K lines
-- [ ] `crates/fraiseql-db/` has its own `README.md` explaining its scope
-- [ ] Snapshot tests (`cargo test --test sql_snapshots`) still pass
+- [x] `tools/check-crate-sizes.sh` passes on current codebase
+- [x] `[workspace.metadata.crate-size-budget]` added to `Cargo.toml`
+- [ ] `cargo check --workspace` passes after CA-1 split (deferred)
+- [ ] `cargo test --workspace` passes after CA-1 split (deferred)
+- [ ] `wc -l crates/fraiseql-core/src/**/*.rs | tail -1` shows < 80K after split (deferred)
+- [ ] `crates/fraiseql-db/` has its own `README.md` explaining its scope (deferred)
+- [ ] Snapshot tests (`cargo test --test sql_snapshots`) still pass (deferred)
