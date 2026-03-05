@@ -109,12 +109,13 @@ impl FragmentResolver {
             if let Some(fragment_name) = selection.name.strip_prefix("...") {
                 // Skip inline fragments (they have " on " in the name)
                 if fragment_name.starts_with("on ") {
-                    // Inline fragment - just recurse into nested fields
+                    // Inline fragment — counts as a nesting level (depth + 1) so that
+                    // deeply-nested inline fragments cannot bypass the depth limit.
                     let mut field = selection.clone();
                     if !field.nested_fields.is_empty() {
                         field.nested_fields = self.resolve_selections(
                             &field.nested_fields,
-                            depth,
+                            depth + 1,
                             visited_fragments,
                         )?;
                     }
@@ -147,11 +148,14 @@ impl FragmentResolver {
                 // Unmark for other paths
                 visited_fragments.remove(&fragment_name);
             } else {
-                // Regular field: recurse into nested fields
+                // Regular field: nested fields are one level deeper.
                 let mut field = selection.clone();
                 if !field.nested_fields.is_empty() {
-                    field.nested_fields =
-                        self.resolve_selections(&field.nested_fields, depth, visited_fragments)?;
+                    field.nested_fields = self.resolve_selections(
+                        &field.nested_fields,
+                        depth + 1,
+                        visited_fragments,
+                    )?;
                 }
                 result.push(field);
             }

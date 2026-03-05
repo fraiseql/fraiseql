@@ -42,12 +42,12 @@ pub(super) fn field_type_to_introspection(
         FieldType::Uuid => type_ref("UUID"),
         FieldType::Json => type_ref("JSON"),
         FieldType::Decimal => type_ref("Decimal"),
-        FieldType::Object(name) => type_ref(name),
-        FieldType::Enum(name) => type_ref(name),
-        FieldType::Input(name) => type_ref(name),
-        FieldType::Interface(name) => type_ref(name),
-        FieldType::Union(name) => type_ref(name),
         FieldType::Scalar(name) => type_ref(name), // Rich/custom scalars
+        FieldType::Object(name) => type_ref_with_kind(name, TypeKind::Object),
+        FieldType::Enum(name) => type_ref_with_kind(name, TypeKind::Enum),
+        FieldType::Input(name) => type_ref_with_kind(name, TypeKind::InputObject),
+        FieldType::Interface(name) => type_ref_with_kind(name, TypeKind::Interface),
+        FieldType::Union(name) => type_ref_with_kind(name, TypeKind::Union),
         FieldType::List(inner) => IntrospectionType {
             kind:               TypeKind::List,
             name:               None,
@@ -82,13 +82,22 @@ pub(super) fn field_type_to_introspection(
     }
 }
 
-/// Create a named scalar/object type reference node.
+/// Create a named type reference node with `TypeKind::Scalar`.
 ///
-/// The `kind` is set to `Scalar` as a placeholder; clients use `name` to resolve
-/// the real kind from the type map.
+/// Used for built-in and custom scalar types. For composite types (Object,
+/// Enum, InputObject, Interface, Union) use [`type_ref_with_kind`] instead.
 pub fn type_ref(name: &str) -> IntrospectionType {
+    type_ref_with_kind(name, TypeKind::Scalar)
+}
+
+/// Create a named type reference node with the given `TypeKind`.
+///
+/// Introspection clients (GraphiQL, code-generators) rely on the `kind`
+/// field to distinguish Object from Enum from InputObject etc. Hardcoding
+/// `Scalar` for every named type breaks tooling that reads `__schema`.
+pub fn type_ref_with_kind(name: &str, kind: TypeKind) -> IntrospectionType {
     IntrospectionType {
-        kind:               TypeKind::Scalar, // Will be overwritten if it's an object
+        kind,
         name:               Some(name.to_string()),
         description:        None,
         fields:             None,

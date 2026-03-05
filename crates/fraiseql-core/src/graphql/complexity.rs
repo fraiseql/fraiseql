@@ -46,33 +46,38 @@ impl ComplexityAnalyzer {
     /// Returns (max_depth, field_count, total_score)
     #[must_use]
     pub fn analyze_complexity(&self, query: &str) -> (usize, usize, usize) {
-        // Parse query string to count nesting and fields
         let mut max_depth = 0;
         let mut current_depth = 0;
         let mut field_count = 0;
-        let mut in_braces = false;
+        // Track whether the previous character was part of an identifier token.
+        // A field is counted when a new identifier token starts inside braces
+        // (current_depth > 0), not once per character.
+        let mut in_identifier = false;
 
         for ch in query.chars() {
             match ch {
                 '{' => {
-                    in_braces = true;
                     current_depth += 1;
                     max_depth = max_depth.max(current_depth);
+                    in_identifier = false;
                 },
                 '}' => {
                     if current_depth > 0 {
                         current_depth -= 1;
                     }
-                    in_braces = false;
+                    in_identifier = false;
                 },
-                '(' | ')' => {
-                    // Argument delimiters - not counted as fields
+                // Identifier chars: letters, digits, underscore (valid in GraphQL names)
+                c if c.is_alphanumeric() || c == '_' => {
+                    if !in_identifier && current_depth > 0 {
+                        // Start of a new identifier token inside a selection set
+                        field_count += 1;
+                    }
+                    in_identifier = true;
                 },
-                c if in_braces && c.is_alphabetic() => {
-                    // Count this as a potential field start
-                    field_count += 1;
+                _ => {
+                    in_identifier = false;
                 },
-                _ => {},
             }
         }
 
@@ -120,8 +125,10 @@ mod tests {
     fn test_simple_query_complexity() {
         let analyzer = ComplexityAnalyzer::new();
         let query = "{ users { id name } }";
-        let (depth, _fields, _score) = analyzer.analyze_complexity(query);
-        assert!(depth <= 3);
+        let (depth, fields, _score) = analyzer.analyze_complexity(query);
+        assert_eq!(depth, 2);
+        // "users", "id", "name" = 3 field identifier tokens
+        assert_eq!(fields, 3, "must count identifier tokens, not characters");
     }
 
     #[test]
