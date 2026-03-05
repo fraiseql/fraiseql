@@ -39,14 +39,19 @@ impl std::fmt::Display for ListenerState {
     }
 }
 
+/// All mutable state held under a single lock for atomic transitions.
+struct Inner {
+    state:             ListenerState,
+    state_change_time: Instant,
+    recovery_attempts: u32,
+}
+
 /// State machine for tracking listener lifecycle
 #[derive(Clone)]
 pub struct ListenerStateMachine {
-    current_state:         Arc<Mutex<ListenerState>>,
-    state_change_time:     Arc<Mutex<Instant>>,
+    inner:                 Arc<Mutex<Inner>>,
     listener_id:           String,
     max_recovery_attempts: u32,
-    recovery_attempts:     Arc<Mutex<u32>>,
 }
 
 impl ListenerStateMachine {
@@ -54,11 +59,13 @@ impl ListenerStateMachine {
     #[must_use]
     pub fn new(listener_id: String) -> Self {
         Self {
-            current_state: Arc::new(Mutex::new(ListenerState::Initializing)),
-            state_change_time: Arc::new(Mutex::new(Instant::now())),
+            inner: Arc::new(Mutex::new(Inner {
+                state:             ListenerState::Initializing,
+                state_change_time: Instant::now(),
+                recovery_attempts: 0,
+            })),
             listener_id,
             max_recovery_attempts: 3,
-            recovery_attempts: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -70,46 +77,47 @@ impl ListenerStateMachine {
     }
 
     /// Transition to a new state
+    ///
+    /// All state mutations happen under a single lock, making transitions atomic.
     pub async fn transition(&self, next_state: ListenerState) -> Result<()> {
-        let current = *self.current_state.lock().await;
+        let mut inner = self.inner.lock().await;
 
         // Validate state transition
-        if !self.is_valid_transition(current, next_state) {
+        if !Self::is_valid_transition(inner.state, next_state) {
             return Err(ObserverError::InvalidConfig {
-                message: format!("Invalid state transition: {current} → {next_state}"),
+                message: format!("Invalid state transition: {} → {next_state}", inner.state),
             });
         }
 
         // Reset recovery attempts on successful transition to Running
         if next_state == ListenerState::Running {
-            *self.recovery_attempts.lock().await = 0;
+            inner.recovery_attempts = 0;
         }
 
         // Increment recovery attempts on Recovering state
         if next_state == ListenerState::Recovering {
-            let mut attempts = self.recovery_attempts.lock().await;
-            *attempts += 1;
-            if *attempts > self.max_recovery_attempts {
+            inner.recovery_attempts += 1;
+            if inner.recovery_attempts > self.max_recovery_attempts {
                 return Err(ObserverError::InvalidConfig {
                     message: "Max recovery attempts exceeded".to_string(),
                 });
             }
         }
 
-        *self.current_state.lock().await = next_state;
-        *self.state_change_time.lock().await = Instant::now();
+        inner.state = next_state;
+        inner.state_change_time = Instant::now();
 
         Ok(())
     }
 
     /// Get current state
     pub async fn get_state(&self) -> ListenerState {
-        *self.current_state.lock().await
+        self.inner.lock().await.state
     }
 
     /// Get duration in current state
     pub async fn get_state_duration(&self) -> Duration {
-        self.state_change_time.lock().await.elapsed()
+        self.inner.lock().await.state_change_time.elapsed()
     }
 
     /// Get listener ID
@@ -120,31 +128,33 @@ impl ListenerStateMachine {
 
     /// Get recovery attempt count
     pub async fn get_recovery_attempts(&self) -> u32 {
-        *self.recovery_attempts.lock().await
+        self.inner.lock().await.recovery_attempts
     }
 
     /// Check if recovery is possible
     pub async fn can_recover(&self) -> bool {
-        let attempts = self.recovery_attempts.lock().await;
-        *attempts < self.max_recovery_attempts
+        self.inner.lock().await.recovery_attempts < self.max_recovery_attempts
     }
 
     /// Validate state transition
     #[allow(clippy::unnested_or_patterns)] // Reason: flat pattern list with comments is clearer for state machine transitions
-    const fn is_valid_transition(&self, current: ListenerState, next: ListenerState) -> bool {
+    const fn is_valid_transition(current: ListenerState, next: ListenerState) -> bool {
         matches!(
             (current, next),
             // Initial transitions
             (ListenerState::Initializing, ListenerState::Connecting)
                 | (ListenerState::Initializing, ListenerState::Stopped)
-            // Connection flow
+            // Connection flow — including Recovering so connection failures at startup
+            // don't require a full process restart (L5 fix).
             | (ListenerState::Connecting, ListenerState::Running)
+                | (ListenerState::Connecting, ListenerState::Recovering)
                 | (ListenerState::Connecting, ListenerState::Stopped)
             // Running to recovery or stopped
             | (ListenerState::Running, ListenerState::Recovering)
                 | (ListenerState::Running, ListenerState::Stopped)
             // Recovery back to running or stopped
             | (ListenerState::Recovering, ListenerState::Running)
+                | (ListenerState::Recovering, ListenerState::Connecting)
                 | (ListenerState::Recovering, ListenerState::Stopped)
             // Stopped is final
             | (ListenerState::Stopped, ListenerState::Stopped)
@@ -184,6 +194,23 @@ mod tests {
         // Valid transition: Recovering → Running
         assert!(state_machine.transition(ListenerState::Running).await.is_ok());
         assert_eq!(state_machine.get_state().await, ListenerState::Running);
+    }
+
+    #[tokio::test]
+    async fn test_connecting_to_recovering_transition() {
+        let state_machine = ListenerStateMachine::new("listener-1".to_string());
+
+        // Initializing → Connecting
+        assert!(state_machine.transition(ListenerState::Connecting).await.is_ok());
+        // Connecting → Recovering (connection failure at startup — must not require restart)
+        assert!(
+            state_machine.transition(ListenerState::Recovering).await.is_ok(),
+            "Connecting → Recovering must be a valid transition"
+        );
+        assert_eq!(state_machine.get_state().await, ListenerState::Recovering);
+
+        // Recovering → Connecting (retry connection)
+        assert!(state_machine.transition(ListenerState::Connecting).await.is_ok());
     }
 
     #[tokio::test]

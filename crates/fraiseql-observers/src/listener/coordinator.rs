@@ -158,9 +158,11 @@ impl MultiListenerCoordinator {
             }
         }
 
-        // Find healthy listeners
+        // Find healthy listeners; sort by ID for deterministic election
+        // (DashMap iteration order is unspecified).
         let health = self.check_listener_health().await?;
-        let healthy: Vec<_> = health.iter().filter(|h| h.is_healthy).collect();
+        let mut healthy: Vec<_> = health.iter().filter(|h| h.is_healthy).collect();
+        healthy.sort_by(|a, b| a.listener_id.cmp(&b.listener_id));
 
         if healthy.is_empty() {
             return Err(ObserverError::InvalidConfig {
@@ -168,7 +170,7 @@ impl MultiListenerCoordinator {
             });
         }
 
-        // Select first healthy listener (deterministic)
+        // Select lowest-ID healthy listener (deterministic across nodes).
         let new_leader = healthy[0].listener_id.clone();
         *leader = Some(new_leader.clone());
 
