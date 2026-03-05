@@ -182,6 +182,20 @@ impl OIDCProviderConfig {
     }
 }
 
+/// Result of [`OAuth2Client::authorization_url`].
+///
+/// The caller MUST store `state` (for CSRF verification at callback) and, when
+/// present, the PKCE `pkce.code_verifier` (for token exchange).
+#[derive(Debug, Clone)]
+pub struct AuthorizationRequest {
+    /// The full authorization URL to redirect the user to.
+    pub url: String,
+    /// CSRF state value — verify this matches the `state` query param at callback.
+    pub state: String,
+    /// PKCE challenge, present only when `use_pkce = true`.
+    pub pkce: Option<PKCEChallenge>,
+}
+
 /// OAuth2 client for authorization code flow.
 #[derive(Debug, Clone)]
 pub struct OAuth2Client {
@@ -237,11 +251,16 @@ impl OAuth2Client {
     }
 
     /// Generate authorization URL.
-    pub fn authorization_url(&self, redirect_uri: &str) -> Result<String, String> {
+    ///
+    /// Returns an [`AuthorizationRequest`] containing the URL, the CSRF state
+    /// value (must be stored and verified at callback), and an optional PKCE
+    /// challenge (when `use_pkce = true`; the `code_verifier` must be stored
+    /// and sent during token exchange).
+    pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
         let state = uuid::Uuid::new_v4().to_string();
         let scope = self.scopes.join(" ");
 
-        let url = format!(
+        let mut url = format!(
             "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
             self.authorization_endpoint,
             urlencoding::encode(&self.client_id),
@@ -250,7 +269,18 @@ impl OAuth2Client {
             urlencoding::encode(&state),
         );
 
-        Ok(url)
+        let pkce = if self.use_pkce {
+            let challenge = PKCEChallenge::new();
+            url.push_str(&format!(
+                "&code_challenge={}&code_challenge_method=S256",
+                urlencoding::encode(&challenge.code_challenge),
+            ));
+            Some(challenge)
+        } else {
+            None
+        };
+
+        AuthorizationRequest { url, state, pkce }
     }
 
     /// Post a form request to the token endpoint and parse the response.
