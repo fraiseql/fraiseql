@@ -125,13 +125,14 @@ impl WindowSqlGenerator {
         let func_sql = self.generate_function_call(&window.function)?;
         let mut sql = format!("{func_sql} OVER (");
 
-        // PARTITION BY
+        // PARTITION BY — values are pre-validated SQL expressions (may be JSONB paths
+        // like `data->>'col'`); rejection of unsafe chars happens at planner parse time.
         if !window.partition_by.is_empty() {
             sql.push_str("PARTITION BY ");
             sql.push_str(&window.partition_by.join(", "));
         }
 
-        // ORDER BY
+        // ORDER BY — same: values validated at parse time, may be JSONB expressions.
         if !window.order_by.is_empty() {
             if !window.partition_by.is_empty() {
                 sql.push(' ');

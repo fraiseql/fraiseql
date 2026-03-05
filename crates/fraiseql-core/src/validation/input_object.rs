@@ -623,7 +623,8 @@ mod tests {
         let result = validate_input_object(&input, &rules, None);
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("not implemented"));
+            assert!(message.contains("myValidator"));
+            assert!(message.contains("InputValidatorRegistry"));
         }
     }
 

@@ -3,6 +3,29 @@ use super::*;
 /// Window function plan generator
 pub struct WindowFunctionPlanner;
 
+/// Validate a SQL column/expression string for safe embedding.
+///
+/// Allows identifiers, JSONB path operators (`->`, `->>`), quoted string keys
+/// (single-quote), periods, spaces, and parentheses for function-style paths.
+/// Rejects characters that could enable SQL injection (`;`, `--`, `/*`, `=`,
+/// `\`, nul bytes, etc.).
+fn validate_sql_expression(value: &str, context: &str) -> Result<()> {
+    let safe = value.chars().all(|c| {
+        c.is_alphanumeric() || matches!(c, '_' | '-' | '>' | '\'' | '.' | ' ' | '(' | ')')
+    });
+    if safe {
+        Ok(())
+    } else {
+        Err(FraiseQLError::Validation {
+            message: format!(
+                "Unsafe characters in window function {context}: {value:?}. \
+                 Only identifiers, JSONB path operators (-> ->>), and quoted keys are allowed."
+            ),
+            path:    None,
+        })
+    }
+}
+
 impl WindowFunctionPlanner {
     /// Generate window function execution plan from JSON query
     ///
@@ -115,26 +138,38 @@ impl WindowFunctionPlanner {
         let partition_by = window
             .get("partitionBy")
             .and_then(|p| p.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| -> Result<Vec<String>> {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|col| {
+                        validate_sql_expression(col, "partitionBy")?;
+                        Ok(col.to_string())
+                    })
+                    .collect()
+            })
+            .transpose()?
             .unwrap_or_default();
 
         let order_by = window
             .get("orderBy")
             .and_then(|o| o.as_array())
-            .map(|arr| {
+            .map(|arr| -> Result<Vec<OrderByClause>> {
                 arr.iter()
                     .filter_map(|item| {
+                        let field = item["field"].as_str()?;
                         let direction = match item.get("direction").and_then(|d| d.as_str()) {
                             Some("DESC") => OrderDirection::Desc,
                             _ => OrderDirection::Asc,
                         };
-                        Some(OrderByClause {
-                            field: item["field"].as_str()?.to_string(),
-                            direction,
-                        })
+                        Some((field, direction))
+                    })
+                    .map(|(field, direction)| {
+                        validate_sql_expression(field, "orderBy.field")?;
+                        Ok(OrderByClause { field: field.to_string(), direction })
                     })
                     .collect()
             })
+            .transpose()?
             .unwrap_or_default();
 
         let frame = window.get("frame").map(Self::parse_window_frame).transpose()?;

@@ -12,12 +12,17 @@ use super::*;
 ///
 /// Each audit event is written as a single JSON line, enabling efficient
 /// parsing and querying of log files.
+///
+/// The file handle is kept open for the lifetime of the backend; writes are
+/// serialized via a `Mutex<File>` and the JSON + newline are combined into a
+/// single `write_all` call to avoid partial writes.
 pub struct FileAuditBackend {
-    /// Path to the audit log file
+    /// Path to the audit log file (retained for query_events reads)
     file_path: String,
 
-    /// Mutex for serializing writes to ensure consistency
-    write_lock: Arc<Mutex<()>>,
+    /// Open file handle — held for the lifetime of the backend.
+    /// Mutex ensures serialized, non-interleaved writes.
+    file: Arc<Mutex<tokio::fs::File>>,
 }
 
 impl FileAuditBackend {
@@ -37,8 +42,7 @@ impl FileAuditBackend {
             .ok_or_else(|| AuditError::FileError("Invalid path".to_string()))?
             .to_string();
 
-        // Verify we can create/open the file
-        let _file = OpenOptions::new()
+        let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&file_path)
@@ -47,7 +51,7 @@ impl FileAuditBackend {
 
         Ok(Self {
             file_path,
-            write_lock: Arc::new(Mutex::new(())),
+            file: Arc::new(Mutex::new(file)),
         })
     }
 }
@@ -55,33 +59,24 @@ impl FileAuditBackend {
 #[async_trait::async_trait]
 impl AuditBackend for FileAuditBackend {
     /// Log an audit event to the file.
+    ///
+    /// Serializes the event to JSON, appends a newline, and writes both in a
+    /// single `write_all` call while holding the file lock — ensuring each
+    /// log entry is atomic at the OS level.
     async fn log_event(&self, event: AuditEvent) -> AuditResult<()> {
         // Validate event before logging
         event.validate()?;
 
-        // Acquire write lock to ensure serialization
-        let _lock = self.write_lock.lock().await;
-
-        // Convert event to JSON line
-        let json_str = serde_json::to_string(&event)
+        // Serialize to JSON and append newline in one allocation.
+        let mut line = serde_json::to_string(&event)
             .map_err(|e| AuditError::SerializationError(e.to_string()))?;
+        line.push('\n');
 
-        // Open file in append mode
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.file_path)
-            .await
-            .map_err(|e| AuditError::FileError(format!("Failed to open file: {}", e)))?;
-
-        // Write JSON line with newline
-        file.write_all(json_str.as_bytes())
+        // Acquire file lock and write JSON+newline as a single syscall.
+        let mut file = self.file.lock().await;
+        file.write_all(line.as_bytes())
             .await
             .map_err(|e| AuditError::FileError(format!("Failed to write event: {}", e)))?;
-
-        file.write_all(b"\n")
-            .await
-            .map_err(|e| AuditError::FileError(format!("Failed to write newline: {}", e)))?;
 
         file.sync_all()
             .await
