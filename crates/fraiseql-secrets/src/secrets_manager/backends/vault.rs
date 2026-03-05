@@ -273,6 +273,7 @@ impl VaultBackend {
         secret_id: &str,
     ) -> Result<Self, SecretsError> {
         let client = reqwest::Client::builder()
+            .timeout(VAULT_REQUEST_TIMEOUT)
             .build()
             .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))?;
 

@@ -132,7 +132,8 @@ impl SecretsManager {
 /// Background task that renews expiring Vault leases.
 ///
 /// Periodically checks cached secrets and refreshes those approaching expiry
-/// (within 20% of their original TTL). Designed to run as a background tokio task.
+/// (within one `check_interval` of expiry, ensuring renewal before the next
+/// poll cycle can catch it). Designed to run as a background tokio task.
 pub struct LeaseRenewalTask {
     manager:        Arc<SecretsManager>,
     check_interval: Duration,
@@ -190,11 +191,10 @@ impl LeaseRenewalTask {
             match self.manager.get_secret_with_expiry(key).await {
                 Ok((_, expiry)) => {
                     let remaining = expiry - Utc::now();
-                    // Refresh if less than 20% of the check interval remains
+                    // Refresh if less than one full check interval remains,
+                    // ensuring renewal completes before the next poll would be too late.
                     if remaining
-                        < chrono::Duration::seconds(
-                            (self.check_interval.as_secs() as f64 * 0.2) as i64,
-                        )
+                        < chrono::Duration::seconds(self.check_interval.as_secs() as i64)
                     {
                         match self.manager.rotate_secret(key).await {
                             Ok(_) => info!(key = %key, "Lease renewed"),
