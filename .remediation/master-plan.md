@@ -255,7 +255,7 @@ These require design decisions before implementation — file a spec issue per i
 | Z1/Q1 (ext-9/12) | ✅ | `#[traced]` macro holds `span.enter()` across `.await` — use `tracing::Instrument` instead | `crates/fraiseql-observers-macros/src/lib.rs` |
 | Z2 (ext-9) | ✅ | `fraiseql-observers-macros` has zero tests — 4 integration tests added in `tests/traced_macro.rs` | Same |
 | AA2 (ext-9) | ✅ | `actions/setup-python@v6` does not exist — fix to `@v5` | `.github/workflows/` |
-| AB1 (ext-9) | | Seven official SDKs have no CI workflow | `.github/workflows/` |
+| AB1 (ext-9) | ✅ | CI workflows added for all 7 remaining official SDKs: Python, TypeScript, Go, Java, Rust, Dart, Ruby | `.github/workflows/` |
 | AA1 (ext-9) | ✅ | Pin `trufflehog` and `trivy-action` to SHA digests | `.github/workflows/security-compliance.yml` |
 | S1 (ext-10) | ✅ | `tracing_server` now generates trace IDs using full 128-bit `uuid::Uuid::new_v4()` entropy | `crates/fraiseql-server/src/tracing_server.rs` |
 
@@ -301,7 +301,7 @@ These require design decisions before implementation — file a spec issue per i
 | Z2 (ext-9) | ✅ | Add tests for `fraiseql-observers-macros` — 4 integration tests in `tests/traced_macro.rs` | `crates/fraiseql-observers-macros/src/lib.rs` |
 | U1/U2 (ext-6) | ✅ | Fix and test `assert_json_key!` macro — panics with descriptive message for missing keys; tests added | `crates/fraiseql-test-utils/src/assertions.rs` |
 | B1 (ext-0) | ✅ | Raise CI coverage threshold from 60% to 70%; add 80% gate for security crates | `.github/workflows/ci.yml` |
-| AB1 (ext-9) | | Add CI workflows for seven official SDKs | `.github/workflows/` |
+| AB1 (ext-9) | ✅ | CI workflows added for all 7 remaining official SDKs: Python, TypeScript, Go, Java, Rust, Dart, Ruby | `.github/workflows/` |
 
 ### 8D — Hygiene / repo cleanup
 
@@ -339,15 +339,15 @@ These require design decisions before implementation — file a spec issue per i
 | 🔴 Critical | 11 | 11 | 0 | 0 |
 | 🟠 High | ~45 | ~44 | 1 | ~0 |
 | 🟡 Medium | ~45 | ~45 | 0 | 0 |
-| 🔵 Low | ~20 | ~19 | 0 | ~1 |
-| **Total** | **~121** | **~119** | **1** | **~1** |
+| 🔵 Low | ~20 | ~20 | 0 | 0 |
+| **Total** | **~121** | **~120** | **1** | **0** |
 
 **All 🔴 Critical items resolved** ✅
 **All 🟠 High items resolved** ✅
 **All 🟡 Medium items resolved** ✅
+**All 🔵 Low items resolved** ✅
 
-**Remaining items** (~1):
-- `AB1 (ext-9)`: CI workflows for seven official SDKs (requires creating per-SDK GitHub Actions workflows)
+**No remaining actionable items** 🎉
 
 **Verified already done (not pending)**:
 - `A1–A5`: No "10-20x faster" claims exist; performance claims are qualified; SQLite note in README ✅
@@ -369,6 +369,5 @@ These require design decisions before implementation — file a spec issue per i
 
 > All Batch 1 (security), Batch 2 (correctness), Batch 3 (feature theater), Batch 4 (validation),
 > Batch 5 (architecture), Batch 6 (reliability), Batch 7 (proc-macro/CI), and Batch 8 (quality)
-> items have been addressed as of 2026-03-05. Campaign is ~99% complete (~119/121 items done).
-> The single remaining actionable item (AB1 SDK CI) requires creating 7 GitHub Actions workflows.
-> V3 (rustls) is blocked on upstream AWS SDK update.
+> items have been addressed as of 2026-03-05. Campaign is 100% complete (120/121 actionable items done).
+> V3 (rustls 0.21.12) is blocked on upstream AWS SDK update and cannot be resolved here.
