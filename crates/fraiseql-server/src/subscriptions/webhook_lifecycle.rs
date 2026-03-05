@@ -13,13 +13,13 @@ use super::lifecycle::SubscriptionLifecycle;
 
 /// Subscription lifecycle hooks that call external HTTP endpoints.
 pub struct WebhookLifecycle {
-    client: reqwest::Client,
-    on_connect_url: Option<String>,
-    on_disconnect_url: Option<String>,
-    on_subscribe_url: Option<String>,
-    #[allow(dead_code)]
-    // Reason: stored for diagnostics and potential future use in on_unsubscribe.
-    timeout: Duration,
+    client:             reqwest::Client,
+    on_connect_url:     Option<String>,
+    on_disconnect_url:  Option<String>,
+    on_subscribe_url:   Option<String>,
+    on_unsubscribe_url: Option<String>,
+    #[allow(dead_code)] // Reason: kept for future use in fail-closed unsubscribe logic.
+    timeout:            Duration,
 }
 
 impl WebhookLifecycle {
@@ -30,10 +30,11 @@ impl WebhookLifecycle {
     /// fire-and-forget (timeout is irrelevant for those hooks).
     #[must_use]
     pub fn new(
-        on_connect_url: Option<String>,
-        on_disconnect_url: Option<String>,
-        on_subscribe_url: Option<String>,
-        timeout_ms: u64,
+        on_connect_url:     Option<String>,
+        on_disconnect_url:  Option<String>,
+        on_subscribe_url:   Option<String>,
+        on_unsubscribe_url: Option<String>,
+        timeout_ms:         u64,
     ) -> Self {
         let timeout = Duration::from_millis(timeout_ms);
         let client = reqwest::Client::builder()
@@ -45,6 +46,7 @@ impl WebhookLifecycle {
             on_connect_url,
             on_disconnect_url,
             on_subscribe_url,
+            on_unsubscribe_url,
             timeout,
         }
     }
@@ -57,13 +59,18 @@ impl WebhookLifecycle {
         config: &fraiseql_core::schema::SubscriptionsConfig,
     ) -> Option<Self> {
         let hooks = config.hooks.as_ref()?;
-        if hooks.on_connect.is_none() && hooks.on_disconnect.is_none() && hooks.on_subscribe.is_none() {
+        if hooks.on_connect.is_none()
+            && hooks.on_disconnect.is_none()
+            && hooks.on_subscribe.is_none()
+            && hooks.on_unsubscribe.is_none()
+        {
             return None;
         }
         Some(Self::new(
             hooks.on_connect.clone(),
             hooks.on_disconnect.clone(),
             hooks.on_subscribe.clone(),
+            hooks.on_unsubscribe.clone(),
             hooks.timeout_ms,
         ))
     }
@@ -77,9 +84,10 @@ impl WebhookLifecycle {
         let on_connect = hooks.get("on_connect").and_then(|v| v.as_str()).map(String::from);
         let on_disconnect = hooks.get("on_disconnect").and_then(|v| v.as_str()).map(String::from);
         let on_subscribe = hooks.get("on_subscribe").and_then(|v| v.as_str()).map(String::from);
+        let on_unsubscribe = hooks.get("on_unsubscribe").and_then(|v| v.as_str()).map(String::from);
 
         // If no hooks are configured, return None.
-        if on_connect.is_none() && on_disconnect.is_none() && on_subscribe.is_none() {
+        if on_connect.is_none() && on_disconnect.is_none() && on_subscribe.is_none() && on_unsubscribe.is_none() {
             return None;
         }
 
@@ -88,7 +96,7 @@ impl WebhookLifecycle {
             .and_then(|v| v.as_u64())
             .unwrap_or(500);
 
-        Some(Self::new(on_connect, on_disconnect, on_subscribe, timeout_ms))
+        Some(Self::new(on_connect, on_disconnect, on_subscribe, on_unsubscribe, timeout_ms))
     }
 }
 
@@ -185,7 +193,7 @@ impl SubscriptionLifecycle for WebhookLifecycle {
     }
 
     async fn on_unsubscribe(&self, subscription_id: &str, connection_id: &str) {
-        let Some(ref url) = self.on_subscribe_url else {
+        let Some(ref url) = self.on_unsubscribe_url else {
             return;
         };
 

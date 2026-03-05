@@ -382,9 +382,12 @@ pub struct SubscriptionHooksConfig {
     pub on_disconnect: Option<String>,
     /// URL to POST before a subscription is registered (fail-closed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_subscribe:  Option<String>,
+    pub on_subscribe:    Option<String>,
+    /// URL to POST when a subscription is removed (fire-and-forget).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_unsubscribe:  Option<String>,
     /// Timeout in milliseconds for fail-closed hooks (default: 500).
-    pub timeout_ms:    u64,
+    pub timeout_ms:      u64,
 }
 
 impl Default for SubscriptionHooksConfig {
@@ -393,6 +396,7 @@ impl Default for SubscriptionHooksConfig {
             on_connect:    None,
             on_disconnect: None,
             on_subscribe:  None,
+            on_unsubscribe: None,
             timeout_ms:    500,
         }
     }

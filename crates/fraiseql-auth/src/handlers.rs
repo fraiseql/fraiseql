@@ -309,24 +309,12 @@ pub async fn auth_refresh(
         "validate",
     );
 
-    // In a real implementation, would generate new JWT here
-    // For now, return a simple response
-    let access_token = format!("new_access_token_{}", uuid::Uuid::new_v4());
-
-    // Audit log: JWT refresh success
-    let audit_logger = get_audit_logger();
-    audit_logger.log_success(
-        AuditEventType::JwtRefresh,
-        SecretType::JwtToken,
-        Some(session.user_id),
-        "refresh",
-    );
-
-    Ok(Json(AuthRefreshResponse {
-        access_token,
-        token_type: "Bearer".to_string(),
-        expires_in: 3600,
-    }))
+    // JWT signing requires an RSA/EC private key, which is not yet wired
+    // into the auth state. Return an explicit error rather than a fake token.
+    Err(AuthError::Internal {
+        message: "JWT signing not yet implemented — configure an OIDC provider for token issuance"
+            .to_string(),
+    })
 }
 
 /// POST /auth/logout - Logout and revoke session
