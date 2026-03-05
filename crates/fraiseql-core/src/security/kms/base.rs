@@ -3,22 +3,15 @@
 //! Provides public async methods with common logic and abstract hooks
 //! for provider-specific implementations.
 
-use std::{
-    collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::HashMap;
 
-use crate::security::kms::{
-    error::{KmsError, KmsResult},
-    models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, RotationPolicy},
+use crate::{
+    security::kms::{
+        error::{KmsError, KmsResult},
+        models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, RotationPolicy},
+    },
+    utils::clock::{Clock, SystemClock},
 };
-
-/// Get current Unix timestamp.
-fn current_timestamp() -> i64 {
-    // Safe to unwrap: u64 timestamp won't overflow i64 until year 292,277,026,596
-    i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs())
-        .unwrap_or(0)
-}
 
 /// Abstract base class for KMS providers.
 ///
@@ -30,6 +23,16 @@ fn current_timestamp() -> i64 {
 pub trait BaseKmsProvider: Send + Sync {
     /// Unique provider identifier (e.g., 'vault', 'aws', 'gcp').
     fn provider_name(&self) -> &str;
+
+    /// Return the current Unix timestamp in seconds as a signed integer.
+    ///
+    /// Override in tests to return a fixed timestamp, enabling deterministic
+    /// testing of key-rotation scheduling without real-time delays.
+    ///
+    /// The default implementation delegates to [`SystemClock`].
+    fn timestamp_secs(&self) -> i64 {
+        SystemClock.now_secs_i64()
+    }
 
     // ─────────────────────────────────────────────────────────────
     // Template Methods (public API)
@@ -68,10 +71,10 @@ pub trait BaseKmsProvider: Send + Sync {
                 self.provider_name().to_string(),
                 key_id.to_string(),
                 KeyPurpose::EncryptDecrypt,
-                current_timestamp(),
+                self.timestamp_secs(),
             ),
             algorithm,
-            current_timestamp(),
+            self.timestamp_secs(),
             ctx,
         ))
     }
@@ -128,7 +131,7 @@ pub trait BaseKmsProvider: Send + Sync {
             self.provider_name().to_string(),
             key_id.to_string(),
             KeyPurpose::EncryptDecrypt,
-            current_timestamp(),
+            self.timestamp_secs(),
         );
 
         Ok(DataKeyPair::new(
@@ -137,7 +140,7 @@ pub trait BaseKmsProvider: Send + Sync {
                 encrypted_key_bytes,
                 key_ref.clone(),
                 "data-key".to_string(),
-                current_timestamp(),
+                self.timestamp_secs(),
                 ctx,
             ),
             key_ref,
@@ -272,11 +275,10 @@ pub struct RotationPolicyInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::utils::clock::{Clock as _, SystemClock};
 
-    #[tokio::test]
-    async fn test_current_timestamp_is_positive() {
-        let ts = current_timestamp();
-        assert!(ts > 0);
+    #[test]
+    fn test_system_clock_timestamp_is_positive() {
+        assert!(SystemClock.now_secs_i64() > 0);
     }
 }

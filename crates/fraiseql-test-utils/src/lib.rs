@@ -16,6 +16,9 @@ pub use assertions::{
     assert_no_graphql_errors,
 };
 
+// Re-export clock utilities for time-controlled testing
+pub use fraiseql_core::utils::clock::{Clock, ManualClock, SystemClock};
+
 // Re-export saga types for convenience
 pub use saga::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
 

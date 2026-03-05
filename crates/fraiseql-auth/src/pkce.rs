@@ -23,10 +23,7 @@
 //   InMemory — DashMap, single-process, per-replica
 //   Redis    — distributed, multi-replica (requires `redis-pkce` Cargo feature)
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use dashmap::DashMap;
@@ -81,8 +78,10 @@ pub struct ConsumedPkceState {
 struct PkceEntry {
     verifier:     String,
     redirect_uri: String,
-    created_at:   Instant,
-    ttl:          Duration,
+    /// Creation time as a Tokio instant so `tokio::time::pause()` +
+    /// `tokio::time::advance()` can control TTL expiry in tests.
+    created_at: tokio::time::Instant,
+    ttl:        Duration,
 }
 
 /// In-memory PKCE state store backed by a [`DashMap`].
@@ -119,7 +118,7 @@ impl InMemoryPkceStateStore {
         self.entries.insert(internal_key.clone(), PkceEntry {
             verifier:     verifier.clone(),
             redirect_uri: redirect_uri.to_owned(),
-            created_at:   Instant::now(),
+            created_at:   tokio::time::Instant::now(),
             ttl:          Duration::from_secs(self.state_ttl_secs),
         });
 
@@ -478,11 +477,11 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_expired_state_returns_state_expired_not_not_found() {
         let store = store_no_enc(1);
         let (token, _) = store.create_state("https://example.com").await.unwrap();
-        tokio::time::sleep(Duration::from_millis(1100)).await;
+        tokio::time::advance(Duration::from_millis(1100)).await;
         assert!(
             matches!(store.consume_state(&token).await, Err(PkceError::StateExpired)),
             "expired state must be StateExpired, not StateNotFound"

@@ -108,6 +108,8 @@ test-postgres = []
 # Run with: cargo test --features test-sqlserver -- --test-threads=1
 test-sqlserver = ["sqlserver"]
 wire-backend = ["fraiseql-wire"]
+# Expose ManualClock and other test helpers for dependent crates
+test-utils = []
 
 [package]
 description = "Core execution engine for FraiseQL v2 - Compiled GraphQL over SQL"

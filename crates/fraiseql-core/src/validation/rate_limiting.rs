@@ -10,10 +10,9 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::error::FraiseQLError;
+use crate::{error::FraiseQLError, utils::clock::{Clock, SystemClock}};
 
 /// Rate limit configuration for a single dimension
 #[derive(Debug, Clone)]
@@ -88,21 +87,24 @@ struct RequestRecord {
 struct DimensionRateLimiter {
     records:   Arc<Mutex<HashMap<String, RequestRecord>>>,
     dimension: RateLimitDimension,
+    clock:     Arc<dyn Clock>,
 }
 
 impl DimensionRateLimiter {
+    #[cfg(test)]
     fn new(max_requests: u32, window_secs: u64) -> Self {
+        Self::new_with_clock(max_requests, window_secs, Arc::new(SystemClock))
+    }
+
+    fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
         Self {
             records:   Arc::new(Mutex::new(HashMap::new())),
             dimension: RateLimitDimension {
                 max_requests,
                 window_secs,
             },
+            clock,
         }
-    }
-
-    fn get_timestamp() -> u64 {
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
     }
 
     fn check(&self, key: &str) -> Result<(), FraiseQLError> {
@@ -111,7 +113,7 @@ impl DimensionRateLimiter {
         }
 
         let mut records = self.records.lock().expect("records mutex poisoned");
-        let now = Self::get_timestamp();
+        let now = self.clock.now_secs();
 
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
             count:        0,
@@ -148,6 +150,7 @@ impl Clone for DimensionRateLimiter {
         Self {
             records:   Arc::clone(&self.records),
             dimension: self.dimension.clone(),
+            clock:     Arc::clone(&self.clock),
         }
     }
 }
@@ -164,28 +167,38 @@ pub struct ValidationRateLimiter {
 }
 
 impl ValidationRateLimiter {
-    /// Create a new validation rate limiter with the given configuration
+    /// Create a new validation rate limiter with the given configuration.
     pub fn new(config: ValidationRateLimitingConfig) -> Self {
+        Self::new_with_clock(config, Arc::new(SystemClock))
+    }
+
+    /// Create a validation rate limiter with a custom clock (for testing).
+    pub fn new_with_clock(config: ValidationRateLimitingConfig, clock: Arc<dyn Clock>) -> Self {
         Self {
-            validation_errors:       DimensionRateLimiter::new(
+            validation_errors:       DimensionRateLimiter::new_with_clock(
                 config.validation_errors_max_requests,
                 config.validation_errors_window_secs,
+                Arc::clone(&clock),
             ),
-            depth_errors:            DimensionRateLimiter::new(
+            depth_errors:            DimensionRateLimiter::new_with_clock(
                 config.depth_errors_max_requests,
                 config.depth_errors_window_secs,
+                Arc::clone(&clock),
             ),
-            complexity_errors:       DimensionRateLimiter::new(
+            complexity_errors:       DimensionRateLimiter::new_with_clock(
                 config.complexity_errors_max_requests,
                 config.complexity_errors_window_secs,
+                Arc::clone(&clock),
             ),
-            malformed_errors:        DimensionRateLimiter::new(
+            malformed_errors:        DimensionRateLimiter::new_with_clock(
                 config.malformed_errors_max_requests,
                 config.malformed_errors_window_secs,
+                Arc::clone(&clock),
             ),
-            async_validation_errors: DimensionRateLimiter::new(
+            async_validation_errors: DimensionRateLimiter::new_with_clock(
                 config.async_validation_errors_max_requests,
                 config.async_validation_errors_window_secs,
+                clock,
             ),
         }
     }
@@ -308,5 +321,30 @@ mod tests {
 
         // limiter2 should see the same limit
         assert!(limiter2.check_validation_errors(key).is_err());
+    }
+
+    #[test]
+    fn test_window_rollover_does_not_leak_across_windows() {
+        use std::time::Duration;
+
+        use crate::utils::clock::ManualClock;
+
+        let clock = ManualClock::new();
+        let clock_arc: Arc<dyn Clock> = Arc::new(clock.clone());
+        let config = ValidationRateLimitingConfig {
+            enabled: true,
+            validation_errors_max_requests: 2,
+            validation_errors_window_secs: 60,
+            ..ValidationRateLimitingConfig::default()
+        };
+        let limiter = ValidationRateLimiter::new_with_clock(config, clock_arc);
+
+        assert!(limiter.check_validation_errors("u1").is_ok()); // 1st
+        assert!(limiter.check_validation_errors("u1").is_ok()); // 2nd
+        assert!(limiter.check_validation_errors("u1").is_err()); // over limit
+
+        clock.advance(Duration::from_secs(61)); // cross the window boundary
+
+        assert!(limiter.check_validation_errors("u1").is_ok()); // new window, limit reset
     }
 }

@@ -59,19 +59,24 @@
 //! description = "Admins have full access"
 //! ```
 
-use std::{sync::Arc, time::SystemTime};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{db::WhereClause, error::Result, security::SecurityContext};
+use crate::{
+    db::WhereClause,
+    error::Result,
+    security::SecurityContext,
+    utils::clock::{Clock, SystemClock},
+};
 
 /// Cache entry for RLS policy decisions with TTL support
 #[derive(Debug, Clone)]
 struct CacheEntry {
     /// The cached RLS evaluation result
     result:     Option<WhereClause>,
-    /// When this cache entry expires
-    expires_at: SystemTime,
+    /// When this cache entry expires (Unix seconds)
+    expires_at: u64,
 }
 
 /// Row-Level Security (RLS) policy for runtime evaluation.
@@ -227,6 +232,12 @@ impl RLSPolicy for NoRLSPolicy {
     }
 }
 
+/// Returns a production `SystemClock` wrapped in `Arc<dyn Clock>`.
+/// Used as the serde `default` for [`CompiledRLSPolicy::clock`].
+fn default_system_clock() -> Arc<dyn Clock> {
+    Arc::new(SystemClock)
+}
+
 /// Custom RLS policy that can be configured from schema.compiled.json
 ///
 /// This allows schema authors to define RLS rules without writing Rust code.
@@ -240,6 +251,9 @@ pub struct CompiledRLSPolicy {
     /// Cache for policy evaluation results (not serialized)
     #[serde(skip)]
     cache:             Arc<parking_lot::RwLock<std::collections::HashMap<String, CacheEntry>>>,
+    /// Clock for cache-expiry checks. Injectable for deterministic testing.
+    #[serde(skip, default = "default_system_clock")]
+    clock:             Arc<dyn Clock>,
 }
 
 impl std::fmt::Debug for CompiledRLSPolicy {
@@ -248,20 +262,31 @@ impl std::fmt::Debug for CompiledRLSPolicy {
             .field("rules_by_type", &self.rules_by_type)
             .field("default_rule", &self.default_rule)
             .field("cache", &"<cached>")
+            .field("clock", &"<clock>")
             .finish()
     }
 }
 
 impl CompiledRLSPolicy {
-    /// Create a new compiled RLS policy with caching enabled
+    /// Create a new compiled RLS policy with caching enabled.
     pub fn new(
         rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
         default_rule: Option<RLSRule>,
+    ) -> Self {
+        Self::new_with_clock(rules_by_type, default_rule, Arc::new(SystemClock))
+    }
+
+    /// Create a compiled RLS policy with a custom clock for deterministic testing.
+    pub fn new_with_clock(
+        rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
+        default_rule: Option<RLSRule>,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         Self {
             rules_by_type,
             default_rule,
             cache: Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
+            clock,
         }
     }
 }
@@ -305,7 +330,7 @@ impl RLSPolicy for CompiledRLSPolicy {
             if let Some(ref key) = cache_key {
                 let cache = self.cache.read();
                 if let Some(entry) = cache.get(key) {
-                    if SystemTime::now() < entry.expires_at {
+                    if self.clock.now_secs() < entry.expires_at {
                         return Ok(entry.result.clone());
                     }
                 }
@@ -318,7 +343,7 @@ impl RLSPolicy for CompiledRLSPolicy {
             // Cache the result if rule is cacheable
             if let Some(key) = cache_key {
                 if let Some(ttl_secs) = rule.cache_ttl_seconds {
-                    let expires_at = SystemTime::now() + std::time::Duration::from_secs(ttl_secs);
+                    let expires_at = self.clock.now_secs() + ttl_secs;
                     let entry = CacheEntry {
                         result: result.clone(),
                         expires_at,
@@ -336,7 +361,7 @@ impl RLSPolicy for CompiledRLSPolicy {
 
     fn cache_result(&self, cache_key: &str, result: &Option<WhereClause>) {
         // Direct cache storage with default TTL of 300 seconds
-        let expires_at = SystemTime::now() + std::time::Duration::from_secs(300);
+        let expires_at = self.clock.now_secs() + 300;
         let entry = CacheEntry {
             result: result.clone(),
             expires_at,

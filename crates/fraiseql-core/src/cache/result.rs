@@ -10,7 +10,6 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicU64, AtomicUsize, Ordering},
     },
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use lru::LruCache;
@@ -20,6 +19,7 @@ use super::config::CacheConfig;
 use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
+    utils::clock::{Clock, SystemClock},
 };
 
 /// Cached query result with metadata.
@@ -118,6 +118,9 @@ pub struct QueryResultCache {
     /// Configuration (immutable after creation).
     config: CacheConfig,
 
+    /// Clock for TTL expiry checks. Injectable for deterministic testing.
+    clock: Arc<dyn Clock>,
+
     // Metrics counters — atomic so the hot `get()` path acquires only ONE lock
     // (the LRU), not two. `Relaxed` ordering is sufficient: these counters are
     // independent and used only for monitoring, not for correctness.
@@ -172,11 +175,22 @@ impl QueryResultCache {
     /// ```
     #[must_use]
     pub fn new(config: CacheConfig) -> Self {
+        Self::new_with_clock(config, Arc::new(SystemClock))
+    }
+
+    /// Create a cache with a custom clock for deterministic time-based testing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `config.max_entries` is 0.
+    #[must_use]
+    pub fn new_with_clock(config: CacheConfig, clock: Arc<dyn Clock>) -> Self {
         let max = NonZeroUsize::new(config.max_entries).expect("max_entries must be > 0");
 
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(max))),
             config,
+            clock,
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
             total_cached: AtomicU64::new(0),
@@ -234,7 +248,7 @@ impl QueryResultCache {
 
         if let Some(cached) = cache.get_mut(cache_key) {
             // Check TTL: use per-entry override, fall back to global config.
-            let now = current_timestamp();
+            let now = self.clock.now_secs();
             if now - cached.cached_at > cached.ttl_seconds {
                 // Expired: remove and count as miss
                 cache.pop(cache_key);
@@ -306,7 +320,7 @@ impl QueryResultCache {
             return Ok(());
         }
 
-        let now = current_timestamp();
+        let now = self.clock.now_secs();
         let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);
 
@@ -586,11 +600,6 @@ impl CacheMetrics {
     pub fn is_healthy(&self) -> bool {
         self.hit_rate() > 0.6
     }
-}
-
-/// Get current Unix timestamp in seconds.
-fn current_timestamp() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
 #[cfg(test)]
