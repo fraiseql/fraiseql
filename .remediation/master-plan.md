@@ -238,9 +238,9 @@ These require design decisions before implementation — file a spec issue per i
 | K1 (ext-11) | ✅ | Trusted-documents manifest reload uses `reqwest::get` with no timeout | `crates/fraiseql-server/src/server/initialization.rs` |
 | CC6 (ext-17) | ✅ | `InMemoryApqStorage` uses `std::sync::Mutex` in async context — replace with `tokio::sync::Mutex` | `crates/fraiseql-core/src/apq/memory_storage.rs` |
 | R1 (ext-6) | ✅ | `CascadeInvalidator::add_dependency` doesn't detect indirect cycles | `crates/fraiseql-core/src/cache/cascade_invalidator.rs` |
-| CC4 (ext-17) | | Subscription manager TOCTOU between `unsubscribe_connection` and concurrent `subscribe` — low blast radius (leaked subscription cleaned up on next disconnect) | `crates/fraiseql-core/src/runtime/subscription/manager.rs` |
+| CC4 (ext-17) | ✅ | Subscription manager TOCTOU: second-pass cleanup in `unsubscribe_connection()` closes race window for all but simultaneous two-subscribe races; concurrency note documents residual risk | `crates/fraiseql-core/src/runtime/subscription/manager.rs` |
 | CC1 (ext-15) | ✅ | File audit backend holds persistent file handle; JSON+newline written in single atomic `write_all` | `crates/fraiseql-core/src/audit/file_backend.rs` |
-| K1 (ext-12) | | NATS transport ACKs undecodable messages with no dead-letter queue or counter | `crates/fraiseql-observers/src/transport/nats.rs` |
+| K1 (ext-12) | ✅ | NATS transport: added `dead_letter_subject: Option<String>` to `NatsConfig`; undecodable messages published to DLQ subject before ACK; `undecodable_count` AtomicU64 counter already present | `crates/fraiseql-observers/src/transport/nats.rs` |
 | N2 (ext-3) | ✅ | `reqwest::Client::builder().build().unwrap_or_default()` silently drops timeout config | Multiple |
 | T7 (ext-16) | ✅ | APQ `hash_query_with_variables` uses `unwrap_or_default()` on infallible JSON serialization | `crates/fraiseql-core/src/apq/hasher.rs` |
 | CC5 (ext-17) | ✅ | APQ normalization implicitly depends on `BTreeMap` ordering — fragile | `crates/fraiseql-core/src/apq/hasher.rs` |
@@ -338,23 +338,24 @@ These require design decisions before implementation — file a spec issue per i
 |----------|-------|------|---------|---------|
 | 🔴 Critical | 11 | 11 | 0 | 0 |
 | 🟠 High | ~45 | ~44 | 1 | ~0 |
-| 🟡 Medium | ~45 | ~43 | 0 | ~2 |
-| 🔵 Low | ~20 | ~18 | 0 | ~2 |
-| **Total** | **~121** | **~116** | **1** | **~4** |
+| 🟡 Medium | ~45 | ~45 | 0 | 0 |
+| 🔵 Low | ~20 | ~19 | 0 | ~1 |
+| **Total** | **~121** | **~119** | **1** | **~1** |
 
 **All 🔴 Critical items resolved** ✅
-**All 🟠 High items resolved** ✅ (CC4 subscription TOCTOU is low-risk in practice — DashMap operations are per-entry atomic and worst-case is a leaked subscription until reconnect)
+**All 🟠 High items resolved** ✅
+**All 🟡 Medium items resolved** ✅
 
-**Remaining items** (~4, all 🟡/🔵 low-risk):
-- `CC4 (ext-17)`: Subscription TOCTOU — complex fix, low blast radius
-- `K1 (ext-12)`: NATS dead-letter queue — requires NATS JetStream config changes
-- `H2 (ext-1)`: Document RBAC management API existence, auth requirements, tenant isolation
-- `AB1 (ext-9)`: CI workflows for seven official SDKs
+**Remaining items** (~1):
+- `AB1 (ext-9)`: CI workflows for seven official SDKs (requires creating per-SDK GitHub Actions workflows)
 
 **Verified already done (not pending)**:
 - `A1–A5`: No "10-20x faster" claims exist; performance claims are qualified; SQLite note in README ✅
 - `H1`: Backup scheduling/S3/PITR documented as planned-future in VALUE_PROPOSITION.md ✅
+- `H2`: RBAC management API endpoints, auth requirements, tenant isolation documented ✅
 - `H3`: observers-full deprecation in CHANGELOG ✅
+- `CC4`: Second-pass cleanup in `unsubscribe_connection()` mitigates subscription TOCTOU ✅
+- `K1 (ext-12)`: NATS DLQ support added via `dead_letter_subject` config field ✅
 - `G1`: eprintln! replaced with tracing in worker.rs, validation_audit.rs, sqlserver/adapter.rs ✅
 - `G6`: No `#[allow(unused_imports)]` in any `src/` production file ✅
 - `J2`: LIKE wildcard warnings on Like/Ilike and all six derivative operators ✅
@@ -368,6 +369,6 @@ These require design decisions before implementation — file a spec issue per i
 
 > All Batch 1 (security), Batch 2 (correctness), Batch 3 (feature theater), Batch 4 (validation),
 > Batch 5 (architecture), Batch 6 (reliability), Batch 7 (proc-macro/CI), and Batch 8 (quality)
-> items have been substantially addressed as of 2026-03-05. The campaign is ~96% complete.
-> Remaining items are either blocked on upstream dependencies (V3) or require significant
-> design work (CC4 TOCTOU, AB1 SDK CI, H2 RBAC docs).
+> items have been addressed as of 2026-03-05. Campaign is ~99% complete (~119/121 items done).
+> The single remaining actionable item (AB1 SDK CI) requires creating 7 GitHub Actions workflows.
+> V3 (rustls) is blocked on upstream AWS SDK update.
