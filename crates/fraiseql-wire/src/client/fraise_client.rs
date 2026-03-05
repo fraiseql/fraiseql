@@ -143,6 +143,13 @@ impl FraiseClient {
             }
         };
 
+        // Apply TCP keepalive when configured.
+        if let Some(idle) = config.keepalive_idle {
+            if let Err(e) = transport.apply_keepalive(idle) {
+                tracing::warn!("Failed to apply TCP keepalive (idle={idle:?}): {e}");
+            }
+        }
+
         let mut conn = Connection::new(transport);
         conn.startup(&config).await?;
 
@@ -200,6 +207,13 @@ impl FraiseClient {
                 ));
             }
         };
+
+        // Apply TCP keepalive when configured.
+        if let Some(idle) = config.keepalive_idle {
+            if let Err(e) = transport.apply_keepalive(idle) {
+                tracing::warn!("Failed to apply TCP keepalive (idle={idle:?}): {e}");
+            }
+        }
 
         let mut conn = Connection::new(transport);
         conn.startup(&config).await?;

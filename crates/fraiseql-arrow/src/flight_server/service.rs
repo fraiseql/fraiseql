@@ -415,65 +415,15 @@ impl FraiseQLFlightService {
             let stream = futures::stream::iter(messages);
             Ok(stream)
         } else {
-            // Placeholder mode: no executor configured
-            info!(
+            // No executor configured: refuse rather than return unauthenticated fake data
+            tracing::warn!(
                 user_id = %security_context.user_id,
-                "No executor configured - returning placeholder data (RLS not enforced)"
+                "Arrow Flight query rejected: no database executor configured"
             );
-
-            // Generate placeholder schema and data for demonstration
-            let fields = vec![
-                ("id".to_string(), "ID".to_string(), false),
-                ("result".to_string(), "String".to_string(), true),
-            ];
-
-            // Generate placeholder rows with the query as result
-            let mut rows = Vec::with_capacity(1);
-            let mut row = std::collections::HashMap::new();
-            row.insert("id".to_string(), serde_json::json!("1"));
-            row.insert("result".to_string(), serde_json::json!(query));
-            rows.push(row);
-
-            // Convert to Arrow schema and data
-            let arrow_schema = crate::schema_gen::generate_arrow_schema(&fields);
-            let arrow_values = rows
-                .iter()
-                .map(|row| {
-                    vec![
-                        row.get("id").cloned().and_then(|v| match v {
-                            serde_json::Value::String(s) => Some(crate::convert::Value::String(s)),
-                            _ => None,
-                        }),
-                        row.get("result").cloned().and_then(|v| match v {
-                            serde_json::Value::String(s) => Some(crate::convert::Value::String(s)),
-                            _ => None,
-                        }),
-                    ]
-                })
-                .collect::<Vec<_>>();
-
-            // Convert to RecordBatches
-            let config = crate::convert::ConvertConfig {
-                batch_size: 10_000,
-                max_rows:   None,
-            };
-            let converter = crate::convert::RowToArrowConverter::new(arrow_schema.clone(), config);
-
-            let batches = arrow_values
-                .chunks(config.batch_size)
-                .map(|chunk| converter.convert_batch(chunk.to_vec()))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
-
-            // Stream schema first, then batches
-            let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
-            messages.push(Ok(schema_to_flight_data(&arrow_schema)?));
-            for batch in batches {
-                messages.push(record_batch_to_flight_data(&batch));
-            }
-
-            let stream = futures::stream::iter(messages);
-            Ok(stream)
+            Err(Status::unavailable(
+                "Arrow Flight server has no database executor configured. \
+                 Initialize the flight server with FraiseFlightServer::with_executor().",
+            ))
         }
     }
 

@@ -152,7 +152,10 @@ fn validate_rule(input: &Value, rule: &InputObjectRule, path: &str) -> Result<()
             then_fields,
         } => validate_required_if_absent(input, absent_field, then_fields, path),
         InputObjectRule::Custom { name } => Err(FraiseQLError::Validation {
-            message: format!("Custom validator '{}' not implemented", name),
+            message: format!(
+                "Custom validator '{name}' is not registered. \
+                 Register validators via InputValidatorRegistry before executing queries."
+            ),
             path:    Some(path.to_string()),
         }),
     }

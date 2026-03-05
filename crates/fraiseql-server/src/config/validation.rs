@@ -74,7 +74,54 @@ impl<'a> ConfigValidator<'a> {
         self.validate_files();
         self.validate_cross_field();
         self.validate_env_vars();
+        self.validate_placeholder_sections();
         self.result
+    }
+
+    /// Warn when config sections are parsed but have no runtime effect yet.
+    fn validate_placeholder_sections(&mut self) {
+        if self.config.notifications.is_some() {
+            self.result.add_warning(
+                "config section 'notifications' is parsed but not yet implemented; \
+                 values will be ignored at runtime",
+            );
+        }
+        if self.config.logging.is_some() {
+            self.result.add_warning(
+                "config section 'logging' is parsed but not yet implemented; \
+                 use the 'tracing' section for observability",
+            );
+        }
+        if self.config.search.is_some() {
+            self.result.add_warning(
+                "config section 'search' is parsed but not yet implemented; \
+                 values will be ignored at runtime",
+            );
+        }
+        if self.config.cache.is_some() {
+            self.result.add_warning(
+                "config section 'cache' is parsed but not yet implemented; \
+                 use fraiseql_core::cache::CacheConfig for query-result caching",
+            );
+        }
+        if self.config.queues.is_some() {
+            self.result.add_warning(
+                "config section 'queues' is parsed but not yet implemented; \
+                 values will be ignored at runtime",
+            );
+        }
+        if self.config.realtime.is_some() {
+            self.result.add_warning(
+                "config section 'realtime' is parsed but not yet implemented; \
+                 use the 'subscriptions' feature for real-time updates",
+            );
+        }
+        if self.config.custom_endpoints.is_some() {
+            self.result.add_warning(
+                "config section 'custom_endpoints' is parsed but not yet implemented; \
+                 values will be ignored at runtime",
+            );
+        }
     }
 
     fn validate_server(&mut self) {
