@@ -116,7 +116,7 @@ pub struct PostgresWhereGenerator {
 impl PostgresWhereGenerator {
     /// Create new PostgreSQL WHERE generator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             param_counter:   std::cell::Cell::new(0),
             indexed_columns: None,
@@ -144,7 +144,7 @@ impl PostgresWhereGenerator {
     /// let generator = PostgresWhereGenerator::with_indexed_columns(Arc::new(columns));
     /// ```
     #[must_use]
-    pub fn with_indexed_columns(indexed_columns: Arc<HashSet<String>>) -> Self {
+    pub const fn with_indexed_columns(indexed_columns: Arc<HashSet<String>>) -> Self {
         Self {
             param_counter:   std::cell::Cell::new(0),
             indexed_columns: Some(indexed_columns),
@@ -526,7 +526,7 @@ impl PostgresWhereGenerator {
         } else if suffix {
             format!("{param} || '%'")
         } else {
-            param.clone()
+            param
         };
 
         params.push(serde_json::Value::String(val_str.to_string()));
@@ -772,6 +772,7 @@ impl crate::filters::ExtendedOperatorHandler for PostgresWhereGenerator {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use std::{collections::HashSet, sync::Arc};
 

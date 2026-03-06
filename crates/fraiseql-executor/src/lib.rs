@@ -35,7 +35,7 @@ use std::pin::Pin;
 /// Allows code that drives query execution (fraiseql-server, tests) to hold
 /// `Arc<dyn ExecutorAdapter>` without being generic over `DatabaseAdapter`.
 ///
-/// # CS-2: ExecutorAdapter Trait
+/// # CS-2: `ExecutorAdapter` Trait
 ///
 /// This trait enables type erasure for the executor, removing the need for
 /// generic `A` type parameters in `Server<A>` and similar types.

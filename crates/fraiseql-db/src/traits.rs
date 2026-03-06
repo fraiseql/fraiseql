@@ -593,7 +593,7 @@ impl DatabaseCapabilities {
 /// The cursor type is determined at compile time by `QueryDefinition::relay_cursor_type`
 /// and used at runtime to choose the correct SQL comparison and cursor
 /// encoding/decoding path.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CursorValue {
     /// BIGINT primary key cursor (default, backward-compatible).
     Int64(i64),

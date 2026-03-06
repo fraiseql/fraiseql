@@ -31,7 +31,7 @@ pub enum ParameterType {
 
 impl ParameterType {
     /// Get GraphQL type representation
-    pub fn graphql_type(self) -> &'static str {
+    pub const fn graphql_type(self) -> &'static str {
         match self {
             ParameterType::String => "String",
             ParameterType::StringArray => "[String!]!",
@@ -610,6 +610,7 @@ fn percentage_operators() -> Vec<OperatorInfo> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use super::*;
 

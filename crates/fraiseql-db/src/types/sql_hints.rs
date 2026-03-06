@@ -21,7 +21,7 @@ use fraiseql_error::{FraiseQLError, Result};
 /// Workaround: expose integer sort keys as a dedicated typed column
 /// in the database view. String and ISO-8601 date/time fields sort
 /// correctly without this workaround.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderByClause {
     /// Field to order by (can be dimension, aggregate, or temporal bucket)
     pub field:     String,
@@ -157,7 +157,7 @@ impl OrderByClause {
 /// When a type has a large JSONB payload, the compiler can generate
 /// SQL that projects only the requested fields, reducing network payload
 /// and JSON deserialization overhead.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SqlProjectionHint {
     /// Database type (e.g., "postgresql", "mysql", "sqlite").
     pub database: String,

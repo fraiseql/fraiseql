@@ -60,7 +60,7 @@ pub enum WhereClause {
 impl WhereClause {
     /// Check if WHERE clause is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
             Self::Not(_) | Self::Field { .. } => false,
@@ -513,7 +513,7 @@ pub enum HavingClause {
 impl HavingClause {
     /// Check if HAVING clause is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
             Self::Not(_) | Self::Aggregate { .. } => false,
@@ -522,6 +522,7 @@ impl HavingClause {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use serde_json::json;
 

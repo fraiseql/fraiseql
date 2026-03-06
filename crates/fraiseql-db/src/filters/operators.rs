@@ -590,6 +590,7 @@ impl std::fmt::Display for ExtendedOperator {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use super::*;
 

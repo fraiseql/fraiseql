@@ -319,6 +319,7 @@ impl WhereSqlGenerator {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use serde_json::json;
 

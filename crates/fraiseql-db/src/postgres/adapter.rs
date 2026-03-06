@@ -161,7 +161,7 @@ impl PostgresAdapter {
     ///
     /// This allows sharing the pool with other components like `PostgresIntrospector`.
     #[must_use]
-    pub fn pool(&self) -> &Pool {
+    pub const fn pool(&self) -> &Pool {
         &self.pool
     }
 
@@ -396,20 +396,18 @@ impl DatabaseAdapter for PostgresAdapter {
         let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
 
         // Collect WHERE clause params (if any)
-        let mut typed_params: Vec<QueryParam> = Vec::new();
-        let mut param_count = 0;
-
-        // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
             let generator = PostgresWhereGenerator::new();
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
 
             // Convert WHERE clause JSON values to QueryParam
-            typed_params = where_params.into_iter().map(QueryParam::from).collect();
-            param_count = typed_params.len();
-        }
+            where_params.into_iter().map(QueryParam::from).collect()
+        } else {
+            Vec::new()
+        };
+        let mut param_count = typed_params.len();
 
         // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT)
         if let Some(lim) = limit {
@@ -831,6 +829,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 ///
 /// # Stop test database
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod unit_tests {
     use super::{escape_jsonb_key, PostgresAdapter};
     use fraiseql_error::FraiseQLError;

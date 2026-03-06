@@ -433,7 +433,7 @@ impl FraiseQLError {
 
         for (i, c1) in s1.chars().enumerate() {
             for (j, c2) in s2.chars().enumerate() {
-                let cost = if c1 == c2 { 0 } else { 1 };
+                let cost = usize::from(c1 != c2);
                 matrix[i + 1][j + 1] = std::cmp::min(
                     std::cmp::min(
                         matrix[i][j + 1] + 1,
@@ -535,9 +535,17 @@ impl From<std::env::VarError> for FraiseQLError {
 /// Extension trait for adding context to errors.
 pub trait ErrorContext<T> {
     /// Add context to an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the original value was `Err`, wrapping it in an `Internal` error with the given message.
     fn context(self, message: impl Into<String>) -> Result<T>;
 
     /// Add context lazily (only computed on error).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the original value was `Err`, wrapping it in an `Internal` error with the context message.
     fn with_context<F, M>(self, f: F) -> Result<T>
     where
         F: FnOnce() -> M,
@@ -662,7 +670,8 @@ mod tests {
 
     #[test]
     fn test_from_serde_error() {
-        let json_err = serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
+        let json_err = serde_json::from_str::<serde_json::Value>("not json")
+            .expect_err("'not json' must fail to parse");
         let err: FraiseQLError = json_err.into();
         assert!(matches!(err, FraiseQLError::Parse { .. }));
     }

@@ -41,7 +41,7 @@ impl CollationMapper {
     /// * `config` - Global collation configuration
     /// * `database_type` - Target database type
     #[must_use]
-    pub fn new(config: CollationConfig, database_type: DatabaseType) -> Self {
+    pub const fn new(config: CollationConfig, database_type: DatabaseType) -> Self {
         Self {
             config,
             database_type,
@@ -252,6 +252,7 @@ impl CollationCapabilities {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use super::*;
     use crate::collation_config::{

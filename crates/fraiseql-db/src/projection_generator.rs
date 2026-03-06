@@ -386,6 +386,7 @@ impl Default for SqliteProjectionGenerator {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use super::*;
 

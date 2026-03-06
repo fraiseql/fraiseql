@@ -119,7 +119,7 @@ fn migrate_create_without_confiture_exits_nonzero() {
 // ── `fraiseql.toml` URL resolution ───────────────────────────────────────────
 
 /// A `fraiseql.toml` with `[database].url` is used if no `--database` flag given.
-/// (Tests the resolve_database_url helper indirectly via the CLI.)
+/// (Tests the `resolve_database_url` helper indirectly via the CLI.)
 /// This test just checks the error path is well-formed, not that a DB connection succeeds.
 #[test]
 fn migrate_reads_database_url_from_toml() {
