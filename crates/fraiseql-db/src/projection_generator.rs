@@ -27,7 +27,7 @@
 //! # }
 //! ```
 
-use crate::error::Result;
+use fraiseql_error::Result;
 
 /// Convert camelCase field name to snake_case for JSON/JSONB key lookup.
 ///

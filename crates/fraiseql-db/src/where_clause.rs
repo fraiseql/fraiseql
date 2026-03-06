@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{FraiseQLError, Result};
+use fraiseql_error::{FraiseQLError, Result};
 
 /// WHERE clause abstract syntax tree.
 ///

@@ -51,7 +51,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub use crate::types::sql_hints::{OrderByClause, OrderDirection};
+pub use crate::types::{OrderByClause, OrderDirection};
 
 use crate::{
     compiler::{

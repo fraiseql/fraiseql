@@ -1,23 +1,22 @@
-//! SQL Server WHERE clause SQL generation.
+//! MySQL WHERE clause SQL generation.
 
-use crate::{
-    db::where_clause::{WhereClause, WhereOperator},
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
 
-/// SQL Server WHERE clause generator.
+use crate::{where_clause::{WhereClause, WhereOperator}};
+
+/// MySQL WHERE clause generator.
 ///
-/// Converts `WhereClause` AST to SQL Server T-SQL with parameterized queries.
-/// SQL Server uses `@p1, @p2, ...` for named parameters.
+/// Converts `WhereClause` AST to MySQL SQL with parameterized queries.
+/// MySQL uses `?` for placeholders instead of PostgreSQL's `$1, $2, ...`
 ///
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::db::sqlserver::SqlServerWhereGenerator;
+/// use fraiseql_core::db::mysql::MySqlWhereGenerator;
 /// use fraiseql_core::db::{WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
-/// let generator = SqlServerWhereGenerator::new();
+/// let generator = MySqlWhereGenerator::new();
 ///
 /// let clause = WhereClause::Field {
 ///     path: vec!["email".to_string()],
@@ -26,20 +25,16 @@ use crate::{
 /// };
 ///
 /// let (sql, params) = generator.generate(&clause).expect("Failed to generate SQL");
-/// // sql: "JSON_VALUE(data, '$.email') LIKE '%' + @p1 + '%'"
+/// // sql: "JSON_UNQUOTE(JSON_EXTRACT(data, '$.email')) LIKE CONCAT('%', ?, '%')"
 /// // params: ["example.com"]
 /// ```
-pub struct SqlServerWhereGenerator {
-    param_counter: std::cell::Cell<usize>,
-}
+pub struct MySqlWhereGenerator;
 
-impl SqlServerWhereGenerator {
-    /// Create new SQL Server WHERE generator.
+impl MySqlWhereGenerator {
+    /// Create new MySQL WHERE generator.
     #[must_use]
-    pub fn new() -> Self {
-        Self {
-            param_counter: std::cell::Cell::new(0),
-        }
+    pub const fn new() -> Self {
+        Self
     }
 
     /// Generate SQL WHERE clause and parameters.
@@ -56,44 +51,6 @@ impl SqlServerWhereGenerator {
     ///
     /// Returns `FraiseQLError::Validation` if clause is invalid.
     pub fn generate(&self, clause: &WhereClause) -> Result<(String, Vec<serde_json::Value>)> {
-        self.param_counter.set(0);
-        let mut params = Vec::new();
-        let sql = self.generate_clause(clause, &mut params)?;
-        Ok((sql, params))
-    }
-
-    /// Generate SQL WHERE clause with a parameter index offset.
-    ///
-    /// Used when WHERE clause parameters must not start at `@p1` because
-    /// earlier parameters (e.g. a cursor value) already occupy lower indices.
-    ///
-    /// # Arguments
-    ///
-    /// * `clause` - WHERE clause AST
-    /// * `offset` - number of parameters already bound before this clause
-    ///
-    /// # Returns
-    ///
-    /// Returns tuple of (SQL string, parameter values). Parameter placeholders
-    /// start at `@p{offset+1}`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Validation` if clause is invalid.
-    ///
-    /// # Pitfalls
-    ///
-    /// After this call, `param_counter` is left at `offset + params.len()`.
-    /// Calling `generate()` on the **same** instance afterwards will reset the counter
-    /// to 0, silently discarding that state.  Always create a fresh
-    /// `SqlServerWhereGenerator::new()` per query rather than reusing instances across
-    /// calls.
-    pub fn generate_with_param_offset(
-        &self,
-        clause: &WhereClause,
-        offset: usize,
-    ) -> Result<(String, Vec<serde_json::Value>)> {
-        self.param_counter.set(offset);
         let mut params = Vec::new();
         let sql = self.generate_clause(clause, &mut params)?;
         Ok((sql, params))
@@ -112,7 +69,7 @@ impl SqlServerWhereGenerator {
             } => self.generate_field(path, operator, value, params),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
-                    return Ok("1=1".to_string());
+                    return Ok("TRUE".to_string());
                 }
                 let parts: Result<Vec<String>> =
                     clauses.iter().map(|c| self.generate_clause(c, params)).collect();
@@ -120,7 +77,7 @@ impl SqlServerWhereGenerator {
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
-                    return Ok("1=0".to_string());
+                    return Ok("FALSE".to_string());
                 }
                 let parts: Result<Vec<String>> =
                     clauses.iter().map(|c| self.generate_clause(c, params)).collect();
@@ -140,14 +97,14 @@ impl SqlServerWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // Build JSON path accessor for SQL Server
+        // Build JSON path accessor for MySQL
         let field_path = self.build_json_path(path);
 
         // Generate operator-specific SQL
         match operator {
             // Comparison operators
             WhereOperator::Eq => self.generate_comparison(&field_path, "=", value, params),
-            WhereOperator::Neq => self.generate_comparison(&field_path, "<>", value, params), // SQL Server uses <>
+            WhereOperator::Neq => self.generate_comparison(&field_path, "!=", value, params),
             WhereOperator::Gt => self.generate_comparison(&field_path, ">", value, params),
             WhereOperator::Gte => self.generate_comparison(&field_path, ">=", value, params),
             WhereOperator::Lt => self.generate_comparison(&field_path, "<", value, params),
@@ -158,48 +115,53 @@ impl SqlServerWhereGenerator {
             WhereOperator::Nin => {
                 let in_clause = self.generate_in(&field_path, value, params)?;
                 Ok(format!("NOT ({in_clause})"))
-            }
+            },
 
-            // String operators - SQL Server uses LIKE with COLLATE for case sensitivity
+            // String operators - MySQL uses LIKE (case-sensitive) or LOWER()+LIKE for
+            // case-insensitive
             WhereOperator::Contains => {
                 self.generate_like(&field_path, false, value, params, true, true)
-            }
+            },
             WhereOperator::Icontains => {
                 self.generate_like(&field_path, true, value, params, true, true)
-            }
+            },
             WhereOperator::Startswith => {
                 self.generate_like(&field_path, false, value, params, false, true)
-            }
+            },
             WhereOperator::Istartswith => {
                 self.generate_like(&field_path, true, value, params, false, true)
-            }
+            },
             WhereOperator::Endswith => {
                 self.generate_like(&field_path, false, value, params, true, false)
-            }
+            },
             WhereOperator::Iendswith => {
                 self.generate_like(&field_path, true, value, params, true, false)
-            }
+            },
             WhereOperator::Like => self.generate_comparison(&field_path, "LIKE", value, params),
             WhereOperator::Ilike => {
-                // SQL Server LIKE with case-insensitive collation
-                let param = self.next_param();
-                params.push(value.clone());
-                Ok(format!(
-                    "{field_path} COLLATE Latin1_General_CI_AI LIKE {param}"
-                ))
-            }
+                // MySQL LIKE is case-insensitive by default with utf8mb4_unicode_ci
+                self.generate_comparison(&field_path, "LIKE", value, params)
+            },
             WhereOperator::Nlike => {
                 self.generate_comparison(&field_path, "NOT LIKE", value, params)
-            }
+            },
             WhereOperator::Nilike => Err(FraiseQLError::Unsupported {
-                message: "NILIKE operator not supported in SQL Server (no native ILIKE)".to_string(),
+                message: "NILIKE operator not supported in MySQL (no native ILIKE)".to_string(),
             }),
-            WhereOperator::Regex
-            | WhereOperator::Iregex
-            | WhereOperator::Nregex
-            | WhereOperator::Niregex => Err(FraiseQLError::Unsupported {
-                message: "POSIX regex operators not supported in SQL Server".to_string(),
-            }),
+            WhereOperator::Regex => {
+                self.generate_comparison(&field_path, "REGEXP", value, params)
+            },
+            WhereOperator::Iregex => {
+                // MySQL REGEXP is case-insensitive by default with utf8mb4
+                self.generate_comparison(&field_path, "REGEXP", value, params)
+            },
+            WhereOperator::Nregex => {
+                self.generate_comparison(&field_path, "NOT REGEXP", value, params)
+            },
+            WhereOperator::Niregex => {
+                // MySQL NOT REGEXP is case-insensitive by default with utf8mb4
+                self.generate_comparison(&field_path, "NOT REGEXP", value, params)
+            },
 
             // Null checks
             WhereOperator::IsNull => {
@@ -209,46 +171,44 @@ impl SqlServerWhereGenerator {
                     "IS NOT NULL"
                 };
                 Ok(format!("{field_path} {is_null}"))
-            }
+            },
 
-            // Array operators - SQL Server has limited JSON array support
-            WhereOperator::ArrayContains => self.generate_json_contains(&field_path, path, value, params),
-            WhereOperator::ArrayContainedBy | WhereOperator::ArrayOverlaps => {
-                Err(FraiseQLError::validation(
-                    "ArrayContainedBy and ArrayOverlaps operators require custom functions in SQL Server".to_string(),
-                ))
-            }
+            // Array operators - MySQL uses JSON_CONTAINS
+            WhereOperator::ArrayContains => self.generate_json_contains(&field_path, value, params),
+            WhereOperator::ArrayContainedBy => {
+                // Reverse containment: check if array is contained by value
+                self.generate_json_contained_by(&field_path, value, params)
+            },
+            WhereOperator::ArrayOverlaps => self.generate_json_overlaps(&field_path, value, params),
 
             // Array length operators
-            WhereOperator::LenEq => self.generate_array_length(&field_path, path, "=", value, params),
-            WhereOperator::LenGt => self.generate_array_length(&field_path, path, ">", value, params),
-            WhereOperator::LenLt => self.generate_array_length(&field_path, path, "<", value, params),
-            WhereOperator::LenGte => self.generate_array_length(&field_path, path, ">=", value, params),
-            WhereOperator::LenLte => self.generate_array_length(&field_path, path, "<=", value, params),
-            WhereOperator::LenNeq => self.generate_array_length(&field_path, path, "<>", value, params),
+            WhereOperator::LenEq => self.generate_array_length(&field_path, "=", value, params),
+            WhereOperator::LenGt => self.generate_array_length(&field_path, ">", value, params),
+            WhereOperator::LenLt => self.generate_array_length(&field_path, "<", value, params),
+            WhereOperator::LenGte => self.generate_array_length(&field_path, ">=", value, params),
+            WhereOperator::LenLte => self.generate_array_length(&field_path, "<=", value, params),
+            WhereOperator::LenNeq => self.generate_array_length(&field_path, "!=", value, params),
 
-            // Unsupported operators
+            // Unsupported operators in MySQL
             WhereOperator::CosineDistance
             | WhereOperator::L2Distance
             | WhereOperator::L1Distance
             | WhereOperator::HammingDistance
             | WhereOperator::InnerProduct
             | WhereOperator::JaccardDistance => Err(FraiseQLError::validation(
-                "Vector distance operators not supported in SQL Server".to_string(),
+                "Vector distance operators not supported in MySQL".to_string(),
             )),
 
-            // Full-text search - SQL Server uses CONTAINS and FREETEXT
-            WhereOperator::Matches => self.generate_fts(&field_path, "CONTAINS", value, params),
-            WhereOperator::PlainQuery | WhereOperator::PhraseQuery => {
-                self.generate_fts(&field_path, "FREETEXT", value, params)
-            }
-            WhereOperator::WebsearchQuery => {
-                Err(FraiseQLError::validation(
-                    "WebsearchQuery not directly supported in SQL Server".to_string(),
-                ))
-            }
+            // Full-text search - MySQL uses MATCH ... AGAINST
+            WhereOperator::Matches => self.generate_fts(&field_path, value, params),
+            WhereOperator::PlainQuery
+            | WhereOperator::PhraseQuery
+            | WhereOperator::WebsearchQuery => {
+                // MySQL FTS uses different syntax
+                self.generate_fts(&field_path, value, params)
+            },
 
-            // Network operators - not natively supported
+            // Network operators - not natively supported in MySQL
             WhereOperator::IsIPv4
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
@@ -258,13 +218,15 @@ impl SqlServerWhereGenerator {
             | WhereOperator::ContainsSubnet
             | WhereOperator::ContainsIP
             | WhereOperator::Overlaps => Err(FraiseQLError::validation(
-                "Network operators not natively supported in SQL Server".to_string(),
+                "Network operators not supported in MySQL".to_string(),
             )),
 
             // JSONB operators
-            WhereOperator::StrictlyContains => self.generate_json_contains(&field_path, path, value, params),
+            WhereOperator::StrictlyContains => {
+                self.generate_json_contains(&field_path, value, params)
+            },
 
-            // LTree operators - not supported in SQL Server (PostgreSQL-specific)
+            // LTree operators - not supported in MySQL (PostgreSQL-specific)
             WhereOperator::AncestorOf
             | WhereOperator::DescendantOf
             | WhereOperator::MatchesLquery
@@ -277,30 +239,31 @@ impl SqlServerWhereGenerator {
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
             | WhereOperator::Lca => {
-                Err(FraiseQLError::validation(
-                    "LTree operators not supported in SQL Server".to_string(),
-                ))
-            }
+                Err(FraiseQLError::validation("LTree operators not supported in MySQL".to_string()))
+            },
 
             // Extended operators for rich scalar types
             WhereOperator::Extended(op) => {
                 use crate::filters::ExtendedOperatorHandler;
                 self.generate_extended_sql(op, &field_path, params)
-            }
+            },
         }
     }
 
-    /// Build SQL Server JSON path expression.
-    /// SQL Server uses JSON_VALUE(data, '$.field') for scalar values
+    /// Build MySQL JSON path expression.
+    /// MySQL uses JSON_EXTRACT(data, '$.field') or data->>'$.field' (MySQL 8.0+)
     fn build_json_path(&self, path: &[String]) -> String {
-        let escaped_path = crate::db::path_escape::escape_sqlserver_json_path(path);
-        format!("JSON_VALUE(data, '{}')", escaped_path)
+        let escaped_path = crate::path_escape::escape_mysql_json_path(path);
+        // Use JSON_UNQUOTE(JSON_EXTRACT(...)) to get text value
+        format!("JSON_UNQUOTE(JSON_EXTRACT(data, '{}'))", escaped_path)
     }
 
-    fn next_param(&self) -> String {
-        let current = self.param_counter.get();
-        self.param_counter.set(current + 1);
-        format!("@p{}", current + 1)
+    /// Build raw JSON path for JSON functions (without UNQUOTE).
+    /// Used for JSON array/object operations where unquoting is not desired.
+    #[allow(dead_code)] // Reason: reserved for future JSON array/object operations
+    fn build_raw_json_path(&self, path: &[String]) -> String {
+        let json_path = path.join(".");
+        format!("JSON_EXTRACT(data, '$.{json_path}')")
     }
 
     fn generate_comparison(
@@ -310,16 +273,16 @@ impl SqlServerWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        let param = self.next_param();
         params.push(value.clone());
 
         // For numeric comparisons, cast to appropriate type
         if value.is_number()
-            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "<>")
+            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=")
         {
-            Ok(format!("CAST({field_path} AS FLOAT) {op} {param}"))
+            Ok(format!("CAST({field_path} AS DECIMAL) {op} ?"))
         } else {
-            Ok(format!("{field_path} {op} {param}"))
+            // Boolean and other comparisons use direct comparison
+            Ok(format!("{field_path} {op} ?"))
         }
     }
 
@@ -334,15 +297,14 @@ impl SqlServerWhereGenerator {
         })?;
 
         if array.is_empty() {
-            return Ok("1=0".to_string());
+            return Ok("FALSE".to_string());
         }
 
-        let placeholders: Vec<String> = array
+        let placeholders: Vec<&str> = array
             .iter()
             .map(|v| {
-                let param = self.next_param();
                 params.push(v.clone());
-                param
+                "?"
             })
             .collect();
 
@@ -362,79 +324,102 @@ impl SqlServerWhereGenerator {
             FraiseQLError::validation("LIKE operator requires string value".to_string())
         })?;
 
-        let param = self.next_param();
         params.push(serde_json::Value::String(val_str.to_string()));
 
         let pattern = match (prefix, suffix) {
-            (true, true) => format!("'%' + {param} + '%'"),
-            (true, false) => format!("'%' + {param}"),
-            (false, true) => format!("{param} + '%'"),
-            (false, false) => param.clone(),
+            (true, true) => "CONCAT('%', ?, '%')".to_string(),
+            (true, false) => "CONCAT('%', ?)".to_string(),
+            (false, true) => "CONCAT(?, '%')".to_string(),
+            (false, false) => "?".to_string(),
         };
 
         if case_insensitive {
-            // Use case-insensitive collation
-            Ok(format!("{field_path} COLLATE Latin1_General_CI_AI LIKE {pattern}"))
+            // Use LOWER() for case-insensitive comparison
+            Ok(format!("LOWER({field_path}) LIKE LOWER({pattern})"))
         } else {
-            // Use case-sensitive collation
-            Ok(format!("{field_path} COLLATE Latin1_General_CS_AS LIKE {pattern}"))
+            Ok(format!("{field_path} LIKE {pattern}"))
         }
     }
 
     fn generate_json_contains(
         &self,
-        _field_path: &str,
-        path: &[String],
+        field_path: &str,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // SQL Server uses OPENJSON to check array containment
-        let json_path = path.join(".");
-        let param = self.next_param();
+        // Get raw path (without UNQUOTE) for JSON_CONTAINS
+        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
+        Ok(format!("JSON_CONTAINS({raw_path}, ?)"))
+    }
 
-        Ok(format!(
-            "EXISTS (SELECT 1 FROM OPENJSON(data, '$.{json_path}') WHERE value = {param})"
-        ))
+    fn generate_json_contained_by(
+        &self,
+        field_path: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        // Get raw path for JSON_CONTAINS
+        let raw_path = Self::strip_json_unquote(field_path);
+        params.push(value.clone());
+        // Reverse the arguments: check if value contains field
+        Ok(format!("JSON_CONTAINS(?, {raw_path})"))
+    }
+
+    fn generate_json_overlaps(
+        &self,
+        field_path: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        // Get raw path for JSON_OVERLAPS (MySQL 8.0.17+)
+        let raw_path = Self::strip_json_unquote(field_path);
+        params.push(value.clone());
+        Ok(format!("JSON_OVERLAPS({raw_path}, ?)"))
     }
 
     fn generate_array_length(
         &self,
-        _field_path: &str,
-        path: &[String],
+        field_path: &str,
         op: &str,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // SQL Server counts array elements using OPENJSON
-        let json_path = path.join(".");
-        let param = self.next_param();
+        // Get raw path for JSON_LENGTH
+        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
+        Ok(format!("JSON_LENGTH({raw_path}) {op} ?"))
+    }
 
-        Ok(format!("(SELECT COUNT(*) FROM OPENJSON(data, '$.{json_path}')) {op} {param}"))
+    /// Strip the outer JSON_UNQUOTE wrapper from a field path.
+    /// Converts `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))` to `JSON_EXTRACT(data, '$.field')`
+    fn strip_json_unquote(field_path: &str) -> &str {
+        field_path
+            .strip_prefix("JSON_UNQUOTE(")
+            .and_then(|s| s.strip_suffix(')'))
+            .unwrap_or(field_path)
     }
 
     fn generate_fts(
         &self,
         field_path: &str,
-        func: &str,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        let param = self.next_param();
         params.push(value.clone());
-        // SQL Server full-text search requires a full-text index
-        Ok(format!("{func}({field_path}, {param})"))
+        // MySQL full-text search uses MATCH ... AGAINST
+        // Note: Requires FULLTEXT index on the column
+        Ok(format!("MATCH({field_path}) AGAINST(? IN NATURAL LANGUAGE MODE)"))
     }
 }
 
-impl Default for SqlServerWhereGenerator {
+impl Default for MySqlWhereGenerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
+impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
     fn generate_extended_sql(
         &self,
         operator: &crate::filters::ExtendedOperator,
@@ -445,57 +430,49 @@ impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
             // Email domain extraction: extract part after @
             crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
                 params.push(serde_json::Value::String(domain.clone()));
-                let param = self.next_param();
-                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) = @pN
-                Ok(format!(
-                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) = {param}"
-                ))
+                // MySQL: SUBSTRING_INDEX(field, '@', -1) = ?
+                Ok(format!("SUBSTRING_INDEX({}, '@', -1) = ?", field_sql))
             },
 
             crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
-                let mut placeholders = Vec::new();
-                for d in domains {
-                    params.push(serde_json::Value::String(d.clone()));
-                    placeholders.push(self.next_param());
-                }
+                let placeholders: Vec<&str> = domains
+                    .iter()
+                    .map(|d| {
+                        params.push(serde_json::Value::String(d.clone()));
+                        "?"
+                    })
+                    .collect();
                 Ok(format!(
-                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) IN ({})",
+                    "SUBSTRING_INDEX({}, '@', -1) IN ({})",
+                    field_sql,
                     placeholders.join(", ")
                 ))
             },
 
             crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));
-                let param = self.next_param();
-                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' + @pN
-                Ok(format!(
-                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) LIKE '%' + {param}"
-                ))
+                // MySQL: SUBSTRING_INDEX(field, '@', -1) LIKE CONCAT('%', ?)
+                Ok(format!("SUBSTRING_INDEX({}, '@', -1) LIKE CONCAT('%', ?)", field_sql))
             },
 
             crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
                 params.push(serde_json::Value::String(prefix.clone()));
-                let param = self.next_param();
-                // SQL Server: SUBSTRING(field, 1, CHARINDEX('@', field) - 1) LIKE @pN + '%'
-                Ok(format!(
-                    "SUBSTRING({field_sql}, 1, CHARINDEX('@', {field_sql}) - 1) LIKE {param} + '%'"
-                ))
+                // MySQL: SUBSTRING_INDEX(field, '@', 1) LIKE CONCAT(?, '%')
+                Ok(format!("SUBSTRING_INDEX({}, '@', 1) LIKE CONCAT(?, '%')", field_sql))
             },
 
             // VIN operations
             crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
                 params.push(serde_json::Value::String(wmi.clone()));
-                let param = self.next_param();
-                // SQL Server: SUBSTRING(field, 1, 3) = @pN
-                Ok(format!("SUBSTRING({field_sql}, 1, 3) = {param}"))
+                // MySQL: SUBSTRING(field, 1, 3) = ?
+                Ok(format!("SUBSTRING({}, 1, 3) = ?", field_sql))
             },
 
             // IBAN operations
             crate::filters::ExtendedOperator::IbanCountryEq(country) => {
                 params.push(serde_json::Value::String(country.clone()));
-                let param = self.next_param();
-                // SQL Server: SUBSTRING(field, 1, 2) = @pN
-                Ok(format!("SUBSTRING({field_sql}, 1, 2) = {param}"))
+                // MySQL: SUBSTRING(field, 1, 2) = ?
+                Ok(format!("SUBSTRING({}, 1, 2) = ?", field_sql))
             },
 
             // Fallback: not implemented
@@ -515,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_simple_equality() {
-        let gen = SqlServerWhereGenerator::new();
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
@@ -523,13 +500,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_VALUE(data, '$.email') = @p1");
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.email')) = ?");
         assert_eq!(params, vec![json!("test@example.com")]);
     }
 
     #[test]
     fn test_icontains() {
-        let gen = SqlServerWhereGenerator::new();
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
@@ -539,14 +516,14 @@ mod tests {
         let (sql, params) = gen.generate(&clause).unwrap();
         assert_eq!(
             sql,
-            "JSON_VALUE(data, '$.email') COLLATE Latin1_General_CI_AI LIKE '%' + @p1 + '%'"
+            "LOWER(JSON_UNQUOTE(JSON_EXTRACT(data, '$.email'))) LIKE LOWER(CONCAT('%', ?, '%'))"
         );
         assert_eq!(params, vec![json!("example.com")]);
     }
 
     #[test]
     fn test_nested_path() {
-        let gen = SqlServerWhereGenerator::new();
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
@@ -554,13 +531,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_VALUE(data, '$.address.city') = @p1");
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.address.city')) = ?");
         assert_eq!(params, vec![json!("Paris")]);
     }
 
     #[test]
     fn test_and_clause() {
-        let gen = SqlServerWhereGenerator::new();
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
                 path:     vec!["age".to_string()],
@@ -577,14 +554,14 @@ mod tests {
         let (sql, params) = gen.generate(&clause).unwrap();
         assert_eq!(
             sql,
-            "(CAST(JSON_VALUE(data, '$.age') AS FLOAT) >= @p1 AND JSON_VALUE(data, '$.active') = @p2)"
+            "(CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.age')) AS DECIMAL) >= ? AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.active')) = ?)"
         );
         assert_eq!(params, vec![json!(18), json!(true)]);
     }
 
     #[test]
     fn test_in_operator() {
-        let gen = SqlServerWhereGenerator::new();
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::In,
@@ -592,13 +569,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_VALUE(data, '$.status') IN (@p1, @p2)");
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) IN (?, ?)");
         assert_eq!(params, vec![json!("active"), json!("pending")]);
     }
 
     #[test]
     fn test_is_null() {
-        let gen = SqlServerWhereGenerator::new();
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
@@ -606,20 +583,20 @@ mod tests {
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_VALUE(data, '$.deleted_at') IS NULL");
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.deleted_at')) IS NULL");
     }
 
     #[test]
-    fn test_not_equal() {
-        let gen = SqlServerWhereGenerator::new();
+    fn test_array_contains() {
+        let gen = MySqlWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["status".to_string()],
-            operator: WhereOperator::Neq,
-            value:    json!("deleted"),
+            path:     vec!["tags".to_string()],
+            operator: WhereOperator::ArrayContains,
+            value:    json!(["rust"]),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_VALUE(data, '$.status') <> @p1");
-        assert_eq!(params, vec![json!("deleted")]);
+        assert_eq!(sql, "JSON_CONTAINS(JSON_EXTRACT(data, '$.tags'), ?)");
+        assert_eq!(params, vec![json!(["rust"])]);
     }
 }

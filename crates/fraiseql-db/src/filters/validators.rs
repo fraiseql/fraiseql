@@ -20,7 +20,7 @@
 use regex::Regex;
 use serde_json::Value;
 
-use crate::error::{FraiseQLError, Result};
+use fraiseql_error::{FraiseQLError, Result};
 
 /// Validation rule for an operator parameter.
 #[derive(Debug, Clone)]

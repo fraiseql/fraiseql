@@ -35,65 +35,17 @@
 //! );
 //! ```
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-
-use crate::error::Result;
 
 mod detector;
 pub use self::detector::FactTableDetector;
 
+// Re-export from fraiseql-db to avoid duplication
+pub use fraiseql_db::introspector::DatabaseIntrospector;
+pub use fraiseql_db::types::DatabaseType;
+
 #[cfg(test)]
 mod tests;
-
-/// Database introspection trait for querying table metadata
-#[async_trait]
-pub trait DatabaseIntrospector: Send + Sync {
-    /// List all fact tables in the database (tables starting with "tf_")
-    ///
-    /// Returns: Vec of table names matching the tf_* pattern
-    async fn list_fact_tables(&self) -> Result<Vec<String>>;
-
-    /// Query column information for a table
-    ///
-    /// Returns: Vec of (column_name, data_type, is_nullable)
-    async fn get_columns(&self, table_name: &str) -> Result<Vec<(String, String, bool)>>;
-
-    /// Query indexes for a table
-    ///
-    /// Returns: Vec of column names that have indexes
-    async fn get_indexed_columns(&self, table_name: &str) -> Result<Vec<String>>;
-
-    /// Get database type (for SQL type parsing)
-    fn database_type(&self) -> DatabaseType;
-
-    /// Get sample JSONB data from a column to extract dimension paths
-    ///
-    /// Returns: Sample JSON value from the column, or None if no data exists
-    ///
-    /// Default implementation returns None. Implementations should override
-    /// to query the database for actual sample data.
-    async fn get_sample_jsonb(
-        &self,
-        _table_name: &str,
-        _column_name: &str,
-    ) -> Result<Option<serde_json::Value>> {
-        Ok(None)
-    }
-}
-
-/// Database type enum for SQL type parsing
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DatabaseType {
-    /// PostgreSQL database type
-    PostgreSQL,
-    /// MySQL database type
-    MySQL,
-    /// SQLite database type
-    SQLite,
-    /// SQL Server database type
-    SQLServer,
-}
 
 /// Metadata about a fact table structure
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

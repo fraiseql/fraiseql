@@ -1,23 +1,22 @@
-//! MySQL WHERE clause SQL generation.
+//! SQLite WHERE clause SQL generation.
 
-use crate::{
-    db::where_clause::{WhereClause, WhereOperator},
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
 
-/// MySQL WHERE clause generator.
+use crate::{where_clause::{WhereClause, WhereOperator}};
+
+/// SQLite WHERE clause generator.
 ///
-/// Converts `WhereClause` AST to MySQL SQL with parameterized queries.
-/// MySQL uses `?` for placeholders instead of PostgreSQL's `$1, $2, ...`
+/// Converts `WhereClause` AST to SQLite SQL with parameterized queries.
+/// SQLite uses `?` for placeholders and has limited JSON support compared to PostgreSQL/MySQL.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::db::mysql::MySqlWhereGenerator;
+/// use fraiseql_core::db::sqlite::SqliteWhereGenerator;
 /// use fraiseql_core::db::{WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
-/// let generator = MySqlWhereGenerator::new();
+/// let generator = SqliteWhereGenerator::new();
 ///
 /// let clause = WhereClause::Field {
 ///     path: vec!["email".to_string()],
@@ -26,13 +25,13 @@ use crate::{
 /// };
 ///
 /// let (sql, params) = generator.generate(&clause).expect("Failed to generate SQL");
-/// // sql: "JSON_UNQUOTE(JSON_EXTRACT(data, '$.email')) LIKE CONCAT('%', ?, '%')"
+/// // sql: "json_extract(data, '$.email') LIKE '%' || ? || '%'"
 /// // params: ["example.com"]
 /// ```
-pub struct MySqlWhereGenerator;
+pub struct SqliteWhereGenerator;
 
-impl MySqlWhereGenerator {
-    /// Create new MySQL WHERE generator.
+impl SqliteWhereGenerator {
+    /// Create new SQLite WHERE generator.
     #[must_use]
     pub const fn new() -> Self {
         Self
@@ -70,7 +69,7 @@ impl MySqlWhereGenerator {
             } => self.generate_field(path, operator, value, params),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
-                    return Ok("TRUE".to_string());
+                    return Ok("1=1".to_string()); // SQLite TRUE equivalent
                 }
                 let parts: Result<Vec<String>> =
                     clauses.iter().map(|c| self.generate_clause(c, params)).collect();
@@ -78,7 +77,7 @@ impl MySqlWhereGenerator {
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
-                    return Ok("FALSE".to_string());
+                    return Ok("1=0".to_string()); // SQLite FALSE equivalent
                 }
                 let parts: Result<Vec<String>> =
                     clauses.iter().map(|c| self.generate_clause(c, params)).collect();
@@ -98,7 +97,7 @@ impl MySqlWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // Build JSON path accessor for MySQL
+        // Build JSON path accessor for SQLite
         let field_path = self.build_json_path(path);
 
         // Generate operator-specific SQL
@@ -118,8 +117,7 @@ impl MySqlWhereGenerator {
                 Ok(format!("NOT ({in_clause})"))
             },
 
-            // String operators - MySQL uses LIKE (case-sensitive) or LOWER()+LIKE for
-            // case-insensitive
+            // String operators - SQLite uses LIKE and GLOB
             WhereOperator::Contains => {
                 self.generate_like(&field_path, false, value, params, true, true)
             },
@@ -140,28 +138,19 @@ impl MySqlWhereGenerator {
             },
             WhereOperator::Like => self.generate_comparison(&field_path, "LIKE", value, params),
             WhereOperator::Ilike => {
-                // MySQL LIKE is case-insensitive by default with utf8mb4_unicode_ci
+                // SQLite LIKE is case-insensitive for ASCII by default
                 self.generate_comparison(&field_path, "LIKE", value, params)
             },
             WhereOperator::Nlike => {
                 self.generate_comparison(&field_path, "NOT LIKE", value, params)
             },
-            WhereOperator::Nilike => Err(FraiseQLError::Unsupported {
-                message: "NILIKE operator not supported in MySQL (no native ILIKE)".to_string(),
-            }),
-            WhereOperator::Regex => {
-                self.generate_comparison(&field_path, "REGEXP", value, params)
-            },
-            WhereOperator::Iregex => {
-                // MySQL REGEXP is case-insensitive by default with utf8mb4
-                self.generate_comparison(&field_path, "REGEXP", value, params)
-            },
-            WhereOperator::Nregex => {
-                self.generate_comparison(&field_path, "NOT REGEXP", value, params)
-            },
-            WhereOperator::Niregex => {
-                // MySQL NOT REGEXP is case-insensitive by default with utf8mb4
-                self.generate_comparison(&field_path, "NOT REGEXP", value, params)
+            WhereOperator::Nilike | WhereOperator::Regex | WhereOperator::Iregex
+            | WhereOperator::Nregex | WhereOperator::Niregex => {
+                Err(FraiseQLError::Unsupported {
+                    message: format!(
+                        "{operator:?} operator not supported in SQLite (no native ILIKE or POSIX regex)"
+                    ),
+                })
             },
 
             // Null checks
@@ -174,13 +163,16 @@ impl MySqlWhereGenerator {
                 Ok(format!("{field_path} {is_null}"))
             },
 
-            // Array operators - MySQL uses JSON_CONTAINS
-            WhereOperator::ArrayContains => self.generate_json_contains(&field_path, value, params),
-            WhereOperator::ArrayContainedBy => {
-                // Reverse containment: check if array is contained by value
-                self.generate_json_contained_by(&field_path, value, params)
+            // Array operators - SQLite has limited JSON array support
+            WhereOperator::ArrayContains => {
+                self.generate_json_contains(&field_path, path, value, params)
             },
-            WhereOperator::ArrayOverlaps => self.generate_json_overlaps(&field_path, value, params),
+            WhereOperator::ArrayContainedBy | WhereOperator::ArrayOverlaps => {
+                Err(FraiseQLError::validation(
+                    "ArrayContainedBy and ArrayOverlaps operators not supported in SQLite"
+                        .to_string(),
+                ))
+            },
 
             // Array length operators
             WhereOperator::LenEq => self.generate_array_length(&field_path, "=", value, params),
@@ -190,26 +182,25 @@ impl MySqlWhereGenerator {
             WhereOperator::LenLte => self.generate_array_length(&field_path, "<=", value, params),
             WhereOperator::LenNeq => self.generate_array_length(&field_path, "!=", value, params),
 
-            // Unsupported operators in MySQL
+            // Unsupported operators
             WhereOperator::CosineDistance
             | WhereOperator::L2Distance
             | WhereOperator::L1Distance
             | WhereOperator::HammingDistance
             | WhereOperator::InnerProduct
             | WhereOperator::JaccardDistance => Err(FraiseQLError::validation(
-                "Vector distance operators not supported in MySQL".to_string(),
+                "Vector distance operators not supported in SQLite".to_string(),
             )),
 
-            // Full-text search - MySQL uses MATCH ... AGAINST
-            WhereOperator::Matches => self.generate_fts(&field_path, value, params),
-            WhereOperator::PlainQuery
+            // Full-text search - SQLite uses FTS5
+            WhereOperator::Matches
+            | WhereOperator::PlainQuery
             | WhereOperator::PhraseQuery
-            | WhereOperator::WebsearchQuery => {
-                // MySQL FTS uses different syntax
-                self.generate_fts(&field_path, value, params)
-            },
+            | WhereOperator::WebsearchQuery => Err(FraiseQLError::validation(
+                "Full-text search operators require FTS5 extension in SQLite".to_string(),
+            )),
 
-            // Network operators - not natively supported in MySQL
+            // Network operators - not supported in SQLite
             WhereOperator::IsIPv4
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
@@ -219,15 +210,15 @@ impl MySqlWhereGenerator {
             | WhereOperator::ContainsSubnet
             | WhereOperator::ContainsIP
             | WhereOperator::Overlaps => Err(FraiseQLError::validation(
-                "Network operators not supported in MySQL".to_string(),
+                "Network operators not supported in SQLite".to_string(),
             )),
 
             // JSONB operators
             WhereOperator::StrictlyContains => {
-                self.generate_json_contains(&field_path, value, params)
+                self.generate_json_contains(&field_path, path, value, params)
             },
 
-            // LTree operators - not supported in MySQL (PostgreSQL-specific)
+            // LTree operators - not supported in SQLite (PostgreSQL-specific)
             WhereOperator::AncestorOf
             | WhereOperator::DescendantOf
             | WhereOperator::MatchesLquery
@@ -239,9 +230,9 @@ impl MySqlWhereGenerator {
             | WhereOperator::DepthGte
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
-            | WhereOperator::Lca => {
-                Err(FraiseQLError::validation("LTree operators not supported in MySQL".to_string()))
-            },
+            | WhereOperator::Lca => Err(FraiseQLError::validation(
+                "LTree operators not supported in SQLite".to_string(),
+            )),
 
             // Extended operators for rich scalar types
             WhereOperator::Extended(op) => {
@@ -251,20 +242,11 @@ impl MySqlWhereGenerator {
         }
     }
 
-    /// Build MySQL JSON path expression.
-    /// MySQL uses JSON_EXTRACT(data, '$.field') or data->>'$.field' (MySQL 8.0+)
+    /// Build SQLite JSON path expression.
+    /// SQLite uses json_extract(data, '$.field')
     fn build_json_path(&self, path: &[String]) -> String {
-        let escaped_path = crate::db::path_escape::escape_mysql_json_path(path);
-        // Use JSON_UNQUOTE(JSON_EXTRACT(...)) to get text value
-        format!("JSON_UNQUOTE(JSON_EXTRACT(data, '{}'))", escaped_path)
-    }
-
-    /// Build raw JSON path for JSON functions (without UNQUOTE).
-    /// Used for JSON array/object operations where unquoting is not desired.
-    #[allow(dead_code)] // Reason: reserved for future JSON array/object operations
-    fn build_raw_json_path(&self, path: &[String]) -> String {
-        let json_path = path.join(".");
-        format!("JSON_EXTRACT(data, '$.{json_path}')")
+        let escaped_path = crate::path_escape::escape_sqlite_json_path(path);
+        format!("json_extract(data, '{}')", escaped_path)
     }
 
     fn generate_comparison(
@@ -280,9 +262,8 @@ impl MySqlWhereGenerator {
         if value.is_number()
             && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=")
         {
-            Ok(format!("CAST({field_path} AS DECIMAL) {op} ?"))
+            Ok(format!("CAST({field_path} AS REAL) {op} ?"))
         } else {
-            // Boolean and other comparisons use direct comparison
             Ok(format!("{field_path} {op} ?"))
         }
     }
@@ -298,7 +279,7 @@ impl MySqlWhereGenerator {
         })?;
 
         if array.is_empty() {
-            return Ok("FALSE".to_string());
+            return Ok("1=0".to_string()); // FALSE
         }
 
         let placeholders: Vec<&str> = array
@@ -328,9 +309,9 @@ impl MySqlWhereGenerator {
         params.push(serde_json::Value::String(val_str.to_string()));
 
         let pattern = match (prefix, suffix) {
-            (true, true) => "CONCAT('%', ?, '%')".to_string(),
-            (true, false) => "CONCAT('%', ?)".to_string(),
-            (false, true) => "CONCAT(?, '%')".to_string(),
+            (true, true) => "'%' || ? || '%'".to_string(),
+            (true, false) => "'%' || ?".to_string(),
+            (false, true) => "? || '%'".to_string(),
             (false, false) => "?".to_string(),
         };
 
@@ -344,39 +325,20 @@ impl MySqlWhereGenerator {
 
     fn generate_json_contains(
         &self,
-        field_path: &str,
+        _field_path: &str,
+        path: &[String],
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // Get raw path (without UNQUOTE) for JSON_CONTAINS
-        let raw_path = Self::strip_json_unquote(field_path);
+        // SQLite doesn't have native JSON_CONTAINS
+        // Use a workaround with json_each
+        let json_path = path.join(".");
         params.push(value.clone());
-        Ok(format!("JSON_CONTAINS({raw_path}, ?)"))
-    }
 
-    fn generate_json_contained_by(
-        &self,
-        field_path: &str,
-        value: &serde_json::Value,
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
-        // Get raw path for JSON_CONTAINS
-        let raw_path = Self::strip_json_unquote(field_path);
-        params.push(value.clone());
-        // Reverse the arguments: check if value contains field
-        Ok(format!("JSON_CONTAINS(?, {raw_path})"))
-    }
-
-    fn generate_json_overlaps(
-        &self,
-        field_path: &str,
-        value: &serde_json::Value,
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
-        // Get raw path for JSON_OVERLAPS (MySQL 8.0.17+)
-        let raw_path = Self::strip_json_unquote(field_path);
-        params.push(value.clone());
-        Ok(format!("JSON_OVERLAPS({raw_path}, ?)"))
+        // Check if the JSON array contains the value
+        Ok(format!(
+            "EXISTS (SELECT 1 FROM json_each(json_extract(data, '$.{json_path}')) WHERE value = json(?))"
+        ))
     }
 
     fn generate_array_length(
@@ -386,41 +348,18 @@ impl MySqlWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // Get raw path for JSON_LENGTH
-        let raw_path = Self::strip_json_unquote(field_path);
         params.push(value.clone());
-        Ok(format!("JSON_LENGTH({raw_path}) {op} ?"))
-    }
-
-    /// Strip the outer JSON_UNQUOTE wrapper from a field path.
-    /// Converts `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))` to `JSON_EXTRACT(data, '$.field')`
-    fn strip_json_unquote(field_path: &str) -> &str {
-        field_path
-            .strip_prefix("JSON_UNQUOTE(")
-            .and_then(|s| s.strip_suffix(')'))
-            .unwrap_or(field_path)
-    }
-
-    fn generate_fts(
-        &self,
-        field_path: &str,
-        value: &serde_json::Value,
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
-        params.push(value.clone());
-        // MySQL full-text search uses MATCH ... AGAINST
-        // Note: Requires FULLTEXT index on the column
-        Ok(format!("MATCH({field_path}) AGAINST(? IN NATURAL LANGUAGE MODE)"))
+        Ok(format!("json_array_length({field_path}) {op} ?"))
     }
 }
 
-impl Default for MySqlWhereGenerator {
+impl Default for SqliteWhereGenerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
+impl crate::filters::ExtendedOperatorHandler for SqliteWhereGenerator {
     fn generate_extended_sql(
         &self,
         operator: &crate::filters::ExtendedOperator,
@@ -431,8 +370,8 @@ impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
             // Email domain extraction: extract part after @
             crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
                 params.push(serde_json::Value::String(domain.clone()));
-                // MySQL: SUBSTRING_INDEX(field, '@', -1) = ?
-                Ok(format!("SUBSTRING_INDEX({}, '@', -1) = ?", field_sql))
+                // SQLite: SUBSTR(field, INSTR(field, '@') + 1) = ?
+                Ok(format!("SUBSTR({}, INSTR({}, '@') + 1) = ?", field_sql, field_sql))
             },
 
             crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
@@ -444,7 +383,8 @@ impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
                     })
                     .collect();
                 Ok(format!(
-                    "SUBSTRING_INDEX({}, '@', -1) IN ({})",
+                    "SUBSTR({}, INSTR({}, '@') + 1) IN ({})",
+                    field_sql,
                     field_sql,
                     placeholders.join(", ")
                 ))
@@ -452,28 +392,28 @@ impl crate::filters::ExtendedOperatorHandler for MySqlWhereGenerator {
 
             crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));
-                // MySQL: SUBSTRING_INDEX(field, '@', -1) LIKE CONCAT('%', ?)
-                Ok(format!("SUBSTRING_INDEX({}, '@', -1) LIKE CONCAT('%', ?)", field_sql))
+                // SQLite: SUBSTR(field, INSTR(field, '@') + 1) LIKE '%' || ?
+                Ok(format!("SUBSTR({}, INSTR({}, '@') + 1) LIKE '%' || ?", field_sql, field_sql))
             },
 
             crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
                 params.push(serde_json::Value::String(prefix.clone()));
-                // MySQL: SUBSTRING_INDEX(field, '@', 1) LIKE CONCAT(?, '%')
-                Ok(format!("SUBSTRING_INDEX({}, '@', 1) LIKE CONCAT(?, '%')", field_sql))
+                // SQLite: SUBSTR(field, 1, INSTR(field, '@') - 1) LIKE ? || '%'
+                Ok(format!("SUBSTR({}, 1, INSTR({}, '@') - 1) LIKE ? || '%'", field_sql, field_sql))
             },
 
             // VIN operations
             crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
                 params.push(serde_json::Value::String(wmi.clone()));
-                // MySQL: SUBSTRING(field, 1, 3) = ?
-                Ok(format!("SUBSTRING({}, 1, 3) = ?", field_sql))
+                // SQLite: SUBSTR(field, 1, 3) = ?
+                Ok(format!("SUBSTR({}, 1, 3) = ?", field_sql))
             },
 
             // IBAN operations
             crate::filters::ExtendedOperator::IbanCountryEq(country) => {
                 params.push(serde_json::Value::String(country.clone()));
-                // MySQL: SUBSTRING(field, 1, 2) = ?
-                Ok(format!("SUBSTRING({}, 1, 2) = ?", field_sql))
+                // SQLite: SUBSTR(field, 1, 2) = ?
+                Ok(format!("SUBSTR({}, 1, 2) = ?", field_sql))
             },
 
             // Fallback: not implemented
@@ -493,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_simple_equality() {
-        let gen = MySqlWhereGenerator::new();
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
@@ -501,13 +441,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.email')) = ?");
+        assert_eq!(sql, "json_extract(data, '$.email') = ?");
         assert_eq!(params, vec![json!("test@example.com")]);
     }
 
     #[test]
     fn test_icontains() {
-        let gen = MySqlWhereGenerator::new();
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
@@ -515,16 +455,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(
-            sql,
-            "LOWER(JSON_UNQUOTE(JSON_EXTRACT(data, '$.email'))) LIKE LOWER(CONCAT('%', ?, '%'))"
-        );
+        assert_eq!(sql, "LOWER(json_extract(data, '$.email')) LIKE LOWER('%' || ? || '%')");
         assert_eq!(params, vec![json!("example.com")]);
     }
 
     #[test]
     fn test_nested_path() {
-        let gen = MySqlWhereGenerator::new();
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
@@ -532,13 +469,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.address.city')) = ?");
+        assert_eq!(sql, "json_extract(data, '$.address.city') = ?");
         assert_eq!(params, vec![json!("Paris")]);
     }
 
     #[test]
     fn test_and_clause() {
-        let gen = MySqlWhereGenerator::new();
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
                 path:     vec!["age".to_string()],
@@ -555,14 +492,14 @@ mod tests {
         let (sql, params) = gen.generate(&clause).unwrap();
         assert_eq!(
             sql,
-            "(CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.age')) AS DECIMAL) >= ? AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.active')) = ?)"
+            "(CAST(json_extract(data, '$.age') AS REAL) >= ? AND json_extract(data, '$.active') = ?)"
         );
         assert_eq!(params, vec![json!(18), json!(true)]);
     }
 
     #[test]
     fn test_in_operator() {
-        let gen = MySqlWhereGenerator::new();
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::In,
@@ -570,13 +507,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) IN (?, ?)");
+        assert_eq!(sql, "json_extract(data, '$.status') IN (?, ?)");
         assert_eq!(params, vec![json!("active"), json!("pending")]);
     }
 
     #[test]
     fn test_is_null() {
-        let gen = MySqlWhereGenerator::new();
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
@@ -584,20 +521,20 @@ mod tests {
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.deleted_at')) IS NULL");
+        assert_eq!(sql, "json_extract(data, '$.deleted_at') IS NULL");
     }
 
     #[test]
-    fn test_array_contains() {
-        let gen = MySqlWhereGenerator::new();
+    fn test_array_length() {
+        let gen = SqliteWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["tags".to_string()],
-            operator: WhereOperator::ArrayContains,
-            value:    json!(["rust"]),
+            operator: WhereOperator::LenGt,
+            value:    json!(0),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "JSON_CONTAINS(JSON_EXTRACT(data, '$.tags'), ?)");
-        assert_eq!(params, vec![json!(["rust"])]);
+        assert_eq!(sql, "json_array_length(json_extract(data, '$.tags')) > ?");
+        assert_eq!(params, vec![json!(0)]);
     }
 }

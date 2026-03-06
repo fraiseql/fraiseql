@@ -5,15 +5,14 @@ use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use tokio_postgres::{NoTls, Row};
 
 use super::where_generator::PostgresWhereGenerator;
+use fraiseql_error::{FraiseQLError, Result};
+
 use crate::{
-    db::{
-        identifier::quote_postgres_identifier,
-        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
-        types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
-        where_clause::WhereClause,
-    },
-    error::{FraiseQLError, Result},
+    identifier::quote_postgres_identifier,
+    traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
+    types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
     types::sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
+    where_clause::WhereClause,
 };
 
 /// Default maximum pool size for PostgreSQL connections.
@@ -794,7 +793,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 let typed: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
                 (sql, typed)
             } else {
-                (format!("SELECT COUNT(*) FROM {quoted_view}"), vec![])
+                (format!("SELECT COUNT(*) FROM {quoted_view}"), Vec::<QueryParam>::new())
             };
 
             let count_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
@@ -834,7 +833,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 #[cfg(test)]
 mod unit_tests {
     use super::{escape_jsonb_key, PostgresAdapter};
-    use crate::error::FraiseQLError;
+    use fraiseql_error::FraiseQLError;
 
     #[test]
     fn test_escape_jsonb_key_no_quotes() {
@@ -882,7 +881,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::db::{WhereClause, WhereOperator};
+    use crate::{WhereClause, WhereOperator};
 
     const TEST_DB_URL: &str =
         "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";

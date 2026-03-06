@@ -93,6 +93,7 @@ pub mod prelude {
     pub use fraiseql_core::graphql::{ParsedQuery, parse_query};
     // Runtime executor
     pub use fraiseql_core::runtime::Executor;
+    pub use fraiseql_executor::ExecutorAdapter;
     // Tenancy support
     pub use fraiseql_core::tenancy::TenantContext as Tenant;
 

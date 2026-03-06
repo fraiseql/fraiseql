@@ -7,15 +7,14 @@ use sqlx::{
 };
 
 use super::where_generator::MySqlWhereGenerator;
+use fraiseql_error::{FraiseQLError, Result};
+
 use crate::{
-    db::{
-        identifier::quote_mysql_identifier,
-        traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
-        types::{DatabaseType, JsonbValue, PoolMetrics},
-        where_clause::WhereClause,
-    },
-    error::{FraiseQLError, Result},
+    identifier::quote_mysql_identifier,
+    traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter, RelayPageResult},
+    types::{DatabaseType, JsonbValue, PoolMetrics},
     types::sql_hints::{OrderByClause, OrderDirection},
+    where_clause::WhereClause,
 };
 
 /// MySQL database adapter with connection pooling.
@@ -715,7 +714,7 @@ impl RelayDatabaseAdapter for MySqlAdapter {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
-    use crate::db::{identifier::quote_mysql_identifier, types::DatabaseType};
+    use crate::{identifier::quote_mysql_identifier, types::DatabaseType};
 
     // Unit tests for MySQL adapter internals.
     // These tests do NOT require a live MySQL connection.

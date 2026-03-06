@@ -1,23 +1,22 @@
-//! SQLite WHERE clause SQL generation.
+//! SQL Server WHERE clause SQL generation.
 
-use crate::{
-    db::where_clause::{WhereClause, WhereOperator},
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
 
-/// SQLite WHERE clause generator.
+use crate::{where_clause::{WhereClause, WhereOperator}};
+
+/// SQL Server WHERE clause generator.
 ///
-/// Converts `WhereClause` AST to SQLite SQL with parameterized queries.
-/// SQLite uses `?` for placeholders and has limited JSON support compared to PostgreSQL/MySQL.
+/// Converts `WhereClause` AST to SQL Server T-SQL with parameterized queries.
+/// SQL Server uses `@p1, @p2, ...` for named parameters.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use fraiseql_core::db::sqlite::SqliteWhereGenerator;
+/// use fraiseql_core::db::sqlserver::SqlServerWhereGenerator;
 /// use fraiseql_core::db::{WhereClause, WhereOperator};
 /// use serde_json::json;
 ///
-/// let generator = SqliteWhereGenerator::new();
+/// let generator = SqlServerWhereGenerator::new();
 ///
 /// let clause = WhereClause::Field {
 ///     path: vec!["email".to_string()],
@@ -26,16 +25,20 @@ use crate::{
 /// };
 ///
 /// let (sql, params) = generator.generate(&clause).expect("Failed to generate SQL");
-/// // sql: "json_extract(data, '$.email') LIKE '%' || ? || '%'"
+/// // sql: "JSON_VALUE(data, '$.email') LIKE '%' + @p1 + '%'"
 /// // params: ["example.com"]
 /// ```
-pub struct SqliteWhereGenerator;
+pub struct SqlServerWhereGenerator {
+    param_counter: std::cell::Cell<usize>,
+}
 
-impl SqliteWhereGenerator {
-    /// Create new SQLite WHERE generator.
+impl SqlServerWhereGenerator {
+    /// Create new SQL Server WHERE generator.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
+    pub fn new() -> Self {
+        Self {
+            param_counter: std::cell::Cell::new(0),
+        }
     }
 
     /// Generate SQL WHERE clause and parameters.
@@ -52,6 +55,44 @@ impl SqliteWhereGenerator {
     ///
     /// Returns `FraiseQLError::Validation` if clause is invalid.
     pub fn generate(&self, clause: &WhereClause) -> Result<(String, Vec<serde_json::Value>)> {
+        self.param_counter.set(0);
+        let mut params = Vec::new();
+        let sql = self.generate_clause(clause, &mut params)?;
+        Ok((sql, params))
+    }
+
+    /// Generate SQL WHERE clause with a parameter index offset.
+    ///
+    /// Used when WHERE clause parameters must not start at `@p1` because
+    /// earlier parameters (e.g. a cursor value) already occupy lower indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `clause` - WHERE clause AST
+    /// * `offset` - number of parameters already bound before this clause
+    ///
+    /// # Returns
+    ///
+    /// Returns tuple of (SQL string, parameter values). Parameter placeholders
+    /// start at `@p{offset+1}`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if clause is invalid.
+    ///
+    /// # Pitfalls
+    ///
+    /// After this call, `param_counter` is left at `offset + params.len()`.
+    /// Calling `generate()` on the **same** instance afterwards will reset the counter
+    /// to 0, silently discarding that state.  Always create a fresh
+    /// `SqlServerWhereGenerator::new()` per query rather than reusing instances across
+    /// calls.
+    pub fn generate_with_param_offset(
+        &self,
+        clause: &WhereClause,
+        offset: usize,
+    ) -> Result<(String, Vec<serde_json::Value>)> {
+        self.param_counter.set(offset);
         let mut params = Vec::new();
         let sql = self.generate_clause(clause, &mut params)?;
         Ok((sql, params))
@@ -70,7 +111,7 @@ impl SqliteWhereGenerator {
             } => self.generate_field(path, operator, value, params),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
-                    return Ok("1=1".to_string()); // SQLite TRUE equivalent
+                    return Ok("1=1".to_string());
                 }
                 let parts: Result<Vec<String>> =
                     clauses.iter().map(|c| self.generate_clause(c, params)).collect();
@@ -78,7 +119,7 @@ impl SqliteWhereGenerator {
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
-                    return Ok("1=0".to_string()); // SQLite FALSE equivalent
+                    return Ok("1=0".to_string());
                 }
                 let parts: Result<Vec<String>> =
                     clauses.iter().map(|c| self.generate_clause(c, params)).collect();
@@ -98,14 +139,14 @@ impl SqliteWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // Build JSON path accessor for SQLite
+        // Build JSON path accessor for SQL Server
         let field_path = self.build_json_path(path);
 
         // Generate operator-specific SQL
         match operator {
             // Comparison operators
             WhereOperator::Eq => self.generate_comparison(&field_path, "=", value, params),
-            WhereOperator::Neq => self.generate_comparison(&field_path, "!=", value, params),
+            WhereOperator::Neq => self.generate_comparison(&field_path, "<>", value, params), // SQL Server uses <>
             WhereOperator::Gt => self.generate_comparison(&field_path, ">", value, params),
             WhereOperator::Gte => self.generate_comparison(&field_path, ">=", value, params),
             WhereOperator::Lt => self.generate_comparison(&field_path, "<", value, params),
@@ -116,43 +157,48 @@ impl SqliteWhereGenerator {
             WhereOperator::Nin => {
                 let in_clause = self.generate_in(&field_path, value, params)?;
                 Ok(format!("NOT ({in_clause})"))
-            },
+            }
 
-            // String operators - SQLite uses LIKE and GLOB
+            // String operators - SQL Server uses LIKE with COLLATE for case sensitivity
             WhereOperator::Contains => {
                 self.generate_like(&field_path, false, value, params, true, true)
-            },
+            }
             WhereOperator::Icontains => {
                 self.generate_like(&field_path, true, value, params, true, true)
-            },
+            }
             WhereOperator::Startswith => {
                 self.generate_like(&field_path, false, value, params, false, true)
-            },
+            }
             WhereOperator::Istartswith => {
                 self.generate_like(&field_path, true, value, params, false, true)
-            },
+            }
             WhereOperator::Endswith => {
                 self.generate_like(&field_path, false, value, params, true, false)
-            },
+            }
             WhereOperator::Iendswith => {
                 self.generate_like(&field_path, true, value, params, true, false)
-            },
+            }
             WhereOperator::Like => self.generate_comparison(&field_path, "LIKE", value, params),
             WhereOperator::Ilike => {
-                // SQLite LIKE is case-insensitive for ASCII by default
-                self.generate_comparison(&field_path, "LIKE", value, params)
-            },
+                // SQL Server LIKE with case-insensitive collation
+                let param = self.next_param();
+                params.push(value.clone());
+                Ok(format!(
+                    "{field_path} COLLATE Latin1_General_CI_AI LIKE {param}"
+                ))
+            }
             WhereOperator::Nlike => {
                 self.generate_comparison(&field_path, "NOT LIKE", value, params)
-            },
-            WhereOperator::Nilike | WhereOperator::Regex | WhereOperator::Iregex
-            | WhereOperator::Nregex | WhereOperator::Niregex => {
-                Err(FraiseQLError::Unsupported {
-                    message: format!(
-                        "{operator:?} operator not supported in SQLite (no native ILIKE or POSIX regex)"
-                    ),
-                })
-            },
+            }
+            WhereOperator::Nilike => Err(FraiseQLError::Unsupported {
+                message: "NILIKE operator not supported in SQL Server (no native ILIKE)".to_string(),
+            }),
+            WhereOperator::Regex
+            | WhereOperator::Iregex
+            | WhereOperator::Nregex
+            | WhereOperator::Niregex => Err(FraiseQLError::Unsupported {
+                message: "POSIX regex operators not supported in SQL Server".to_string(),
+            }),
 
             // Null checks
             WhereOperator::IsNull => {
@@ -162,26 +208,23 @@ impl SqliteWhereGenerator {
                     "IS NOT NULL"
                 };
                 Ok(format!("{field_path} {is_null}"))
-            },
+            }
 
-            // Array operators - SQLite has limited JSON array support
-            WhereOperator::ArrayContains => {
-                self.generate_json_contains(&field_path, path, value, params)
-            },
+            // Array operators - SQL Server has limited JSON array support
+            WhereOperator::ArrayContains => self.generate_json_contains(&field_path, path, value, params),
             WhereOperator::ArrayContainedBy | WhereOperator::ArrayOverlaps => {
                 Err(FraiseQLError::validation(
-                    "ArrayContainedBy and ArrayOverlaps operators not supported in SQLite"
-                        .to_string(),
+                    "ArrayContainedBy and ArrayOverlaps operators require custom functions in SQL Server".to_string(),
                 ))
-            },
+            }
 
             // Array length operators
-            WhereOperator::LenEq => self.generate_array_length(&field_path, "=", value, params),
-            WhereOperator::LenGt => self.generate_array_length(&field_path, ">", value, params),
-            WhereOperator::LenLt => self.generate_array_length(&field_path, "<", value, params),
-            WhereOperator::LenGte => self.generate_array_length(&field_path, ">=", value, params),
-            WhereOperator::LenLte => self.generate_array_length(&field_path, "<=", value, params),
-            WhereOperator::LenNeq => self.generate_array_length(&field_path, "!=", value, params),
+            WhereOperator::LenEq => self.generate_array_length(&field_path, path, "=", value, params),
+            WhereOperator::LenGt => self.generate_array_length(&field_path, path, ">", value, params),
+            WhereOperator::LenLt => self.generate_array_length(&field_path, path, "<", value, params),
+            WhereOperator::LenGte => self.generate_array_length(&field_path, path, ">=", value, params),
+            WhereOperator::LenLte => self.generate_array_length(&field_path, path, "<=", value, params),
+            WhereOperator::LenNeq => self.generate_array_length(&field_path, path, "<>", value, params),
 
             // Unsupported operators
             WhereOperator::CosineDistance
@@ -190,18 +233,21 @@ impl SqliteWhereGenerator {
             | WhereOperator::HammingDistance
             | WhereOperator::InnerProduct
             | WhereOperator::JaccardDistance => Err(FraiseQLError::validation(
-                "Vector distance operators not supported in SQLite".to_string(),
+                "Vector distance operators not supported in SQL Server".to_string(),
             )),
 
-            // Full-text search - SQLite uses FTS5
-            WhereOperator::Matches
-            | WhereOperator::PlainQuery
-            | WhereOperator::PhraseQuery
-            | WhereOperator::WebsearchQuery => Err(FraiseQLError::validation(
-                "Full-text search operators require FTS5 extension in SQLite".to_string(),
-            )),
+            // Full-text search - SQL Server uses CONTAINS and FREETEXT
+            WhereOperator::Matches => self.generate_fts(&field_path, "CONTAINS", value, params),
+            WhereOperator::PlainQuery | WhereOperator::PhraseQuery => {
+                self.generate_fts(&field_path, "FREETEXT", value, params)
+            }
+            WhereOperator::WebsearchQuery => {
+                Err(FraiseQLError::validation(
+                    "WebsearchQuery not directly supported in SQL Server".to_string(),
+                ))
+            }
 
-            // Network operators - not supported in SQLite
+            // Network operators - not natively supported
             WhereOperator::IsIPv4
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
@@ -211,15 +257,13 @@ impl SqliteWhereGenerator {
             | WhereOperator::ContainsSubnet
             | WhereOperator::ContainsIP
             | WhereOperator::Overlaps => Err(FraiseQLError::validation(
-                "Network operators not supported in SQLite".to_string(),
+                "Network operators not natively supported in SQL Server".to_string(),
             )),
 
             // JSONB operators
-            WhereOperator::StrictlyContains => {
-                self.generate_json_contains(&field_path, path, value, params)
-            },
+            WhereOperator::StrictlyContains => self.generate_json_contains(&field_path, path, value, params),
 
-            // LTree operators - not supported in SQLite (PostgreSQL-specific)
+            // LTree operators - not supported in SQL Server (PostgreSQL-specific)
             WhereOperator::AncestorOf
             | WhereOperator::DescendantOf
             | WhereOperator::MatchesLquery
@@ -231,23 +275,31 @@ impl SqliteWhereGenerator {
             | WhereOperator::DepthGte
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
-            | WhereOperator::Lca => Err(FraiseQLError::validation(
-                "LTree operators not supported in SQLite".to_string(),
-            )),
+            | WhereOperator::Lca => {
+                Err(FraiseQLError::validation(
+                    "LTree operators not supported in SQL Server".to_string(),
+                ))
+            }
 
             // Extended operators for rich scalar types
             WhereOperator::Extended(op) => {
                 use crate::filters::ExtendedOperatorHandler;
                 self.generate_extended_sql(op, &field_path, params)
-            },
+            }
         }
     }
 
-    /// Build SQLite JSON path expression.
-    /// SQLite uses json_extract(data, '$.field')
+    /// Build SQL Server JSON path expression.
+    /// SQL Server uses JSON_VALUE(data, '$.field') for scalar values
     fn build_json_path(&self, path: &[String]) -> String {
-        let escaped_path = crate::db::path_escape::escape_sqlite_json_path(path);
-        format!("json_extract(data, '{}')", escaped_path)
+        let escaped_path = crate::path_escape::escape_sqlserver_json_path(path);
+        format!("JSON_VALUE(data, '{}')", escaped_path)
+    }
+
+    fn next_param(&self) -> String {
+        let current = self.param_counter.get();
+        self.param_counter.set(current + 1);
+        format!("@p{}", current + 1)
     }
 
     fn generate_comparison(
@@ -257,15 +309,16 @@ impl SqliteWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
+        let param = self.next_param();
         params.push(value.clone());
 
         // For numeric comparisons, cast to appropriate type
         if value.is_number()
-            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "!=")
+            && (op == ">" || op == ">=" || op == "<" || op == "<=" || op == "=" || op == "<>")
         {
-            Ok(format!("CAST({field_path} AS REAL) {op} ?"))
+            Ok(format!("CAST({field_path} AS FLOAT) {op} {param}"))
         } else {
-            Ok(format!("{field_path} {op} ?"))
+            Ok(format!("{field_path} {op} {param}"))
         }
     }
 
@@ -280,14 +333,15 @@ impl SqliteWhereGenerator {
         })?;
 
         if array.is_empty() {
-            return Ok("1=0".to_string()); // FALSE
+            return Ok("1=0".to_string());
         }
 
-        let placeholders: Vec<&str> = array
+        let placeholders: Vec<String> = array
             .iter()
             .map(|v| {
+                let param = self.next_param();
                 params.push(v.clone());
-                "?"
+                param
             })
             .collect();
 
@@ -307,20 +361,22 @@ impl SqliteWhereGenerator {
             FraiseQLError::validation("LIKE operator requires string value".to_string())
         })?;
 
+        let param = self.next_param();
         params.push(serde_json::Value::String(val_str.to_string()));
 
         let pattern = match (prefix, suffix) {
-            (true, true) => "'%' || ? || '%'".to_string(),
-            (true, false) => "'%' || ?".to_string(),
-            (false, true) => "? || '%'".to_string(),
-            (false, false) => "?".to_string(),
+            (true, true) => format!("'%' + {param} + '%'"),
+            (true, false) => format!("'%' + {param}"),
+            (false, true) => format!("{param} + '%'"),
+            (false, false) => param.clone(),
         };
 
         if case_insensitive {
-            // Use LOWER() for case-insensitive comparison
-            Ok(format!("LOWER({field_path}) LIKE LOWER({pattern})"))
+            // Use case-insensitive collation
+            Ok(format!("{field_path} COLLATE Latin1_General_CI_AI LIKE {pattern}"))
         } else {
-            Ok(format!("{field_path} LIKE {pattern}"))
+            // Use case-sensitive collation
+            Ok(format!("{field_path} COLLATE Latin1_General_CS_AS LIKE {pattern}"))
         }
     }
 
@@ -331,36 +387,53 @@ impl SqliteWhereGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        // SQLite doesn't have native JSON_CONTAINS
-        // Use a workaround with json_each
+        // SQL Server uses OPENJSON to check array containment
         let json_path = path.join(".");
+        let param = self.next_param();
         params.push(value.clone());
 
-        // Check if the JSON array contains the value
         Ok(format!(
-            "EXISTS (SELECT 1 FROM json_each(json_extract(data, '$.{json_path}')) WHERE value = json(?))"
+            "EXISTS (SELECT 1 FROM OPENJSON(data, '$.{json_path}') WHERE value = {param})"
         ))
     }
 
     fn generate_array_length(
         &self,
-        field_path: &str,
+        _field_path: &str,
+        path: &[String],
         op: &str,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
+        // SQL Server counts array elements using OPENJSON
+        let json_path = path.join(".");
+        let param = self.next_param();
         params.push(value.clone());
-        Ok(format!("json_array_length({field_path}) {op} ?"))
+
+        Ok(format!("(SELECT COUNT(*) FROM OPENJSON(data, '$.{json_path}')) {op} {param}"))
+    }
+
+    fn generate_fts(
+        &self,
+        field_path: &str,
+        func: &str,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let param = self.next_param();
+        params.push(value.clone());
+        // SQL Server full-text search requires a full-text index
+        Ok(format!("{func}({field_path}, {param})"))
     }
 }
 
-impl Default for SqliteWhereGenerator {
+impl Default for SqlServerWhereGenerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl crate::filters::ExtendedOperatorHandler for SqliteWhereGenerator {
+impl crate::filters::ExtendedOperatorHandler for SqlServerWhereGenerator {
     fn generate_extended_sql(
         &self,
         operator: &crate::filters::ExtendedOperator,
@@ -371,50 +444,57 @@ impl crate::filters::ExtendedOperatorHandler for SqliteWhereGenerator {
             // Email domain extraction: extract part after @
             crate::filters::ExtendedOperator::EmailDomainEq(domain) => {
                 params.push(serde_json::Value::String(domain.clone()));
-                // SQLite: SUBSTR(field, INSTR(field, '@') + 1) = ?
-                Ok(format!("SUBSTR({}, INSTR({}, '@') + 1) = ?", field_sql, field_sql))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) = @pN
+                Ok(format!(
+                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) = {param}"
+                ))
             },
 
             crate::filters::ExtendedOperator::EmailDomainIn(domains) => {
-                let placeholders: Vec<&str> = domains
-                    .iter()
-                    .map(|d| {
-                        params.push(serde_json::Value::String(d.clone()));
-                        "?"
-                    })
-                    .collect();
+                let mut placeholders = Vec::new();
+                for d in domains {
+                    params.push(serde_json::Value::String(d.clone()));
+                    placeholders.push(self.next_param());
+                }
                 Ok(format!(
-                    "SUBSTR({}, INSTR({}, '@') + 1) IN ({})",
-                    field_sql,
-                    field_sql,
+                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) IN ({})",
                     placeholders.join(", ")
                 ))
             },
 
             crate::filters::ExtendedOperator::EmailDomainEndswith(suffix) => {
                 params.push(serde_json::Value::String(suffix.clone()));
-                // SQLite: SUBSTR(field, INSTR(field, '@') + 1) LIKE '%' || ?
-                Ok(format!("SUBSTR({}, INSTR({}, '@') + 1) LIKE '%' || ?", field_sql, field_sql))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, CHARINDEX('@', field) + 1, LEN(field)) LIKE '%' + @pN
+                Ok(format!(
+                    "SUBSTRING({field_sql}, CHARINDEX('@', {field_sql}) + 1, LEN({field_sql})) LIKE '%' + {param}"
+                ))
             },
 
             crate::filters::ExtendedOperator::EmailLocalPartStartswith(prefix) => {
                 params.push(serde_json::Value::String(prefix.clone()));
-                // SQLite: SUBSTR(field, 1, INSTR(field, '@') - 1) LIKE ? || '%'
-                Ok(format!("SUBSTR({}, 1, INSTR({}, '@') - 1) LIKE ? || '%'", field_sql, field_sql))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, 1, CHARINDEX('@', field) - 1) LIKE @pN + '%'
+                Ok(format!(
+                    "SUBSTRING({field_sql}, 1, CHARINDEX('@', {field_sql}) - 1) LIKE {param} + '%'"
+                ))
             },
 
             // VIN operations
             crate::filters::ExtendedOperator::VinWmiEq(wmi) => {
                 params.push(serde_json::Value::String(wmi.clone()));
-                // SQLite: SUBSTR(field, 1, 3) = ?
-                Ok(format!("SUBSTR({}, 1, 3) = ?", field_sql))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, 1, 3) = @pN
+                Ok(format!("SUBSTRING({field_sql}, 1, 3) = {param}"))
             },
 
             // IBAN operations
             crate::filters::ExtendedOperator::IbanCountryEq(country) => {
                 params.push(serde_json::Value::String(country.clone()));
-                // SQLite: SUBSTR(field, 1, 2) = ?
-                Ok(format!("SUBSTR({}, 1, 2) = ?", field_sql))
+                let param = self.next_param();
+                // SQL Server: SUBSTRING(field, 1, 2) = @pN
+                Ok(format!("SUBSTRING({field_sql}, 1, 2) = {param}"))
             },
 
             // Fallback: not implemented
@@ -434,7 +514,7 @@ mod tests {
 
     #[test]
     fn test_simple_equality() {
-        let gen = SqliteWhereGenerator::new();
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
@@ -442,13 +522,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "json_extract(data, '$.email') = ?");
+        assert_eq!(sql, "JSON_VALUE(data, '$.email') = @p1");
         assert_eq!(params, vec![json!("test@example.com")]);
     }
 
     #[test]
     fn test_icontains() {
-        let gen = SqliteWhereGenerator::new();
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["email".to_string()],
             operator: WhereOperator::Icontains,
@@ -456,13 +536,16 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "LOWER(json_extract(data, '$.email')) LIKE LOWER('%' || ? || '%')");
+        assert_eq!(
+            sql,
+            "JSON_VALUE(data, '$.email') COLLATE Latin1_General_CI_AI LIKE '%' + @p1 + '%'"
+        );
         assert_eq!(params, vec![json!("example.com")]);
     }
 
     #[test]
     fn test_nested_path() {
-        let gen = SqliteWhereGenerator::new();
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
@@ -470,13 +553,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "json_extract(data, '$.address.city') = ?");
+        assert_eq!(sql, "JSON_VALUE(data, '$.address.city') = @p1");
         assert_eq!(params, vec![json!("Paris")]);
     }
 
     #[test]
     fn test_and_clause() {
-        let gen = SqliteWhereGenerator::new();
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::And(vec![
             WhereClause::Field {
                 path:     vec!["age".to_string()],
@@ -493,14 +576,14 @@ mod tests {
         let (sql, params) = gen.generate(&clause).unwrap();
         assert_eq!(
             sql,
-            "(CAST(json_extract(data, '$.age') AS REAL) >= ? AND json_extract(data, '$.active') = ?)"
+            "(CAST(JSON_VALUE(data, '$.age') AS FLOAT) >= @p1 AND JSON_VALUE(data, '$.active') = @p2)"
         );
         assert_eq!(params, vec![json!(18), json!(true)]);
     }
 
     #[test]
     fn test_in_operator() {
-        let gen = SqliteWhereGenerator::new();
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["status".to_string()],
             operator: WhereOperator::In,
@@ -508,13 +591,13 @@ mod tests {
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "json_extract(data, '$.status') IN (?, ?)");
+        assert_eq!(sql, "JSON_VALUE(data, '$.status') IN (@p1, @p2)");
         assert_eq!(params, vec![json!("active"), json!("pending")]);
     }
 
     #[test]
     fn test_is_null() {
-        let gen = SqliteWhereGenerator::new();
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
             path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
@@ -522,20 +605,20 @@ mod tests {
         };
 
         let (sql, _params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "json_extract(data, '$.deleted_at') IS NULL");
+        assert_eq!(sql, "JSON_VALUE(data, '$.deleted_at') IS NULL");
     }
 
     #[test]
-    fn test_array_length() {
-        let gen = SqliteWhereGenerator::new();
+    fn test_not_equal() {
+        let gen = SqlServerWhereGenerator::new();
         let clause = WhereClause::Field {
-            path:     vec!["tags".to_string()],
-            operator: WhereOperator::LenGt,
-            value:    json!(0),
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Neq,
+            value:    json!("deleted"),
         };
 
         let (sql, params) = gen.generate(&clause).unwrap();
-        assert_eq!(sql, "json_array_length(json_extract(data, '$.tags')) > ?");
-        assert_eq!(params, vec![json!(0)]);
+        assert_eq!(sql, "JSON_VALUE(data, '$.status') <> @p1");
+        assert_eq!(params, vec![json!("deleted")]);
     }
 }

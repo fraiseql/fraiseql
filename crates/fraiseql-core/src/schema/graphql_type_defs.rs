@@ -6,7 +6,7 @@ use super::domain_types::{SqlSource, TypeName};
 use super::field_type::{DeprecationInfo, FieldDefinition};
 use crate::validation::ValidationRule;
 
-pub use crate::types::sql_hints::SqlProjectionHint;
+pub use crate::types::SqlProjectionHint;
 
 // =============================================================================
 // Object Type Definitions

@@ -68,7 +68,7 @@ pub use executor::Executor;
 pub use field_filter::{FieldAccessResult, can_access_field, classify_field_access, filter_fields};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher};
-pub(crate) use matcher::suggest_similar;
+pub use matcher::suggest_similar;
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
 pub use query_tracing::{

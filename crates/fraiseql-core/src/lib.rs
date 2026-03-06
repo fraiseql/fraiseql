@@ -132,7 +132,7 @@ pub mod graphql;
 pub mod apq;
 pub mod audit;
 pub mod cache;
-pub mod db;
+pub use fraiseql_db as db;
 pub mod design;
 pub mod federation;
 pub mod filters;

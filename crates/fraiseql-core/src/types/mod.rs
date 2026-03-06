@@ -4,7 +4,7 @@
 //! compile-time type safety and prevent accidental mixing of different identifier types.
 
 pub mod identifiers;
-pub mod sql_hints;
 
 pub use identifiers::{FieldName, SchemaName, TableName};
-pub use sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint};
+// sql_hints types are in fraiseql-db; re-export for backward compat
+pub use fraiseql_db::types::{OrderByClause, OrderDirection, SqlProjectionHint};

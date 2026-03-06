@@ -39,6 +39,7 @@
 // Error variants and fields are self-documenting via their #[error(...)] messages
 #![allow(missing_docs)]
 
+pub mod core_error;
 mod auth;
 mod config;
 mod file;
@@ -49,6 +50,7 @@ mod observer;
 mod webhook;
 
 pub use auth::AuthError;
+pub use core_error::{ErrorContext, FraiseQLError, Result, ValidationFieldError};
 pub use config::ConfigError;
 pub use file::FileError;
 // Re-export for convenience

@@ -5,10 +5,9 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    db::where_clause::{WhereClause, WhereOperator},
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
+
+use crate::{where_clause::{WhereClause, WhereOperator}};
 
 /// Cache of indexed columns for views.
 ///
@@ -407,10 +406,10 @@ impl PostgresWhereGenerator {
 
         // Fall back to JSONB extraction with proper escaping
         if path.len() == 1 {
-            let escaped = crate::db::path_escape::escape_postgres_jsonb_segment(&path[0]);
+            let escaped = crate::path_escape::escape_postgres_jsonb_segment(&path[0]);
             format!("data->>'{}'", escaped)
         } else {
-            let escaped_path = crate::db::path_escape::escape_postgres_jsonb_path(path);
+            let escaped_path = crate::path_escape::escape_postgres_jsonb_path(path);
             let mut result = "data".to_string();
             for (i, segment) in escaped_path.iter().enumerate() {
                 if i < escaped_path.len() - 1 {

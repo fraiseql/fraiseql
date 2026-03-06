@@ -3,11 +3,9 @@
 //! Maps user locales to database-specific collation strings, adapting to each
 //! database's collation capabilities.
 
-use crate::{
-    config::CollationConfig,
-    db::types::DatabaseType,
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
+
+use crate::{collation_config::CollationConfig, types::DatabaseType};
 
 /// Maps user locales to database-specific collation strings.
 ///
@@ -179,7 +177,7 @@ impl CollationMapper {
 
     /// Handle invalid locale based on configuration strategy.
     fn handle_invalid_locale(&self) -> Result<Option<String>> {
-        use crate::config::InvalidLocaleStrategy;
+        use crate::collation_config::InvalidLocaleStrategy;
 
         match self.config.on_invalid_locale {
             InvalidLocaleStrategy::Fallback => self.map_locale(&self.config.fallback_locale),
@@ -256,7 +254,7 @@ impl CollationCapabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{
+    use crate::collation_config::{
         DatabaseCollationOverrides, InvalidLocaleStrategy, MySqlCollationConfig,
         PostgresCollationConfig, SqliteCollationConfig,
     };

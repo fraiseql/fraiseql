@@ -6,7 +6,9 @@ use super::{
     types::{DatabaseType, JsonbValue, PoolMetrics},
     where_clause::WhereClause,
 };
-use crate::{error::{FraiseQLError, Result}, types::sql_hints::{OrderByClause, SqlProjectionHint}};
+use fraiseql_error::{FraiseQLError, Result};
+
+use crate::types::sql_hints::{OrderByClause, SqlProjectionHint};
 
 /// Result from a relay pagination query, containing rows and an optional total count.
 #[derive(Debug, Clone)]
@@ -507,7 +509,7 @@ pub trait DatabaseAdapter: Send + Sync {
         _sql: &str,
         _params: &[serde_json::Value],
     ) -> Result<serde_json::Value> {
-        Err(crate::error::FraiseQLError::Unsupported {
+        Err(fraiseql_error::FraiseQLError::Unsupported {
             message: "EXPLAIN not available for this database adapter".to_string(),
         })
     }
@@ -597,8 +599,8 @@ pub enum CursorValue {
 ///
 /// # Implementors
 ///
-/// - [`PostgresAdapter`](crate::db::postgres::PostgresAdapter) — full keyset pagination
-/// - [`MySqlAdapter`](crate::db::mysql::MySqlAdapter) — keyset pagination with `?` params
+/// - [`PostgresAdapter`](crate::postgres::PostgresAdapter) — full keyset pagination
+/// - [`MySqlAdapter`](crate::mysql::MySqlAdapter) — keyset pagination with `?` params
 /// - [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) — delegates to inner `A`
 ///
 /// # Usage
@@ -648,11 +650,11 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 ///
 /// | Adapter | Implements |
 /// |---------|-----------|
-/// | [`PostgresAdapter`](crate::db::postgres::PostgresAdapter) | ✅ Yes |
-/// | [`MySqlAdapter`](crate::db::mysql::MySqlAdapter) | ✅ Yes |
-/// | [`SqlServerAdapter`](crate::db::sqlserver::SqlServerAdapter) | ✅ Yes |
-/// | [`SqliteAdapter`](crate::db::sqlite::SqliteAdapter) | ❌ No — SQLite does not support stored-function mutations |
-/// | [`FraiseWireAdapter`](crate::db::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
+/// | [`PostgresAdapter`](crate::postgres::PostgresAdapter) | ✅ Yes |
+/// | [`MySqlAdapter`](crate::mysql::MySqlAdapter) | ✅ Yes |
+/// | [`SqlServerAdapter`](crate::sqlserver::SqlServerAdapter) | ✅ Yes |
+/// | [`SqliteAdapter`](crate::sqlite::SqliteAdapter) | ❌ No — SQLite does not support stored-function mutations |
+/// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
 /// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` |
 ///
 /// # Compile-time enforcement

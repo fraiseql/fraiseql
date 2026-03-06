@@ -15,7 +15,7 @@ use super::{
     where_sql_generator::WhereSqlGenerator,
     wire_pool::WireClientFactory,
 };
-use crate::error::{FraiseQLError, Result};
+use fraiseql_error::{FraiseQLError, Result};
 
 /// FraiseQL-Wire database adapter.
 ///

@@ -1,7 +1,7 @@
 //! SQLite database adapter — **read-only** (queries only, no mutations).
 //!
 //! This adapter supports query execution (`execute_where_query`, `execute_raw_query`)
-//! but does **not** implement [`MutationCapable`](crate::db::MutationCapable). Attempting
+//! but does **not** implement [`MutationCapable`](crate::MutationCapable). Attempting
 //! to compile a schema with mutations and run it against SQLite will produce a
 //! **compile-time error** at the mutation executor call site.
 //!
@@ -19,14 +19,13 @@ use sqlx::{
 };
 
 use super::where_generator::SqliteWhereGenerator;
+use fraiseql_error::{FraiseQLError, Result};
+
 use crate::{
-    db::{
-        identifier::quote_sqlite_identifier,
-        traits::DatabaseAdapter,
-        types::{DatabaseType, JsonbValue, PoolMetrics},
-        where_clause::WhereClause,
-    },
-    error::{FraiseQLError, Result},
+    identifier::quote_sqlite_identifier,
+    traits::DatabaseAdapter,
+    types::{DatabaseType, JsonbValue, PoolMetrics},
+    where_clause::WhereClause,
 };
 
 /// SQLite database adapter with connection pooling.
@@ -590,7 +589,7 @@ mod tests {
         let adapter = setup_user_table(5).await;
         let clause = WhereClause::Field {
             path:     vec!["name".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Eq,
+            operator: crate::where_clause::WhereOperator::Eq,
             value:    json!("user3"),
         };
         let results =
@@ -604,7 +603,7 @@ mod tests {
         let adapter = setup_user_table(3).await;
         let clause = WhereClause::Field {
             path:     vec!["name".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Neq,
+            operator: crate::where_clause::WhereOperator::Neq,
             value:    json!("user1"),
         };
         let results =
@@ -618,7 +617,7 @@ mod tests {
         // age = 20+i, so age > 23 → users 4 and 5
         let clause = WhereClause::Field {
             path:     vec!["age".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Gt,
+            operator: crate::where_clause::WhereOperator::Gt,
             value:    json!(23),
         };
         let results =
@@ -632,7 +631,7 @@ mod tests {
         // age >= 23 → users 3, 4, 5
         let clause = WhereClause::Field {
             path:     vec!["age".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Gte,
+            operator: crate::where_clause::WhereOperator::Gte,
             value:    json!(23),
         };
         let results =
@@ -646,7 +645,7 @@ mod tests {
         // age < 23 → users 1 and 2
         let clause = WhereClause::Field {
             path:     vec!["age".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Lt,
+            operator: crate::where_clause::WhereOperator::Lt,
             value:    json!(23),
         };
         let results =
@@ -660,7 +659,7 @@ mod tests {
         // age <= 23 → users 1, 2, 3
         let clause = WhereClause::Field {
             path:     vec!["age".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Lte,
+            operator: crate::where_clause::WhereOperator::Lte,
             value:    json!(23),
         };
         let results =
@@ -673,7 +672,7 @@ mod tests {
         let adapter = setup_user_table(5).await;
         let clause = WhereClause::Field {
             path:     vec!["name".to_string()],
-            operator: crate::db::where_clause::WhereOperator::In,
+            operator: crate::where_clause::WhereOperator::In,
             value:    json!(["user1", "user3", "user5"]),
         };
         let results =
@@ -686,7 +685,7 @@ mod tests {
         let adapter = setup_user_table(5).await;
         let clause = WhereClause::Field {
             path:     vec!["name".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Nin,
+            operator: crate::where_clause::WhereOperator::Nin,
             value:    json!(["user1", "user2"]),
         };
         let results =
@@ -700,7 +699,7 @@ mod tests {
         // name LIKE 'user%' matches all 5
         let clause = WhereClause::Field {
             path:     vec!["name".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Like,
+            operator: crate::where_clause::WhereOperator::Like,
             value:    json!("user%"),
         };
         let results =
@@ -714,7 +713,7 @@ mod tests {
         // deleted_at is null for all rows (seeded as null)
         let clause = WhereClause::Field {
             path:     vec!["deleted_at".to_string()],
-            operator: crate::db::where_clause::WhereOperator::IsNull,
+            operator: crate::where_clause::WhereOperator::IsNull,
             value:    json!(true),
         };
         let results =
@@ -728,7 +727,7 @@ mod tests {
         // deleted_at is null → IS NOT NULL returns 0 rows
         let clause = WhereClause::Field {
             path:     vec!["deleted_at".to_string()],
-            operator: crate::db::where_clause::WhereOperator::IsNull,
+            operator: crate::where_clause::WhereOperator::IsNull,
             value:    json!(false),
         };
         let results =
@@ -743,12 +742,12 @@ mod tests {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
                 path:     vec!["name".to_string()],
-                operator: crate::db::where_clause::WhereOperator::Eq,
+                operator: crate::where_clause::WhereOperator::Eq,
                 value:    json!("user2"),
             },
             WhereClause::Field {
                 path:     vec!["age".to_string()],
-                operator: crate::db::where_clause::WhereOperator::Eq,
+                operator: crate::where_clause::WhereOperator::Eq,
                 value:    json!(22),
             },
         ]);
@@ -765,12 +764,12 @@ mod tests {
         let clause = WhereClause::Or(vec![
             WhereClause::Field {
                 path:     vec!["name".to_string()],
-                operator: crate::db::where_clause::WhereOperator::Eq,
+                operator: crate::where_clause::WhereOperator::Eq,
                 value:    json!("user1"),
             },
             WhereClause::Field {
                 path:     vec!["name".to_string()],
-                operator: crate::db::where_clause::WhereOperator::Eq,
+                operator: crate::where_clause::WhereOperator::Eq,
                 value:    json!("user5"),
             },
         ]);
@@ -786,7 +785,7 @@ mod tests {
         let adapter = setup_user_table(3).await;
         let clause = WhereClause::Field {
             path:     vec!["name".to_string()],
-            operator: crate::db::where_clause::WhereOperator::Eq,
+            operator: crate::where_clause::WhereOperator::Eq,
             value:    json!("nonexistent"),
         };
         let results =

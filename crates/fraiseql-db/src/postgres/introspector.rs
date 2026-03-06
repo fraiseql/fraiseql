@@ -3,10 +3,9 @@ use async_trait::async_trait;
 use deadpool_postgres::Pool;
 use tokio_postgres::Row;
 
-use crate::{
-    compiler::fact_table::{DatabaseIntrospector, DatabaseType},
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
+
+use crate::{introspector::DatabaseIntrospector, DatabaseType};
 
 /// PostgreSQL introspector for fact table metadata.
 pub struct PostgresIntrospector {
@@ -385,7 +384,7 @@ mod integration_tests {
     use tokio_postgres::NoTls;
 
     use super::*;
-    use crate::db::postgres::PostgresAdapter;
+    use crate::postgres::PostgresAdapter;
 
     const TEST_DB_URL: &str =
         "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql";

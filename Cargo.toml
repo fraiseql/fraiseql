@@ -25,7 +25,9 @@ members = [
   "crates/fraiseql-auth",
   "crates/fraiseql-cli",
   "crates/fraiseql-core",
+  "crates/fraiseql-db",
   "crates/fraiseql-error",
+  "crates/fraiseql-executor",
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",
   "crates/fraiseql-secrets",
@@ -59,7 +61,9 @@ fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.1.0-dev"}
 fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.0-dev"}
 fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.1.0-dev"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0-dev", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0-dev"}
+fraiseql-db = {path = "crates/fraiseql-db", version = "2.1.0-dev", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0-dev", default-features = false}
+fraiseql-executor = {path = "crates/fraiseql-executor", version = "2.1.0-dev", default-features = false}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0-dev"}
 fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.1.0-dev"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0-dev"}

@@ -5,10 +5,9 @@
 
 use serde_json::Value;
 
-use crate::{
-    db::{WhereClause, WhereOperator},
-    error::{FraiseQLError, Result},
-};
+use fraiseql_error::{FraiseQLError, Result};
+
+use crate::{WhereClause, WhereOperator};
 
 /// Maximum allowed byte length for a string value embedded in a raw SQL query.
 ///
