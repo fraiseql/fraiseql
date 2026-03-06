@@ -6,19 +6,40 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum KmsError {
     /// Key not found in KMS provider
-    KeyNotFound { key_id: String },
+    KeyNotFound {
+        /// Identifier of the missing key.
+        key_id: String,
+    },
     /// Encryption operation failed
-    EncryptionFailed { message: String },
+    EncryptionFailed {
+        /// Human-readable description of the failure.
+        message: String,
+    },
     /// Decryption operation failed
-    DecryptionFailed { message: String },
+    DecryptionFailed {
+        /// Human-readable description of the failure.
+        message: String,
+    },
     /// Key rotation failed
-    RotationFailed { message: String },
+    RotationFailed {
+        /// Human-readable description of the failure.
+        message: String,
+    },
     /// Connection to KMS provider failed
-    ProviderConnectionError { message: String },
+    ProviderConnectionError {
+        /// Human-readable description of the connection error.
+        message: String,
+    },
     /// Invalid configuration
-    InvalidConfiguration { message: String },
+    InvalidConfiguration {
+        /// Human-readable description of what is misconfigured.
+        message: String,
+    },
     /// Serialization/deserialization error
-    SerializationError { message: String },
+    SerializationError {
+        /// Human-readable description of the serialization failure.
+        message: String,
+    },
 }
 
 impl fmt::Display for KmsError {
@@ -43,4 +64,5 @@ impl fmt::Display for KmsError {
 
 impl std::error::Error for KmsError {}
 
+/// Convenience `Result` alias for KMS operations.
 pub type KmsResult<T> = Result<T, KmsError>;

@@ -27,7 +27,6 @@ members = [
   "crates/fraiseql-core",
   "crates/fraiseql-db",
   "crates/fraiseql-error",
-  "crates/fraiseql-executor",
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",
   "crates/fraiseql-secrets",
@@ -63,7 +62,6 @@ fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.1.0"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0", default-features = false}
 fraiseql-db = {path = "crates/fraiseql-db", version = "2.1.0", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0", default-features = false}
-fraiseql-executor = {path = "crates/fraiseql-executor", version = "2.1.0", default-features = false}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0"}
 fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.1.0"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0"}
@@ -158,7 +156,7 @@ unwrap_used = "deny"
 
 [workspace.lints.rust]
 dead_code = "warn"
-missing_docs = "warn"
+missing_docs = "deny"
 unsafe_code = "forbid"
 unused_imports = "warn"
 unused_variables = "warn"
@@ -181,7 +179,7 @@ version = "2.1.0"
 # Enforced by tools/check-crate-sizes.sh in CI.
 # Limits are set at ~50% above current size for small crates, and at the
 # 150K "split threshold" for fraiseql-core (which is planned to be split
-# into fraiseql-db + fraiseql-executor — see .remediation_2/batches/batch-5-crate-split.md).
+# into fraiseql-db — see .remediation_2/batches/batch-5-crate-split.md).
 #
 # Current sizes (2026-03-05):
 #   fraiseql-core:            107,712 lines
@@ -207,7 +205,6 @@ fraiseql-secrets          = 20_000
 fraiseql-wire             = 20_000
 fraiseql-arrow            = 15_000
 fraiseql-db               = 25_000
-fraiseql-executor         = 2_000
 fraiseql-webhooks         = 10_000
 fraiseql-test-utils       = 5_000
 fraiseql-error            = 5_000

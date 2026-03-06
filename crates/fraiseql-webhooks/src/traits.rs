@@ -95,7 +95,7 @@ pub trait Clock: Send + Sync {
     fn now(&self) -> i64;
 }
 
-/// System clock implementation
+/// Production `Clock` implementation that delegates to `std::time::SystemTime`.
 pub struct SystemClock;
 
 impl Clock for SystemClock {

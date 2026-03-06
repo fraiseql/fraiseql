@@ -1,13 +1,13 @@
-// Server-side OIDC client for PKCE authorization code flows.
-//
-// This is a minimal, runtime-facing client that:
-//   1. Builds the OIDC `/authorize` redirect URL with PKCE parameters.
-//   2. Exchanges the authorization code + `code_verifier` for tokens.
-//
-// It is intentionally separate from the more general `OAuth2Client` and
-// `OIDCClient` types in `oauth.rs`: those carry JWKS caches and session
-// management state that the PKCE route handlers do not need.
-//
+//! Server-side OIDC client for PKCE authorization code flows.
+//!
+//! This is a minimal, runtime-facing client that:
+//! 1. Builds the OIDC `/authorize` redirect URL with PKCE parameters.
+//! 2. Exchanges the authorization code + `code_verifier` for tokens.
+//!
+//! It is intentionally separate from the more general [`crate::oauth::OAuth2Client`] and
+//! [`crate::oauth::OIDCClient`] types in `oauth`: those carry JWKS caches and session
+//! management state that the PKCE route handlers do not need.
+//!
 // The client secret is loaded from the environment at runtime and is NEVER
 // stored in the compiled schema or TOML config.
 

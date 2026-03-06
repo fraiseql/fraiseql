@@ -2,8 +2,10 @@
 
 use serde::Deserialize;
 
+/// Cross-Origin Resource Sharing (CORS) policy configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
+    /// Whether CORS headers are added to responses.  Default: `true`.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 

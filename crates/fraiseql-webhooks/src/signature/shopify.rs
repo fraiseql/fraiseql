@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Shopify webhook signatures using HMAC-SHA256 encoded as Base64.
+///
+/// Shopify computes `HMAC-SHA256(secret, body)`, Base64-encodes the result, and
+/// sends it in the `X-Shopify-Hmac-Sha256` header.
 pub struct ShopifyVerifier;
 
 impl SignatureVerifier for ShopifyVerifier {

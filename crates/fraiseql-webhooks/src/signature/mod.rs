@@ -20,21 +20,29 @@ pub mod twilio;
 
 pub use registry::ProviderRegistry;
 
-/// Signature verification errors
+/// Errors produced by low-level signature verification routines.
 #[derive(Debug, thiserror::Error)]
 pub enum SignatureError {
+    /// The signature header value could not be parsed according to the provider's expected format.
+    /// For example, a GitHub signature missing the `sha256=` prefix triggers this variant.
     #[error("Invalid signature format")]
     InvalidFormat,
 
+    /// The computed signature did not match the value supplied in the request header.
     #[error("Signature mismatch")]
     Mismatch,
 
+    /// The timestamp embedded in the request is older than the configured tolerance window,
+    /// indicating a potential replay attack.
     #[error("Timestamp expired")]
     TimestampExpired,
 
+    /// A timestamp is required for this provider's signing scheme but was not found in the request.
     #[error("Missing timestamp")]
     MissingTimestamp,
 
+    /// A cryptographic operation failed (e.g., an invalid key was supplied or key parsing failed).
+    /// The inner string contains the underlying error message.
     #[error("Crypto error: {0}")]
     Crypto(String),
 }

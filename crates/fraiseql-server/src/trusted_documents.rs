@@ -164,7 +164,10 @@ pub enum TrustedDocumentError {
 
     /// The requested document ID was not found in the manifest.
     #[error("Unknown document: {id}")]
-    DocumentNotFound { id: String },
+    DocumentNotFound {
+        /// The document ID that was requested but not found.
+        id: String,
+    },
 
     /// Failed to load the manifest file.
     #[error("Manifest load error: {0}")]

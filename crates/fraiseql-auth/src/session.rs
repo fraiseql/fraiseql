@@ -1,4 +1,4 @@
-// Session management - trait definition and implementations
+//! Session management — trait definition and helper functions.
 #[cfg(test)]
 use std::sync::Arc;
 
@@ -150,14 +150,21 @@ pub trait SessionStore: Send + Sync {
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()>;
 }
 
-/// Hash a refresh token for secure storage
+/// Compute a SHA-256 hex digest of a refresh token for secure storage.
+///
+/// Refresh tokens are stored only as their SHA-256 hash so that a database
+/// breach cannot be used to replay sessions.  The original token is returned
+/// to the client and never persisted.
 pub fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     format!("{:x}", hasher.finalize())
 }
 
-/// Generate a cryptographically secure refresh token
+/// Generate a cryptographically secure refresh token.
+///
+/// Returns 32 random bytes from [`rand::rngs::OsRng`] encoded as standard Base64.
+/// The resulting token is 44 characters long and has approximately 256 bits of entropy.
 pub fn generate_refresh_token() -> String {
     use base64::Engine;
     use rand::{Rng, rngs::OsRng};

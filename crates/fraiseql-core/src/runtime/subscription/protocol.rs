@@ -1,3 +1,8 @@
+//! GraphQL over WebSocket subscription protocol types.
+//!
+//! Implements the `graphql-ws` protocol (v5+) message framing for
+//! client-to-server and server-to-client subscription communication.
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};

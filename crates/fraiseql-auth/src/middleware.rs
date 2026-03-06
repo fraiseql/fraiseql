@@ -1,4 +1,4 @@
-// Authentication middleware for Axum
+//! Authentication middleware for Axum request handlers.
 use std::sync::Arc;
 
 use axum::{

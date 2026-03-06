@@ -1,4 +1,4 @@
-// Ory (Hydra/Kratos) OAuth provider implementation
+//! Ory (Hydra / Kratos) OAuth / OIDC provider implementation for Cloud and self-hosted deployments.
 use async_trait::async_trait;
 use serde_json::json;
 

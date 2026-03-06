@@ -13,7 +13,7 @@
 //! filter operators.
 
 #![forbid(unsafe_code)]
-#![allow(missing_docs)]
+#![deny(missing_docs)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::return_self_not_must_use)]
 #![allow(clippy::uninlined_format_args)]

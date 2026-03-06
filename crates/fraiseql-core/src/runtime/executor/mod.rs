@@ -644,6 +644,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
+    /// Execute a GraphQL query string and return a serialized JSON response.
+    ///
+    /// Applies the configured query timeout if one is set. Handles queries,
+    /// mutations, introspection, federation, and node lookups.
     pub async fn execute(
         &self,
         query: &str,

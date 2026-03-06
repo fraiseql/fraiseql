@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Postmark webhook signatures using HMAC-SHA256 encoded as Base64.
+///
+/// Postmark computes `HMAC-SHA256(secret, body)`, Base64-encodes the result, and
+/// sends it in the `X-Postmark-Signature` header.
 pub struct PostmarkVerifier;
 
 impl SignatureVerifier for PostmarkVerifier {

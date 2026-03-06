@@ -236,6 +236,9 @@ impl QueryResultCache {
         self.config.enabled
     }
 
+    /// Look up a cached result by its cache key.
+    ///
+    /// Returns `None` when caching is disabled or the key is not present or expired.
     pub fn get(&self, cache_key: &str) -> Result<Option<Arc<Vec<JsonbValue>>>> {
         if !self.config.enabled {
             return Ok(None);

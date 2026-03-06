@@ -14,12 +14,18 @@ use crate::{
     traits::{Clock, SignatureVerifier, SystemClock},
 };
 
+/// Verifies Stripe webhook signatures using HMAC-SHA256.
+///
+/// Stripe signs `<timestamp>.<body>` and sends the result in the `Stripe-Signature` header
+/// as `t=<timestamp>,v1=<hex>`. Timestamps outside the tolerance window are rejected
+/// to prevent replay attacks.
 pub struct StripeVerifier {
     clock:     Arc<dyn Clock>,
     tolerance: u64,
 }
 
 impl StripeVerifier {
+    /// Create a new verifier using the system clock and a 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -28,6 +34,7 @@ impl StripeVerifier {
         }
     }
 
+    /// Create a new verifier with a custom `Clock` implementation, useful for testing.
     #[must_use]
     pub fn with_clock(clock: Arc<dyn Clock>) -> Self {
         Self {
@@ -36,6 +43,7 @@ impl StripeVerifier {
         }
     }
 
+    /// Set the maximum acceptable age of a webhook timestamp in seconds.
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {
         self.tolerance = seconds;

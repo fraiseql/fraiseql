@@ -294,7 +294,7 @@ fn create_builder_for_type(
 
 #[cfg(test)]
 mod tests {
-    use arrow::datatypes::Field;
+    use arrow::{array::Array, datatypes::Field};
 
     use super::*;
 
@@ -468,5 +468,507 @@ mod tests {
         let mut builder: Box<dyn ArrayBuilder> = Box::new(StringBuilder::new());
         let result = downcast_builder::<StringBuilder>(&mut builder, "StringBuilder", "Utf8");
         assert!(result.is_ok());
+    }
+
+    // --- Null handling for each Arrow type ---
+
+    #[test]
+    fn test_null_in_int64_column_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None::<Value>]];
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_rows(), 1);
+        use arrow::array::Int64Array;
+        let col = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        assert!(col.is_null(0));
+    }
+
+    #[test]
+    fn test_null_in_utf8_column_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::Utf8, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None::<Value>]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::StringArray;
+        let col = batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        assert!(col.is_null(0));
+    }
+
+    #[test]
+    fn test_null_in_float64_column_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::Float64, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None::<Value>]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Float64Array;
+        let col = batch.column(0).as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!(col.is_null(0));
+    }
+
+    #[test]
+    fn test_null_in_boolean_column_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::Boolean, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None::<Value>]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::BooleanArray;
+        let col = batch.column(0).as_any().downcast_ref::<BooleanArray>().unwrap();
+        assert!(col.is_null(0));
+    }
+
+    #[test]
+    fn test_null_in_date32_column_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::Date32, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None::<Value>]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Date32Array;
+        let col = batch.column(0).as_any().downcast_ref::<Date32Array>().unwrap();
+        assert!(col.is_null(0));
+    }
+
+    #[test]
+    fn test_null_in_timestamp_nanosecond_column_preserved() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "val",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            true,
+        )]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None::<Value>]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::TimestampNanosecondArray;
+        let col =
+            batch.column(0).as_any().downcast_ref::<TimestampNanosecondArray>().unwrap();
+        assert!(col.is_null(0));
+    }
+
+    // --- Type coercion / error tests ---
+
+    #[test]
+    fn test_string_in_int64_column_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::String("not-an-int".to_string()))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected int64 value"));
+    }
+
+    #[test]
+    fn test_float_in_boolean_column_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Float(1.0))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected bool value"));
+    }
+
+    #[test]
+    fn test_bool_in_utf8_column_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("name", DataType::Utf8, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Bool(true))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected string value"));
+    }
+
+    #[test]
+    fn test_float_in_int32_column_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("count", DataType::Int32, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Float(3.14))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected int"));
+    }
+
+    #[test]
+    fn test_int_overflow_for_int32_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        // i64::MAX cannot be represented as i32
+        let rows = vec![vec![Some(Value::Int(i64::MAX))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Int overflow"));
+    }
+
+    #[test]
+    fn test_string_in_timestamp_column_is_error() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "ts",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            false,
+        )]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::String("2026-01-01".to_string()))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected timestamp value"));
+    }
+
+    #[test]
+    fn test_string_in_date32_column_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::String("2026-01-01".to_string()))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Expected date value"));
+    }
+
+    #[test]
+    fn test_unsupported_data_type_is_error() {
+        // DataType::LargeUtf8 is not supported
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("val", DataType::LargeUtf8, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        // create_builders itself should fail
+        let rows = vec![vec![None::<Value>]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported data type"));
+    }
+
+    // --- Batch boundary conditions ---
+
+    #[test]
+    fn test_zero_rows_returns_empty_batch_with_correct_schema() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+            Field::new("name", DataType::Utf8, true),
+            Field::new("score", DataType::Float64, true),
+        ]));
+        let converter = RowToArrowConverter::new(schema.clone(), ConvertConfig::default());
+        let rows: Vec<Vec<Option<Value>>> = vec![];
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_rows(), 0);
+        assert_eq!(batch.num_columns(), 3);
+        assert_eq!(batch.schema(), schema);
+    }
+
+    #[test]
+    fn test_exactly_one_row_all_null_fields() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+            Field::new("c", DataType::Float64, true),
+            Field::new("d", DataType::Boolean, true),
+        ]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![None, None, None, None]];
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_rows(), 1);
+        for col_idx in 0..4 {
+            assert!(batch.column(col_idx).is_null(0), "column {col_idx} should be null");
+        }
+    }
+
+    #[test]
+    fn test_exactly_batch_size_rows() {
+        let batch_size = 100usize;
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("n", DataType::Int32, false)]));
+        let config = ConvertConfig { batch_size, max_rows: None };
+        let converter = RowToArrowConverter::new(schema, config);
+        let rows: Vec<Vec<Option<Value>>> =
+            (0..batch_size as i64).map(|i| vec![Some(Value::Int(i))]).collect();
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_rows(), batch_size);
+    }
+
+    #[test]
+    fn test_single_row_only_string_fields() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("first", DataType::Utf8, false),
+            Field::new("last", DataType::Utf8, false),
+        ]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![
+            Some(Value::String("John".to_string())),
+            Some(Value::String("Doe".to_string())),
+        ]];
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_rows(), 1);
+        use arrow::array::StringArray;
+        let first_col =
+            batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(first_col.value(0), "John");
+        let last_col =
+            batch.column(1).as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(last_col.value(0), "Doe");
+    }
+
+    #[test]
+    fn test_row_with_too_many_columns_is_error() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        // Row has 2 columns but schema has 1
+        let rows = vec![vec![Some(Value::Int(1)), Some(Value::Int(2))]];
+        let result = converter.convert_batch(rows);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("expected 1"));
+    }
+
+    // --- Unicode / special values ---
+
+    #[test]
+    fn test_unicode_string_in_utf8_column() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("text", DataType::Utf8, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let emoji = "Hello 🌍 こんにちは مرحبا";
+        let rows = vec![vec![Some(Value::String(emoji.to_string()))]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::StringArray;
+        let col = batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(col.value(0), emoji);
+    }
+
+    #[test]
+    fn test_ieee754_nan_in_float64_column() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("v", DataType::Float64, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Float(f64::NAN))]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Float64Array;
+        let col = batch.column(0).as_any().downcast_ref::<Float64Array>().unwrap();
+        // NaN is stored; verify value is NaN
+        assert!(col.value(0).is_nan());
+    }
+
+    #[test]
+    fn test_ieee754_positive_infinity_in_float64_column() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("v", DataType::Float64, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Float(f64::INFINITY))]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Float64Array;
+        let col = batch.column(0).as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!(col.value(0).is_infinite() && col.value(0) > 0.0);
+    }
+
+    #[test]
+    fn test_ieee754_negative_infinity_in_float64_column() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("v", DataType::Float64, true)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Float(f64::NEG_INFINITY))]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Float64Array;
+        let col = batch.column(0).as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!(col.value(0).is_infinite() && col.value(0) < 0.0);
+    }
+
+    #[test]
+    fn test_very_long_string_in_utf8_column() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("blob", DataType::Utf8, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let long_str = "x".repeat(100_000); // 100 KB
+        let rows = vec![vec![Some(Value::String(long_str.clone()))]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::StringArray;
+        let col = batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(col.value(0).len(), 100_000);
+        assert_eq!(col.value(0), long_str.as_str());
+    }
+
+    // --- Schema enforcement ---
+
+    #[test]
+    fn test_multiple_rows_mixed_nulls() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
+            Field::new("name", DataType::Utf8, true),
+            Field::new("score", DataType::Float64, true),
+        ]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![
+            vec![Some(Value::Int(1)), Some(Value::String("Alice".to_string())), Some(Value::Float(9.5))],
+            vec![Some(Value::Int(2)), None, None],
+            vec![Some(Value::Int(3)), Some(Value::String("Carol".to_string())), None],
+        ];
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_rows(), 3);
+        use arrow::array::{Float64Array, Int64Array, StringArray};
+        let ids = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        assert_eq!(ids.value(0), 1);
+        assert_eq!(ids.value(1), 2);
+        assert_eq!(ids.value(2), 3);
+        let names = batch.column(1).as_any().downcast_ref::<StringArray>().unwrap();
+        assert!(!names.is_null(0));
+        assert!(names.is_null(1));
+        assert!(!names.is_null(2));
+        let scores = batch.column(2).as_any().downcast_ref::<Float64Array>().unwrap();
+        assert!(!scores.is_null(0));
+        assert!(scores.is_null(1));
+        assert!(scores.is_null(2));
+    }
+
+    #[test]
+    fn test_int64_values_are_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("n", DataType::Int64, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let test_values = [0i64, 1, -1, i64::MAX, i64::MIN, 42, -999_999];
+        let rows: Vec<Vec<Option<Value>>> =
+            test_values.iter().map(|&v| vec![Some(Value::Int(v))]).collect();
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Int64Array;
+        let col = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        for (i, &expected) in test_values.iter().enumerate() {
+            assert_eq!(col.value(i), expected, "mismatch at index {i}");
+        }
+    }
+
+    #[test]
+    fn test_int32_boundary_values_are_preserved() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("n", DataType::Int32, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let test_values = [0i32, 1, -1, i32::MAX, i32::MIN];
+        let rows: Vec<Vec<Option<Value>>> =
+            test_values.iter().map(|&v| vec![Some(Value::Int(i64::from(v)))]).collect();
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Int32Array;
+        let col = batch.column(0).as_any().downcast_ref::<Int32Array>().unwrap();
+        for (i, &expected) in test_values.iter().enumerate() {
+            assert_eq!(col.value(i), expected, "mismatch at index {i}");
+        }
+    }
+
+    #[test]
+    fn test_boolean_values_true_and_false() {
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![
+            vec![Some(Value::Bool(true))],
+            vec![Some(Value::Bool(false))],
+            vec![Some(Value::Bool(true))],
+        ];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::BooleanArray;
+        let col = batch.column(0).as_any().downcast_ref::<BooleanArray>().unwrap();
+        assert!(col.value(0));
+        assert!(!col.value(1));
+        assert!(col.value(2));
+    }
+
+    #[test]
+    fn test_timestamp_nanosecond_values_are_preserved() {
+        let ts_values = [0i64, 1_700_000_000_000_000_000, -1_000_000_000, i64::MAX / 2];
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "ts",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            false,
+        )]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows: Vec<Vec<Option<Value>>> =
+            ts_values.iter().map(|&v| vec![Some(Value::Timestamp(v))]).collect();
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::TimestampNanosecondArray;
+        let col =
+            batch.column(0).as_any().downcast_ref::<TimestampNanosecondArray>().unwrap();
+        for (i, &expected) in ts_values.iter().enumerate() {
+            assert_eq!(col.value(i), expected, "mismatch at index {i}");
+        }
+    }
+
+    #[test]
+    fn test_date32_values_are_preserved() {
+        let date_values = [0i32, 1, -1, 18_500, 20_000, i32::MAX / 2];
+        let schema =
+            Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows: Vec<Vec<Option<Value>>> =
+            date_values.iter().map(|&v| vec![Some(Value::Date(v))]).collect();
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::Date32Array;
+        let col = batch.column(0).as_any().downcast_ref::<Date32Array>().unwrap();
+        for (i, &expected) in date_values.iter().enumerate() {
+            assert_eq!(col.value(i), expected, "mismatch at index {i}");
+        }
+    }
+
+    #[test]
+    fn test_create_builder_for_unsupported_type_returns_error() {
+        // LargeUtf8 is not in our supported set
+        let result = create_builder_for_type(&DataType::LargeUtf8, 100);
+        match result {
+            Ok(_) => panic!("Expected error for unsupported type"),
+            Err(e) => {
+                assert!(e.to_string().contains("Unsupported data type"));
+            },
+        }
+    }
+
+    #[test]
+    fn test_timestamp_with_utc_timezone_preserves_values() {
+        let ts = 1_700_000_000_123_456_789i64;
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "ts",
+            DataType::Timestamp(TimeUnit::Nanosecond, Some(Arc::from("UTC"))),
+            false,
+        )]));
+        let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
+        let rows = vec![vec![Some(Value::Timestamp(ts))]];
+        let batch = converter.convert_batch(rows).unwrap();
+        use arrow::array::TimestampNanosecondArray;
+        let col =
+            batch.column(0).as_any().downcast_ref::<TimestampNanosecondArray>().unwrap();
+        assert_eq!(col.value(0), ts);
+    }
+
+    #[test]
+    fn test_schema_field_count_matches_column_count() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+            Field::new("c", DataType::Boolean, true),
+            Field::new("d", DataType::Float64, true),
+            Field::new("e", DataType::Date32, true),
+        ]));
+        let converter = RowToArrowConverter::new(schema.clone(), ConvertConfig::default());
+        let rows = vec![vec![
+            Some(Value::Int(1)),
+            Some(Value::String("x".to_string())),
+            Some(Value::Bool(false)),
+            Some(Value::Float(0.0)),
+            Some(Value::Date(100)),
+        ]];
+        let batch = converter.convert_batch(rows).unwrap();
+        assert_eq!(batch.num_columns(), schema.fields().len());
+    }
+
+    #[test]
+    fn test_downcast_builder_error_message_includes_both_type_names() {
+        let mut builder: Box<dyn ArrayBuilder> = Box::new(BooleanBuilder::new());
+        let result =
+            downcast_builder::<Float64Builder>(&mut builder, "Float64Builder", "Float64");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("Float64Builder"));
+        assert!(msg.contains("Float64"));
     }
 }

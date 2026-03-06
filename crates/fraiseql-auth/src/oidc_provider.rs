@@ -1,4 +1,4 @@
-// Generic OIDC provider implementation
+//! Generic OIDC provider implementation using RFC 8414 discovery.
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

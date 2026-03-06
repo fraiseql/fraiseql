@@ -7,6 +7,11 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies GitLab webhook signatures using constant-time token comparison.
+///
+/// GitLab sends the configured secret token directly in the `X-Gitlab-Token` header.
+/// No HMAC computation is involved; the header value is compared against the secret
+/// using constant-time equality to prevent timing attacks.
 pub struct GitLabVerifier;
 
 impl SignatureVerifier for GitLabVerifier {

@@ -7,21 +7,38 @@ use serde::Serialize;
 
 use crate::{AuthError, FileError, RuntimeError, WebhookError};
 
-/// Error response format (consistent across all endpoints)
+/// Standardised JSON error body returned by all FraiseQL HTTP endpoints.
+///
+/// The shape follows the OAuth 2.0 error response convention so that clients
+/// can handle errors uniformly regardless of which handler produced them.
+///
+/// Fields that are `None` are omitted from the serialised JSON to keep
+/// responses compact.
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
+    /// Short machine-readable error category (e.g. `"authentication_error"`).
     pub error:             String,
+    /// Human-readable description safe to display to end-users.
     pub error_description: String,
+    /// Stable, fine-grained error code for programmatic handling (e.g.
+    /// `"token_expired"`).
     pub error_code:        String,
+    /// URL to the documentation page for this error code, if available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_uri:         Option<String>,
+    /// Additional structured details about the error (omitted when `None`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details:           Option<serde_json::Value>,
+    /// Number of seconds the client should wait before retrying, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_after:       Option<u64>,
 }
 
 impl ErrorResponse {
+    /// Construct a minimal error response with the three required fields.
+    ///
+    /// `error_uri` is populated automatically from `code` using the FraiseQL
+    /// documentation base URL. `details` and `retry_after` are `None`.
     pub fn new(
         error: impl Into<String>,
         description: impl Into<String>,
@@ -38,11 +55,13 @@ impl ErrorResponse {
         }
     }
 
+    /// Attach arbitrary structured details to the response and return `self`.
     pub fn with_details(mut self, details: serde_json::Value) -> Self {
         self.details = Some(details);
         self
     }
 
+    /// Set the `retry_after` field (in seconds) and return `self`.
     pub const fn with_retry_after(mut self, seconds: u64) -> Self {
         self.retry_after = Some(seconds);
         self
@@ -235,8 +254,17 @@ impl RuntimeError {
     }
 }
 
-/// Trait to enable `?` operator in handlers
+/// Convenience trait that allows returning `Result<T, RuntimeError>` from axum
+/// handlers by converting it directly into an HTTP [`Response`].
+///
+/// Import this trait and call `.into_http_response()` on any
+/// `Result<impl IntoResponse, RuntimeError>` value.
 pub trait IntoHttpResponse {
+    /// Convert this result into an axum [`Response`].
+    ///
+    /// On success the inner value is serialised via its own [`IntoResponse`]
+    /// implementation. On error the [`RuntimeError`] is converted to a JSON
+    /// error body with the appropriate HTTP status code.
     fn into_http_response(self) -> Response;
 }
 

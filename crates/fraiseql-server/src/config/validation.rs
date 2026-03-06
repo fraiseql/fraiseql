@@ -1,3 +1,10 @@
+//! Configuration validation for `fraiseql.toml` settings.
+//!
+//! [`ConfigValidator`] checks a loaded [`RuntimeConfig`] for semantic errors
+//! (e.g. missing required environment variables, invalid combinations of
+//! settings) and collects all errors before returning so the developer sees
+//! every problem in one pass.
+
 use std::{collections::HashSet, env};
 
 use fraiseql_error::ConfigError;
@@ -6,11 +13,14 @@ use crate::config::RuntimeConfig;
 
 /// Validation result with all errors collected
 pub struct ValidationResult {
+    /// Collected configuration errors; non-empty means the config is invalid.
     pub errors:   Vec<ConfigError>,
+    /// Non-fatal warnings about potentially unintended settings.
     pub warnings: Vec<String>,
 }
 
 impl ValidationResult {
+    /// Create an empty validation result.
     pub fn new() -> Self {
         Self {
             errors:   Vec::new(),
@@ -18,14 +28,17 @@ impl ValidationResult {
         }
     }
 
+    /// Return `true` if no errors were collected.
     pub fn is_ok(&self) -> bool {
         self.errors.is_empty()
     }
 
+    /// Add a configuration error to the result.
     pub fn add_error(&mut self, error: ConfigError) {
         self.errors.push(error);
     }
 
+    /// Add a non-fatal warning to the result.
     pub fn add_warning(&mut self, warning: impl Into<String>) {
         self.warnings.push(warning.into());
     }
@@ -63,6 +76,7 @@ pub struct ConfigValidator<'a> {
 }
 
 impl<'a> ConfigValidator<'a> {
+    /// Create a new validator bound to the given runtime configuration.
     pub fn new(config: &'a RuntimeConfig) -> Self {
         Self {
             config,

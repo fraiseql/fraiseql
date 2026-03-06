@@ -14,6 +14,12 @@ use p256::pkcs8::DecodePublicKey as _;
 
 use crate::{signature::SignatureError, traits::SignatureVerifier};
 
+/// Verifies SendGrid (Twilio Email) event webhook signatures using ECDSA P-256 with SHA-256.
+///
+/// SendGrid signs `<timestamp><body>` with an ECDSA P-256 private key and sends the
+/// Base64-encoded DER signature in `X-Twilio-Email-Event-Webhook-Signature` and the
+/// timestamp in `X-Twilio-Email-Event-Webhook-Timestamp`. The `secret` parameter must
+/// be the SendGrid ECDSA public key in PEM format.
 pub struct SendGridVerifier;
 
 impl SignatureVerifier for SendGridVerifier {

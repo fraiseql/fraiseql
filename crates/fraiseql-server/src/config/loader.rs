@@ -1,3 +1,9 @@
+//! Configuration loading from TOML files and environment variables.
+//!
+//! Loading is performed via methods on [`RuntimeConfig`] that locate and
+//! deserialize `fraiseql.toml`, then validate the result with
+//! `ConfigValidator` in the `validation` sub-module.
+
 use std::{env, path::Path};
 
 use fraiseql_error::ConfigError;

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration for adaptive connection pool sizing.
 ///
-/// The auto-tuner samples [`PoolMetrics`](fraiseql_db::types::PoolMetrics) at a
+/// The auto-tuner samples `PoolMetrics` at a
 /// configurable interval and adjusts the pool size (or emits a recommended size)
 /// based on queue depth and idle ratio.
 ///

@@ -6,7 +6,7 @@
 //! - Key rotation, audit logging, and compliance utilities
 
 #![forbid(unsafe_code)]
-#![allow(missing_docs)] // Reason: migrated from fraiseql-server; docs are a separate effort
+#![deny(missing_docs)]
 #![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style
 #![allow(clippy::must_use_candidate)] // Reason: builder methods return Self
 #![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting

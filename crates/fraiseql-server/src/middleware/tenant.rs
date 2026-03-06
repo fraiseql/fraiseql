@@ -1,5 +1,8 @@
-// Multi-tenancy middleware for extracting and enforcing org_id
-// Extracts org_id from JWT claims or request headers and adds to request context
+//! Multi-tenancy middleware for extracting and enforcing `org_id`.
+//!
+//! Reads the tenant identifier from JWT claims or request headers and injects
+//! it into the request extensions as [`TenantContext`] so downstream handlers
+//! can scope database queries to the correct organisation.
 
 use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use tracing::debug;

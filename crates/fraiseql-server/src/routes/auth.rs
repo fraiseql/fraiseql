@@ -277,13 +277,16 @@ pub struct RevokeTokenRequest {
 /// Response body for token revocation.
 #[derive(Serialize)]
 pub struct RevokeTokenResponse {
+    /// Whether the token was successfully revoked.
     pub revoked: bool,
+    /// ISO-8601 timestamp at which the revocation record will expire, if known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
 }
 
 /// Shared state for revocation routes.
 pub struct RevocationRouteState {
+    /// Token revocation manager used to record and check revoked JTIs.
     pub revocation_manager: std::sync::Arc<crate::token_revocation::TokenRevocationManager>,
 }
 
@@ -377,6 +380,7 @@ pub struct RevokeAllRequest {
 /// Response body for bulk revocation.
 #[derive(Serialize)]
 pub struct RevokeAllResponse {
+    /// Number of token revocation records that were created.
     pub revoked_count: u64,
 }
 

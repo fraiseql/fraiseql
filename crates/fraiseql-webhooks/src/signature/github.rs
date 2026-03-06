@@ -11,6 +11,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies GitHub webhook signatures using HMAC-SHA256.
+///
+/// GitHub computes `HMAC-SHA256(secret, body)` and sends it as `sha256=<hex>`
+/// in the `X-Hub-Signature-256` header.
 pub struct GitHubVerifier;
 
 impl SignatureVerifier for GitHubVerifier {

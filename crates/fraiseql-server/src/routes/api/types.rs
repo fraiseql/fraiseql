@@ -12,8 +12,11 @@ use serde::{Deserialize, Serialize};
 /// Standard API error response.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApiError {
+    /// Human-readable error message.
     pub error:   String,
+    /// Machine-readable error code (e.g. `"NOT_FOUND"`, `"VALIDATION_ERROR"`).
     pub code:    String,
+    /// Optional additional context about the error.
     pub details: Option<String>,
 }
 
@@ -82,7 +85,9 @@ impl IntoResponse for ApiError {
 /// Standard API success response wrapper.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
+    /// Always `"success"` for successful responses.
     pub status: String,
+    /// The response payload.
     pub data:   T,
 }
 

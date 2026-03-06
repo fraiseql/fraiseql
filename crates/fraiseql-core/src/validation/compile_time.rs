@@ -22,19 +22,28 @@ pub struct SchemaContext {
 /// Type definition
 #[derive(Debug, Clone)]
 pub struct TypeDef {
+    /// Name of the GraphQL type.
     pub name:   String,
+    /// Names of the fields declared on this type.
     pub fields: Vec<String>,
 }
 
 /// Field type information
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FieldType {
+    /// UTF-8 text field.
     String,
+    /// 64-bit signed integer field.
     Integer,
+    /// 64-bit floating-point field.
     Float,
+    /// Boolean field.
     Boolean,
+    /// Calendar date without time.
     Date,
+    /// Timestamp with timezone.
     DateTime,
+    /// User-defined scalar type; the inner string holds the type name.
     Custom(String),
 }
 
@@ -59,17 +68,24 @@ impl FieldType {
 /// Compile-time validation result
 #[derive(Debug, Clone)]
 pub struct CompileTimeValidationResult {
+    /// Whether the rule is valid.
     pub valid:          bool,
+    /// All errors found during validation.
     pub errors:         Vec<CompileTimeError>,
+    /// Non-fatal warnings from validation.
     pub warnings:       Vec<String>,
+    /// SQL constraint expression derived from the rule, if generation succeeded.
     pub sql_constraint: Option<String>,
 }
 
 /// Compile-time validation error
 #[derive(Debug, Clone)]
 pub struct CompileTimeError {
+    /// Field path where the error occurred.
     pub field:      String,
+    /// Human-readable error description.
     pub message:    String,
+    /// Optional suggestion for how to fix the error.
     pub suggestion: Option<String>,
 }
 

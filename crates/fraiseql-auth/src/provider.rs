@@ -1,4 +1,4 @@
-// OAuth 2.0 / OIDC provider trait and implementations
+//! OAuth 2.0 / OIDC provider trait and core data types.
 use std::fmt;
 
 use async_trait::async_trait;

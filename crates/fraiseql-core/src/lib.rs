@@ -65,8 +65,6 @@
 //! ```
 
 #![forbid(unsafe_code)]
-// Missing docs allowed for internal items - public API is fully documented
-#![allow(missing_docs)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 // Allow common pedantic lints that are too noisy for this codebase

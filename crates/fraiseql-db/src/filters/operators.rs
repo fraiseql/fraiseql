@@ -88,26 +88,43 @@ pub enum ExtendedOperator {
     PostalCodeFormatValidForCountry(String),
 
     /// Latitude: Within range (degrees)
-    LatitudeWithinRange { min: f64, max: f64 },
+    LatitudeWithinRange {
+        /// Minimum latitude in degrees (inclusive, -90.0 to 90.0).
+        min: f64,
+        /// Maximum latitude in degrees (inclusive, -90.0 to 90.0).
+        max: f64,
+    },
     /// Latitude: Hemisphere (North or South)
     LatitudeHemisphereEq(String),
 
     /// Longitude: Within range (degrees)
-    LongitudeWithinRange { min: f64, max: f64 },
+    LongitudeWithinRange {
+        /// Minimum longitude in degrees (inclusive, -180.0 to 180.0).
+        min: f64,
+        /// Maximum longitude in degrees (inclusive, -180.0 to 180.0).
+        max: f64,
+    },
     /// Longitude: Hemisphere (East or West)
     LongitudeHemisphereEq(String),
 
     /// Coordinates: Distance within radius (km)
     CoordinatesDistanceWithin {
+        /// Center point latitude in degrees (-90.0 to 90.0).
         lat:       f64,
+        /// Center point longitude in degrees (-180.0 to 180.0).
         lng:       f64,
+        /// Search radius in kilometers.
         radius_km: f64,
     },
     /// Coordinates: Within bounding box
     CoordinatesWithinBoundingBox {
+        /// Northern boundary latitude in degrees.
         north: f64,
+        /// Southern boundary latitude in degrees.
         south: f64,
+        /// Eastern boundary longitude in degrees.
         east:  f64,
+        /// Western boundary longitude in degrees.
         west:  f64,
     },
     /// Coordinates: Within polygon (list of lat/lng pairs)
@@ -324,14 +341,20 @@ pub enum ExtendedOperator {
     ColorHexEq(String),
     /// Color: RGB in range
     ColorRgbInRange {
+        /// Red channel (min, max) range, each value 0–255.
         r: (u8, u8),
+        /// Green channel (min, max) range, each value 0–255.
         g: (u8, u8),
+        /// Blue channel (min, max) range, each value 0–255.
         b: (u8, u8),
     },
     /// Color: HSL in range
     ColorHslInRange {
+        /// Hue (min, max) range in degrees, each value 0–360.
         h: (u32, u32),
+        /// Saturation (min, max) percentage range, each value 0–100.
         s: (u8, u8),
+        /// Lightness (min, max) percentage range, each value 0–100.
         l: (u8, u8),
     },
 
@@ -379,7 +402,12 @@ pub enum ExtendedOperator {
     DurationTotalMinutesGte(u64),
 
     /// Percentage: Value in range (0-100)
-    PercentageInRange { min: f32, max: f32 },
+    PercentageInRange {
+        /// Minimum percentage value (inclusive, 0.0–100.0).
+        min: f32,
+        /// Maximum percentage value (inclusive, 0.0–100.0).
+        max: f32,
+    },
     /// Percentage: Percentile matches
     PercentagePercentileEq(f32),
 }

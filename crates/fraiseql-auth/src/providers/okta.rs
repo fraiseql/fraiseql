@@ -1,4 +1,4 @@
-// Okta OAuth provider implementation
+//! Okta OAuth / OIDC provider implementation with group-based role mapping.
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -22,19 +22,28 @@ pub struct OktaOAuth {
 /// Okta user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct OktaUser {
+    /// Subject — Okta's stable user ID
     pub sub:            String,
+    /// User's email address
     pub email:          String,
+    /// Whether Okta has verified the email address
     pub email_verified: Option<bool>,
+    /// User's full display name
     pub name:           Option<String>,
+    /// Given (first) name
     pub given_name:     Option<String>,
+    /// Family (last) name
     pub family_name:    Option<String>,
+    /// URL of the user's profile picture
     pub picture:        Option<String>,
+    /// User's locale (e.g., `"en_US"`)
     pub locale:         Option<String>,
 }
 
 /// Okta groups claim
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OktaGroups {
+    /// List of Okta group names the user belongs to (mapped to FraiseQL roles)
     pub groups: Option<Vec<String>>,
 }
 

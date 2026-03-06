@@ -14,10 +14,12 @@ pub fn init_tracer() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Span attribute key-value pair
+/// A key-value attribute attached to a tracing span.
 #[derive(Clone, Debug)]
 pub struct SpanAttribute {
+    /// Attribute key (e.g. `"db.statement"`, `"http.method"`).
     pub key:   String,
+    /// Attribute value as a string.
     pub value: String,
 }
 

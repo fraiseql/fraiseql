@@ -1,5 +1,8 @@
-// Rate limiting for brute-force protection
-// Uses an in-memory approach with Arc and Mutex for simplicity
+//! Rate limiting for brute-force and abuse protection.
+//!
+//! Provides [`KeyedRateLimiter`] — a per-key sliding-window counter backed by
+//! a `Mutex<HashMap>` — and [`RateLimiters`], a pre-built set of limiters for
+//! each authentication endpoint.
 //
 // # Threading Model
 //
@@ -83,14 +86,23 @@ struct RequestRecord {
     window_start: u64,
 }
 
-/// Per-key rate limiter using in-memory tracking
-/// Maintains separate rate limits for each key (IP, user ID, etc.)
-/// Purge expired entries every this many `check()` calls.
+/// How often (in number of `check()` calls) expired entries are purged from the map.
 ///
-/// Bounded memory: at most `PURGE_INTERVAL` stale entries can accumulate
-/// between sweeps. For high-traffic endpoints this is effectively constant.
+/// Stale entries accumulate when keys stop sending requests.  Every
+/// `PURGE_INTERVAL` calls the limiter performs a full sweep and removes entries
+/// whose window has elapsed, bounding the HashMap's memory footprint.
 const PURGE_INTERVAL: u64 = 1_000;
 
+/// Per-key sliding-window rate limiter backed by a `Mutex<HashMap>`.
+///
+/// Each unique key (IP address, user ID, etc.) gets its own independent counter.
+/// The check-and-update sequence is atomic: no TOCTOU race can allow more requests
+/// than `max_requests` in any single window, even under high concurrency.
+///
+/// # Constructors
+///
+/// - [`KeyedRateLimiter::new`] — use the system wall clock (production).
+/// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 pub struct KeyedRateLimiter {
     records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
     config:      RateLimitConfig,

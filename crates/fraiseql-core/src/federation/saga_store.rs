@@ -50,7 +50,12 @@ pub enum SagaStoreError {
     /// Database connection or query error
     Database(String),
     /// Invalid state transition
-    InvalidStateTransition { from: String, to: String },
+    InvalidStateTransition {
+        /// Current state of the saga.
+        from: String,
+        /// Attempted target state.
+        to: String,
+    },
     /// Saga not found
     SagaNotFound(Uuid),
     /// Step not found
@@ -93,20 +98,28 @@ where
     }
 }
 
+/// Convenience `Result` alias for saga store operations.
 pub type Result<T> = std::result::Result<T, SagaStoreError>;
 
-/// SagaState enum
+/// Lifecycle state of a distributed saga.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SagaState {
+    /// Saga is created but has not started executing.
     Pending,
+    /// At least one step is currently running.
     Executing,
+    /// All steps finished successfully.
     Completed,
+    /// One or more steps failed; compensation may be needed.
     Failed,
+    /// Compensation steps are running to undo partial work.
     Compensating,
+    /// All compensation steps have finished.
     Compensated,
 }
 
 impl SagaState {
+    /// Return a lowercase string identifier for this state.
     pub fn as_str(&self) -> &'static str {
         match self {
             SagaState::Pending => "pending",
@@ -118,6 +131,9 @@ impl SagaState {
         }
     }
 
+    /// Parse a `SagaState` from its lowercase string representation.
+    ///
+    /// Returns `None` if `s` does not match a known state name.
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(SagaState::Pending),
@@ -131,16 +147,21 @@ impl SagaState {
     }
 }
 
-/// StepState enum
+/// Lifecycle state of a single saga step.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StepState {
+    /// Step is queued but has not started.
     Pending,
+    /// Step is currently running.
     Executing,
+    /// Step finished successfully.
     Completed,
+    /// Step encountered an error.
     Failed,
 }
 
 impl StepState {
+    /// Return a lowercase string identifier for this step state.
     pub fn as_str(&self) -> &'static str {
         match self {
             StepState::Pending => "pending",
@@ -150,6 +171,9 @@ impl StepState {
         }
     }
 
+    /// Parse a `StepState` from its lowercase string representation.
+    ///
+    /// Returns `None` if `s` does not match a known state name.
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(StepState::Pending),
@@ -161,11 +185,14 @@ impl StepState {
     }
 }
 
-/// MutationType enum
+/// The kind of GraphQL mutation a saga step executes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationType {
+    /// Step creates a new entity.
     Create,
+    /// Step updates an existing entity.
     Update,
+    /// Step deletes an entity.
     Delete,
 }
 
@@ -190,41 +217,64 @@ impl MutationType {
     }
 }
 
-/// Saga struct
+/// A distributed saga instance managing a multi-step cross-subgraph mutation.
 #[derive(Debug, Clone)]
 pub struct Saga {
+    /// Unique identifier for this saga.
     pub id:           Uuid,
+    /// Current lifecycle state.
     pub state:        SagaState,
+    /// Timestamp when the saga was created.
     pub created_at:   chrono::DateTime<chrono::Utc>,
+    /// Timestamp when the saga reached a terminal state, if any.
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Arbitrary JSON metadata attached to the saga.
     pub metadata:     Option<Value>,
 }
 
-/// SagaStep struct
+/// A single step within a distributed saga.
 #[derive(Debug, Clone)]
 pub struct SagaStep {
+    /// Unique identifier for this step.
     pub id:            Uuid,
+    /// Parent saga this step belongs to.
     pub saga_id:       Uuid,
+    /// Zero-based execution order within the saga.
     pub order:         usize,
+    /// Subgraph service name that owns this step.
     pub subgraph:      String,
+    /// Kind of mutation this step performs.
     pub mutation_type: MutationType,
+    /// GraphQL type name the mutation targets.
     pub typename:      String,
+    /// Input variables for the mutation.
     pub variables:     Value,
+    /// Current lifecycle state of this step.
     pub state:         StepState,
+    /// Mutation result payload, if the step has completed.
     pub result:        Option<Value>,
+    /// Timestamp when execution began, if started.
     pub started_at:    Option<chrono::DateTime<chrono::Utc>>,
+    /// Timestamp when execution finished, if finished.
     pub completed_at:  Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// SagaRecovery struct
+/// A crash-recovery record for a saga that could not complete normally.
 #[derive(Debug, Clone)]
 pub struct SagaRecovery {
+    /// Unique identifier for this recovery record.
     pub id:            Uuid,
+    /// Saga being recovered.
     pub saga_id:       Uuid,
+    /// Strategy used for this recovery attempt (e.g. `"retry"`, `"compensate"`).
     pub recovery_type: String,
+    /// When the first recovery attempt was initiated.
     pub attempted_at:  chrono::DateTime<chrono::Utc>,
+    /// Timestamp of the most recent attempt, if more than one.
     pub last_attempt:  Option<chrono::DateTime<chrono::Utc>>,
+    /// Number of recovery attempts made so far.
     pub attempt_count: i32,
+    /// Error message from the last failed attempt, if any.
     pub last_error:    Option<String>,
 }
 

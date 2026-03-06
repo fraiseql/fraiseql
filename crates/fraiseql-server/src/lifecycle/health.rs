@@ -1,3 +1,10 @@
+//! Health, liveness, and readiness probe handlers.
+//!
+//! Exposes HTTP handlers for Kubernetes-style probes:
+//! - `GET /live` — always 200 while the process is running
+//! - `GET /ready` — 200 when all critical dependencies are available, 503 during shutdown
+//! - `GET /startup` — 200 once critical dependencies have completed initialization
+
 use std::sync::Arc;
 
 use axum::{
@@ -10,28 +17,41 @@ use serde::Serialize;
 
 use crate::runtime_state::AppState;
 
+/// JSON body returned by the `/ready` and `/health` endpoints.
 #[derive(Debug, Serialize)]
 pub struct HealthResponse {
+    /// Aggregate health status across all checks.
     pub status:  HealthStatus,
+    /// Individual subsystem check results.
     pub checks:  Vec<HealthCheck>,
+    /// Server version string from `CARGO_PKG_VERSION`, if available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 }
 
+/// Aggregate or per-check health status.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
+    /// All checks passed; the server is fully operational.
     Healthy,
+    /// Some checks degraded but the server can still serve traffic.
     Degraded,
+    /// Critical checks failed; the server should not receive traffic.
     Unhealthy,
 }
 
+/// Result of a single subsystem health check.
 #[derive(Debug, Serialize)]
 pub struct HealthCheck {
+    /// Subsystem name (e.g. `"database"`, `"cache"`).
     pub name:       String,
+    /// Health status of this subsystem.
     pub status:     HealthStatus,
+    /// Human-readable explanation when the check is not `Healthy`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message:    Option<String>,
+    /// Round-trip time for the check probe in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latency_ms: Option<u64>,
 }

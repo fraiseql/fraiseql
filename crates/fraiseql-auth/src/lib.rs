@@ -3,7 +3,6 @@
 //! Handles JWT validation, OAuth/OIDC flows, session management, and authorization.
 
 #![forbid(unsafe_code)]
-#![allow(missing_docs)] // Reason: migrated from fraiseql-server; docs are a separate effort
 #![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style
 #![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain
 #![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting

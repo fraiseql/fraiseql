@@ -81,6 +81,7 @@ pub fn escape_sql_string(value: &str) -> String {
 
 /// Helper trait to get string representation of JSON value type for error messages.
 pub trait JsonTypeStr {
+    /// Return a lowercase label for the JSON value's type (e.g. `"string"`, `"number"`).
     fn type_str(&self) -> &'static str;
 }
 

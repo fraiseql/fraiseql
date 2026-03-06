@@ -1,5 +1,7 @@
-// Opaque ID generation to prevent ID enumeration attacks
-// Encodes internal database IDs in a way that doesn't expose sequence patterns
+//! Opaque ID encoding to prevent ID enumeration attacks.
+//!
+//! Encodes internal database IDs in a way that does not expose sequential
+//! patterns to external callers, improving security against IDOR attacks.
 
 use std::fmt;
 

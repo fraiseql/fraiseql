@@ -18,6 +18,12 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Twilio webhook signatures using HMAC-SHA1.
+///
+/// Twilio signs `URL + sorted-form-params` (or just `URL` for non-form payloads) with
+/// HMAC-SHA1 and Base64-encodes the result. The signature is sent in the
+/// `X-Twilio-Signature` header. The `url` parameter to `verify` is required because
+/// Twilio includes the full request URL in the signed payload.
 pub struct TwilioVerifier;
 
 /// Build the Twilio signing string: URL + sorted form params (if any).

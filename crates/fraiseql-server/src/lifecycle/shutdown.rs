@@ -1,3 +1,9 @@
+//! Graceful shutdown coordination for the FraiseQL server.
+//!
+//! [`ShutdownCoordinator`] tracks in-flight requests, signals all subsystems
+//! to stop accepting new work, and waits for the drain to complete before the
+//! process exits.
+
 use std::{
     sync::{
         Arc,
@@ -33,12 +39,14 @@ pub struct ShutdownCoordinator {
     config: ShutdownConfig,
 }
 
+/// Timing parameters for graceful shutdown.
 #[derive(Debug, Clone)]
 pub struct ShutdownConfig {
-    /// Time to wait for in-flight requests to complete
+    /// Maximum time to wait for in-flight requests to complete before forcing exit.
     pub timeout: Duration,
 
-    /// Delay before starting shutdown (for LB deregistration)
+    /// Delay before starting shutdown, allowing the load balancer to deregister
+    /// this instance and stop sending new traffic.
     pub delay: Duration,
 }
 
@@ -52,6 +60,7 @@ impl Default for ShutdownConfig {
 }
 
 impl ShutdownCoordinator {
+    /// Create a new `ShutdownCoordinator` wrapped in an `Arc` and ready to use.
     pub fn new(config: ShutdownConfig) -> Arc<Self> {
         let (shutdown_tx, _) = broadcast::channel(1);
         let (ready_tx, ready_rx) = watch::channel(true);

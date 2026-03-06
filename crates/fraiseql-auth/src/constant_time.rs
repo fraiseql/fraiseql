@@ -1,5 +1,9 @@
-// Constant-time comparison utilities
-// Prevents timing attacks on token validation
+//! Constant-time comparison utilities to prevent timing-based side-channel attacks.
+//!
+//! Timing attacks exploit measurable differences in how long comparisons take
+//! depending on where they diverge, allowing an attacker to iteratively discover
+//! secret values (e.g., HMAC tokens, API keys). All comparisons of secret material
+//! must use the functions in this module instead of `==`.
 
 use subtle::ConstantTimeEq;
 

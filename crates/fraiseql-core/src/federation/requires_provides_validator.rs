@@ -59,24 +59,33 @@ pub enum DirectiveValidationError {
     ///
     /// The field declared in @requires() was not found on the referenced type.
     RequiresNonexistentField {
+        /// Name of the type declaring the field.
         typename:       String,
+        /// Name of the field annotated with @requires.
         field:          String,
+        /// The field name listed in @requires that could not be found.
         required_field: String,
     },
     /// @provides references a field that doesn't exist
     ///
     /// The field declared in @provides() was not found on the return type.
     ProvidesNonexistentField {
+        /// Name of the type declaring the field.
         typename:       String,
+        /// Name of the field annotated with @provides.
         field:          String,
+        /// The field name listed in @provides that could not be found.
         provided_field: String,
     },
     /// @requires references a field that isn't available (not external, not local)
     ///
     /// The required field is neither @external nor defined locally on this type.
     RequiresUnavailableField {
+        /// Name of the type declaring the field.
         typename:       String,
+        /// Name of the field annotated with @requires.
         field:          String,
+        /// The field name that is unavailable.
         required_field: String,
     },
     /// Circular dependency detected in @requires chains
@@ -84,8 +93,11 @@ pub enum DirectiveValidationError {
     /// Two or more fields have @requires directives that form a cycle,
     /// which would create an infinite dependency.
     CircularDependency {
+        /// Name of the type where the cycle starts.
         typename: String,
+        /// Name of the field that closes the cycle.
         field:    String,
+        /// Ordered list of fields forming the cycle.
         cycle:    Vec<String>,
     },
     /// Field missing at runtime when @requires declares it must be present
@@ -93,8 +105,11 @@ pub enum DirectiveValidationError {
     /// During entity resolution, a field marked with @requires() was not
     /// present in the resolved entity data.
     MissingRequiredField {
+        /// Name of the type being resolved.
         typename:       String,
+        /// Name of the field that declared the requirement.
         field:          String,
+        /// The required field that was absent.
         required_field: String,
     },
 }

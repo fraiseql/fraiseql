@@ -1,27 +1,24 @@
-// PKCE state store — RFC 7636 Proof Key for Code Exchange
-//
-// Stores `(code_verifier, redirect_uri)` under a random internal key while
-// the OAuth2 authorization round-trip is in flight.  The token sent to the
-// OIDC provider in the `?state=` query parameter is either:
-//   - the raw internal key (no encryption configured), or
-//   - `encrypt(internal_key)` (when StateEncryptionService is attached).
-//
-// State lifecycle:
-//   create_state(redirect_uri)
-//     → internal_key = random 32 bytes (base64url)
-//     → outbound_token = encrypt(internal_key)  [or internal_key if no encryption]
-//     → store.insert(internal_key, {verifier, redirect_uri, ttl})
-//     → return (outbound_token, verifier)
-//
-//   consume_state(outbound_token)
-//     → internal_key = decrypt(outbound_token)  [or outbound_token if no encryption]
-//     → entry = store.remove(internal_key)?  [StateNotFound if absent]
-//     → if entry.elapsed > entry.ttl → StateExpired
-//     → return {verifier, redirect_uri}
-//
-// Backends:
-//   InMemory — DashMap, single-process, per-replica
-//   Redis    — distributed, multi-replica (requires `redis-pkce` Cargo feature)
+//! PKCE state store — RFC 7636 Proof Key for Code Exchange.
+//!
+//! Stores `(code_verifier, redirect_uri)` under a random internal key while
+//! the OAuth2 authorization round-trip is in flight.  The token sent to the
+//! OIDC provider in the `?state=` query parameter is either:
+//! - the raw internal key (no encryption configured), or
+//! - `encrypt(internal_key)` (when [`crate::state_encryption::StateEncryptionService`] is attached).
+//!
+//! State lifecycle:
+//! - `create_state(redirect_uri)` → `internal_key = random 32 bytes (base64url)` →
+//!   `outbound_token = encrypt(internal_key)` (or `internal_key` if no encryption) →
+//!   `store.insert(internal_key, {verifier, redirect_uri, ttl})` →
+//!   returns `(outbound_token, verifier)`
+//! - `consume_state(outbound_token)` → `internal_key = decrypt(outbound_token)` (or
+//!   `outbound_token` if no encryption) → `entry = store.remove(internal_key)?` (
+//!   [`PkceError::StateNotFound`] if absent) → if `entry.elapsed > entry.ttl` →
+//!   [`PkceError::StateExpired`] → returns `{verifier, redirect_uri}`
+//!
+//! Backends:
+//! - **InMemory** — `DashMap`, single-process, per-replica
+//! - **Redis** — distributed, multi-replica (requires the `redis-pkce` Cargo feature)
 
 use std::{sync::Arc, time::Duration};
 

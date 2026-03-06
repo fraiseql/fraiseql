@@ -4,7 +4,6 @@ fraiseql-cli = {workspace = true, optional = true}
 # Core (always included)
 fraiseql-core = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true}
-fraiseql-executor = {workspace = true, default-features = false}
 fraiseql-observers = {workspace = true, optional = true}
 # Optional components
 fraiseql-server = {workspace = true, optional = true}

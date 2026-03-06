@@ -88,6 +88,7 @@ pub struct InMemoryRevocationStore {
 }
 
 impl InMemoryRevocationStore {
+    /// Create a new, empty in-memory revocation store.
     #[must_use]
     pub fn new() -> Self {
         Self {

@@ -313,4 +313,134 @@ mod tests {
 
         assert_eq!(ticket, decoded);
     }
+
+    // --- Additional ticket tests ---
+
+    #[test]
+    fn test_graphql_query_empty_string_roundtrips() {
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     String::new(),
+            variables: None,
+        };
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+        match decoded {
+            FlightTicket::GraphQLQuery { query, variables } => {
+                assert!(query.is_empty());
+                assert!(variables.is_none());
+            },
+            _ => panic!("Wrong ticket type"),
+        }
+    }
+
+    #[test]
+    fn test_observer_events_all_none_optional_fields() {
+        let ticket = FlightTicket::ObserverEvents {
+            entity_type: "User".to_string(),
+            start_date:  None,
+            end_date:    None,
+            limit:       None,
+        };
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+        match decoded {
+            FlightTicket::ObserverEvents {
+                entity_type,
+                start_date,
+                end_date,
+                limit,
+            } => {
+                assert_eq!(entity_type, "User");
+                assert!(start_date.is_none());
+                assert!(end_date.is_none());
+                assert!(limit.is_none());
+            },
+            _ => panic!("Wrong ticket type"),
+        }
+    }
+
+    #[test]
+    fn test_bulk_export_all_none_optional_fields() {
+        let ticket = FlightTicket::BulkExport {
+            table:  "orders".to_string(),
+            filter: None,
+            limit:  None,
+            format: None,
+        };
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+        assert_eq!(ticket, decoded);
+    }
+
+    #[test]
+    fn test_batched_queries_empty_list_roundtrips() {
+        let ticket = FlightTicket::BatchedQueries { queries: vec![] };
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+        match decoded {
+            FlightTicket::BatchedQueries { queries } => assert!(queries.is_empty()),
+            _ => panic!("Wrong ticket type"),
+        }
+    }
+
+    #[test]
+    fn test_invalid_json_with_valid_utf8_returns_error() {
+        // Valid UTF-8, but not valid JSON
+        let bad_bytes = b"{ not valid JSON at all }";
+        let result = FlightTicket::decode(bad_bytes);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+    }
+
+    #[test]
+    fn test_valid_json_but_wrong_type_tag_returns_error() {
+        // JSON with an unknown "type" tag
+        let bytes = br#"{"type": "UnknownVariant", "data": 42}"#;
+        let result = FlightTicket::decode(bytes);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ArrowFlightError::InvalidTicket(_)));
+    }
+
+    #[test]
+    fn test_encode_produces_valid_utf8_json() {
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     "{ users { id } }".to_string(),
+            variables: None,
+        };
+        let bytes = ticket.encode().unwrap();
+        let s = String::from_utf8(bytes).expect("encoded bytes should be valid UTF-8");
+        // JSON must contain the type tag
+        assert!(s.contains("GraphQLQuery"));
+    }
+
+    #[test]
+    fn test_optimized_view_offset_zero_roundtrips() {
+        let ticket = FlightTicket::OptimizedView {
+            view:     "va_orders".to_string(),
+            filter:   None,
+            order_by: None,
+            limit:    Some(1000),
+            offset:   Some(0),
+        };
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+        assert_eq!(ticket, decoded);
+    }
+
+    #[test]
+    fn test_graphql_query_with_complex_variables_roundtrips() {
+        let ticket = FlightTicket::GraphQLQuery {
+            query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }".to_string(),
+            variables: Some(serde_json::json!({
+                "filter": {
+                    "status": "active",
+                    "ids": [1, 2, 3],
+                    "nested": {"level": 2}
+                }
+            })),
+        };
+        let bytes = ticket.encode().unwrap();
+        let decoded = FlightTicket::decode(&bytes).unwrap();
+        assert_eq!(ticket, decoded);
+    }
 }

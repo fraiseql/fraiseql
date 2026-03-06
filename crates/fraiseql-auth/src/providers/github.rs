@@ -1,4 +1,4 @@
-// GitHub OAuth provider implementation
+//! GitHub OAuth provider implementation (uses GitHub's non-OIDC OAuth 2.0 API).
 use async_trait::async_trait;
 use serde::Deserialize;
 
@@ -19,30 +19,45 @@ pub struct GitHubOAuth {
 /// GitHub user information with teams
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubUser {
+    /// GitHub numeric user ID (stable across username changes)
     pub id:           u64,
+    /// GitHub username (login handle)
     pub login:        String,
+    /// Primary email address (may be `None` if the user keeps it private)
     pub email:        Option<String>,
+    /// User's display name
     pub name:         Option<String>,
+    /// URL to the user's avatar image
     pub avatar_url:   Option<String>,
+    /// Short biography text from the profile
     pub bio:          Option<String>,
+    /// Company name from the profile
     pub company:      Option<String>,
+    /// Location from the profile
     pub location:     Option<String>,
+    /// Number of public repositories owned by the user
     pub public_repos: u32,
 }
 
 /// GitHub team from API response
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubTeam {
+    /// GitHub numeric team ID
     pub id:           u64,
+    /// Human-readable team name
     pub name:         String,
+    /// URL-safe team slug (used in API paths)
     pub slug:         String,
+    /// Organization that owns this team
     pub organization: GitHubOrg,
 }
 
 /// GitHub organization
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubOrg {
+    /// GitHub numeric organization ID
     pub id:    u64,
+    /// Organization login (handle)
     pub login: String,
 }
 

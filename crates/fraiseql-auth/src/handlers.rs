@@ -1,4 +1,5 @@
-// HTTP handlers for authentication endpoints
+//! HTTP handlers for the built-in authentication endpoints (`/auth/start`,
+//! `/auth/callback`, `/auth/refresh`, `/auth/logout`).
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
@@ -38,7 +39,7 @@ pub struct AuthStartRequest {
     pub provider: Option<String>,
 }
 
-/// Response for auth/start endpoint
+/// Response body for the `POST /auth/start` endpoint.
 #[derive(Debug, Serialize)]
 pub struct AuthStartResponse {
     /// Authorization URL to redirect user to
@@ -58,7 +59,12 @@ pub struct AuthCallbackQuery {
     pub error_description: Option<String>,
 }
 
-/// Response for auth/callback endpoint
+/// Response body for the `GET /auth/callback` endpoint.
+///
+/// Returned after a successful OAuth authorization-code exchange.
+/// In a production browser-facing flow, the server would instead redirect
+/// the user agent to the frontend application with tokens in a URL fragment;
+/// this JSON form is suitable for API clients and testing.
 #[derive(Debug, Serialize)]
 pub struct AuthCallbackResponse {
     /// Access token for API requests
@@ -78,7 +84,7 @@ pub struct AuthRefreshRequest {
     pub refresh_token: String,
 }
 
-/// Response for auth/refresh endpoint
+/// Response body for the `POST /auth/refresh` endpoint.
 #[derive(Debug, Serialize)]
 pub struct AuthRefreshResponse {
     /// New access token

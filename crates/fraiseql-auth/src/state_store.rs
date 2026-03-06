@@ -1,5 +1,7 @@
-// CSRF state store - trait definition and implementations
-// Prevents OAuth state parameter reuse in distributed systems
+//! CSRF state store — trait definition and backends.
+//!
+//! Stores OAuth `state` parameters for the duration of an authorization flow and
+//! removes them on first retrieval, preventing state-replay attacks.
 
 use std::sync::Arc;
 

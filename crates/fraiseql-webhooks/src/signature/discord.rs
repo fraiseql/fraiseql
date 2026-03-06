@@ -13,6 +13,12 @@ use crate::{signature::SignatureError, traits::SignatureVerifier};
 /// Default maximum age of a Discord webhook timestamp before it is considered a replay.
 const DEFAULT_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
 
+/// Verifies Discord webhook interaction signatures using Ed25519.
+///
+/// Discord signs `<timestamp><body>` with an Ed25519 private key and sends the hex-encoded
+/// signature in `X-Signature-Ed25519` and the Unix timestamp in `X-Signature-Timestamp`.
+/// The `secret` parameter must be the hex-encoded Ed25519 public key from the Discord
+/// developer portal. Requests with timestamps outside the tolerance window are rejected.
 pub struct DiscordVerifier {
     /// Maximum acceptable age of a timestamp in seconds.
     tolerance_secs: i64,

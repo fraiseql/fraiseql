@@ -1,4 +1,4 @@
-// Logto OAuth provider implementation
+//! Logto OAuth / OIDC provider implementation for Cloud and self-hosted deployments.
 use async_trait::async_trait;
 use serde_json::json;
 

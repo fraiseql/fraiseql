@@ -1,5 +1,8 @@
-// Operation-level Role-Based Access Control (RBAC)
-// Defines permissions for mutations on observer rules, actions, and system operations
+//! Operation-level Role-Based Access Control (RBAC).
+//!
+//! Defines the [`OperationPermission`] enum, the [`Role`] type that bundles a set
+//! of permissions, and the [`RBACPolicy`] engine that evaluates authorization
+//! decisions for authenticated users.
 
 use std::collections::HashMap;
 
@@ -7,36 +10,54 @@ use serde::{Deserialize, Serialize};
 
 use crate::{AuthError, error::Result, middleware::AuthenticatedUser};
 
-/// Permission for a specific GraphQL operation/mutation
+/// A discrete permission that can be granted to a [`Role`].
+///
+/// Each variant maps to one or more GraphQL mutations or system operations.
+/// The string representation returned by [`OperationPermission::as_str`] is used
+/// when storing role-permission mappings in configuration or databases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OperationPermission {
-    // Observer rules
+    /// Create a new observer rule.
     CreateRule,
+    /// Modify an existing observer rule.
     UpdateRule,
+    /// Remove an observer rule.
     DeleteRule,
+    /// Trigger immediate execution of an observer rule.
     ExecuteRule,
 
-    // Actions
+    /// Create a new action definition.
     CreateAction,
+    /// Modify an existing action definition.
     UpdateAction,
+    /// Remove an action definition.
     DeleteAction,
+    /// Trigger execution of an action.
     ExecuteAction,
 
-    // System operations
+    /// Create, update, or remove webhook subscriptions.
     ManageWebhooks,
+    /// Read or rotate application secrets.
     ManageSecrets,
+    /// Create, modify, or disable user accounts.
     ManageUsers,
+    /// Define and assign roles within the system.
     ManageRoles,
+    /// Create or modify multi-tenant isolation boundaries.
     ManageTenants,
 
-    // Data operations
+    /// Export data records from the system.
     ExportData,
+    /// Import data records into the system.
     ImportData,
+    /// Permanently delete data records.
     DeleteData,
 
-    // Administrative
+    /// Read the security audit trail.
     ViewAuditLogs,
+    /// Modify system-wide configuration settings.
     ManageConfiguration,
+    /// Configure third-party integrations and connectors.
     ManageIntegrations,
 }
 
@@ -95,7 +116,9 @@ impl OperationPermission {
 /// Predefined roles with their associated permissions
 #[derive(Debug, Clone)]
 pub struct Role {
+    /// Role name (e.g., `"admin"`, `"viewer"`)
     pub name:        String,
+    /// Set of operations this role is allowed to perform
     pub permissions: Vec<OperationPermission>,
 }
 

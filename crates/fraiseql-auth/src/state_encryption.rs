@@ -1,5 +1,12 @@
-// State encryption for PKCE protection
-// Encrypts OAuth state parameters using ChaCha20-Poly1305 AEAD
+//! State encryption for PKCE and OAuth state parameter protection.
+//!
+//! Encrypts OAuth `state` (and PKCE) blobs with AEAD ciphers so that the
+//! outbound token sent to the identity provider cannot be deciphered or
+//! tampered with by an attacker who intercepts the redirect.
+//!
+//! Supports two algorithms selectable at runtime:
+//! - [`EncryptionAlgorithm::Chacha20Poly1305`] (default, constant-time in software)
+//! - [`EncryptionAlgorithm::Aes256Gcm`] (hardware-accelerated on modern CPUs)
 
 use std::{fmt, sync::Arc};
 

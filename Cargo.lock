@@ -2715,7 +2715,6 @@ dependencies = [
  "fraiseql-cli",
  "fraiseql-core",
  "fraiseql-error",
- "fraiseql-executor",
  "fraiseql-observers",
  "fraiseql-server",
  "fraiseql-wire",
@@ -2908,15 +2907,6 @@ dependencies = [
  "sqlx",
  "thiserror 2.0.18",
  "toml",
-]
-
-[[package]]
-name = "fraiseql-executor"
-version = "2.1.0"
-dependencies = [
- "fraiseql-core",
- "fraiseql-error",
- "serde_json",
 ]
 
 [[package]]

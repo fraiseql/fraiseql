@@ -20,46 +20,82 @@ pub struct SecurityConfigFromSchema {
     pub state_encryption:   StateEncryptionSettings,
 }
 
+/// Audit logging subsystem settings loaded from the compiled schema.
 #[derive(Debug, Clone)]
 pub struct AuditLoggingSettings {
+    /// Whether audit logging is active.
     pub enabled:                bool,
+    /// Minimum tracing level for audit records (e.g., `"info"`, `"debug"`).
     pub log_level:              String,
+    /// When `true`, raw credential values may appear in log records.
+    /// Must be `false` in production deployments.
     pub include_sensitive_data: bool,
+    /// When `true`, log records are written from a background task rather than
+    /// the request thread, reducing latency at the cost of some delivery guarantees.
     pub async_logging:          bool,
+    /// Number of audit records to buffer before flushing (async mode only).
     pub buffer_size:            u32,
+    /// How frequently (in seconds) the async buffer is flushed.
     pub flush_interval_secs:    u32,
 }
 
+/// Error sanitization settings — controls how authentication errors are presented to clients.
 #[derive(Debug, Clone)]
 pub struct ErrorSanitizationSettings {
+    /// Whether error sanitization is active.
+    /// When `false`, internal error details may be forwarded to API clients.
     pub enabled:                bool,
+    /// Replace specific internal error messages with generic user-safe strings.
     pub generic_messages:       bool,
+    /// Log the full internal error message via `tracing` before sanitizing.
     pub internal_logging:       bool,
+    /// When `true`, sensitive field values (tokens, keys, etc.) may appear in error messages.
+    /// **Must be `false` in production** — setting this to `true` fails
+    /// [`crate::security_init::validate_security_config`].
     pub leak_sensitive_details: bool,
+    /// Format template for user-facing error messages (e.g., `"generic"`).
     pub user_facing_format:     String,
 }
 
+/// Rate-limiting thresholds for each authentication endpoint.
 #[derive(Debug, Clone)]
 pub struct RateLimitingSettings {
+    /// Whether rate limiting is active across all auth endpoints.
     pub enabled:                    bool,
+    /// Maximum requests to `/auth/start` per IP per window.
     pub auth_start_max_requests:    u32,
+    /// Window duration (in seconds) for the `/auth/start` rate limit.
     pub auth_start_window_secs:     u64,
+    /// Maximum requests to `/auth/callback` per IP per window.
     pub auth_callback_max_requests: u32,
+    /// Window duration (in seconds) for the `/auth/callback` rate limit.
     pub auth_callback_window_secs:  u64,
+    /// Maximum token refresh requests per user per window.
     pub auth_refresh_max_requests:  u32,
+    /// Window duration (in seconds) for the `/auth/refresh` rate limit.
     pub auth_refresh_window_secs:   u64,
+    /// Maximum logout requests per user per window.
     pub auth_logout_max_requests:   u32,
+    /// Window duration (in seconds) for the `/auth/logout` rate limit.
     pub auth_logout_window_secs:    u64,
+    /// Maximum failed login attempts per user per window (brute-force protection).
     pub failed_login_max_requests:  u32,
+    /// Window duration (in seconds) for the failed login rate limit (typically 1 hour).
     pub failed_login_window_secs:   u64,
 }
 
+/// OAuth state encryption settings loaded from the compiled schema.
 #[derive(Debug, Clone)]
 pub struct StateEncryptionSettings {
+    /// Whether OAuth PKCE state tokens are encrypted before being sent to the provider.
     pub enabled:              bool,
+    /// AEAD algorithm to use (e.g., `"chacha20-poly1305"`, `"aes-256-gcm"`).
     pub algorithm:            String,
+    /// When `true`, keys are rotated automatically.
     pub key_rotation_enabled: bool,
+    /// Nonce size in bytes (must be 12 for both ChaCha20-Poly1305 and AES-256-GCM).
     pub nonce_size:           u32,
+    /// Encryption key size in bytes (must be 32 for both supported algorithms).
     pub key_size:             u32,
 }
 

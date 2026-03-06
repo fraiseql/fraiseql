@@ -13,6 +13,10 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Verifies Paddle Billing v2 webhook signatures using HMAC-SHA256.
+///
+/// Paddle signs `<timestamp>:<body>` and sends `ts=<timestamp>;h1=<hex>` in the
+/// `Paddle-Signature` header.
 pub struct PaddleVerifier;
 
 /// Parse the Paddle v2 signature header.

@@ -39,6 +39,7 @@ pub struct PermissionDto {
     pub id:          String,
     /// Permission resource and action (e.g., "query:read", "mutation:write")
     pub resource:    String,
+    /// The action part of the permission (e.g., `"read"`, `"write"`, `"delete"`).
     pub action:      String,
     /// Optional permission description
     pub description: Option<String>,

@@ -336,14 +336,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Enable adaptive connection pool sizing.
     ///
-    /// When `config.enabled` is `true`, [`build_router`] will spawn a background
+    /// When `config.enabled` is `true`, the server will spawn a background
     /// polling task that samples pool metrics and recommends or applies resizes.
     ///
     /// # Errors
     ///
     /// Returns an error string if the configuration fails validation (e.g. `min >= max`).
-    ///
-    /// [`build_router`]: Server::build_router
     pub fn with_pool_tuning(
         mut self,
         config: crate::config::pool_tuning::PoolTuningConfig,

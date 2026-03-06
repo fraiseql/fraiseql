@@ -2,14 +2,18 @@
 
 use serde::Deserialize;
 
+/// Prometheus metrics endpoint and SLO tracking configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MetricsConfig {
+    /// Whether to expose the metrics endpoint.  Default: `true`.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 
+    /// URL path for the metrics endpoint.  Default: `"/metrics"`.
     #[serde(default = "default_path")]
     pub path: String,
 
+    /// Output format (`"prometheus"` is the only currently supported value).  Default: `"prometheus"`.
     #[serde(default = "default_format")]
     pub format: String,
 
@@ -39,6 +43,7 @@ fn default_format() -> String {
     "prometheus".to_string()
 }
 
+/// Service Level Objective (SLO) targets for latency, availability, and error rate.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct SloConfig {
     /// Target latency percentiles to track
@@ -68,17 +73,22 @@ fn default_error_rate_target() -> f64 {
     0.01
 }
 
+/// SLO latency targets in milliseconds (p99) per operation type.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct LatencyTargets {
+    /// GraphQL query p99 latency target in milliseconds.  Default: `100`.
     #[serde(default = "default_graphql_latency")]
     pub graphql_p99_ms: u64,
 
+    /// Webhook handler p99 latency target in milliseconds.  Default: `500`.
     #[serde(default = "default_webhook_latency")]
     pub webhook_p99_ms: u64,
 
+    /// Authentication endpoint p99 latency target in milliseconds.  Default: `10`.
     #[serde(default = "default_auth_latency")]
     pub auth_p99_ms: u64,
 
+    /// File upload p99 latency target in milliseconds.  Default: `2000`.
     #[serde(default = "default_file_upload_latency")]
     pub file_upload_p99_ms: u64,
 }

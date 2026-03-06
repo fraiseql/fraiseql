@@ -1,4 +1,4 @@
-// Auth0 OAuth provider implementation
+//! Auth0 OAuth / OIDC provider implementation.
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -22,18 +22,26 @@ pub struct Auth0OAuth {
 /// Auth0 user information
 #[derive(Debug, Clone, Deserialize)]
 pub struct Auth0User {
+    /// Subject — unique user identifier (`sub` claim)
     pub sub:            String,
+    /// User's primary email address
     pub email:          String,
+    /// Whether the email address has been verified
     pub email_verified: Option<bool>,
+    /// User's full display name
     pub name:           Option<String>,
+    /// URL of the user's profile picture
     pub picture:        Option<String>,
+    /// User's locale (e.g., `"en-US"`)
     pub locale:         Option<String>,
+    /// Auth0 nickname (usually the part before `@` in the email)
     pub nickname:       Option<String>,
 }
 
 /// Auth0 roles claim
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Auth0Roles {
+    /// List of role names assigned to the user via Auth0 rules or management API
     pub roles: Option<Vec<String>>,
 }
 

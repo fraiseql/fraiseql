@@ -2,8 +2,10 @@
 
 use serde::Deserialize;
 
+/// Rate-limiting configuration applied to HTTP endpoints.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RateLimitingConfig {
+    /// Whether rate limiting is active.  Default: `true`.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 
@@ -33,6 +35,7 @@ fn default_backend() -> String {
     "memory".to_string()
 }
 
+/// A single rate-limit rule applied to a path, mutation, or query pattern.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RateLimitRule {
     /// Match by path pattern (e.g., "/auth/*")
@@ -60,6 +63,7 @@ fn default_key_by() -> String {
     "ip".to_string()
 }
 
+/// Backpressure settings that control request queuing and load shedding.
 #[derive(Debug, Clone, Deserialize)]
 pub struct BackpressureConfig {
     /// Enable request queuing when at limit

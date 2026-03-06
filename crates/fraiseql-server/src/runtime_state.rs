@@ -111,20 +111,26 @@ impl AppState {
 /// Trait for cache operations (injectable for testing)
 #[async_trait::async_trait]
 pub trait CacheClient: Send + Sync {
+    /// Retrieve a cached value by key.
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, RuntimeError>;
+    /// Store a value in the cache with an optional TTL.
     async fn set(
         &self,
         key: &str,
         value: &[u8],
         ttl: Option<std::time::Duration>,
     ) -> Result<(), RuntimeError>;
+    /// Remove a value from the cache.
     async fn delete(&self, key: &str) -> Result<(), RuntimeError>;
+    /// Check cache connectivity.
     async fn ping(&self) -> Result<(), RuntimeError>;
 }
 
 /// Trait for rate limiting (injectable for testing)
 #[async_trait::async_trait]
 pub trait RateLimiter: Send + Sync {
+    /// Check whether a request identified by `key` is within the given `limit`
+    /// over the sliding `window`, and record the attempt.
     async fn check(
         &self,
         key: &str,
@@ -133,21 +139,29 @@ pub trait RateLimiter: Send + Sync {
     ) -> Result<RateLimitResult, RuntimeError>;
 }
 
+/// Result of a rate-limit check.
 pub struct RateLimitResult {
+    /// Whether the request was allowed (i.e. within the limit).
     pub allowed:   bool,
+    /// Number of remaining requests in the current window.
     pub remaining: u32,
+    /// Time at which the current rate-limit window resets.
     pub reset_at:  SystemTime,
 }
 
 /// Trait for idempotency checking (injectable for testing)
 #[async_trait::async_trait]
 pub trait IdempotencyStore: Send + Sync {
+    /// Atomically check whether `key` has been seen before and record it if not.
+    /// Returns `true` if this is the first time the key is seen.
     async fn check_and_store(
         &self,
         key: &str,
         ttl: std::time::Duration,
     ) -> Result<bool, RuntimeError>;
+    /// Retrieve a previously stored idempotency result for `key`.
     async fn get_result(&self, key: &str) -> Result<Option<serde_json::Value>, RuntimeError>;
+    /// Persist the idempotency result for `key` so future requests can replay it.
     async fn store_result(&self, key: &str, result: &serde_json::Value)
     -> Result<(), RuntimeError>;
 }

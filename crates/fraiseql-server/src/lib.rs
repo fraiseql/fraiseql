@@ -22,7 +22,7 @@
 //! - Authentication middleware (optional)
 
 #![forbid(unsafe_code)]
-#![allow(missing_docs)] // Reason: focusing on actionable warnings first; docs are a separate effort
+// missing_docs: all public items must be documented (workspace lint enforces this)
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 // Reason: module-level allows for pedantic lints that are too noisy across this crate.
@@ -95,12 +95,20 @@ pub mod metrics_server;
 pub mod tracing_server;
 
 // fraiseql-runtime modules (merged)
+
+/// Runtime configuration types loaded from `fraiseql.toml` or environment variables.
 pub mod config;
+/// Server lifecycle management: health checks and graceful shutdown.
 pub mod lifecycle;
+/// Observability infrastructure: metrics, tracing context, and logging helpers.
 pub mod observability;
+/// Operational tools: feature flags, circuit breakers, and runtime controls.
 pub mod operational;
+/// Resilience primitives: backpressure and retry policies.
 pub mod resilience;
+/// Application-wide runtime state shared across request handlers via dependency injection.
 pub mod runtime_state;
+/// Utilities for distributed tracing, span propagation, and trace context formatting.
 pub mod tracing_utils;
 
 // Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
@@ -121,7 +129,6 @@ pub use fraiseql_auth as auth;
 /// in no-auth builds without requiring every call-site to be cfg-gated.  All stub methods
 /// are pure stubs that the compiler will dead-code-eliminate.
 #[cfg(not(feature = "auth"))]
-#[allow(missing_docs)]
 pub mod auth {
     use std::sync::Arc;
 

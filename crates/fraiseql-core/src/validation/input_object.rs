@@ -35,21 +35,34 @@ use crate::error::{FraiseQLError, Result};
 #[derive(Debug, Clone)]
 pub enum InputObjectRule {
     /// At least one field from the set must be provided
-    AnyOf { fields: Vec<String> },
+    AnyOf {
+        /// Field names of which at least one must be present.
+        fields: Vec<String>,
+    },
     /// Exactly one field from the set must be provided
-    OneOf { fields: Vec<String> },
+    OneOf {
+        /// Field names of which exactly one must be present.
+        fields: Vec<String>,
+    },
     /// If one field is present, others must be present
     ConditionalRequired {
+        /// The trigger field whose presence activates the requirement.
         if_field:    String,
+        /// Fields that must be present when `if_field` is provided.
         then_fields: Vec<String>,
     },
     /// If one field is absent, others must be present
     RequiredIfAbsent {
+        /// The field whose absence activates the requirement.
         absent_field: String,
+        /// Fields that must be present when `absent_field` is missing.
         then_fields:  Vec<String>,
     },
     /// Custom validator function name to invoke
-    Custom { name: String },
+    Custom {
+        /// Name of the registered custom validator function.
+        name: String,
+    },
 }
 
 /// Result of validating an input object, aggregating multiple errors.

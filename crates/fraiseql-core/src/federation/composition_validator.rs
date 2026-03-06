@@ -52,21 +52,32 @@ pub enum CompositionError {
     ///
     /// An @external field was marked in a subgraph extension, but no other subgraph
     /// defines this field as local (non-external).
-    ExternalFieldNoOwner { field: String },
+    ExternalFieldNoOwner {
+        /// Fully-qualified name of the field without an owning subgraph.
+        field: String,
+    },
 
     /// @external field owned by multiple subgraphs
     ///
     /// An @external field reference conflicts: multiple subgraphs claim to own it.
     /// Only one subgraph can own each @external field.
-    ExternalFieldMultipleOwners { field: String, owners: Vec<String> },
+    ExternalFieldMultipleOwners {
+        /// Fully-qualified field name.
+        field: String,
+        /// Subgraphs that each claim ownership.
+        owners: Vec<String>,
+    },
 
     /// @key directive mismatch across subgraphs
     ///
     /// The @key directive on a type differs across subgraphs. All subgraphs must
     /// agree on the @key for a given type.
     KeyMismatch {
+        /// Name of the conflicting type.
         typename: String,
+        /// Key fields declared in the first subgraph.
         key_a:    Vec<String>,
+        /// Key fields declared in the second subgraph.
         key_b:    Vec<String>,
     },
 
@@ -75,16 +86,25 @@ pub enum CompositionError {
     /// A field is marked @shareable in one subgraph but not in another.
     /// @shareable must be consistent across all subgraphs that define a field.
     ShareableFieldConflict {
+        /// Name of the type owning the conflicting field.
         typename:   String,
+        /// Name of the conflicting field.
         field:      String,
+        /// First subgraph in the conflict.
         subgraph_a: String,
+        /// Second subgraph in the conflict.
         subgraph_b: String,
     },
 
     /// Type definition conflict
     ///
     /// A type definition conflict that doesn't fit other categories.
-    TypeConflict { typename: String, reason: String },
+    TypeConflict {
+        /// Name of the conflicting type.
+        typename: String,
+        /// Human-readable description of the conflict.
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for CompositionError {

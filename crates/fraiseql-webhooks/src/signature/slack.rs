@@ -16,6 +16,11 @@ use crate::{
 /// Default maximum age of a Slack webhook timestamp before it is considered a replay.
 const DEFAULT_TIMESTAMP_AGE_SECS: i64 = 300; // 5 minutes
 
+/// Verifies Slack webhook signatures using HMAC-SHA256.
+///
+/// Slack signs `v0:<timestamp>:<body>` and sends `v0=<hex>` in the `X-Slack-Signature`
+/// header, with the Unix timestamp in `X-Slack-Request-Timestamp`. Requests with
+/// timestamps outside the tolerance window are rejected to prevent replay attacks.
 pub struct SlackVerifier {
     /// Maximum acceptable age of a timestamp in seconds.
     tolerance_secs: i64,

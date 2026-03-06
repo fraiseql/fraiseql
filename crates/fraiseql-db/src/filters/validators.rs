@@ -30,11 +30,21 @@ pub enum ValidationRule {
     /// Exact length
     Length(usize),
     /// Min and max length
-    LengthRange { min: usize, max: usize },
+    LengthRange {
+        /// Minimum allowed length (inclusive).
+        min: usize,
+        /// Maximum allowed length (inclusive).
+        max: usize,
+    },
     /// Checksum algorithm
     Checksum(ChecksumType),
     /// Range of numeric values
-    NumericRange { min: f64, max: f64 },
+    NumericRange {
+        /// Minimum allowed numeric value (inclusive).
+        min: f64,
+        /// Maximum allowed numeric value (inclusive).
+        max: f64,
+    },
     /// Value must be one of these options
     Enum(Vec<String>),
     /// Composite rule (all must pass)

@@ -1,4 +1,4 @@
-// PostgreSQL SessionStore implementation
+//! PostgreSQL-backed [`SessionStore`] implementation.
 use async_trait::async_trait;
 use sqlx::{Row, postgres::PgPool};
 

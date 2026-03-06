@@ -1,23 +1,49 @@
-// Authentication monitoring and observability
+//! Authentication monitoring and observability.
+//!
+//! Provides [`AuthEvent`] for structured event logging, [`AuthMetrics`] for
+//! in-process counters, and [`OperationTimer`] for latency measurement.
 use std::time::Instant;
 
 use serde::Serialize;
 use tracing::{Level, info, span, warn};
 
-/// Structured log for authentication events
+/// A structured log record for a single authentication event.
+///
+/// Constructed with [`AuthEvent::new`] and populated via builder methods.
+/// Call [`AuthEvent::log`] to emit the record through `tracing`.
+///
+/// # Example
+///
+/// ```rust
+/// use fraiseql_auth::AuthEvent;
+/// let event = AuthEvent::new("login")
+///     .with_user_id("user123".to_string())
+///     .with_provider("google".to_string())
+///     .success(42.5);
+/// event.log();
+/// ```
 #[derive(Debug, Serialize)]
 pub struct AuthEvent {
+    /// Name of the authentication event (e.g., `"login"`, `"token_refresh"`).
     pub event:       String,
+    /// Optional authenticated user ID associated with this event.
     pub user_id:     Option<String>,
+    /// OAuth provider name (e.g., `"google"`, `"okta"`).
     pub provider:    Option<String>,
+    /// Outcome: `"started"`, `"success"`, or `"error"`.
     pub status:      String,
+    /// Duration of the operation in milliseconds.
     pub duration_ms: f64,
+    /// Error message if the operation failed.
     pub error:       Option<String>,
+    /// RFC 3339 timestamp of when this event was created.
     pub timestamp:   String,
+    /// Optional correlation ID for tracing a request across services.
     pub request_id:  Option<String>,
 }
 
 impl AuthEvent {
+    /// Create a new event record in the `"started"` state.
     pub fn new(event: &str) -> Self {
         Self {
             event:       event.to_string(),
@@ -31,27 +57,32 @@ impl AuthEvent {
         }
     }
 
+    /// Set the user ID associated with this event.
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
+    /// Set the OAuth provider name for this event.
     pub fn with_provider(mut self, provider: String) -> Self {
         self.provider = Some(provider);
         self
     }
 
+    /// Set the request correlation ID for distributed tracing.
     pub fn with_request_id(mut self, request_id: String) -> Self {
         self.request_id = Some(request_id);
         self
     }
 
+    /// Mark the event as successful and record its duration.
     pub fn success(mut self, duration_ms: f64) -> Self {
         self.status = "success".to_string();
         self.duration_ms = duration_ms;
         self
     }
 
+    /// Mark the event as failed, recording the error and duration.
     pub fn error(mut self, error: String, duration_ms: f64) -> Self {
         self.status = "error".to_string();
         self.error = Some(error);
@@ -59,6 +90,10 @@ impl AuthEvent {
         self
     }
 
+    /// Emit this event through `tracing` at the appropriate level.
+    ///
+    /// Successful events are logged at `INFO`; errors at `WARN`.
+    /// Events in the `"started"` state are silently dropped.
     pub fn log(&self) {
         match self.status.as_str() {
             "success" => {
@@ -83,18 +118,30 @@ impl AuthEvent {
     }
 }
 
-/// Metrics for authentication operations
+/// In-process counters for authentication operations.
+///
+/// These counters are for lightweight observability within a single process.
+/// For production monitoring, export these values to a metrics system such as
+/// Prometheus.  All fields are plain `u64`; thread-safe mutation requires an
+/// outer `Mutex` or `RwLock`.
 #[derive(Debug, Clone)]
 pub struct AuthMetrics {
+    /// Total number of authentication attempts (successful + failed).
     pub total_auth_attempts:        u64,
+    /// Number of authentication attempts that succeeded.
     pub successful_authentications: u64,
+    /// Number of authentication attempts that failed.
     pub failed_authentications:     u64,
+    /// Number of access tokens issued since startup.
     pub tokens_issued:              u64,
+    /// Number of access tokens refreshed since startup.
     pub tokens_refreshed:           u64,
+    /// Number of sessions explicitly revoked since startup.
     pub sessions_revoked:           u64,
 }
 
 impl AuthMetrics {
+    /// Create a new `AuthMetrics` with all counters initialized to zero.
     pub fn new() -> Self {
         Self {
             total_auth_attempts:        0,
@@ -106,30 +153,39 @@ impl AuthMetrics {
         }
     }
 
+    /// Increment the total authentication attempts counter.
     pub fn record_attempt(&mut self) {
         self.total_auth_attempts += 1;
     }
 
+    /// Increment the successful authentications counter.
     pub fn record_success(&mut self) {
         self.successful_authentications += 1;
     }
 
+    /// Increment the failed authentications counter.
     pub fn record_failure(&mut self) {
         self.failed_authentications += 1;
     }
 
+    /// Increment the tokens issued counter.
     pub fn record_token_issued(&mut self) {
         self.tokens_issued += 1;
     }
 
+    /// Increment the tokens refreshed counter.
     pub fn record_token_refreshed(&mut self) {
         self.tokens_refreshed += 1;
     }
 
+    /// Increment the sessions revoked counter.
     pub fn record_session_revoked(&mut self) {
         self.sessions_revoked += 1;
     }
 
+    /// Return the success rate as a percentage (0–100).
+    ///
+    /// Returns `0.0` when no attempts have been recorded yet.
     pub fn success_rate(&self) -> f64 {
         if self.total_auth_attempts == 0 {
             0.0
@@ -145,13 +201,18 @@ impl Default for AuthMetrics {
     }
 }
 
-/// Timer for measuring operation duration
+/// A wall-clock timer for measuring the duration of authentication operations.
+///
+/// The timer starts immediately on construction via [`OperationTimer::start`].
+/// Call [`OperationTimer::finish`] to log the elapsed time and discard the timer,
+/// or read [`OperationTimer::elapsed_ms`] to sample without consuming.
 pub struct OperationTimer {
     start:     Instant,
     operation: String,
 }
 
 impl OperationTimer {
+    /// Start timing `operation` and open a tracing span at `DEBUG` level.
     pub fn start(operation: &str) -> Self {
         let span = span!(Level::DEBUG, "operation", %operation);
         let _guard = span.enter();
@@ -162,10 +223,12 @@ impl OperationTimer {
         }
     }
 
+    /// Return the elapsed time in milliseconds since this timer was started.
     pub fn elapsed_ms(&self) -> f64 {
         self.start.elapsed().as_secs_f64() * 1000.0
     }
 
+    /// Log the completed operation at `INFO` level with its elapsed duration.
     pub fn finish(self) {
         let elapsed = self.elapsed_ms();
         info!(

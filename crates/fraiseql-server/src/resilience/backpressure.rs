@@ -1,3 +1,9 @@
+//! Admission control and backpressure for the FraiseQL server.
+//!
+//! [`AdmissionController`] enforces a concurrent-request limit using a
+//! semaphore and rejects requests that would exceed the configured queue
+//! depth, returning `503 Service Unavailable` instead of stalling.
+
 use std::{
     sync::{
         Arc,
@@ -21,6 +27,7 @@ pub struct AdmissionController {
 }
 
 impl AdmissionController {
+    /// Create a new `AdmissionController` with the given concurrency and queue limits.
     pub fn new(max_concurrent: usize, max_queue_depth: u64) -> Self {
         Self {
             semaphore: Arc::new(Semaphore::new(max_concurrent)),

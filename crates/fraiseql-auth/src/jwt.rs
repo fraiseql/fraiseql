@@ -1,4 +1,4 @@
-// JWT validation and claims parsing
+//! JWT validation, claims parsing, and token generation.
 use std::collections::HashMap;
 
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
