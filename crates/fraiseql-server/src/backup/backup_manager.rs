@@ -68,11 +68,12 @@ impl BackupManager {
 
     /// Start backup scheduler and register all known providers.
     ///
-    /// Providers without a matching [`BackupConfig`] entry are registered as
-    /// stubs (all operations return `NotImplemented`) and logged at DEBUG level.
-    /// Configured providers are logged at INFO level.
+    /// Only providers whose [`BackupProvider::is_implemented`] returns `true`
+    /// are registered.  Stub providers (all operations return `NotImplemented`)
+    /// are skipped and logged at DEBUG level so they never appear in health
+    /// checks or produce user-visible errors.
     pub async fn start(&self) -> Result<(), String> {
-        let stub_providers: &[(&str, Arc<dyn BackupProvider>)] = &[
+        let providers: &[(&str, Arc<dyn BackupProvider>)] = &[
             (
                 "postgres",
                 Arc::new(PostgresBackupProvider::new(String::new(), String::new())),
@@ -91,18 +92,19 @@ impl BackupManager {
             ),
         ];
 
-        for (name, provider) in stub_providers {
+        for (name, provider) in providers {
+            if !provider.is_implemented() {
+                tracing::debug!(
+                    provider = %name,
+                    "Backup provider skipped — not yet implemented"
+                );
+                continue;
+            }
+
             // register_provider is idempotent — skip if already registered.
             let result = self.register_provider((*name).to_string(), Arc::clone(provider)).await;
             if result.is_ok() {
-                if self.configs.contains_key(*name) {
-                    tracing::info!(provider = %name, "Backup provider registered");
-                } else {
-                    tracing::debug!(
-                        provider = %name,
-                        "Backup provider registered (not implemented — configure backup to enable)"
-                    );
-                }
+                tracing::info!(provider = %name, "Backup provider registered");
             }
         }
 
@@ -361,22 +363,70 @@ mod tests {
         assert!(backups[0].contains("backup-1"));
     }
 
+    /// A mock provider that reports itself as implemented.
+    struct ImplementedMockProvider {
+        name: String,
+    }
+
+    #[async_trait::async_trait]
+    impl BackupProvider for ImplementedMockProvider {
+        fn name(&self) -> &str { &self.name }
+
+        fn is_implemented(&self) -> bool { true }
+
+        async fn health_check(&self) -> BackupResult<()> { Ok(()) }
+
+        async fn backup(&self) -> BackupResult<BackupInfo> {
+            Ok(BackupInfo {
+                backup_id:   format!("{}-backup-1", self.name),
+                store_name:  self.name.clone(),
+                timestamp:   1_000_000,
+                size_bytes:  1024,
+                verified:    true,
+                compression: None,
+                metadata:    Default::default(),
+            })
+        }
+
+        async fn restore(&self, _: &str, _: bool) -> BackupResult<()> { Ok(()) }
+        async fn list_backups(&self) -> BackupResult<Vec<BackupInfo>> { Ok(vec![]) }
+        async fn get_backup(&self, id: &str) -> BackupResult<BackupInfo> {
+            Ok(BackupInfo {
+                backup_id:   id.to_string(),
+                store_name:  self.name.clone(),
+                timestamp:   1_000_000,
+                size_bytes:  1024,
+                verified:    true,
+                compression: None,
+                metadata:    Default::default(),
+            })
+        }
+        async fn delete_backup(&self, _: &str) -> BackupResult<()> { Ok(()) }
+        async fn verify_backup(&self, _: &str) -> BackupResult<()> { Ok(()) }
+        async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
+            Ok(StorageUsage {
+                total_bytes:             0,
+                backup_count:            0,
+                oldest_backup_timestamp: None,
+                newest_backup_timestamp: None,
+            })
+        }
+    }
+
     // =========================================================================
-    // Phase 2: provider registration tests
+    // Provider registration tests
     // =========================================================================
 
     #[tokio::test]
-    async fn test_start_registers_all_four_providers() {
+    async fn test_start_skips_unimplemented_providers() {
+        // start() must skip all four built-in stubs because none have
+        // is_implemented() = true.
         let manager = BackupManager::new(HashMap::new());
         manager.start().await.expect("start must not fail");
-
-        let status = manager.get_status().await;
-        assert!(status.contains_key("postgres"), "postgres provider missing from status");
-        assert!(status.contains_key("redis"), "redis provider missing from status");
-        assert!(status.contains_key("clickhouse"), "clickhouse provider missing from status");
-        assert!(
-            status.contains_key("elasticsearch"),
-            "elasticsearch provider missing from status"
+        assert_eq!(
+            manager.get_status().await.len(),
+            0,
+            "no unimplemented providers should appear in status"
         );
     }
 
@@ -384,22 +434,19 @@ mod tests {
     async fn test_start_is_idempotent() {
         let manager = BackupManager::new(HashMap::new());
         manager.start().await.unwrap();
-        // Calling start() a second time must not panic or error even though
-        // providers are already registered.
+        // Calling start() a second time must not panic or error.
         manager.start().await.unwrap();
-        assert_eq!(manager.get_status().await.len(), 4);
+        assert_eq!(manager.get_status().await.len(), 0);
     }
 
     #[tokio::test]
-    async fn test_provider_backup_returns_not_implemented_after_start() {
+    async fn test_implemented_provider_gets_registered() {
         let manager = BackupManager::new(HashMap::new());
-        manager.start().await.unwrap();
-
-        // backup() requires a config entry — even though providers are registered,
-        // calling backup without config returns BackupFailed (no config), not
-        // NotImplemented.  Verify the error discriminant.
-        let result = manager.backup("redis").await;
-        assert!(result.is_err());
+        let provider = Arc::new(ImplementedMockProvider {
+            name: "custom".to_string(),
+        });
+        manager.register_provider("custom".to_string(), provider).await.unwrap();
+        assert!(manager.get_status().await.contains_key("custom"));
     }
 
     #[tokio::test]
@@ -414,33 +461,5 @@ mod tests {
         assert!(status.contains_key("redis"));
         assert_eq!(status["redis"].store_name, "redis");
         assert_eq!(status["redis"].status, "registered");
-    }
-
-    #[tokio::test]
-    async fn test_start_marks_unconfigured_providers_as_disabled() {
-        let manager = BackupManager::new(HashMap::new());
-        manager.start().await.unwrap();
-
-        let status = manager.get_status().await;
-        // No configs → enabled should be false for all stub providers.
-        for name in ["postgres", "redis", "clickhouse", "elasticsearch"] {
-            assert!(
-                !status[name].enabled,
-                "provider '{name}' should be disabled without config"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_start_marks_configured_providers_as_enabled() {
-        let mut configs = HashMap::new();
-        configs.insert("postgres".to_string(), BackupConfig::postgres_default());
-
-        let manager = BackupManager::new(configs);
-        manager.start().await.unwrap();
-
-        let status = manager.get_status().await;
-        assert!(status["postgres"].enabled, "postgres should be enabled when config present");
-        assert!(!status["redis"].enabled, "redis should be disabled without config");
     }
 }

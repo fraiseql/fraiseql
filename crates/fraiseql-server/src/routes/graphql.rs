@@ -137,6 +137,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub validator:    crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
     pub debug_config: Option<fraiseql_core::schema::DebugConfig>,
+    /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
+    pub pool_tuner:   Option<Arc<crate::pool::PoolAutoTuner>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -167,6 +169,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             apq_metrics: Arc::new(ApqMetrics::default()),
             validator: crate::validation::RequestValidator::new(),
             debug_config: None,
+            pool_tuner: None,
         }
     }
 
@@ -319,6 +322,13 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_validator(mut self, validator: crate::validation::RequestValidator) -> Self {
         self.validator = validator;
+        self
+    }
+
+    /// Attach an adaptive connection pool auto-tuner.
+    #[must_use]
+    pub fn with_pool_tuner(mut self, tuner: Arc<crate::pool::PoolAutoTuner>) -> Self {
+        self.pool_tuner = Some(tuner);
         self
     }
 

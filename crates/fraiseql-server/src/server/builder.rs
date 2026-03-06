@@ -14,7 +14,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// * `config` - Server configuration
     /// * `schema` - Compiled GraphQL schema
     /// * `adapter` - Database adapter
-    /// * `db_pool` - Database connection pool (optional, required for observers)
+    /// * `db_pool` — forwarded to the observer runtime; `None` when observers are disabled.
     ///
     /// # Errors
     ///
@@ -42,7 +42,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
+        db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Read security configs from compiled schema BEFORE schema is moved.
         let circuit_breaker = schema
@@ -120,6 +120,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         )
         .await?;
 
+        // Apply pool tuning config from ServerConfig (if present).
+        if let Some(pt) = server.config.pool_tuning.clone() {
+            if pt.enabled {
+                server = server.with_pool_tuning(pt).map_err(|e| {
+                    ServerError::ConfigError(format!("pool_tuning: {e}"))
+                })?;
+            }
+        }
+
         // Initialize MCP config from compiled schema when the feature is compiled in.
         #[cfg(feature = "mcp")]
         if let Some(ref cfg) = server.executor.schema().mcp_config {
@@ -181,7 +190,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
         revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
         trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
-        #[allow(unused_variables)] db_pool: Option<sqlx::PgPool>,
+        // `db_pool` is forwarded to the observer runtime; unused when the `observers` feature is off.
+        #[cfg_attr(not(feature = "observers"), allow(unused_variables))]
+        db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
@@ -302,6 +313,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             flight_service,
             #[cfg(feature = "mcp")]
             mcp_config: None,
+            pool_tuning_config: None,
         })
     }
 
@@ -320,6 +332,25 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     pub fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
         self.max_subscriptions_per_connection = Some(max);
         self
+    }
+
+    /// Enable adaptive connection pool sizing.
+    ///
+    /// When `config.enabled` is `true`, [`build_router`] will spawn a background
+    /// polling task that samples pool metrics and recommends or applies resizes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the configuration fails validation (e.g. `min >= max`).
+    ///
+    /// [`build_router`]: Server::build_router
+    pub fn with_pool_tuning(
+        mut self,
+        config: crate::config::pool_tuning::PoolTuningConfig,
+    ) -> std::result::Result<Self, String> {
+        config.validate()?;
+        self.pool_tuning_config = Some(config);
+        Ok(self)
     }
 
     /// Set secrets manager for the server.

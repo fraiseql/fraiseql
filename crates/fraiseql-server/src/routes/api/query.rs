@@ -196,21 +196,19 @@ pub async fn validate_handler<A: DatabaseAdapter>(
     }))
 }
 
-/// Get query statistics.
-///
-/// Returns aggregated statistics about query execution performance.
-/// Currently returns placeholder data; in production would be populated
-/// from metrics collection during query execution.
 /// Get query execution statistics.
 ///
-/// Returns aggregated metrics from query executions including:
+/// Returns aggregated metrics from query executions, read from the in-process
+/// atomic counters that the GraphQL handler updates on every request:
 /// - Total queries executed
 /// - Successful vs failed counts
-/// - Average latency across all executions
+/// - Average latency in milliseconds (computed from cumulative microseconds)
+///
+/// Counters reset to zero on server restart (they are not persisted).
 ///
 /// # Errors
 ///
-/// This handler currently always succeeds; it is infallible.
+/// This handler is infallible.
 pub async fn stats_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {

@@ -212,7 +212,7 @@ impl SagaExecutor {
         saga_id: Uuid,
         step_number: u32,
         mutation_name: &str,
-        _variables: &serde_json::Value,
+        variables: &serde_json::Value,
         subgraph: &str,
     ) -> SagaStoreResult<StepExecutionResult> {
         let start_time = Instant::now();
@@ -224,6 +224,12 @@ impl SagaExecutor {
             subgraph = subgraph,
             "Step execution started"
         );
+
+        // Pre-fetch @requires fields and augment input entity before any mutation dispatch.
+        // This runs regardless of whether a saga store is present so the wiring is always active.
+        let requires_fields = self.pre_fetch_requires_fields(saga_id, step_number).await?;
+        let augmented_variables =
+            self.augment_entity_with_requires(variables.clone(), requires_fields);
 
         // 1. Validate step exists in saga (if store is available)
         if let Some(store) = &self.store {
@@ -271,11 +277,13 @@ impl SagaExecutor {
 
             info!(saga_id = %saga_id, step = step_number, "Step transitioned to Executing");
 
-            // 4. Execute mutation via MutationExecutor (placeholder implementation)
+            // 4. Execute mutation via MutationExecutor (placeholder implementation).
+            // `augmented_variables` was pre-computed above with @requires fields applied.
             let result_data = serde_json::json!({
                 "__typename": saga_step.typename,
                 "id": format!("entity-{}-step-{}", saga_id, step_number),
                 mutation_name: "executed",
+                "input": augmented_variables,
             });
 
             // 5. Capture result data and transition step to Completed
@@ -328,7 +336,8 @@ impl SagaExecutor {
                 data: Some(serde_json::json!({
                     "__typename": "Entity",
                     "id": format!("entity-{}", step_number),
-                    mutation_name: "ok"
+                    mutation_name: "ok",
+                    "input": augmented_variables,
                 })),
                 error: None,
                 duration_ms,
@@ -577,8 +586,6 @@ impl SagaExecutor {
     /// Identifies fields required by a mutation and fetches them from
     /// other subgraphs if needed. This ensures all necessary data is
     /// available before executing the mutation.
-    // Reason: tested in isolation, not yet called from execute_step()
-    #[allow(dead_code)]
     async fn pre_fetch_requires_fields(
         &self,
         saga_id: Uuid,
@@ -608,8 +615,6 @@ impl SagaExecutor {
     ///
     /// Merges @requires fields into the entity data, ensuring all
     /// necessary fields are present for mutation execution.
-    // Reason: tested in isolation, not yet called from execute_step()
-    #[allow(dead_code)]
     fn augment_entity_with_requires(
         &self,
         entity_data: serde_json::Value,
@@ -966,5 +971,42 @@ mod tests {
 
         // Should return entity unchanged
         assert_eq!(result.get("id").and_then(|v| v.as_str()), Some("test-123"));
+    }
+
+    /// C3: execute_step must include the augmented entity data in result.
+    ///
+    /// With the stub pre_fetch (returns `{}`), augment_entity_with_requires is a
+    /// no-op, so the input variables must appear unchanged under the `input` key.
+    #[tokio::test]
+    async fn execute_step_pre_fetches_required_fields() {
+        let executor = SagaExecutor::new();
+        let saga_id = Uuid::new_v4();
+        let variables = serde_json::json!({"customerId": "c123", "total": 100});
+
+        let result = executor
+            .execute_step(saga_id, 1, "createOrder", &variables, "orders-service")
+            .await
+            .expect("execute_step must succeed");
+
+        assert!(result.success);
+        let data = result.data.expect("result must carry data");
+        // The wired input must appear in the result data.
+        assert_eq!(data.get("input"), Some(&variables), "augmented input must be present");
+    }
+
+    /// C3 regression guard: steps without @requires must behave identically to before.
+    #[tokio::test]
+    async fn execute_step_without_requires_is_unchanged() {
+        let executor = SagaExecutor::new();
+        let saga_id = Uuid::new_v4();
+
+        let result = executor
+            .execute_step(saga_id, 1, "testMutation", &serde_json::json!({}), "test-service")
+            .await
+            .expect("execute_step must succeed");
+
+        assert!(result.success);
+        assert_eq!(result.step_number, 1);
+        assert!(result.error.is_none());
     }
 }

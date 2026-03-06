@@ -70,7 +70,6 @@ pub struct SyslogAuditBackend {
     /// Syslog server host
     host:     String,
     /// Syslog server port (default 514)
-    #[allow(dead_code)] // Reason: will be used once UDP sending is implemented
     port: u16,
     /// Application hostname to report in syslog messages
     hostname: String,
@@ -79,7 +78,6 @@ pub struct SyslogAuditBackend {
     /// Syslog facility to use
     facility: SyslogFacility,
     /// Timeout for socket operations
-    #[allow(dead_code)] // Reason: will be used once UDP sending is implemented
     timeout: Duration,
 }
 
@@ -161,9 +159,9 @@ impl SyslogAuditBackend {
         let socket = tokio::net::UdpSocket::bind("0.0.0.0:0")
             .await
             .map_err(|e| AuditError::NetworkError(format!("Failed to bind UDP socket: {e}")))?;
-        socket
-            .send_to(payload.as_bytes(), &addr)
+        tokio::time::timeout(self.timeout, socket.send_to(payload.as_bytes(), &addr))
             .await
+            .map_err(|_| AuditError::NetworkError(format!("Timed out sending syslog to {addr}")))?
             .map_err(|e| AuditError::NetworkError(format!("Failed to send syslog packet to {addr}: {e}")))?;
         Ok(())
     }
@@ -201,3 +199,26 @@ impl AuditBackend for SyslogAuditBackend {
 
 // Re-export for convenience
 pub use super::AuditBackend;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_event() -> AuditEvent {
+        AuditEvent::new_user_action("user-1", "alice", "127.0.0.1", "users", "query", "success")
+    }
+
+    #[test]
+    fn test_syslog_format_rfc3164() {
+        let backend = SyslogAuditBackend::new("localhost", 514);
+        let event = test_event();
+        let msg = backend.format_rfc3164(&event, SyslogSeverity::Informational);
+
+        // RFC 3164: <PRI>TIMESTAMP HOSTNAME TAG[PID]: MESSAGE
+        assert!(msg.starts_with('<'), "must start with priority: {msg}");
+        assert!(msg.contains("fraiseql-audit"), "must contain app name");
+        assert!(msg.contains("fraiseql"), "must contain hostname");
+        // Priority for Local0 (16*8=128) + Informational (6) = 134
+        assert!(msg.starts_with("<134>"), "priority mismatch: {msg}");
+    }
+}

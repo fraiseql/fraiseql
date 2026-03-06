@@ -369,6 +369,31 @@ pub struct ExplainRequest {
     pub offset: Option<u32>,
 }
 
+/// Return the pre-built Grafana dashboard JSON for FraiseQL metrics.
+///
+/// The dashboard JSON is embedded at compile time from
+/// `deploy/grafana/fraiseql-dashboard.json`.  Operators can import it into
+/// Grafana with a single `curl` command (see `deploy/grafana/README.md`).
+///
+/// # Errors
+///
+/// This handler is infallible — the embedded JSON is validated at compile time
+/// by the `test_grafana_dashboard_is_valid_json` unit test.
+///
+/// Requires admin token authentication.
+pub async fn grafana_dashboard_handler<A: DatabaseAdapter>(
+    State(_state): State<AppState<A>>,
+) -> impl axum::response::IntoResponse {
+    const DASHBOARD_JSON: &str =
+        include_str!("../../../../../deploy/grafana/fraiseql-dashboard.json");
+
+    (
+        axum::http::StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        DASHBOARD_JSON,
+    )
+}
+
 /// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for a named query.
 ///
 /// Accepts a query name and optional variable filters, then executes
@@ -413,6 +438,21 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_grafana_dashboard_is_valid_json() {
+        let parsed: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../deploy/grafana/fraiseql-dashboard.json"
+        ))
+        .expect("fraiseql-dashboard.json must be valid JSON");
+
+        assert_eq!(parsed["title"], "FraiseQL Performance");
+        assert_eq!(parsed["uid"], "fraiseql-perf-v1");
+        assert!(
+            parsed["panels"].as_array().map_or(0, |p| p.len()) >= 10,
+            "dashboard should have at least 10 panels"
+        );
+    }
 
     #[test]
     fn test_reload_schema_request_empty_path() {

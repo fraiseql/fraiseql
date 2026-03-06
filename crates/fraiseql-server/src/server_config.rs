@@ -354,6 +354,23 @@ pub struct ServerConfig {
     #[cfg(feature = "observers")]
     #[serde(default)]
     pub observers: Option<ObserverConfig>,
+
+    /// Adaptive connection pool auto-tuning configuration.
+    ///
+    /// When `enabled = true`, the server spawns a background task that monitors
+    /// pool metrics and recommends (or applies) connection count adjustments.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [pool_tuning]
+    /// enabled = true
+    /// min_pool_size = 5
+    /// max_pool_size = 50
+    /// tuning_interval_ms = 30000
+    /// ```
+    #[serde(default)]
+    pub pool_tuning: Option<crate::config::pool_tuning::PoolTuningConfig>,
 }
 
 #[cfg(feature = "observers")]
@@ -457,6 +474,7 @@ impl Default for ServerConfig {
             rate_limiting: None, // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
+            pool_tuning: None,  // Pool auto-tuning disabled by default
         }
     }
 }

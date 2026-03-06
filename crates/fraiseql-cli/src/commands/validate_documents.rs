@@ -19,9 +19,10 @@ struct EntryResult {
     error: Option<String>,
 }
 
+const SUPPORTED_MANIFEST_VERSION: u32 = 1;
+
 #[derive(Deserialize)]
 struct Manifest {
-    #[allow(dead_code)]
     version:   u32,
     documents: HashMap<String, String>,
 }
@@ -34,6 +35,14 @@ pub fn run(manifest_path: &str) -> Result<bool> {
 
     let manifest: Manifest = serde_json::from_str(&contents)
         .context(format!("Failed to parse manifest JSON: {manifest_path}"))?;
+
+    if manifest.version != SUPPORTED_MANIFEST_VERSION {
+        anyhow::bail!(
+            "Unsupported manifest version {}; this version of fraiseql-cli supports version {}",
+            manifest.version,
+            SUPPORTED_MANIFEST_VERSION,
+        );
+    }
 
     let total = manifest.documents.len();
     let mut results: Vec<EntryResult> = Vec::with_capacity(total);
@@ -98,6 +107,23 @@ pub fn run(manifest_path: &str) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_rejects_unknown_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("manifest.json");
+
+        let manifest = serde_json::json!({
+            "version": 99,
+            "documents": {}
+        });
+        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
+
+        let result = run(path.to_str().unwrap());
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("Unsupported manifest version"), "expected version error, got: {msg}");
+    }
 
     #[test]
     fn valid_manifest_passes() {

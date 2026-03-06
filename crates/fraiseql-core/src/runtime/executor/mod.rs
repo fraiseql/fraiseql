@@ -157,6 +157,8 @@
 //! - `DatabaseAdapter` — Trait for database-specific implementations
 //! - `FraiseQLError` — Error types
 
+pub mod pipeline;
+
 use std::{sync::Arc, time::Duration};
 
 use futures::future::BoxFuture;
@@ -166,8 +168,9 @@ use super::{
     classify_field_access,
     suggest_similar,
 };
+use crate::db::types::PoolMetrics;
 #[cfg(test)]
-use crate::db::types::{DatabaseType, PoolMetrics};
+use crate::db::types::DatabaseType;
 use crate::{
     compiler::aggregation::OrderByClause,
     db::{
@@ -406,6 +409,14 @@ impl<A: DatabaseAdapter> Executor<A> {
             config,
             introspection,
         }
+    }
+
+    /// Return current connection pool metrics from the underlying database adapter.
+    ///
+    /// Values are sampled live on each call — not cached — so callers (e.g., the
+    /// `/metrics` endpoint) always observe up-to-date pool health.
+    pub fn pool_metrics(&self) -> PoolMetrics {
+        self.adapter.pool_metrics()
     }
 }
 
@@ -666,12 +677,27 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
-        // 1. Classify query type
-        let query_type = self.classify_query(query)?;
+        // 1. Classify query type — also returns the ParsedQuery for Regular
+        // queries so we do not parse the same string twice.
+        let (query_type, maybe_parsed) = self.classify_query_with_parse(query)?;
 
         // 2. Route to appropriate handler
         match query_type {
-            QueryType::Regular => self.execute_regular_query(query, variables).await,
+            QueryType::Regular => {
+                // Detect multi-root queries and dispatch them in parallel.
+                // `maybe_parsed` is always Some for Regular queries (see classify_query_with_parse).
+                let parsed = maybe_parsed.expect("parsed present for Regular query type");
+                if pipeline::is_multi_root(&parsed) {
+                    let pr = self.execute_parallel(&parsed, variables).await?;
+                    let data = pr.merge_into_data_map();
+                    return serde_json::to_string(&serde_json::json!({ "data": data }))
+                        .map_err(|e| FraiseQLError::Internal {
+                            message: e.to_string(),
+                            source:  None,
+                        });
+                }
+                self.execute_regular_query(query, variables).await
+            },
             QueryType::Aggregate(query_name) => {
                 self.execute_aggregate_dispatch(&query_name, variables).await
             },

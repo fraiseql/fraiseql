@@ -84,49 +84,67 @@ impl<'a> ConfigValidator<'a> {
         self.result
     }
 
-    /// Warn when config sections are parsed but have no runtime effect yet.
+    /// Error on config sections that are parsed but have no runtime effect.
+    ///
+    /// Silently-ignored config is a common source of operational incidents. By
+    /// refusing to start, we ensure operators know their configuration has no
+    /// effect and must be removed or replaced.
     fn validate_placeholder_sections(&mut self) {
         if self.config.notifications.is_some() {
-            self.result.add_warning(
-                "config section 'notifications' is parsed but not yet implemented; \
-                 values will be ignored at runtime",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "notifications".to_string(),
+                message: "config section 'notifications' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
         }
         if self.config.logging.is_some() {
-            self.result.add_warning(
-                "config section 'logging' is parsed but not yet implemented; \
-                 use the 'tracing' section for observability",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "logging".to_string(),
+                message: "config section 'logging' is not yet implemented; \
+                          use the 'tracing' section for observability"
+                    .to_string(),
+            });
         }
         if self.config.search.is_some() {
-            self.result.add_warning(
-                "config section 'search' is parsed but not yet implemented; \
-                 values will be ignored at runtime",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "search".to_string(),
+                message: "config section 'search' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
         }
         if self.config.cache.is_some() {
-            self.result.add_warning(
-                "config section 'cache' is parsed but not yet implemented; \
-                 use fraiseql_core::cache::CacheConfig for query-result caching",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "cache".to_string(),
+                message: "config section 'cache' is not yet implemented; \
+                          use fraiseql_core::cache::CacheConfig for query-result caching"
+                    .to_string(),
+            });
         }
         if self.config.queues.is_some() {
-            self.result.add_warning(
-                "config section 'queues' is parsed but not yet implemented; \
-                 values will be ignored at runtime",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "queues".to_string(),
+                message: "config section 'queues' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
         }
         if self.config.realtime.is_some() {
-            self.result.add_warning(
-                "config section 'realtime' is parsed but not yet implemented; \
-                 use the 'subscriptions' feature for real-time updates",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "realtime".to_string(),
+                message: "config section 'realtime' is not yet implemented; \
+                          use the 'subscriptions' feature for real-time updates"
+                    .to_string(),
+            });
         }
         if self.config.custom_endpoints.is_some() {
-            self.result.add_warning(
-                "config section 'custom_endpoints' is parsed but not yet implemented; \
-                 values will be ignored at runtime",
-            );
+            self.result.add_error(ConfigError::ValidationError {
+                field:   "custom_endpoints".to_string(),
+                message: "config section 'custom_endpoints' is not yet implemented; \
+                          remove it from fraiseql.toml to proceed"
+                    .to_string(),
+            });
         }
     }
 

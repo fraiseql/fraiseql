@@ -88,6 +88,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
         state = state.with_validator(validator);
 
+        // Start pool auto-tuner if configured and enabled
+        if let Some(ref cfg) = self.pool_tuning_config {
+            if cfg.enabled {
+                let tuner = std::sync::Arc::new(crate::pool::PoolAutoTuner::new(cfg.clone()));
+                // Spawn background polling task (recommendation mode — no resize_fn supplied
+                // because deadpool-postgres does not expose runtime resize).
+                let _handle = std::sync::Arc::clone(&tuner)
+                    .start(self.executor.adapter().clone(), None);
+                state = state.with_pool_tuner(tuner);
+                info!(
+                    tuning_interval_ms = cfg.tuning_interval_ms,
+                    min = cfg.min_pool_size,
+                    max = cfg.max_pool_size,
+                    "Pool auto-tuner started (recommendation mode)"
+                );
+            }
+        }
+
         // Attach debug config from compiled schema
         state.debug_config.clone_from(&self.executor.schema().debug_config);
 
@@ -274,6 +292,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
                     .route("/api/v1/admin/explain", post(api::admin::explain_handler::<A>))
+                    .route(
+                        "/api/v1/admin/grafana-dashboard",
+                        get(api::admin::grafana_dashboard_handler::<A>),
+                    )
                     .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
                     .with_state(state.clone());
 

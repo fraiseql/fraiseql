@@ -86,12 +86,7 @@ pub struct BackupInfo {
 impl BackupInfo {
     /// Get human-readable timestamp.
     pub fn timestamp_display(&self) -> String {
-        let secs = self.timestamp;
-        let duration = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs as u64);
-        match duration.elapsed() {
-            Ok(_) => format_timestamp(secs),
-            Err(_) => format_timestamp(secs),
-        }
+        format_timestamp(self.timestamp)
     }
 
     /// Get human-readable size.
@@ -105,6 +100,15 @@ impl BackupInfo {
 pub trait BackupProvider: Send + Sync {
     /// Get the name of this provider (e.g., "postgres", "redis").
     fn name(&self) -> &str;
+
+    /// Returns `true` when this provider has a real implementation.
+    ///
+    /// Stub providers return `false` (the default) and are skipped during
+    /// [`BackupManager::start`] registration so they do not appear in health
+    /// checks or produce user-visible `NotImplemented` errors.
+    fn is_implemented(&self) -> bool {
+        false
+    }
 
     /// Check if provider is healthy and connected.
     async fn health_check(&self) -> BackupResult<()>;
@@ -156,8 +160,10 @@ pub struct StorageUsage {
 // Helper functions
 
 fn format_timestamp(secs: i64) -> String {
-    // Simple formatting - in production would use chrono or similar
-    format!("{}", secs)
+    use chrono::{DateTime, Utc};
+    DateTime::<Utc>::from_timestamp(secs, 0)
+        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+        .unwrap_or_else(|| secs.to_string())
 }
 
 fn format_size_bytes(bytes: u64) -> String {
@@ -198,7 +204,8 @@ mod tests {
         };
 
         assert_eq!(info.size_display(), "1.00 MB");
-        assert!(!info.timestamp_display().is_empty());
+        assert!(info.timestamp_display().contains('T'), "must be ISO-8601");
+        assert!(info.timestamp_display().ends_with('Z'), "must end with Z");
     }
 
     #[test]

@@ -49,17 +49,29 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// // Routes to introspection.schema_response
     /// ```
     pub(super) fn classify_query(&self, query: &str) -> Result<QueryType> {
+        self.classify_query_with_parse(query).map(|(qt, _)| qt)
+    }
+
+    /// Classify a query and simultaneously return the parsed AST for `Regular`
+    /// queries, avoiding a redundant parse in the multi-root pipeline path.
+    ///
+    /// Returns `(QueryType, Some(ParsedQuery))` for `Regular` queries and
+    /// `(QueryType, None)` for all other types (introspection, federation, etc.).
+    pub(super) fn classify_query_with_parse(
+        &self,
+        query: &str,
+    ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
         // Check for introspection queries first (highest priority).
         // These use a cheap text scan to avoid parsing queries that only
         // need the built-in introspection response.
         if let Some(introspection_type) = self.detect_introspection(query) {
-            return Ok(introspection_type);
+            return Ok((introspection_type, None));
         }
 
         // Check for federation queries (higher priority than regular queries).
         // Also a text scan — federation queries bypass normal execution.
         if let Some(federation_type) = self.detect_federation(query) {
-            return Ok(federation_type);
+            return Ok((federation_type, None));
         }
 
         // Parse the query to extract the root field name and operation type.
@@ -72,26 +84,27 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Relay global node lookup: root field is exactly "node" on a query operation.
         if parsed.operation_type == "query" && root_field == "node" {
-            return Ok(QueryType::NodeQuery);
+            return Ok((QueryType::NodeQuery, None));
         }
 
         // Mutations are routed by operation type
         if parsed.operation_type == "mutation" {
-            return Ok(QueryType::Mutation(root_field.clone()));
+            return Ok((QueryType::Mutation(root_field.clone()), None));
         }
 
         // Check if it's an aggregate query (ends with _aggregate)
         if root_field.ends_with("_aggregate") {
-            return Ok(QueryType::Aggregate(root_field.clone()));
+            return Ok((QueryType::Aggregate(root_field.clone()), None));
         }
 
         // Check if it's a window query (ends with _window)
         if root_field.ends_with("_window") {
-            return Ok(QueryType::Window(root_field.clone()));
+            return Ok((QueryType::Window(root_field.clone()), None));
         }
 
-        // Otherwise, it's a regular query
-        Ok(QueryType::Regular)
+        // Regular query — return the already-parsed AST to avoid re-parsing in
+        // the multi-root pipeline path.
+        Ok((QueryType::Regular, Some(parsed)))
     }
 
     /// Detect if a query is an introspection query.

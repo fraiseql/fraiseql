@@ -1,7 +1,7 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.0.0 (Released March 2026)
-**In Development**: v2.1.0-dev (active branch: `dev`)
+**Current Stable**: v2.1.0 (Released March 2026)
+**In Development**: v2.2.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
@@ -51,9 +51,9 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 
 ---
 
-## v2.1.0 - Performance and Observability
+## v2.1.0 - Performance and Observability ✅ Released March 2026
 
-**Target**: Q3 2026
+**Released**: March 2026
 
 With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query optimization, and performance guarantees.
 
@@ -71,13 +71,12 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 - **Federation circuit breaker** - Per-entity-type thresholds with half-open recovery
 - **EXPLAIN introspection endpoint** - `POST /api/v1/admin/explain` runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` with caller-supplied parameters; returns `{query_name, sql_source, generated_sql, parameters, explain_output}` (`fraiseql-core/src/runtime/executor/explain.rs`)
 
-### Remaining
-- **Connection pool auto-tuning** - Adaptive pool sizing based on queue depth and p99 latency
-  percentiles; prevents starvation spikes without exhausting `max_connections` on the database
-- **Multi-root query pipelining** - Send all root-field SQL statements in a single PostgreSQL
-  extended-query pipeline round-trip; eliminates one network RTT per multi-field operation
-- **Performance dashboard** - Pre-built Grafana dashboard consuming the existing Prometheus metrics
-  endpoint; covers query latency percentiles, pool health, error rates, and cache hit ratio
+- **Connection pool auto-tuning** - Adaptive pool sizing based on queue depth; prevents starvation
+  spikes without exhausting `max_connections`; `fraiseql_pool_tuning_*` Prometheus metrics
+- **Multi-root query pipelining** - Parallel execution of multi-root GraphQL queries via
+  `try_join_all`; `fraiseql_multi_root_queries_total` counter
+- **Performance dashboard** - Pre-built 12-panel Grafana 10+ dashboard served from
+  `GET /api/v1/admin/grafana-dashboard`; covers latency percentiles, pool health, cache, and errors
 
 > **Architectural note**: FraiseQL's single-view-per-type model makes several classic GraphQL
 > performance features unnecessary. N+1 queries cannot occur (no runtime relationship traversal).
@@ -143,6 +142,17 @@ Items considered valuable but not scheduled. Prioritized based on customer deman
 - **Migration guides** - Automated documentation for schema evolution
 - **Plugin system** - User-defined resolvers and middleware (likely post-v2 major version)
 - **Visual schema editor** - Web-based schema authoring for non-developers
+
+---
+
+## Known Limitations
+
+### Pool Auto-Tuner (recommendation mode)
+The pool auto-tuner (`PoolTuningConfig`) evaluates connection pool pressure and emits
+scaling decisions, but cannot resize the pool at runtime because `deadpool-postgres` has
+no `resize()` API. To act on tuner recommendations, operators must restart the server
+with an adjusted `max_connections` value. A future migration to a pool library with
+runtime resize support (e.g. `bb8`) would unlock active tuning.
 
 ---
 

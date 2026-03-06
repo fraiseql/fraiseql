@@ -2709,7 +2709,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
@@ -2724,7 +2724,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2757,7 +2757,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2792,7 +2792,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2819,7 +2819,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -2872,7 +2872,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "bb8",
@@ -2900,7 +2900,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "axum",
  "serde",
@@ -2912,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-executor"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "fraiseql-core",
  "fraiseql-error",
@@ -2921,7 +2921,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "arrow",
  "async-nats",
@@ -2960,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers-macros"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2972,7 +2972,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3073,7 +3073,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-utils"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "fraiseql-core",
@@ -3085,7 +3085,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-webhooks"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3110,7 +3110,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-wire"
-version = "2.1.0-dev"
+version = "2.1.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",

@@ -187,6 +187,9 @@ pub mod arrow;
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
+// Connection pool management and auto-tuning
+pub mod pool;
+
 // Trusted documents (query allowlist)
 pub mod trusted_documents;
 

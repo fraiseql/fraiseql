@@ -239,7 +239,9 @@ mod tests {
 
     #[test]
     fn test_resolve_database_url_no_source() {
-        let _guard = GLOBAL_STATE_LOCK.lock().unwrap();
+        let _guard = GLOBAL_STATE_LOCK
+            .lock()
+            .expect("GLOBAL_STATE_LOCK poisoned; a previous test panicked mid-migration");
 
         let tmp = tempfile::tempdir().unwrap();
         let original = std::env::current_dir().unwrap();
@@ -255,7 +257,9 @@ mod tests {
 
     #[test]
     fn test_resolve_database_url_from_env() {
-        let _guard = GLOBAL_STATE_LOCK.lock().unwrap();
+        let _guard = GLOBAL_STATE_LOCK
+            .lock()
+            .expect("GLOBAL_STATE_LOCK poisoned; a previous test panicked mid-migration");
 
         let tmp = tempfile::tempdir().unwrap();
         let original = std::env::current_dir().unwrap();
