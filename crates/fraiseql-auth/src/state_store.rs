@@ -16,13 +16,23 @@ use crate::error::Result;
 /// # Examples
 ///
 /// Use in-memory store for single-instance deployments:
-/// ```ignore
+/// ```rust
+/// use std::sync::Arc;
+/// use fraiseql_auth::state_store::InMemoryStateStore;
 /// let state_store = Arc::new(InMemoryStateStore::new());
 /// ```
 ///
 /// Use Redis for distributed deployments:
-/// ```ignore
-/// let state_store = Arc::new(RedisStateStore::new(redis_client).await?);
+/// ```no_run
+/// // Requires: live Redis server.
+/// use std::sync::Arc;
+/// # async fn example() -> fraiseql_auth::error::Result<()> {
+/// # #[cfg(feature = "redis-rate-limiting")] {
+/// use fraiseql_auth::state_store::RedisStateStore;
+/// let state_store = Arc::new(RedisStateStore::new("redis://localhost:6379").await?);
+/// # }
+/// # Ok(())
+/// # }
 /// ```
 #[async_trait]
 pub trait StateStore: Send + Sync {
@@ -149,8 +159,13 @@ impl RedisStateStore {
     /// * `redis_url` - Connection string (e.g., "redis://localhost:6379")
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Redis server.
+    /// # async fn example() -> fraiseql_auth::error::Result<()> {
+    /// use fraiseql_auth::state_store::RedisStateStore;
     /// let store = RedisStateStore::new("redis://localhost:6379").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn new(redis_url: &str) -> Result<Self> {
         let client =

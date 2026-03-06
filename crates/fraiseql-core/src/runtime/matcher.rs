@@ -67,7 +67,9 @@ impl QueryMatcher {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: compiled schema.
+    /// // See: tests/integration/ for runnable examples.
     /// let matcher = QueryMatcher::new(schema);
     /// let query = "query { users { id name } }";
     /// let matched = matcher.match_query(query, None)?;

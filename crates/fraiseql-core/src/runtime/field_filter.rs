@@ -80,7 +80,8 @@ pub fn classify_field_access(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: SecurityContext and SecurityConfig from compiled schema.
 /// let accessible = filter_fields(&context, &config, &all_fields);
 /// ```
 pub fn filter_fields<'a>(

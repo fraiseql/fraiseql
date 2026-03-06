@@ -48,10 +48,13 @@ const KEY_SIZE: usize = 32; // 256 bits for AES-256
 /// which is enabled in this crate's `Cargo.toml`).
 ///
 /// # Example
-/// ```ignore
-/// let cipher = FieldEncryption::new("encryption-key-32b".as_bytes())?;
-/// let encrypted = cipher.encrypt("user@example.com")?;
-/// let decrypted = cipher.decrypt(&encrypted)?;
+/// ```rust
+/// use fraiseql_secrets::FieldEncryption;
+/// // Key must be exactly 32 bytes for AES-256-GCM.
+/// let key = b"12345678901234567890123456789012"; // 32 bytes
+/// let cipher = FieldEncryption::new(key).unwrap();
+/// let encrypted = cipher.encrypt("user@example.com").unwrap();
+/// let decrypted = cipher.decrypt(&encrypted).unwrap();
 /// assert_eq!(decrypted, "user@example.com");
 /// ```
 pub struct FieldEncryption {

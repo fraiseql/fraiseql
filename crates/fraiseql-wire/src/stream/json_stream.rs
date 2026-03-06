@@ -190,10 +190,15 @@ impl JsonStream {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut stream = client.query::<T>("entity").execute().await?;
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// use std::time::Duration;
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.set_pause_timeout(Duration::from_secs(5));
     /// stream.pause().await?;  // Will auto-resume after 5 seconds
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn set_pause_timeout(&mut self, duration: Duration) {
         self.ensure_pause_resume().pause_timeout = Some(duration);
@@ -225,10 +230,15 @@ impl JsonStream {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.pause().await?;
     /// // Background task stops reading
     /// // Consumer can still poll for remaining buffered items
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn pause(&mut self) -> Result<()> {
         let entity = self.entity.clone();
@@ -275,10 +285,15 @@ impl JsonStream {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.resume().await?;
     /// // Background task resumes reading
     /// // Consumer can poll for more items
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn resume(&mut self) -> Result<()> {
         // Update lightweight atomic state first (fast path)
@@ -337,8 +352,13 @@ impl JsonStream {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let mut stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// stream.pause_with_reason("backpressure: consumer busy").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn pause_with_reason(&mut self, reason: &str) -> Result<()> {
         tracing::debug!("pausing stream: {}", reason);
@@ -400,9 +420,14 @@ impl JsonStream {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres streaming connection.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// let stream = client.query::<serde_json::Value>("entity").execute().await?;
     /// let stats = stream.stats();
     /// println!("Buffered: {}, Yielded: {}", stats.items_buffered, stats.total_rows_yielded);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn stats(&self) -> StreamStats {
         let items_buffered = self.receiver.len();

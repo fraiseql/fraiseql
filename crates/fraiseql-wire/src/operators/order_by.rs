@@ -15,24 +15,26 @@ use std::fmt;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_wire::operators::{OrderByClause, FieldSource, SortOrder, NullsHandling};
+///
 /// // Order by JSONB field with collation
-/// OrderByClause {
+/// let _ = OrderByClause {
 ///     field: "name".to_string(),
 ///     field_source: FieldSource::JsonbPayload,
 ///     direction: SortOrder::Asc,
 ///     collation: Some("en-US".to_string()),
 ///     nulls_handling: None,
-/// }
+/// };
 ///
 /// // Order by direct column with NULLS LAST
-/// OrderByClause {
+/// let _ = OrderByClause {
 ///     field: "created_at".to_string(),
 ///     field_source: FieldSource::DirectColumn,
 ///     direction: SortOrder::Desc,
 ///     collation: None,
 ///     nulls_handling: Some(NullsHandling::Last),
-/// }
+/// };
 /// ```
 #[derive(Debug, Clone)]
 pub struct OrderByClause {

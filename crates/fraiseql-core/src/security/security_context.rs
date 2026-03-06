@@ -123,8 +123,12 @@ impl SecurityContext {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let context = SecurityContext::from_user(authenticated_user, "req-123")?;
+    /// ```no_run
+    /// // Requires: a live AuthenticatedUser from JWT validation.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::security::SecurityContext;
+    /// # use fraiseql_core::security::AuthenticatedUser;
+    /// let context = SecurityContext::from_user(authenticated_user, "req-123".to_string());
     /// ```
     pub fn from_user(user: AuthenticatedUser, request_id: String) -> Self {
         SecurityContext {
@@ -278,9 +282,12 @@ impl SecurityContext {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let config = SecurityConfig::new();
-    /// let can_access = context.can_access_scope(&config, "read:User.email")?;
+    /// ```no_run
+    /// // Requires: a SecurityConfig from a compiled schema.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::security::SecurityContext;
+    /// # use fraiseql_core::schema::SecurityConfig;
+    /// let can_access = context.can_access_scope(&config, "read:User.email");
     /// ```
     #[must_use]
     pub fn can_access_scope(

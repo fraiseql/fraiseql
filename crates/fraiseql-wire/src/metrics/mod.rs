@@ -16,9 +16,11 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live Postgres server.
 //! use fraiseql_wire::metrics;
 //!
+//! # async fn example() -> fraiseql_wire::Result<()> {
 //! // Metrics are recorded automatically during query execution
 //! let client = fraiseql_wire::FraiseClient::connect("postgres://...").await?;
 //! let mut stream = client.query::<serde_json::Value>("users").execute().await?;
@@ -28,6 +30,8 @@
 //! // - fraiseql_query_startup_duration_ms{entity="users"}
 //! // - fraiseql_rows_processed_total{entity="users", status="ok"}
 //! // - fraiseql_query_total_duration_ms{entity="users"}
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod counters;

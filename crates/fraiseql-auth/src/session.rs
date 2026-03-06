@@ -50,28 +50,58 @@ pub struct TokenPair {
 /// # Examples
 ///
 /// Implement for PostgreSQL:
-/// ```ignore
+/// ```no_run
+/// // Requires: sqlx PgPool and live PostgreSQL connection.
+/// use async_trait::async_trait;
+/// use fraiseql_auth::session::{SessionStore, TokenPair};
+/// use fraiseql_auth::error::Result;
+///
 /// pub struct PostgresSessionStore {
-///     pool: PgPool,
+///     // pool: sqlx::PgPool,
 /// }
 ///
 /// #[async_trait]
 /// impl SessionStore for PostgresSessionStore {
-///     async fn create_session(...) -> Result<TokenPair> { ... }
-///     // ... other methods
+///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
+///         unimplemented!()
+///     }
+///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<Option<fraiseql_auth::session::SessionData>> {
+///         unimplemented!()
+///     }
+///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
+///         unimplemented!()
+///     }
+///     async fn cleanup_expired(&self) -> Result<()> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 ///
 /// Implement for Redis:
-/// ```ignore
+/// ```no_run
+/// // Requires: redis crate and live Redis connection.
+/// use async_trait::async_trait;
+/// use fraiseql_auth::session::{SessionStore, TokenPair};
+/// use fraiseql_auth::error::Result;
+///
 /// pub struct RedisSessionStore {
-///     client: redis::Client,
+///     // client: redis::Client,
 /// }
 ///
 /// #[async_trait]
 /// impl SessionStore for RedisSessionStore {
-///     async fn create_session(...) -> Result<TokenPair> { ... }
-///     // ... other methods
+///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
+///         unimplemented!()
+///     }
+///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<Option<fraiseql_auth::session::SessionData>> {
+///         unimplemented!()
+///     }
+///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
+///         unimplemented!()
+///     }
+///     async fn cleanup_expired(&self) -> Result<()> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 #[async_trait]

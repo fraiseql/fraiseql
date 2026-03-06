@@ -40,8 +40,14 @@ impl MultiFileLoader {
     /// - If duplicate names are found (with file paths)
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a "schema/" directory containing JSON schema files on disk.
+    /// use fraiseql_cli::schema::multi_file_loader::MultiFileLoader;
+    ///
+    /// # fn example() -> anyhow::Result<()> {
     /// let merged = MultiFileLoader::load_from_directory("schema/")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn load_from_directory(dir_path: &str) -> Result<Value> {
         let result = Self::load_from_directory_with_tracking(dir_path)?;

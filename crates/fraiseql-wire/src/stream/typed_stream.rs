@@ -25,8 +25,10 @@ use std::task::{Context, Poll};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live Postgres connection via FraiseClient.
 /// use serde::Deserialize;
+/// use futures::stream::StreamExt;
 ///
 /// #[derive(Deserialize)]
 /// struct Project {
@@ -34,6 +36,7 @@ use std::task::{Context, Poll};
 ///     name: String,
 /// }
 ///
+/// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
 /// let mut stream = client.query::<Project>("projects").execute().await?;
 /// while let Some(result) = stream.next().await {
 ///     let project: Project = result?;
@@ -43,9 +46,11 @@ use std::task::{Context, Poll};
 /// // Escape hatch: Always use Value if needed
 /// let mut stream = client.query::<serde_json::Value>("projects").execute().await?;
 /// while let Some(result) = stream.next().await {
-///     let json: Value = result?;
+///     let json: serde_json::Value = result?;
 ///     println!("Raw JSON: {:?}", json);
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub struct TypedJsonStream<T: DeserializeOwned> {
     /// Inner stream of JSON values

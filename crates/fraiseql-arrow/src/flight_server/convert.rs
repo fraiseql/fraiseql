@@ -95,7 +95,7 @@ pub(crate) fn schema_to_flight_data(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```text
 /// let sql = build_optimized_sql(
 ///     "va_orders",
 ///     None,
@@ -103,7 +103,7 @@ pub(crate) fn schema_to_flight_data(
 ///     Some(100),
 ///     Some(0)
 /// )?;
-/// // Returns: "SELECT * FROM \"va_orders\" ORDER BY \"created_at\" DESC LIMIT 100 OFFSET 0"
+/// // Returns: SELECT * FROM "va_orders" ORDER BY "created_at" DESC LIMIT 100 OFFSET 0
 /// ```
 pub(crate) fn build_optimized_sql(
     view: &str,
@@ -342,7 +342,7 @@ pub(crate) fn decode_flight_data_to_batch(
 /// Quoted identifier safe for SQL
 ///
 /// # Example
-/// ```ignore
+/// ```text
 /// assert_eq!(quote_identifier("order"), "\"order\"");
 /// assert_eq!(quote_identifier("my\"table"), "\"my\"\"table\"");
 /// ```

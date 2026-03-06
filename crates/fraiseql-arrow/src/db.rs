@@ -56,12 +56,16 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// # Example
 ///
-/// ```ignore
-/// // Implemented by a wrapper in fraiseql-server
+/// ```no_run
+/// // Requires: fraiseql-core PostgresAdapter and a running PostgreSQL database.
+/// use std::{collections::HashMap, sync::Arc};
+/// use fraiseql_arrow::db::{DatabaseAdapter, DatabaseError, DatabaseResult};
+///
 /// struct FlightDatabaseAdapter {
-///     inner: Arc<PostgresAdapter>,
+///     inner: Arc<fraiseql_core::db::PostgresAdapter>,
 /// }
 ///
+/// #[async_trait::async_trait]
 /// impl DatabaseAdapter for FlightDatabaseAdapter {
 ///     async fn execute_raw_query(
 ///         &self,

@@ -81,7 +81,9 @@ impl ConnectionConfig {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::connection::ConnectionConfig;
+    /// use std::time::Duration;
     /// let config = ConnectionConfig::builder("mydb", "user")
     ///     .connect_timeout(Duration::from_secs(10))
     ///     .statement_timeout(Duration::from_secs(30))
@@ -123,7 +125,9 @@ impl ConnectionConfig {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_wire::connection::ConnectionConfig;
+/// use std::time::Duration;
 /// let config = ConnectionConfig::builder("mydb", "user")
 ///     .password("secret")
 ///     .connect_timeout(Duration::from_secs(10))

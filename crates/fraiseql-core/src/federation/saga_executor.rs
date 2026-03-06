@@ -54,7 +54,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+//! // See: tests/integration/ for runnable examples.
 //! let executor = SagaExecutor::new();
 //!
 //! // Execute a single step
@@ -186,7 +188,9 @@ impl SagaExecutor {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let executor = SagaExecutor::new();
     /// let result = executor.execute_step(
     ///     saga_id,

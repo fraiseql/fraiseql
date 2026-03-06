@@ -9,7 +9,8 @@ use crate::federation::types::FederationMetadata;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_core::federation::mutation_detector::is_mutation;
 /// assert!(is_mutation("mutation { updateUser { id } }"));
 /// assert!(!is_mutation("query { user { id } }"));
 /// ```

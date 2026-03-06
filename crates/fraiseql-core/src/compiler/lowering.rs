@@ -18,7 +18,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled AuthoringIR from schema parsing.
 //! use fraiseql_core::compiler::lowering::{SqlTemplateGenerator, DatabaseTarget};
 //! use fraiseql_core::compiler::ir::AuthoringIR;
 //! # use fraiseql_core::error::Result;

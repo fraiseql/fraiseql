@@ -73,7 +73,8 @@ impl QueryPlanner {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a QueryMatch from compiled schema matching.
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;
     /// assert!(!plan.sql.is_empty());

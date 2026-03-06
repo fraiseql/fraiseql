@@ -107,11 +107,13 @@ pub trait RLSPolicy: Send + Sync {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let rls = DefaultRLSPolicy::new(schema);
-    /// let context = SecurityContext { user_id: "u1", roles: vec!["user"] };
-    /// let filter = rls.evaluate(&context, "Post")?;
+    /// ```no_run
+    /// // Requires: a SecurityContext built from authenticated request metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+    /// let rls = DefaultRLSPolicy::new();
     /// // filter is Some(WhereClause::Field { path: ["author_id"], operator: Eq, value: "u1" })
+    /// let filter = rls.evaluate(&context, "Post").unwrap();
     /// ```
     fn evaluate(&self, context: &SecurityContext, type_name: &str) -> Result<Option<WhereClause>>;
 

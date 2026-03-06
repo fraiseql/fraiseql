@@ -56,16 +56,19 @@ impl WindowProjector {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let rows = vec![
-    ///     hashmap!{
-    ///         "revenue" => json!(100.00),
-    ///         "category" => json!("Electronics"),
-    ///         "rank" => json!(1)
-    ///     }
-    /// ];
+    /// ```no_run
+    /// // Requires: a WindowExecutionPlan built from compiled schema metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// use std::collections::HashMap;
+    /// use serde_json::json;
+    /// # use fraiseql_core::runtime::WindowProjector;
     ///
-    /// let result = WindowProjector::project(rows, &plan)?;
+    /// let mut row = HashMap::new();
+    /// row.insert("revenue".to_string(), json!(100.00));
+    /// row.insert("category".to_string(), json!("Electronics"));
+    /// row.insert("rank".to_string(), json!(1));
+    /// let rows = vec![row];
+    /// // let result = WindowProjector::project(rows, &plan)?;
     /// // result: [{"revenue": 100.00, "category": "Electronics", "rank": 1}]
     /// ```
     pub fn project(
@@ -106,10 +109,13 @@ impl WindowProjector {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::WindowProjector;
+    /// # use serde_json::json;
     /// let projected = json!([{"rank": 1}, {"rank": 2}]);
     /// let response = WindowProjector::wrap_in_data_envelope(projected, "sales_window");
     /// // { "data": { "sales_window": [{"rank": 1}, {"rank": 2}] } }
+    /// assert!(response.get("data").is_some());
     /// ```
     #[must_use]
     pub fn wrap_in_data_envelope(projected: Value, query_name: &str) -> Value {

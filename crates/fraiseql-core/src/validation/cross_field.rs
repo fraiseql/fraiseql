@@ -5,15 +5,17 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
+//! use fraiseql_core::validation::ValidationRule;
+//!
 //! // Date range validation: start_date < end_date
-//! let rule = ValidationRule::CrossField {
+//! let _rule = ValidationRule::CrossField {
 //!     field: "end_date".to_string(),
 //!     operator: "gt".to_string(),
 //! };
 //!
 //! // Numeric range: min < max
-//! let rule = ValidationRule::CrossField {
+//! let _rule = ValidationRule::CrossField {
 //!     field: "max_value".to_string(),
 //!     operator: "lt".to_string(),
 //! };

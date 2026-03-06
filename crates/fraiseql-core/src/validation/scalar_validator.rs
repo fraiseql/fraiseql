@@ -90,28 +90,30 @@ impl std::error::Error for ScalarValidationError {}
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use fraiseql_core::validation::{validate_custom_scalar, ValidationContext, CustomScalar};
-/// use serde_json::json;
+/// use fraiseql_core::error::Result;
+/// use serde_json::{Value, json};
 ///
+/// #[derive(Debug)]
 /// struct Email;
 /// impl CustomScalar for Email {
 ///     fn name(&self) -> &str { "Email" }
-///     fn serialize(&self, value: &serde_json::Value) -> Result<serde_json::Value> { Ok(value.clone()) }
-///     fn parse_value(&self, value: &serde_json::Value) -> Result<serde_json::Value> {
+///     fn serialize(&self, value: &Value) -> Result<Value> { Ok(value.clone()) }
+///     fn parse_value(&self, value: &Value) -> Result<Value> {
 ///         let str_val = value.as_str().unwrap();
 ///         if !str_val.contains('@') {
-///             return Err(crate::error::FraiseQLError::validation("invalid email"));
+///             return Err(fraiseql_core::error::FraiseQLError::validation("invalid email"));
 ///         }
 ///         Ok(value.clone())
 ///     }
-///     fn parse_literal(&self, ast: &serde_json::Value) -> Result<serde_json::Value> {
+///     fn parse_literal(&self, ast: &Value) -> Result<Value> {
 ///         self.parse_value(ast)
 ///     }
 /// }
 ///
 /// let email = Email;
-/// let result = validate_custom_scalar(&email, &json!("test@example.com"), ValidationContext::ParseValue)?;
+/// let result = validate_custom_scalar(&email, &json!("test@example.com"), ValidationContext::ParseValue).unwrap();
 /// assert_eq!(result, json!("test@example.com"));
 /// ```
 pub fn validate_custom_scalar(

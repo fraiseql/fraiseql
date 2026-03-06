@@ -539,7 +539,8 @@ impl ObserverExecutor {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: tokio async runtime.
     /// use std::sync::Arc;
     /// use fraiseql_observers::{ObserverExecutor, EventMatcher};
     /// use fraiseql_observers::transport::{InMemoryTransport, EventFilter};

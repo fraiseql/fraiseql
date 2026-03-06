@@ -23,7 +23,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live subscription infrastructure (schema + transport).
 //! use fraiseql_core::runtime::subscription::{
 //!     SubscriptionManager, SubscriptionEvent, SubscriptionId,
 //! };

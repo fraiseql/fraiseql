@@ -26,14 +26,14 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// ```ignore
-/// use fraiseql_core::filters::ExtendedOperator;
+/// ```rust
+/// use fraiseql_db::filters::ExtendedOperator;
 ///
 /// // Email domain extraction
 /// let op = ExtendedOperator::EmailDomainEq("example.com".to_string());
 ///
 /// // Country lookup
-/// let op = ExtendedOperator::CountryInContinent("Europe".to_string());
+/// let _op = ExtendedOperator::CountryInContinent("Europe".to_string());
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]

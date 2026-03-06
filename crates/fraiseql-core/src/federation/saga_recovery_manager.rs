@@ -31,7 +31,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::federation::saga_recovery_manager::{
 //!     SagaRecoveryManager, RecoveryConfig,
 //! };
@@ -159,7 +161,9 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let config = RecoveryConfig::default();
     /// let manager = SagaRecoveryManager::new(Arc::new(store), config);
     /// ```
@@ -179,7 +183,9 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// assert!(!manager.is_running());
     /// manager.start_background_loop().await?;
     /// assert!(manager.is_running());
@@ -195,7 +201,9 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let stats = manager.get_stats();
     /// println!("Processed {} sagas in {} iterations", stats.sagas_processed, stats.iterations);
     /// ```
@@ -214,7 +222,9 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// manager.start_background_loop().await?;
     /// // Loop now runs in background
     /// ```
@@ -259,7 +269,9 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// manager.stop_background_loop().await?;
     /// // Loop stops after current iteration
     /// ```
@@ -281,7 +293,9 @@ impl SagaRecoveryManager {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// manager.run_iteration().await?;
     /// let stats = manager.get_stats();
     /// assert!(stats.iterations > 0);

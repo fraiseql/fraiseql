@@ -14,7 +14,8 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live HashiCorp Vault instance.
 //! use fraiseql_core::security::kms::{VaultConfig, VaultKmsProvider, BaseKmsProvider};
 //!
 //! let config = VaultConfig::new("https://vault.local".to_string(), "token".to_string());

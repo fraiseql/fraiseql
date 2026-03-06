@@ -143,10 +143,13 @@ impl ToSql for QueryParam {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_db::types::db_types::{QueryParam, to_sql_param};
+///
 /// let param = QueryParam::BigInt(42);
 /// let boxed = to_sql_param(&param);
 /// // boxed can be passed to tokio-postgres query methods
+/// drop(boxed);
 /// ```
 pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
     match param {

@@ -119,13 +119,19 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// via the HashiCorp Vault HTTP API.
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// // Requires: live HashiCorp Vault server.
+/// # async fn example() -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+/// use fraiseql_secrets::secrets_manager::VaultBackend;
+/// use fraiseql_secrets::secrets_manager::SecretsBackend;
 /// let vault = VaultBackend::new(
 ///     "https://vault.example.com:8200",
 ///     "s.xxxxxxxxxxxxxxxx"
 /// );
 /// let secret = vault.get_secret("database/creds/fraiseql").await?;
 /// let (secret, expiry) = vault.get_secret_with_expiry("database/creds/fraiseql").await?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Features

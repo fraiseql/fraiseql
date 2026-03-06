@@ -23,7 +23,10 @@ struct OidcDiscovery {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live OIDC endpoint (e.g., Google, Logto, Ory).
+/// # async fn example() -> fraiseql_auth::error::Result<()> {
+/// use fraiseql_auth::oidc_provider::OidcProvider;
 /// let provider = OidcProvider::new(
 ///     "google",
 ///     "https://accounts.google.com",
@@ -31,6 +34,8 @@ struct OidcDiscovery {
 ///     "client_secret",
 ///     "http://localhost:8000/auth/callback",
 /// ).await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct OidcProvider {
     name:          String,

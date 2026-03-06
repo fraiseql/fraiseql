@@ -10,7 +10,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+//! // See: tests/integration/ for runnable examples.
 //! let subgraphs = vec![
 //!     ("users".to_string(), users_metadata),
 //!     ("orders".to_string(), orders_metadata),
@@ -400,7 +402,9 @@ impl CompositionValidator {
     /// Type conflicts always produce errors (safest default).
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let validator = CompositionValidator::new();
     /// ```
     pub fn new() -> Self {
@@ -420,7 +424,9 @@ impl CompositionValidator {
     /// Returns vector of all composition errors if validation or composition fails.
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let subgraphs = vec![
     ///     ("users".to_string(), users_metadata),
     ///     ("orders".to_string(), orders_metadata),

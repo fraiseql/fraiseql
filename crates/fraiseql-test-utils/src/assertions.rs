@@ -9,7 +9,10 @@
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_json_key;
+///
 /// let json = json!({"user": {"id": 123}});
 /// assert_json_key!(&json, "user.id", 123);
 /// ```
@@ -43,7 +46,11 @@ macro_rules! assert_json_key {
 ///
 /// Panics if the response contains a non-empty `errors` array.
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_no_graphql_errors;
+///
+/// let response = json!({"data": {"user": {"id": 1}}});
 /// assert_no_graphql_errors(&response);
 /// ```
 pub fn assert_no_graphql_errors(response: &serde_json::Value) {
@@ -62,8 +69,13 @@ pub fn assert_no_graphql_errors(response: &serde_json::Value) {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_has_data;
+///
+/// let response = json!({"data": {"user": {"id": 1}}});
 /// let data = assert_has_data(&response);
+/// assert_eq!(data["user"]["id"], 1);
 /// ```
 pub fn assert_has_data(response: &serde_json::Value) -> &serde_json::Value {
     response.get("data").expect("Response should have 'data' field")
@@ -77,7 +89,11 @@ pub fn assert_has_data(response: &serde_json::Value) -> &serde_json::Value {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_graphql_success;
+///
+/// let response = json!({"data": {"users": []}});
 /// assert_graphql_success(&response);
 /// ```
 pub fn assert_graphql_success(response: &serde_json::Value) {
@@ -93,7 +109,11 @@ pub fn assert_graphql_success(response: &serde_json::Value) {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_graphql_error_contains;
+///
+/// let response = json!({"errors": [{"message": "Field 'id' not found"}]});
 /// assert_graphql_error_contains(&response, "not found");
 /// ```
 pub fn assert_graphql_error_contains(response: &serde_json::Value, expected: &str) {
@@ -131,8 +151,12 @@ pub fn assert_graphql_error_contains(response: &serde_json::Value, expected: &st
 ///
 /// # Example
 ///
-/// ```ignore
-/// assert_graphql_error_code(&response, "UNAUTHENTICATED");
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_graphql_error_code;
+///
+/// let response = json!({"errors": [{"message": "Forbidden", "extensions": {"code": "FORBIDDEN"}}]});
+/// assert_graphql_error_code(&response, "FORBIDDEN");
 /// ```
 pub fn assert_graphql_error_code(response: &serde_json::Value, code: &str) {
     let errors = response
@@ -178,7 +202,11 @@ pub fn assert_graphql_error_code(response: &serde_json::Value, code: &str) {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use serde_json::json;
+/// use fraiseql_test_utils::assert_field_path;
+///
+/// let response = json!({"data": {"user": {"email": "alice@example.com"}}});
 /// assert_field_path(&response, "data.user.email", &json!("alice@example.com"));
 /// ```
 pub fn assert_field_path(

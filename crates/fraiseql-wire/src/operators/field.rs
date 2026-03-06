@@ -12,15 +12,17 @@ use std::fmt;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_wire::operators::Field;
+///
 /// // JSONB field: (data->>'name')
-/// Field::JsonbField("name".to_string())
+/// let _ = Field::JsonbField("name".to_string());
 ///
 /// // Direct column: created_at
-/// Field::DirectColumn("created_at".to_string())
+/// let _ = Field::DirectColumn("created_at".to_string());
 ///
 /// // Nested JSONB: (data->'user'->>'name')
-/// Field::JsonbPath(vec!["user".to_string(), "name".to_string()])
+/// let _ = Field::JsonbPath(vec!["user".to_string(), "name".to_string()]);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Field {
@@ -126,12 +128,14 @@ impl fmt::Display for Field {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// Value::String("John".to_string())
-/// Value::Number(42.0)
-/// Value::Bool(true)
-/// Value::Null
-/// Value::Array(vec![Value::String("a".to_string()), Value::String("b".to_string())])
+/// ```rust
+/// use fraiseql_wire::operators::Value;
+///
+/// let _ = Value::String("John".to_string());
+/// let _ = Value::Number(42.0);
+/// let _ = Value::Bool(true);
+/// let _ = Value::Null;
+/// let _ = Value::Array(vec![Value::String("a".to_string()), Value::String("b".to_string())]);
 /// ```
 #[derive(Debug, Clone)]
 pub enum Value {

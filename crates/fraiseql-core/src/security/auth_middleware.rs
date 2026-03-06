@@ -32,7 +32,8 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live HTTP request context.
 //! use fraiseql_core::security::{AuthMiddleware, AuthConfig, SigningKey};
 //!
 //! // Create middleware with HS256 signing key

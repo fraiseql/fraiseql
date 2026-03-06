@@ -59,13 +59,15 @@ fn infer_type_cast(value: &Value) -> &'static str {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: fraiseql_wire::operators re-exports; Value has no PartialEq so assert_eq on params omitted.
+/// use std::collections::HashMap;
+/// use fraiseql_wire::operators::{Field, Value, WhereOperator, generate_where_operator_sql};
 /// let mut param_index = 0;
 /// let mut params = HashMap::new();
 /// let op = WhereOperator::Eq(Field::JsonbField("name".to_string()), Value::String("John".to_string()));
-/// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params)?;
-/// assert_eq!(sql, "(data->'name') = $1");
-/// assert_eq!(params[&1], Value::String("John".to_string()));
+/// let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+/// assert_eq!(sql, "(data->'name')::text = $1");
 /// ```
 pub fn generate_where_operator_sql(
     operator: &WhereOperator,

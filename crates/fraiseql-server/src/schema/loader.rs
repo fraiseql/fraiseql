@@ -44,9 +44,14 @@ impl CompiledSchemaLoader {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: schema.compiled.json file on disk.
+    /// # use fraiseql_server::schema::loader::CompiledSchemaLoader;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let loader = CompiledSchemaLoader::new("schema.compiled.json");
     /// let schema = loader.load().await?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[must_use]
     pub fn new<P: AsRef<Path>>(path: P) -> Self {
@@ -69,9 +74,14 @@ impl CompiledSchemaLoader {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: schema.compiled.json file on disk.
+    /// # use fraiseql_server::schema::loader::CompiledSchemaLoader;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let loader = CompiledSchemaLoader::new("schema.compiled.json");
     /// let schema = loader.load().await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn load(&self) -> Result<CompiledSchema, SchemaLoadError> {
         info!(path = %self.path.display(), "Loading compiled schema");

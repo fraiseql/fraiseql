@@ -18,8 +18,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef, ValidationRule};
+//! ```
+//! use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef};
 //!
 //! let registry = CustomTypeRegistry::new(Default::default());
 //! let email_def = CustomTypeDef {
@@ -30,7 +30,7 @@
 //!     elo_expression: Some("matches(value, /^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$/)".to_string()),
 //!     base_type: None,
 //! };
-//! registry.register("Email".to_string(), email_def)?;
+//! registry.register("Email".to_string(), email_def).unwrap();
 //! assert!(registry.exists("Email"));
 //! ```
 
@@ -124,7 +124,7 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use fraiseql_core::validation::CustomTypeRegistry;
     ///
     /// let registry = CustomTypeRegistry::new(Default::default());
@@ -153,8 +153,10 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string()))?;
+    /// ```
+    /// use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef};
+    /// let registry = CustomTypeRegistry::new(Default::default());
+    /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string())).unwrap();
     /// ```
     pub fn register(&self, name: String, def: CustomTypeDef) -> Result<()> {
         let mut types = self.types.write().map_err(|_| FraiseQLError::Validation {
@@ -191,9 +193,12 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef};
+    /// let registry = CustomTypeRegistry::new(Default::default());
+    /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string())).unwrap();
     /// if let Some(def) = registry.get("Email") {
-    ///     println!("Email: {}", def.description.unwrap_or_default());
+    ///     let _ = def.description.unwrap_or_default();
     /// }
     /// ```
     pub fn get(&self, name: &str) -> Option<CustomTypeDef> {
@@ -205,7 +210,10 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef};
+    /// let registry = CustomTypeRegistry::new(Default::default());
+    /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string())).unwrap();
     /// assert!(registry.exists("Email"));
     /// assert!(!registry.exists("UnknownType"));
     /// ```
@@ -225,9 +233,11 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef};
+    /// let registry = CustomTypeRegistry::new(Default::default());
     /// assert_eq!(registry.count(), 0);
-    /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string()))?;
+    /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string())).unwrap();
     /// assert_eq!(registry.count(), 1);
     /// ```
     pub fn count(&self) -> usize {
@@ -271,7 +281,8 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::CustomTypeRegistry;
     /// let registry = CustomTypeRegistry::with_builtin_rich_scalars();
     /// assert!(registry.exists("Email"));
     /// assert!(registry.exists("IBAN"));
@@ -377,11 +388,19 @@ impl CustomTypeRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef, ValidationRule};
+    /// use serde_json::json;
+    ///
     /// let registry = CustomTypeRegistry::new(Default::default());
     /// let mut def = CustomTypeDef::new("LibraryCode".to_string());
-    /// def.elo_expression = Some("matches(value, /^LIB-[0-9]{4}$/)".to_string());
-    /// registry.register("LibraryCode".to_string(), def)?;
+    /// def.validation_rules = vec![
+    ///     ValidationRule::Pattern {
+    ///         pattern: r"^LIB-[0-9]{4}$".to_string(),
+    ///         message: Some("Must match LIB-NNNN format".to_string()),
+    ///     },
+    /// ];
+    /// registry.register("LibraryCode".to_string(), def).unwrap();
     ///
     /// // Valid
     /// assert!(registry.validate("LibraryCode", &json!("LIB-1234")).is_ok());

@@ -22,11 +22,13 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: Redis (when dedup/caching enabled) and a config.toml file.
 //! use fraiseql_observers::factory::ExecutorFactory;
 //! use fraiseql_observers::config::ObserverRuntimeConfig;
 //!
 //! // Load configuration
+//! # async fn example() -> fraiseql_observers::Result<()> {
 //! let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
 //!
 //! // Build executor stack (automatically wraps based on config)
@@ -34,6 +36,8 @@
 //!
 //! // Process events
 //! executor_stack.process_event(&event).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::sync::Arc;
@@ -85,12 +89,18 @@ impl ExecutorFactory {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: Redis connection (when dedup/caching enabled) and config.toml file.
+    /// # use std::sync::Arc;
+    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig};
+    /// # async fn example() -> fraiseql_observers::Result<()> {
     /// let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
     /// let dlq = Arc::new(PostgresDLQ::new(pool.clone()));
     ///
     /// // Automatically wraps with dedup/cache based on config
     /// let executor = ExecutorFactory::build(&config, dlq).await?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[cfg(all(feature = "dedup", feature = "caching"))]
     pub async fn build(

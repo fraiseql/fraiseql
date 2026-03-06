@@ -5,9 +5,12 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
 //! use fraiseql_core::validation::CustomScalar;
+//! use fraiseql_core::error::{FraiseQLError, Result};
+//! use serde_json::Value;
 //!
+//! #[derive(Debug)]
 //! struct Email;
 //!
 //! impl CustomScalar for Email {
@@ -15,11 +18,11 @@
 //!         "Email"
 //!     }
 //!
-//!     fn serialize(&self, value: &serde_json::Value) -> Result<serde_json::Value> {
+//!     fn serialize(&self, value: &Value) -> Result<Value> {
 //!         Ok(value.clone())
 //!     }
 //!
-//!     fn parse_value(&self, value: &serde_json::Value) -> Result<serde_json::Value> {
+//!     fn parse_value(&self, value: &Value) -> Result<Value> {
 //!         let str_val = value.as_str()
 //!             .ok_or_else(|| FraiseQLError::parse("expected string"))?;
 //!
@@ -29,18 +32,16 @@
 //!             ));
 //!         }
 //!
-//!         Ok(serde_json::Value::String(str_val.to_string()))
+//!         Ok(Value::String(str_val.to_string()))
 //!     }
 //!
-//!     fn parse_literal(&self, ast: &serde_json::Value) -> Result<serde_json::Value> {
-//!         if let Some(m) = ast.as_object() {
-//!             if let Some(value) = m.get("value") {
-//!                 return self.parse_value(value);
-//!             }
-//!         }
-//!         Err(FraiseQLError::parse("email literal must be string"))
+//!     fn parse_literal(&self, ast: &Value) -> Result<Value> {
+//!         self.parse_value(ast)
 //!     }
 //! }
+//!
+//! let email = Email;
+//! assert_eq!(email.name(), "Email");
 //! ```
 
 use std::fmt;

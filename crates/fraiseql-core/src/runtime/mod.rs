@@ -18,7 +18,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled schema file and a live PostgreSQL database.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::runtime::Executor;
 //! use fraiseql_core::schema::CompiledSchema;
 //!
@@ -26,8 +28,8 @@
 //! // Load compiled schema
 //! let schema = CompiledSchema::from_json(include_str!("schema.compiled.json"))?;
 //!
-//! // Create executor (connects to database)
-//! let executor = Executor::new(schema, db_pool).await?;
+//! // Create executor (db_pool is a DatabaseAdapter implementation)
+//! let executor = Executor::new(schema, db_pool);
 //!
 //! // Execute GraphQL query
 //! let query = r#"query { users { id name } }"#;
@@ -213,7 +215,7 @@ impl RuntimeConfig {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
     /// use fraiseql_core::runtime::RuntimeConfig;
     /// use fraiseql_core::security::DefaultRLSPolicy;
     /// use std::sync::Arc;
@@ -238,12 +240,13 @@ impl RuntimeConfig {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: a running tokio runtime and an Executor with a live database adapter.
+/// // See: tests/integration/ for runnable examples.
 /// use fraiseql_core::runtime::ExecutionContext;
-/// use tokio_util::sync::CancellationToken;
+/// use std::time::Duration;
 ///
-/// let token = CancellationToken::new();
-/// let ctx = ExecutionContext::new("query-123".to_string(), token);
+/// let ctx = ExecutionContext::new("query-123".to_string());
 ///
 /// // Spawn a task that cancels after 5 seconds
 /// let cancel_token = ctx.cancellation_token().clone();
@@ -253,7 +256,7 @@ impl RuntimeConfig {
 /// });
 ///
 /// // Execute query with cancellation support
-/// let result = executor.execute_with_context(query, Some(&ctx)).await;
+/// // let result = executor.execute_with_context(query, None, &ctx).await;
 /// ```
 #[derive(Debug, Clone)]
 pub struct ExecutionContext {
@@ -274,8 +277,10 @@ impl ExecutionContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::ExecutionContext;
     /// let ctx = ExecutionContext::new("user-query-001".to_string());
+    /// assert_eq!(ctx.query_id(), "user-query-001");
     /// ```
     #[must_use]
     pub fn new(query_id: String) -> Self {

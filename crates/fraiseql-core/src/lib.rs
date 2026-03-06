@@ -42,7 +42,9 @@
 //!
 //! ## Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled schema file and a live PostgreSQL database.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::schema::CompiledSchema;
 //! use fraiseql_core::runtime::Executor;
 //!
@@ -50,8 +52,8 @@
 //! // Load compiled schema
 //! let schema = CompiledSchema::from_file("schema.compiled.json")?;
 //!
-//! // Create executor
-//! let executor = Executor::new(schema, db_pool).await?;
+//! // Create executor (db_pool is a DatabaseAdapter implementation)
+//! let executor = Executor::new(schema, db_pool);
 //!
 //! // Execute query
 //! let query = r#"query { users { id name } }"#;

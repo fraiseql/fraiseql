@@ -29,7 +29,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live OIDC/OAuth2 identity provider.
 //! use fraiseql_core::security::oidc::{OidcConfig, OidcValidator};
 //!
 //! let config = OidcConfig {

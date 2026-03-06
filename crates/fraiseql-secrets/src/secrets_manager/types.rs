@@ -43,10 +43,12 @@ pub trait SecretsBackend: Send + Sync {
 /// Prevents accidental secret exposure through string formatting
 ///
 /// # Example
-/// ```ignore
+/// ```rust
+/// use fraiseql_secrets::secrets_manager::Secret;
 /// let secret = Secret::new("password123".to_string());
 /// println!("{:?}", secret);  // Prints: Secret(***)
 /// let actual = secret.expose();  // Returns: "password123"
+/// assert_eq!(actual, "password123");
 /// ```
 #[derive(Clone)]
 pub struct Secret(String);

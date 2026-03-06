@@ -20,7 +20,8 @@ use std::sync::Arc;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: system root certificates or a CA certificate file on disk.
 /// use fraiseql_wire::connection::TlsConfig;
 ///
 /// // With system root certificates (production)
@@ -30,7 +31,7 @@ use std::sync::Arc;
 ///
 /// // With custom CA certificate
 /// let tls = TlsConfig::builder()
-///     .ca_cert_path("/path/to/ca.pem")?
+///     .ca_cert_path("/path/to/ca.pem")
 ///     .verify_hostname(true)
 ///     .build()?;
 ///
@@ -39,6 +40,7 @@ use std::sync::Arc;
 ///     .danger_accept_invalid_certs(true)
 ///     .danger_accept_invalid_hostnames(true)
 ///     .build()?;
+/// # fraiseql_wire::Result::Ok(())
 /// ```
 #[derive(Clone)]
 pub struct TlsConfig {
@@ -59,10 +61,13 @@ impl TlsConfig {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: system root certificates.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn builder() -> TlsConfigBuilder {
         TlsConfigBuilder::default()
@@ -139,10 +144,13 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: CA certificate file at the specified path.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
-    ///     .ca_cert_path("/etc/ssl/certs/ca.pem")?
+    ///     .ca_cert_path("/etc/ssl/certs/ca.pem")
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn ca_cert_path(mut self, path: impl Into<String>) -> Self {
         self.ca_cert_path = Some(path.into());
@@ -160,10 +168,13 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: system root certificates.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn verify_hostname(mut self, verify: bool) -> Self {
         self.verify_hostname = verify;
@@ -179,10 +190,13 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: debug build only (panics in release mode).
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .danger_accept_invalid_certs(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn danger_accept_invalid_certs(mut self, accept: bool) -> Self {
         self.danger_accept_invalid_certs = accept;
@@ -199,10 +213,13 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: debug build only (panics in release mode if certs also invalid).
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .danger_accept_invalid_hostnames(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn danger_accept_invalid_hostnames(mut self, accept: bool) -> Self {
         self.danger_accept_invalid_hostnames = accept;
@@ -220,10 +237,13 @@ impl TlsConfigBuilder {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: system root certificates.
+    /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .verify_hostname(true)
     ///     .build()?;
+    /// # fraiseql_wire::Result::Ok(())
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
         // SECURITY: Validate TLS configuration before creating client

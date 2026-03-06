@@ -15,13 +15,18 @@ use crate::{
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live Ory OIDC endpoint.
+/// # async fn example() -> fraiseql_auth::error::Result<()> {
+/// use fraiseql_auth::providers::ory::OryOAuth;
 /// let provider = OryOAuth::new(
 ///     "client_id".to_string(),
 ///     "client_secret".to_string(),
 ///     "https://your-project.projects.oryapis.com".to_string(),
 ///     "http://localhost:8000/auth/callback".to_string(),
 /// ).await?;
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct OryOAuth {

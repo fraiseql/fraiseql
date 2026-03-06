@@ -200,8 +200,8 @@ pub fn memory_limit_exceeded(entity: &str) {
 /// - `new_size`: The new chunk size after adjustment (e.g., "384")
 ///
 /// # Example
-/// ```ignore
-/// adaptive_chunk_adjusted("projects", 256, 384);
+/// ```rust
+/// fraiseql_wire::metrics::counters::adaptive_chunk_adjusted("projects", 256, 384);
 /// ```
 pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize) {
     let direction = if new_size > old_size {
@@ -228,8 +228,8 @@ pub fn adaptive_chunk_adjusted(entity: &str, old_size: usize, new_size: usize) {
 /// - `entity`: The query entity (project, etc.)
 ///
 /// # Example
-/// ```ignore
-/// stream_paused("projects");
+/// ```rust
+/// fraiseql_wire::metrics::counters::stream_paused("projects");
 /// ```
 pub fn stream_paused(entity: &str) {
     counter!(
@@ -247,8 +247,8 @@ pub fn stream_paused(entity: &str) {
 /// - `entity`: The query entity (project, etc.)
 ///
 /// # Example
-/// ```ignore
-/// stream_resumed("projects");
+/// ```rust
+/// fraiseql_wire::metrics::counters::stream_resumed("projects");
 /// ```
 pub fn stream_resumed(entity: &str) {
     counter!(

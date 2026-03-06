@@ -12,7 +12,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a live database adapter and compiled schema.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::tenancy::TenantContext;
 //! use serde_json::json;
 //!
@@ -21,11 +23,10 @@
 //!
 //! // Or extract from JWT claims
 //! let claims = json!({"tenant_id": "acme-corp", "sub": "user123"});
-//! let tenant = TenantContext::from_jwt_claims(&claims)?;
+//! let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
 //!
-//! // Use in query execution
-//! let executor = Executor::with_tenant(schema, db_pool, tenant)?;
-//! let result = executor.execute("query { users { id name } }").await?;
+//! // Use in query execution (executor setup not shown — requires live DB)
+//! // let result = executor.execute("query { users { id name } }").await?;
 //! ```
 
 use std::collections::HashMap;
@@ -59,7 +60,8 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("company-123");
     /// assert_eq!(tenant.id(), "company-123");
     /// ```
@@ -121,7 +123,7 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
     /// use serde_json::json;
     /// use fraiseql_core::tenancy::TenantContext;
     ///
@@ -131,7 +133,7 @@ impl TenantContext {
     ///     "email": "alice@acme.com"
     /// });
     ///
-    /// let tenant = TenantContext::from_jwt_claims(&claims)?;
+    /// let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
     /// assert_eq!(tenant.id(), "acme-corp");
     /// ```
     pub fn from_jwt_claims(claims: &JsonValue) -> Result<Self, String> {
@@ -163,9 +165,11 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("acme-corp");
     /// let clause = tenant.where_clause();  // "tenant_id = 'acme-corp'"
+    /// assert_eq!(clause, "tenant_id = 'acme-corp'");
     /// ```
     #[must_use]
     pub fn where_clause(&self) -> String {
@@ -183,9 +187,11 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("acme-corp");
     /// let clause = tenant.where_clause_postgresql(1);  // "tenant_id = $1"
+    /// assert_eq!(clause, "tenant_id = $1");
     /// ```
     #[must_use]
     pub fn where_clause_postgresql(&self, param_index: usize) -> String {
@@ -198,9 +204,11 @@ impl TenantContext {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::tenancy::TenantContext;
     /// let tenant = TenantContext::new("acme-corp");
     /// let clause = tenant.where_clause_parameterized();  // "tenant_id = ?"
+    /// assert_eq!(clause, "tenant_id = ?");
     /// ```
     #[must_use]
     pub fn where_clause_parameterized(&self) -> String {
@@ -239,9 +247,10 @@ fn validate_tenant_id_for_interpolation(tenant_id: &str) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// let tenant = TenantContext::new("acme-corp");
-/// let clause = tenant.where_clause();  // "tenant_id = 'acme-corp'"
+/// ```rust
+/// # use fraiseql_core::tenancy::where_clause;
+/// let clause = where_clause("acme-corp");  // "tenant_id = 'acme-corp'"
+/// assert_eq!(clause, "tenant_id = 'acme-corp'");
 /// ```
 pub fn where_clause(tenant_id: &str) -> String {
     validate_tenant_id_for_interpolation(tenant_id);

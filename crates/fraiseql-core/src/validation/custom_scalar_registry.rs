@@ -37,19 +37,24 @@ impl CustomScalarRegistry {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use fraiseql_core::validation::{CustomScalarRegistry, CustomScalar};
+    /// use fraiseql_core::error::Result;
+    /// use serde_json::Value;
     /// use std::sync::Arc;
     ///
+    /// #[derive(Debug)]
     /// struct Email;
     /// impl CustomScalar for Email {
     ///     fn name(&self) -> &str { "Email" }
-    ///     // ... implement other methods ...
+    ///     fn serialize(&self, v: &Value) -> Result<Value> { Ok(v.clone()) }
+    ///     fn parse_value(&self, v: &Value) -> Result<Value> { Ok(v.clone()) }
+    ///     fn parse_literal(&self, v: &Value) -> Result<Value> { Ok(v.clone()) }
     /// }
     ///
     /// let registry = CustomScalarRegistry::new();
-    /// registry.register(Arc::new(Email))?;
-    /// assert!(registry.has_scalar("Email"));
+    /// registry.register(Arc::new(Email)).unwrap();
+    /// assert!(registry.has_scalar("Email").unwrap());
     /// ```
     pub fn register(&self, scalar: Arc<dyn CustomScalar>) -> crate::error::Result<()> {
         let name = scalar.name().to_string();

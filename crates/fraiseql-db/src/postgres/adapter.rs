@@ -277,12 +277,12 @@ impl PostgresAdapter {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// use fraiseql_core::db::postgres::PostgresAdapter;
-    /// use fraiseql_core::db::projection_generator::SqlProjectionHint;
-    /// # use fraiseql_core::error::Result;
+    /// ```no_run
+    /// // Requires: running PostgreSQL database.
+    /// use fraiseql_db::postgres::PostgresAdapter;
+    /// use fraiseql_db::types::SqlProjectionHint;
     ///
-    /// # async fn example(adapter: &PostgresAdapter) -> Result<()> {
+    /// # async fn example(adapter: &PostgresAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// let projection = SqlProjectionHint {
     ///     database: "postgresql".to_string(),
     ///     projection_template: "jsonb_build_object('id', data->>'id')".to_string(),

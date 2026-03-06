@@ -19,7 +19,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+//! // See: tests/integration/ for runnable examples.
 //! // Compile-time validation
 //! let validator = RequiresProvidesValidator::new(metadata);
 //! validator.validate_all()?;
@@ -176,7 +178,9 @@ impl RequiresProvidesValidator {
     /// - `metadata`: FederationMetadata containing all federated types and directives
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let validator = RequiresProvidesValidator::new(metadata);
     /// validator.validate_all()?;
     /// ```
@@ -482,7 +486,9 @@ impl RequiresProvidesRuntimeValidator {
     /// the entity resolution to fail rather than attempting to proceed.
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let result = RequiresProvidesRuntimeValidator::validate_required_fields(
     ///     "User",
     ///     "orders",

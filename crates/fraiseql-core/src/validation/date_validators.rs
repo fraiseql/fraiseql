@@ -7,15 +7,17 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
+//! use fraiseql_core::validation::{validate_min_age, validate_max_days_in_future, validate_date_range};
+//!
 //! // Validate birthdate is 18+ years old
-//! validate_min_age("1990-03-15", 18)?;
+//! validate_min_age("1990-03-15", 18).unwrap();
 //!
 //! // Validate date is not more than 30 days in the future
-//! validate_max_days_in_future("2026-03-10", 30)?;
+//! validate_max_days_in_future("2026-03-10", 30).unwrap();
 //!
 //! // Validate date is within range
-//! validate_date_range("2026-02-08", "2020-01-01", "2030-12-31")?;
+//! validate_date_range("2026-02-08", "2020-01-01", "2030-12-31").unwrap();
 //! ```
 
 use std::cmp::Ordering;

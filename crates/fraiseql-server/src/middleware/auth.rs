@@ -40,7 +40,8 @@ impl BearerAuthState {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: running Axum application with a route handler.
 /// use axum::{Router, middleware};
 /// use fraiseql_server::middleware::{bearer_auth_middleware, BearerAuthState};
 ///

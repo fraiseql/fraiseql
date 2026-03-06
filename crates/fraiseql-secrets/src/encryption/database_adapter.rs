@@ -142,12 +142,19 @@ impl DatabaseFieldAdapter {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: SecretsManager backed by Vault or another live secret store.
+    /// use std::collections::HashMap;
+    /// use std::sync::Arc;
+    /// use fraiseql_secrets::encryption::database_adapter::DatabaseFieldAdapter;
+    /// use fraiseql_secrets::secrets_manager::SecretsManager;
+    /// # async fn example(secrets_manager: Arc<SecretsManager>) {
     /// let mut field_keys = HashMap::new();
     /// field_keys.insert("email".to_string(), "db/email_key".to_string());
     /// field_keys.insert("phone".to_string(), "db/phone_key".to_string());
     ///
     /// let adapter = DatabaseFieldAdapter::new(secrets_manager, field_keys);
+    /// # }
     /// ```
     pub fn new(secrets_manager: Arc<SecretsManager>, field_keys: HashMap<String, String>) -> Self {
         Self {

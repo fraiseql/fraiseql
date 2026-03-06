@@ -108,15 +108,16 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and compiled fact table metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use serde_json::json;
     /// let query_json = json!({
     ///     "table": "tf_sales",
     ///     "groupBy": { "category": true },
     ///     "aggregates": [{"count": {}}]
     /// });
-    ///
-    /// let metadata = /* fact table metadata */;
-    /// let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
+    /// // let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
     /// ```
     pub async fn execute_aggregate_query(
         &self,
@@ -171,7 +172,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and compiled fact table metadata.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use serde_json::json;
     /// let query_json = json!({
     ///     "table": "tf_sales",
     ///     "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
@@ -182,9 +186,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///         "orderBy": [{"field": "revenue", "direction": "DESC"}]
     ///     }]
     /// });
-    ///
-    /// let metadata = /* fact table metadata */;
-    /// let result = executor.execute_window_query(&query_json, "sales_window", &metadata).await?;
+    /// // let result = executor.execute_window_query(&query_json, "sales_window", &metadata).await?;
     /// ```
     pub async fn execute_window_query(
         &self,

@@ -31,7 +31,8 @@ type RustPredicate = Box<dyn Fn(&Value) -> bool + Send>;
 /// # Examples
 ///
 /// Type-safe query (recommended):
-/// ```ignore
+/// ```no_run
+/// // Requires: live Postgres connection via FraiseClient.
 /// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
@@ -39,18 +40,24 @@ type RustPredicate = Box<dyn Fn(&Value) -> bool + Send>;
 ///     id: String,
 ///     name: String,
 /// }
-///
+/// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
 /// let stream = client.query::<Project>("projects")
 ///     .where_sql("status='active'")
 ///     .execute()
 ///     .await?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// Raw JSON query (debugging, forward compatibility):
-/// ```ignore
+/// ```no_run
+/// // Requires: live Postgres connection via FraiseClient.
+/// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
 /// let stream = client.query::<serde_json::Value>("projects")
 ///     .execute()
 ///     .await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct QueryBuilder<T: DeserializeOwned + Unpin + 'static = serde_json::Value> {
     client: FraiseClient,
@@ -141,12 +148,18 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String, name: String }
     /// let stream = client
     ///     .query::<Project>("projects")
     ///     .select_projection("jsonb_build_object('id', data->>'id', 'name', data->>'name')")
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Backward Compatibility
@@ -161,11 +174,17 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client.query::<Project>("projects")
     ///     .limit(10)
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn limit(mut self, count: usize) -> Self {
         self.limit = Some(count);
@@ -176,12 +195,18 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client.query::<Project>("projects")
     ///     .limit(10)
     ///     .offset(20)  // Skip first 20, return next 10
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn offset(mut self, count: usize) -> Self {
         self.offset = Some(count);
@@ -206,12 +231,18 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client
     ///     .query::<Project>("projects")
     ///     .max_memory(500_000_000)  // 500 MB limit
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Interpretation
@@ -237,13 +268,19 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client
     ///     .query::<Project>("projects")
     ///     .max_memory(500_000_000)  // 500 MB hard limit
     ///     .memory_soft_limits(0.80, 1.0)  // Warn at 80%, error at 100%
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// If only hard limit needed, skip this and just use `max_memory()`.
@@ -270,13 +307,19 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client
     ///     .query::<Project>("projects")
     ///     .adaptive_chunking(false)  // Disable adaptive tuning
     ///     .chunk_size(512)  // Use fixed size
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn adaptive_chunking(mut self, enabled: bool) -> Self {
         self.enable_adaptive_chunking = enabled;
@@ -292,13 +335,19 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client
     ///     .query::<Project>("projects")
     ///     .adaptive_chunking(true)
     ///     .adaptive_min_size(32)  // Don't go below 32 items per batch
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn adaptive_min_size(mut self, size: usize) -> Self {
         self.adaptive_min_chunk_size = Some(size);
@@ -314,13 +363,19 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
     /// let stream = client
     ///     .query::<Project>("projects")
     ///     .adaptive_chunking(true)
     ///     .adaptive_max_size(512)  // Cap at 512 items per batch
     ///     .execute()
     ///     .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn adaptive_max_size(mut self, size: usize) -> Self {
         self.adaptive_max_chunk_size = Some(size);
@@ -337,27 +392,43 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Examples
     ///
     /// With type-safe deserialization:
-    /// ```ignore
-    /// let stream = client.query::<Project>("projects").execute().await?;
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use serde::Deserialize;
+    /// # #[derive(Deserialize)] struct Project { id: String }
+    /// # use futures::stream::StreamExt;
+    /// let mut stream = client.query::<Project>("projects").execute().await?;
     /// while let Some(result) = stream.next().await {
     ///     let project: Project = result?;
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// With raw JSON (escape hatch):
-    /// ```ignore
-    /// let stream = client.query::<serde_json::Value>("projects").execute().await?;
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
+    /// # use futures::stream::StreamExt;
+    /// let mut stream = client.query::<serde_json::Value>("projects").execute().await?;
     /// while let Some(result) = stream.next().await {
-    ///     let json: Value = result?;
+    ///     let json: serde_json::Value = result?;
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// With stream control:
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live Postgres connection via FraiseClient.
+    /// # async fn example(client: fraiseql_wire::FraiseClient) -> fraiseql_wire::Result<()> {
     /// let mut stream = client.query::<serde_json::Value>("projects").execute().await?;
     /// stream.pause().await?;  // Pause the stream
     /// let stats = stream.stats();  // Get statistics
     /// stream.resume().await?;  // Resume the stream
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn execute(self) -> Result<QueryStream<T>> {
         let sql = self.build_sql()?;

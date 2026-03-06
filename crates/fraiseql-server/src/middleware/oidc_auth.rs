@@ -49,7 +49,8 @@ pub struct AuthUser(pub AuthenticatedUser);
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: OIDC provider reachable for JWKS discovery, running Axum application.
 /// use axum::{middleware, Router};
 ///
 /// let oidc_state = OidcAuthState::new(validator);

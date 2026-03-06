@@ -16,7 +16,9 @@ impl StructuredLogger {
     /// Create new structured logger
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_observers::logging::structured::StructuredLogger;
+    ///
     /// let logger = StructuredLogger::new("webhook-service");
     /// logger.info("webhook_sent", vec![("status", "200"), ("duration_ms", "42")]);
     /// ```

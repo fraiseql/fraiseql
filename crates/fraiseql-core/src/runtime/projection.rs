@@ -49,12 +49,14 @@ impl FieldMapping {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::FieldMapping;
     /// // For a Post with nested author (User type)
-    /// FieldMapping::nested_object("author", "User", vec![
+    /// let mapping = FieldMapping::nested_object("author", "User", vec![
     ///     FieldMapping::simple("id"),
     ///     FieldMapping::simple("name"),
-    /// ])
+    /// ]);
+    /// assert_eq!(mapping.source, "author");
     /// ```
     #[must_use]
     pub fn nested_object(
@@ -359,7 +361,11 @@ impl ResultProjector {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```rust
+    /// # use fraiseql_core::runtime::ResultProjector;
+    /// # use fraiseql_core::db::types::JsonbValue;
+    /// # use serde_json::json;
+    /// let projector = ResultProjector::new(vec!["id".to_string(), "name".to_string()]);
     /// // Database already returned only: { "id": "123", "name": "Alice" }
     /// let result = projector.add_typename_only(
     ///     &JsonbValue::new(json!({ "id": "123", "name": "Alice" })),
@@ -367,6 +373,7 @@ impl ResultProjector {
     /// ).unwrap();
     ///
     /// // Result: { "id": "123", "name": "Alice", "__typename": "User" }
+    /// assert_eq!(result["__typename"], "User");
     /// ```
     pub fn add_typename_only(
         &self,

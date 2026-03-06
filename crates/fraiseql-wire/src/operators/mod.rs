@@ -8,7 +8,8 @@
 //! fraiseql-wire maintains backward compatibility with the existing string-based API
 //! while offering operator abstractions for type safety and auditability:
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: live Postgres connection via FraiseClient.
 //! // Old style (still works)
 //! client.query("users")
 //!     .where_sql("data->>'name' = 'John'")

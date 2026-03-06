@@ -7,14 +7,18 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: running PostgreSQL database.
 //! use fraiseql_executor::{Executor, ExecutorAdapter};
 //! use fraiseql_core::db::PostgresAdapter;
 //! use fraiseql_core::schema::CompiledSchema;
 //!
+//! # async fn example(json_str: &str) -> Result<(), Box<dyn std::error::Error>> {
 //! let schema = CompiledSchema::from_json(json_str)?;
 //! let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
 //! let executor = Executor::new(schema, std::sync::Arc::new(adapter));
+//! # Ok(())
+//! # }
 //! ```
 
 #![forbid(unsafe_code)]
@@ -38,8 +42,10 @@ use std::pin::Pin;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: a concrete ExecutorAdapter implementation (e.g., backed by PostgresAdapter).
 /// use fraiseql_executor::ExecutorAdapter;
+/// use fraiseql_core::runtime::ExecutionContext;
 /// use std::sync::Arc;
 ///
 /// async fn run_query(exec: Arc<dyn ExecutorAdapter>, query: &str) -> String {

@@ -10,10 +10,21 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
+//! use fraiseql_observers::{ConditionParser, event::{EntityEvent, EventKind}};
+//! use uuid::Uuid;
+//! use serde_json::json;
+//!
 //! let evaluator = ConditionParser::new();
-//! let ast = evaluator.parse("total > 100 && status_changed_to('shipped')")?;
-//! let result = evaluator.evaluate(&ast, &event)?;
+//! let ast = evaluator.parse("total > 100").expect("valid condition");
+//! let event = EntityEvent::new(
+//!     EventKind::Updated,
+//!     "Order".to_string(),
+//!     Uuid::new_v4(),
+//!     json!({"total": 150}),
+//! );
+//! let result = evaluator.evaluate(&ast, &event).expect("evaluation succeeded");
+//! assert!(result);
 //! ```
 
 use std::fmt;

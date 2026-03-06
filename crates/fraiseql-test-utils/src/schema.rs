@@ -10,7 +10,7 @@ use fraiseql_core::{compiler::Compiler, CompiledSchema};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
 /// use fraiseql_test_utils::schema::setup_test_schema;
 ///
 /// let schema = setup_test_schema(r#"{"types": [], "queries": []}"#);

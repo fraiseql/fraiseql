@@ -16,11 +16,17 @@ use super::super::{SecretsBackend, SecretsError};
 /// Filename is the secret name, content is the value
 ///
 /// # Example
-/// ```ignore
-/// // Create file ~/.secrets/db_password
+/// ```no_run
+/// // Requires: secret file at ~/.secrets/db_password on the local filesystem.
+/// # async fn example() -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+/// use fraiseql_secrets::secrets_manager::FileBackend;
+/// use fraiseql_secrets::secrets_manager::SecretsBackend;
+/// // Create file ~/.secrets/db_password first
 /// let backend = FileBackend::new("~/.secrets");
 /// let secret = backend.get_secret("db_password").await?;
 /// // Reads from ~/.secrets/db_password
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone, Debug)]
 pub struct FileBackend {

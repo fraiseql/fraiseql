@@ -37,7 +37,7 @@ use fraiseql_error::Result;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```text
 /// assert_eq!(to_snake_case("firstName"), "first_name");
 /// assert_eq!(to_snake_case("id"), "id");
 /// ```
@@ -154,9 +154,13 @@ impl PostgresProjectionGenerator {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let sql = generator.generate_select_clause("t", &fields)?;
-    /// // Returns: SELECT jsonb_build_object(...) as data
+    /// ```rust
+    /// use fraiseql_db::projection_generator::PostgresProjectionGenerator;
+    ///
+    /// let generator = PostgresProjectionGenerator::new();
+    /// let fields = vec!["id".to_string(), "name".to_string()];
+    /// let sql = generator.generate_select_clause("t", &fields).unwrap();
+    /// assert!(sql.contains("SELECT"));
     /// ```
     pub fn generate_select_clause(&self, table_alias: &str, fields: &[String]) -> Result<String> {
         let projection = self.generate_projection_sql(fields)?;

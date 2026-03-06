@@ -34,7 +34,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: live executor with compiled schema.
     /// // Regular query
     /// let query_type = executor.classify_query("{ users { id } }")?;
     /// assert_eq!(query_type, QueryType::Regular);

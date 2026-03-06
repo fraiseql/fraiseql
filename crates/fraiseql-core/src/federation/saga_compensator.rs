@@ -82,7 +82,9 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+//! // See: tests/integration/ for runnable examples.
 //! let compensator = SagaCompensator::new();
 //!
 //! // Execute compensation for a failed saga
@@ -295,7 +297,9 @@ impl SagaCompensator {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let compensator = SagaCompensator::new();
     /// let result = compensator.compensate_saga(saga_id).await?;
     ///
@@ -499,7 +503,9 @@ impl SagaCompensator {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let result = compensator.compensate_step(
     ///     saga_id,
     ///     1,
@@ -651,7 +657,9 @@ impl SagaCompensator {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // See: tests/integration/ for runnable examples.
     /// let result = compensator.get_compensation_status(saga_id).await?;
     /// println!("Compensation status: {:?}", result.status);
     /// ```

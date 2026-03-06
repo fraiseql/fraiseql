@@ -41,7 +41,8 @@
 //!
 //! ## Integration with AuthenticatedUser
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: AuthenticatedUser from live JWT validation.
 //! use fraiseql_core::security::{AuthenticatedUser, FieldFilter};
 //!
 //! fn check_field_access(

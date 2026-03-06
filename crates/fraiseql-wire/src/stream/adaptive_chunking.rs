@@ -36,14 +36,15 @@ struct Occupancy {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_wire::stream::AdaptiveChunking;
 /// let mut adaptive = AdaptiveChunking::new();
+/// let (buffered_items, channel_capacity) = (50usize, 256usize);
 ///
 /// // Periodically observe channel occupancy
-/// for chunk_sent in 0..100 {
-///     let occupancy_pct = (buffered_items * 100) / channel_capacity;
+/// for _chunk_sent in 0..100 {
 ///     if let Some(new_size) = adaptive.observe(buffered_items, channel_capacity) {
-///         println!("Adjusted chunk size: {} -> {}", adaptive.current_size() - new_size, new_size);
+///         println!("Adjusted chunk size to {}", new_size);
 ///     }
 /// }
 /// ```
@@ -82,7 +83,8 @@ impl AdaptiveChunking {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
@@ -110,7 +112,8 @@ impl AdaptiveChunking {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let mut adaptive = AdaptiveChunking::new();
     ///
     /// // Simulate high occupancy (90%)
@@ -157,7 +160,8 @@ impl AdaptiveChunking {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
@@ -177,7 +181,8 @@ impl AdaptiveChunking {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_wire::stream::AdaptiveChunking;
     /// let mut adaptive = AdaptiveChunking::new();
     /// adaptive = adaptive.with_bounds(32, 512);  // Custom range 32-512
     /// assert!(adaptive.current_size() >= 32);

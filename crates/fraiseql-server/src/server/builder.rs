@@ -23,13 +23,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: running PostgreSQL database and compiled schema file.
+    /// # use std::sync::Arc;
+    /// # use fraiseql_server::{Server, ServerConfig};
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let config = ServerConfig::default();
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     ///
     /// let server = Server::new(config, schema, adapter, None).await?;
     /// server.serve().await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn new(
         config: ServerConfig,

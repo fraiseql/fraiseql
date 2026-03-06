@@ -18,7 +18,8 @@ impl ConstantTimeOps {
     /// * `actual` - The actual (untrusted) value from the user/attacker
     ///
     /// # Examples
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_auth::constant_time::ConstantTimeOps;
     /// let stored_token = b"secret_token_value";
     /// let user_token = b"user_provided_token";
     /// assert!(!ConstantTimeOps::compare(stored_token, user_token));
@@ -72,7 +73,8 @@ impl ConstantTimeOps {
     /// Prevents length-based timing attacks. Time is independent of actual input lengths.
     ///
     /// # Example
-    /// ```ignore
+    /// ```rust
+    /// use fraiseql_auth::constant_time::ConstantTimeOps;
     /// let stored_jwt = "eyJhbGc...";
     /// let user_jwt = "eyJhbGc...";
     /// // Always compares at 512 bytes, padding with zeros if needed

@@ -20,7 +20,8 @@
 //!
 //! ## Quick start
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: DATABASE_URL environment variable pointing to a PostgreSQL database.
 //! use fraiseql_test_utils::{database_url, assert_graphql_success};
 //!
 //! #[tokio::test]
@@ -62,12 +63,10 @@ pub use saga::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
 ///
 /// # Example
 ///
-/// ```ignore
-/// #[tokio::test]
-/// async fn my_test() {
-///     setup_test_env();
-///     // Test code here
-/// }
+/// ```rust
+/// use fraiseql_test_utils::setup_test_env;
+///
+/// setup_test_env();
 /// ```
 pub const fn setup_test_env() {
     // Test environment setup hook (extensible for future use)
@@ -81,7 +80,9 @@ pub const fn setup_test_env() {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
+/// use fraiseql_test_utils::create_temp_dir;
+///
 /// let temp_dir = create_temp_dir();
 /// let file_path = temp_dir.path().join("test.json");
 /// ```

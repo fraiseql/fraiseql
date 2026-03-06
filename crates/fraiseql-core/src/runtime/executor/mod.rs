@@ -127,7 +127,9 @@
 //!
 //! # Example Usage
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a live PostgreSQL database with fraiseql schema.
+//! // See: tests/integration/ for runnable examples.
 //! use fraiseql_core::runtime::Executor;
 //! use fraiseql_core::schema::CompiledSchema;
 //! use fraiseql_core::db::postgres::PostgresAdapter;
@@ -306,13 +308,16 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
 ///
 /// `Executor<A>` is `Send + Sync` when `A` is `Send + Sync`. It can be safely shared across
 /// threads and tasks without cloning:
-/// ```ignore
-/// let executor = Arc::new(Executor::new(schema, adapter, config));
+/// ```no_run
+/// // Requires: a live database adapter.
+/// // See: tests/integration/ for runnable examples.
+/// # use std::sync::Arc;
+/// // let executor = Arc::new(Executor::new(schema, adapter));
 /// // Can be cloned into multiple tasks
-/// let exec_clone = executor.clone();
-/// tokio::spawn(async move {
-///     let result = exec_clone.execute(query, vars).await;
-/// });
+/// // let exec_clone = executor.clone();
+/// // tokio::spawn(async move {
+/// //     let result = exec_clone.execute(query, vars).await;
+/// // });
 /// ```
 ///
 /// # Query Timeout
@@ -359,10 +364,18 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live PostgreSQL database.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_core::runtime::Executor;
+    /// # use std::sync::Arc;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let schema = CompiledSchema::from_json(schema_json)?;
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new(schema, Arc::new(adapter));
+    /// # Ok(()) }
     /// ```
     #[must_use]
     pub fn new(schema: CompiledSchema, adapter: Arc<A>) -> Self {
@@ -404,9 +417,17 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live PostgreSQL database with relay support.
+    /// // See: tests/integration/ for runnable examples.
+    /// # use fraiseql_core::schema::CompiledSchema;
+    /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_core::runtime::Executor;
+    /// # use std::sync::Arc;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new_with_relay(schema, Arc::new(adapter));
+    /// # Ok(()) }
     /// ```
     #[must_use]
     pub fn new_with_relay(schema: CompiledSchema, adapter: Arc<A>) -> Self {
@@ -480,18 +501,20 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and compiled schema.
+    /// // See: tests/integration/ for runnable examples.
     /// use fraiseql_core::runtime::Executor;
     ///
     /// // Simple query without variables
-    /// let query = "{ users(limit: 10) { id name email } }";
-    /// let result = executor.execute(query, None).await?;
-    /// println!("Result: {}", result);
+    /// // let query = "{ users(limit: 10) { id name email } }";
+    /// // let result = executor.execute(query, None).await?;
+    /// // println!("Result: {}", result);
     ///
     /// // Query with variables
-    /// let query = "query($id: ID!) { user(id: $id) { name email } }";
-    /// let variables = serde_json::json!({"id": "user-123"});
-    /// let result = executor.execute(query, Some(&variables)).await?;
+    /// // let query = "query($id: ID!) { user(id: $id) { name email } }";
+    /// // let variables = serde_json::json!({"id": "user-123"});
+    /// // let result = executor.execute(query, Some(&variables)).await?;
     /// ```
     /// Generate an explain plan for a query without executing it.
     ///
@@ -690,10 +713,14 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and authenticated user context.
+    /// // See: tests/integration/ for runnable examples.
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let query = r#"query { users { id name salary } }"#;
-    /// let user_scopes = user.scopes.iter().map(|s| s.as_str()).collect::<Vec<_>>();
-    /// let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
+    /// // let user_scopes = user.scopes.clone();
+    /// // let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
+    /// # Ok(()) }
     /// ```
     pub async fn execute_with_scopes(
         &self,
@@ -784,7 +811,13 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: a live database adapter and running tokio runtime.
+    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_core::runtime::ExecutionContext;
+    /// use fraiseql_core::error::FraiseQLError;
+    /// use std::time::Duration;
+    ///
     /// let ctx = ExecutionContext::new("user-query-123".to_string());
     /// let cancel_token = ctx.cancellation_token().clone();
     ///
@@ -794,14 +827,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///     cancel_token.cancel();
     /// });
     ///
-    /// let result = executor.execute_with_context(query, None, &ctx).await;
-    /// match result {
-    ///     Err(FraiseQLError::Cancelled { reason, .. }) => {
-    ///         eprintln!("Query cancelled: {}", reason);
-    ///     }
-    ///     Ok(response) => println!("{}", response),
-    ///     Err(e) => eprintln!("Error: {}", e),
-    /// }
+    /// // let result = executor.execute_with_context(query, None, &ctx).await;
     /// ```
     pub async fn execute_with_context(
         &self,
@@ -871,23 +897,14 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let query = r#"query { posts { id title } }"#;
-    /// let context = SecurityContext {
-    ///     user_id: "user1".to_string(),
-    ///     roles: vec!["user".to_string()],
-    ///     tenant_id: None,
-    ///     scopes: vec![],
-    ///     attributes: HashMap::new(),
-    ///     request_id: "req-1".to_string(),
-    ///     ip_address: None,
-    ///     authenticated_at: Utc::now(),
-    ///     expires_at: Utc::now() + Duration::hours(1),
-    ///     issuer: None,
-    ///     audience: None,
-    /// };
+    /// ```no_run
+    /// // Requires: a live database adapter and a SecurityContext from authentication.
+    /// // See: tests/integration/ for runnable examples.
+    /// use fraiseql_core::security::SecurityContext;
+    ///
+    /// // let query = r#"query { posts { id title } }"#;
     /// // Returns a JSON string: {"data":{"posts":[...]}}
-    /// let result = executor.execute_with_security(query, None, &context).await?;
+    /// // let result = executor.execute_with_security(query, None, &context).await?;
     /// ```
     pub async fn execute_with_security(
         &self,
@@ -1141,10 +1158,12 @@ impl<A: DatabaseAdapter> Executor<A> {
 /// query { currentUser { id name email } }
 /// ```
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: a SecurityContext from authenticated request metadata.
+/// // See: tests/integration/ for runnable examples.
 /// // Executor does this:
-/// let user_id = resolve_inject_value("userId", "jwt:sub", &security_ctx)?;
-/// let tenant_id = resolve_inject_value("tenantId", "jwt:tenant_id", &security_ctx)?;
+/// // let user_id = resolve_inject_value("userId", "jwt:sub", &security_ctx)?;
+/// // let tenant_id = resolve_inject_value("tenantId", "jwt:tenant_id", &security_ctx)?;
 /// // Builds SQL: SELECT * FROM fn_current_user($1, $2) with params [user_id, tenant_id]
 /// // User cannot bypass this by passing different values
 /// ```

@@ -133,7 +133,8 @@ impl WebhookPayload {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live HTTP endpoint for webhook delivery.
 /// use fraiseql_core::runtime::subscription::{WebhookAdapter, WebhookTransportConfig};
 ///
 /// let config = WebhookTransportConfig::new("https://api.example.com/webhooks")

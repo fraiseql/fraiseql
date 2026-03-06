@@ -60,7 +60,7 @@ pub type IndexedColumnsCache = HashMap<String, HashSet<String>>;
 /// If this generator were Arc-shared across multiple async tasks, replace
 /// `Cell<usize>` with `AtomicUsize` to prevent data races:
 ///
-/// ```ignore
+/// ```text
 /// // Instead of: Cell<usize>
 /// // Use: AtomicUsize
 ///

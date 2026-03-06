@@ -17,9 +17,12 @@ use syn::{FnArg, ItemFn, Meta, parse_macro_input};
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // The #[traced] macro is applied to functions in consumer crates.
+/// use fraiseql_observers_macros::traced;
+///
 /// #[traced(name = "process_event")]
-/// async fn process_event(event: &Event) -> Result<()> {
+/// async fn process_event(event: &str) -> Result<(), Box<dyn std::error::Error>> {
 ///     // Automatic span creation and error tracking
 ///     Ok(())
 /// }
@@ -119,9 +122,12 @@ pub fn traced(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // The #[instrument] macro is applied to functions in consumer crates.
+/// use fraiseql_observers_macros::instrument;
+///
 /// #[instrument]
-/// fn process_data(id: u32, name: String) -> Result<()> {
+/// fn process_data(id: u32, name: String) -> Result<(), Box<dyn std::error::Error>> {
 ///     // Automatically logs id and name
 ///     Ok(())
 /// }

@@ -5,7 +5,10 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```
+//! use fraiseql_core::validation::{InputObjectRule, validate_input_object};
+//! use serde_json::json;
+//!
 //! // Validate entire input object
 //! let input = json!({
 //!     "name": "John",
@@ -14,14 +17,14 @@
 //! });
 //!
 //! let validators = vec![
-//!     InputObjectRule::AnyOf { fields: vec!["email", "phone"] },
+//!     InputObjectRule::AnyOf { fields: vec!["email".to_string(), "phone".to_string()] },
 //!     InputObjectRule::ConditionalRequired {
-//!         if_field: "name",
-//!         then_fields: vec!["email"]
-//!     }
+//!         if_field: "name".to_string(),
+//!         then_fields: vec!["email".to_string()],
+//!     },
 //! ];
 //!
-//! validate_input_object(&input, &validators)?;
+//! validate_input_object(&input, &validators, None).unwrap();
 //! ```
 
 use serde_json::Value;

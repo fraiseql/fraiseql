@@ -24,7 +24,8 @@
 //!
 //! # Parsed Result
 //!
-//! ```ignore
+//! ```no_run
+//! // Illustrative output structure only — not executable code.
 //! AggregationRequest {
 //!     table_name: "tf_sales",
 //!     where_clause: Some(...),

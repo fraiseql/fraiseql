@@ -45,7 +45,8 @@ pub trait TransportAdapter: Send + Sync {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: live transport destination (webhook/NATS/etc).
 /// use fraiseql_core::runtime::subscription::{
 ///     TransportManager, WebhookAdapter, WebhookConfig,
 /// };

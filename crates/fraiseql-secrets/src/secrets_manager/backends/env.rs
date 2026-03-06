@@ -10,11 +10,17 @@ use super::super::{SecretsBackend, SecretsError};
 /// Not recommended for production credentials
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// // Requires: DATABASE_PASSWORD environment variable to be set.
+/// # async fn example() -> Result<(), fraiseql_secrets::secrets_manager::SecretsError> {
+/// use fraiseql_secrets::secrets_manager::EnvBackend;
+/// use fraiseql_secrets::secrets_manager::SecretsBackend;
 /// std::env::set_var("DATABASE_PASSWORD", "secret123");
 /// let backend = EnvBackend::new();
 /// let secret = backend.get_secret("DATABASE_PASSWORD").await?;
 /// // Returns: "secret123"
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Note

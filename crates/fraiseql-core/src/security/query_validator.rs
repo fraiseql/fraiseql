@@ -23,7 +23,7 @@
 //!
 //! # Examples
 //!
-//! ```ignore
+//! ```rust
 //! use fraiseql_core::security::{QueryValidator, QueryValidatorConfig};
 //!
 //! // Create validator with standard limits
@@ -36,7 +36,7 @@
 //!
 //! // Validate a query
 //! let query = "{ user { posts { comments { author { name } } } } }";
-//! let metrics = validator.validate(query)?;
+//! let metrics = validator.validate(query).unwrap();
 //! println!("Query depth: {}", metrics.depth);
 //! println!("Query complexity: {}", metrics.complexity);
 //! ```

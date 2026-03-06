@@ -11,7 +11,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 /// Arrow schema for FraiseQL observer events.
 ///
 /// Maps to `EntityEvent` from fraiseql-observers:
-/// ```ignore
+/// ```text
 /// pub struct EntityEvent {
 ///     pub id: Uuid,                      // UUID of the event
 ///     pub event_type: String,            // Event type (e.g., "Order.Created")

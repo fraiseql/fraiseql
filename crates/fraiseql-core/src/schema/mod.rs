@@ -24,7 +24,8 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: a compiled schema JSON file from `fraiseql-cli compile`.
 //! use fraiseql_core::schema::CompiledSchema;
 //!
 //! // From schema.compiled.json produced by `fraiseql-cli compile`

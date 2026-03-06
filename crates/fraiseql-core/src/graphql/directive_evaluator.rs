@@ -15,7 +15,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: fraiseql_core graphql internal types.
 //! use fraiseql_core::graphql::{
 //!     DirectiveHandler, DirectiveResult, EvaluationContext,
 //!     DirectiveEvaluatorBuilder,

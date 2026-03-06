@@ -283,10 +283,12 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Example: Direct Usage (Advanced)
     ///
-    /// ```ignore
-    /// use fraiseql_core::schema::SqlProjectionHint;
-    /// use fraiseql_core::db::DatabaseAdapter;
+    /// ```no_run
+    /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
+    /// use fraiseql_db::types::SqlProjectionHint;
+    /// use fraiseql_db::traits::DatabaseAdapter;
     ///
+    /// # async fn example(adapter: &impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// let projection = SqlProjectionHint {
     ///     database: "postgresql".to_string(),
     ///     projection_template: "jsonb_build_object(\
@@ -303,17 +305,24 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// // results only contain id, name, email fields
     /// // 75% smaller than fetching all fields
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Example: Fallback (No Projection)
     ///
-    /// ```ignore
+    /// ```no_run
+    /// // Requires: running PostgreSQL database and a DatabaseAdapter implementation.
+    /// # use fraiseql_db::traits::DatabaseAdapter;
+    /// # async fn example(adapter: &impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // For debugging or when projection not available
     /// let results = adapter
     ///     .execute_with_projection("v_user", None, None, Some(100))
     ///     .await?;
     ///
     /// // Equivalent to execute_where_query() - returns full objects
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # See Also

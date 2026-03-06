@@ -15,7 +15,9 @@ use crate::{
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// // Requires: a populated FederationMetadata struct.
+/// // See: tests/integration/ for runnable examples.
 /// let fed_type = find_federation_type("User", &metadata)?;
 /// ```
 pub fn find_federation_type<'a>(

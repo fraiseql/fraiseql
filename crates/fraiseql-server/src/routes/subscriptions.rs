@@ -12,7 +12,8 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```no_run
+//! // Requires: running server with initialized subscription manager.
 //! use fraiseql_server::routes::subscriptions::{subscription_handler, SubscriptionState};
 //!
 //! let state = SubscriptionState::new(subscription_manager);
