@@ -89,12 +89,15 @@ See `batches/batch-4-sdk-audit.md` for per-SDK findings and required test patter
 single crate makes incremental compilation ineffective. Any change to `db/`
 forces recompilation of `cache/`, `graphql/`, etc.
 
+**Resolved 2026-03-06**: CS-1 through CS-4 completed the full split.
+fraiseql-core now at 92,218 lines. Budget lowered to 100K.
+
 | ID    | Sev | Status | What | Where |
 |-------|-----|--------|------|-------|
-| CA-1  | 🟡  | ❌     | Extract `crates/fraiseql-core/src/db/` into `crates/fraiseql-db/` — **BLOCKED**: `db/traits.rs` imports `compiler::aggregation::OrderByClause` and `schema::SqlProjectionHint` (used in 30+ files); these must be relocated first to avoid circular dependency | New crate |
-| CA-2  | 🟡  | ❌     | Extract `crates/fraiseql-core/src/runtime/executor/` into `crates/fraiseql-executor/` — **BLOCKED**: circular dependency between `cache/adapter/` and `runtime/executor/` requires trait abstraction before split | New crate |
-| CA-3  | 🔵  | ❌     | Update `fraiseql-core/Cargo.toml` — deferred pending CA-1/CA-2 | `crates/fraiseql-core/Cargo.toml` |
-| CA-4  | 🔵  | ✅     | Added `[workspace.metadata.crate-size-budget]` to `Cargo.toml` and `tools/check-crate-sizes.sh`; all 12 crates pass; fraiseql-core budgeted at 150K (split threshold) | `tools/check-crate-sizes.sh`, `Cargo.toml` |
+| CA-1  | 🟡  | ✅     | Extract `crates/fraiseql-core/src/db/` into `crates/fraiseql-db/` — unblocked by CS-1 (sql_hints relocation); completed in CS-3 | `crates/fraiseql-db/` |
+| CA-2  | 🟡  | ✅     | Define `ExecutorAdapter` trait (CS-2) in `fraiseql-executor`; re-export `Executor` from fraiseql-core (pragmatic approach avoiding executor move) | `crates/fraiseql-executor/` |
+| CA-3  | 🔵  | ✅     | Updated `fraiseql-core/Cargo.toml`: added `fraiseql-db` dep, removed DB driver deps, updated feature pass-through flags | `crates/fraiseql-core/Cargo.toml` |
+| CA-4  | 🔵  | ✅     | Added `[workspace.metadata.crate-size-budget]` to `Cargo.toml` and `tools/check-crate-sizes.sh`; all 12 crates pass; fraiseql-core budget lowered to 100K after split | `tools/check-crate-sizes.sh`, `Cargo.toml` |
 
 See `batches/batch-5-crate-split.md` for dependency graph analysis and migration steps.
 

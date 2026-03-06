@@ -198,7 +198,7 @@ version = "2.1.0-dev"
 #   fraiseql-observers-macros:    192 lines
 # ---------------------------------------------------------------------------
 [workspace.metadata.crate-size-budget]
-fraiseql-core             = 150_000  # split threshold; CA-1/CA-2 will reduce to ~70K
+fraiseql-core             = 110_000  # post-split budget; fraiseql-db extracted (CS-3)
 fraiseql-server           = 55_000
 fraiseql-observers        = 45_000
 fraiseql-cli              = 40_000
@@ -206,6 +206,8 @@ fraiseql-auth             = 25_000
 fraiseql-secrets          = 20_000
 fraiseql-wire             = 20_000
 fraiseql-arrow            = 15_000
+fraiseql-db               = 25_000
+fraiseql-executor         = 2_000
 fraiseql-webhooks         = 10_000
 fraiseql-test-utils       = 5_000
 fraiseql-error            = 5_000

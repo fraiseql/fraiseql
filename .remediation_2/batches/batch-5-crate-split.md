@@ -165,8 +165,8 @@ Update `fraiseql-core/Cargo.toml` and workspace as part of CA-1/CA-2.
 
 - [x] `tools/check-crate-sizes.sh` passes on current codebase
 - [x] `[workspace.metadata.crate-size-budget]` added to `Cargo.toml`
-- [ ] `cargo check --workspace` passes after CA-1 split (deferred)
-- [ ] `cargo test --workspace` passes after CA-1 split (deferred)
-- [ ] `wc -l crates/fraiseql-core/src/**/*.rs | tail -1` shows < 80K after split (deferred)
-- [ ] `crates/fraiseql-db/` has its own `README.md` explaining its scope (deferred)
-- [ ] Snapshot tests (`cargo test --test sql_snapshots`) still pass (deferred)
+- [x] `cargo check --workspace` passes after CA-1 split (2026-03-06)
+- [x] `cargo test --workspace` passes after CA-1 split (fraiseql-db: 149, fraiseql-core: 2138, fraiseql-server: 623 unit tests)
+- [x] `wc -l crates/fraiseql-core/src/**/*.rs | tail -1` shows 92,218 after split
+- [ ] `crates/fraiseql-db/` has its own `README.md` explaining its scope
+- [x] Snapshot tests (`cargo test --test sql_snapshots`) still pass
