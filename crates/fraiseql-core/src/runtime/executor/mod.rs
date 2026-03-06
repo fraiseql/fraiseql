@@ -182,6 +182,7 @@ use crate::{
 };
 
 mod classify;
+mod explain;
 mod query;
 mod mutation;
 mod aggregate;

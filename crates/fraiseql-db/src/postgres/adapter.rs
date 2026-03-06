@@ -373,6 +373,59 @@ impl PostgresAdapter {
     }
 }
 
+/// Build a parameterized `SELECT data FROM {view}` SQL string.
+///
+/// Shared by [`PostgresAdapter::execute_where_query`] and
+/// [`PostgresAdapter::explain_where_query`] so that SQL construction
+/// logic is never duplicated.
+///
+/// # Returns
+///
+/// `(sql, typed_params)` — the SQL string and the bound parameter values.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError` if WHERE clause generation fails.
+fn build_where_select_sql(
+    view: &str,
+    where_clause: Option<&WhereClause>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<(String, Vec<QueryParam>)> {
+    // Build base query
+    let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
+
+    // Collect WHERE clause params (if any)
+    let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
+        let generator = PostgresWhereGenerator::new();
+        let (where_sql, where_params) = generator.generate(clause)?;
+        sql.push_str(" WHERE ");
+        sql.push_str(&where_sql);
+
+        // Convert WHERE clause JSON values to QueryParam
+        where_params.into_iter().map(QueryParam::from).collect()
+    } else {
+        Vec::new()
+    };
+    let mut param_count = typed_params.len();
+
+    // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT)
+    if let Some(lim) = limit {
+        param_count += 1;
+        sql.push_str(&format!(" LIMIT ${param_count}"));
+        typed_params.push(QueryParam::BigInt(i64::from(lim)));
+    }
+
+    // Add OFFSET as BigInt (PostgreSQL requires integer type for OFFSET)
+    if let Some(off) = offset {
+        param_count += 1;
+        sql.push_str(&format!(" OFFSET ${param_count}"));
+        typed_params.push(QueryParam::BigInt(i64::from(off)));
+    }
+
+    Ok((sql, typed_params))
+}
+
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn execute_with_projection(
@@ -392,44 +445,51 @@ impl DatabaseAdapter for PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // Build base query
-        let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
+        let (sql, typed_params) = build_where_select_sql(view, where_clause, limit, offset)?;
 
-        // Collect WHERE clause params (if any)
-        let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
-            let generator = PostgresWhereGenerator::new();
-            let (where_sql, where_params) = generator.generate(clause)?;
-            sql.push_str(" WHERE ");
-            sql.push_str(&where_sql);
-
-            // Convert WHERE clause JSON values to QueryParam
-            where_params.into_iter().map(QueryParam::from).collect()
-        } else {
-            Vec::new()
-        };
-        let mut param_count = typed_params.len();
-
-        // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT)
-        if let Some(lim) = limit {
-            param_count += 1;
-            sql.push_str(&format!(" LIMIT ${param_count}"));
-            typed_params.push(QueryParam::BigInt(i64::from(lim)));
-        }
-
-        // Add OFFSET as BigInt (PostgreSQL requires integer type for OFFSET)
-        if let Some(off) = offset {
-            param_count += 1;
-            sql.push_str(&format!(" OFFSET ${param_count}"));
-            typed_params.push(QueryParam::BigInt(i64::from(off)));
-        }
-
-        // Create references to QueryParam for ToSql
         let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
             .iter()
             .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
         self.execute_raw(&sql, &param_refs).await
+    }
+
+    async fn explain_where_query(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<serde_json::Value> {
+        let (select_sql, typed_params) =
+            build_where_select_sql(view, where_clause, limit, offset)?;
+        let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
+
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        let client = self.acquire_connection_with_retry().await?;
+        let rows = client
+            .query(explain_sql.as_str(), &param_refs)
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("EXPLAIN ANALYZE failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        if let Some(row) = rows.first() {
+            let plan: serde_json::Value =
+                row.try_get(0).map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to parse EXPLAIN output: {e}"),
+                    sql_state: None,
+                })?;
+            Ok(plan)
+        } else {
+            Ok(serde_json::Value::Null)
+        }
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -831,8 +891,26 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod unit_tests {
-    use super::{escape_jsonb_key, PostgresAdapter};
+    use super::{build_where_select_sql, escape_jsonb_key, PostgresAdapter};
     use fraiseql_error::FraiseQLError;
+
+    // ── build_where_select_sql ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_build_where_select_sql_no_clause() {
+        let (sql, params) = build_where_select_sql("v_user", None, None, None).unwrap();
+        assert_eq!(sql, r#"SELECT data FROM "v_user""#);
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_build_where_select_sql_with_limit_offset() {
+        let (sql, params) = build_where_select_sql("v_order", None, Some(10), Some(20)).unwrap();
+        // LIMIT takes $1, OFFSET takes $2.
+        assert!(sql.contains("LIMIT $1"), "expected LIMIT $1 in: {sql}");
+        assert!(sql.contains("OFFSET $2"), "expected OFFSET $2 in: {sql}");
+        assert_eq!(params.len(), 2, "expected 2 params (limit + offset)");
+    }
 
     #[test]
     fn test_escape_jsonb_key_no_quotes() {

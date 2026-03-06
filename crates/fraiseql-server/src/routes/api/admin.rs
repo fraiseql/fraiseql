@@ -329,6 +329,69 @@ pub async fn config_handler<A: DatabaseAdapter>(
     }))
 }
 
+/// Request body for `POST /api/v1/admin/explain`.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ExplainRequest {
+    /// Name of the regular query to explain (e.g., `"users"`).
+    pub query: String,
+
+    /// GraphQL-style variable filters passed as a JSON object.
+    ///
+    /// Each key-value pair becomes an equality condition in the WHERE clause.
+    /// Example: `{"status": "active"}` → `WHERE data->>'status' = 'active'`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<serde_json::Value>,
+
+    /// Optional row limit to pass to the query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+
+    /// Optional row offset to pass to the query.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u32>,
+}
+
+/// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for a named query.
+///
+/// Accepts a query name and optional variable filters, then executes
+/// `EXPLAIN ANALYZE` against the backing PostgreSQL view using the exact
+/// same parameterized SQL that a live query would use.
+///
+/// # Errors
+///
+/// * `400 Bad Request` — empty query name, unknown query, or mutation given
+/// * `500 Internal Server Error` — database execution failure
+///
+/// Requires admin token authentication.
+pub async fn explain_handler<A: DatabaseAdapter + 'static>(
+    State(state): State<AppState<A>>,
+    Json(req): Json<ExplainRequest>,
+) -> Result<Json<ApiResponse<fraiseql_core::runtime::ExplainResult>>, ApiError> {
+    if req.query.is_empty() {
+        return Err(ApiError::validation_error("query cannot be empty"));
+    }
+
+    state
+        .executor
+        .explain(
+            &req.query,
+            req.variables.as_ref(),
+            req.limit,
+            req.offset,
+        )
+        .await
+        .map(ApiResponse::success)
+        .map_err(|e| match e {
+            fraiseql_core::error::FraiseQLError::Validation { message, .. } => {
+                ApiError::validation_error(message)
+            },
+            fraiseql_core::error::FraiseQLError::Unsupported { message } => {
+                ApiError::validation_error(format!("Unsupported: {message}"))
+            },
+            other => ApiError::internal_error(other.to_string()),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

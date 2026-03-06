@@ -69,15 +69,21 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 - **PHP SDK** - Schema authoring and CLI integration
 - **C#, Elixir, F# SDK stubs** - Schema authoring support
 - **Federation circuit breaker** - Per-entity-type thresholds with half-open recovery
+- **EXPLAIN introspection endpoint** - `POST /api/v1/admin/explain` runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` with caller-supplied parameters; returns `{query_name, sql_source, generated_sql, parameters, explain_output}` (`fraiseql-core/src/runtime/executor/explain.rs`)
 
 ### Remaining
-- **N+1 query detection** - Automated warnings when queries cause multiple database round-trips
-- **Query plan analysis** - Introspection endpoint showing generated SQL and EXPLAIN output
-- **Intelligent projection optimization** - Automatically select only requested fields from database
-- **Connection pool auto-tuning** - Adaptive pool sizing based on query patterns and latency percentiles
-- **Statement caching** - Eliminate prepare-statement overhead for repeated queries
-- **Batch query optimization** - Combine multiple requested queries into single database round-trip where safe
-- **Performance dashboard** - Pre-built Grafana dashboard for query performance analysis
+- **Connection pool auto-tuning** - Adaptive pool sizing based on queue depth and p99 latency
+  percentiles; prevents starvation spikes without exhausting `max_connections` on the database
+- **Multi-root query pipelining** - Send all root-field SQL statements in a single PostgreSQL
+  extended-query pipeline round-trip; eliminates one network RTT per multi-field operation
+- **Performance dashboard** - Pre-built Grafana dashboard consuming the existing Prometheus metrics
+  endpoint; covers query latency percentiles, pool health, error rates, and cache hit ratio
+
+> **Architectural note**: FraiseQL's single-view-per-type model makes several classic GraphQL
+> performance features unnecessary. N+1 queries cannot occur (no runtime relationship traversal).
+> Projection optimization is a no-op (PostgreSQL inlines views and fetches only required columns
+> from base tables). Statement caching is already provided by the `sqlx` driver layer.
+> DataLoader-style batching is irrelevant without N+1.
 
 ---
 

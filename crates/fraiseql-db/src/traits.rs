@@ -522,6 +522,41 @@ pub trait DatabaseAdapter: Send + Sync {
             message: "EXPLAIN not available for this database adapter".to_string(),
         })
     }
+
+    /// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` against a view with the
+    /// same parameterized WHERE clause that `execute_where_query` would use.
+    ///
+    /// Unlike `explain_query`, this method uses **real bound parameters** and
+    /// **actually executes the query** (ANALYZE mode), so the plan reflects
+    /// PostgreSQL's runtime statistics for the given filter values.
+    ///
+    /// Only PostgreSQL supports this; other adapters return
+    /// `FraiseQLError::Unsupported` by default.
+    ///
+    /// # Arguments
+    ///
+    /// * `view` - View name (e.g., "v_user")
+    /// * `where_clause` - Optional filter (same as `execute_where_query`)
+    /// * `limit` - Optional row limit
+    /// * `offset` - Optional row offset
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on execution failure.
+    /// Returns `FraiseQLError::Unsupported` for non-PostgreSQL adapters.
+    async fn explain_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<serde_json::Value> {
+        Err(fraiseql_error::FraiseQLError::Unsupported {
+            message: "EXPLAIN ANALYZE is not available for this database adapter. \
+                      Only PostgreSQL supports explain_where_query."
+                .to_string(),
+        })
+    }
 }
 
 /// Database capabilities and feature support.

@@ -83,7 +83,7 @@ pub use subscription::{
     SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter, WebhookConfig,
     WebhookPayload, protocol,
 };
-pub use explain::ExplainPlan;
+pub use explain::{ExplainPlan, ExplainResult};
 pub use tenant_enforcer::TenantEnforcer;
 pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
