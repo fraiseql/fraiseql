@@ -340,4 +340,83 @@ public sealed class SchemaExporterTests : IDisposable
         Assert.Equal("A blog author", type.GetProperty("description").GetString());
         Assert.Equal(3, type.GetProperty("fields").GetArrayLength());
     }
+
+    // --- Canonical golden schema compliance (fixture 01-basic-query-mutation) ---
+
+    [GraphQLType(Name = "User", SqlSource = "v_user", Description = "A registered user in the system")]
+    private class UserGoldenFixture
+    {
+        [GraphQLField(Type = "ID",     Nullable = false)] public int    Id    { get; set; }
+        [GraphQLField(Type = "String", Nullable = false)] public string Email { get; set; } = string.Empty;
+        [GraphQLField(Type = "String", Nullable = true)]  public string? Name { get; set; }
+    }
+
+    [Fact]
+    public void TestGoldenFixture01AgainstJsonFile()
+    {
+        // Locate the shared golden fixture file, walking up from the test binary
+        // until the sdks/official/tests/fixtures/golden directory is found.
+        var dir = AppContext.BaseDirectory;
+        string? goldenDir = null;
+        for (var i = 0; i < 10 && dir is not null; i++)
+        {
+            var candidate = Path.Combine(dir, "tests", "fixtures", "golden");
+            if (Directory.Exists(candidate)) { goldenDir = candidate; break; }
+            dir = Directory.GetParent(dir)?.FullName;
+        }
+        if (goldenDir is null)
+        {
+            // Skip gracefully when running outside the repository tree.
+            return;
+        }
+
+        var fixturePath = Path.Combine(goldenDir, "01-basic-query-mutation.json");
+        var goldenDoc = JsonDocument.Parse(File.ReadAllText(fixturePath));
+
+        // Build the canonical schema.
+        SchemaRegistry.Instance.Register(typeof(UserGoldenFixture));
+        QueryBuilder.Query("users")
+            .ReturnType("User")
+            .ReturnsList()
+            .SqlSource("v_user")
+            .Register();
+        QueryBuilder.Query("user")
+            .ReturnType("User")
+            .Nullable()
+            .SqlSource("v_user")
+            .Argument("id", "ID", nullable: false)
+            .Register();
+        MutationBuilder.Mutation("createUser")
+            .ReturnType("User")
+            .SqlSource("fn_create_user")
+            .Operation("CREATE")
+            .Argument("email", "String", nullable: false)
+            .Argument("name",  "String", nullable: false)
+            .Register();
+
+        var json = SchemaExporter.Export(pretty: false);
+        var genDoc = JsonDocument.Parse(json);
+
+        // Assert key fields match the golden fixture.
+        var goldenUsers  = FindByName(goldenDoc.RootElement.GetProperty("queries"),  "users");
+        var genUsers     = FindByName(genDoc.RootElement.GetProperty("queries"),     "users");
+        Assert.Equal(goldenUsers.GetProperty("sql_source").GetString(),
+                     genUsers.GetProperty("sql_source").GetString());
+        Assert.Equal(goldenUsers.GetProperty("return_type").GetString(),
+                     genUsers.GetProperty("return_type").GetString());
+        Assert.True(genUsers.GetProperty("returns_list").GetBoolean());
+
+        var goldenCreate = FindByName(goldenDoc.RootElement.GetProperty("mutations"), "createUser");
+        var genCreate    = FindByName(genDoc.RootElement.GetProperty("mutations"),    "createUser");
+        Assert.Equal(goldenCreate.GetProperty("sql_source").GetString(),
+                     genCreate.GetProperty("sql_source").GetString());
+    }
+
+    private static JsonElement FindByName(JsonElement array, string name)
+    {
+        foreach (var el in array.EnumerateArray())
+            if (el.GetProperty("name").GetString() == name)
+                return el;
+        throw new KeyNotFoundException($"element with name '{name}' not found in array");
+    }
 }
