@@ -16,6 +16,10 @@ use axum::{
 /// Non-POST methods pass through unconditionally.
 /// POST requests must have `Content-Type` starting with `application/json`
 /// (e.g. `application/json` or `application/json; charset=utf-8`).
+///
+/// # Errors
+///
+/// Returns a `415 Unsupported Media Type` response if the POST request does not carry a JSON `Content-Type`.
 pub async fn require_json_content_type(
     req: Request<Body>,
     next: Next,

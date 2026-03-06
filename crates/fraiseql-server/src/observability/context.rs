@@ -84,6 +84,11 @@ impl TraceContext {
     }
 
     /// Parse traceparent header
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` error if the header does not have exactly four dash-separated parts.
+    /// Returns a `String` error if the trace-flags field cannot be parsed as a hex byte.
     pub fn from_traceparent(header: &str) -> Result<Self, String> {
         let parts: Vec<&str> = header.split('-').collect();
         if parts.len() != 4 {

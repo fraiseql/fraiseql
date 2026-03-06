@@ -5,6 +5,10 @@
 use std::fmt;
 
 /// Tracer initialization result
+///
+/// # Errors
+///
+/// Returns an error if the OpenTelemetry tracer cannot be initialized.
 pub fn init_tracer() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize OpenTelemetry tracer
     Ok(())

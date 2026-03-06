@@ -63,6 +63,10 @@ impl TenantContext {
     }
 
     /// Require tenant ID (for operations that must be tenant-scoped)
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` error message if no `org_id` is present on this context.
     pub fn require_org_id(&self) -> Result<&str, String> {
         self.org_id
             .as_deref()

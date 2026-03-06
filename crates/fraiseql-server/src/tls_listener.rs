@@ -38,6 +38,10 @@ pub enum AcceptedConnection {
 
 impl AcceptedConnection {
     /// Get the remote socket address.
+    ///
+    /// # Errors
+    ///
+    /// Returns `std::io::Error` if the underlying stream's peer address cannot be retrieved.
     pub fn peer_addr(&self) -> std::io::Result<std::net::SocketAddr> {
         match self {
             Self::Plain(stream) => stream.peer_addr(),
@@ -47,6 +51,10 @@ impl AcceptedConnection {
 }
 
 /// Accept the next connection with optional TLS wrapping.
+///
+/// # Errors
+///
+/// Returns `std::io::Error` if the TCP listener fails to accept a connection or the TLS handshake fails.
 pub async fn accept_connection(
     listener: &TcpListener,
     config: &TlsListenerConfig,

@@ -107,6 +107,10 @@ impl MetricsRegistry {
     }
 
     /// Register a counter
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` error if the internal mutex is poisoned.
     pub fn register_counter(&self, counter: MetricCounter) -> Result<(), String> {
         let mut counters = self.counters.lock().map_err(|e| e.to_string())?;
         counters.push(counter);
@@ -114,6 +118,10 @@ impl MetricsRegistry {
     }
 
     /// Register a histogram
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` error if the internal mutex is poisoned.
     pub fn register_histogram(&self, histogram: MetricHistogram) -> Result<(), String> {
         let mut histograms = self.histograms.lock().map_err(|e| e.to_string())?;
         histograms.push(histogram);

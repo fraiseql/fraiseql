@@ -72,6 +72,10 @@ impl RbacDbBackend {
     ///
     /// Creates all required tables and indexes if they don't already exist.
     /// This operation is idempotent.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if the schema creation SQL fails.
     pub async fn ensure_schema(&self) -> Result<(), RbacDbError> {
         sqlx::raw_sql(
             "CREATE TABLE IF NOT EXISTS fraiseql_roles (
@@ -130,6 +134,14 @@ impl RbacDbBackend {
     ///
     /// Permissions are specified as `"resource:action"` strings. Each permission
     /// is created if it doesn't already exist, then linked to the role.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `tenant_id` is not a valid UUID.
+    /// Returns `RbacDbError::ConnectionError` if a transaction cannot be started.
+    /// Returns `RbacDbError::RoleDuplicate` if a role with the same name already exists.
+    /// Returns `RbacDbError::QueryError` if any database operation fails.
+    /// Returns `RbacDbError::TransactionError` if the transaction cannot be committed.
     pub async fn create_role(
         &self,
         name: &str,
@@ -201,6 +213,11 @@ impl RbacDbBackend {
     }
 
     /// Get role by ID with its associated permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `role_id` is not a valid UUID or the query fails.
+    /// Returns `RbacDbError::RoleNotFound` if no role with the given ID exists.
     pub async fn get_role(&self, role_id: &str) -> Result<RoleDto, RbacDbError> {
         let role_uuid = Uuid::parse_str(role_id)
             .map_err(|_| RbacDbError::QueryError("Invalid role ID".into()))?;
@@ -221,6 +238,10 @@ impl RbacDbBackend {
     }
 
     /// List roles with optional tenant filtering and pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `tenant_id` is not a valid UUID or the query fails.
     pub async fn list_roles(
         &self,
         tenant_id: Option<&str>,
@@ -268,6 +289,15 @@ impl RbacDbBackend {
     }
 
     /// Update an existing role's name, description, and permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `role_id` is not a valid UUID.
+    /// Returns `RbacDbError::ConnectionError` if a transaction cannot be started.
+    /// Returns `RbacDbError::RoleDuplicate` if the new name conflicts with an existing role.
+    /// Returns `RbacDbError::RoleNotFound` if no role with the given ID exists.
+    /// Returns `RbacDbError::QueryError` if any database operation fails.
+    /// Returns `RbacDbError::TransactionError` if the transaction cannot be committed.
     pub async fn update_role(
         &self,
         role_id: &str,
@@ -336,6 +366,11 @@ impl RbacDbBackend {
     }
 
     /// Delete a role by ID (cascades to role_permissions and user_roles).
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `role_id` is not a valid UUID or the query fails.
+    /// Returns `RbacDbError::RoleNotFound` if no role with the given ID exists.
     pub async fn delete_role(&self, role_id: &str) -> Result<(), RbacDbError> {
         let role_uuid = Uuid::parse_str(role_id)
             .map_err(|_| RbacDbError::QueryError("Invalid role ID".into()))?;
@@ -357,6 +392,11 @@ impl RbacDbBackend {
     // =========================================================================
 
     /// Create a new permission.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::PermissionDuplicate` if a permission with the same resource and action already exists.
+    /// Returns `RbacDbError::QueryError` if the database insert fails.
     pub async fn create_permission(
         &self,
         resource: &str,
@@ -395,6 +435,10 @@ impl RbacDbBackend {
     }
 
     /// List all permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if the database query fails.
     pub async fn list_permissions(&self) -> Result<Vec<PermissionDto>, RbacDbError> {
         let rows = sqlx::query(
             "SELECT id, resource, action, description, created_at
@@ -408,6 +452,11 @@ impl RbacDbBackend {
     }
 
     /// Get a permission by ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `permission_id` is not a valid UUID or the query fails.
+    /// Returns `RbacDbError::PermissionNotFound` if no permission with the given ID exists.
     pub async fn get_permission(&self, permission_id: &str) -> Result<PermissionDto, RbacDbError> {
         let perm_uuid = Uuid::parse_str(permission_id)
             .map_err(|_| RbacDbError::QueryError("Invalid permission ID".into()))?;
@@ -426,6 +475,12 @@ impl RbacDbBackend {
     }
 
     /// Delete a permission by ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `permission_id` is not a valid UUID or the query fails.
+    /// Returns `RbacDbError::PermissionInUse` if the permission is referenced by one or more roles.
+    /// Returns `RbacDbError::PermissionNotFound` if no permission with the given ID exists.
     pub async fn delete_permission(&self, permission_id: &str) -> Result<(), RbacDbError> {
         let perm_uuid = Uuid::parse_str(permission_id)
             .map_err(|_| RbacDbError::QueryError("Invalid permission ID".into()))?;
@@ -460,6 +515,13 @@ impl RbacDbBackend {
     // =========================================================================
 
     /// Assign a role to a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `role_id` or `tenant_id` is not a valid UUID.
+    /// Returns `RbacDbError::RoleNotFound` if no role with the given ID exists.
+    /// Returns `RbacDbError::AssignmentDuplicate` if the user already has this role.
+    /// Returns `RbacDbError::QueryError` if the database insert fails.
     pub async fn assign_role_to_user(
         &self,
         user_id: &str,
@@ -515,6 +577,10 @@ impl RbacDbBackend {
     }
 
     /// List all role assignments for a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if the database query fails.
     pub async fn list_user_roles(&self, user_id: &str) -> Result<Vec<UserRoleDto>, RbacDbError> {
         let rows = sqlx::query(
             "SELECT user_id, role_id, tenant_id, assigned_at
@@ -543,6 +609,11 @@ impl RbacDbBackend {
     }
 
     /// Revoke a role from a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::QueryError` if `role_id` is not a valid UUID or the query fails.
+    /// Returns `RbacDbError::AssignmentNotFound` if the user does not have this role assigned.
     pub async fn revoke_role_from_user(
         &self,
         user_id: &str,

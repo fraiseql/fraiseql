@@ -115,6 +115,11 @@ impl TrustedDocumentStore {
     /// - `document_id` present + NOT found → `DocumentNotFound`.
     /// - No `document_id` in strict mode → `ForbiddenRawQuery`.
     /// - No `document_id` in permissive mode → return `raw_query`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrustedDocumentError::DocumentNotFound` if a `document_id` is given but not in the store.
+    /// Returns `TrustedDocumentError::ForbiddenRawQuery` if no `document_id` is provided in strict mode, or if `raw_query` is also absent in permissive mode.
     pub async fn resolve(
         &self,
         document_id: Option<&str>,

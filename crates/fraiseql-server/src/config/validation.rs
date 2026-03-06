@@ -30,6 +30,12 @@ impl ValidationResult {
         self.warnings.push(warning.into());
     }
 
+    /// Convert the validation result into a standard `Result`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the single `ConfigError` if exactly one error was collected.
+    /// Returns `ConfigError::MultipleErrors` if more than one error was collected.
     pub fn into_result(self) -> Result<Vec<String>, ConfigError> {
         if self.errors.is_empty() {
             Ok(self.warnings)

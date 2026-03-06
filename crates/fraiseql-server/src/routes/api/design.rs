@@ -74,6 +74,10 @@ pub struct DesignAuditResponse {
 }
 
 /// Federation audit endpoint - JSONB batching analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn federation_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -106,6 +110,10 @@ pub async fn federation_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Cost audit endpoint - Compiled query determinism analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn cost_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -138,6 +146,10 @@ pub async fn cost_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Cache audit endpoint - JSONB coherency analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn cache_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -170,6 +182,10 @@ pub async fn cache_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Authorization audit endpoint - Auth boundary analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn auth_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -202,6 +218,10 @@ pub async fn auth_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Compilation audit endpoint - Type suitability analysis
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn compilation_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,
@@ -234,6 +254,10 @@ pub async fn compilation_audit_handler<A: DatabaseAdapter>(
 }
 
 /// Overall design audit endpoint
+///
+/// # Errors
+///
+/// Returns `ApiError` with a parse error if the schema JSON is invalid.
 pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<DesignAuditRequest>,

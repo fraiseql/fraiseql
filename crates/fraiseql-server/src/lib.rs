@@ -33,7 +33,6 @@
 #![allow(clippy::doc_markdown)] // Reason: backtick-wrapping all technical terms would reduce readability
 #![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style (e.g., ServerConfig in server mod)
 #![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain, not inspect
-#![allow(clippy::missing_errors_doc)] // Reason: 58 public functions need # Errors sections; deferred to documentation phase
 #![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design; remaining are unreachable
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types in handler signatures
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn even for sync operations

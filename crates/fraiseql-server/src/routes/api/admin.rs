@@ -72,6 +72,11 @@ pub struct AdminConfigResponse {
 /// Supports validation-only mode via `validate_only` flag.
 /// When applied, the schema is atomically swapped without stopping execution.
 ///
+/// # Errors
+///
+/// Returns `ApiError` with a validation error if `schema_path` is empty.
+/// Returns `ApiError` with a parse error if the schema file cannot be read or parsed.
+///
 /// Requires admin token authentication.
 pub async fn reload_schema_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
@@ -143,6 +148,11 @@ pub struct CacheStatsResponse {
 /// - **all**: Clear all cache entries
 /// - **entity**: Clear entries for a specific entity type
 /// - **pattern**: Clear entries matching a glob pattern
+///
+/// # Errors
+///
+/// Returns `ApiError` with an internal error if the cache feature is not enabled.
+/// Returns `ApiError` with a validation error if required parameters are missing or scope is invalid.
 ///
 /// Requires admin token authentication.
 pub async fn cache_clear_handler<A: DatabaseAdapter>(
@@ -240,6 +250,10 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 ///
 /// Returns current cache metrics including entry count, enabled status, and TTL.
 ///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
+///
 /// Requires admin token authentication.
 pub async fn cache_stats_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
@@ -277,6 +291,10 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 /// Returns server version and runtime configuration with secrets redacted.
 /// Configuration includes database settings, cache settings, etc.
 /// but excludes API keys, passwords, and other sensitive data.
+///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
 ///
 /// Requires admin token authentication.
 pub async fn config_handler<A: DatabaseAdapter>(

@@ -1035,6 +1035,10 @@ fn extract_jwt_subject(authorization: &str) -> Option<String> {
 ///    present in the `Authorization` header; authenticated users get `rps_per_user`
 ///    (default 10× `rps_per_ip`) instead of the shared IP bucket.
 /// 3. Per-IP limit (unauthenticated or no bearer token) — fallback.
+///
+/// # Errors
+///
+/// Returns `RateLimitExceeded` if the per-path, per-user, or per-IP rate limit is exceeded.
 pub async fn rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request<Body>,

@@ -244,6 +244,12 @@ impl TokenRevocationManager {
     /// Check if a token should be rejected.
     ///
     /// Returns `Ok(())` if the token is allowed, or an error reason if rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TokenRejection::MissingJti` if JTI is required but absent.
+    /// Returns `TokenRejection::Revoked` if the token has been revoked.
+    /// Returns `TokenRejection::StoreUnavailable` if the revocation store is unreachable and `fail_open` is false.
     pub async fn check_token(&self, jti: Option<&str>) -> Result<(), TokenRejection> {
         let jti = match jti {
             Some(j) if !j.is_empty() => j,
@@ -272,11 +278,19 @@ impl TokenRevocationManager {
     }
 
     /// Revoke a single token by JTI.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RevocationError` if the underlying revocation store operation fails.
     pub async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
         self.store.revoke(jti, ttl_secs).await
     }
 
     /// Revoke all tokens for a user.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RevocationError` if the underlying revocation store operation fails.
     pub async fn revoke_all_for_user(&self, sub: &str) -> Result<u64, RevocationError> {
         self.store.revoke_all_for_user(sub).await
     }

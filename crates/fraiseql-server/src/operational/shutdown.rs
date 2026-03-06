@@ -63,6 +63,10 @@ impl Default for ShutdownHandler {
 }
 
 /// Install signal handlers for graceful shutdown
+///
+/// # Errors
+///
+/// Returns `std::io::Error` if a signal handler (e.g. SIGTERM on Unix) cannot be registered.
 pub async fn install_signal_handlers(handler: ShutdownHandler) -> Result<(), std::io::Error> {
     use tokio::signal;
 

@@ -99,6 +99,14 @@ impl TraceContext {
     }
 
     /// Parse W3C Trace Context header.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TraceParseError::InvalidFormat` if the header does not have exactly four dash-separated parts.
+    /// Returns `TraceParseError::UnsupportedVersion` if the version field is not `"00"`.
+    /// Returns `TraceParseError::InvalidTraceId` if the trace ID is not 32 lowercase hex characters.
+    /// Returns `TraceParseError::InvalidSpanId` if the span ID is not 16 lowercase hex characters.
+    /// Returns `TraceParseError` if the trace-flags field cannot be parsed.
     pub fn from_w3c_traceparent(header: &str) -> Result<Self, TraceParseError> {
         let parts: Vec<&str> = header.split('-').collect();
         if parts.len() != 4 {

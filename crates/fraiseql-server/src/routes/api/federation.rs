@@ -62,6 +62,10 @@ fn default_format() -> String {
 /// Returns information about this subgraph's federation configuration,
 /// including the entity types it manages. For gateway-level subgraph
 /// discovery, configure a federation gateway separately.
+///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
 pub async fn subgraphs_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<SubgraphsResponse>>, ApiError> {
@@ -108,6 +112,10 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
 /// - **json**: Machine-readable federation structure
 /// - **dot**: Graphviz format for visualization
 /// - **mermaid**: Markdown-compatible graph syntax
+///
+/// # Errors
+///
+/// Returns `ApiError` with a validation error if `format` is not one of `json`, `dot`, or `mermaid`.
 pub async fn graph_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
     Query(query): Query<GraphFormatQuery>,

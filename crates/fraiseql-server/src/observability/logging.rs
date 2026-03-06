@@ -5,6 +5,10 @@
 use std::collections::HashMap;
 
 /// Initialize structured logging
+///
+/// # Errors
+///
+/// Returns an error if the tracing subscriber cannot be initialized.
 pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing-subscriber with JSON formatting
     Ok(())
@@ -84,6 +88,10 @@ impl LogEntry {
     }
 
     /// Format as JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns `serde_json::Error` if any field value cannot be serialized to JSON.
     pub fn as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         let mut json = serde_json::json!({
             "timestamp": self.timestamp,

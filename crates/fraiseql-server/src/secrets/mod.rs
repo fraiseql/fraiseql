@@ -173,6 +173,10 @@ impl SecretManager {
     /// Encrypt a string field (convenience method).
     ///
     /// Handles UTF-8 encoding/decoding automatically.
+    ///
+    /// # Errors
+    ///
+    /// Returns `KmsError` if the KMS encryption operation fails.
     pub async fn encrypt_string(
         &self,
         plaintext: &str,
@@ -183,6 +187,11 @@ impl SecretManager {
     }
 
     /// Decrypt a string field.
+    ///
+    /// # Errors
+    ///
+    /// Returns `KmsError` if the KMS decryption operation fails.
+    /// Returns `KmsError::SerializationError` if the decrypted bytes are not valid UTF-8.
     pub async fn decrypt_string(&self, encrypted: &EncryptedData) -> KmsResult<String> {
         let plaintext = self.decrypt(encrypted).await?;
         String::from_utf8(plaintext).map_err(|e| KmsError::SerializationError {

@@ -38,6 +38,10 @@ pub struct JsonSchemaResponse {
 /// This is human-readable and suitable for documentation, tools, and introspection.
 ///
 /// Response format: `text/plain` (not JSON wrapped)
+///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
 pub async fn export_sdl_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Response, ApiError> {
@@ -52,6 +56,10 @@ pub async fn export_sdl_handler<A: DatabaseAdapter>(
 /// Useful for programmatic access and tooling.
 ///
 /// Response format: Standard JSON API response with data wrapper
+///
+/// # Errors
+///
+/// Returns `ApiError` with an internal error if the schema cannot be serialized to JSON.
 pub async fn export_json_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<JsonSchemaResponse>>, ApiError> {

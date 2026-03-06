@@ -93,6 +93,10 @@ pub struct StatsResponse {
 /// - Complexity metrics (depth, field count, score)
 /// - Warnings for potential performance issues
 /// - Estimated cost to execute
+///
+/// # Errors
+///
+/// Returns `ApiError` with a validation error if the query string is empty.
 pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     Json(req): Json<ExplainRequest>,
@@ -162,6 +166,10 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 ///
 /// Performs basic syntax validation on a GraphQL query.
 /// Returns a list of any errors found.
+///
+/// # Errors
+///
+/// This handler currently always succeeds; validation errors are reported inside the response body.
 pub async fn validate_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<ValidateRequest>,
@@ -199,6 +207,10 @@ pub async fn validate_handler<A: DatabaseAdapter>(
 /// - Total queries executed
 /// - Successful vs failed counts
 /// - Average latency across all executions
+///
+/// # Errors
+///
+/// This handler currently always succeeds; it is infallible.
 pub async fn stats_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {
