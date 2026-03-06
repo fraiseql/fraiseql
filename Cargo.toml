@@ -155,7 +155,7 @@ use_self = "allow"  # Style preference
 unwrap_used = "deny"
 
 [workspace.lints.rust]
-dead_code = "warn"
+dead_code = "deny"
 missing_docs = "deny"
 unsafe_code = "forbid"
 unused_imports = "warn"

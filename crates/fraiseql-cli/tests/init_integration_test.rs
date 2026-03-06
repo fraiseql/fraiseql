@@ -169,6 +169,7 @@ fn test_init_rust_skeleton() {
     assert!(rs.contains("pub struct Author"), "Rust skeleton should define Author");
     assert!(rs.contains("pub struct Post"), "Rust skeleton should define Post");
     assert!(rs.contains("pub struct Tag"), "Rust skeleton should define Tag");
+    assert!(!rs.contains("unimplemented!"), "Rust skeleton must not use unimplemented! (use todo! instead)");
 }
 
 #[test]

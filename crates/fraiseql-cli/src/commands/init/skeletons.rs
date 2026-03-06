@@ -278,27 +278,27 @@ pub struct Tag {{
 
 #[query(return_type = "Post", return_array = true, sql_source = "v_post")]
 pub fn posts() -> Vec<Post> {{
-    unimplemented!("Schema definition only")
+    todo!("implement resolver")
 }}
 
 #[query(return_type = "Post", sql_source = "v_post")]
 pub fn post(id: ID) -> Post {{
-    unimplemented!("Schema definition only")
+    todo!("implement resolver")
 }}
 
 #[query(return_type = "Author", return_array = true, sql_source = "v_author")]
 pub fn authors() -> Vec<Author> {{
-    unimplemented!("Schema definition only")
+    todo!("implement resolver")
 }}
 
 #[query(return_type = "Author", sql_source = "v_author")]
 pub fn author(id: ID) -> Author {{
-    unimplemented!("Schema definition only")
+    todo!("implement resolver")
 }}
 
 #[query(return_type = "Tag", return_array = true, sql_source = "v_tag")]
 pub fn tags() -> Vec<Tag> {{
-    unimplemented!("Schema definition only")
+    todo!("implement resolver")
 }}
 "#,
         name = config.project_name,

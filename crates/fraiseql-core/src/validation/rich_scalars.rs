@@ -7,12 +7,11 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-// Email regex: Simple but practical pattern
-static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-    ).expect("email regex is valid")
-});
+use crate::validation::patterns;
+
+/// Email format regex — canonical pattern from [`patterns::EMAIL`].
+static EMAIL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(patterns::EMAIL).expect("email regex is valid"));
 
 // International phone: +1-999-999-9999 or +999999999999, etc.
 static PHONE_REGEX: LazyLock<Regex> =
@@ -385,6 +384,9 @@ mod tests {
         assert!(!EmailValidator::validate("invalid.email"));
         assert!(!EmailValidator::validate("user@"));
         assert!(!EmailValidator::validate("@example.com"));
+        // Single-label domain (no TLD dot) must be rejected — regression for patterns::EMAIL `+` vs `*`
+        assert!(!EmailValidator::validate("user@localhost"));
+        assert!(!EmailValidator::validate("user@example"));
     }
 
     #[test]

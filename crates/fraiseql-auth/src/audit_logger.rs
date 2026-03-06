@@ -321,7 +321,16 @@ impl AuditLogger for StructuredAuditLogger {
     }
 }
 
-/// Global audit logger instance
+/// Global audit logger instance.
+///
+/// Initialized once per process via [`init_audit_logger`]. Subsequent calls to
+/// `init_audit_logger` are silently ignored — the first caller wins.
+///
+/// **Test isolation**: In a test binary all tests share this singleton. The first
+/// test that calls `init_audit_logger` sets the logger for the entire process; later
+/// tests see that logger regardless of what they pass. Do not assert on specific
+/// logger state across test functions in the same binary. Use
+/// [`get_audit_logger`] to read the current value.
 pub static AUDIT_LOGGER: std::sync::OnceLock<Arc<dyn AuditLogger>> = std::sync::OnceLock::new();
 
 /// Initialize the global audit logger

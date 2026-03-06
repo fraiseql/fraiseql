@@ -9,7 +9,14 @@ use prometheus::{
     Result as PrometheusResult,
 };
 
-/// Lazy-initialized global metrics registry
+/// Lazy-initialized global metrics registry.
+///
+/// Initialized once per process on first call to the registry accessor.
+/// All callers in the same process share this instance.
+///
+/// **Test isolation**: In a test binary the registry is created by whichever test
+/// runs first. Subsequent tests see the same `MetricsRegistry`. Do not rely on
+/// the registry being freshly constructed within a single test function.
 static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
 
 /// Prometheus metrics for observer system

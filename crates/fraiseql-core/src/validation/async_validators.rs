@@ -12,20 +12,14 @@ use std::{sync::LazyLock, time::Duration};
 use regex::Regex;
 
 use crate::error::{FraiseQLError, Result};
+use crate::validation::patterns;
 
 /// Async validator result type.
 pub type AsyncValidatorResult = Result<()>;
 
-/// Email format regex (RFC 5321 practical subset).
-///
-/// Validates `local-part@domain` where the domain contains at least one dot-separated
-/// label. Identical to the pattern used in `rich_scalars`.
-static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$",
-    )
-    .expect("email format regex is valid")
-});
+/// Email format regex — canonical pattern from [`patterns::EMAIL`].
+static EMAIL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(patterns::EMAIL).expect("email format regex is valid"));
 
 /// E.164 phone number regex.
 ///
