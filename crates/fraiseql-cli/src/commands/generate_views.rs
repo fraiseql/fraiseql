@@ -107,7 +107,7 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     if config.verbose {
         eprintln!("   ✓ Validating entity...");
     }
-    validate_entity(&schema, &config.entity)?;
+    let sql_source = resolve_entity_sql_source(&schema, &config.entity)?;
 
     // 4. Validate view name
     if config.verbose {
@@ -125,6 +125,7 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     }
     let sql = generate_view_sql(
         &config.entity,
+        &sql_source,
         &config.view,
         view_type,
         config.refresh_strategy,
@@ -177,13 +178,19 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     Ok(())
 }
 
-/// Validate that entity exists in the schema
-fn validate_entity(schema: &CompiledSchema, entity: &str) -> Result<()> {
-    if schema.types.iter().any(|t| t.name == entity) {
-        Ok(())
-    } else {
-        let available = schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
-        anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
+/// Look up an entity in the schema and return its SQL source table/view name.
+///
+/// # Errors
+///
+/// Returns an error if the entity does not exist in the schema.
+fn resolve_entity_sql_source(schema: &CompiledSchema, entity: &str) -> Result<String> {
+    match schema.types.iter().find(|t| t.name == entity) {
+        Some(type_def) => Ok(type_def.sql_source.as_str().to_string()),
+        None => {
+            let available =
+                schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
+            anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
+        },
     }
 }
 
@@ -210,6 +217,7 @@ fn validate_view_name(view_name: &str) -> Result<&'static str> {
 /// # Arguments
 ///
 /// * `entity` - Entity/type name from schema
+/// * `sql_source` - Actual SQL table/view name from the schema (e.g., `v_user`)
 /// * `view_name` - Full view name (e.g., "tv_user_profile")
 /// * `view_type` - View type string for documentation
 /// * `refresh_strategy` - How the view is kept up-to-date
@@ -217,6 +225,7 @@ fn validate_view_name(view_name: &str) -> Result<&'static str> {
 /// * `include_monitoring` - Whether to include monitoring functions
 fn generate_view_sql(
     entity: &str,
+    sql_source: &str,
     view_name: &str,
     view_type: &str,
     refresh_strategy: RefreshStrategy,
@@ -236,22 +245,20 @@ fn generate_view_sql(
     // Drop existing view if it exists
     sql.push_str(&format!("DROP VIEW IF EXISTS {view_name} CASCADE;\n\n"));
 
-    // Main view definition
+    // Main view definition.
+    // `validate_view_name` guarantees the prefix is one of va_/tv_/ta_ before
+    // this function is called, so the wildcard arm is unreachable.
     match view_name.split('_').next() {
         Some("va") => {
-            generate_vector_arrow_view(&mut sql, entity, view_name);
+            generate_vector_arrow_view(&mut sql, entity, sql_source, view_name);
         },
         Some("tv") => {
-            generate_table_vector_view(&mut sql, entity, view_name);
+            generate_table_vector_view(&mut sql, entity, sql_source, view_name);
         },
         Some("ta") => {
-            generate_table_arrow_view(&mut sql, entity, view_name);
+            generate_table_arrow_view(&mut sql, entity, sql_source, view_name);
         },
-        _ => {
-            // Fallback: generate a basic view
-            sql.push_str(&format!("CREATE VIEW {view_name} AS\n"));
-            sql.push_str("SELECT * FROM public.schema_placeholder;\n");
-        },
+        _ => unreachable!("view name validated by validate_view_name before generate_view_sql"),
     }
 
     // Composition views (optional)
@@ -270,25 +277,25 @@ fn generate_view_sql(
 }
 
 /// Generate a Vector Arrow (va_*) view for vector search and analytics
-fn generate_vector_arrow_view(sql: &mut String, entity: &str, view_name: &str) {
+fn generate_vector_arrow_view(sql: &mut String, entity: &str, sql_source: &str, view_name: &str) {
     sql.push_str(&format!("CREATE VIEW {view_name} AS\n"));
     sql.push_str("SELECT\n");
     sql.push_str("    id,\n");
     sql.push_str(&format!("    -- {entity} entity fields\n"));
     sql.push_str("    created_at,\n");
     sql.push_str("    updated_at\n");
-    sql.push_str("FROM public.schema_placeholder\n");
+    sql.push_str(&format!("FROM {sql_source}\n"));
     sql.push_str("WHERE archived_at IS NULL;\n");
 }
 
 /// Generate a Table Vector (tv_*) view for materialized table vectors
-fn generate_table_vector_view(sql: &mut String, entity: &str, view_name: &str) {
+fn generate_table_vector_view(sql: &mut String, entity: &str, sql_source: &str, view_name: &str) {
     sql.push_str(&format!("CREATE MATERIALIZED VIEW {view_name} AS\n"));
     sql.push_str("SELECT\n");
     sql.push_str("    id,\n");
     sql.push_str(&format!("    -- {entity} entity vector representation\n"));
     sql.push_str("    CURRENT_TIMESTAMP as materialized_at\n");
-    sql.push_str("FROM public.schema_placeholder\n");
+    sql.push_str(&format!("FROM {sql_source}\n"));
     sql.push_str("WHERE archived_at IS NULL;\n");
     sql.push('\n');
     let base_name = view_name.trim_start_matches("tv_");
@@ -296,14 +303,14 @@ fn generate_table_vector_view(sql: &mut String, entity: &str, view_name: &str) {
 }
 
 /// Generate a Table Arrow (ta_*) view for Arrow Flight streaming
-fn generate_table_arrow_view(sql: &mut String, entity: &str, view_name: &str) {
+fn generate_table_arrow_view(sql: &mut String, entity: &str, sql_source: &str, view_name: &str) {
     sql.push_str(&format!("CREATE VIEW {view_name} AS\n"));
     sql.push_str("SELECT\n");
     sql.push_str("    id,\n");
     sql.push_str(&format!("    -- {entity} entity fields optimized for Arrow\n"));
     sql.push_str("    created_at,\n");
     sql.push_str("    updated_at\n");
-    sql.push_str("FROM public.schema_placeholder\n");
+    sql.push_str(&format!("FROM {sql_source}\n"));
     sql.push_str("WHERE archived_at IS NULL\n");
     sql.push_str("ORDER BY id;\n");
 }
@@ -386,6 +393,7 @@ mod tests {
     fn test_generate_view_sql_vector_arrow() {
         let sql = generate_view_sql(
             "User",
+            "v_user",
             "va_user_embeddings",
             "Vector Arrow (va_)",
             RefreshStrategy::TriggerBased,
@@ -397,12 +405,15 @@ mod tests {
         assert!(sql.contains("Entity: User"));
         assert!(sql.contains("Vector Arrow (va_)"));
         assert!(sql.contains("trigger-based"));
+        assert!(sql.contains("FROM v_user"), "must use entity sql_source, not schema_placeholder");
+        assert!(!sql.contains("schema_placeholder"));
     }
 
     #[test]
     fn test_generate_view_sql_table_vector() {
         let sql = generate_view_sql(
             "Order",
+            "v_order",
             "tv_order_summary",
             "Table Vector (tv_)",
             RefreshStrategy::Scheduled,
@@ -413,12 +424,15 @@ mod tests {
         assert!(sql.contains("CREATE MATERIALIZED VIEW tv_order_summary"));
         assert!(sql.contains("Entity: Order"));
         assert!(sql.contains("scheduled"));
+        assert!(sql.contains("FROM v_order"), "must use entity sql_source, not schema_placeholder");
+        assert!(!sql.contains("schema_placeholder"));
     }
 
     #[test]
     fn test_generate_view_sql_with_composition_views() {
         let sql = generate_view_sql(
             "User",
+            "v_user",
             "tv_user_profile",
             "Table Vector (tv_)",
             RefreshStrategy::TriggerBased,
@@ -435,6 +449,7 @@ mod tests {
     fn test_generate_view_sql_with_monitoring() {
         let sql = generate_view_sql(
             "User",
+            "v_user",
             "tv_user_profile",
             "Table Vector (tv_)",
             RefreshStrategy::TriggerBased,
@@ -451,6 +466,7 @@ mod tests {
     fn test_generate_view_sql_full_options() {
         let sql = generate_view_sql(
             "User",
+            "v_user",
             "ta_users",
             "Table Arrow (ta_)",
             RefreshStrategy::TriggerBased,
@@ -462,5 +478,28 @@ mod tests {
         assert!(sql.contains("View: ta_users"));
         assert!(sql.contains("Composition views"));
         assert!(sql.contains("Monitoring functions"));
+        assert!(!sql.contains("schema_placeholder"));
+    }
+
+    #[test]
+    fn test_generate_view_sql_uses_real_sql_source() {
+        // The generated DDL must reference the entity's real SQL source, not a
+        // placeholder. Executing a view with `schema_placeholder` would always
+        // fail at query time with a relation-not-found error.
+        let sql = generate_view_sql(
+            "Product",
+            "v_product_catalog",
+            "ta_products",
+            "Table Arrow (ta_)",
+            RefreshStrategy::TriggerBased,
+            false,
+            false,
+        );
+
+        assert!(
+            sql.contains("FROM v_product_catalog"),
+            "generated SQL must use the entity's sql_source"
+        );
+        assert!(!sql.contains("schema_placeholder"), "placeholder must not appear in output");
     }
 }
