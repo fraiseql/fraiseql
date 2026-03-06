@@ -5,13 +5,15 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// PostgreSQL backup provider.
 ///
 /// Uses pg_dump for logical backups and WAL archiving for point-in-time recovery.
-// Reason: implemented but not yet registered in BackupManager
-#[allow(dead_code)]
 pub struct PostgresBackupProvider {
     /// PostgreSQL connection URL
+    // Reason: stub field reserved for future implementation
+    #[allow(dead_code)]
     connection_url: String,
 
     /// Base backup directory
+    // Reason: stub field reserved for future implementation
+    #[allow(dead_code)]
     backup_dir: String,
 }
 
@@ -25,6 +27,8 @@ impl PostgresBackupProvider {
     }
 
     /// Generate backup ID with timestamp.
+    // Reason: stub method reserved for future implementation
+    #[allow(dead_code)]
     fn generate_backup_id() -> String {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -13,8 +13,12 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// Elasticsearch backup support is added.
 pub struct ElasticsearchBackupProvider {
     /// Elasticsearch endpoint URL
+    // Reason: stub field reserved for future implementation
+    #[allow(dead_code)]
     endpoint_url: String,
     /// Backup repository name
+    // Reason: stub field reserved for future implementation
+    #[allow(dead_code)]
     repository:   String,
 }
 
@@ -62,10 +66,10 @@ impl BackupProvider for ElasticsearchBackupProvider {
         })
     }
 
-    async fn get_backup(&self, backup_id: &str) -> BackupResult<BackupInfo> {
-        Err(BackupError::NotFound {
+    async fn get_backup(&self, _backup_id: &str) -> BackupResult<BackupInfo> {
+        Err(BackupError::NotImplemented {
             store:     "elasticsearch".to_string(),
-            backup_id: backup_id.to_string(),
+            operation: "get_backup".to_string(),
         })
     }
 
@@ -84,26 +88,75 @@ impl BackupProvider for ElasticsearchBackupProvider {
     }
 
     async fn get_storage_usage(&self) -> BackupResult<StorageUsage> {
-        Ok(StorageUsage {
-            total_bytes:             0,
-            backup_count:            0,
-            oldest_backup_timestamp: None,
-            newest_backup_timestamp: None,
+        Err(BackupError::NotImplemented {
+            store:     "elasticsearch".to_string(),
+            operation: "get_storage_usage".to_string(),
         })
     }
 }
 
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_elasticsearch_backup_not_implemented() {
-        let provider = ElasticsearchBackupProvider::new(
+    fn provider() -> ElasticsearchBackupProvider {
+        ElasticsearchBackupProvider::new(
             "http://localhost:9200".to_string(),
             "default".to_string(),
-        );
-        let err = provider.backup().await.unwrap_err();
+        )
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_backup_not_implemented() {
+        let err = provider().backup().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { store, .. } if store == "elasticsearch"));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_restore_not_implemented() {
+        let err = provider().restore("snap-1", false).await.unwrap_err();
         assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_health_check_not_implemented() {
+        let err = provider().health_check().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_list_backups_not_implemented() {
+        let err = provider().list_backups().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_get_backup_not_implemented() {
+        let err = provider().get_backup("snap-1").await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_delete_backup_not_implemented() {
+        let err = provider().delete_backup("snap-1").await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_verify_backup_not_implemented() {
+        let err = provider().verify_backup("snap-1").await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_elasticsearch_get_storage_usage_not_implemented() {
+        let err = provider().get_storage_usage().await.unwrap_err();
+        assert!(matches!(err, BackupError::NotImplemented { .. }));
+    }
+
+    #[test]
+    fn test_elasticsearch_name() {
+        assert_eq!(provider().name(), "elasticsearch");
     }
 }

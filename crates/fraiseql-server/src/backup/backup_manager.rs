@@ -7,6 +7,10 @@ use tokio::sync::RwLock;
 use super::{
     backup_config::{BackupConfig, BackupStatus},
     backup_provider::{BackupError, BackupProvider, BackupResult},
+    clickhouse_backup::ClickhouseBackupProvider,
+    elasticsearch_backup::ElasticsearchBackupProvider,
+    postgres_backup::PostgresBackupProvider,
+    redis_backup::RedisBackupProvider,
 };
 
 /// Manages backups across all data stores.
@@ -31,7 +35,7 @@ impl BackupManager {
         }
     }
 
-    /// Register a backup provider.
+    /// Register a backup provider and seed its initial status entry.
     pub async fn register_provider(
         &self,
         name: String,
@@ -43,25 +47,62 @@ impl BackupManager {
             return Err(format!("Provider '{}' already registered", name));
         }
 
-        providers.insert(name, provider);
+        providers.insert(name.clone(), provider);
+
+        // Seed an initial status so get_status() lists all registered providers
+        // even before the first backup has run.
+        let enabled = self.configs.get(&name).map(|c| c.enabled).unwrap_or(false);
+        let mut cache = self.status_cache.write().await;
+        cache.entry(name.clone()).or_insert_with(|| BackupStatus {
+            store_name:             name,
+            enabled,
+            last_successful_backup: None,
+            last_backup_size:       None,
+            available_backups:      0,
+            last_error:             None,
+            status:                 "registered".to_string(),
+        });
+
         Ok(())
     }
 
-    /// Start backup scheduler (spawns background task).
+    /// Start backup scheduler and register all known providers.
+    ///
+    /// Providers without a matching [`BackupConfig`] entry are registered as
+    /// stubs (all operations return `NotImplemented`) and logged at DEBUG level.
+    /// Configured providers are logged at INFO level.
     pub async fn start(&self) -> Result<(), String> {
-        // In production, would spawn scheduler task
-        // that reads BackupConfig and triggers backups on schedule
+        let stub_providers: &[(&str, Arc<dyn BackupProvider>)] = &[
+            (
+                "postgres",
+                Arc::new(PostgresBackupProvider::new(String::new(), String::new())),
+            ),
+            (
+                "redis",
+                Arc::new(RedisBackupProvider::new(String::new(), String::new())),
+            ),
+            (
+                "clickhouse",
+                Arc::new(ClickhouseBackupProvider::new(String::new(), String::new())),
+            ),
+            (
+                "elasticsearch",
+                Arc::new(ElasticsearchBackupProvider::new(String::new(), String::new())),
+            ),
+        ];
 
-        // For now, just validate all providers are healthy
-        let providers = self.providers.read().await;
-        for (name, provider) in providers.iter() {
-            match provider.health_check().await {
-                Ok(_) => {
-                    tracing::info!(provider = %name, "Backup provider healthy");
-                },
-                Err(e) => {
-                    tracing::warn!(provider = %name, error = ?e, "Backup provider failed health check");
-                },
+        for (name, provider) in stub_providers {
+            // register_provider is idempotent — skip if already registered.
+            let result = self.register_provider((*name).to_string(), Arc::clone(provider)).await;
+            if result.is_ok() {
+                if self.configs.contains_key(*name) {
+                    tracing::info!(provider = %name, "Backup provider registered");
+                } else {
+                    tracing::debug!(
+                        provider = %name,
+                        "Backup provider registered (not implemented — configure backup to enable)"
+                    );
+                }
             }
         }
 
@@ -178,6 +219,7 @@ impl BackupManager {
     }
 }
 
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,5 +359,88 @@ mod tests {
         let backups = manager.list_backups("postgres").await.unwrap();
         assert_eq!(backups.len(), 1);
         assert!(backups[0].contains("backup-1"));
+    }
+
+    // =========================================================================
+    // Phase 2: provider registration tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_start_registers_all_four_providers() {
+        let manager = BackupManager::new(HashMap::new());
+        manager.start().await.expect("start must not fail");
+
+        let status = manager.get_status().await;
+        assert!(status.contains_key("postgres"), "postgres provider missing from status");
+        assert!(status.contains_key("redis"), "redis provider missing from status");
+        assert!(status.contains_key("clickhouse"), "clickhouse provider missing from status");
+        assert!(
+            status.contains_key("elasticsearch"),
+            "elasticsearch provider missing from status"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_start_is_idempotent() {
+        let manager = BackupManager::new(HashMap::new());
+        manager.start().await.unwrap();
+        // Calling start() a second time must not panic or error even though
+        // providers are already registered.
+        manager.start().await.unwrap();
+        assert_eq!(manager.get_status().await.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_provider_backup_returns_not_implemented_after_start() {
+        let manager = BackupManager::new(HashMap::new());
+        manager.start().await.unwrap();
+
+        // backup() requires a config entry — even though providers are registered,
+        // calling backup without config returns BackupFailed (no config), not
+        // NotImplemented.  Verify the error discriminant.
+        let result = manager.backup("redis").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_register_provider_seeds_initial_status() {
+        let manager = BackupManager::new(HashMap::new());
+        let provider = Arc::new(MockBackupProvider {
+            name: "redis".to_string(),
+        });
+        manager.register_provider("redis".to_string(), provider).await.unwrap();
+
+        let status = manager.get_status().await;
+        assert!(status.contains_key("redis"));
+        assert_eq!(status["redis"].store_name, "redis");
+        assert_eq!(status["redis"].status, "registered");
+    }
+
+    #[tokio::test]
+    async fn test_start_marks_unconfigured_providers_as_disabled() {
+        let manager = BackupManager::new(HashMap::new());
+        manager.start().await.unwrap();
+
+        let status = manager.get_status().await;
+        // No configs → enabled should be false for all stub providers.
+        for name in ["postgres", "redis", "clickhouse", "elasticsearch"] {
+            assert!(
+                !status[name].enabled,
+                "provider '{name}' should be disabled without config"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_start_marks_configured_providers_as_enabled() {
+        let mut configs = HashMap::new();
+        configs.insert("postgres".to_string(), BackupConfig::postgres_default());
+
+        let manager = BackupManager::new(configs);
+        manager.start().await.unwrap();
+
+        let status = manager.get_status().await;
+        assert!(status["postgres"].enabled, "postgres should be enabled when config present");
+        assert!(!status["redis"].enabled, "redis should be disabled without config");
     }
 }

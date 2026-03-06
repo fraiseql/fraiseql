@@ -13,8 +13,12 @@ use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResu
 /// ClickHouse backup support is added.
 pub struct ClickhouseBackupProvider {
     /// ClickHouse HTTP endpoint
+    // Reason: stub field reserved for future implementation
+    #[allow(dead_code)]
     endpoint_url: String,
     /// Backup directory
+    // Reason: stub field reserved for future implementation
+    #[allow(dead_code)]
     backup_dir:   String,
 }
 
