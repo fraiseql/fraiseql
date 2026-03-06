@@ -264,22 +264,84 @@ fn test_classify_node_query_rejects_substring_match() {
 }
 
 #[test]
-fn test_extract_type_argument() {
+fn test_classify_introspection_type_extracts_name() {
     let schema = test_schema();
     let adapter = Arc::new(MockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter);
 
-    // Double quotes
-    let query1 = r#"{ __type(name: "User") { name } }"#;
-    assert_eq!(executor.extract_type_argument(query1), Some("User".to_string()));
-
-    // Single quotes
-    let query2 = r"{ __type(name: 'Product') { name } }";
-    assert_eq!(executor.extract_type_argument(query2), Some("Product".to_string()));
+    // Standard double-quoted argument
+    let q = r#"{ __type(name: "User") { name } }"#;
+    assert_eq!(
+        executor.classify_query(q).unwrap(),
+        QueryType::IntrospectionType("User".to_string()),
+    );
 
     // No space after colon
-    let query3 = r#"{ __type(name:"Query") { name } }"#;
-    assert_eq!(executor.extract_type_argument(query3), Some("Query".to_string()));
+    let q2 = r#"{ __type(name:"Query") { name } }"#;
+    assert_eq!(
+        executor.classify_query(q2).unwrap(),
+        QueryType::IntrospectionType("Query".to_string()),
+    );
+}
+
+#[test]
+fn test_classify_no_false_positive_schema_in_comment() {
+    let schema = test_schema();
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+
+    // __schema appears in a comment — should classify as Regular, not introspection.
+    let q = "{ users { id } } # compare against __schema response";
+    assert_eq!(executor.classify_query(q).unwrap(), QueryType::Regular);
+}
+
+#[test]
+fn test_classify_no_false_positive_service_in_argument() {
+    let schema = test_schema();
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+
+    // "_service" appears as a string argument — must NOT route to federation.
+    let q = r#"{ search(query: "_service_name") { id } }"#;
+    assert_eq!(executor.classify_query(q).unwrap(), QueryType::Regular);
+}
+
+#[test]
+fn test_classify_no_false_positive_entities_alias() {
+    let schema = test_schema();
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+
+    // "_entities" used as an alias — the actual field is "users", not _entities.
+    // Must NOT route to federation.
+    let q = r"{ _entities: users { id } }";
+    assert_eq!(executor.classify_query(q).unwrap(), QueryType::Regular);
+}
+
+#[test]
+fn test_classify_federation_service() {
+    let schema = test_schema();
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+
+    let q = r"{ _service { sdl } }";
+    assert_eq!(
+        executor.classify_query(q).unwrap(),
+        QueryType::Federation("_service".to_string()),
+    );
+}
+
+#[test]
+fn test_classify_federation_entities() {
+    let schema = test_schema();
+    let adapter = Arc::new(MockAdapter::new(vec![]));
+    let executor = Executor::new(schema, adapter);
+
+    let q = r#"{ _entities(representations: [{ __typename: "User", id: "1" }]) { ... on User { name } } }"#;
+    assert_eq!(
+        executor.classify_query(q).unwrap(),
+        QueryType::Federation("_entities".to_string()),
+    );
 }
 
 // ==================== ExecutionContext Tests ====================

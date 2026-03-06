@@ -184,13 +184,12 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
 ///
 /// Returns an error if the entity does not exist in the schema.
 fn resolve_entity_sql_source(schema: &CompiledSchema, entity: &str) -> Result<String> {
-    match schema.types.iter().find(|t| t.name == entity) {
-        Some(type_def) => Ok(type_def.sql_source.as_str().to_string()),
-        None => {
-            let available =
-                schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
-            anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
-        },
+    if let Some(type_def) = schema.types.iter().find(|t| t.name == entity) {
+        Ok(type_def.sql_source.as_str().to_string())
+    } else {
+        let available =
+            schema.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
+        anyhow::bail!("Entity '{entity}' not found in schema. Available types: {available}")
     }
 }
 
