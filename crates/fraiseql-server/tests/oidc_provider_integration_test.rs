@@ -190,7 +190,7 @@ async fn test_oidc_discovery_missing_required_field() {
     .await;
 
     // May fail or succeed depending on implementation
-    let _ = provider;
+    let _ = provider;  // intentional
 }
 
 #[tokio::test]

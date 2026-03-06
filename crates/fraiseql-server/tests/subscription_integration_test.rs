@@ -498,5 +498,5 @@ async fn test_concurrent_client_subscriptions() {
     };
 
     // Wait for both to complete
-    let _ = tokio::join!(handle1, handle2);
+    let _ = tokio::join!(handle1, handle2);  // intentional
 }

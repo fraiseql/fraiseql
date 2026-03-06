@@ -99,7 +99,7 @@ mod wire_adapter_tests {
         let adapter = FraiseWireAdapter::new(&db_url);
 
         // Verify we got a valid adapter
-        let _ = adapter.clone();
+        let _ = adapter.clone();  // intentional
     }
 
     /// Test Wire adapter with custom chunk size configuration.
@@ -112,7 +112,7 @@ mod wire_adapter_tests {
         let adapter = FraiseWireAdapter::new(&db_url).with_chunk_size(512);
 
         // Verify configuration was applied
-        let _ = adapter.clone();
+        let _ = adapter.clone();  // intentional
     }
 
     /// Test that Wire adapter is truly a different type from PostgreSQL adapter.

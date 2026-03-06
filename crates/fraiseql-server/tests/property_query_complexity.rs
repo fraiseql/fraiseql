@@ -22,7 +22,7 @@ proptest! {
     #[test]
     fn validate_query_never_panics(query in "\\PC*") {
         let validator = RequestValidator::new();
-        let _ = validator.validate_query(&query);
+        let _ = validator.validate_query(&query);  // intentional
     }
 
     /// An empty string must always return MalformedQuery.
@@ -88,6 +88,6 @@ proptest! {
             .with_depth_validation(false)
             .with_complexity_validation(false);
         // May fail due to parse error, but must never panic
-        let _ = validator.validate_query(&query);
+        let _ = validator.validate_query(&query);  // intentional
     }
 }

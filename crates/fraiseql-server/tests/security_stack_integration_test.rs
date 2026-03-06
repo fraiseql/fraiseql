@@ -125,7 +125,7 @@ fn test_validator_rejects_malformed_query() {
         let result = validator.validate_query(query);
         // Should either reject as malformed or succeed if parser is lenient
         // (we just verify no panic)
-        let _ = result;
+        let _ = result;  // intentional
     }
 }
 

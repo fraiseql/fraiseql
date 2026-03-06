@@ -10,7 +10,7 @@ proptest! {
     /// Must never panic regardless of header content.
     #[test]
     fn auth_header_extract_never_panics(header in "\\PC*") {
-        let _ = extract_bearer_token(&header);
+        let _ = extract_bearer_token(&header);  // intentional
     }
 
     /// Non-Bearer prefixes must always return None.

@@ -52,7 +52,7 @@ impl TestServer {
         tokio::spawn(async move {
             server
                 .serve_on_listener(listener, async {
-                    let _ = rx.await;
+                    let _ = rx.await;  // intentional
                 })
                 .await
                 .expect("server task failed");

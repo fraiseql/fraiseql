@@ -10,19 +10,19 @@ proptest! {
     /// Key construction must never panic regardless of input content.
     #[test]
     fn rate_limit_ip_key_never_panics(ip in "\\PC*") {
-        let _ = build_rate_limit_key("ip", &ip, None);
+        let _ = build_rate_limit_key("ip", &ip, None);  // intentional
     }
 
     /// Key construction with user identifier must never panic.
     #[test]
     fn rate_limit_user_key_never_panics(user_id in "\\PC*") {
-        let _ = build_rate_limit_key("user", &user_id, None);
+        let _ = build_rate_limit_key("user", &user_id, None);  // intentional
     }
 
     /// Key construction with an optional path prefix must never panic.
     #[test]
     fn rate_limit_path_key_never_panics(ip in "\\PC*", prefix in "\\PC*") {
-        let _ = build_rate_limit_key("path", &ip, Some(&prefix));
+        let _ = build_rate_limit_key("path", &ip, Some(&prefix));  // intentional
     }
 
     /// Every key must start with the namespaced strategy prefix so different

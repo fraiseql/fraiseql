@@ -146,7 +146,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_hits = cache_hits.load(Ordering::Relaxed);
@@ -191,7 +191,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_computations = computation_count.load(Ordering::Relaxed);
@@ -238,7 +238,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_success = successful.load(Ordering::Relaxed);
@@ -296,7 +296,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_success = successful_requests.load(Ordering::Relaxed);
@@ -473,7 +473,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let lats_guard = latencies.lock().await;
@@ -553,7 +553,7 @@ mod integration_performance_tests {
         }
 
         for task in tasks {
-            let _ = task.await;
+            let _ = task.await;  // intentional
         }
 
         let total_success = successful_requests.load(Ordering::Relaxed);
@@ -678,7 +678,7 @@ mod integration_performance_tests {
         for i in 0..50 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_unoptimized_query(size: usize) {
@@ -687,7 +687,7 @@ mod integration_performance_tests {
         for i in 0..size {
             total = total.wrapping_add(i as u64);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_optimized_query(size: usize) {
@@ -696,7 +696,7 @@ mod integration_performance_tests {
         for i in 0..size / 5 {
             total = total.wrapping_add(i as u64);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_query_with_field_mapping(
@@ -708,7 +708,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_query_without_metrics() {
@@ -717,7 +717,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_query_with_metrics() {
@@ -726,7 +726,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
         // Simulate atomic counter increments (lock-free, <1µs)
         let _counter = std::sync::atomic::AtomicU64::new(0);
     }
@@ -742,7 +742,7 @@ mod integration_performance_tests {
         for i in 0..200 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_optimized_full_path() {
@@ -751,7 +751,7 @@ mod integration_performance_tests {
         for i in 0..100 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 
     fn simulate_unoptimized_full_path() {
@@ -760,6 +760,6 @@ mod integration_performance_tests {
         for i in 0..150 {
             total = total.wrapping_add(i);
         }
-        let _ = total;
+        let _ = total;  // intentional
     }
 }
