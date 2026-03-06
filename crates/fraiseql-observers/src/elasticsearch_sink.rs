@@ -402,4 +402,54 @@ mod tests {
         assert!(sink.is_transient_error("502 Bad Gateway"));
         assert!(!sink.is_transient_error("Invalid index"));
     }
+
+    #[test]
+    fn test_is_transient_error_connection_reset() {
+        let config = ElasticsearchSinkConfig::default();
+        let sink = ElasticsearchSink::new(config).unwrap();
+        assert!(sink.is_transient_error("connection reset by peer"));
+        assert!(!sink.is_transient_error("404 Not Found"));
+        assert!(!sink.is_transient_error("400 Bad Request"));
+    }
+
+    #[test]
+    fn test_config_max_bulk_size_boundary() {
+        // 100_000 is invalid (upper bound exclusive)
+        let config = ElasticsearchSinkConfig {
+            bulk_size: 100_001,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+
+        // 100_000 is the maximum valid value
+        let config = ElasticsearchSinkConfig {
+            bulk_size: 100_000,
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_with_env_overrides_returns_valid_config() {
+        // with_env_overrides() is callable and produces a consistent config.
+        // Full override behaviour is tested via env-var integration; here we
+        // verify the function compiles, returns Self, and produces a valid result.
+        let after = ElasticsearchSinkConfig::default().with_env_overrides();
+        assert!(
+            after.validate().is_ok(),
+            "config after with_env_overrides must still be valid"
+        );
+    }
+
+    #[test]
+    fn test_config_custom_values_validate() {
+        let config = ElasticsearchSinkConfig {
+            url:                 "https://es.example.com:9200".to_string(),
+            index_prefix:        "my-app-events".to_string(),
+            bulk_size:           500,
+            flush_interval_secs: 30,
+            max_retries:         5,
+        };
+        assert!(config.validate().is_ok());
+    }
 }
