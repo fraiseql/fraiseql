@@ -2,6 +2,7 @@
 //!
 //! Tests the RefreshSchemaRegistry and GetSchemaVersions actions which allow
 //! safe runtime schema reloading without disrupting running queries.
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use arrow_flight::flight_service_client::FlightServiceClient;
 use fraiseql_arrow::flight_server::FraiseQLFlightService;

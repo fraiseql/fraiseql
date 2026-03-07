@@ -1124,6 +1124,7 @@ impl Default for FraiseQLFlightService {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod convert_tests {
     //! Unit tests for `convert_json_to_arrow_batches`.
     //!

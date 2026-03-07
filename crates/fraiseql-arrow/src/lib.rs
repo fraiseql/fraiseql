@@ -62,6 +62,18 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+// Pedantic allows — workspace sets pedantic = deny. Suppressed for Arrow Flight crate.
+#![allow(clippy::missing_errors_doc)]       // Reason: Flight errors described in module docs
+#![allow(clippy::cast_possible_truncation)] // Reason: intentional casts for Arrow column indices
+#![allow(clippy::format_push_string)]       // Reason: incremental schema/query string building
+#![allow(clippy::implicit_hasher)]          // Reason: HashMap params explicit at call sites
+#![allow(clippy::match_same_arms)]          // Reason: explicit arms document each Arrow type
+#![allow(clippy::needless_pass_by_value)]   // Reason: API consistency with tonic trait bounds
+#![allow(clippy::doc_link_with_quotes)]     // Reason: quoted type names intentional in docs
+#![allow(clippy::ref_option)]              // Reason: Option refs match tonic/Arrow API
+#![allow(clippy::derive_partial_eq_without_eq)] // Reason: some types contain f64 fields
+#![allow(clippy::items_after_statements)]   // Reason: helper structs near point of use
+#![allow(clippy::needless_raw_string_hashes)] // Reason: raw strings in test fixtures preserved
 
 pub mod cache;
 pub mod convert;

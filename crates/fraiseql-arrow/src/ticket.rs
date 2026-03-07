@@ -151,6 +151,7 @@ impl FlightTicket {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod tests {
     use super::*;
 

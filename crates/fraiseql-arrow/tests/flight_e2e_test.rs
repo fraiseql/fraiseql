@@ -5,6 +5,7 @@
 //! - Batched multi-query execution
 //! - Large result set streaming
 //! - Concurrent client requests
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::sync::Arc;
 

@@ -6,6 +6,9 @@ name = "flight_benchmarks"
 harness = false
 name = "arrow_vs_json_serialization"
 
+[lints]
+workspace = true
+
 [dependencies]
 # Arrow ecosystem (with CSV and Parquet support)
 arrow = {version = "57", features = ["csv", "json"]}

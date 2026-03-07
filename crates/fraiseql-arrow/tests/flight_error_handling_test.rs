@@ -7,6 +7,7 @@
 //! - IPC encoding failures
 //! - Batched query validation errors
 //! - Partial batch failures
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::sync::Arc;
 

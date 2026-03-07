@@ -195,6 +195,7 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod tests {
     use arrow::datatypes::Field;
     use serde_json::json;

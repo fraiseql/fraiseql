@@ -20,6 +20,7 @@
 //! ```bash
 //! DATABASE_URL="postgresql://localhost/postgres" cargo bench --package fraiseql-arrow --bench arrow_vs_json_serialization
 //! ```
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
 
 use std::{io::Cursor, sync::Arc};
 

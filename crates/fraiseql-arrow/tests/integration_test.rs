@@ -2,6 +2,8 @@
 //!
 //! These tests verify that the Flight server starts correctly and handles
 //! basic RPC calls. Actual data streaming will be tested .
+#![allow(clippy::unwrap_used)]             // Reason: test code, panics are acceptable
+#![allow(clippy::doc_markdown)]             // Reason: test prose doesn't require backtick wrapping
 
 use arrow_flight::{
     Criteria, FlightDescriptor, Ticket, flight_service_client::FlightServiceClient,

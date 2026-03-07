@@ -4,6 +4,8 @@
 //! ```bash
 //! cargo bench --package fraiseql-arrow --bench flight_benchmarks
 //! ```
+#![allow(clippy::unwrap_used)]              // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::needless_raw_string_hashes)] // Reason: fixtures use raw strings
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_arrow::db::DatabaseAdapter as ArrowDatabaseAdapter;

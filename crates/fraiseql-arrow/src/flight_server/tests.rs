@@ -1,4 +1,5 @@
 //! Tests for the Flight service.
+#![allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 
 use std::sync::Arc;
 

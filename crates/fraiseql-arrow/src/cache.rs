@@ -267,9 +267,13 @@ mod tests {
 
         let cached = cache.get(query);
         assert!(cached.is_some());
+        #[allow(clippy::unwrap_used)] // Reason: test code, just verified is_some()
         let cached = cached.unwrap();
         assert_eq!(cached.len(), 1);
-        assert_eq!(cached[0].get("name").unwrap().as_str().unwrap(), "Alice");
+        #[allow(clippy::unwrap_used)] // Reason: test code, accessing test fixture
+        let name_val = cached[0].get("name").unwrap();
+        #[allow(clippy::unwrap_used)] // Reason: test code, JSON value is guaranteed to be string
+        assert_eq!(name_val.as_str().unwrap(), "Alice");
     }
 
     #[test]
@@ -426,8 +430,12 @@ mod tests {
         cache.put(q, Arc::clone(&result2));
         // Should still be 1 entry (overwritten)
         assert_eq!(cache.len(), 1);
+        #[allow(clippy::unwrap_used)] // Reason: test code, just put entry in cache
         let got = cache.get(q).unwrap();
-        assert_eq!(got[0].get("id").unwrap().as_str().unwrap(), "99");
+        #[allow(clippy::unwrap_used)] // Reason: test code, accessing test fixture
+        let id_val = got[0].get("id").unwrap();
+        #[allow(clippy::unwrap_used)] // Reason: test code, JSON value is guaranteed to be string
+        assert_eq!(id_val.as_str().unwrap(), "99");
     }
 
     #[test]
@@ -529,6 +537,7 @@ mod tests {
             serde_json::json!("v"),
         )])]);
         cache.put("q", Arc::clone(&original));
+        #[allow(clippy::unwrap_used)] // Reason: test code, just put entry in cache
         let retrieved = cache.get("q").unwrap();
         // Both Arcs point to the same allocation
         assert!(Arc::ptr_eq(&original, &retrieved));

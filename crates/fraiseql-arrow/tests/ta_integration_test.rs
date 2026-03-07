@@ -5,6 +5,7 @@
 //!
 //! Database-dependent tests (with real PostgreSQL tables) can be added in
 //! separate test files with feature gates.
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use arrow::ipc::root_as_message;
 use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServiceClient};

@@ -7,6 +7,7 @@
 //! - `poll_flight_info` names the target version in its error message
 //! - `do_get` streams placeholder data when no database adapter is configured
 //! - `list_actions` advertises all four documented admin actions
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::{collections::HashMap, sync::Arc};
 

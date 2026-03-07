@@ -148,6 +148,7 @@ fn infer_type_from_value(value: &Value) -> DataType {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
 mod tests {
     use super::*;
 
