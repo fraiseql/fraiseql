@@ -219,6 +219,7 @@ async fn handle_subscription_connection(
                     "Lifecycle on_connect rejected connection"
                 );
                 WS_CONNECTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                // Best-effort: connection is already being terminated.
                 let _ = sender
                     .send(Message::Close(Some(axum::extract::ws::CloseFrame {
                         code:   4400,
@@ -244,6 +245,7 @@ async fn handle_subscription_connection(
         },
         Err(_) => {
             warn!(connection_id = %connection_id, "Connection init timeout");
+            // Best-effort: connection is already being terminated.
             let _ = sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
                     code:   CloseCode::ConnectionInitTimeout.code(),
@@ -278,6 +280,7 @@ async fn handle_subscription_connection(
                             &mut active_operations,
                             &mut sender,
                         ).await {
+                            // Best-effort: connection is already being closed.
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
                                 code: close_code.code(),
                                 reason: close_code.reason().into(),
@@ -286,6 +289,7 @@ async fn handle_subscription_connection(
                         }
                     }
                     Some(Ok(Message::Ping(data))) => {
+                        // Best-effort: if the connection is already dead the pong will fail.
                         let _ = sender.send(Message::Pong(data)).await;
                     }
                     Some(Ok(Message::Pong(_))) => {}
@@ -364,6 +368,7 @@ async fn handle_client_message(
     match client_msg.parsed_type() {
         Some(ClientMessageType::Ping) => {
             let pong = ServerMessage::pong(client_msg.payload);
+            // Best-effort: if the connection is already dead the pong will fail.
             let _ = send_server_message(codec, sender, pong).await;
         },
 
@@ -405,7 +410,9 @@ async fn handle_client_message(
                             "SUBSCRIPTION_LIMIT_REACHED",
                         )],
                     );
-                    let _ = send_server_message(codec, sender, error).await;
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send subscription limit error to client");
+                    }
                     return Ok(());
                 }
             }
@@ -421,13 +428,17 @@ async fn handle_client_message(
                             "PARSE_ERROR",
                         )],
                     );
-                    let _ = send_server_message(codec, sender, error).await;
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send parse error to client");
+                    }
                     return Ok(());
                 }
             };
 
             // Call lifecycle on_subscribe hook
-            let variables_value = serde_json::to_value(&payload.variables).unwrap_or_default();
+            // HashMap<String, Value> serialization is infallible; the error path cannot occur.
+            let variables_value = serde_json::to_value(&payload.variables)
+                .expect("HashMap<String, serde_json::Value> serialization is infallible");
             if let Err(reason) = state
                 .lifecycle
                 .on_subscribe(&subscription_name, &variables_value, connection_id)
@@ -444,7 +455,9 @@ async fn handle_client_message(
                     &op_id,
                     vec![GraphQLError::with_code(reason, "SUBSCRIPTION_REJECTED")],
                 );
-                let _ = send_server_message(codec, sender, error).await;
+                if let Err(e) = send_server_message(codec, sender, error).await {
+                    debug!(connection_id = %connection_id, error = %e, "Could not send subscription rejection to client");
+                }
                 return Ok(());
             }
 
@@ -470,7 +483,9 @@ async fn handle_client_message(
                         &op_id,
                         vec![GraphQLError::with_code(e.to_string(), "SUBSCRIPTION_ERROR")],
                     );
-                    let _ = send_server_message(codec, sender, error).await;
+                    if let Err(send_err) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %send_err, "Could not send subscription error to client");
+                    }
                 },
             }
         },
@@ -482,7 +497,9 @@ async fn handle_client_message(
             })?;
 
             if let Some(sub_id) = active_operations.remove(&op_id) {
-                let _ = state.manager.unsubscribe(sub_id);
+                if let Err(e) = state.manager.unsubscribe(sub_id) {
+                    warn!(connection_id = %connection_id, operation_id = %op_id, error = %e, "Failed to unsubscribe; subscription may be leaked");
+                }
                 state.lifecycle.on_unsubscribe(&op_id, connection_id).await;
                 info!(
                     connection_id = %connection_id,

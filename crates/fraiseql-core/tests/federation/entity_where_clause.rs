@@ -2,6 +2,8 @@
 //!
 //! Split from `federation_database_integration.rs`.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_truncation)] // Reason: test uses usize→u32 for small test counts
 use std::collections::HashMap;
 
 use fraiseql_core::federation::{

@@ -172,6 +172,8 @@ fn build_display_sql(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use std::sync::Arc;
 
     use serde_json::json;

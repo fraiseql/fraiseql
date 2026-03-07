@@ -537,4 +537,175 @@ mod tests {
         assert_eq!(sql, "json_array_length(json_extract(data, '$.tags')) > ?");
         assert_eq!(params, vec![json!(0)]);
     }
+
+    #[test]
+    fn test_neq_string() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Neq,
+            value:    json!("deleted"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "json_extract(data, '$.status') != ?");
+        assert_eq!(params, vec![json!("deleted")]);
+    }
+
+    #[test]
+    fn test_gt_number_casts_to_real() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["score".to_string()],
+            operator: WhereOperator::Gt,
+            value:    json!(42),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "CAST(json_extract(data, '$.score') AS REAL) > ?");
+        assert_eq!(params, vec![json!(42)]);
+    }
+
+    #[test]
+    fn test_lt_number_casts_to_real() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["age".to_string()],
+            operator: WhereOperator::Lt,
+            value:    json!(18),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "CAST(json_extract(data, '$.age') AS REAL) < ?");
+        assert_eq!(params, vec![json!(18)]);
+    }
+
+    #[test]
+    fn test_contains_string() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::Contains,
+            value:    json!("alice"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "json_extract(data, '$.name') LIKE '%' || ? || '%'");
+        assert_eq!(params, vec![json!("alice")]);
+    }
+
+    #[test]
+    fn test_startswith() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Startswith,
+            value:    json!("US-"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "json_extract(data, '$.code') LIKE ? || '%'");
+        assert_eq!(params, vec![json!("US-")]);
+    }
+
+    #[test]
+    fn test_endswith() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["filename".to_string()],
+            operator: WhereOperator::Endswith,
+            value:    json!(".pdf"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "json_extract(data, '$.filename') LIKE '%' || ?");
+        assert_eq!(params, vec![json!(".pdf")]);
+    }
+
+    #[test]
+    fn test_is_not_null() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["published_at".to_string()],
+            operator: WhereOperator::IsNull,
+            value:    json!(false),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "json_extract(data, '$.published_at') IS NOT NULL");
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_nin_not_in() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Nin,
+            value:    json!(["deleted", "archived"]),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("NOT"), "Nin should produce NOT: {sql}");
+        assert!(sql.contains("IN"), "Nin should contain IN: {sql}");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_empty_in_is_false_sentinel() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::In,
+            value:    json!([]),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "1=0", "Empty IN should produce the FALSE sentinel");
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_or_combinator() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Or(vec![
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("pending"),
+            },
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("processing"),
+            },
+        ]);
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("OR"), "SQLite OR combinator: {sql}");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_not_combinator() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Not(Box::new(WhereClause::Field {
+            path:     vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(false),
+        }));
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.starts_with("NOT ("), "NOT combinator: {sql}");
+        assert_eq!(params.len(), 1);
+    }
+
+    #[test]
+    fn test_empty_or_is_false_sentinel() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Or(vec![]);
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(!sql.is_empty());
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_unsupported_regex_returns_error() {
+        let gen = SqliteWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["email".to_string()],
+            operator: WhereOperator::Regex,
+            value:    json!("^admin"),
+        };
+        assert!(gen.generate(&clause).is_err(), "Regex should be unsupported in SQLite");
+    }
 }

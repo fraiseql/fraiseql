@@ -14,6 +14,8 @@ pub struct ProviderFailoverManager {
     /// Fallback providers in priority order
     fallback_providers: Vec<String>,
     /// Providers currently unavailable
+    // std::sync::Mutex is intentional: this lock is never held across .await.
+    // Switch to tokio::sync::Mutex if that constraint ever changes.
     unavailable:        Arc<std::sync::Mutex<Vec<(String, DateTime<Utc>)>>>,
 }
 

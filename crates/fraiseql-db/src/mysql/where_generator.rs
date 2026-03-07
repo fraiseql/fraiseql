@@ -599,4 +599,170 @@ mod tests {
         assert_eq!(sql, "JSON_CONTAINS(JSON_EXTRACT(data, '$.tags'), ?)");
         assert_eq!(params, vec![json!(["rust"])]);
     }
+
+    #[test]
+    fn test_neq_string() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Neq,
+            value:    json!("deleted"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.status')) != ?");
+        assert_eq!(params, vec![json!("deleted")]);
+    }
+
+    #[test]
+    fn test_gt_number_casts_to_decimal() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["score".to_string()],
+            operator: WhereOperator::Gt,
+            value:    json!(100),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.score')) AS DECIMAL) > ?"
+        );
+        assert_eq!(params, vec![json!(100)]);
+    }
+
+    #[test]
+    fn test_lte_number() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["price".to_string()],
+            operator: WhereOperator::Lte,
+            value:    json!(99),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.price')) AS DECIMAL) <= ?"
+        );
+        assert_eq!(params, vec![json!(99)]);
+    }
+
+    #[test]
+    fn test_startswith() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Startswith,
+            value:    json!("US-"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.code')) LIKE CONCAT(?, '%')"
+        );
+        assert_eq!(params, vec![json!("US-")]);
+    }
+
+    #[test]
+    fn test_endswith() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["filename".to_string()],
+            operator: WhereOperator::Endswith,
+            value:    json!(".pdf"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.filename')) LIKE CONCAT('%', ?)"
+        );
+        assert_eq!(params, vec![json!(".pdf")]);
+    }
+
+    #[test]
+    fn test_contains() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::Contains,
+            value:    json!("alice"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) LIKE CONCAT('%', ?, '%')"
+        );
+        assert_eq!(params, vec![json!("alice")]);
+    }
+
+    #[test]
+    fn test_is_not_null() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["published_at".to_string()],
+            operator: WhereOperator::IsNull,
+            value:    json!(false),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "JSON_UNQUOTE(JSON_EXTRACT(data, '$.published_at')) IS NOT NULL");
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_nin_not_in() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Nin,
+            value:    json!(["deleted", "archived"]),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("NOT"), "Nin should produce NOT: {sql}");
+        assert!(sql.contains("IN"), "Nin should contain IN: {sql}");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_empty_in_is_false_sentinel() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["id".to_string()],
+            operator: WhereOperator::In,
+            value:    json!([]),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "FALSE", "MySQL empty IN should produce the FALSE sentinel");
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_or_combinator() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Or(vec![
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("pending"),
+            },
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("processing"),
+            },
+        ]);
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("OR"), "MySQL OR combinator: {sql}");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_not_combinator() {
+        let gen = MySqlWhereGenerator::new();
+        let clause = WhereClause::Not(Box::new(WhereClause::Field {
+            path:     vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(false),
+        }));
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.starts_with("NOT ("), "NOT combinator: {sql}");
+        assert_eq!(params.len(), 1);
+    }
 }

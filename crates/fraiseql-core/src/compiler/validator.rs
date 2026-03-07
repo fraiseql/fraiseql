@@ -336,7 +336,7 @@ mod tests {
     fn test_validator_new() {
         let validator = SchemaValidator::new();
         let ir = AuthoringIR::new();
-        let result = validator.validate(ir.clone());
+        let result = validator.validate(ir);
         assert!(result.is_ok());
     }
 

@@ -589,4 +589,56 @@ mod tests {
             sql
         );
     }
+
+    // =========================================================================
+    // Additional projection_generator.rs tests
+    // =========================================================================
+
+    #[test]
+    fn test_postgres_projection_sql_injection_in_field_name() {
+        // A field name containing a single quote must be escaped in the SQL output
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec!["user'name".to_string()];
+        let sql = generator.generate_projection_sql(&fields).unwrap();
+        // The response key literal must not contain an unescaped single quote
+        assert!(!sql.contains("'user'name'"), "Single quote in field name must be escaped");
+        // Should contain the doubled-quote escape
+        assert!(sql.contains("user''name"), "Single quote must be doubled in the SQL literal");
+    }
+
+    #[test]
+    fn test_mysql_projection_sql_contains_json_object() {
+        let generator = MySqlProjectionGenerator::new();
+        let fields = vec!["email".to_string(), "name".to_string()];
+        let sql = generator.generate_projection_sql(&fields).unwrap();
+        assert!(sql.starts_with("JSON_OBJECT("), "MySQL projection must start with JSON_OBJECT");
+    }
+
+    #[test]
+    fn test_sqlite_projection_custom_column_appears_in_sql() {
+        let generator = SqliteProjectionGenerator::with_column("payload");
+        let fields = vec!["id".to_string()];
+        let sql = generator.generate_projection_sql(&fields).unwrap();
+        assert!(sql.contains("\"payload\""), "Custom column name must appear in SQLite SQL");
+    }
+
+    #[test]
+    fn test_postgres_projection_camel_to_snake_in_jsonb_key() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec!["updatedAt".to_string()];
+        let sql = generator.generate_projection_sql(&fields).unwrap();
+        // The JSONB extraction key should be snake_case
+        assert!(sql.contains("'updated_at'"), "updatedAt must be mapped to updated_at for JSONB key");
+        // The response key in jsonb_build_object should be the original camelCase
+        assert!(sql.contains("'updatedAt'"), "Response key must remain camelCase");
+    }
+
+    #[test]
+    fn test_postgres_select_clause_contains_from() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec!["id".to_string()];
+        let sql = generator.generate_select_clause("orders", &fields).unwrap();
+        assert!(sql.contains("FROM \"orders\""), "SELECT clause must include FROM clause with table name");
+        assert!(sql.contains("SELECT"), "SELECT clause must start with SELECT");
+    }
 }

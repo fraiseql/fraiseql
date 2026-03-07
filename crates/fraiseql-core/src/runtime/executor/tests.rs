@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use async_trait::async_trait;
 
 use super::*;

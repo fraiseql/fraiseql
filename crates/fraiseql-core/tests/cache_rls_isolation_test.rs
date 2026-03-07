@@ -17,6 +17,7 @@
 
 #![cfg(test)]
 
+#![allow(clippy::manual_let_else)] // Reason: test uses match for clarity in assertion context
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, RlsEnforcement},
     db::{DatabaseAdapter, WhereClause, WhereOperator, postgres::PostgresAdapter},
@@ -83,12 +84,9 @@ async fn setup_raw_connection(db_url: &str) -> tokio_postgres::Client {
 #[tokio::test]
 #[ignore = "requires PostgreSQL with RLS setup (set TEST_DATABASE_URL)"]
 async fn test_cache_does_not_leak_across_tenant_boundaries() {
-    let db_url = match test_db_url() {
-        Some(url) => url,
-        None => {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        },
+    let db_url = if let Some(url) = test_db_url() { url } else {
+        eprintln!("Skipping: TEST_DATABASE_URL not set");
+        return;
     };
 
     // Create a raw connection for fixture setup (bypasses RLS via superuser).
@@ -196,12 +194,9 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL with RLS setup (set TEST_DATABASE_URL)"]
 async fn test_validate_rls_active_fails_without_rls() {
-    let db_url = match test_db_url() {
-        Some(url) => url,
-        None => {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        },
+    let db_url = if let Some(url) = test_db_url() { url } else {
+        eprintln!("Skipping: TEST_DATABASE_URL not set");
+        return;
     };
 
     let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");
@@ -224,12 +219,9 @@ async fn test_validate_rls_active_fails_without_rls() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL (set TEST_DATABASE_URL)"]
 async fn test_enforce_rls_off_skips_check() {
-    let db_url = match test_db_url() {
-        Some(url) => url,
-        None => {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        },
+    let db_url = if let Some(url) = test_db_url() { url } else {
+        eprintln!("Skipping: TEST_DATABASE_URL not set");
+        return;
     };
 
     let adapter = PostgresAdapter::new(&db_url).await.expect("PostgresAdapter");

@@ -36,6 +36,20 @@
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 use std::{
     sync::{
@@ -68,7 +82,7 @@ mod metrics_monitoring_tests {
         }
         let elapsed = start.elapsed();
 
-        let avg_per_op = elapsed.as_micros() as f64 / iterations as f64;
+        let avg_per_op = elapsed.as_micros() as f64 / f64::from(iterations);
         assert!(
             avg_per_op < 1.0,
             "Counter increment should be <1µs per operation (actual: {:.3}µs)",
@@ -459,8 +473,8 @@ mod metrics_monitoring_tests {
         ];
 
         for (hits, misses, expected_rate) in test_cases {
-            let hit_count = hits as f64;
-            let miss_count = misses as f64;
+            let hit_count = f64::from(hits);
+            let miss_count = f64::from(misses);
             let total = hit_count + miss_count;
 
             let hit_rate = if total > 0.0 { hit_count / total } else { 0.0 };
@@ -517,14 +531,14 @@ mod metrics_monitoring_tests {
         let error_budget_percent = 0.01; // 1% error budget = 99.9% SLO
 
         let errors = 8_000; // 0.8% error rate
-        let remaining_budget = error_budget_percent - (errors as f64 / total_requests as f64);
+        let remaining_budget = error_budget_percent - (f64::from(errors) / f64::from(total_requests));
 
         // Should have budget remaining
         assert!(remaining_budget > 0.0, "Should have error budget remaining");
 
         // If errors were 10_000 (1% = fully spent)
-        let errors_at_limit = (total_requests as f64 * error_budget_percent) as u64;
-        let fully_spent = error_budget_percent - (errors_at_limit as f64 / total_requests as f64);
+        let errors_at_limit = (f64::from(total_requests) * error_budget_percent) as u64;
+        let fully_spent = error_budget_percent - (errors_at_limit as f64 / f64::from(total_requests));
 
         assert!(fully_spent.abs() < 0.001, "Budget should be fully spent");
     }
@@ -537,7 +551,7 @@ mod metrics_monitoring_tests {
     fn measure_latency(operations: usize) -> f64 {
         let start = Instant::now();
         for _ in 0..operations {
-            let _result = 1 + 1; // Minimal work
+            let _ = 1_i32 + 1; // Minimal work
         }
         start.elapsed().as_secs_f64()
     }

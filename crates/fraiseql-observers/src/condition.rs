@@ -827,4 +827,160 @@ mod tests {
             .unwrap();
         assert!(result);
     }
+
+    // =========================================================================
+    // Additional tests for condition.rs coverage
+    // =========================================================================
+
+    #[test]
+    fn test_equality_match_field_equals_value() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "pending"}),
+        );
+        let result = parser.parse_and_evaluate("status == 'pending'", &event).unwrap();
+        assert!(result, "Field equality match should succeed");
+    }
+
+    #[test]
+    fn test_inequality_match_field_differs() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped"}),
+        );
+        let result = parser.parse_and_evaluate("status != 'pending'", &event).unwrap();
+        assert!(result, "Inequality match should succeed when field differs");
+    }
+
+    #[test]
+    fn test_missing_field_returns_error() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 100}),
+        );
+        // Referencing a non-existent field in a comparison returns an error
+        let result = parser.parse_and_evaluate("nonexistent == 'foo'", &event);
+        assert!(result.is_err(), "Missing field should return an error");
+    }
+
+    #[test]
+    fn test_invalid_filter_string_is_error() {
+        let parser = ConditionParser::new();
+        let result = parser.parse("@@@invalid&&&");
+        assert!(result.is_err(), "Unparseable filter string should return error");
+    }
+
+    #[test]
+    fn test_case_sensitivity_equality_is_case_sensitive() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "Pending"}),
+        );
+        // Exact match is case-sensitive
+        let result = parser.parse_and_evaluate("status == 'Pending'", &event).unwrap();
+        assert!(result, "Case-sensitive match on 'Pending' should succeed");
+
+        let result = parser.parse_and_evaluate("status == 'pending'", &event).unwrap();
+        assert!(!result, "Case-sensitive match on 'pending' should fail for 'Pending'");
+    }
+
+    #[test]
+    fn test_multiple_and_conditions_all_must_match() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped", "priority": "high"}),
+        );
+        // Both conditions true
+        let result =
+            parser.parse_and_evaluate("status == 'shipped' && priority == 'high'", &event).unwrap();
+        assert!(result, "Both conditions true should pass AND");
+
+        // One condition false
+        let result =
+            parser.parse_and_evaluate("status == 'shipped' && priority == 'low'", &event).unwrap();
+        assert!(!result, "One false condition should fail AND");
+    }
+
+    #[test]
+    fn test_numeric_string_comparison() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"count": 5}),
+        );
+        // Numeric comparison: count == 5
+        let result = parser.parse_and_evaluate("count == 5", &event).unwrap();
+        assert!(result, "Numeric equality should match");
+    }
+
+    #[test]
+    fn test_empty_string_field_value() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"note": ""}),
+        );
+        // Empty string equality
+        let result = parser.parse_and_evaluate("note == ''", &event).unwrap();
+        assert!(result, "Empty string equality should match");
+    }
+
+    #[test]
+    fn test_has_field_for_existing_field() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"email": "user@example.com"}),
+        );
+        let result = parser.parse_and_evaluate("has_field('email')", &event).unwrap();
+        assert!(result, "has_field should return true for existing field");
+    }
+
+    #[test]
+    fn test_has_field_for_missing_field() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"total": 50}),
+        );
+        let result = parser.parse_and_evaluate("has_field('email')", &event).unwrap();
+        assert!(!result, "has_field should return false for missing field");
+    }
+
+    #[test]
+    fn test_inequality_false_when_field_matches() {
+        let parser = ConditionParser::new();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "pending"}),
+        );
+        // field != 'pending' when status IS 'pending' should be false
+        let result = parser.parse_and_evaluate("status != 'pending'", &event).unwrap();
+        assert!(!result, "Inequality should fail when field matches value");
+    }
 }

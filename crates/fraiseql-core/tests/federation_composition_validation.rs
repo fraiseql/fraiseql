@@ -39,6 +39,12 @@
 //! - `@provides(type: "TypeName")` - Declares type contribution to federation
 //! - `@key(fields: "id")` - Uniquely identifies type in subgraph (implicit)
 
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
+#![allow(missing_docs)] // Reason: test helper types do not require documentation
+#![allow(clippy::match_same_arms)] // Reason: test match arms are intentionally explicit
+#![allow(clippy::iter_with_drain)] // Reason: drain used to consume Vec in test cleanup
+#![allow(clippy::needless_pass_by_ref_mut)] // Reason: test helper takes &mut for API uniformity
+#![allow(clippy::needless_collect)] // Reason: intermediate collect makes comparison clearer
 #[allow(dead_code)]
 mod harness {
     use std::collections::HashMap;
@@ -173,7 +179,7 @@ mod harness {
 
     impl DirectiveValidator {
         /// Create a new directive validator for the composed schema
-        pub fn new(schema: ComposedSchema) -> Self {
+        pub const fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
@@ -249,7 +255,7 @@ mod harness {
 
     impl QueryPlanner {
         /// Create a new query planner for the composed schema
-        pub fn new(schema: ComposedSchema) -> Self {
+        pub const fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 
@@ -297,7 +303,7 @@ mod harness {
 
     impl TypeRegistry {
         /// Create a new type registry for the composed schema
-        pub fn new(schema: ComposedSchema) -> Self {
+        pub const fn new(schema: ComposedSchema) -> Self {
             Self { schema }
         }
 

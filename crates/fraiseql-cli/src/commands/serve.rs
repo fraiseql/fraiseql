@@ -39,12 +39,12 @@ pub async fn run(schema: &str, port: u16) -> Result<()> {
     }
 
     // Compile initial schema
-    println!("📦 Initial compilation:");
+    println!("Initial compilation:");
     match compile_schema(schema).await {
         Ok(()) => println!("   ✓ Schema compiled successfully\n"),
         Err(e) => {
             error!("Initial compilation failed: {e}");
-            println!("   ❌ Compilation failed: {e}\n");
+            println!("   err: Compilation failed: {e}\n");
             println!("   Fix errors and save to retry...\n");
         },
     }
@@ -74,7 +74,7 @@ pub async fn run(schema: &str, port: u16) -> Result<()> {
                 // Only recompile on write/modify events
                 if matches!(event.kind, EventKind::Modify(_)) {
                     info!("Schema file modified, recompiling...");
-                    println!("🔄 Schema changed, recompiling...");
+                    println!("Schema changed, recompiling...");
 
                     // Small delay to ensure file write is complete
                     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -86,7 +86,7 @@ pub async fn run(schema: &str, port: u16) -> Result<()> {
                         },
                         Err(e) => {
                             error!("Recompilation failed: {e}");
-                            println!("   ❌ Compilation failed: {e}\n");
+                            println!("   err: Compilation failed: {e}\n");
                         },
                     }
                 }

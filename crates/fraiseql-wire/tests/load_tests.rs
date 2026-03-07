@@ -1,3 +1,7 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::unreadable_literal)] // Reason: test byte-count thresholds use large literals
+#![allow(clippy::items_after_statements)] // Reason: test helper closures defined near use site
+
 //! Load testing suite for fraiseql-wire
 //!
 //! Tests throughput, memory stability, and performance under sustained load.
@@ -32,7 +36,7 @@ async fn test_load_moderate_volume() {
     }
 
     let elapsed = start.elapsed();
-    let throughput = count as f64 / elapsed.as_secs_f64();
+    let throughput = f64::from(count) / elapsed.as_secs_f64();
 
     println!("  Rows: {}", count);
     println!("  Time: {:?}", elapsed);
@@ -66,7 +70,7 @@ async fn test_load_large_volume_custom_chunk() {
     }
 
     let elapsed = start.elapsed();
-    let throughput = count as f64 / elapsed.as_secs_f64();
+    let throughput = f64::from(count) / elapsed.as_secs_f64();
 
     println!("  Rows: {}", count);
     println!("  Chunk size: 512");
@@ -100,7 +104,7 @@ async fn test_load_with_sql_predicate() {
     }
 
     let elapsed = start.elapsed();
-    let throughput = count as f64 / elapsed.as_secs_f64();
+    let throughput = f64::from(count) / elapsed.as_secs_f64();
 
     println!("  Rows: {}", count);
     println!("  Time: {:?}", elapsed);
@@ -135,7 +139,7 @@ async fn test_load_with_rust_predicate() {
     }
 
     let elapsed = start.elapsed();
-    let throughput = count as f64 / elapsed.as_secs_f64();
+    let throughput = f64::from(count) / elapsed.as_secs_f64();
 
     println!("  Rows: {}", count);
     println!("  Time: {:?}", elapsed);
@@ -287,7 +291,7 @@ async fn test_load_sustained_streaming() {
     }
 
     let elapsed = start.elapsed();
-    let throughput = count as f64 / elapsed.as_secs_f64();
+    let throughput = f64::from(count) / elapsed.as_secs_f64();
 
     println!("  Duration: {:?}", elapsed);
     println!("  Rows: {}", count);
@@ -320,7 +324,7 @@ async fn test_load_chunk_size_comparison() {
         }
 
         let elapsed = start.elapsed();
-        let throughput = count as f64 / elapsed.as_secs_f64();
+        let throughput = f64::from(count) / elapsed.as_secs_f64();
 
         println!(
             "  Chunk {}: {:.0} rows/sec ({} rows in {:?})",

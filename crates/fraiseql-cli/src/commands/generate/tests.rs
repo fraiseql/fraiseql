@@ -1,6 +1,7 @@
 //! Unit tests for the generate command.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)] // Reason: tests.rs file contains a mod tests block by convention
 mod tests {
     use indexmap::IndexMap;
 

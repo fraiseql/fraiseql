@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Print progress every 1 second
                 if last_print.elapsed().as_secs() >= 1 {
                     let elapsed = start.elapsed().as_secs_f64();
-                    let throughput = count as f64 / elapsed;
+                    let throughput = f64::from(count) / elapsed;
                     println!(
                         "Progress: {} rows received ({:.0} rows/sec)",
                         count, throughput
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let elapsed = start.elapsed();
-    let throughput = count as f64 / elapsed.as_secs_f64();
+    let throughput = f64::from(count) / elapsed.as_secs_f64();
 
     println!("\n=== Results ===");
     println!("Total rows: {}", count);

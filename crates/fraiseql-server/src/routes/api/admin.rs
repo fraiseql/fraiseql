@@ -298,8 +298,9 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 ///
 /// Requires admin token authentication.
 // Reason: `cache_enabled = "false"` appears in both the else-branch and the
-// `#[cfg(not(feature = "arrow"))]` inner path. Extracting it would break the
-// `#[cfg]` conditional logic that sets a different value when `arrow` is enabled.
+// `#[cfg(not(feature = "arrow"))]` inner path. Clippy sees them as shared code, but
+// extracting it would break the `#[cfg]` conditional logic that sets a different value
+// when `arrow` is enabled.
 #[allow(clippy::branches_sharing_code)]
 pub async fn config_handler<A: DatabaseAdapter>(
     State(state): State<AppState<A>>,

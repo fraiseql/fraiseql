@@ -34,6 +34,10 @@
 //! - Compensation runs: B's inverse, then A's inverse
 //! - C has no compensation (never completed)
 
+#![allow(clippy::match_same_arms)] // Reason: test match arms are intentionally explicit even when behavior is identical
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions do not need Errors doc sections
+#![allow(missing_docs)] // Reason: test helper types do not require documentation
+#![allow(clippy::needless_pass_by_ref_mut)] // Reason: test helper signatures mirror production API
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -454,7 +458,7 @@ pub enum CompensationType {
 pub struct SagaCoordinator;
 
 impl SagaCoordinator {
-    pub fn new() -> Result<Self, String> {
+    pub const fn new() -> Result<Self, String> {
         Ok(SagaCoordinator)
     }
 }
@@ -751,15 +755,15 @@ fn build_compensation_for_step(step: &SagaStep) -> CompensationAction {
 
     let action_type = match step.mutation_type {
         MutationType::Create => CompensationType::Delete {
-            id:            id.clone(),
+            id,
             original_data: step.variables.clone(),
         },
         MutationType::Update => CompensationType::Update {
-            id:             id.clone(),
-            restore_values: step.result.as_ref().cloned().unwrap_or_default(),
+            id,
+            restore_values: step.result.clone().unwrap_or_default(),
         },
         MutationType::Delete => CompensationType::Create {
-            id:            id.clone(),
+            id,
             original_data: step.variables.clone(),
         },
     };

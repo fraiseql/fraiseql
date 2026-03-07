@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use super::*;
 
 #[test]
@@ -611,7 +612,7 @@ fn test_fact_table_declaration_with_metadata() {
         measures:    vec!["count".to_string()],
         dimensions:  vec!["user_id".to_string(), "event_type".to_string()],
         primary_key: "id".to_string(),
-        metadata:    Some(metadata.clone()),
+        metadata:    Some(metadata),
     };
 
     assert!(decl.metadata.is_some());
@@ -634,7 +635,7 @@ fn test_fact_table_declaration_periodic_snapshot() {
         measures:    vec!["quantity_on_hand".to_string()],
         dimensions:  vec!["warehouse_id".to_string()],
         primary_key: "id".to_string(),
-        metadata:    Some(metadata.clone()),
+        metadata:    Some(metadata),
     };
 
     assert_eq!(decl.name, "tf_inventory");

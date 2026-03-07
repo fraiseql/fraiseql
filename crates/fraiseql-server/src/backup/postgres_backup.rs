@@ -153,10 +153,6 @@ impl BackupProvider for PostgresBackupProvider {
         "postgres"
     }
 
-    fn is_implemented(&self) -> bool {
-        true
-    }
-
     /// Run `pg_isready` to verify the database is reachable.
     ///
     /// # Errors
@@ -489,12 +485,6 @@ mod tests {
         let id = "postgres-1234567890";
         assert!(provider.dump_path(id).to_str().unwrap().ends_with(".dump"));
         assert!(provider.meta_path(id).to_str().unwrap().ends_with(".meta.json"));
-    }
-
-    #[test]
-    fn test_is_implemented_returns_true() {
-        let provider = PostgresBackupProvider::new(String::new(), String::new());
-        assert!(provider.is_implemented());
     }
 
     #[tokio::test]

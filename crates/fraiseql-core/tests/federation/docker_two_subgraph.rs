@@ -13,7 +13,7 @@ use super::common::*;
 #[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_two_subgraph_federation() {
     // Query users with their orders (2-hop federation: gateway -> users -> orders)
-    let query = r#"
+    let query = r"
         query {
             users {
                 id
@@ -25,7 +25,7 @@ async fn test_gateway_two_subgraph_federation() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -46,8 +46,7 @@ async fn test_gateway_two_subgraph_federation() {
     let has_orders = users.iter().any(|u| {
         u.get("orders")
             .and_then(|o| o.as_array())
-            .map(|arr| !arr.is_empty())
-            .unwrap_or(false)
+            .is_some_and(|arr| !arr.is_empty())
     });
 
     assert!(has_orders, "Some users should have orders in federated query");
@@ -58,7 +57,7 @@ async fn test_gateway_two_subgraph_federation() {
 #[ignore = "requires Docker Compose federation stack on localhost:4000-4003"]
 async fn test_gateway_three_subgraph_federation() {
     // Query users with their orders and order products (3-hop federation)
-    let query = r#"
+    let query = r"
         query {
             users {
                 id
@@ -74,7 +73,7 @@ async fn test_gateway_three_subgraph_federation() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query).await.expect("Query should succeed");
 
@@ -102,7 +101,7 @@ async fn test_two_subgraph_http_federation_from_orders() {
 
     // Orders subgraph extends User type from users subgraph
     // This tests if orders can resolve User information via HTTP
-    let query = r#"
+    let query = r"
         query {
             orders(limit: 5) {
                 id
@@ -115,7 +114,7 @@ async fn test_two_subgraph_http_federation_from_orders() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(ORDERS_SUBGRAPH_URL, query)
         .await
@@ -155,7 +154,7 @@ async fn test_two_subgraph_federation_through_gateway() {
     println!("\n--- Test: Federated query through Apollo Router gateway ---");
 
     // Query users with their orders through the gateway
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -168,7 +167,7 @@ async fn test_two_subgraph_federation_through_gateway() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, query)
         .await
@@ -196,8 +195,7 @@ async fn test_two_subgraph_federation_through_gateway() {
         .filter(|u| {
             u.get("orders")
                 .and_then(|o| o.as_array())
-                .map(|arr| !arr.is_empty())
-                .unwrap_or(false)
+                .is_some_and(|arr| !arr.is_empty())
         })
         .count();
 
@@ -213,7 +211,7 @@ async fn test_two_subgraph_entity_resolution_consistency() {
 
     // Get a user ID from users subgraph
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 1) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 1) { id identifier } }")
             .await
             .expect("Initial users query should succeed");
 
@@ -269,7 +267,7 @@ async fn test_two_subgraph_data_consistency() {
 
     // Get users directly from users subgraph
     let direct_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users(limit: 3) { id identifier } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users(limit: 3) { id identifier } }")
             .await
             .expect("Direct users query should succeed");
 
@@ -280,7 +278,7 @@ async fn test_two_subgraph_data_consistency() {
 
     // Get same users through gateway (federated)
     let gateway_response =
-        graphql_query(APOLLO_GATEWAY_URL, r#"query { users(limit: 3) { id identifier } }"#)
+        graphql_query(APOLLO_GATEWAY_URL, r"query { users(limit: 3) { id identifier } }")
             .await
             .expect("Gateway users query should succeed");
 

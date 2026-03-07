@@ -13,14 +13,16 @@
 //! - Actual output size per format (JSON vs Arrow IPC)
 //!
 //! Requires PostgreSQL with test tables:
-//! - v_users (JSON plane view) - denormalized for JSON output
-//! - ta_users (Arrow plane analytics table) - columnar optimized
+//! - `v_users` (JSON plane view) - denormalized for JSON output
+//! - `ta_users` (Arrow plane analytics table) - columnar optimized
 //!
 //! Run with:
 //! ```bash
 //! DATABASE_URL="postgresql://localhost/postgres" cargo bench --package fraiseql-arrow --bench arrow_vs_json_serialization
 //! ```
 #![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses usize→f64 for human-readable output; precision loss is irrelevant
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
 
 use std::{io::Cursor, sync::Arc};
 
@@ -35,7 +37,7 @@ use fraiseql_arrow::{
 };
 use fraiseql_core::db::DatabaseAdapter;
 
-/// Benchmark comparing JSON plane (v_users view) vs Arrow plane (ta_users table)
+/// Benchmark comparing JSON plane (`v_users` view) vs Arrow plane (`ta_users` table)
 fn benchmark_query_planes(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -45,7 +47,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
             .unwrap_or_else(|_| "postgresql://localhost/postgres".to_string());
 
         match setup_test_tables(&db_url).await {
-            Ok(_) => Some(db_url),
+            Ok(()) => Some(db_url),
             Err(e) => {
                 eprintln!("Warning: Could not setup test tables: {}", e);
                 eprintln!("Benchmark requires running PostgreSQL with test data");
@@ -134,7 +136,7 @@ fn benchmark_query_planes(c: &mut Criterion) {
     group.finish();
 }
 
-/// Query JSON plane (v_users) and serialize to JSON
+/// Query JSON plane (`v_users`) and serialize to JSON
 async fn query_json_plane(
     db_url: &str,
     limit_clause: &str,
@@ -149,7 +151,7 @@ async fn query_json_plane(
     Ok(json.into_bytes())
 }
 
-/// Query Arrow plane (ta_users) and serialize to Arrow IPC format
+/// Query Arrow plane (`ta_users`) and serialize to Arrow IPC format
 async fn query_arrow_plane(
     db_url: &str,
     limit_clause: &str,
@@ -181,7 +183,7 @@ async fn query_arrow_plane(
         .map_err(|e| format!("Failed to convert rows: {}", e))?;
 
     // Create converter and build RecordBatch
-    let converter = RowToArrowConverter::new(schema.clone(), ConvertConfig::default());
+    let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
     let batch = converter
         .convert_batch(arrow_rows)
         .map_err(|e| format!("Failed to create batch: {}", e))?;
@@ -198,7 +200,7 @@ async fn query_arrow_plane(
     Ok(buffer.into_inner())
 }
 
-/// Setup test tables: v_users (JSON view) and ta_users (Arrow analytics table)
+/// Setup test tables: `v_users` (JSON view) and `ta_users` (Arrow analytics table)
 async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error>> {
     use sqlx::PgPool;
 
@@ -206,7 +208,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
 
     // Create base table (tb_users)
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE IF NOT EXISTS tb_users (
             id TEXT PRIMARY KEY,
             email TEXT NOT NULL,
@@ -218,22 +220,22 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
             tags TEXT[],
             metadata JSONB
         )
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
 
     // Create JSON plane view (v_users) - denormalized for JSON output
     sqlx::query(
-        r#"
+        r"
         DROP VIEW IF EXISTS v_users CASCADE
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
 
     sqlx::query(
-        r#"
+        r"
         CREATE VIEW v_users AS
         SELECT
             id,
@@ -246,7 +248,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
             tags,
             metadata
         FROM tb_users
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
@@ -255,7 +257,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
     sqlx::query("DROP TABLE IF EXISTS ta_users").execute(&pool).await?;
 
     sqlx::query(
-        r#"
+        r"
         CREATE TABLE ta_users (
             id TEXT,
             email TEXT,
@@ -267,7 +269,7 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
             tags TEXT[],
             metadata JSONB
         )
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;
@@ -275,18 +277,18 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
     // Insert test data (1000 rows)
     for i in 0..1000 {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO tb_users (id, email, name, age, is_active, created_at, balance, tags, metadata)
             VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8)
             ON CONFLICT (id) DO NOTHING
-            "#,
+            ",
         )
         .bind(format!("user-{:04}", i))
         .bind(format!("user{}@example.com", i))
         .bind(format!("User {}", i))
         .bind(20i32 + (i % 60i32))
         .bind(i % 3 != 0)
-        .bind(1000.0 + (i as f64 * 10.0))
+        .bind(f64::from(i).mul_add(10.0, 1000.0))
         .bind(vec!["tag1".to_string(), "tag2".to_string()])
         .bind(serde_json::json!({"index": i, "created": "2026-01-31"}))
         .execute(&pool)
@@ -295,10 +297,10 @@ async fn setup_test_tables(db_url: &str) -> Result<(), Box<dyn std::error::Error
 
     // Sync ta_users from tb_users
     sqlx::query(
-        r#"
+        r"
         INSERT INTO ta_users (id, email, name, age, is_active, created_at, balance, tags, metadata)
         SELECT id, email, name, age, is_active, created_at, balance, tags, metadata FROM tb_users
-        "#,
+        ",
     )
     .execute(&pool)
     .await?;

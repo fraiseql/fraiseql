@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn test_matcher_new() {
         let schema = test_schema();
-        let matcher = QueryMatcher::new(schema.clone());
+        let matcher = QueryMatcher::new(schema);
         assert_eq!(matcher.schema().queries.len(), 1);
     }
 

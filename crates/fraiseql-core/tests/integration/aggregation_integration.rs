@@ -7,13 +7,15 @@
 //! - Result projection
 //!
 //! To run unit tests:
-//!   cargo test -p fraiseql-core --test aggregation_integration
+//!   cargo test -p fraiseql-core --test `aggregation_integration`
 //!
 //! For database integration tests:
 //!   1. Start test database: docker compose -f docker-compose.test.yml up -d
 //!   2. Run tests: cargo test -p fraiseql-core --features test-postgres --test
-//!      aggregation_integration
+//!      `aggregation_integration`
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::match_wildcard_for_single_variants)] // Reason: test match uses wildcard arm for forward-compatibility
 use fraiseql_core::{
     compiler::{
         aggregate_types::{AggregateFunction, TemporalBucket},
@@ -27,7 +29,7 @@ use fraiseql_core::{
 };
 use serde_json::json;
 
-/// Helper to create test fact table metadata for tf_sales
+/// Helper to create test fact table metadata for `tf_sales`
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:           "tf_sales".to_string(),

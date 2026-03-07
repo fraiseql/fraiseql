@@ -1,5 +1,6 @@
 //! Cross-subgraph mutation coordination.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::federation::{
     mutation_executor::FederationMutationExecutor,
     types::{FederatedType, FederationMetadata, KeyDirective},

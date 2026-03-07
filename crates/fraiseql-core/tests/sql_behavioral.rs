@@ -17,7 +17,7 @@ use fraiseql_core::db::{
 };
 use serde_json::json;
 
-fn pg() -> PostgresWhereGenerator {
+const fn pg() -> PostgresWhereGenerator {
     PostgresWhereGenerator::new()
 }
 
@@ -450,7 +450,7 @@ fn pg_function_call_sql(function_name: &str, arg_count: usize) -> String {
 /// Behavioral counterpart for `snapshot_postgres_function_call_create`.
 ///
 /// A CREATE mutation calls the stored function with 4 positional arguments
-/// (amount, description, tenant_id injected, user_id injected).
+/// (amount, description, `tenant_id` injected, `user_id` injected).
 #[test]
 fn mutation_create_sql_shape() {
     let sql = pg_function_call_sql("fn_create_post", 4);

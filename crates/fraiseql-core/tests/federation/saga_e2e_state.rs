@@ -1,6 +1,8 @@
 //! Category 4: State Machine Validation (4 tests)
 //! Category 5: Component Integration (3 tests)
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test timing assertions cast u128→f64 for threshold comparison
 use super::saga_e2e_harness::*;
 
 // ============================================================================

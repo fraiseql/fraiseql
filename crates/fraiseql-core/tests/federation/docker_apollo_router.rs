@@ -17,7 +17,7 @@ async fn test_apollo_router_discovers_subgraphs() {
     println!("\n--- Test: Apollo Router discovers all 3 subgraphs ---");
 
     // Query introspection to verify all subgraph types are present
-    let introspection_query = r#"
+    let introspection_query = r"
         query {
             __schema {
                 types {
@@ -26,7 +26,7 @@ async fn test_apollo_router_discovers_subgraphs() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, introspection_query)
         .await
@@ -72,7 +72,7 @@ async fn test_apollo_router_schema_composition() {
     println!("\n--- Test: Apollo Router schema composition ---");
 
     // Query the composed schema structure
-    let basic_schema_query = r#"
+    let basic_schema_query = r"
         query {
             __schema {
                 queryType {
@@ -83,7 +83,7 @@ async fn test_apollo_router_schema_composition() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, basic_schema_query)
         .await
@@ -131,7 +131,7 @@ async fn test_apollo_router_sdl_completeness() {
     println!("\n--- Test: Apollo Router SDL completeness ---");
 
     // Use introspection to build SDL representation
-    let sdl_query = r#"
+    let sdl_query = r"
         query {
             __schema {
                 types {
@@ -147,7 +147,7 @@ async fn test_apollo_router_sdl_completeness() {
                 mutationType { name }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, sdl_query)
         .await
@@ -169,8 +169,7 @@ async fn test_apollo_router_sdl_completeness() {
         .and_then(|d| d.get("__schema"))
         .and_then(|s| s.get("types"))
         .and_then(|t| t.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
+        .map_or(0, |arr| arr.len());
 
     println!("✓ Apollo Router SDL completeness verified");
     println!("  - Query type present: {}", has_query_type);
@@ -188,7 +187,7 @@ async fn test_apollo_router_federation_directives() {
     println!("\n--- Test: Apollo Router federation directives ---");
 
     // Query introspection to check for federation directives
-    let directive_query = r#"
+    let directive_query = r"
         query {
             __schema {
                 directives {
@@ -197,7 +196,7 @@ async fn test_apollo_router_federation_directives() {
                 }
             }
         }
-    "#;
+    ";
 
     let response = graphql_query(APOLLO_GATEWAY_URL, directive_query)
         .await
@@ -239,14 +238,14 @@ async fn test_apollo_router_query_routing() {
     println!("\n--- Test: Apollo Router query routing ---");
 
     // Test routing to users subgraph
-    let users_query = r#"
+    let users_query = r"
         query {
             users(limit: 1) {
                 id
                 identifier
             }
         }
-    "#;
+    ";
 
     let users_response = graphql_query(APOLLO_GATEWAY_URL, users_query)
         .await
@@ -259,14 +258,14 @@ async fn test_apollo_router_query_routing() {
     );
 
     // Test routing to orders subgraph
-    let orders_query = r#"
+    let orders_query = r"
         query {
             orders(limit: 1) {
                 id
                 status
             }
         }
-    "#;
+    ";
 
     let orders_response = graphql_query(APOLLO_GATEWAY_URL, orders_query)
         .await
@@ -279,7 +278,7 @@ async fn test_apollo_router_query_routing() {
     );
 
     // Test routing to products subgraph
-    let products_query = r#"
+    let products_query = r"
         query {
             products(limit: 1) {
                 id
@@ -287,7 +286,7 @@ async fn test_apollo_router_query_routing() {
                 price
             }
         }
-    "#;
+    ";
 
     let products_response = graphql_query(APOLLO_GATEWAY_URL, products_query)
         .await
@@ -313,14 +312,14 @@ async fn test_apollo_router_error_handling() {
     println!("\n--- Test: Apollo Router error handling ---");
 
     // Test invalid query structure
-    let invalid_query = r#"
+    let invalid_query = r"
         query {
             users {
                 id
                 nonexistentField
             }
         }
-    "#;
+    ";
 
     let invalid_response = graphql_query(APOLLO_GATEWAY_URL, invalid_query)
         .await
@@ -337,13 +336,13 @@ async fn test_apollo_router_error_handling() {
     );
 
     // Test query to non-existent root field
-    let nonexistent_query = r#"
+    let nonexistent_query = r"
         query {
             nonexistentRootField {
                 id
             }
         }
-    "#;
+    ";
 
     let nonexistent_response = graphql_query(APOLLO_GATEWAY_URL, nonexistent_query)
         .await

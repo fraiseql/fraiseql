@@ -128,7 +128,10 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let text = resp.text().await.unwrap_or_default();
+                let text = resp
+                    .text()
+                    .await
+                    .unwrap_or_else(|e| format!("(error reading response body: {e})"));
                 warn!(
                     url = %url,
                     status = %status,
@@ -184,7 +187,10 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let text = resp.text().await.unwrap_or_default();
+                let text = resp
+                    .text()
+                    .await
+                    .unwrap_or_else(|e| format!("(error reading response body: {e})"));
                 warn!(
                     url = %url,
                     status = %status,
@@ -222,6 +228,16 @@ impl SubscriptionLifecycle for WebhookLifecycle {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]

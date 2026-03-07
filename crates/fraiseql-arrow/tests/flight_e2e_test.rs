@@ -1,4 +1,4 @@
-//! End-to-end integration tests for Arrow Flight DoGet flows.
+//! End-to-end integration tests for Arrow Flight `DoGet` flows.
 //!
 //! These tests verify complete request→response cycles for:
 //! - Optimized view queries with cache
@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use sqlx::postgres::PgPoolOptions;
 
-/// Test database setup and teardown (reused from flight_integration.rs).
+/// Test database setup and teardown (reused from `flight_integration.rs`).
 struct TestDb {
     #[allow(dead_code)]
     pool:          sqlx::PgPool,
@@ -57,13 +57,13 @@ impl TestDb {
         })
     }
 
-    /// Create ta_users and ta_orders tables with additional test data.
+    /// Create `ta_users` and `ta_orders` tables with additional test data.
     async fn create_tables(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
         tracing::info!("Creating test tables");
 
         // Create ta_users table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE ta_users (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -71,14 +71,14 @@ impl TestDb {
                 created_at TIMESTAMPTZ NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         // Create ta_orders table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE ta_orders (
                 id TEXT PRIMARY KEY,
                 total NUMERIC(12, 2) NOT NULL,
@@ -86,14 +86,14 @@ impl TestDb {
                 customer_name TEXT NOT NULL,
                 source_updated_at TIMESTAMPTZ DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         // Insert test data into ta_users
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_users (id, name, email, created_at)
             VALUES
                 ('user-1', 'Alice Johnson', 'alice@example.com', NOW()),
@@ -101,14 +101,14 @@ impl TestDb {
                 ('user-3', 'Charlie Brown', 'charlie@example.com', NOW() - INTERVAL '2 days'),
                 ('user-4', 'Diana Prince', 'diana@example.com', NOW() - INTERVAL '3 days'),
                 ('user-5', 'Eve Wilson', 'eve@example.com', NOW() - INTERVAL '4 days')
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
 
         // Insert test data into ta_orders
         sqlx::query(
-            r#"
+            r"
             INSERT INTO ta_orders (id, total, created_at, customer_name)
             VALUES
                 ('order-1', 99.99, NOW(), 'Alice Johnson'),
@@ -116,7 +116,7 @@ impl TestDb {
                 ('order-3', 199.99, NOW() - INTERVAL '2 days', 'Charlie Brown'),
                 ('order-4', 299.99, NOW() - INTERVAL '3 days', 'Diana Prince'),
                 ('order-5', 399.99, NOW() - INTERVAL '4 days', 'Eve Wilson')
-            "#,
+            ",
         )
         .execute(pool)
         .await?;
@@ -173,7 +173,7 @@ impl Drop for TestDb {
 mod tests {
     use super::*;
 
-    /// Test adapter that wraps PostgresAdapter for Arrow Flight integration tests.
+    /// Test adapter that wraps `PostgresAdapter` for Arrow Flight integration tests.
     ///
     /// Arrow Flight operates on raw SQL, so it always uses PostgreSQL directly.
     struct TestFlightAdapter {
@@ -206,11 +206,11 @@ mod tests {
         Ok(adapter)
     }
 
-    /// Test complete DoGet flow: create ticket → execute → stream results
+    /// Test complete `DoGet` flow: create ticket → execute → stream results
     ///
     /// This test verifies the end-to-end path:
-    /// 1. Create FlightTicket for optimized view
-    /// 2. Send DoGet request with ticket
+    /// 1. Create `FlightTicket` for optimized view
+    /// 2. Send `DoGet` request with ticket
     /// 3. Receive schema message
     /// 4. Receive data batches
     /// 5. Verify data integrity
@@ -232,7 +232,7 @@ mod tests {
         Ok(())
     }
 
-    /// Test cache hit scenario in DoGet flow
+    /// Test cache hit scenario in `DoGet` flow
     ///
     /// This test verifies:
     /// 1. Execute query without cache (first request)
@@ -257,7 +257,7 @@ mod tests {
         Ok(())
     }
 
-    /// Test cache miss scenario in DoGet flow
+    /// Test cache miss scenario in `DoGet` flow
     ///
     /// This test verifies:
     /// 1. Cache is enabled but empty
@@ -284,8 +284,8 @@ mod tests {
     /// Test batched queries full flow: multiple queries → combined streaming
     ///
     /// This test verifies:
-    /// 1. Create BatchedQueries ticket with 2+ queries
-    /// 2. Send DoGet request
+    /// 1. Create `BatchedQueries` ticket with 2+ queries
+    /// 2. Send `DoGet` request
     /// 3. Receive combined Arrow stream
     /// 4. Verify results from all queries are streamed
     #[tokio::test]
@@ -336,7 +336,7 @@ mod tests {
         Ok(())
     }
 
-    /// Test concurrent DoGet requests from multiple clients
+    /// Test concurrent `DoGet` requests from multiple clients
     ///
     /// This test verifies:
     /// 1. Launch 10+ concurrent requests to same service

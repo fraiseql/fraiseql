@@ -1,5 +1,6 @@
 //! Tests for compiled schema types.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use field_type::{DistanceMetric, VectorConfig, VectorIndexType};
 
 use super::*;

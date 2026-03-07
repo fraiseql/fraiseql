@@ -7,11 +7,11 @@
 //!   cargo run --example config
 //!
 //! Configuration via environment variables:
-//!   POSTGRES_HOST     - Database host (default: localhost)
-//!   POSTGRES_PORT     - Database port (default: 5432)
-//!   POSTGRES_USER     - Database user (default: postgres)
-//!   POSTGRES_PASSWORD - Database password (default: postgres)
-//!   POSTGRES_DB       - Database name (default: postgres)
+//!   `POSTGRES_HOST`     - Database host (default: localhost)
+//!   `POSTGRES_PORT`     - Database port (default: 5432)
+//!   `POSTGRES_USER`     - Database user (default: postgres)
+//!   `POSTGRES_PASSWORD` - Database password (default: postgres)
+//!   `POSTGRES_DB`       - Database name (default: postgres)
 
 use fraiseql_wire::{connection::ConnectionConfig, FraiseClient};
 use std::env;

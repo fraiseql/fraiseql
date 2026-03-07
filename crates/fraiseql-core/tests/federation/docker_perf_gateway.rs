@@ -4,6 +4,8 @@
 //! batch vs sequential performance, large result sets, complexity scaling,
 //! concurrent queries, mutation impact, and different query patterns.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: perf test latency computations cast u128/usize→f64 for display
 use super::common::*;
 
 // ============================================================================
@@ -17,7 +19,7 @@ async fn test_federation_query_performance_baseline() {
 
     println!("\n--- Test: Federation query performance baseline ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 5) {
                 id
@@ -33,7 +35,7 @@ async fn test_federation_query_performance_baseline() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up query (JIT, connection pooling setup)
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -82,7 +84,7 @@ async fn test_federation_repeated_query_performance() {
 
     println!("\n--- Test: Repeated federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -93,7 +95,7 @@ async fn test_federation_repeated_query_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -137,7 +139,7 @@ async fn test_federation_batch_vs_sequential_performance() {
     println!("\n--- Test: Batch vs sequential entity resolution performance ---");
 
     // Batch query (resolves multiple users at once)
-    let batch_query = r#"
+    let batch_query = r"
         query {
             users(limit: 10) {
                 id
@@ -148,10 +150,10 @@ async fn test_federation_batch_vs_sequential_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Sequential simulation (multiple individual queries)
-    let individual_query = r#"
+    let individual_query = r"
         query {
             users(limit: 1) {
                 id
@@ -162,7 +164,7 @@ async fn test_federation_batch_vs_sequential_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, batch_query).await;
@@ -186,8 +188,7 @@ async fn test_federation_batch_vs_sequential_performance() {
     let batch_users = extract_data(&batch_response)
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
+        .map_or(0, |arr| arr.len());
 
     println!("✓ Batch entity resolution performance:");
     println!("  Batch query (10 users): {:.0}ms", batch_latency.as_millis());
@@ -212,7 +213,7 @@ async fn test_federation_large_result_set_performance() {
 
     println!("\n--- Test: Large result set federation performance ---");
 
-    let large_query = r#"
+    let large_query = r"
         query {
             users(limit: 20) {
                 id
@@ -228,7 +229,7 @@ async fn test_federation_large_result_set_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, large_query).await;
@@ -245,20 +246,18 @@ async fn test_federation_large_result_set_performance() {
     let users = extract_data(&response)
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
+        .map_or(0, |arr| arr.len());
 
     let total_orders: usize = extract_data(&response)
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
-        .map(|users_arr| {
+        .map_or(0, |users_arr| {
             users_arr
                 .iter()
                 .filter_map(|u| u.get("orders").and_then(|o| o.as_array()))
                 .map(|orders_arr| orders_arr.len())
                 .sum()
-        })
-        .unwrap_or(0);
+        });
 
     println!("✓ Large result set performance:");
     println!("  Query latency: {:.0}ms", latency.as_millis());
@@ -281,17 +280,17 @@ async fn test_federation_query_complexity_scaling() {
     println!("\n--- Test: Federation query complexity scaling ---");
 
     // Simple 2-hop query
-    let simple_query = r#"
+    let simple_query = r"
         query {
             users(limit: 5) {
                 id
                 orders { id }
             }
         }
-    "#;
+    ";
 
     // Complex 3-hop query with more fields
-    let complex_query = r#"
+    let complex_query = r"
         query {
             users(limit: 5) {
                 id
@@ -307,7 +306,7 @@ async fn test_federation_query_complexity_scaling() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, simple_query).await;
@@ -347,7 +346,7 @@ async fn test_federation_concurrent_query_performance() {
 
     println!("\n--- Test: Concurrent federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 3) {
                 id
@@ -358,7 +357,7 @@ async fn test_federation_concurrent_query_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, query).await;
@@ -393,7 +392,7 @@ async fn test_federation_mutation_impact_on_performance() {
 
     println!("\n--- Test: Mutation impact on federation query performance ---");
 
-    let query = r#"
+    let query = r"
         query {
             users(limit: 1) {
                 id
@@ -404,7 +403,7 @@ async fn test_federation_mutation_impact_on_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     let start = std::time::Instant::now();
     let response_before =
@@ -440,17 +439,17 @@ async fn test_federation_different_query_patterns_performance() {
     println!("\n--- Test: Different query patterns performance comparison ---");
 
     // Pattern 1: Filtered query
-    let filtered_query = r#"
+    let filtered_query = r"
         query {
             users(limit: 1) {
                 id
                 identifier
             }
         }
-    "#;
+    ";
 
     // Pattern 2: With nested expansion
-    let expanded_query = r#"
+    let expanded_query = r"
         query {
             users(limit: 1) {
                 id
@@ -461,10 +460,10 @@ async fn test_federation_different_query_patterns_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Pattern 3: With deep nesting
-    let deep_query = r#"
+    let deep_query = r"
         query {
             users(limit: 1) {
                 id
@@ -479,7 +478,7 @@ async fn test_federation_different_query_patterns_performance() {
                 }
             }
         }
-    "#;
+    ";
 
     // Warm-up
     let _ = graphql_query(APOLLO_GATEWAY_URL, filtered_query).await;

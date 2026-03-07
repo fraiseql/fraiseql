@@ -3,6 +3,7 @@
 //! These properties verify that the WHERE clause SQL generators produce
 //! safe, well-formed output for any valid input combination.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::db::{
     WhereClause, WhereOperator, postgres::PostgresWhereGenerator,
     where_sql_generator::WhereSqlGenerator,
@@ -70,7 +71,7 @@ fn arb_string_operator() -> impl Strategy<Value = WhereOperator> {
     ]
 }
 
-/// Strategy for generating a WhereClause::Field with comparison operators.
+/// Strategy for generating a `WhereClause::Field` with comparison operators.
 fn arb_comparison_field() -> impl Strategy<Value = WhereClause> {
     (arb_path(), arb_comparison_operator(), arb_scalar_value()).prop_map(
         |(path, operator, value)| WhereClause::Field {
@@ -81,7 +82,7 @@ fn arb_comparison_field() -> impl Strategy<Value = WhereClause> {
     )
 }
 
-/// Strategy for generating a WhereClause::Field with string operators.
+/// Strategy for generating a `WhereClause::Field` with string operators.
 fn arb_string_field() -> impl Strategy<Value = WhereClause> {
     (arb_path(), arb_string_operator(), arb_string_value()).prop_map(|(path, operator, value)| {
         WhereClause::Field {
@@ -92,7 +93,7 @@ fn arb_string_field() -> impl Strategy<Value = WhereClause> {
     })
 }
 
-/// Strategy for generating a WhereClause::Field with IN/NIN.
+/// Strategy for generating a `WhereClause::Field` with IN/NIN.
 fn arb_in_field() -> impl Strategy<Value = WhereClause> {
     (
         arb_path(),
@@ -106,7 +107,7 @@ fn arb_in_field() -> impl Strategy<Value = WhereClause> {
         })
 }
 
-/// Strategy for generating a WhereClause::Field with IsNull.
+/// Strategy for generating a `WhereClause::Field` with `IsNull`.
 fn arb_isnull_field() -> impl Strategy<Value = WhereClause> {
     (arb_path(), any::<bool>()).prop_map(|(path, is_null)| WhereClause::Field {
         path,
@@ -115,7 +116,7 @@ fn arb_isnull_field() -> impl Strategy<Value = WhereClause> {
     })
 }
 
-/// Strategy for generating any valid leaf WhereClause.
+/// Strategy for generating any valid leaf `WhereClause`.
 fn arb_leaf_clause() -> impl Strategy<Value = WhereClause> {
     prop_oneof![
         arb_comparison_field(),
@@ -125,7 +126,7 @@ fn arb_leaf_clause() -> impl Strategy<Value = WhereClause> {
     ]
 }
 
-/// Strategy for generating a WhereClause tree (with nesting).
+/// Strategy for generating a `WhereClause` tree (with nesting).
 fn arb_where_clause() -> impl Strategy<Value = WhereClause> {
     arb_leaf_clause().prop_recursive(3, 16, 4, |inner| {
         prop_oneof![

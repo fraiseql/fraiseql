@@ -124,21 +124,21 @@ mod mutations_rls {
     #[test]
     fn snapshot_postgres_function_call_create() {
         // Test: Function call for CREATE mutation
-        let sql = r#"SELECT * FROM fn_create_post($1, $2, $3, $4)"#;
+        let sql = r"SELECT * FROM fn_create_post($1, $2, $3, $4)";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_postgres_function_call_update() {
         // Test: Function call for UPDATE mutation
-        let sql = r#"SELECT * FROM fn_update_post($1, $2, $3, $4, $5, $6)"#;
+        let sql = r"SELECT * FROM fn_update_post($1, $2, $3, $4, $5, $6)";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_postgres_function_call_delete() {
         // Test: Function call for DELETE mutation
-        let sql = r#"SELECT * FROM fn_delete_post($1, $2)"#;
+        let sql = r"SELECT * FROM fn_delete_post($1, $2)";
         assert_snapshot!(sql);
     }
 
@@ -242,7 +242,7 @@ mod parity {
 
     #[test]
     fn snapshot_parity_mysql_basic_select() {
-        let sql = r#"SELECT `data` FROM `v_user`"#;
+        let sql = r"SELECT `data` FROM `v_user`";
         assert_snapshot!(sql);
     }
 
@@ -254,7 +254,7 @@ mod parity {
 
     #[test]
     fn snapshot_parity_sqlserver_basic_select() {
-        let sql = r#"SELECT [data] FROM [v_user]"#;
+        let sql = r"SELECT [data] FROM [v_user]";
         assert_snapshot!(sql);
     }
 
@@ -275,7 +275,7 @@ mod parity {
 
     #[test]
     fn snapshot_parity_mysql_like() {
-        let sql = r#"SELECT `data` FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.name')) LIKE ?"#;
+        let sql = r"SELECT `data` FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.name')) LIKE ?";
         assert_snapshot!(sql);
     }
 
@@ -287,7 +287,7 @@ mod parity {
 
     #[test]
     fn snapshot_parity_sqlserver_like() {
-        let sql = r#"SELECT [data] FROM [v_user] WHERE JSON_VALUE([data], '$.name') LIKE @p1"#;
+        let sql = r"SELECT [data] FROM [v_user] WHERE JSON_VALUE([data], '$.name') LIKE @p1";
         assert_snapshot!(sql);
     }
 
@@ -308,13 +308,13 @@ mod parity {
 
     #[test]
     fn snapshot_parity_mysql_function_call() {
-        let sql = r#"CALL `fn_create_post`(?, ?, ?, ?)"#;
+        let sql = r"CALL `fn_create_post`(?, ?, ?, ?)";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_parity_sqlserver_function_call() {
-        let sql = r#"EXECUTE [fn_create_post] @p1, @p2, @p3, @p4"#;
+        let sql = r"EXECUTE [fn_create_post] @p1, @p2, @p3, @p4";
         assert_snapshot!(sql);
     }
 
@@ -337,13 +337,13 @@ mod parity {
     #[test]
     fn snapshot_parity_mysql_offset_pagination() {
         let sql =
-            r#"SELECT `data` FROM `v_post` ORDER BY JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.id')) ASC LIMIT 11 OFFSET 10"#;
+            r"SELECT `data` FROM `v_post` ORDER BY JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.id')) ASC LIMIT 11 OFFSET 10";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_parity_sqlserver_offset_pagination() {
-        let sql = r#"SELECT [data] FROM [v_post] ORDER BY JSON_VALUE([data], '$.id') ASC OFFSET 10 ROWS FETCH NEXT 11 ROWS ONLY"#;
+        let sql = r"SELECT [data] FROM [v_post] ORDER BY JSON_VALUE([data], '$.id') ASC OFFSET 10 ROWS FETCH NEXT 11 ROWS ONLY";
         assert_snapshot!(sql);
     }
 }
@@ -359,21 +359,21 @@ mod adapters {
     fn snapshot_mysql_basic_select() {
         // Test: MySQL basic SELECT
         // MySQL uses different quoting: ` instead of "
-        let sql = r#"SELECT `data` FROM `v_user`"#;
+        let sql = r"SELECT `data` FROM `v_user`";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_mysql_where_like() {
         // Test: MySQL WHERE with LIKE (note: MySQL is case-insensitive by default)
-        let sql = r#"SELECT `data` FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.name')) LIKE $1"#;
+        let sql = r"SELECT `data` FROM `v_user` WHERE JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.name')) LIKE $1";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_mysql_function_call() {
         // Test: MySQL stored procedure call (CALL instead of SELECT * FROM)
-        let sql = r#"CALL `fn_create_post`($1, $2, $3, $4)"#;
+        let sql = r"CALL `fn_create_post`($1, $2, $3, $4)";
         assert_snapshot!(sql);
     }
 
@@ -381,7 +381,7 @@ mod adapters {
     fn snapshot_sqlite_basic_select() {
         // Test: SQLite basic SELECT
         // SQLite uses different JSON operators
-        let sql = r#"SELECT `data` FROM `v_user`"#;
+        let sql = r"SELECT `data` FROM `v_user`";
         assert_snapshot!(sql);
     }
 
@@ -389,14 +389,14 @@ mod adapters {
     fn snapshot_sqlserver_basic_select() {
         // Test: SQL Server basic SELECT
         // SQL Server uses square brackets [table]
-        let sql = r#"SELECT [data] FROM [v_user]"#;
+        let sql = r"SELECT [data] FROM [v_user]";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_sqlserver_where_like() {
         // Test: SQL Server WHERE with LIKE
-        let sql = r#"SELECT [data] FROM [v_user] WHERE JSON_VALUE([data], '$.name') LIKE @p1"#;
+        let sql = r"SELECT [data] FROM [v_user] WHERE JSON_VALUE([data], '$.name') LIKE @p1";
         assert_snapshot!(sql);
     }
 }
@@ -420,7 +420,7 @@ mod relay_aggregation {
     fn snapshot_relay_pagination_offset_fallback() {
         // Test: Relay pagination fallback to offset (MySQL, SQLite)
         // Less efficient but correct
-        let sql = r#"SELECT `data` FROM `v_post` ORDER BY `data`->>'id' ASC LIMIT 11 OFFSET 10"#;
+        let sql = r"SELECT `data` FROM `v_post` ORDER BY `data`->>'id' ASC LIMIT 11 OFFSET 10";
         assert_snapshot!(sql);
     }
 
@@ -463,7 +463,7 @@ mod generated_sql {
     use fraiseql_core::db::where_sql_generator::WhereSqlGenerator;
     use serde_json::json;
 
-    fn pg() -> PostgresWhereGenerator {
+    const fn pg() -> PostgresWhereGenerator {
         PostgresWhereGenerator::new()
     }
 

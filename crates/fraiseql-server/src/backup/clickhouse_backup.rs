@@ -1,4 +1,10 @@
-//! ClickHouse backup provider.
+//! ClickHouse backup provider — stub, not yet implemented.
+//!
+//! Do not register with [`BackupManager`] until backup logic is complete.
+//! See the [`BackupProvider`] trait for the required interface.
+//!
+//! [`BackupManager`]: super::backup_manager::BackupManager
+//! [`BackupProvider`]: super::backup_provider::BackupProvider
 
 use super::backup_provider::{BackupError, BackupInfo, BackupProvider, BackupResult, StorageUsage};
 

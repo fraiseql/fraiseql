@@ -530,4 +530,118 @@ mod tests {
         let result = cipher.decrypt(&short_data);
         assert!(result.is_err());
     }
+
+    // =========================================================================
+    // Key management / VersionedFieldEncryption tests
+    // =========================================================================
+
+    /// Versioned encryption: same inputs produce different ciphertexts due to random nonce
+    #[test]
+    fn test_versioned_encrypt_not_deterministic() {
+        let key = [1u8; KEY_SIZE];
+        let ve = VersionedFieldEncryption::new(1, &key).unwrap();
+
+        let ct1 = ve.encrypt("secret").unwrap();
+        let ct2 = ve.encrypt("secret").unwrap();
+        assert_ne!(ct1, ct2, "Versioned encryption must produce non-deterministic output");
+    }
+
+    /// Versioned encryption roundtrip with primary key
+    #[test]
+    fn test_versioned_encrypt_decrypt_roundtrip() {
+        let key = [2u8; KEY_SIZE];
+        let ve = VersionedFieldEncryption::new(1, &key).unwrap();
+
+        let plaintext = "sensitive@example.com";
+        let ct = ve.encrypt(plaintext).unwrap();
+        let decrypted = ve.decrypt(&ct).unwrap();
+        assert_eq!(decrypted, plaintext, "Versioned roundtrip must restore original plaintext");
+    }
+
+    /// Different key versions produce blobs with different version prefix
+    #[test]
+    fn test_versioned_different_versions_different_prefixes() {
+        let key_v1 = [1u8; KEY_SIZE];
+        let key_v2 = [2u8; KEY_SIZE];
+        let ve1 = VersionedFieldEncryption::new(1, &key_v1).unwrap();
+        let ve2 = VersionedFieldEncryption::new(2, &key_v2).unwrap();
+
+        let ct1 = ve1.encrypt("data").unwrap();
+        let ct2 = ve2.encrypt("data").unwrap();
+
+        let ver1 = VersionedFieldEncryption::extract_version(&ct1).unwrap();
+        let ver2 = VersionedFieldEncryption::extract_version(&ct2).unwrap();
+
+        assert_ne!(ver1, ver2, "Different key versions must produce different version prefixes");
+        assert_eq!(ver1, 1u16);
+        assert_eq!(ver2, 2u16);
+    }
+
+    /// Fallback key allows decrypting data encrypted with old key version
+    #[test]
+    fn test_versioned_fallback_key_decrypts_old_data() {
+        let key_v1 = [1u8; KEY_SIZE];
+        let key_v2 = [2u8; KEY_SIZE];
+
+        // Encrypt with v1
+        let ve_old = VersionedFieldEncryption::new(1, &key_v1).unwrap();
+        let old_ct = ve_old.encrypt("legacy data").unwrap();
+
+        // Now switch primary to v2, keep v1 as fallback
+        let ve_new =
+            VersionedFieldEncryption::new(2, &key_v2).unwrap().with_fallback(1, &key_v1).unwrap();
+
+        // Can decrypt old ciphertext via fallback
+        let decrypted = ve_new.decrypt(&old_ct).unwrap();
+        assert_eq!(decrypted, "legacy data", "Fallback key must decrypt old ciphertexts");
+    }
+
+    /// Empty key material returns an error
+    #[test]
+    fn test_versioned_empty_key_returns_error() {
+        let result = VersionedFieldEncryption::new(1, &[]);
+        assert!(result.is_err(), "Empty key must return an error");
+    }
+
+    /// Key length too short (16 bytes instead of 32) must fail
+    #[test]
+    fn test_versioned_short_key_returns_error() {
+        let short_key = [0u8; 16];
+        let result = VersionedFieldEncryption::new(1, &short_key);
+        assert!(result.is_err(), "Short key must return an error");
+    }
+
+    /// Derived key is not an identity function (output != input key)
+    #[test]
+    fn test_versioned_encrypt_is_not_identity() {
+        let key = [5u8; KEY_SIZE];
+        let ve = VersionedFieldEncryption::new(1, &key).unwrap();
+        let ct = ve.encrypt("hello").unwrap();
+
+        // The ciphertext must not equal the plaintext
+        assert_ne!(ct, b"hello", "Encrypted output must differ from plaintext");
+    }
+
+    /// Reencrypt migrates ciphertext from fallback key to primary key
+    #[test]
+    fn test_versioned_reencrypt_from_fallback() {
+        let key_v1 = [10u8; KEY_SIZE];
+        let key_v2 = [20u8; KEY_SIZE];
+
+        let ve_old = VersionedFieldEncryption::new(1, &key_v1).unwrap();
+        let old_ct = ve_old.encrypt("migrate me").unwrap();
+
+        let ve_new =
+            VersionedFieldEncryption::new(2, &key_v2).unwrap().with_fallback(1, &key_v1).unwrap();
+
+        let new_ct = ve_new.reencrypt_from_fallback(&old_ct).unwrap();
+
+        // New ciphertext uses version 2
+        let ver = VersionedFieldEncryption::extract_version(&new_ct).unwrap();
+        assert_eq!(ver, 2u16, "Re-encrypted blob must use the primary key version");
+
+        // Plaintext is preserved
+        let decrypted = ve_new.decrypt(&new_ct).unwrap();
+        assert_eq!(decrypted, "migrate me", "Plaintext must be preserved after re-encryption");
+    }
 }

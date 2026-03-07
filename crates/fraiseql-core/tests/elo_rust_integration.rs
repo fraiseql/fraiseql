@@ -25,7 +25,7 @@ mod tests {
             generated_code: Some("fn validate(age: i32) -> bool { age >= 18 }".to_string()),
         };
 
-        registry.register(validator.clone());
+        registry.register(validator);
 
         let retrieved = registry.get("test_validator");
         assert!(retrieved.is_some());
@@ -451,7 +451,7 @@ mod tests {
         };
 
         assert!(validator.elo_expression.contains("~="));
-        assert!(validator.elo_expression.contains("/"));
+        assert!(validator.elo_expression.contains('/'));
     }
 
     /// Test validator registry stats/metrics.
@@ -511,7 +511,7 @@ mod tests {
         assert!(!registry.exists("to_remove"));
     }
 
-    /// Test validator registry is_empty.
+    /// Test validator registry `is_empty`.
     #[test]
     fn test_elo_rust_validator_registry_is_empty() {
         let config = RustValidatorRegistryConfig::default();

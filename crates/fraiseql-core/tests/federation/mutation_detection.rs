@@ -1,5 +1,6 @@
 //! Mutation type detection and variables.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::federation::{
     mutation_detector::{is_extended_mutation, is_local_mutation, is_mutation},
     mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},

@@ -4,6 +4,10 @@
 //!
 //! Tests validation and parsing of malformed, extreme, or adversarial inputs.
 
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used in test destructuring patterns
+#![allow(missing_docs)] // Reason: test helper functions do not require documentation
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
 use fraiseql_core::{
     db::{WhereClause, WhereOperator},
     security::{QueryValidator, QueryValidatorConfig},
@@ -121,7 +125,7 @@ fn test_where_clause_with_empty_path() {
 fn test_where_clause_with_very_long_field_name() {
     let long_name = "x".repeat(10_000);
     let clause = WhereClause::Field {
-        path:     vec![long_name.clone()],
+        path:     vec![long_name],
         operator: WhereOperator::Eq,
         value:    json!("test"),
     };

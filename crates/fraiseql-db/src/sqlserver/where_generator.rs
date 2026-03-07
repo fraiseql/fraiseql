@@ -621,4 +621,184 @@ mod tests {
         assert_eq!(sql, "JSON_VALUE(data, '$.status') <> @p1");
         assert_eq!(params, vec![json!("deleted")]);
     }
+
+    #[test]
+    fn test_gt_number_casts_to_float() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["score".to_string()],
+            operator: WhereOperator::Gt,
+            value:    json!(50),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "CAST(JSON_VALUE(data, '$.score') AS FLOAT) > @p1");
+        assert_eq!(params, vec![json!(50)]);
+    }
+
+    #[test]
+    fn test_lt_number_casts_to_float() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["age".to_string()],
+            operator: WhereOperator::Lt,
+            value:    json!(18),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "CAST(JSON_VALUE(data, '$.age') AS FLOAT) < @p1");
+        assert_eq!(params, vec![json!(18)]);
+    }
+
+    #[test]
+    fn test_startswith_uses_collated_like() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["code".to_string()],
+            operator: WhereOperator::Startswith,
+            value:    json!("US-"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "JSON_VALUE(data, '$.code') COLLATE Latin1_General_CS_AS LIKE @p1 + '%'"
+        );
+        assert_eq!(params, vec![json!("US-")]);
+    }
+
+    #[test]
+    fn test_endswith_uses_collated_like() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["filename".to_string()],
+            operator: WhereOperator::Endswith,
+            value:    json!(".pdf"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "JSON_VALUE(data, '$.filename') COLLATE Latin1_General_CS_AS LIKE '%' + @p1"
+        );
+        assert_eq!(params, vec![json!(".pdf")]);
+    }
+
+    #[test]
+    fn test_contains_uses_collated_like() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::Contains,
+            value:    json!("alice"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            "JSON_VALUE(data, '$.name') COLLATE Latin1_General_CS_AS LIKE '%' + @p1 + '%'"
+        );
+        assert_eq!(params, vec![json!("alice")]);
+    }
+
+    #[test]
+    fn test_ilike_uses_ci_collation() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["tag".to_string()],
+            operator: WhereOperator::Ilike,
+            value:    json!("rust%"),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(
+            sql.contains("Latin1_General_CI_AI"),
+            "Ilike should use CI_AI collation: {sql}"
+        );
+        assert_eq!(params, vec![json!("rust%")]);
+    }
+
+    #[test]
+    fn test_is_not_null() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["published_at".to_string()],
+            operator: WhereOperator::IsNull,
+            value:    json!(false),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "JSON_VALUE(data, '$.published_at') IS NOT NULL");
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_nin_not_in() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::Nin,
+            value:    json!(["deleted", "archived"]),
+        };
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("NOT"), "Nin should produce NOT: {sql}");
+        assert!(sql.contains("IN"), "Nin should contain IN: {sql}");
+        assert_eq!(params.len(), 2);
+        // SQL Server uses numbered params @p1, @p2
+        assert!(sql.contains("@p1"), "SQL Server param @p1: {sql}");
+        assert!(sql.contains("@p2"), "SQL Server param @p2: {sql}");
+    }
+
+    #[test]
+    fn test_param_counter_increments_across_and_clause() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::And(vec![
+            WhereClause::Field {
+                path:     vec!["active".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!(true),
+            },
+            WhereClause::Field {
+                path:     vec!["role".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("admin"),
+            },
+            WhereClause::Field {
+                path:     vec!["age".to_string()],
+                operator: WhereOperator::Gt,
+                value:    json!(18),
+            },
+        ]);
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("@p1"), "@p1 present: {sql}");
+        assert!(sql.contains("@p2"), "@p2 present: {sql}");
+        assert!(sql.contains("@p3"), "@p3 present: {sql}");
+        assert_eq!(params.len(), 3);
+    }
+
+    #[test]
+    fn test_or_combinator() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Or(vec![
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("pending"),
+            },
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("processing"),
+            },
+        ]);
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.contains("OR"), "SQL Server OR combinator: {sql}");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_not_combinator() {
+        let gen = SqlServerWhereGenerator::new();
+        let clause = WhereClause::Not(Box::new(WhereClause::Field {
+            path:     vec!["active".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!(false),
+        }));
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert!(sql.starts_with("NOT ("), "NOT combinator: {sql}");
+        assert_eq!(params.len(), 1);
+    }
 }

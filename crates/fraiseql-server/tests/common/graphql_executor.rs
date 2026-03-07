@@ -250,7 +250,7 @@ impl FakeGraphQLExecutor {
 
             // If no fields specified except id, include all fields from original
             if fields.is_empty() {
-                for (key, val) in map.iter() {
+                for (key, val) in map {
                     result.insert(key.clone(), val.clone());
                 }
             }

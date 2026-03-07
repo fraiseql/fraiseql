@@ -284,7 +284,7 @@ fn test_deprecated_field_with_special_characters() {
     assert_eq!(field["deprecationReason"], json!(reason));
     let reason_str = field["deprecationReason"].as_str().unwrap();
     assert!(reason_str.contains("\"newField\""));
-    assert!(reason_str.contains("&"));
+    assert!(reason_str.contains('&'));
 }
 
 #[test]

@@ -6,6 +6,9 @@
 //! - Resource utilization tracking
 //! - Query result correctness under load
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::format_push_string)] // Reason: test report builders use push_str(&format!()) for readability
+#![allow(clippy::cast_precision_loss)] // Reason: test latency percentile computations cast usize→f64 for display
 use std::{
     sync::{
         Arc,
@@ -52,7 +55,7 @@ impl ConcurrentMockDatabase {
                 "id": format!("product_{}", i),
                 "sku": format!("SKU-{}", i),
                 "name": format!("Product {}", i),
-                "price": 10.0 + (i as f64),
+                "price": 10.0 + f64::from(i),
                 "stock": i * 10,
                 "category": if i % 3 == 0 { "electronics" } else if i % 3 == 1 { "books" } else { "clothing" },
                 "available": i % 2 == 0
@@ -240,7 +243,7 @@ async fn test_concurrent_typename_addition() {
             let projector = ResultProjector::new(vec!["id".to_string()]);
             for _ in 0..4 {
                 let results = db.query_users(Some(10)).await;
-                for result in results.iter() {
+                for result in &results {
                     let _with_typename = projector.add_typename_only(result, "User").ok();
                 }
             }

@@ -3,11 +3,26 @@
 //! Tests for production mode safety validation:
 //! - Playground disabled by default
 //! - CORS must be explicitly configured in production
-//! - Production mode detection via FRAISEQL_ENV
+//! - Production mode detection via `FRAISEQL_ENV`
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 use fraiseql_server::ServerConfig;
 
@@ -45,14 +60,14 @@ fn test_production_mode_default() {
     let original = std::env::var("FRAISEQL_ENV").ok();
 
     // Simulate unset: production
-    unsafe { std::env::remove_var("FRAISEQL_ENV") };
+    std::env::remove_var("FRAISEQL_ENV");
     assert!(
         ServerConfig::is_production_mode(),
         "without FRAISEQL_ENV, must default to production mode"
     );
 
     // Simulate development mode
-    unsafe { std::env::set_var("FRAISEQL_ENV", "development") };
+    std::env::set_var("FRAISEQL_ENV", "development");
     assert!(
         !ServerConfig::is_production_mode(),
         "FRAISEQL_ENV=development must not be production mode"
@@ -60,8 +75,8 @@ fn test_production_mode_default() {
 
     // Restore original env state
     match original {
-        Some(v) => unsafe { std::env::set_var("FRAISEQL_ENV", v) },
-        None => unsafe { std::env::remove_var("FRAISEQL_ENV") },
+        Some(v) => std::env::set_var("FRAISEQL_ENV", v),
+        None => std::env::remove_var("FRAISEQL_ENV"),
     }
 }
 
@@ -114,7 +129,7 @@ fn test_cors_multiple_origins_passes_validation() {
 fn test_development_allows_playground_and_empty_cors() {
     // In development mode, playground=true with empty cors_origins must pass validation.
     let original = std::env::var("FRAISEQL_ENV").ok();
-    unsafe { std::env::set_var("FRAISEQL_ENV", "development") };
+    std::env::set_var("FRAISEQL_ENV", "development");
 
     let config = ServerConfig {
         playground_enabled: true,
@@ -129,8 +144,8 @@ fn test_development_allows_playground_and_empty_cors() {
     );
 
     match original {
-        Some(v) => unsafe { std::env::set_var("FRAISEQL_ENV", v) },
-        None => unsafe { std::env::remove_var("FRAISEQL_ENV") },
+        Some(v) => std::env::set_var("FRAISEQL_ENV", v),
+        None => std::env::remove_var("FRAISEQL_ENV"),
     }
 }
 

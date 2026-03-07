@@ -5,7 +5,7 @@
 //! These tests spin up a PostgreSQL container with SCRAM-SHA-256 authentication
 //! to properly test authentication success and failure scenarios.
 //!
-//! Run with: cargo test --test testcontainer_auth -- --nocapture
+//! Run with: cargo test --test `testcontainer_auth` -- --nocapture
 
 use fraiseql_wire::client::FraiseClient;
 use testcontainers_modules::{

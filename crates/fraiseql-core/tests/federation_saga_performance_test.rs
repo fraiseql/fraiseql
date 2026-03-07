@@ -36,6 +36,7 @@
 //! Tests measure actual performance and report detailed metrics for monitoring
 //! performance trends across releases.
 
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures mirror production API for clarity
 use std::time::Instant;
 
 // ============================================================================
@@ -337,7 +338,7 @@ mod harness {
     }
 
     impl SagaOrchestrator {
-        pub fn new(
+        pub const fn new(
             store: InMemorySagaStore,
             executor: MockStepExecutor,
             compensator: MockStepCompensator,
@@ -444,27 +445,24 @@ mod harness {
                 let mut compensation_results = Vec::new();
                 for i in (0..completed_steps).rev() {
                     let original_result = step_results[i].as_ref();
-                    match self.compensator.compensate(i, original_result) {
-                        Ok(_) => {
-                            compensation_results.push(CompensationExecution {
-                                step_order:      i,
-                                original_result: original_result.cloned(),
-                                result:          Ok(json!({})),
-                                timestamp:       Instant::now(),
-                            });
-                        },
-                        Err(_) => {
-                            self.store.update_saga_state(saga_id, SagaState::CompensationFailed)?;
-                            return Ok(SagaResult {
-                                saga_id,
-                                state: SagaState::CompensationFailed,
-                                completed_steps,
-                                total_steps,
-                                error: Some(error_msg),
-                                step_results,
-                                compensation_results,
-                            });
-                        },
+                    if self.compensator.compensate(i, original_result).is_ok() {
+                        compensation_results.push(CompensationExecution {
+                            step_order:      i,
+                            original_result: original_result.cloned(),
+                            result:          Ok(json!({})),
+                            timestamp:       Instant::now(),
+                        });
+                    } else {
+                        self.store.update_saga_state(saga_id, SagaState::CompensationFailed)?;
+                        return Ok(SagaResult {
+                            saga_id,
+                            state: SagaState::CompensationFailed,
+                            completed_steps,
+                            total_steps,
+                            error: Some(error_msg),
+                            step_results,
+                            compensation_results,
+                        });
                     }
                 }
 
@@ -498,7 +496,7 @@ mod harness {
     }
 
     impl OrchestratorBuilder {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self { steps: Vec::new() }
         }
 
@@ -817,7 +815,7 @@ fn perf_throughput_saga_creation() {
     }
     let duration = start.elapsed();
 
-    let throughput = iterations as f64 / duration.as_secs_f64();
+    let throughput = f64::from(iterations) / duration.as_secs_f64();
     println!("Saga creation throughput: {:.0} sagas/sec", throughput);
 
     // Budget: >10,000/sec
@@ -848,7 +846,7 @@ fn perf_throughput_saga_execution() {
     }
     let duration = start.elapsed();
 
-    let throughput = iterations as f64 / duration.as_secs_f64();
+    let throughput = f64::from(iterations) / duration.as_secs_f64();
     println!("Saga execution throughput: {:.0} sagas/sec", throughput);
 
     // Budget: >2,000/sec

@@ -4,6 +4,8 @@
 //! Covers loading sagas from store, executing steps sequentially, handling failures,
 //! and transitioning to compensation phase when needed.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
 use uuid::Uuid;
 
 /// Test fixtures for saga execution scenarios

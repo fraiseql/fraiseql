@@ -4,7 +4,7 @@
 //! - Schema compilation with projection hints
 //! - Multi-database projection SQL generation
 //! - Projection detection heuristics
-//! - ResultProjector with `__typename` handling
+//! - `ResultProjector` with `__typename` handling
 //! - Complete query execution with projections
 
 use fraiseql_core::{
@@ -87,7 +87,7 @@ fn test_sqlite_projection_complete_flow() {
     assert!(sql.contains("\"data\""));
 }
 
-/// Test ResultProjector with `__typename` addition
+/// Test `ResultProjector` with `__typename` addition
 #[test]
 fn test_result_projector_add_typename() {
     let projector = ResultProjector::new(vec!["id".to_string()]);
@@ -108,7 +108,7 @@ fn test_result_projector_add_typename() {
     assert_eq!(result.get("name"), Some(&json!("Alice")));
 }
 
-/// Test ResultProjector with array of results
+/// Test `ResultProjector` with array of results
 #[test]
 fn test_result_projector_add_typename_array() {
     let projector = ResultProjector::new(vec![]);
@@ -131,7 +131,7 @@ fn test_result_projector_add_typename_array() {
     assert_eq!(arr[1].get("__typename"), Some(&json!("User")));
 }
 
-/// Test that ResultProjector projects fields correctly (via project_results method)
+/// Test that `ResultProjector` projects fields correctly (via `project_results` method)
 #[test]
 fn test_result_projector_projects_single_field() {
     let projector = ResultProjector::new(vec!["id".to_string()]);
@@ -151,7 +151,7 @@ fn test_result_projector_projects_single_field() {
     assert_eq!(projected.get("email"), None);
 }
 
-/// Test that ResultProjector projects multiple fields correctly
+/// Test that `ResultProjector` projects multiple fields correctly
 #[test]
 fn test_result_projector_projects_multiple_fields() {
     let projector = ResultProjector::new(vec!["id".to_string(), "email".to_string()]);
@@ -256,7 +256,7 @@ fn test_projection_hint_reduction_calculation() {
     assert_eq!(hint.database, "postgresql");
 }
 
-/// Test ResultProjector wrapping response in data envelope
+/// Test `ResultProjector` wrapping response in data envelope
 #[test]
 fn test_result_projector_data_envelope() {
     let result = json!([
@@ -275,7 +275,7 @@ fn test_result_projector_data_envelope() {
     assert_eq!(users.as_array().unwrap().len(), 2);
 }
 
-/// Test ResultProjector error wrapping
+/// Test `ResultProjector` error wrapping
 #[test]
 fn test_result_projector_error_envelope() {
     use fraiseql_core::error::FraiseQLError;
@@ -299,7 +299,7 @@ fn test_result_projector_error_envelope() {
     assert!(error_obj.get("message").is_some());
 }
 
-/// Test that projection works correctly with nested objects via ResultProjector
+/// Test that projection works correctly with nested objects via `ResultProjector`
 #[test]
 fn test_projection_with_nested_structure() {
     let projector = ResultProjector::new(vec!["id".to_string(), "profile".to_string()]);

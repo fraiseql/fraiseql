@@ -21,6 +21,8 @@ use fraiseql_core::{
 };
 use tokio_postgres::NoTls;
 
+use crate::output::OutputFormatter;
+
 /// Validation error type.
 #[derive(Debug)]
 pub struct ValidationIssue {
@@ -89,6 +91,7 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 ///
 /// * `schema_path` - Path to schema.json file
 /// * `database_url` - Database connection string
+/// * `formatter` - Output formatter controlling verbosity and format
 ///
 /// # Returns
 ///
@@ -99,11 +102,11 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// ```bash
 /// fraiseql validate facts --schema schema.json --database postgresql://localhost/mydb
 /// ```
-pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
-    eprintln!("🔍 Validating fact tables...");
-    eprintln!("   Schema: {}", schema_path.display());
-    eprintln!("   Database: {database_url}");
-    eprintln!();
+pub async fn run(schema_path: &Path, database_url: &str, formatter: &OutputFormatter) -> Result<()> {
+    formatter.section("Validating fact tables");
+    formatter.progress(&format!("   Schema: {}", schema_path.display()));
+    formatter.progress(&format!("   Database: {database_url}"));
+    formatter.progress("");
 
     // 1. Load and parse schema
     let schema_str = fs::read_to_string(schema_path)?;
@@ -113,19 +116,19 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
 
     let declared_tables: HashSet<String> = ir.fact_tables.keys().cloned().collect();
 
-    eprintln!("📋 Found {} declared fact table(s) in schema", declared_tables.len());
+    formatter.progress(&format!("Found {} declared fact table(s) in schema", declared_tables.len()));
 
     if declared_tables.is_empty() {
-        eprintln!("   No fact tables declared - nothing to validate");
-        eprintln!();
-        eprintln!("💡 Tip: Use 'fraiseql introspect facts' to discover fact tables");
+        formatter.progress("   No fact tables declared - nothing to validate");
+        formatter.progress("");
+        formatter.progress("Tip: Use 'fraiseql introspect facts' to discover fact tables");
         return Ok(());
     }
 
     for table_name in &declared_tables {
-        eprintln!("   - {table_name}");
+        formatter.progress(&format!("   - {table_name}"));
     }
-    eprintln!();
+    formatter.progress("");
 
     // 2. Connect to database and list actual fact tables
     let introspector = create_introspector(database_url).await?;
@@ -137,15 +140,15 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
         .into_iter()
         .collect();
 
-    eprintln!("📊 Found {} fact table(s) in database", actual_tables.len());
-    eprintln!();
+    formatter.progress(&format!("Found {} fact table(s) in database", actual_tables.len()));
+    formatter.progress("");
 
     // 3. Validate each declared table
     let mut issues: Vec<ValidationIssue> = Vec::new();
     let mut validated_count = 0;
 
     for table_name in &declared_tables {
-        eprintln!("   Validating {table_name}...");
+        formatter.progress(&format!("   Validating {table_name}..."));
 
         // Check if table exists in database
         if !actual_tables.contains(table_name) {
@@ -187,33 +190,33 @@ pub async fn run(schema_path: &Path, database_url: &str) -> Result<()> {
     }
 
     // 5. Report results
-    eprintln!();
+    formatter.progress("");
     let errors: Vec<&ValidationIssue> =
         issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
     let warnings: Vec<&ValidationIssue> =
         issues.iter().filter(|i| i.severity == IssueSeverity::Warning).collect();
 
     if !errors.is_empty() {
-        eprintln!("❌ Errors ({}):", errors.len());
+        formatter.progress(&format!("err: Errors ({}):", errors.len()));
         for issue in &errors {
-            eprintln!("   {} - {}", issue.table_name, issue.message);
+            formatter.progress(&format!("   {} - {}", issue.table_name, issue.message));
         }
-        eprintln!();
+        formatter.progress("");
     }
 
     if !warnings.is_empty() {
-        eprintln!("⚠️  Warnings ({}):", warnings.len());
+        formatter.progress(&format!("warn: Warnings ({}):", warnings.len()));
         for issue in &warnings {
-            eprintln!("   {} - {}", issue.table_name, issue.message);
+            formatter.progress(&format!("   {} - {}", issue.table_name, issue.message));
         }
-        eprintln!();
+        formatter.progress("");
     }
 
     if errors.is_empty() {
-        eprintln!("✅ Validation passed");
-        eprintln!("   {validated_count} table(s) validated successfully");
+        formatter.progress("ok: Validation passed");
+        formatter.progress(&format!("   {validated_count} table(s) validated successfully"));
         if !warnings.is_empty() {
-            eprintln!("   {} warning(s)", warnings.len());
+            formatter.progress(&format!("   {} warning(s)", warnings.len()));
         }
         Ok(())
     } else {

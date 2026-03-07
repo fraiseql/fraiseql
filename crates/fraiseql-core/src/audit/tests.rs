@@ -1,5 +1,6 @@
 //! Tests for audit event structure
 
+#![allow(clippy::needless_collect)] // Reason: intermediate collect needed before assertion consumes iterator
 use serde_json::json;
 
 use super::*;

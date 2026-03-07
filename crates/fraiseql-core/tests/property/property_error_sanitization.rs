@@ -2,14 +2,14 @@
 //!
 //! These tests use proptest! to verify that FraiseQL error sanitization
 //! never leaks secrets, always maintains consistent structure, and prevents
-//! DoS via error messages.
+//! `DoS` via error messages.
 //!
 //! # Sanitization Invariants
 //!
 //! All tests verify:
 //! 1. **No Secrets** - Passwords, tokens, DB URLs never appear in user messages
 //! 2. **No SQL Keywords** - Dangerous SQL keywords hidden from production
-//! 3. **Bounded Size** - Messages truncated to prevent DoS
+//! 3. **Bounded Size** - Messages truncated to prevent `DoS`
 //! 4. **Consistent Structure** - All errors follow same format
 //! 5. **Deterministic Hash** - Same error always produces same hash
 //! 6. **No File Paths** - System paths redacted from user messages
@@ -417,7 +417,7 @@ fn test_error_message_size_bounded() {
             sql_state: None,
         },
         FraiseQLError::Configuration {
-            message: huge_message.clone(),
+            message: huge_message,
         },
     ];
 
@@ -675,7 +675,7 @@ mod property_tests {
     proptest! {
         #[test]
         fn prop_any_parse_error_produces_safe_user_message(msg in ".*") {
-            let err = FraiseQLError::parse(msg.clone());
+            let err = FraiseQLError::parse(msg);
             let safe_msg = user_message(&err);
 
             prop_assert!(
@@ -689,7 +689,7 @@ mod property_tests {
         #[test]
         fn prop_any_database_error_produces_safe_user_message(msg in ".*") {
             let err = FraiseQLError::Database {
-                message: msg.clone(),
+                message: msg,
                 sql_state: None,
             };
             let safe_msg = user_message(&err);
@@ -705,7 +705,7 @@ mod property_tests {
         #[test]
         fn prop_any_internal_error_produces_safe_user_message(msg in ".*") {
             let err = FraiseQLError::Internal {
-                message: msg.clone(),
+                message: msg,
                 source: None,
             };
             let safe_msg = user_message(&err);
@@ -734,7 +734,7 @@ mod property_tests {
                     message: msg.clone(),
                 },
                 FraiseQLError::Internal {
-                    message: msg.clone(),
+                    message: msg,
                     source: None,
                 },
             ];
@@ -755,7 +755,7 @@ mod property_tests {
         #[test]
         fn prop_same_error_type_consistent(msg in ".*") {
             let err1 = FraiseQLError::parse(msg.clone());
-            let err2 = FraiseQLError::parse(msg.clone());
+            let err2 = FraiseQLError::parse(msg);
 
             let msg1 = user_message(&err1);
             let msg2 = user_message(&err2);
@@ -781,7 +781,7 @@ mod property_tests {
                     sql_state: None,
                 },
                 FraiseQLError::Configuration {
-                    message: msg.clone(),
+                    message: msg,
                 },
             ];
 
@@ -804,7 +804,7 @@ mod property_tests {
         #[test]
         fn prop_error_hash_deterministic(msg in ".*") {
             let err1 = FraiseQLError::parse(msg.clone());
-            let err2 = FraiseQLError::parse(msg.clone());
+            let err2 = FraiseQLError::parse(msg);
 
             let hash1 = error_hash(&err1);
             let hash2 = error_hash(&err2);
@@ -818,7 +818,7 @@ mod property_tests {
         #[test]
         fn prop_no_connection_strings_in_messages(msg in ".*") {
             let err = FraiseQLError::Database {
-                message: msg.clone(),
+                message: msg,
                 sql_state: None,
             };
 
@@ -839,7 +839,7 @@ mod property_tests {
         #[test]
         fn prop_no_file_paths_in_config_errors(msg in ".*") {
             let err = FraiseQLError::Configuration {
-                message: msg.clone(),
+                message: msg,
             };
 
             let safe_msg = user_message(&err);
@@ -868,7 +868,7 @@ mod property_tests {
                     sql_state: None,
                 },
                 FraiseQLError::Configuration {
-                    message: msg.clone(),
+                    message: msg,
                 },
             ];
 

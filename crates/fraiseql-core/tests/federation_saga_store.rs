@@ -59,6 +59,9 @@
 //! );
 //! ```
 
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions do not need Errors doc sections
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
+#![allow(missing_docs)] // Reason: test helper types do not require documentation
 use std::{collections::HashMap, sync::Mutex};
 
 use serde_json::{Value, json};
@@ -317,7 +320,7 @@ impl SagaStore {
         Ok((initial_count - sagas.len()) as u64)
     }
 
-    pub fn cleanup_stale_sagas(&self, _hours_threshold: u64) -> Result<u64, String> {
+    pub const fn cleanup_stale_sagas(&self, _hours_threshold: u64) -> Result<u64, String> {
         // For in-memory store, this is a no-op during tests
         Ok(0)
     }

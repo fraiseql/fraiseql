@@ -82,7 +82,7 @@ pub struct GenerateViewsConfig {
 /// - Output file can't be written
 pub fn run(config: GenerateViewsConfig) -> Result<()> {
     if config.verbose {
-        eprintln!("📋 Generating views...");
+        eprintln!("Generating views...");
         eprintln!("   Schema: {}", config.schema_path);
         eprintln!("   Entity: {}", config.entity);
         eprintln!("   View: {}", config.view);

@@ -10,6 +10,8 @@ use super::super::error::AuthError;
 #[derive(Debug, Clone)]
 pub struct TokenRefreshScheduler {
     /// Sessions needing refresh
+    // std::sync::Mutex is intentional: this lock is never held across .await.
+    // Switch to tokio::sync::Mutex if that constraint ever changes.
     refresh_queue: Arc<std::sync::Mutex<Vec<(String, DateTime<Utc>)>>>,
 }
 

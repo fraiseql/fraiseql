@@ -12,6 +12,8 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::output::OutputFormatter;
+
 /// Validation result for a single document entry.
 struct EntryResult {
     key:   String,
@@ -28,7 +30,7 @@ struct Manifest {
 }
 
 /// Run the `validate-documents` command.
-pub fn run(manifest_path: &str) -> Result<bool> {
+pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     let path = Path::new(manifest_path);
     let contents = std::fs::read_to_string(path)
         .context(format!("Failed to read manifest: {manifest_path}"))?;
@@ -84,29 +86,31 @@ pub fn run(manifest_path: &str) -> Result<bool> {
     let error_count = results.iter().filter(|r| !r.valid).count();
 
     // Print summary
-    println!("Trusted documents manifest: {manifest_path}");
-    println!("Total documents: {total}");
-    println!("Valid: {valid_count}");
+    formatter.progress(&format!("Trusted documents manifest: {manifest_path}"));
+    formatter.progress(&format!("Total documents: {total}"));
+    formatter.progress(&format!("Valid: {valid_count}"));
 
     if error_count > 0 {
-        println!("Errors: {error_count}");
-        println!();
+        formatter.progress(&format!("Errors: {error_count}"));
+        formatter.progress("");
         for r in &results {
             if let Some(ref err) = r.error {
-                println!("  {} — {err}", r.key);
+                formatter.progress(&format!("  {} - {err}", r.key));
             }
         }
         Ok(false)
     } else {
-        println!("All documents valid.");
+        formatter.progress("All documents valid.");
         Ok(true)
     }
 }
 
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
+    use crate::output::OutputFormatter;
 
     #[test]
     fn test_rejects_unknown_version() {
@@ -119,7 +123,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap());
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("Unsupported manifest version"), "expected version error, got: {msg}");
@@ -140,7 +145,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap()).unwrap();
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter).unwrap();
         assert!(result);
     }
 
@@ -157,7 +163,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap()).unwrap();
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter).unwrap();
         assert!(!result);
     }
 
@@ -174,7 +181,8 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap()).unwrap();
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter).unwrap();
         assert!(!result);
     }
 }

@@ -1,4 +1,4 @@
-//! Integration tests for OpenAPI specification
+//! Integration tests for `OpenAPI` specification
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none
@@ -198,7 +198,7 @@ fn test_openapi_spec_has_all_10_endpoints() {
     let paths = &spec["paths"];
 
     // Count all endpoints
-    let endpoint_count = paths.as_object().map(|m| m.len()).unwrap_or(0);
+    let endpoint_count = paths.as_object().map_or(0, |m| m.len());
 
     // Should have 10 path entries for the API endpoints
     // (query: 3, federation: 2, schema: 2, admin: 3)
@@ -232,7 +232,7 @@ fn test_openapi_spec_endpoints_have_descriptions() {
     // Check that at least one endpoint has description
     let has_descriptions = paths
         .as_object()
-        .map(|paths| {
+        .is_some_and(|paths| {
             paths.iter().any(|(_, endpoint)| {
                 endpoint
                     .get("post")
@@ -240,8 +240,7 @@ fn test_openapi_spec_endpoints_have_descriptions() {
                     .and_then(|op| op.get("description"))
                     .is_some()
             })
-        })
-        .unwrap_or(false);
+        });
 
     assert!(has_descriptions, "Endpoints should have descriptions");
 }

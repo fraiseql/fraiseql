@@ -167,6 +167,8 @@ impl ExternalAuthProvider {
 #[derive(Debug, Clone)]
 pub struct ProviderRegistry {
     /// Map of providers by name
+    // std::sync::Mutex is intentional: this lock is never held across .await.
+    // Switch to tokio::sync::Mutex if that constraint ever changes.
     providers: Arc<std::sync::Mutex<HashMap<String, ExternalAuthProvider>>>,
 }
 

@@ -6,6 +6,9 @@
 //! 3. Result projection with filtered fields
 //! 4. Proper handling of scope requirements in execution pipeline
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 

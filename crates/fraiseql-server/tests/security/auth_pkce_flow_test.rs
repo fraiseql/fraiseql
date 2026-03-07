@@ -1,13 +1,13 @@
-//! Pipeline 6 — composed HTTP integration test: PKCE auth_start → auth_callback.
+//! Pipeline 6 — composed HTTP integration test: PKCE `auth_start` → `auth_callback`.
 //!
 //! Drives the complete PKCE flow at the HTTP level against a real Axum router
 //! built from the production `auth_start` and `auth_callback` handlers.  No
-//! real OIDC IdP is involved — the test verifies the middleware layers
+//! real OIDC `IdP` is involved — the test verifies the middleware layers
 //! (state creation, state consumption, replay prevention) that are NOT covered
 //! by the `PkceStateStore` unit tests alone.
 //!
 //! # What is NOT tested here
-//! - Real OIDC token exchange (requires a live IdP)
+//! - Real OIDC token exchange (requires a live `IdP`)
 //! - Encrypted PKCE state (requires `state_encryption` feature config)
 //! - Redis-backed PKCE store (see the `#[ignore]` variant in Cycle 5)
 //!
@@ -20,6 +20,18 @@
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
 
 use std::sync::Arc;
 
@@ -104,8 +116,7 @@ fn extract_state_param(url: &str) -> &str {
 
     let end = url[start..]
         .find('&')
-        .map(|rel| start + rel)
-        .unwrap_or(url.len());
+        .map_or(url.len(), |rel| start + rel);
 
     &url[start..end]
 }
@@ -114,7 +125,7 @@ fn extract_state_param(url: &str) -> &str {
 // Composed auth_start → auth_callback HTTP tests
 // ---------------------------------------------------------------------------
 
-/// Pipeline 6, Stage A: `GET /auth/start` must redirect to the configured IdP.
+/// Pipeline 6, Stage A: `GET /auth/start` must redirect to the configured `IdP`.
 ///
 /// Verifies:
 /// - Response status is 303 (Axum `Redirect::to()` always uses See Other).
@@ -149,7 +160,7 @@ async fn auth_start_redirects_to_idp() {
     );
 }
 
-/// Pipeline 6, Stages A+B+C: full flow auth_start → auth_callback.
+/// Pipeline 6, Stages A+B+C: full flow `auth_start` → `auth_callback`.
 ///
 /// Step 1 — `auth_start` creates state and redirects.
 /// Step 2 — `auth_callback` with the correct state token is able to *consume*

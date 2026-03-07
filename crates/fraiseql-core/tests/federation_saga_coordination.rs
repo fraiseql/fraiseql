@@ -4,6 +4,8 @@
 //! compensation on failure. Saga coordinator orchestrates mutations across
 //! multiple subgraphs with transactional guarantees.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_truncation)] // Reason: test saga step counts cast usize→u32; test sizes never exceed u32::MAX
 use std::collections::HashMap;
 
 use uuid::Uuid;

@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 /// let op = ExtendedOperator::EmailDomainEq("example.com".to_string());
 ///
 /// // Country lookup
-/// let _op = ExtendedOperator::CountryInContinent("Europe".to_string());
+/// let _op = ExtendedOperator::CountryCodeContinentEq("Europe".to_string());
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]

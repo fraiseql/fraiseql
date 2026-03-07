@@ -1,3 +1,11 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+#![allow(clippy::cast_sign_loss)] // Reason: bench reporting uses small positive integers
+#![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses usize→f64 for human-readable output
+#![allow(clippy::needless_collect)] // Reason: intermediate collect needed for thread-join pattern
+#![allow(clippy::literal_string_with_formatting_args)] // Reason: benchmark labeling uses format strings
+#![allow(clippy::unreadable_literal)] // Reason: benchmark data uses large literal values
+
 //! Micro-benchmarks for fraiseql-wire core operations
 //!
 //! These benchmarks measure low-level operations that should be fast:
@@ -6,10 +14,8 @@
 //! - Chunking strategy overhead
 //! - Error handling
 //!
-//! Run with: cargo bench --bench micro_benchmarks
-//! Run specific benchmark: cargo bench --bench micro_benchmarks protocol_encode
-#![allow(missing_docs)]
-#![allow(clippy::unwrap_used)]       // Reason: benchmark setup code, panics acceptable
+//! Run with: cargo bench --bench `micro_benchmarks`
+//! Run specific benchmark: cargo bench --bench `micro_benchmarks` `protocol_encode`
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use fraiseql_wire::connection::ConnectionConfig;

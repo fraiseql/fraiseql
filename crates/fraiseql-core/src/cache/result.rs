@@ -641,7 +641,7 @@ mod tests {
 
         // Put
         cache
-            .put("key1".to_string(), result.clone(), vec!["v_user".to_string()], None, None)
+            .put("key1".to_string(), result, vec!["v_user".to_string()], None, None)
             .unwrap();
 
         // Get

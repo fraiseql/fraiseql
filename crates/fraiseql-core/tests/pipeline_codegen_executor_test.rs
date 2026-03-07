@@ -100,11 +100,11 @@ impl MutationCapable for PipelineMockAdapter {}
 // compile() → execute() — full pipeline regression for issue #53
 // ---------------------------------------------------------------------------
 
-/// Pipeline 1: Compiler::compile() → Executor::execute()
+/// Pipeline 1: `Compiler::compile()` → `Executor::execute()`
 ///
-/// This test does NOT hand-build CompiledSchema.  It compiles authoring JSON via
+/// This test does NOT hand-build `CompiledSchema`.  It compiles authoring JSON via
 /// `Compiler::compile()` and then executes a real query through the Executor.
-/// If CodeGenerator fails to thread `sql_source` (or any field the executor needs),
+/// If `CodeGenerator` fails to thread `sql_source` (or any field the executor needs),
 /// the executor will return an error and the assertion will fail.
 #[tokio::test]
 async fn pipeline_compile_then_execute_query_succeeds() {
@@ -154,7 +154,7 @@ async fn pipeline_compile_then_execute_query_succeeds() {
     let executor = Executor::new(compiled, adapter);
 
     let result: fraiseql_core::error::Result<String> =
-        executor.execute(r#"{ users { id name email } }"#, None).await;
+        executor.execute(r"{ users { id name email } }", None).await;
 
     assert!(result.is_ok(), "Executor::execute() must succeed: {result:?}");
 
@@ -172,7 +172,7 @@ async fn pipeline_compile_then_execute_query_succeeds() {
 /// the codegen must infer `sql_source = Some("user")` (lowercase return type).
 ///
 /// This is the exact regression from issue #53: the executor calls
-/// `execute_function_call(sql_source, args)`.  If sql_source is None, the
+/// `execute_function_call(sql_source, args)`.  If `sql_source` is None, the
 /// executor returns an error instead of delegating to the adapter.
 #[test]
 fn pipeline_codegen_threads_sql_source_for_create_mutation() {
@@ -232,7 +232,7 @@ fn pipeline_codegen_threads_sql_source_for_create_mutation() {
     );
 }
 
-/// For a `"delete"` operation the inferred sql_source must also be the
+/// For a `"delete"` operation the inferred `sql_source` must also be the
 /// lowercased return type.
 #[test]
 fn pipeline_codegen_threads_sql_source_for_delete_mutation() {

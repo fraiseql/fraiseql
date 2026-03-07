@@ -152,7 +152,7 @@ mod tests {
             expires_at: Utc::now(),
         };
 
-        let auth_user = AuthUser(user.clone());
+        let auth_user = AuthUser(user);
         let cloned = auth_user.clone();
 
         assert_eq!(auth_user.0.user_id, cloned.0.user_id);

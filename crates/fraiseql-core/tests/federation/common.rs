@@ -1,5 +1,8 @@
 //! Shared fixtures and helpers for federation tests.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
+#![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -437,7 +440,7 @@ pub struct TestSagaScenario {
 }
 
 impl TestSagaScenario {
-    pub fn new(step_count: usize) -> Self {
+    pub const fn new(step_count: usize) -> Self {
         Self {
             step_count,
             compensation_strategy: CompensationStrategy::Automatic,
@@ -445,7 +448,7 @@ impl TestSagaScenario {
     }
 
     #[allow(dead_code)]
-    pub fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
+    pub const fn with_strategy(mut self, strategy: CompensationStrategy) -> Self {
         self.compensation_strategy = strategy;
         self
     }

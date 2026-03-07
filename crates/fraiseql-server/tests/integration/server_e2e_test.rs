@@ -97,7 +97,7 @@ fn test_disable_validation() {
     assert!(validator.validate_query(deep).is_ok());
 }
 
-/// Test GraphQLError serialization
+/// Test `GraphQLError` serialization
 #[test]
 fn test_error_serialization() {
     let error = GraphQLError::validation("Invalid query")
@@ -339,7 +339,7 @@ fn test_validation_error_conversion() {
     );
 }
 
-/// Test various GraphQLError factory methods
+/// Test various `GraphQLError` factory methods
 #[test]
 fn test_graphql_error_factory_methods() {
     let validation_error = GraphQLError::validation("Validation failed");

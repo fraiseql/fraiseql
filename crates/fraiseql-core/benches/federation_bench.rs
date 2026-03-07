@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
 
 //! Performance benchmarks for federation operations
 //!
@@ -8,6 +9,8 @@
 //! - Batching and deduplication
 //! - GraphQL query building
 
+#![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses u64→f64 for human-readable output; precision loss is irrelevant
+#![allow(clippy::missing_errors_doc)] // Reason: criterion_group! macro generates undocumented items
 use fraiseql_core::federation::{
     mutation_http_client::{HttpMutationClient, HttpMutationConfig},
     types::{FederatedType, FederationMetadata, KeyDirective},

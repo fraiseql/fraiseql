@@ -86,7 +86,7 @@ struct RecordingMockAdapter {
 }
 
 impl RecordingMockAdapter {
-    fn new(response_row: HashMap<String, serde_json::Value>) -> Self {
+    const fn new(response_row: HashMap<String, serde_json::Value>) -> Self {
         Self {
             called_fn: std::sync::Mutex::new(None),
             called_args: std::sync::Mutex::new(vec![]),
@@ -193,7 +193,7 @@ async fn mutation_executor_uses_sql_source_from_compiled_schema() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await;
@@ -208,7 +208,7 @@ async fn mutation_executor_uses_sql_source_from_compiled_schema() {
     );
 }
 
-/// Pipeline 3: mutation arguments are forwarded to execute_function_call.
+/// Pipeline 3: mutation arguments are forwarded to `execute_function_call`.
 ///
 /// Confirms that the arguments extracted from the GraphQL operation are
 /// passed through to `execute_function_call` in the correct order.
@@ -223,7 +223,7 @@ async fn mutation_executor_passes_arguments_to_function_call() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await;
@@ -253,7 +253,7 @@ async fn mutation_executor_wraps_response_in_data_envelope() {
 
     let result = executor
         .execute(
-            r#"mutation { createUser { id } }"#,
+            r"mutation { createUser { id } }",
             Some(&vars),
         )
         .await
@@ -272,8 +272,8 @@ async fn mutation_executor_wraps_response_in_data_envelope() {
 // inject_params are appended from JWT security context
 // ---------------------------------------------------------------------------
 
-/// Pipeline 3: inject_params from the compiled schema are resolved from the
-/// SecurityContext and appended to execute_function_call arguments.
+/// Pipeline 3: `inject_params` from the compiled schema are resolved from the
+/// `SecurityContext` and appended to `execute_function_call` arguments.
 ///
 /// Uses golden fixture 05 which has `inject_params: {user_id: jwt:sub, tenant_id: jwt:org_id}`
 /// on the `createOrder` mutation.
@@ -299,7 +299,7 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
 
     let result = executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -328,10 +328,10 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
     );
 }
 
-/// Pipeline 3: mutation with inject_params fails when no security context provided.
+/// Pipeline 3: mutation with `inject_params` fails when no security context provided.
 ///
-/// A mutation that requires inject_params (resolved from JWT claims) cannot
-/// execute without a SecurityContext. The executor must return a Validation
+/// A mutation that requires `inject_params` (resolved from JWT claims) cannot
+/// execute without a `SecurityContext`. The executor must return a Validation
 /// error rather than silently ignoring the inject configuration.
 #[tokio::test]
 async fn mutation_executor_rejects_inject_params_without_security_context() {
@@ -345,7 +345,7 @@ async fn mutation_executor_rejects_inject_params_without_security_context() {
     let vars = serde_json::json!({"amount": "99.99"});
     let result = executor
         .execute(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
         )
         .await;

@@ -101,15 +101,6 @@ pub trait BackupProvider: Send + Sync {
     /// Get the name of this provider (e.g., "postgres", "redis").
     fn name(&self) -> &str;
 
-    /// Returns `true` when this provider has a real implementation.
-    ///
-    /// Stub providers return `false` (the default) and are skipped during
-    /// [`BackupManager::start`] registration so they do not appear in health
-    /// checks or produce user-visible `NotImplemented` errors.
-    fn is_implemented(&self) -> bool {
-        false
-    }
-
     /// Check if provider is healthy and connected.
     async fn health_check(&self) -> BackupResult<()>;
 

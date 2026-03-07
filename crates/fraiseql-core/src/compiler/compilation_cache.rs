@@ -356,7 +356,7 @@ mod tests {
             total_compilations: 8,
             size:               2,
         };
-        let cloned = metrics.clone();
+        let cloned = metrics;
         assert_eq!(cloned.hits, 5);
         assert_eq!(cloned.misses, 3);
     }

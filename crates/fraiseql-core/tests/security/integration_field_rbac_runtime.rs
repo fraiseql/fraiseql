@@ -5,6 +5,8 @@
 //! 2. Filters fields during projection based on scope requirements
 //! 3. Returns null/error for fields user cannot access
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use std::collections::HashMap;
 
 use chrono::Utc;
@@ -118,7 +120,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
     }
 }
 
-/// Helper to create a SecurityContext with specific roles
+/// Helper to create a `SecurityContext` with specific roles
 fn create_security_context(roles: Vec<String>) -> fraiseql_core::security::SecurityContext {
     fraiseql_core::security::SecurityContext {
         user_id: "user-123".to_string(),

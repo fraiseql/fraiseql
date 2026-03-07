@@ -2,7 +2,7 @@
 //!
 //! This test verifies that:
 //! 1. Mutation responses are typed with __typename field
-//! 2. __typename matches the mutation's return_type schema definition
+//! 2. __typename matches the mutation's `return_type` schema definition
 //! 3. Type information is preserved through mutation execution
 //!
 //! # Risk If Missing
@@ -12,6 +12,9 @@
 //! - Client-side type safety violations
 //! - Incorrect type identification in nested responses
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used in test destructuring patterns
 use fraiseql_core::schema::{CompiledSchema, MutationDefinition};
 
 #[test]
@@ -21,7 +24,7 @@ fn test_compiled_schema_has_mutation_return_types() {
 
     // The schema should compile and be usable
     // If mutations and queries are defined, they should have type information
-    let _mutations: Vec<MutationDefinition> = schema.mutations.clone();
+    let _mutations: Vec<MutationDefinition> = schema.mutations;
 
     // This test verifies the structure exists (mutations have typing)
 }

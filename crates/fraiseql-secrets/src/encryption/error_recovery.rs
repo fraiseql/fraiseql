@@ -238,6 +238,8 @@ pub struct CircuitBreaker {
     /// Circuit state
     state:             Arc<atomic::AtomicUsize>,
     /// Last state change time
+    // std::sync::Mutex is intentional: this lock is never held across .await.
+    // Switch to tokio::sync::Mutex if that constraint ever changes.
     last_change:       Arc<std::sync::Mutex<DateTime<Utc>>>,
 }
 

@@ -76,7 +76,7 @@ fn test_where_nested_path_10_levels() {
     let path: Vec<String> = (0..10).map(|i| format!("level{}", i)).collect();
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::Contains,
         value:    json!("search_term"),
     };
@@ -99,7 +99,7 @@ fn test_where_nested_path_20_levels() {
     let path: Vec<String> = (0..20).map(|i| format!("l{}", i)).collect();
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::Eq,
         value:    json!("deep_value"),
     };
@@ -193,7 +193,7 @@ fn test_where_nested_path_numeric_components() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::Eq,
         value:    json!("90210"),
     };
@@ -220,7 +220,7 @@ fn test_where_deeply_nested_with_null_value() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::IsNull,
         value:    json!(true),
     };
@@ -246,7 +246,7 @@ fn test_where_deeply_nested_with_array_value() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::In,
         value:    json!(["read", "write", "admin"]),
     };
@@ -300,7 +300,7 @@ fn test_where_deeply_nested_mixed_content() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::Eq,
         value:    json!("test@example.com"),
     };
@@ -335,13 +335,13 @@ fn test_where_deeply_nested_case_sensitivity() {
     ];
 
     let clause_lower = WhereClause::Field {
-        path:     path_lower.clone(),
+        path:     path_lower,
         operator: WhereOperator::Eq,
         value:    json!("example.com"),
     };
 
     let clause_upper = WhereClause::Field {
-        path:     path_upper.clone(),
+        path:     path_upper,
         operator: WhereOperator::Eq,
         value:    json!("example.com"),
     };
@@ -405,7 +405,7 @@ fn test_where_deeply_nested_repeating_components() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::Eq,
         value:    json!("test"),
     };
@@ -429,14 +429,14 @@ fn test_where_deeply_nested_empty_component() {
     // Edge case: deep path with empty component name
     let path = vec![
         "a".to_string(),
-        "".to_string(),
+        String::new(),
         "b".to_string(),
-        "".to_string(),
+        String::new(),
         "c".to_string(),
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path,
         operator: WhereOperator::Eq,
         value:    json!("test"),
     };

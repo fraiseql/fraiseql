@@ -4,15 +4,17 @@
 //! ```bash
 //! cargo bench --package fraiseql-arrow --bench flight_benchmarks
 //! ```
-#![allow(clippy::unwrap_used)]              // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
 #![allow(clippy::needless_raw_string_hashes)] // Reason: fixtures use raw strings
+#![allow(clippy::items_after_statements)] // Reason: benchmark helper closures defined near use site
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_arrow::db::DatabaseAdapter as ArrowDatabaseAdapter;
 use fraiseql_core::db::DatabaseAdapter;
 use sqlx::postgres::PgPoolOptions;
 
-/// Benchmark adapter that wraps PostgresAdapter for Arrow Flight benchmarks.
+/// Benchmark adapter that wraps `PostgresAdapter` for Arrow Flight benchmarks.
 struct BenchFlightAdapter {
     inner: fraiseql_core::db::PostgresAdapter,
 }

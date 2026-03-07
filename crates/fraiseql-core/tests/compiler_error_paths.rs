@@ -3,6 +3,8 @@
 //! These tests verify that the compiler produces the correct error variants
 //! for inputs that pass JSON parsing but fail at the validation/lowering stage.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(missing_docs)] // Reason: test helper types do not require documentation
 use fraiseql_core::{compiler::Compiler, error::FraiseQLError};
 
 // ── EP-3: Lowering errors ─────────────────────────────────────────────────────

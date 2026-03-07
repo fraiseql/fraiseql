@@ -18,6 +18,8 @@
 //! 4. Measure with observability (100 iterations)
 //! 5. Calculate overhead and validate against budget
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: perf test metric computations cast u64/u128→f64 for display assertions
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use async_trait::async_trait;

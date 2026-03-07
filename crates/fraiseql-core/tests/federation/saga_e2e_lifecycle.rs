@@ -1,5 +1,6 @@
 //! Category 1: Full Saga Lifecycle (3 tests)
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use super::saga_e2e_harness::*;
 
 #[test]

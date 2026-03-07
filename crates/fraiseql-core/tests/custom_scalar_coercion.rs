@@ -4,7 +4,7 @@
 //!
 //! This test verifies that:
 //! 1. Custom scalars preserve their type information across WHERE operations
-//! 2. DateTime values are formatted consistently in WHERE clauses
+//! 2. `DateTime` values are formatted consistently in WHERE clauses
 //! 3. JSON scalars maintain structure through comparisons
 //! 4. Custom ID types are not confused with standard IDs
 //! 5. Type coercion doesn't lose precision or data
@@ -13,9 +13,11 @@
 //!
 //! Without this test:
 //! - Custom scalars could be treated as strings incorrectly
-//! - DateTime precision could be lost in comparisons
+//! - `DateTime` precision could be lost in comparisons
 //! - Type information could be lost in SQL generation
 
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves iterator ownership for later assertions
+#![allow(clippy::unreadable_literal)] // Reason: test data uses precise floating-point literals
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
 
@@ -56,7 +58,7 @@ fn test_custom_scalar_uuid_in_where() {
             assert_eq!(value, json!(uuid_value));
             // Verify UUID format is preserved
             let uuid_str = value.as_str().unwrap();
-            assert!(uuid_str.contains("-"));
+            assert!(uuid_str.contains('-'));
             assert_eq!(uuid_str.len(), 36); // Standard UUID length
         },
         _ => panic!("Should be Field variant"),
@@ -70,7 +72,7 @@ fn test_custom_scalar_json_in_where() {
     let clause = WhereClause::Field {
         path:     vec!["metadata".to_string()],
         operator: WhereOperator::Contains,
-        value:    json_value.clone(),
+        value:    json_value,
     };
 
     match clause {
@@ -160,7 +162,7 @@ fn test_custom_scalar_email_in_where() {
         WhereClause::Field { value, .. } => {
             assert_eq!(value, json!(email));
             let email_str = value.as_str().unwrap();
-            assert!(email_str.contains("@"));
+            assert!(email_str.contains('@'));
         },
         _ => panic!("Should be Field variant"),
     }
@@ -181,7 +183,7 @@ fn test_custom_scalar_phone_in_where() {
             assert_eq!(value, json!(phone));
             // Verify structure is preserved
             let phone_str = value.as_str().unwrap();
-            assert!(phone_str.contains("-"));
+            assert!(phone_str.contains('-'));
         },
         _ => panic!("Should be Field variant"),
     }
@@ -249,7 +251,7 @@ fn test_custom_scalar_color_in_where() {
         WhereClause::Field { value, .. } => {
             assert_eq!(value, json!(color_hex));
             let color = value.as_str().unwrap();
-            assert!(color.starts_with("#"));
+            assert!(color.starts_with('#'));
         },
         _ => panic!("Should be Field variant"),
     }
@@ -283,7 +285,7 @@ fn test_custom_scalar_mixed_in_where() {
             // Verify each scalar type is preserved
             match &clauses[0] {
                 WhereClause::Field { value, .. } => {
-                    assert!(value.as_str().unwrap().contains("T"));
+                    assert!(value.as_str().unwrap().contains('T'));
                 },
                 _ => panic!("Expected Field variant in first clause"),
             }
@@ -299,7 +301,7 @@ fn test_custom_scalar_mixed_in_where() {
             match &clauses[2] {
                 WhereClause::Field { value, .. } => {
                     let price = value.as_str().unwrap();
-                    assert!(price.contains("."));
+                    assert!(price.contains('.'));
                 },
                 _ => panic!("Expected Field variant in third clause"),
             }

@@ -114,7 +114,7 @@ async fn test_two_subgraph_direct_subgraph_queries() {
     // Test 1: Query users directly from users subgraph
     println!("\n--- Test 1: Query users directly ---");
     let users_response =
-        graphql_query(USERS_SUBGRAPH_URL, r#"query { users { id identifier email } }"#)
+        graphql_query(USERS_SUBGRAPH_URL, r"query { users { id identifier email } }")
             .await
             .expect("Users query should succeed");
 
@@ -135,7 +135,7 @@ async fn test_two_subgraph_direct_subgraph_queries() {
     // Test 2: Query orders directly from orders subgraph
     println!("\n--- Test 2: Query orders directly ---");
     let orders_response =
-        graphql_query(ORDERS_SUBGRAPH_URL, r#"query { orders { id status total } }"#)
+        graphql_query(ORDERS_SUBGRAPH_URL, r"query { orders { id status total } }")
             .await
             .expect("Orders query should succeed");
 

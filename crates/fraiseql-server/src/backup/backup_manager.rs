@@ -7,10 +7,6 @@ use tokio::sync::RwLock;
 use super::{
     backup_config::{BackupConfig, BackupStatus},
     backup_provider::{BackupError, BackupProvider, BackupResult},
-    clickhouse_backup::ClickhouseBackupProvider,
-    elasticsearch_backup::ElasticsearchBackupProvider,
-    postgres_backup::PostgresBackupProvider,
-    redis_backup::RedisBackupProvider,
 };
 
 /// Manages backups across all data stores.
@@ -66,48 +62,12 @@ impl BackupManager {
         Ok(())
     }
 
-    /// Start backup scheduler and register all known providers.
+    /// Start the backup scheduler.
     ///
-    /// Only providers whose [`BackupProvider::is_implemented`] returns `true`
-    /// are registered.  Stub providers (all operations return `NotImplemented`)
-    /// are skipped and logged at DEBUG level so they never appear in health
-    /// checks or produce user-visible errors.
+    /// Providers must be registered separately via [`Self::register_provider`].
+    /// Stub providers (ClickHouse, Redis, Elasticsearch) are not wired up here;
+    /// see each stub module for the required interface.
     pub async fn start(&self) -> Result<(), String> {
-        let providers: &[(&str, Arc<dyn BackupProvider>)] = &[
-            (
-                "postgres",
-                Arc::new(PostgresBackupProvider::new(String::new(), String::new())),
-            ),
-            (
-                "redis",
-                Arc::new(RedisBackupProvider::new(String::new(), String::new())),
-            ),
-            (
-                "clickhouse",
-                Arc::new(ClickhouseBackupProvider::new(String::new(), String::new())),
-            ),
-            (
-                "elasticsearch",
-                Arc::new(ElasticsearchBackupProvider::new(String::new(), String::new())),
-            ),
-        ];
-
-        for (name, provider) in providers {
-            if !provider.is_implemented() {
-                tracing::debug!(
-                    provider = %name,
-                    "Backup provider skipped — not yet implemented"
-                );
-                continue;
-            }
-
-            // register_provider is idempotent — skip if already registered.
-            let result = self.register_provider((*name).to_string(), Arc::clone(provider)).await;
-            if result.is_ok() {
-                tracing::info!(provider = %name, "Backup provider registered");
-            }
-        }
-
         Ok(())
     }
 
@@ -373,8 +333,6 @@ mod tests {
     impl BackupProvider for ImplementedMockProvider {
         fn name(&self) -> &str { &self.name }
 
-        fn is_implemented(&self) -> bool { true }
-
         async fn health_check(&self) -> BackupResult<()> { Ok(()) }
 
         async fn backup(&self) -> BackupResult<BackupInfo> {
@@ -419,16 +377,11 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
-    async fn test_start_skips_unimplemented_providers() {
-        // start() must skip all four built-in stubs because none have
-        // is_implemented() = true.
+    async fn test_start_registers_no_providers() {
+        // start() is a no-op — providers are registered via register_provider().
         let manager = BackupManager::new(HashMap::new());
         manager.start().await.expect("start must not fail");
-        assert_eq!(
-            manager.get_status().await.len(),
-            0,
-            "no unimplemented providers should appear in status"
-        );
+        assert_eq!(manager.get_status().await.len(), 0);
     }
 
     #[tokio::test]

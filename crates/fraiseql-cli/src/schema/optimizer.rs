@@ -260,7 +260,7 @@ impl OptimizationReport {
             return;
         }
 
-        println!("\n📊 Optimization Suggestions:");
+        println!("\nOptimization Suggestions:");
 
         if !self.index_hints.is_empty() {
             println!("\n  Indexes:");

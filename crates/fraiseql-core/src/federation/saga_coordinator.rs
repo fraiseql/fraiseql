@@ -196,11 +196,11 @@ pub struct SagaResult {
 /// Saga coordinator for distributed transaction orchestration
 pub struct SagaCoordinator {
     /// Saga persistence store
-    _store:      Arc<dyn std::any::Any>,
+    _store:      Arc<dyn std::any::Any + Send + Sync>,
     /// Forward phase executor
-    executor:    Arc<dyn std::any::Any>,
+    executor:    Arc<dyn std::any::Any + Send + Sync>,
     /// Compensation phase executor
-    compensator: Arc<dyn std::any::Any>,
+    compensator: Arc<dyn std::any::Any + Send + Sync>,
     /// Compensation strategy
     strategy:    CompensationStrategy,
 }
@@ -225,7 +225,7 @@ impl SagaCoordinator {
     /// # Arguments
     ///
     /// * `executor` - SagaExecutor instance (type-erased)
-    pub fn with_executor(mut self, executor: Arc<dyn std::any::Any>) -> Self {
+    pub fn with_executor(mut self, executor: Arc<dyn std::any::Any + Send + Sync>) -> Self {
         self.executor = executor;
         self
     }
@@ -235,7 +235,10 @@ impl SagaCoordinator {
     /// # Arguments
     ///
     /// * `compensator` - SagaCompensator instance (type-erased)
-    pub fn with_compensator(mut self, compensator: Arc<dyn std::any::Any>) -> Self {
+    pub fn with_compensator(
+        mut self,
+        compensator: Arc<dyn std::any::Any + Send + Sync>,
+    ) -> Self {
         self.compensator = compensator;
         self
     }
@@ -273,9 +276,6 @@ impl SagaCoordinator {
     /// ];
     /// let saga_id = coordinator.create_saga(steps).await?;
     /// ```
-    // Reason: SagaStore uses `dyn Any` for step callbacks; those types are not Send.
-    // The coordinator is designed for single-executor use, not cross-thread dispatch.
-    #[allow(clippy::future_not_send)]
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
         // Validate at least one step
         if steps.is_empty() {
@@ -353,8 +353,6 @@ impl SagaCoordinator {
     ///     _ => println!("Partial or unknown state"),
     /// }
     /// ```
-    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
-    #[allow(clippy::future_not_send)]
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga execution started");
 
@@ -396,8 +394,6 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Current saga status
-    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
-    #[allow(clippy::future_not_send)]
     pub async fn get_saga_status(&self, saga_id: Uuid) -> SagaStoreResult<SagaStatus> {
         // In full implementation, would load from store
 
@@ -428,8 +424,6 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Final saga result after cancellation
-    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
-    #[allow(clippy::future_not_send)]
     pub async fn cancel_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga cancellation requested");
 
@@ -457,8 +451,6 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Final saga result with all step outcomes
-    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
-    #[allow(clippy::future_not_send)]
     pub async fn get_saga_result(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         debug!(saga_id = %saga_id, "Saga result queried");
 
@@ -479,8 +471,6 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// List of in-flight saga IDs
-    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
-    #[allow(clippy::future_not_send)]
     pub async fn list_in_flight_sagas(&self) -> SagaStoreResult<Vec<Uuid>> {
         // In full implementation, would query store for Executing/Compensating states
         let sagas = vec![];
@@ -731,5 +721,13 @@ mod tests {
         assert!(result.is_ok());
         let sagas = result.unwrap();
         assert!(sagas.is_empty() || !sagas.is_empty()); // Just verify it returns a list
+    }
+
+    // Compile-time assertion: SagaCoordinator must be Send.
+    // This test will fail to compile if the Send bound is lost.
+    #[test]
+    fn saga_coordinator_is_send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<SagaCoordinator>();
     }
 }

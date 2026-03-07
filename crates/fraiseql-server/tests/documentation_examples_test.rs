@@ -141,14 +141,14 @@ fn test_foundation_query_example() {
     let example = DocumentationExample::new(
         "Simple Query Example",
         "docs/foundation/QUERIES.md",
-        r#"
+        r"
 query {
     users {
         id
         name
     }
 }
-        "#,
+        ",
     )
     .with_outcome("Returns all users with their IDs and names")
     .add_prerequisite("User table exists")
@@ -200,7 +200,7 @@ fn test_subscription_guide_example() {
     let example = DocumentationExample::new(
         "Real-time User Updates",
         "docs/guides/SUBSCRIPTIONS.md",
-        r#"
+        r"
 subscription {
     userCreated {
         id
@@ -209,7 +209,7 @@ subscription {
         createdAt
     }
 }
-        "#,
+        ",
     )
     .with_outcome("Receives notifications when new users are created")
     .add_prerequisite("WebSocket connection established")
@@ -391,7 +391,7 @@ fn test_inventory_integration_example() {
     let example = DocumentationExample::new(
         "Inventory Sync with Orders",
         "docs/examples/INVENTORY_SYNC.md",
-        r#"
+        r"
 subscription OrderInventorySync {
     # Listen for new orders
     orderCreated {
@@ -408,7 +408,7 @@ subscription OrderInventorySync {
 # 2. Reserve inventory
 # 3. Update stock levels
 # 4. Notify customer of status
-        "#,
+        ",
     )
     .with_outcome("Synchronizes inventory with incoming orders in real-time")
     .add_prerequisite("WebSocket connection to order service")
@@ -465,7 +465,7 @@ impl ExampleExecutor {
         let mut results = vec![];
 
         for example in &self.examples {
-            let result = if let Ok(()) = example.validate_structure() {
+            let result = if example.validate_structure() == Ok(()) {
                 ExampleExecutionResult {
                     title:   example.title.clone(),
                     success: true,
@@ -547,7 +547,7 @@ fn test_example_with_prerequisites() {
     let example = DocumentationExample::new(
         "Order Creation",
         "docs/ORDER_SERVICE.md",
-        r#"mutation CreateOrder { order: createOrder { id } }"#,
+        r"mutation CreateOrder { order: createOrder { id } }",
     )
     .with_outcome("Creates an order in the system")
     .add_prerequisite("Order service available")
@@ -565,13 +565,13 @@ fn test_example_execution_reporting() {
         DocumentationExample::new(
             "Query Users",
             "docs/users.md",
-            r#"query { users { id name email } }"#,
+            r"query { users { id name email } }",
         )
         .with_outcome("Returns list of all users"),
         DocumentationExample::new(
             "Filter Users",
             "docs/users.md",
-            r#"query { users(filter: { age: {gt: 18} }) }"#,
+            r"query { users(filter: { age: {gt: 18} }) }",
         )
         .with_outcome("Returns users older than 18"),
         DocumentationExample::new(

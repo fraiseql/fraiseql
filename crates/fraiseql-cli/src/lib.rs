@@ -792,7 +792,8 @@ pub async fn run() {
             types,
         } => match command {
             Some(ValidateCommands::Facts { schema, database }) => {
-                commands::validate_facts::run(std::path::Path::new(&schema), &database).await
+                let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+                commands::validate_facts::run(std::path::Path::new(&schema), &database, &formatter).await
             },
             None => match input {
                 Some(input) => {
@@ -865,59 +866,62 @@ pub async fn run() {
             }
         },
 
-        Commands::Migrate { command } => match command {
-            MigrateCommands::Up { database, dir } => {
-                let db_url = commands::migrate::resolve_database_url(database.as_deref());
-                match db_url {
-                    Ok(url) => {
-                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
-                        let action = commands::migrate::MigrateAction::Up {
-                            database_url: url,
-                            dir:          mig_dir,
-                        };
-                        commands::migrate::run(&action)
-                    },
-                    Err(e) => Err(e),
-                }
-            },
-            MigrateCommands::Down {
-                database,
-                dir,
-                steps,
-            } => {
-                let db_url = commands::migrate::resolve_database_url(database.as_deref());
-                match db_url {
-                    Ok(url) => {
-                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
-                        let action = commands::migrate::MigrateAction::Down {
-                            database_url: url,
-                            dir: mig_dir,
-                            steps,
-                        };
-                        commands::migrate::run(&action)
-                    },
-                    Err(e) => Err(e),
-                }
-            },
-            MigrateCommands::Status { database, dir } => {
-                let db_url = commands::migrate::resolve_database_url(database.as_deref());
-                match db_url {
-                    Ok(url) => {
-                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
-                        let action = commands::migrate::MigrateAction::Status {
-                            database_url: url,
-                            dir:          mig_dir,
-                        };
-                        commands::migrate::run(&action)
-                    },
-                    Err(e) => Err(e),
-                }
-            },
-            MigrateCommands::Create { name, dir } => {
-                let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
-                let action = commands::migrate::MigrateAction::Create { name, dir: mig_dir };
-                commands::migrate::run(&action)
-            },
+        Commands::Migrate { command } => {
+            let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+            match command {
+                MigrateCommands::Up { database, dir } => {
+                    let db_url = commands::migrate::resolve_database_url(database.as_deref());
+                    match db_url {
+                        Ok(url) => {
+                            let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                            let action = commands::migrate::MigrateAction::Up {
+                                database_url: url,
+                                dir:          mig_dir,
+                            };
+                            commands::migrate::run(&action, &formatter)
+                        },
+                        Err(e) => Err(e),
+                    }
+                },
+                MigrateCommands::Down {
+                    database,
+                    dir,
+                    steps,
+                } => {
+                    let db_url = commands::migrate::resolve_database_url(database.as_deref());
+                    match db_url {
+                        Ok(url) => {
+                            let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                            let action = commands::migrate::MigrateAction::Down {
+                                database_url: url,
+                                dir: mig_dir,
+                                steps,
+                            };
+                            commands::migrate::run(&action, &formatter)
+                        },
+                        Err(e) => Err(e),
+                    }
+                },
+                MigrateCommands::Status { database, dir } => {
+                    let db_url = commands::migrate::resolve_database_url(database.as_deref());
+                    match db_url {
+                        Ok(url) => {
+                            let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                            let action = commands::migrate::MigrateAction::Status {
+                                database_url: url,
+                                dir:          mig_dir,
+                            };
+                            commands::migrate::run(&action, &formatter)
+                        },
+                        Err(e) => Err(e),
+                    }
+                },
+                MigrateCommands::Create { name, dir } => {
+                    let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                    let action = commands::migrate::MigrateAction::Create { name, dir: mig_dir };
+                    commands::migrate::run(&action, &formatter)
+                },
+            }
         },
 
         Commands::Sbom { format, output } => match commands::sbom::SbomFormat::from_str(&format) {
@@ -938,7 +942,8 @@ pub async fn run() {
         },
 
         Commands::ValidateDocuments { manifest } => {
-            match commands::validate_documents::run(&manifest) {
+            let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+            match commands::validate_documents::run(&manifest, &formatter) {
                 Ok(true) => Ok(()),
                 Ok(false) => {
                     process::exit(2);

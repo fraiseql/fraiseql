@@ -6,6 +6,8 @@
 //! - Query routing dispatcher works correctly
 //! - Aggregate query execution
 
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for readability
+#![allow(clippy::items_after_statements)] // Reason: test-local use statements after variable declarations
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
@@ -33,7 +35,7 @@ struct MockAdapter {
 }
 
 impl MockAdapter {
-    fn new(mock_results: Vec<JsonbValue>) -> Self {
+    const fn new(mock_results: Vec<JsonbValue>) -> Self {
         Self { mock_results }
     }
 }
@@ -460,7 +462,7 @@ fn test_where_denormalized_filter() {
 
     assert!(sql.contains("WHERE"));
     assert!(sql.contains("customer_id"));
-    assert!(sql.contains("="));
+    assert!(sql.contains('='));
     assert!(sql.contains("550e8400-e29b-41d4-a716-446655440000"));
     // Should be direct column, not JSONB
     assert!(!sql.contains("->"));
@@ -481,7 +483,7 @@ fn test_where_jsonb_dimension() {
 
     assert!(sql.contains("WHERE"));
     assert!(sql.contains("data->>'category'"));
-    assert!(sql.contains("="));
+    assert!(sql.contains('='));
     assert!(sql.contains("electronics"));
 }
 
@@ -566,7 +568,7 @@ fn test_where_comparison_operators() {
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
-    assert!(sql.contains(">"));
+    assert!(sql.contains('>'));
 
     // Test Lte
     let where_clause = WhereClause::Field {

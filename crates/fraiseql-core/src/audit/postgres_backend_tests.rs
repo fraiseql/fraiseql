@@ -3,6 +3,8 @@
 //! Comprehensive tests for PostgreSQL-based audit logging with connection pooling,
 //! JSONB operations, multi-tenancy, and error handling.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used in test destructuring patterns
 use deadpool_postgres::{Pool, Runtime};
 use serde_json::json;
 use serial_test::serial;

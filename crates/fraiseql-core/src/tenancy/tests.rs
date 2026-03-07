@@ -2,6 +2,7 @@
 //!
 //! Tests for tenant isolation, filtering, and JWT extraction
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use serde_json::json;
 
 use crate::tenancy::TenantContext;

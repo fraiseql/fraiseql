@@ -1,11 +1,11 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-//! Golden fixture tests — verify every field of every struct in CompiledSchema.
+//! Golden fixture tests — verify every field of every struct in `CompiledSchema`.
 //!
 //! Each fixture is a canonical JSON file that exercises a specific set of features.
 //! These tests assert that:
 //!   1. Every non-default field value parses correctly.
-//!   2. The schema round-trips without data loss (to_json → from_json → equality).
+//!   2. The schema round-trips without data loss (`to_json` → `from_json` → equality).
 //!
 //! If any of these tests fail on a newly added field, it means the field was
 //! silently lost or wrong — exactly the class of bug described in issue #53.

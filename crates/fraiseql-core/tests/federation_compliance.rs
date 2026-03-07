@@ -47,7 +47,7 @@ fn test_non_federation_queries_not_recognized() {
 #[test]
 fn test_sdl_includes_federation_schema_imports() {
     // Federation SDL must include required imports/directives
-    let sdl = r#"
+    let sdl = r"
         scalar _Any
         union _Entity = User | Order
 
@@ -59,7 +59,7 @@ fn test_sdl_includes_federation_schema_imports() {
             _entities(representations: [_Any!]!): [_Entity]!
             _service: _Service!
         }
-    "#;
+    ";
 
     // Must include _Any scalar
     assert!(sdl.contains("scalar _Any"), "SDL must include _Any scalar");
@@ -129,11 +129,11 @@ fn test_sdl_any_scalar_definition() {
 #[test]
 fn test_sdl_service_type_definition() {
     // _Service type must have sdl field
-    let service_type = r#"
+    let service_type = r"
         type _Service {
             sdl: String!
         }
-    "#;
+    ";
 
     assert!(service_type.contains("type _Service"));
     assert!(service_type.contains("sdl: String!"));
@@ -160,8 +160,8 @@ fn test_entities_query_returns_union() {
     let return_type = "[_Entity]!";
 
     assert!(return_type.contains("_Entity"));
-    assert!(return_type.contains("["), "Must return array");
-    assert!(return_type.contains("!"), "Must be non-null");
+    assert!(return_type.contains('['), "Must return array");
+    assert!(return_type.contains('!'), "Must be non-null");
 }
 
 #[test]
@@ -269,8 +269,8 @@ fn test_service_sdl_is_valid_graphql() {
     // Validate basic GraphQL structure
     assert!(sdl.contains("type"));
     assert!(sdl.contains("@key"));
-    assert!(sdl.contains("{"));
-    assert!(sdl.contains("}"));
+    assert!(sdl.contains('{'));
+    assert!(sdl.contains('}'));
 }
 
 // ============================================================================
@@ -454,7 +454,7 @@ fn test_federation_v2_version_string() {
 
     assert_eq!(metadata.version, "v2");
     // FraiseQL implements Apollo Federation v2
-    assert!(metadata.version.starts_with("v"));
+    assert!(metadata.version.starts_with('v'));
 }
 
 #[test]

@@ -151,7 +151,7 @@ mod tests {
 
         assert_eq!(child.trace_id, parent.trace_id);
         assert_ne!(child.span_id, parent.span_id);
-        assert_eq!(child.parent_span_id, Some(parent.span_id.clone()));
+        assert_eq!(child.parent_span_id, Some(parent.span_id));
     }
 
     #[test]
@@ -160,7 +160,7 @@ mod tests {
         assert!(get_context().is_none());
 
         let ctx = TraceContext::new();
-        set_context(ctx.clone());
+        set_context(ctx);
         assert!(get_context().is_some(), "get_context should return Some after set_context");
     }
 }

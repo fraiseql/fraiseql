@@ -7,7 +7,7 @@
 //! Tests for PostgreSQL wire protocol message decoding:
 //! - Malformed message handling (invalid tags, truncation, overflow)
 //! - Error field parsing (severity, SQLSTATE, position, hint, detail)
-//! - Backend message decoding (ReadyForQuery, CommandComplete, DataRow, etc.)
+//! - Backend message decoding (`ReadyForQuery`, `CommandComplete`, `DataRow`, etc.)
 //! - Edge cases (empty results, large payloads, invalid UTF-8)
 
 use bytes::{BufMut, BytesMut};

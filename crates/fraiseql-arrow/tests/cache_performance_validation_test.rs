@@ -1,6 +1,6 @@
 //! Cache Performance Validation Tests
 //!
-//! Validates that the QueryCache infrastructure achieves documented performance improvements.
+//! Validates that the `QueryCache` infrastructure achieves documented performance improvements.
 //! These tests confirm the existing cache implementation delivers the published performance
 //! characteristics from docs/architecture/performance/performance-characteristics.md
 //!
@@ -10,7 +10,7 @@
 //! - **Cache miss behavior**: Returns None, allowing database query path
 //! - **TTL-based expiration**: Entries expire after specified TTL in seconds
 //! - **Hit rate tracking**: Accurate counting of hits vs misses for SLO monitoring
-//! - **Concurrent access**: Lock-free (DashMap) for safe multi-threaded access
+//! - **Concurrent access**: Lock-free (`DashMap`) for safe multi-threaded access
 //! - **Capacity**: 1000+ entries with no latency degradation
 //!
 //! # Performance Impact
@@ -69,7 +69,7 @@ fn test_cache_hit_latency_under_10ms() {
         },
     ];
 
-    cache.put(query, Arc::new(result.clone()));
+    cache.put(query, Arc::new(result));
 
     // Measure cache hit latency
     let start = Instant::now();
@@ -157,7 +157,7 @@ fn test_cache_miss_then_hit() {
         map
     }];
 
-    cache.put(query, Arc::new(result.clone()));
+    cache.put(query, Arc::new(result));
 
     // Second access hits
     let hit = cache.get(query);
@@ -270,7 +270,7 @@ fn test_cache_different_ttls() {
     // Both entries share same TTL but are stored at different times
     cache.put(q1, Arc::new(result.clone()));
     std::thread::sleep(Duration::from_millis(100));
-    cache.put(q2, Arc::new(result.clone()));
+    cache.put(q2, Arc::new(result));
 
     // Both should be valid immediately
     assert!(cache.get(q1).is_some());
@@ -360,7 +360,7 @@ fn test_cache_hit_rate_mixed_pattern() {
 
     assert_eq!(hits, 2, "Should have 2 hits, 1 miss");
     // Hit rate would be 67% (2 / 3)
-    let hit_rate = (hits as f64 / total as f64) * 100.0;
+    let hit_rate = (f64::from(hits) / f64::from(total)) * 100.0;
     assert!(hit_rate > 65.0 && hit_rate < 68.0);
 }
 
@@ -412,7 +412,8 @@ fn test_cache_concurrent_writes() {
     let cache = Arc::new(QueryCache::new(60));
 
     // Spawn multiple threads writing different queries
-    let handles: Vec<_> = (0..5)
+    // Collect handles first to spawn all threads, then join to get results
+    let queries: Vec<_> = (0..5)
         .map(|i| {
             let cache_clone = Arc::clone(&cache);
             std::thread::spawn(move || {
@@ -426,10 +427,10 @@ fn test_cache_concurrent_writes() {
                 query
             })
         })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|h| h.join().unwrap())
         .collect();
-
-    // All writes complete
-    let queries: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     // All queries should be retrievable
     for query in queries {

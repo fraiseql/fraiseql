@@ -2,6 +2,7 @@
 //!
 //! Tests for extracting tenant context from JWT claims
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use serde_json::json;
 
 // ============================================================================

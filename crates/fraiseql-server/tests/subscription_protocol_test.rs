@@ -11,7 +11,7 @@
 //! | `Complete` handshake | Bidirectional `complete` messages |
 //! | `Ping`/`Pong` | Keepalive exchange and legacy `ka` translation |
 //!
-//! Tests use the public `ProtocolCodec` API only; no WebSocket connection is
+//! Tests use the public `ProtocolCodec` API only; no `WebSocket` connection is
 //! required.
 //!
 //! **Execution engine:** none (codec + message constructors only)
@@ -54,7 +54,7 @@ fn connection_ack_with_payload_round_trips_correctly() {
     let codec = ProtocolCodec::new(WsProtocol::GraphqlTransportWs);
 
     let server_info = serde_json::json!({"version": "2.0", "extensions": ["persisted-queries"]});
-    let ack = ServerMessage::connection_ack(Some(server_info.clone()));
+    let ack = ServerMessage::connection_ack(Some(server_info));
     let wire = codec.encode(ack).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 
@@ -231,7 +231,7 @@ fn ping_with_payload_modern() {
     let codec = ProtocolCodec::new(WsProtocol::GraphqlTransportWs);
 
     let payload = serde_json::json!({"timestamp": 1_700_000_000u64});
-    let ping = ServerMessage::ping(Some(payload.clone()));
+    let ping = ServerMessage::ping(Some(payload));
     let wire = codec.encode(ping).unwrap().unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&wire).unwrap();
 

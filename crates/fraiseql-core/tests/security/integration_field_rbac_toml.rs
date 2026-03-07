@@ -4,6 +4,7 @@
 //! and scope mappings, which are then compiled into schema.compiled.json
 //! for runtime field filtering.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[test]
 fn test_toml_role_definitions_parsing() {
     // Example TOML that should be parseable:

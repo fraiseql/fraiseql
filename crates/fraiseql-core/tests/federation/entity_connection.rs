@@ -4,6 +4,7 @@
 //! query execution, prepared statements, parameterized queries,
 //! transaction handling, and rollback.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{

@@ -8,6 +8,8 @@
 //! - `do_get` streams placeholder data when no database adapter is configured
 //! - `list_actions` advertises all four documented admin actions
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test code uses Default::default() for struct field initialization
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -371,9 +373,8 @@ async fn test_do_get_unknown_view_returns_not_found() {
     };
 
     let result = service.do_get(authenticated_ticket_request(&ticket)).await;
-    let err = match result {
-        Ok(_) => panic!("Unknown view must fail"),
-        Err(e) => e,
+    let Err(err) = result else {
+        panic!("Unknown view must fail");
     };
 
     assert_eq!(
@@ -400,9 +401,8 @@ async fn test_do_get_without_auth_returns_error() {
     // Request with no Authorization header
     let req = Request::new(Ticket { ticket: bytes.into() });
 
-    let err = match service.do_get(req).await {
-        Ok(_) => panic!("Missing auth must fail"),
-        Err(e) => e,
+    let Err(err) = service.do_get(req).await else {
+        panic!("Missing auth must fail");
     };
     assert!(
         matches!(err.code(), tonic::Code::Unauthenticated | tonic::Code::InvalidArgument),

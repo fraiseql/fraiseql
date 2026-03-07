@@ -52,6 +52,10 @@
 //!
 //! See `benches/fixtures/setup_bench_data.sql` for the setup script.
 
+#![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses usize→f64 for human-readable output
+#![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
+#![allow(clippy::manual_let_else)] // Reason: bench setup uses match patterns for clarity
+#![allow(clippy::used_underscore_binding)] // Reason: bench helper results prefixed with _ to suppress unused warnings
 use std::time::Instant;
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};

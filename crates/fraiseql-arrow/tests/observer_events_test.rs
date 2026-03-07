@@ -1,4 +1,4 @@
-//! Tests for Observer Events (do_get) Arrow Flight support
+//! Tests for Observer Events (`do_get`) Arrow Flight support
 
 use std::sync::Arc;
 

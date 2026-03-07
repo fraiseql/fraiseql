@@ -4,6 +4,7 @@
 //! with retry, concurrent saga mixed outcomes, cascading failures,
 //! timeout handling, network error retry, and partial result handling.
 
+#![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},

@@ -49,7 +49,7 @@ fn create_test_session_token() -> String {
 
 /// Start a test Flight server on a random available port.
 ///
-/// Returns the server address (e.g., "http://127.0.0.1:12345").
+/// Returns the server address (e.g., "<http://127.0.0.1:12345>").
 ///
 /// Must be called within a `temp_env::async_with_vars` block that sets `FLIGHT_SESSION_SECRET`.
 async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {

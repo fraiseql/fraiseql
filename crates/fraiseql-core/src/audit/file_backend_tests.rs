@@ -2,6 +2,8 @@
 //!
 //! Tests for JSON lines file-based audit logging
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
 use tempfile::TempDir;
 
 use super::*;

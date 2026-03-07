@@ -205,19 +205,21 @@ fn build_safe_order_by(order_by: &str) -> Result<String, Status> {
 /// In production, `execute_optimized_view()` uses the real database adapter.
 ///
 /// This fallback provides consistent test data matching the expected schema:
-/// - va_orders, va_users: Real timestamp and numeric types
-/// - ta_orders, ta_users: String-based data (ISO 8601 timestamps)
+/// - `va_orders`, `va_users`: Real timestamp and numeric types
+/// - `ta_orders`, `ta_users`: String-based data (ISO 8601 timestamps)
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "va_orders", "va_users")
+/// * `view` - View name (e.g., "`va_orders`", "`va_users`")
 /// * `limit` - Optional limit on number of rows
 ///
 /// # Returns
 ///
-/// Vec of rows as HashMap<column_name, json_value>
+/// Vec of rows as `HashMap`<`column_name`, `json_value`>
 #[cfg(any(test, feature = "testing"))]
-pub(crate) fn execute_placeholder_query(
+#[allow(clippy::cast_possible_wrap)] // Reason: test row indices are small, cannot wrap
+#[allow(clippy::cast_precision_loss)] // Reason: test data uses small floats, precision loss acceptable
+pub fn execute_placeholder_query(
     view: &str,
     limit: Option<usize>,
 ) -> Vec<std::collections::HashMap<String, serde_json::Value>> {

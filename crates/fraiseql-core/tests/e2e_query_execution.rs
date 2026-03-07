@@ -3,10 +3,11 @@
 //! Tests end-to-end query execution scenarios:
 //! - Mock database with sample data
 //! - Query execution with field projection
-//! - ResultProjector with projected data
+//! - `ResultProjector` with projected data
 //! - GraphQL response envelope generation
 //! - Error handling and edge cases
 
+#![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
 use std::collections::HashMap;
 
 use async_trait::async_trait;

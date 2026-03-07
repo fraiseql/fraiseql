@@ -24,6 +24,21 @@
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are small and bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions, panics are expected
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code does not require documentation
+#![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 use std::{
     sync::{
@@ -542,7 +557,7 @@ mod integration_performance_tests {
             let task = tokio::spawn(async move {
                 for req_id in 0..num_requests_per_task {
                     // Varying cache hit pattern (doesn't affect pool)
-                    let _cache_hit = (req_id % 3) == 0; // 33% miss rate
+                    let _ = (req_id % 3) == 0; // 33% miss rate
 
                     let _pool = simulate_pool_connection(pool_size, task_id * 1000 + req_id).await;
                     success.fetch_add(1, Ordering::Relaxed);

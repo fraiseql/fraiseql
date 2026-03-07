@@ -13,6 +13,9 @@
 //! 7. Field selection from different database backends
 //! 8. Error handling for cross-database mismatches
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::needless_collect)] // Reason: intermediate collect is needed before assert_eq! consumes the iterator
+#![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
 use std::collections::HashMap;
 
 use fraiseql_core::federation::types::{
@@ -560,7 +563,7 @@ fn test_batch_entity_resolution_multiple_databases() {
             all_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!(format!("pg-order-{}", i)));
-                m.insert("total".to_string(), json!(99.99 + i as f64));
+                m.insert("total".to_string(), json!(99.99 + f64::from(i)));
                 m
             },
         })
@@ -578,7 +581,7 @@ fn test_batch_entity_resolution_multiple_databases() {
             all_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!(format!("mysql-order-{}", i)));
-                m.insert("total".to_string(), json!(49.99 + (i - 50) as f64));
+                m.insert("total".to_string(), json!(49.99 + f64::from(i - 50)));
                 m
             },
         })

@@ -37,6 +37,9 @@
 //! cargo test --test federation_saga_stress_test -- --ignored --nocapture
 //! ```
 
+#![allow(clippy::cast_precision_loss)] // Reason: stress test throughput computations cast usize→f64 for display
+#![allow(clippy::collection_is_never_read)] // Reason: stress test result collections are checked for errors, not read element-by-element
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures mirror production API for clarity
 use std::time::{Duration, Instant};
 
 // ============================================================================
@@ -348,7 +351,7 @@ mod harness {
     }
 
     impl SagaOrchestrator {
-        pub fn new(
+        pub const fn new(
             store: InMemorySagaStore,
             executor: MockStepExecutor,
             compensator: MockStepCompensator,
@@ -455,27 +458,24 @@ mod harness {
                 let mut compensation_results = Vec::new();
                 for i in (0..completed_steps).rev() {
                     let original_result = step_results[i].as_ref();
-                    match self.compensator.compensate(i, original_result) {
-                        Ok(_) => {
-                            compensation_results.push(CompensationExecution {
-                                step_order:      i,
-                                original_result: original_result.cloned(),
-                                result:          Ok(json!({})),
-                                timestamp:       Instant::now(),
-                            });
-                        },
-                        Err(_) => {
-                            self.store.update_saga_state(saga_id, SagaState::CompensationFailed)?;
-                            return Ok(SagaResult {
-                                saga_id,
-                                state: SagaState::CompensationFailed,
-                                completed_steps,
-                                total_steps,
-                                error: Some(error_msg),
-                                step_results,
-                                compensation_results,
-                            });
-                        },
+                    if self.compensator.compensate(i, original_result).is_ok() {
+                        compensation_results.push(CompensationExecution {
+                            step_order:      i,
+                            original_result: original_result.cloned(),
+                            result:          Ok(json!({})),
+                            timestamp:       Instant::now(),
+                        });
+                    } else {
+                        self.store.update_saga_state(saga_id, SagaState::CompensationFailed)?;
+                        return Ok(SagaResult {
+                            saga_id,
+                            state: SagaState::CompensationFailed,
+                            completed_steps,
+                            total_steps,
+                            error: Some(error_msg),
+                            step_results,
+                            compensation_results,
+                        });
                     }
                 }
 
@@ -509,7 +509,7 @@ mod harness {
     }
 
     impl OrchestratorBuilder {
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self { steps: Vec::new() }
         }
 
@@ -778,7 +778,7 @@ fn stress_sustained_30s_load() {
     }
 
     let duration = start.elapsed();
-    let throughput = count as f64 / duration.as_secs_f64();
+    let throughput = f64::from(count) / duration.as_secs_f64();
     println!("30-second sustained load: {} sagas, {:.2} sagas/sec", count, throughput);
 
     assert!(count > 0);
@@ -801,7 +801,7 @@ fn stress_sustained_60s_load() {
     }
 
     let duration = start.elapsed();
-    let throughput = count as f64 / duration.as_secs_f64();
+    let throughput = f64::from(count) / duration.as_secs_f64();
     println!("60-second sustained load: {} sagas, {:.2} sagas/sec", count, throughput);
 
     assert!(count > 0);
@@ -838,7 +838,7 @@ fn stress_memory_linear_scaling() {
     for window in memory_samples.windows(2) {
         let (size1, mem1) = window[0];
         let (size2, mem2) = window[1];
-        let size_ratio = size2 as f64 / size1 as f64;
+        let size_ratio = f64::from(size2) / f64::from(size1);
         let mem_ratio = mem2 as f64 / mem1 as f64;
 
         // Memory ratio should be similar to size ratio (linear growth)
@@ -868,7 +868,7 @@ fn stress_memory_overhead() {
     let memory = orchestrator.store.estimate_memory_usage();
     let theoretical_size = 1000 * 256; // ~256 bytes per saga with 3 steps
 
-    let overhead_ratio = memory as f64 / theoretical_size as f64;
+    let overhead_ratio = memory as f64 / f64::from(theoretical_size);
     println!(
         "Memory overhead: {} bytes, theoretical: {} bytes, ratio: {:.2}",
         memory, theoretical_size, overhead_ratio

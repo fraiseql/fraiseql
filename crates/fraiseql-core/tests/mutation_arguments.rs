@@ -15,6 +15,7 @@
 //! - Type information could be lost in parameter binding
 //! - Arguments could be silently dropped
 
+#![allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)] // Reason: test uses i32↔usize casts for small test data
 use serde_json::json;
 
 #[test]

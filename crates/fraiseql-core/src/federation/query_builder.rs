@@ -119,6 +119,7 @@ fn construct_composite_where_in(
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::iter_on_single_items)] // Reason: test data uses single-element iter for structural clarity
 
     use serde_json::json;
 

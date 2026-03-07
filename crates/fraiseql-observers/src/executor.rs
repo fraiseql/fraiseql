@@ -27,26 +27,255 @@ use crate::{
     traits::{ActionResult, DeadLetterQueue},
 };
 
+/// Internal trait for dispatching actions to their concrete implementations.
+///
+/// This seam exists solely to enable unit-testing of retry logic and failure
+/// policies without making real network calls. Production code always uses
+/// `DefaultActionDispatcher`; tests inject `MockActionDispatcher`.
+pub(crate) trait ActionDispatcher: Send + Sync {
+    /// Dispatch a single action and return its result.
+    fn dispatch<'a>(
+        &'a self,
+        action: &'a ActionConfig,
+        event: &'a EntityEvent,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>;
+}
+
+/// Production action dispatcher that delegates to the concrete action structs.
+struct DefaultActionDispatcher {
+    /// Webhook action executor
+    webhook_action: Arc<WebhookAction>,
+    /// Slack action executor
+    slack_action:   Arc<SlackAction>,
+    /// Email action executor
+    email_action:   Arc<EmailAction>,
+    /// SMS action executor
+    sms_action:     Arc<SmsAction>,
+    /// Push notification action executor
+    push_action:    Arc<PushAction>,
+    /// Search index action executor
+    search_action:  Arc<SearchAction>,
+    /// Cache action executor
+    cache_action:   Arc<CacheAction>,
+}
+
+/// Resolve a URL from an explicit value or an environment variable.
+///
+/// Returns `Ok(url)` if `explicit` is set, or falls back to reading `env_var`.
+/// Returns `Err(ObserverError::InvalidActionConfig)` if neither is set or the
+/// env var is missing.
+fn resolve_url(
+    explicit: Option<&str>,
+    env_var: Option<&str>,
+    action_name: &str,
+) -> Result<String> {
+    if let Some(u) = explicit {
+        return Ok(u.to_owned());
+    }
+    if let Some(var_name) = env_var {
+        return std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
+            reason: format!("{action_name} URL env var {var_name} not found"),
+        });
+    }
+    Err(ObserverError::InvalidActionConfig {
+        reason: format!("{action_name} URL not provided"),
+    })
+}
+
+impl ActionDispatcher for DefaultActionDispatcher {
+    fn dispatch<'a>(
+        &'a self,
+        action: &'a ActionConfig,
+        event: &'a EntityEvent,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            debug!("Executing action: {} for event {}", action.action_type(), event.id);
+
+            match action {
+                ActionConfig::Webhook {
+                    url,
+                    url_env,
+                    headers,
+                    body_template,
+                } => {
+                    debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
+                    let webhook_url = resolve_url(url.as_deref(), url_env.as_deref(), "Webhook")?;
+
+                    match self
+                        .webhook_action
+                        .execute(&webhook_url, headers, body_template.as_deref(), event)
+                        .await
+                    {
+                        Ok(response) => Ok(ActionResult {
+                            action_type: "webhook".to_string(),
+                            success:     true,
+                            message:     format!("HTTP {}", response.status_code),
+                            duration_ms: response.duration_ms,
+                        }),
+                        Err(e) => Err(e),
+                    }
+                },
+                ActionConfig::Slack {
+                    webhook_url,
+                    webhook_url_env,
+                    channel,
+                    message_template,
+                } => {
+                    let slack_url =
+                        resolve_url(webhook_url.as_deref(), webhook_url_env.as_deref(), "Slack")?;
+
+                    match self
+                        .slack_action
+                        .execute(
+                            &slack_url,
+                            channel.as_deref(),
+                            message_template.as_deref(),
+                            event,
+                        )
+                        .await
+                    {
+                        Ok(response) => Ok(ActionResult {
+                            action_type: "slack".to_string(),
+                            success:     true,
+                            message:     format!("HTTP {}", response.status_code),
+                            duration_ms: response.duration_ms,
+                        }),
+                        Err(e) => Err(e),
+                    }
+                },
+                ActionConfig::Email {
+                    to,
+                    to_template: _,
+                    subject,
+                    subject_template: _,
+                    body_template,
+                    reply_to: _,
+                } => {
+                    let email_to = to.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                        reason: "Email 'to' not provided".to_string(),
+                    })?;
+
+                    let email_subject =
+                        subject.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                            reason: "Email 'subject' not provided".to_string(),
+                        })?;
+
+                    match self
+                        .email_action
+                        .execute(email_to, email_subject, body_template.as_deref(), event)
+                        .await
+                    {
+                        Ok(response) => Ok(ActionResult {
+                            action_type: "email".to_string(),
+                            success:     response.success,
+                            message:     response
+                                .message_id
+                                .unwrap_or_else(|| "queued".to_string()),
+                            duration_ms: response.duration_ms,
+                        }),
+                        Err(e) => Err(e),
+                    }
+                },
+                ActionConfig::Sms {
+                    phone,
+                    phone_template: _,
+                    message_template,
+                } => {
+                    let sms_phone = phone.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                        reason: "SMS 'phone' not provided".to_string(),
+                    })?;
+
+                    match self
+                        .sms_action
+                        .execute(sms_phone.clone(), message_template.as_deref(), event)
+                    {
+                        Ok(response) => Ok(ActionResult {
+                            action_type: "sms".to_string(),
+                            success:     response.success,
+                            message:     response
+                                .message_id
+                                .unwrap_or_else(|| "sent".to_string()),
+                            duration_ms: response.duration_ms,
+                        }),
+                        Err(e) => Err(e),
+                    }
+                },
+                ActionConfig::Push {
+                    device_token,
+                    title_template,
+                    body_template,
+                } => {
+                    let token =
+                        device_token.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                            reason: "Push 'device_token' not provided".to_string(),
+                        })?;
+
+                    let title =
+                        title_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                            reason: "Push 'title_template' not provided".to_string(),
+                        })?;
+
+                    let body =
+                        body_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
+                            reason: "Push 'body_template' not provided".to_string(),
+                        })?;
+
+                    match self.push_action.execute(token.clone(), title.clone(), body.clone()) {
+                        Ok(response) => Ok(ActionResult {
+                            action_type: "push".to_string(),
+                            success:     response.success,
+                            message:     response
+                                .notification_id
+                                .unwrap_or_else(|| "sent".to_string()),
+                            duration_ms: response.duration_ms,
+                        }),
+                        Err(e) => Err(e),
+                    }
+                },
+                ActionConfig::Search { index, id_template } => {
+                    match self
+                        .search_action
+                        .execute(index.clone(), id_template.as_deref(), event)
+                    {
+                        Ok(response) => Ok(ActionResult {
+                            action_type: "search".to_string(),
+                            success:     response.success,
+                            message:     if response.indexed {
+                                "indexed".to_string()
+                            } else {
+                                "not_indexed".to_string()
+                            },
+                            duration_ms: response.duration_ms,
+                        }),
+                        Err(e) => Err(e),
+                    }
+                },
+                ActionConfig::Cache {
+                    key_pattern,
+                    action,
+                } => match self.cache_action.execute(key_pattern.clone(), action) {
+                    Ok(response) => Ok(ActionResult {
+                        action_type: "cache".to_string(),
+                        success:     response.success,
+                        message:     format!("affected: {}", response.keys_affected),
+                        duration_ms: response.duration_ms,
+                    }),
+                    Err(e) => Err(e),
+                },
+            }
+        })
+    }
+}
+
 /// Main observer executor engine
 pub struct ObserverExecutor {
     /// Event-to-observer matcher
     matcher:          Arc<EventMatcher>,
     /// Condition parser and evaluator
     condition_parser: Arc<ConditionParser>,
-    /// Webhook action executor
-    webhook_action:   Arc<WebhookAction>,
-    /// Slack action executor
-    slack_action:     Arc<SlackAction>,
-    /// Email action executor
-    email_action:     Arc<EmailAction>,
-    /// SMS action executor
-    sms_action:       Arc<SmsAction>,
-    /// Push notification action executor
-    push_action:      Arc<PushAction>,
-    /// Search index action executor
-    search_action:    Arc<SearchAction>,
-    /// Cache action executor
-    cache_action:     Arc<CacheAction>,
+    /// Action dispatcher (production or mock)
+    dispatcher:       Arc<dyn ActionDispatcher>,
     /// Dead letter queue for failed actions
     dlq:              Arc<dyn DeadLetterQueue>,
     /// Optional cache backend for action result caching
@@ -70,16 +299,19 @@ impl ObserverExecutor {
         dlq: Arc<dyn DeadLetterQueue>,
         cache_backend: Option<Arc<dyn CacheBackendDyn>>,
     ) -> Self {
+        let dispatcher = Arc::new(DefaultActionDispatcher {
+            webhook_action: Arc::new(WebhookAction::new()),
+            slack_action:   Arc::new(SlackAction::new()),
+            email_action:   Arc::new(EmailAction::new()),
+            sms_action:     Arc::new(SmsAction::new()),
+            push_action:    Arc::new(PushAction::new()),
+            search_action:  Arc::new(SearchAction::new()),
+            cache_action:   Arc::new(CacheAction::new()),
+        });
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(ConditionParser::new()),
-            webhook_action: Arc::new(WebhookAction::new()),
-            slack_action: Arc::new(SlackAction::new()),
-            email_action: Arc::new(EmailAction::new()),
-            sms_action: Arc::new(SmsAction::new()),
-            push_action: Arc::new(PushAction::new()),
-            search_action: Arc::new(SearchAction::new()),
-            cache_action: Arc::new(CacheAction::new()),
+            dispatcher,
             dlq,
             cache_backend,
             #[cfg(feature = "metrics")]
@@ -94,17 +326,42 @@ impl ObserverExecutor {
         dlq: Arc<dyn DeadLetterQueue>,
         _cache_backend: Option<Arc<dyn std::fmt::Debug>>,
     ) -> Self {
+        let dispatcher = Arc::new(DefaultActionDispatcher {
+            webhook_action: Arc::new(WebhookAction::new()),
+            slack_action:   Arc::new(SlackAction::new()),
+            email_action:   Arc::new(EmailAction::new()),
+            sms_action:     Arc::new(SmsAction::new()),
+            push_action:    Arc::new(PushAction::new()),
+            search_action:  Arc::new(SearchAction::new()),
+            cache_action:   Arc::new(CacheAction::new()),
+        });
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(ConditionParser::new()),
-            webhook_action: Arc::new(WebhookAction::new()),
-            slack_action: Arc::new(SlackAction::new()),
-            email_action: Arc::new(EmailAction::new()),
-            sms_action: Arc::new(SmsAction::new()),
-            push_action: Arc::new(PushAction::new()),
-            search_action: Arc::new(SearchAction::new()),
-            cache_action: Arc::new(CacheAction::new()),
+            dispatcher,
             dlq,
+            #[cfg(feature = "metrics")]
+            metrics: MetricsRegistry::global().unwrap_or_default(),
+        }
+    }
+
+    /// Create an executor with a custom action dispatcher (for testing).
+    ///
+    /// This constructor is `pub(crate)` so unit tests in this crate can inject a
+    /// `MockActionDispatcher` without exposing the internal seam publicly.
+    #[cfg(test)]
+    pub(crate) fn with_dispatcher(
+        matcher: EventMatcher,
+        dlq: Arc<dyn DeadLetterQueue>,
+        dispatcher: Arc<dyn ActionDispatcher>,
+    ) -> Self {
+        Self {
+            matcher: Arc::new(matcher),
+            condition_parser: Arc::new(ConditionParser::new()),
+            dispatcher,
+            dlq,
+            #[cfg(feature = "caching")]
+            cache_backend: None,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
         }
@@ -246,8 +503,6 @@ impl ObserverExecutor {
         action: &ActionConfig,
         event: &EntityEvent,
     ) -> Result<ActionResult> {
-        debug!("Executing action: {} for event {}", action.action_type(), event.id);
-
         // Try cache first (skip for CacheAction itself)
         #[cfg(feature = "caching")]
         if !matches!(action, ActionConfig::Cache { .. }) {
@@ -256,178 +511,7 @@ impl ObserverExecutor {
             }
         }
 
-        let result = match action {
-            ActionConfig::Webhook {
-                url,
-                url_env,
-                headers,
-                body_template,
-            } => {
-                debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
-
-                let webhook_url = if let Some(u) = url {
-                    u.clone()
-                } else if let Some(var_name) = url_env {
-                    std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
-                        reason: format!("Webhook URL env var {var_name} not found"),
-                    })?
-                } else {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Webhook URL not provided".to_string(),
-                    });
-                };
-
-                match self
-                    .webhook_action
-                    .execute(&webhook_url, headers, body_template.as_deref(), event)
-                    .await
-                {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "webhook".to_string(),
-                        success:     true,
-                        message:     format!("HTTP {}", response.status_code),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            },
-            ActionConfig::Slack {
-                webhook_url,
-                webhook_url_env,
-                channel,
-                message_template,
-            } => {
-                let slack_url = if let Some(u) = webhook_url {
-                    u.clone()
-                } else if let Some(var_name) = webhook_url_env {
-                    std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
-                        reason: format!("Slack webhook URL env var {var_name} not found"),
-                    })?
-                } else {
-                    return Err(ObserverError::InvalidActionConfig {
-                        reason: "Slack webhook URL not provided".to_string(),
-                    });
-                };
-
-                match self
-                    .slack_action
-                    .execute(&slack_url, channel.as_deref(), message_template.as_deref(), event)
-                    .await
-                {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "slack".to_string(),
-                        success:     true,
-                        message:     format!("HTTP {}", response.status_code),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            },
-            ActionConfig::Email {
-                to,
-                to_template: _,
-                subject,
-                subject_template: _,
-                body_template,
-                reply_to: _,
-            } => {
-                let email_to = to.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                    reason: "Email 'to' not provided".to_string(),
-                })?;
-
-                let email_subject = subject.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                    reason: "Email 'subject' not provided".to_string(),
-                })?;
-
-                match self
-                    .email_action
-                    .execute(email_to, email_subject, body_template.as_deref(), event)
-                    .await
-                {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "email".to_string(),
-                        success:     response.success,
-                        message:     response.message_id.unwrap_or_else(|| "queued".to_string()),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            },
-            ActionConfig::Sms {
-                phone,
-                phone_template: _,
-                message_template,
-            } => {
-                let sms_phone = phone.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                    reason: "SMS 'phone' not provided".to_string(),
-                })?;
-
-                match self.sms_action.execute(sms_phone.clone(), message_template.as_deref(), event)
-                {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "sms".to_string(),
-                        success:     response.success,
-                        message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            },
-            ActionConfig::Push {
-                device_token,
-                title_template,
-                body_template,
-            } => {
-                let token = device_token.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                    reason: "Push 'device_token' not provided".to_string(),
-                })?;
-
-                let title = title_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                    reason: "Push 'title_template' not provided".to_string(),
-                })?;
-
-                let body = body_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                    reason: "Push 'body_template' not provided".to_string(),
-                })?;
-
-                match self.push_action.execute(token.clone(), title.clone(), body.clone()) {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "push".to_string(),
-                        success:     response.success,
-                        message:     response.notification_id.unwrap_or_else(|| "sent".to_string()),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            },
-            ActionConfig::Search { index, id_template } => {
-                match self.search_action.execute(index.clone(), id_template.as_deref(), event) {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "search".to_string(),
-                        success:     response.success,
-                        message:     if response.indexed {
-                            "indexed".to_string()
-                        } else {
-                            "not_indexed".to_string()
-                        },
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                }
-            },
-            ActionConfig::Cache {
-                key_pattern,
-                action,
-            } => match self.cache_action.execute(key_pattern.clone(), action) {
-                Ok(response) => Ok(ActionResult {
-                    action_type: "cache".to_string(),
-                    success:     response.success,
-                    message:     format!("affected: {}", response.keys_affected),
-                    duration_ms: response.duration_ms,
-                }),
-                Err(e) => Err(e),
-            },
-        };
+        let result = self.dispatcher.dispatch(action, event).await;
 
         // Cache successful results before returning
         #[cfg(feature = "caching")]
@@ -1154,5 +1238,968 @@ mod tests {
         // Should handle zero iterations
         let result = executor.run_listener_loop(&mut listener, Some(0)).await;
         assert!(result.is_ok());
+    }
+
+    // =========================================================================
+    // Helper: build an executor backed by a MockActionDispatcher
+    // =========================================================================
+
+    fn make_mock_executor(
+        dispatcher: Arc<crate::testing::mocks::MockActionDispatcher>,
+        dlq: Arc<crate::testing::mocks::MockDeadLetterQueue>,
+    ) -> ObserverExecutor {
+        ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher)
+    }
+
+    fn make_mock_executor_with_matcher(
+        matcher: EventMatcher,
+        dispatcher: Arc<crate::testing::mocks::MockActionDispatcher>,
+        dlq: Arc<crate::testing::mocks::MockDeadLetterQueue>,
+    ) -> ObserverExecutor {
+        ObserverExecutor::with_dispatcher(matcher, dlq, dispatcher)
+    }
+
+    fn webhook_action() -> ActionConfig {
+        ActionConfig::Webhook {
+            url:           Some("https://example.com/hook".to_string()),
+            url_env:       None,
+            headers:       std::collections::HashMap::new(),
+            body_template: None,
+        }
+    }
+
+    fn test_event() -> crate::event::EntityEvent {
+        crate::event::EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            uuid::Uuid::new_v4(),
+            json!({"id": 42}),
+        )
+    }
+
+    fn make_retry(max_attempts: u32, initial_delay_ms: u64) -> RetryConfig {
+        RetryConfig {
+            max_attempts,
+            initial_delay_ms,
+            max_delay_ms: 5000,
+            backoff_strategy: BackoffStrategy::Fixed,
+        }
+    }
+
+    // =========================================================================
+    // execute_action_with_retry — happy path
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_retry_happy_path_succeeds_first_attempt() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 5.0);
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
+
+        let action = webhook_action();
+        let event = test_event();
+        let retry = make_retry(3, 0);
+        let failure_policy = FailurePolicy::Log;
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .execute_action_with_retry(&action, &event, &retry, &failure_policy, &mut summary)
+            .await;
+
+        assert_eq!(summary.successful_actions, 1, "expected 1 success");
+        assert_eq!(summary.failed_actions, 0);
+        assert_eq!(dispatcher.call_count(), 1, "dispatched exactly once");
+    }
+
+    #[tokio::test]
+    async fn test_retry_total_duration_accumulated_on_success() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 42.0);
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let action = webhook_action();
+        let event = test_event();
+        let retry = make_retry(3, 0);
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+            .await;
+
+        assert!((summary.total_duration_ms - 42.0).abs() < f64::EPSILON);
+    }
+
+    // =========================================================================
+    // execute_action_with_retry — transient errors + retries
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_retry_transient_then_success() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        // Custom dispatcher that fails the first call, succeeds the second.
+        struct TransientThenOkDispatcher {
+            attempts: AtomicU32,
+        }
+
+        impl ActionDispatcher for TransientThenOkDispatcher {
+            fn dispatch<'a>(
+                &'a self,
+                action: &'a ActionConfig,
+                _event: &'a EntityEvent,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>,
+            > {
+                let attempt = self.attempts.fetch_add(1, Ordering::SeqCst) + 1;
+                let action_type = action.action_type().to_string();
+                Box::pin(async move {
+                    if attempt == 1 {
+                        Err(ObserverError::ActionExecutionFailed {
+                            reason: "transient".to_string(),
+                        })
+                    } else {
+                        Ok(ActionResult {
+                            action_type,
+                            success: true,
+                            message: "ok".to_string(),
+                            duration_ms: 1.0,
+                        })
+                    }
+                })
+            }
+        }
+
+        let dispatcher = Arc::new(TransientThenOkDispatcher { attempts: AtomicU32::new(0) });
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher);
+
+        let action = webhook_action();
+        let event = test_event();
+        let retry = make_retry(3, 0);
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+            .await;
+
+        assert_eq!(summary.successful_actions, 1);
+        assert_eq!(summary.failed_actions, 0);
+    }
+
+    #[tokio::test]
+    async fn test_retry_permanent_error_no_retry() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        // ActionPermanentlyFailed is NOT transient — should not retry
+        dispatcher.expect_err(
+            "webhook",
+            ObserverError::ActionPermanentlyFailed {
+                reason: "bad config".to_string(),
+            },
+        );
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let action = webhook_action();
+        let event = test_event();
+        let retry = make_retry(5, 0);
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+            .await;
+
+        // Called exactly once — no retry for permanent errors
+        assert_eq!(dispatcher.call_count(), 1);
+        assert_eq!(summary.successful_actions, 0);
+        assert_eq!(summary.failed_actions, 1);
+    }
+
+    #[tokio::test]
+    async fn test_retry_exhausted_after_max_attempts() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        // ActionExecutionFailed IS transient — will retry until exhaustion
+        dispatcher.expect_err(
+            "webhook",
+            ObserverError::ActionExecutionFailed {
+                reason: "timeout".to_string(),
+            },
+        );
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let action = webhook_action();
+        let event = test_event();
+        let retry = make_retry(3, 0);
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+            .await;
+
+        // Should have been called max_attempts times (3) then failed
+        assert_eq!(dispatcher.call_count(), 3);
+        assert_eq!(summary.failed_actions, 1);
+        assert_eq!(summary.successful_actions, 0);
+    }
+
+    #[tokio::test]
+    async fn test_retry_single_attempt_max_no_retry() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        dispatcher.expect_err(
+            "webhook",
+            ObserverError::ActionExecutionFailed {
+                reason: "timeout".to_string(),
+            },
+        );
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let action = webhook_action();
+        let event = test_event();
+        // max_attempts=1 → no retries at all
+        let retry = make_retry(1, 0);
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .execute_action_with_retry(&action, &event, &retry, &FailurePolicy::Log, &mut summary)
+            .await;
+
+        assert_eq!(dispatcher.call_count(), 1);
+        assert_eq!(summary.failed_actions, 1);
+    }
+
+    #[tokio::test]
+    async fn test_retry_two_transient_then_success() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        struct FailTwiceThenOk {
+            count: AtomicU32,
+        }
+
+        impl ActionDispatcher for FailTwiceThenOk {
+            fn dispatch<'a>(
+                &'a self,
+                action: &'a ActionConfig,
+                _event: &'a EntityEvent,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>,
+            > {
+                let n = self.count.fetch_add(1, Ordering::SeqCst) + 1;
+                let at = action.action_type().to_string();
+                Box::pin(async move {
+                    if n <= 2 {
+                        Err(ObserverError::ActionExecutionFailed {
+                            reason: format!("transient attempt {n}"),
+                        })
+                    } else {
+                        Ok(ActionResult {
+                            action_type: at,
+                            success:     true,
+                            message:     "ok".to_string(),
+                            duration_ms: 1.0,
+                        })
+                    }
+                })
+            }
+        }
+
+        let dispatcher = Arc::new(FailTwiceThenOk { count: AtomicU32::new(0) });
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = ObserverExecutor::with_dispatcher(EventMatcher::new(), dlq, dispatcher);
+
+        let mut summary = ExecutionSummary::new();
+        executor
+            .execute_action_with_retry(
+                &webhook_action(),
+                &test_event(),
+                &make_retry(5, 0),
+                &FailurePolicy::Log,
+                &mut summary,
+            )
+            .await;
+
+        assert_eq!(summary.successful_actions, 1);
+        assert_eq!(summary.failed_actions, 0);
+    }
+
+    // =========================================================================
+    // handle_action_failure — FailurePolicy branches
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_failure_policy_log_increments_failed_actions() {
+        let executor = create_test_executor();
+        let action = webhook_action();
+        let event = test_event();
+        let error = ObserverError::ActionExecutionFailed {
+            reason: "SMTP timeout".to_string(),
+        };
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .handle_action_failure(&action, &event, &error, &FailurePolicy::Log, &mut summary)
+            .await;
+
+        assert_eq!(summary.failed_actions, 1);
+        assert_eq!(summary.dlq_errors, 0);
+    }
+
+    #[tokio::test]
+    async fn test_failure_policy_alert_increments_failed_actions() {
+        let executor = create_test_executor();
+        let action = webhook_action();
+        let event = test_event();
+        let error = ObserverError::ActionExecutionFailed {
+            reason: "network error".to_string(),
+        };
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .handle_action_failure(&action, &event, &error, &FailurePolicy::Alert, &mut summary)
+            .await;
+
+        assert_eq!(summary.failed_actions, 1);
+        assert_eq!(summary.dlq_errors, 0);
+    }
+
+    #[tokio::test]
+    async fn test_failure_policy_dlq_success_no_dlq_error() {
+        // MockDeadLetterQueue.push() always succeeds → dlq_errors should remain 0
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        let executor =
+            make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
+        let action = webhook_action();
+        let event = test_event();
+        let error = ObserverError::ActionExecutionFailed {
+            reason: "timeout".to_string(),
+        };
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .handle_action_failure(&action, &event, &error, &FailurePolicy::Dlq, &mut summary)
+            .await;
+
+        assert_eq!(summary.failed_actions, 1);
+        assert_eq!(summary.dlq_errors, 0);
+        // Item was pushed to the DLQ
+        assert_eq!(dlq.item_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_failure_policy_dlq_error_counted() {
+        use async_trait::async_trait;
+        use uuid::Uuid;
+
+        use crate::traits::{DlqItem, DeadLetterQueue};
+
+        /// A DLQ that always returns an error from push().
+        struct AlwaysFailDlq;
+
+        #[async_trait]
+        impl DeadLetterQueue for AlwaysFailDlq {
+            async fn push(
+                &self,
+                _event: EntityEvent,
+                _action: ActionConfig,
+                _error: String,
+            ) -> Result<Uuid> {
+                Err(ObserverError::DlqError {
+                    reason: "redis unavailable".to_string(),
+                })
+            }
+
+            async fn get_pending(&self, _limit: i64) -> Result<Vec<DlqItem>> {
+                Ok(vec![])
+            }
+
+            async fn mark_success(&self, _id: Uuid) -> Result<()> {
+                Ok(())
+            }
+
+            async fn mark_retry_failed(&self, _id: Uuid, _error: &str) -> Result<()> {
+                Ok(())
+            }
+        }
+
+        let failing_dlq = Arc::new(AlwaysFailDlq);
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        let executor = ObserverExecutor::with_dispatcher(
+            EventMatcher::new(),
+            failing_dlq,
+            dispatcher,
+        );
+        let action = webhook_action();
+        let event = test_event();
+        let error = ObserverError::ActionExecutionFailed {
+            reason: "timeout".to_string(),
+        };
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .handle_action_failure(&action, &event, &error, &FailurePolicy::Dlq, &mut summary)
+            .await;
+
+        assert_eq!(summary.dlq_errors, 1);
+        assert_eq!(summary.failed_actions, 1);
+    }
+
+    #[tokio::test]
+    async fn test_failure_policy_log_does_not_touch_dlq() {
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), Arc::clone(&dlq));
+
+        let mut summary = ExecutionSummary::new();
+        executor
+            .handle_action_failure(
+                &webhook_action(),
+                &test_event(),
+                &ObserverError::ActionExecutionFailed {
+                    reason: "err".to_string(),
+                },
+                &FailurePolicy::Log,
+                &mut summary,
+            )
+            .await;
+
+        // DLQ must have received no pushes
+        assert_eq!(dlq.item_count(), 0);
+    }
+
+    // =========================================================================
+    // execute_action_internal — dispatch-level tests
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
+        // DefaultActionDispatcher handles the missing-URL case directly.
+        let executor = create_test_executor();
+        let action = ActionConfig::Webhook {
+            url:           None,
+            url_env:       None,
+            headers:       std::collections::HashMap::new(),
+            body_template: None,
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ObserverError::InvalidActionConfig { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Webhook {
+            url:           None,
+            url_env:       Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
+            headers:       std::collections::HashMap::new(),
+            body_template: None,
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        if let ObserverError::InvalidActionConfig { reason } = err {
+            assert!(
+                reason.contains("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET"),
+                "error should mention the missing env var name, got: {reason}"
+            );
+        } else {
+            panic!("expected InvalidActionConfig, got {err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_slack_missing_webhook_url_returns_invalid_config() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Slack {
+            webhook_url:      None,
+            webhook_url_env:  None,
+            channel:          None,
+            message_template: None,
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_email_missing_to_returns_invalid_config() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Email {
+            to:               None,
+            to_template:      None,
+            subject:          Some("Hello".to_string()),
+            subject_template: None,
+            body_template:    Some("body".to_string()),
+            reply_to:         None,
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_email_missing_subject_returns_invalid_config() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Email {
+            to:               Some("user@example.com".to_string()),
+            to_template:      None,
+            subject:          None,
+            subject_template: None,
+            body_template:    Some("body".to_string()),
+            reply_to:         None,
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_sms_missing_phone_returns_invalid_config() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Sms {
+            phone:            None,
+            phone_template:   None,
+            message_template: Some("Hi".to_string()),
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_push_missing_device_token_returns_invalid_config() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Push {
+            device_token:   None,
+            title_template: Some("title".to_string()),
+            body_template:  Some("body".to_string()),
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ObserverError::InvalidActionConfig { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_slack_url_env_var_missing_error() {
+        let executor = create_test_executor();
+        let action = ActionConfig::Slack {
+            webhook_url:      None,
+            webhook_url_env:  Some("FRAISEQL_TEST_SLACK_URL_MISSING_VAR".to_string()),
+            channel:          None,
+            message_template: None,
+        };
+        let event = test_event();
+
+        let result = executor.execute_action_internal(&action, &event).await;
+
+        assert!(result.is_err());
+        if let ObserverError::InvalidActionConfig { reason } = result.unwrap_err() {
+            assert!(
+                reason.contains("FRAISEQL_TEST_SLACK_URL_MISSING_VAR"),
+                "reason should mention var name, got: {reason}"
+            );
+        } else {
+            panic!("expected InvalidActionConfig");
+        }
+    }
+
+    // =========================================================================
+    // process_event integration tests with MockActionDispatcher
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_process_event_no_matching_observers_returns_empty_summary() {
+        // Empty matcher → no observers match → summary zeroed
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let event = test_event();
+        let summary = executor.process_event(&event).await.unwrap();
+
+        assert_eq!(summary.successful_actions, 0);
+        assert_eq!(summary.failed_actions, 0);
+        assert_eq!(dispatcher.call_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_process_event_with_mock_dispatcher_success() {
+        use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 10.0);
+
+        let observer = ObserverDefinition {
+            event_type: "INSERT".to_string(),
+            entity:     "Order".to_string(),
+            condition:  None,
+            actions:    vec![webhook_action()],
+            retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+            on_failure: FP::Log,
+        };
+        let mut observers = std::collections::HashMap::new();
+        observers.insert("obs".to_string(), observer);
+        let matcher = EventMatcher::build(observers).unwrap();
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor_with_matcher(
+            matcher,
+            Arc::clone(&dispatcher),
+            dlq,
+        );
+
+        let event = test_event();
+        let summary = executor.process_event(&event).await.unwrap();
+
+        assert_eq!(summary.successful_actions, 1);
+        assert_eq!(summary.failed_actions, 0);
+        assert_eq!(dispatcher.call_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
+        use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        dispatcher.expect_err(
+            "webhook",
+            ObserverError::ActionPermanentlyFailed {
+                reason: "stub failure".to_string(),
+            },
+        );
+
+        let observer = ObserverDefinition {
+            event_type: "INSERT".to_string(),
+            entity:     "Order".to_string(),
+            condition:  None,
+            actions:    vec![webhook_action()],
+            retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+            on_failure: FP::Log,
+        };
+        let mut observers = std::collections::HashMap::new();
+        observers.insert("obs".to_string(), observer);
+        let matcher = EventMatcher::build(observers).unwrap();
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor_with_matcher(
+            matcher,
+            Arc::clone(&dispatcher),
+            dlq,
+        );
+
+        let summary = executor.process_event(&test_event()).await.unwrap();
+
+        assert_eq!(summary.failed_actions, 1);
+        assert_eq!(summary.successful_actions, 0);
+    }
+
+    #[tokio::test]
+    async fn test_process_event_condition_false_skips_action() {
+        use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 1.0);
+
+        // Condition always false: id == 99999 won't match json({"id":42})
+        // Using a numeric field that exists so eval_comparison returns Ok(false)
+        let observer = ObserverDefinition {
+            event_type: "INSERT".to_string(),
+            entity:     "Order".to_string(),
+            condition:  Some("id == 99999".to_string()),
+            actions:    vec![webhook_action()],
+            retry:      RetryConfig::default(),
+            on_failure: FP::Log,
+        };
+        let mut observers = std::collections::HashMap::new();
+        observers.insert("obs".to_string(), observer);
+        let matcher = EventMatcher::build(observers).unwrap();
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
+
+        let summary = executor.process_event(&test_event()).await.unwrap();
+
+        // Condition skipped → no dispatch, no failure
+        assert_eq!(summary.conditions_skipped, 1);
+        assert_eq!(summary.successful_actions, 0);
+        assert_eq!(dispatcher.call_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_process_event_multiple_observers_all_succeed() {
+        use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 5.0);
+
+        // Build three observers with unique names so the matcher registers all three.
+        let mut observers_map = std::collections::HashMap::new();
+        for i in 0..3usize {
+            let observer = ObserverDefinition {
+                event_type: "INSERT".to_string(),
+                entity:     "Order".to_string(),
+                condition:  None,
+                actions:    vec![webhook_action()],
+                retry:      RetryConfig {
+                    max_attempts: 1,
+                    initial_delay_ms: 0,
+                    ..RetryConfig::default()
+                },
+                on_failure: FP::Log,
+            };
+            observers_map.insert(format!("obs_{i}"), observer);
+        }
+        let matcher = EventMatcher::build(observers_map).unwrap();
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
+
+        let summary = executor.process_event(&test_event()).await.unwrap();
+
+        assert_eq!(summary.successful_actions, 3);
+        assert_eq!(dispatcher.call_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_process_event_multiple_actions_in_one_observer() {
+        use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 5.0);
+        dispatcher.expect_ok("cache", 2.0);
+
+        let observer = ObserverDefinition {
+            event_type: "INSERT".to_string(),
+            entity:     "Order".to_string(),
+            condition:  None,
+            actions:    vec![
+                webhook_action(),
+                ActionConfig::Cache {
+                    key_pattern: "orders:*".to_string(),
+                    action:      "invalidate".to_string(),
+                },
+            ],
+            retry:      RetryConfig {
+                max_attempts: 1,
+                initial_delay_ms: 0,
+                ..RetryConfig::default()
+            },
+            on_failure: FP::Log,
+        };
+        let mut observers = std::collections::HashMap::new();
+        observers.insert("obs".to_string(), observer);
+        let matcher = EventMatcher::build(observers).unwrap();
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), dlq);
+
+        let summary = executor.process_event(&test_event()).await.unwrap();
+
+        assert_eq!(summary.successful_actions, 2);
+        assert_eq!(dispatcher.call_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_process_event_dlq_policy_pushes_on_failure() {
+        use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+        let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+        dispatcher.expect_err(
+            "webhook",
+            ObserverError::ActionPermanentlyFailed {
+                reason: "permanent".to_string(),
+            },
+        );
+
+        let observer = ObserverDefinition {
+            event_type: "INSERT".to_string(),
+            entity:     "Order".to_string(),
+            condition:  None,
+            actions:    vec![webhook_action()],
+            retry:      RetryConfig { max_attempts: 1, initial_delay_ms: 0, ..RetryConfig::default() },
+            on_failure: FP::Dlq,
+        };
+        let mut observers = std::collections::HashMap::new();
+        observers.insert("obs".to_string(), observer);
+        let matcher = EventMatcher::build(observers).unwrap();
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor_with_matcher(
+            matcher,
+            Arc::clone(&dispatcher),
+            Arc::clone(&dlq),
+        );
+
+        let summary = executor.process_event(&test_event()).await.unwrap();
+
+        assert_eq!(summary.failed_actions, 1);
+        assert_eq!(summary.dlq_errors, 0);
+        assert_eq!(dlq.item_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_failure_policy_log_does_not_increment_dlq_errors() {
+        let executor = create_test_executor();
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .handle_action_failure(
+                &webhook_action(),
+                &test_event(),
+                &ObserverError::ActionExecutionFailed {
+                    reason: "timeout".to_string(),
+                },
+                &FailurePolicy::Log,
+                &mut summary,
+            )
+            .await;
+
+        assert_eq!(summary.dlq_errors, 0);
+        assert_eq!(summary.failed_actions, 1);
+    }
+
+    #[tokio::test]
+    async fn test_failure_policy_alert_does_not_increment_dlq_errors() {
+        let executor = create_test_executor();
+        let mut summary = ExecutionSummary::new();
+
+        executor
+            .handle_action_failure(
+                &webhook_action(),
+                &test_event(),
+                &ObserverError::ActionExecutionFailed {
+                    reason: "alert test".to_string(),
+                },
+                &FailurePolicy::Alert,
+                &mut summary,
+            )
+            .await;
+
+        assert_eq!(summary.dlq_errors, 0);
+        assert_eq!(summary.failed_actions, 1);
+    }
+
+    #[tokio::test]
+    async fn test_mock_dispatcher_call_log_records_action_type() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 5.0);
+        dispatcher.expect_ok("cache", 2.0);
+
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let actions = [
+            webhook_action(),
+            ActionConfig::Cache {
+                key_pattern: "k:*".to_string(),
+                action:      "invalidate".to_string(),
+            },
+        ];
+
+        for action in &actions {
+            let mut s = ExecutionSummary::new();
+            executor
+                .execute_action_with_retry(
+                    action,
+                    &test_event(),
+                    &make_retry(1, 0),
+                    &FailurePolicy::Log,
+                    &mut s,
+                )
+                .await;
+        }
+
+        let calls = dispatcher.calls();
+        assert_eq!(calls, vec!["webhook", "cache"]);
+    }
+
+    #[tokio::test]
+    async fn test_execution_summary_is_success_with_mock() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        dispatcher.expect_ok("webhook", 1.0);
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let mut summary = ExecutionSummary::new();
+        executor
+            .execute_action_with_retry(
+                &webhook_action(),
+                &test_event(),
+                &make_retry(1, 0),
+                &FailurePolicy::Log,
+                &mut summary,
+            )
+            .await;
+
+        assert!(summary.is_success());
+        assert_eq!(summary.total_actions(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_execution_summary_not_success_on_failure() {
+        use crate::testing::mocks::MockActionDispatcher;
+
+        let dispatcher = Arc::new(MockActionDispatcher::new());
+        dispatcher.expect_err(
+            "webhook",
+            ObserverError::ActionPermanentlyFailed {
+                reason: "permanent".to_string(),
+            },
+        );
+        let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+        let executor = make_mock_executor(Arc::clone(&dispatcher), dlq);
+
+        let mut summary = ExecutionSummary::new();
+        executor
+            .execute_action_with_retry(
+                &webhook_action(),
+                &test_event(),
+                &make_retry(1, 0),
+                &FailurePolicy::Log,
+                &mut summary,
+            )
+            .await;
+
+        assert!(!summary.is_success());
+        assert_eq!(summary.total_actions(), 1);
     }
 }

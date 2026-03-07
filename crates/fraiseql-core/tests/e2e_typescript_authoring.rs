@@ -1,11 +1,11 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-//! End-to-End Tests: TypeScript Schema Authoring → JSON Compilation → Runtime Execution
+//! End-to-End Tests: `TypeScript` Schema Authoring → JSON Compilation → Runtime Execution
 //!
-//! This test suite validates the complete flow from TypeScript federation decorator authoring
+//! This test suite validates the complete flow from `TypeScript` federation decorator authoring
 //! through JSON schema compilation to Rust runtime execution.
 //!
-//! Test scenarios mirror Python tests but validate TypeScript decorator patterns:
+//! Test scenarios mirror Python tests but validate `TypeScript` decorator patterns:
 //! 1. Basic federation key declarations (@Key)
 //! 2. Extended types with @Extends
 //! 3. External fields with @External

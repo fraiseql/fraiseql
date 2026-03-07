@@ -37,7 +37,7 @@ mod tests {
 
         // Should never be executed as-is
         // Must be parameterized
-        assert!(malicious_input.contains("'"), "Test input contains quotes as expected");
+        assert!(malicious_input.contains('\''), "Test input contains quotes as expected");
 
         // In actual implementation, would verify:
         // - Input is not concatenated into SQL

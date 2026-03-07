@@ -264,7 +264,7 @@ mod tests {
         assert!(limiter2.check_validation_errors(key).is_err());
     }
 
-    /// Test error response includes retry_after_secs.
+    /// Test error response includes `retry_after_secs`.
     #[test]
     fn test_validation_rate_limiting_error_response() {
         let config = ValidationRateLimitingConfig::default();

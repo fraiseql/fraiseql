@@ -4,8 +4,10 @@
 //! - Forward and backward cursor-based pagination via `execute_relay_page`
 //! - Global `node(id: ID!)` query via `execute_node_query`
 //! - Introspection: `node` field appears in Query type when relay types exist
-//! - Introspection: PageInfo / XxxEdge / XxxConnection types are visible
+//! - Introspection: `PageInfo` / `XxxEdge` / `XxxConnection` types are visible
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity without extra imports
 use fraiseql_core::schema::FieldDenyPolicy;
 use std::{collections::HashMap, sync::Arc};
 
@@ -60,7 +62,7 @@ fn carol() -> JsonbValue {
 // =============================================================================
 
 struct RelayMockAdapter {
-    /// All rows in the "v_user" view, in insertion order.
+    /// All rows in the "`v_user`" view, in insertion order.
     rows: Vec<JsonbValue>,
 }
 

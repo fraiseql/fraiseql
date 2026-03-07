@@ -45,7 +45,7 @@ struct InnerMockAdapter {
 }
 
 impl InnerMockAdapter {
-    fn with_row(mutation_row: HashMap<String, serde_json::Value>) -> Self {
+    const fn with_row(mutation_row: HashMap<String, serde_json::Value>) -> Self {
         Self { mutation_row }
     }
 }
@@ -208,7 +208,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
     let vars = serde_json::json!({"amount": "99.99"});
     executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -277,7 +277,7 @@ async fn failed_mutation_does_not_invalidate_cache() {
     let vars = serde_json::json!({"amount": "99.99"});
     let _ = executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -350,7 +350,7 @@ async fn mutation_bumps_fact_table_version_counter() {
 
     executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )
@@ -369,7 +369,7 @@ async fn mutation_bumps_fact_table_version_counter() {
     }
 }
 
-/// Pipeline 4: fact table version bump is skipped for TimeBased strategy.
+/// Pipeline 4: fact table version bump is skipped for `TimeBased` strategy.
 ///
 /// When the strategy for a table is `TimeBased`, `bump_fact_table_versions` is a
 /// no-op — no database call is made and the version cache stays empty.
@@ -406,7 +406,7 @@ async fn mutation_skips_bump_for_time_based_strategy() {
     let vars = serde_json::json!({"amount": "99.99"});
     executor
         .execute_with_security(
-            r#"mutation { createOrder { id } }"#,
+            r"mutation { createOrder { id } }",
             Some(&vars),
             &ctx,
         )

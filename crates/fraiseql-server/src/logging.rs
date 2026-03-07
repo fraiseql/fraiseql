@@ -462,6 +462,16 @@ impl RequestLogger {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
     use super::*;
 
     #[test]
@@ -498,7 +508,7 @@ mod tests {
         let context = RequestContext::new().with_operation("Query".to_string());
 
         let entry = StructuredLogEntry::new(LogLevel::Info, "operation executed".to_string())
-            .with_request_context(context.clone());
+            .with_request_context(context);
 
         assert_eq!(entry.request_context.unwrap().operation, Some("Query".to_string()));
     }

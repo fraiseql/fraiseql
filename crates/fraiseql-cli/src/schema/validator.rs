@@ -564,7 +564,7 @@ impl ValidationReport {
             return;
         }
 
-        println!("\n📋 Validation Report:");
+        println!("\nValidation Report:");
 
         let errors: Vec<_> =
             self.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
@@ -573,24 +573,24 @@ impl ValidationReport {
             self.errors.iter().filter(|e| e.severity == ErrorSeverity::Warning).collect();
 
         if !errors.is_empty() {
-            println!("\n  ❌ Errors ({}):", errors.len());
+            println!("\n  err: Errors ({}):", errors.len());
             for error in errors {
                 println!("     {}", error.message);
                 println!("     at: {}", error.path);
                 if let Some(suggestion) = &error.suggestion {
-                    println!("     💡 {suggestion}");
+                    println!("     hint: {suggestion}");
                 }
                 println!();
             }
         }
 
         if !warnings.is_empty() {
-            println!("\n  ⚠️  Warnings ({}):", warnings.len());
+            println!("\n  warn: Warnings ({}):", warnings.len());
             for warning in warnings {
                 println!("     {}", warning.message);
                 println!("     at: {}", warning.path);
                 if let Some(suggestion) = &warning.suggestion {
-                    println!("     💡 {suggestion}");
+                    println!("     hint: {suggestion}");
                 }
                 println!();
             }

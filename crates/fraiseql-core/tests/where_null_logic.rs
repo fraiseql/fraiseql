@@ -11,7 +11,7 @@
 //! # Risk If Missing
 //!
 //! Without this test:
-//! - NULL = any_value could incorrectly return TRUE (should be UNKNOWN)
+//! - NULL = `any_value` could incorrectly return TRUE (should be UNKNOWN)
 //! - WHERE clauses could have silent bugs with NULL handling
 //! - NULL filtering could exclude or include wrong rows
 

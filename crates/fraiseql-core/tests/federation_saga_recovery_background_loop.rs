@@ -7,6 +7,10 @@
 //!
 //! These tests validate the background loop implementation with mock saga stores.
 
+#![allow(clippy::cast_sign_loss)] // Reason: hours_threshold is always positive in test context
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)] // Reason: test helper functions do not need Errors/Panics doc sections
+#![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
+#![allow(missing_docs)] // Reason: test helper types do not require documentation
 use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -156,7 +160,7 @@ impl BackgroundLoopController {
         *self.iterations.lock().unwrap()
     }
 
-    pub fn get_store(&self) -> &MockSagaStore {
+    pub const fn get_store(&self) -> &MockSagaStore {
         &self.store
     }
 
@@ -268,7 +272,7 @@ async fn test_background_loop_tracks_iterations() {
 async fn test_detects_pending_sagas() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let saga_id = Uuid::new_v4();
     let store_ref = controller.get_store();
@@ -283,7 +287,7 @@ async fn test_detects_pending_sagas() {
 async fn test_detects_executing_sagas() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let saga_id = Uuid::new_v4();
     let store_ref = controller.get_store();
@@ -339,7 +343,7 @@ async fn test_respects_max_sagas_per_iteration() {
 async fn test_ignores_completed_sagas() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let store_ref = controller.get_store();
     store_ref.add_saga(Uuid::new_v4(), "completed", Instant::now(), 3);
@@ -354,7 +358,7 @@ async fn test_ignores_completed_sagas() {
 async fn test_saga_state_transitions() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let saga_id = Uuid::new_v4();
     let store_ref = controller.get_store();
@@ -383,12 +387,12 @@ async fn test_saga_state_transitions() {
 async fn test_detects_stale_sagas_by_age() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let store_ref = controller.get_store();
 
     // Add old saga (created 25 hours ago, simulated)
-    let old_instant = Instant::now() - Duration::from_secs(25 * 3600);
+    let old_instant = Instant::now().checked_sub(Duration::from_secs(25 * 3600)).unwrap();
     store_ref.add_saga(Uuid::new_v4(), "completed", old_instant, 5);
 
     // Add fresh saga (just now)
@@ -402,12 +406,12 @@ async fn test_detects_stale_sagas_by_age() {
 async fn test_preserves_recent_sagas() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let store_ref = controller.get_store();
 
     // Add saga created 1 hour ago
-    let recent_instant = Instant::now() - Duration::from_secs(3600);
+    let recent_instant = Instant::now().checked_sub(Duration::from_secs(3600)).unwrap();
     store_ref.add_saga(Uuid::new_v4(), "completed", recent_instant, 5);
 
     let stale = store_ref.get_stale_sagas(24);
@@ -418,12 +422,12 @@ async fn test_preserves_recent_sagas() {
 async fn test_cleanup_removes_stale_sagas() {
     let config = BackgroundLoopConfig::default();
     let store = MockSagaStore::default();
-    let controller = BackgroundLoopController::new(config, store.clone());
+    let controller = BackgroundLoopController::new(config, store);
 
     let store_ref = controller.get_store();
 
     let saga_id = Uuid::new_v4();
-    let old_instant = Instant::now() - Duration::from_secs(25 * 3600);
+    let old_instant = Instant::now().checked_sub(Duration::from_secs(25 * 3600)).unwrap();
     store_ref.add_saga(saga_id, "completed", old_instant, 5);
 
     assert_eq!(store_ref.count(), 1);
@@ -624,9 +628,9 @@ async fn test_stale_detection_performance() {
     let store_ref = &store;
     for i in 0..500 {
         let age = if i < 100 {
-            Instant::now() - Duration::from_secs(25 * 3600) // Stale
+            Instant::now().checked_sub(Duration::from_secs(25 * 3600)).unwrap() // Stale
         } else {
-            Instant::now() - Duration::from_secs(3600) // Fresh
+            Instant::now().checked_sub(Duration::from_secs(3600)).unwrap() // Fresh
         };
         store_ref.add_saga(Uuid::new_v4(), "completed", age, 1);
     }

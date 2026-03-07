@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::items_after_statements)] // Reason: test helper structs defined near use site
+
 //! Integration tests for Arrow Flight authenticated query execution.
 //!
 //! These tests verify that all RPC methods require valid session tokens
@@ -21,7 +24,7 @@ fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
 const TEST_FLIGHT_SECRET: &str = "flight-test-session-secret-for-integration-tests";
 
 /// Returns the env vars needed for Flight session tests.
-fn flight_secret_vars() -> [(&'static str, Option<&'static str>); 1] {
+const fn flight_secret_vars() -> [(&'static str, Option<&'static str>); 1] {
     [("FLIGHT_SESSION_SECRET", Some(TEST_FLIGHT_SECRET))]
 }
 
@@ -278,7 +281,7 @@ async fn test_authenticated_do_get_with_valid_session_token() {
     .await;
 }
 
-/// Test `do_action` HealthCheck requires auth.
+/// Test `do_action` `HealthCheck` requires auth.
 #[tokio::test]
 async fn test_do_action_health_check_without_auth() {
     let service = FraiseQLFlightService::new();
@@ -300,7 +303,7 @@ async fn test_do_action_health_check_without_auth() {
     }
 }
 
-/// Test `do_action` HealthCheck succeeds with valid token.
+/// Test `do_action` `HealthCheck` succeeds with valid token.
 #[tokio::test]
 async fn test_do_action_health_check_with_valid_token() {
     temp_env::async_with_vars(flight_secret_vars(), async {
@@ -329,7 +332,7 @@ async fn test_do_action_health_check_with_valid_token() {
     .await;
 }
 
-/// Test ClearCache requires admin scope.
+/// Test `ClearCache` requires admin scope.
 #[tokio::test]
 async fn test_do_action_clear_cache_without_admin_scope() {
     temp_env::async_with_vars(flight_secret_vars(), async {
@@ -362,7 +365,7 @@ async fn test_do_action_clear_cache_without_admin_scope() {
     .await;
 }
 
-/// Test ClearCache succeeds with admin scope.
+/// Test `ClearCache` succeeds with admin scope.
 #[tokio::test]
 async fn test_do_action_clear_cache_with_admin_scope() {
     temp_env::async_with_vars(flight_secret_vars(), async {
@@ -504,7 +507,7 @@ async fn test_security_context_has_user_info() {
     // Create a security context from authenticated user
     let user = create_test_user("user-abc-123", vec!["user", "read", "admin"]);
     let context = fraiseql_core::security::SecurityContext::from_user(
-        user.clone(),
+        user,
         "req-correlation-id".to_string(),
     );
 

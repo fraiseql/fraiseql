@@ -5,7 +5,7 @@
 //!
 //! Test scenarios:
 //! 1. Python decorator field scopes → compiled schema
-//! 2. TypeScript decorator field scopes → compiled schema
+//! 2. `TypeScript` decorator field scopes → compiled schema
 //! 3. TOML security config with role definitions → compiled schema
 //! 4. Both field scopes and role definitions merge in compiled schema
 //! 5. Runtime: field filtering based on user roles
@@ -15,6 +15,8 @@
 //! 9. Runtime: error on missing required scope
 //! 10. Runtime: E2E pipeline for multi-tenant scenarios
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 

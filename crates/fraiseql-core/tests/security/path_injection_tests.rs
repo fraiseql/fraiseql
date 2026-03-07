@@ -3,6 +3,8 @@
 //! Tests that malicious path segments cannot be used to inject SQL.
 //! These tests verify the escaping mechanisms work correctly.
 
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::db::path_escape;
 
     // ============================================================================
@@ -297,7 +299,7 @@ use fraiseql_core::db::path_escape;
 
             // Verify the SQL structure is preserved and safe
             assert!(pg_sql.contains("data->"), "SQL structure broken");
-            assert!(pg_sql.contains("'"), "Quoting broken");
+            assert!(pg_sql.contains('\''), "Quoting broken");
         }
     }
 

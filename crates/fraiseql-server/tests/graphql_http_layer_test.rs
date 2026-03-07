@@ -51,7 +51,7 @@ impl GraphQLQuery {
             return Err("Query cannot be empty".to_string());
         }
 
-        if !self.query_string.contains("{") || !self.query_string.contains("}") {
+        if !self.query_string.contains('{') || !self.query_string.contains('}') {
             return Err("Query must contain braces".to_string());
         }
 
@@ -151,7 +151,7 @@ fn test_nested_relationship_query_structure() {
     assert!(query.validate().is_ok());
 
     // Should have nested braces for relationships
-    let brace_count = query.query_string.matches("{").count();
+    let brace_count = query.query_string.matches('{').count();
     assert!(brace_count >= 3, "Should have at least 3 opening braces for nested query");
 }
 
@@ -271,7 +271,7 @@ fn test_deep_nested_query_structure() {
     assert!(query.validate().is_ok());
 
     // Should have enough nesting
-    let depth = query.query_string.matches("{").count();
+    let depth = query.query_string.matches('{').count();
     assert!(depth >= 4, "Deep nesting should have 4+ open braces");
 }
 

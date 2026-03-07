@@ -4,6 +4,7 @@
 //! key field inclusion, federation format projection, query timeout,
 //! connection failure, syntax error, and constraint violation handling.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
@@ -24,7 +25,7 @@ use super::common;
 
 #[test]
 fn test_select_requested_fields_only() {
-    let query = r#"
+    let query = r"
         query {
             _entities(representations: [...]) {
                 __typename
@@ -33,7 +34,7 @@ fn test_select_requested_fields_only() {
                 email
             }
         }
-    "#;
+    ";
 
     let selection = parse_field_selection(query).unwrap();
     assert!(selection.contains("__typename"));

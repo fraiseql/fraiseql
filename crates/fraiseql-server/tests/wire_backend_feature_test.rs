@@ -14,6 +14,21 @@
 //! **Execution engine:** none
 //! **Infrastructure:** none
 //! **Parallelism:** safe
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code
+#![allow(clippy::items_after_statements)] // Reason: test helpers near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables use _ prefix
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 mod common;
 
@@ -34,7 +49,7 @@ fn test_adapter_selection_compile_time() {
     {
         // PostgreSQL adapter should be available
         use fraiseql_core::db::PostgresAdapter;
-        let _marker = std::marker::PhantomData::<PostgresAdapter>;
+        let _ = std::marker::PhantomData::<PostgresAdapter>;
     }
 
     #[cfg(feature = "wire-backend")]
@@ -76,7 +91,7 @@ mod postgres_adapter_tests {
 
         // Verify adapter can be cloned for use in server
         let adapter = adapter.unwrap();
-        let _cloned = adapter.clone();
+        let _cloned = adapter;
     }
 }
 
@@ -198,7 +213,7 @@ mod arrow_flight_tests {
         let _db_url = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "postgresql://localhost/test".to_string());
         // Marker to show test exists
-        let _marker = std::marker::PhantomData::<PostgresAdapter>;
+        let _ = std::marker::PhantomData::<PostgresAdapter>;
     }
 
     #[cfg(feature = "wire-backend")]

@@ -9,6 +9,8 @@
 //! 6. Graceful degradation vs errors
 //! 7. Error messages for access denied
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::schema::FieldDenyPolicy;
 use std::collections::HashMap;
 

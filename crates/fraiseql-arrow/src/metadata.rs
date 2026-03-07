@@ -485,7 +485,7 @@ mod tests {
             Field::new("name", DataType::Utf8, false),
         ]));
 
-        registry.register("va_test", schema.clone());
+        registry.register("va_test", schema);
 
         let retrieved = registry.get("va_test").unwrap();
         assert_eq!(retrieved.fields().len(), 2);
@@ -682,7 +682,7 @@ mod tests {
 
         let schema1 = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
 
-        registry.register("va_test", schema1.clone());
+        registry.register("va_test", schema1);
         let (version1, _created_at1) = registry.get_version_info("va_test").unwrap();
         assert_eq!(version1, 0);
 
@@ -796,7 +796,7 @@ mod tests {
         registry.register("va_b", schema.clone());
         let (v_b, _) = registry.get_version_info("va_b").unwrap();
 
-        registry.register("va_c", schema.clone());
+        registry.register("va_c", schema);
         let (v_c, _) = registry.get_version_info("va_c").unwrap();
 
         assert!(v_b > v_a, "v_b ({v_b}) should be > v_a ({v_a})");

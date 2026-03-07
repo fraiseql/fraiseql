@@ -1,8 +1,10 @@
 //! Integration tests for Row-Level Security (RLS)
 //!
 //! These tests verify that RLS policies are correctly applied during query execution,
-//! enforcing access control based on SecurityContext.
+//! enforcing access control based on `SecurityContext`.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::collections::HashMap;
 
 use fraiseql_core::{
@@ -14,7 +16,7 @@ use fraiseql_core::{
 /// Test that non-admin users are filtered by RLS policy
 ///
 /// - Admin users bypass RLS (see all records)
-/// - Non-admin users see only their own records (author_id == user_id)
+/// - Non-admin users see only their own records (`author_id` == `user_id`)
 #[test]
 fn test_rls_policy_evaluates_correctly_for_non_admins() {
     let policy = DefaultRLSPolicy::new();
@@ -150,7 +152,7 @@ fn test_where_clause_composition_for_rls() {
     assert!(matches!(composed, WhereClause::And(ref clauses) if clauses.len() == 2));
 }
 
-/// Test that SecurityContext metadata flows through correctly
+/// Test that `SecurityContext` metadata flows through correctly
 #[test]
 fn test_security_context_carries_all_metadata() {
     let now = chrono::Utc::now();
@@ -181,7 +183,7 @@ fn test_security_context_carries_all_metadata() {
     assert_eq!(context.ip_address, Some("192.0.2.1".to_string()));
 }
 
-/// Test RuntimeConfig can hold RLS policy configuration
+/// Test `RuntimeConfig` can hold RLS policy configuration
 ///
 /// This verifies that the executor can be configured with an RLS policy
 #[test]

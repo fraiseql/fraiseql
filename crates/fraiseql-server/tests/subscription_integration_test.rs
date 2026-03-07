@@ -1,15 +1,15 @@
 //! Subscription Integration Tests
 //!
 //! Tests the integration of:
-//! 1. SubscriptionManager (from fraiseql-core)
-//! 2. ChangeLogListener (from fraiseql-observers)
-//! 3. WebSocket adapter (from fraiseql-server)
+//! 1. `SubscriptionManager` (from fraiseql-core)
+//! 2. `ChangeLogListener` (from fraiseql-observers)
+//! 3. `WebSocket` adapter (from fraiseql-server)
 //!
 //! # Requirements
 //!
 //! This test file requires:
 //! - PostgreSQL running on port 5433 (from docker-compose.test.yml)
-//! - Test database with change_log table set up
+//! - Test database with `change_log` table set up
 //!
 //! # Running Tests
 //!
@@ -49,7 +49,7 @@ fn create_test_schema() -> CompiledSchema {
 // Cycle 1: SubscriptionManager Integration Tests
 // ============================================================================
 
-/// Test 1: SubscriptionManager initialization
+/// Test 1: `SubscriptionManager` initialization
 #[test]
 fn test_subscription_manager_initialization() {
     let schema = Arc::new(create_test_schema());
@@ -60,7 +60,7 @@ fn test_subscription_manager_initialization() {
     assert_eq!(manager.connection_count(), 0);
 }
 
-/// Test 2: SubscriptionManager with custom capacity
+/// Test 2: `SubscriptionManager` with custom capacity
 #[test]
 fn test_subscription_manager_with_capacity() {
     let schema = Arc::new(create_test_schema());
@@ -194,7 +194,7 @@ async fn test_event_receiver_gets_messages() {
             // Should not receive anything since no subscriptions matched
             assert!(msg.is_err());
         }
-        _ = timeout => {
+        () = timeout => {
             // Expected: timeout since no subscriptions
         }
     }
@@ -215,7 +215,7 @@ fn test_multiple_subscription_instances() {
 // Cycle 1 Integration Tests: ChangeLogListener + SubscriptionManager
 // ============================================================================
 
-/// Test 11: EventBridge initialization
+/// Test 11: `EventBridge` initialization
 #[test]
 fn test_event_bridge_initialization() {
     let schema = Arc::new(create_test_schema());
@@ -254,7 +254,7 @@ async fn test_event_routing_to_manager() {
     let manager = Arc::new(SubscriptionManager::new(schema));
     let config = EventBridgeConfig::new();
 
-    let bridge = EventBridge::new(manager.clone(), config);
+    let bridge = EventBridge::new(manager, config);
     let sender = bridge.get_sender();
 
     // Send an entity event through the bridge
@@ -365,7 +365,7 @@ async fn test_shutdown_cleanup() {
     handle.abort();
 }
 
-/// Test 19: WebSocket disconnect cleanup
+/// Test 19: `WebSocket` disconnect cleanup
 #[test]
 fn test_websocket_disconnect_cleanup() {
     let schema = Arc::new(create_test_schema());
@@ -402,7 +402,7 @@ fn test_event_sequence_ordering() {
     manager.publish_event(event2);
 }
 
-/// Test 21: WebSocket end-to-end delivery
+/// Test 21: `WebSocket` end-to-end delivery
 #[tokio::test]
 async fn test_websocket_end_to_end_delivery() {
     let schema = Arc::new(create_test_schema());

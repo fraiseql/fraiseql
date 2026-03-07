@@ -534,31 +534,34 @@ impl SchemaMerger {
         // Embed federation configuration if enabled
         if toml_schema.federation.enabled {
             merged["federation_config"] = serde_json::to_value(&toml_schema.federation)
-                .unwrap_or_default();
+                .context("Failed to serialize federation config")?;
         }
 
         // Embed subscriptions configuration (hooks, limits)
-        let subs_json = serde_json::to_value(&toml_schema.subscriptions).unwrap_or_default();
+        let subs_json = serde_json::to_value(&toml_schema.subscriptions)
+            .context("Failed to serialize subscriptions config")?;
         if subs_json != serde_json::json!({}) {
             merged["subscriptions_config"] = subs_json;
         }
 
         // Embed validation config (depth/complexity limits)
-        let val_json = serde_json::to_value(&toml_schema.validation).unwrap_or_default();
+        let val_json = serde_json::to_value(&toml_schema.validation)
+            .context("Failed to serialize validation config")?;
         if val_json != serde_json::json!({}) {
             merged["validation_config"] = val_json;
         }
 
         // Embed debug config when enabled
         if toml_schema.debug.enabled {
-            let debug_json = serde_json::to_value(&toml_schema.debug).unwrap_or_default();
+            let debug_json = serde_json::to_value(&toml_schema.debug)
+                .context("Failed to serialize debug config")?;
             merged["debug_config"] = debug_json;
         }
 
         // Embed MCP config when enabled
         if toml_schema.mcp.enabled {
             merged["mcp_config"] = serde_json::to_value(&toml_schema.mcp)
-                .unwrap_or_default();
+                .context("Failed to serialize MCP config")?;
         }
 
         // Convert to IntermediateSchema

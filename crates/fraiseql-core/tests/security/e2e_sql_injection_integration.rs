@@ -21,7 +21,7 @@
 //!
 //! Each test:
 //! 1. Constructs a WHERE clause with malicious payload as value
-//! 2. Generates SQL via WhereSqlGenerator
+//! 2. Generates SQL via `WhereSqlGenerator`
 //! 3. Verifies payload is escaped/parameterized
 //! 4. (Future: Execute against test DB to verify no data breach)
 //!
@@ -33,6 +33,8 @@
 //! - SQL keywords from payload don't appear outside string literals
 //! - Parameterization prevents payload interpretation
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::db::{
     WhereSqlGenerator,
     where_clause::{WhereClause, WhereOperator},
@@ -132,7 +134,7 @@ fn assert_injection_safe(sql: &str, payload: &str, operator: &str) {
         if payload.contains(keyword) {
             // Keyword from payload must be inside a string literal, not executable
             assert!(
-                sql.contains("'") || sql.contains("\""),
+                sql.contains('\'') || sql.contains('"'),
                 "{operator}: Dangerous keyword '{keyword}' from payload must be in string literal"
             );
         }
@@ -143,7 +145,7 @@ fn assert_injection_safe(sql: &str, payload: &str, operator: &str) {
         // Semicolon should only appear in parameter values, not as SQL statement terminator
         // This is enforced by parameterization
         assert!(
-            !sql.contains("';") || sql.contains("''") || sql.contains("\""),
+            !sql.contains("';") || sql.contains("''") || sql.contains('"'),
             "{operator}: Unescaped semicolon could enable stacked queries"
         );
     }
@@ -336,7 +338,7 @@ fn test_empty_string_injection_safety() {
     assert_injection_safe(&sql, "", "Empty string");
 }
 
-/// Test very long payload (DoS prevention)
+/// Test very long payload (`DoS` prevention)
 #[test]
 fn test_long_payload_injection_safety() {
     let long_payload = "'; DROP TABLE users; --".repeat(1000);

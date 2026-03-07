@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
 //! Tests for GraphQL route handlers and helpers.
 
 use super::handler::{extract_apq_hash, extract_ip_from_headers, resolve_apq};

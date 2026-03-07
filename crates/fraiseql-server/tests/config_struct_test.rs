@@ -1,4 +1,4 @@
-//! # Config Struct Tests: ServerConfig Defaults and Validation
+//! # Config Struct Tests: `ServerConfig` Defaults and Validation
 //!
 //! Tests `ServerConfig` default values, field validation, and serialization
 //! round-trips. Verifies that configuration defaults match documented behavior.
@@ -6,6 +6,21 @@
 //! **Execution engine:** none (config struct only, no server started)
 //! **Infrastructure:** none
 //! **Parallelism:** safe (no shared mutable state)
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+#![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+#![allow(clippy::cast_lossless)] // Reason: test code readability
+#![allow(clippy::missing_panics_doc)] // Reason: test helper functions
+#![allow(clippy::missing_errors_doc)] // Reason: test helper functions
+#![allow(missing_docs)] // Reason: test code
+#![allow(clippy::items_after_statements)] // Reason: test helpers near use site
+#![allow(clippy::used_underscore_binding)] // Reason: test variables use _ prefix
+#![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures
+#![allow(clippy::match_same_arms)] // Reason: test data clarity
+#![allow(clippy::branches_sharing_code)] // Reason: test assertion clarity
+#![allow(clippy::undocumented_unsafe_blocks)] // Reason: test exercises unsafe paths
 
 use std::{io::Write, path::PathBuf};
 

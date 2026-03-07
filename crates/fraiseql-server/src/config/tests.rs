@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
 use std::time::Duration;
 
 use fraiseql_error::ConfigError;

@@ -75,7 +75,7 @@ async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector>
 /// fraiseql introspect facts --database postgresql://localhost/mydb --format python
 /// ```
 pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
-    eprintln!("🔍 Introspecting database for fact tables...");
+    eprintln!("Introspecting database for fact tables...");
     eprintln!("   Database: {database_url}");
 
     // Create database introspector
@@ -88,12 +88,12 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to list fact tables: {e}"))?;
 
     if fact_tables.is_empty() {
-        eprintln!("\n⚠️  No fact tables found (tables starting with 'tf_')");
+        eprintln!("\nwarn: No fact tables found (tables starting with 'tf_')");
         eprintln!("   Fact tables should be named like: tf_sales, tf_events, tf_orders");
         return Ok(());
     }
 
-    eprintln!("\n📋 Found {} fact table(s):", fact_tables.len());
+    eprintln!("\nFound {} fact table(s):", fact_tables.len());
     for table in &fact_tables {
         eprintln!("   - {table}");
     }
@@ -116,7 +116,7 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
 
     // Report any errors
     if !errors.is_empty() {
-        eprintln!("⚠️  Failed to introspect {} table(s):", errors.len());
+        eprintln!("warn: Failed to introspect {} table(s):", errors.len());
         for (table, error) in &errors {
             eprintln!("   - {table}: {error}");
         }
@@ -196,7 +196,7 @@ pub async fn run(database_url: &str, format: OutputFormat) -> Result<()> {
         },
     }
 
-    eprintln!("\n✅ Introspection complete");
+    eprintln!("\nok: Introspection complete");
     eprintln!("   {} table(s) introspected successfully", metadata_list.len());
     if !errors.is_empty() {
         eprintln!("   {} table(s) failed", errors.len());

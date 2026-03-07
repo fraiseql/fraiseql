@@ -101,6 +101,8 @@ impl SubscriptionManager {
             if subscription.entity_type == event.entity_type {
                 // If filter matches, send the event
                 if Self::matches_filter(event, &subscription.filter) {
+                    // Receiver dropped — subscriber disconnected. Skip silently; cleanup
+                    // happens when the SubscriptionManager drops the subscription entry.
                     let _ = subscription.tx.send(event.clone());
                 }
             }

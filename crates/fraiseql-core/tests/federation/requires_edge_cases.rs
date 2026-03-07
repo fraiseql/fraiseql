@@ -1,5 +1,8 @@
 //! Edge cases for @requires enforcement tests.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::iter_on_single_items)] // Reason: test uses single-element iter for pattern uniformity
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::federation::types::{
     EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,
     FieldPathSelection, KeyDirective,

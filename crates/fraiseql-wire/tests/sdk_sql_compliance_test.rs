@@ -5,8 +5,8 @@
 //! PostgreSQL SQL fragment and correct parameter binding. Tests cover operator
 //! categories not addressed by existing unit tests:
 //!
-//! - Full-text search operators (Matches, PlainQuery, PhraseQuery, WebsearchQuery)
-//! - Network / INET operators (IsIPv6, IsPrivate, IsPublic, InSubnet, etc.)
+//! - Full-text search operators (Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`)
+//! - Network / INET operators (`IsIPv6`, `IsPrivate`, `IsPublic`, `InSubnet`, etc.)
 //! - String pattern operators (Startswith, Endswith, Icontains, etc.)
 //! - Multi-operator parameter chaining (sequential `$N` numbering)
 //! - Null equality equivalences

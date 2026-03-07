@@ -3,6 +3,9 @@
 //! These properties verify that the GraphQL parser handles arbitrary
 //! inputs safely and produces consistent results.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
 use fraiseql_core::graphql::parse_query;
 use proptest::prelude::*;
 

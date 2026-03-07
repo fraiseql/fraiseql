@@ -9,6 +9,9 @@
 //! - Resolution strategy selection (Local, Direct DB, HTTP)
 //! - Performance and batching optimizations
 
+#![allow(clippy::doc_markdown)] // Reason: test doc comments use non-standard formatting
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
+#![allow(clippy::iter_with_drain)] // Reason: drain used to move Vec into HashSet in test
 // ============================================================================
 // _entities Query Handler
 // ============================================================================
@@ -390,9 +393,7 @@ fn test_strategy_caching() {
     assert_eq!(strategy_cache.len(), 1, "Cache should have one entry");
 
     // Third access: should still be cached
-    if !strategy_cache.contains_key("User") {
-        panic!("User strategy should be cached");
-    }
+    assert!(strategy_cache.contains_key("User"), "User strategy should be cached");
 }
 
 // ============================================================================

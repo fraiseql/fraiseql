@@ -26,7 +26,7 @@ fn test_mutation_non_nullable_return_type() {
     });
 
     assert_eq!(non_nullable["return_type"], json!("User!"));
-    assert!(non_nullable["return_type"].as_str().unwrap().ends_with("!"));
+    assert!(non_nullable["return_type"].as_str().unwrap().ends_with('!'));
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn test_mutation_nullable_return_type() {
     });
 
     assert_eq!(nullable["return_type"], json!("User"));
-    assert!(!nullable["return_type"].as_str().unwrap().ends_with("!"));
+    assert!(!nullable["return_type"].as_str().unwrap().ends_with('!'));
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn test_mutation_array_return_type_non_nullable_items() {
 
     assert_eq!(array_non_null_items["return_type"], json!("[Int!]!"));
     let type_str = array_non_null_items["return_type"].as_str().unwrap();
-    assert!(type_str.starts_with("["));
+    assert!(type_str.starts_with('['));
     assert!(type_str.ends_with("]!"));
 }
 
@@ -65,8 +65,8 @@ fn test_mutation_array_return_type_nullable_items() {
 
     assert_eq!(array_nullable_items["return_type"], json!("[String]"));
     let type_str = array_nullable_items["return_type"].as_str().unwrap();
-    assert!(type_str.starts_with("["));
-    assert!(type_str.ends_with("]"));
+    assert!(type_str.starts_with('['));
+    assert!(type_str.ends_with(']'));
     assert!(!type_str.ends_with("]!"));
 }
 
@@ -93,7 +93,7 @@ fn test_mutation_scalar_return_types_nullability() {
         });
 
         let ret_type = mutation["return_type"].as_str().unwrap();
-        let is_non_nullable = ret_type.ends_with("!");
+        let is_non_nullable = ret_type.ends_with('!');
 
         assert_eq!(
             is_non_nullable, should_be_non_nullable,
@@ -122,7 +122,7 @@ fn test_mutation_custom_type_return_nullability() {
         });
 
         let ret_type = mutation["return_type"].as_str().unwrap();
-        let is_non_nullable = ret_type.ends_with("!");
+        let is_non_nullable = ret_type.ends_with('!');
 
         assert_eq!(
             is_non_nullable, should_be_non_nullable,
@@ -217,8 +217,8 @@ fn test_mutation_list_return_nullability_combinations() {
 
         // Verify structure
         let ret_type = mutation["return_type"].as_str().unwrap();
-        assert!(ret_type.starts_with("["), "Should start with [");
-        assert!(ret_type.contains("]"), "Should contain ]");
+        assert!(ret_type.starts_with('['), "Should start with [");
+        assert!(ret_type.contains(']'), "Should contain ]");
     }
 }
 

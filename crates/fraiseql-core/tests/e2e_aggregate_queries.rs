@@ -4,6 +4,7 @@
 //!
 //! These tests exercise the full analytics pipeline from query parsing to SQL generation
 
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
 mod common;
 
 use common::{assert_sql_contains, create_sales_metadata};

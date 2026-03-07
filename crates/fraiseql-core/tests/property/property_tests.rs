@@ -3,6 +3,8 @@
 //! Uses proptest to verify invariants and properties that should hold
 //! across all inputs and edge cases.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::{
     schema::{CompiledSchema, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition},
     security::ErrorFormatter,
@@ -156,7 +158,7 @@ proptest! {
     ) {
         let mut schema = CompiledSchema::new();
         schema.types.push(TypeDefinition::new(name.clone(), "v_table"));
-        schema.types.push(TypeDefinition::new(name.clone(), "v_other"));
+        schema.types.push(TypeDefinition::new(name, "v_other"));
 
         let result = schema.validate();
         prop_assert!(result.is_err(), "Schema with duplicate type names should fail validation");
@@ -246,7 +248,7 @@ proptest! {
 
         // Floats may not be exactly equal, but should be very close
         let difference = (scaled - deserialized).abs();
-        let tolerance = scaled.abs() * 1e-15 + 1e-15;
+        let tolerance = scaled.abs().mul_add(1e-15, 1e-15);
         prop_assert!(difference < tolerance, "Float not preserved in JSON serialization");
     }
 }

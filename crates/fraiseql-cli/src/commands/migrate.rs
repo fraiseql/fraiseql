@@ -8,6 +8,8 @@ use std::{path::Path, process::Command};
 use anyhow::{Context, Result};
 use tracing::info;
 
+use crate::output::OutputFormatter;
+
 /// Migration subcommand
 #[derive(Debug, Clone)]
 pub enum MigrateAction {
@@ -44,22 +46,22 @@ pub enum MigrateAction {
 }
 
 /// Run the migrate command
-pub fn run(action: &MigrateAction) -> Result<()> {
+pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
     // Check if confiture is installed
     if !is_confiture_installed() {
-        print_install_instructions();
+        print_install_instructions(formatter);
         anyhow::bail!("confiture is not installed. See instructions above.");
     }
 
     match action {
-        MigrateAction::Up { database_url, dir } => run_up(database_url, dir),
+        MigrateAction::Up { database_url, dir } => run_up(database_url, dir, formatter),
         MigrateAction::Down {
             database_url,
             dir,
             steps,
-        } => run_down(database_url, dir, *steps),
+        } => run_down(database_url, dir, *steps, formatter),
         MigrateAction::Status { database_url, dir } => run_status(database_url, dir),
-        MigrateAction::Create { name, dir } => run_create(name, dir),
+        MigrateAction::Create { name, dir } => run_create(name, dir, formatter),
     }
 }
 
@@ -125,19 +127,19 @@ fn is_confiture_installed() -> bool {
         .is_ok_and(|s| s.success())
 }
 
-fn print_install_instructions() {
-    eprintln!("confiture is not installed.");
-    eprintln!();
-    eprintln!("Install it with one of:");
-    eprintln!("  cargo install confiture          # From crates.io");
-    eprintln!("  brew install confiture            # macOS (if available)");
-    eprintln!();
-    eprintln!("Learn more: https://github.com/fraiseql/confiture");
+fn print_install_instructions(formatter: &OutputFormatter) {
+    formatter.progress("confiture is not installed.");
+    formatter.progress("");
+    formatter.progress("Install it with one of:");
+    formatter.progress("  cargo install confiture          # From crates.io");
+    formatter.progress("  brew install confiture            # macOS (if available)");
+    formatter.progress("");
+    formatter.progress("Learn more: https://github.com/fraiseql/confiture");
 }
 
-fn run_up(database_url: &str, dir: &str) -> Result<()> {
+fn run_up(database_url: &str, dir: &str, formatter: &OutputFormatter) -> Result<()> {
     info!("Running migrations up from {dir}");
-    println!("Applying migrations from {dir}...");
+    formatter.progress(&format!("Applying migrations from {dir}..."));
 
     // SECURITY: Pass database URL via environment variable, not argv, so it
     // is not visible to other users via `ps aux` or `/proc/<pid>/cmdline`.
@@ -148,16 +150,16 @@ fn run_up(database_url: &str, dir: &str) -> Result<()> {
         .context("Failed to execute confiture")?;
 
     if status.success() {
-        println!("Migrations applied successfully.");
+        formatter.progress("Migrations applied successfully.");
         Ok(())
     } else {
         anyhow::bail!("Migration failed. Check the output above for details.")
     }
 }
 
-fn run_down(database_url: &str, dir: &str, steps: u32) -> Result<()> {
+fn run_down(database_url: &str, dir: &str, steps: u32, formatter: &OutputFormatter) -> Result<()> {
     info!("Rolling back {steps} migration(s) from {dir}");
-    println!("Rolling back {steps} migration(s)...");
+    formatter.progress(&format!("Rolling back {steps} migration(s)..."));
 
     let steps_str = steps.to_string();
     let status = Command::new("confiture")
@@ -167,7 +169,7 @@ fn run_down(database_url: &str, dir: &str, steps: u32) -> Result<()> {
         .context("Failed to execute confiture")?;
 
     if status.success() {
-        println!("Rollback completed successfully.");
+        formatter.progress("Rollback completed successfully.");
         Ok(())
     } else {
         anyhow::bail!("Rollback failed. Check the output above for details.")
@@ -190,7 +192,7 @@ fn run_status(database_url: &str, dir: &str) -> Result<()> {
     }
 }
 
-fn run_create(name: &str, dir: &str) -> Result<()> {
+fn run_create(name: &str, dir: &str, formatter: &OutputFormatter) -> Result<()> {
     info!("Creating migration: {name} in {dir}");
 
     // Ensure directory exists
@@ -202,7 +204,7 @@ fn run_create(name: &str, dir: &str) -> Result<()> {
         .context("Failed to execute confiture")?;
 
     if status.success() {
-        println!("Migration created in {dir}/");
+        formatter.progress(&format!("Migration created in {dir}/"));
         Ok(())
     } else {
         anyhow::bail!("Failed to create migration.")

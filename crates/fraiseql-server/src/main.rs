@@ -13,17 +13,14 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Load configuration from file or use defaults.
 fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
-    match config_path {
-        Some(path) => {
-            tracing::info!(path = %path, "Loading configuration from file");
-            let contents = std::fs::read_to_string(path)?;
-            let config: ServerConfig = toml::from_str(&contents)?;
-            Ok(config)
-        },
-        None => {
-            tracing::info!("Using default server configuration");
-            Ok(ServerConfig::default())
-        },
+    if let Some(path) = config_path {
+        tracing::info!(path = %path, "Loading configuration from file");
+        let contents = std::fs::read_to_string(path)?;
+        let config: ServerConfig = toml::from_str(&contents)?;
+        Ok(config)
+    } else {
+        tracing::info!("Using default server configuration");
+        Ok(ServerConfig::default())
     }
 }
 

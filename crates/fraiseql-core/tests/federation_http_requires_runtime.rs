@@ -4,6 +4,9 @@
 //! - Query augmentation to include required fields in _entities query
 //! - Both single and batch entity resolution
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
+#![allow(clippy::iter_on_single_items)] // Reason: test uses single-element iter for pattern uniformity
 use fraiseql_core::federation::types::{
     EntityRepresentation, FederatedType, FederationMetadata, FieldFederationDirectives,
     FieldPathSelection, KeyDirective,

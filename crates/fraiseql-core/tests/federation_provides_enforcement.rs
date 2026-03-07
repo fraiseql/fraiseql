@@ -4,6 +4,10 @@
 //! - @provides is a hint about what fields the resolver provides
 //! - Validation across both database and HTTP resolvers
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::doc_markdown)] // Reason: test doc comments use non-standard formatting
+#![allow(clippy::doc_link_with_quotes)] // Reason: test doc comments use quote-style links
+#![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability
 use fraiseql_core::federation::types::{
     FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection, KeyDirective,
 };

@@ -1,12 +1,17 @@
+#![allow(clippy::unwrap_used)] // Reason: example code, panics acceptable
+#![allow(clippy::needless_collect)] // Reason: intermediate collect needed for example clarity
+#![allow(clippy::cast_sign_loss)] // Reason: example uses small positive integer casts
+#![allow(missing_docs)] // Reason: example code, documentation not required
+
 //! Example: Metrics Collection with fraiseql-wire
 //!
 //! This example demonstrates how to collect and use metrics from fraiseql-wire queries.
 //! Metrics are automatically recorded during query execution without any explicit setup.
 //!
-//! Run with: cargo run --example metrics_collection
+//! Run with: cargo run --example `metrics_collection`
 //!
 //! Note: This is a demonstration of the metrics API. In production, metrics would be
-//! collected by a metrics exporter (Prometheus, OpenTelemetry, etc.) and made available
+//! collected by a metrics exporter (Prometheus, `OpenTelemetry`, etc.) and made available
 //! to your monitoring system.
 
 use fraiseql_wire::metrics;

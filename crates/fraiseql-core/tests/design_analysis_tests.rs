@@ -5,6 +5,8 @@
 //! Tests for the design quality enforcement engine that detects architectural
 //! anti-patterns and provides actionable recommendations.
 
+#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
+#![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
 use fraiseql_core::design::{DesignAudit, IssueSeverity};
 
 // Helper function to create a minimal test schema
@@ -47,7 +49,7 @@ fn test_detect_over_federation() {
     assert!(
         federation_issues
             .iter()
-            .any(|issue| { issue.message.contains("User") && issue.message.contains("3") }),
+            .any(|issue| { issue.message.contains("User") && issue.message.contains('3') }),
         "Should identify User entity in 3 subgraphs"
     );
 }

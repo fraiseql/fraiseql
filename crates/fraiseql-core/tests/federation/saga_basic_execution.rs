@@ -4,6 +4,8 @@
 //! - Cycle 1: Basic multi-step saga execution (8 tests)
 //! - Cycle 5: Concurrent saga handling (6 tests)
 
+#![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},

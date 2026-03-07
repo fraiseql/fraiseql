@@ -128,6 +128,8 @@ pub fn can_access_field(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::schema::{FieldDenyPolicy, FieldType, RoleDefinition};
 

@@ -20,6 +20,8 @@
 //! 2. The raw payload does NOT appear unescaped in the SQL
 //! 3. Single quotes in payloads are doubled (SQL escaping)
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use fraiseql_core::db::{
     WhereSqlGenerator,
     where_clause::{WhereClause, WhereOperator},
@@ -76,7 +78,7 @@ fn assert_injection_safe(sql: &str, payload: &str, context: &str) {
             // becomes part of a value literal — verify the SQL still contains
             // the string value boundary.
             assert!(
-                sql.contains("'"),
+                sql.contains('\''),
                 "{context}: SQL must contain string literals for value with {pattern}"
             );
         }

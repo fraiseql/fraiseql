@@ -3,7 +3,10 @@
 //! These tests verify that metrics are recorded correctly during query execution.
 //! Tests use the metrics crate to validate that counters and histograms are updated.
 
-#![allow(clippy::unreadable_literal)]       // Reason: test memory size assertions
+#![allow(clippy::unreadable_literal)] // Reason: test memory size assertions
+#![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+#![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize→f64 for reporting
+#![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded
 
 use fraiseql_wire::metrics;
 use fraiseql_wire::stream::StreamStats;
@@ -385,7 +388,7 @@ fn test_channel_occupancy_multiple_entities() {
     }
 }
 
-/// Test StreamStats type and memory estimation
+/// Test `StreamStats` type and memory estimation
 #[test]
 fn test_stream_stats_creation_and_properties() {
     let stats = StreamStats {
@@ -401,7 +404,7 @@ fn test_stream_stats_creation_and_properties() {
     assert_eq!(stats.total_rows_filtered, 100);
 }
 
-/// Test StreamStats memory estimation for various buffer sizes
+/// Test `StreamStats` memory estimation for various buffer sizes
 #[test]
 fn test_stream_stats_memory_estimation_various_sizes() {
     let buffer_sizes = [0, 1, 10, 50, 128, 256];
@@ -419,7 +422,7 @@ fn test_stream_stats_memory_estimation_various_sizes() {
     }
 }
 
-/// Test StreamStats tracking row yields and filters
+/// Test `StreamStats` tracking row yields and filters
 #[test]
 fn test_stream_stats_row_tracking() {
     let stats = StreamStats {
@@ -438,7 +441,7 @@ fn test_stream_stats_row_tracking() {
     assert!((filter_ratio - 0.1).abs() < 0.01); // Should be ~10%
 }
 
-/// Test StreamStats zero initialization
+/// Test `StreamStats` zero initialization
 #[test]
 fn test_stream_stats_zero() {
     let stats = StreamStats::zero();
@@ -479,7 +482,7 @@ fn test_memory_limit_exceeded_error() {
     assert!(!err.is_retriable());
 }
 
-/// Test QueryBuilder max_memory API existence
+/// Test `QueryBuilder` `max_memory` API existence
 #[test]
 fn test_query_builder_max_memory_api() {
     // This test verifies the API is available by building a query with max_memory

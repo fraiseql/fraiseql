@@ -3,6 +3,7 @@
 //! These properties verify that schema operations maintain invariants
 //! across all valid input combinations.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::schema::{
     CompiledSchema, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
 };
@@ -12,7 +13,7 @@ use proptest::prelude::*;
 // Strategies
 // ============================================================================
 
-/// Strategy for generating valid type names (PascalCase).
+/// Strategy for generating valid type names (`PascalCase`).
 fn arb_type_name() -> impl Strategy<Value = String> {
     "[A-Z][a-zA-Z]{1,20}".prop_map(String::from)
 }
