@@ -209,7 +209,6 @@ mod tests {
         });
 
         // Verify context was created correctly
-        assert!(security_context.is_some());
         let sec_ctx = security_context.unwrap();
         assert_eq!(sec_ctx.user_id, "user123");
         assert_eq!(sec_ctx.scopes, vec!["read:user".to_string(), "write:post".to_string()]);

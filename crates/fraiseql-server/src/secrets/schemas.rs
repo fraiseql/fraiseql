@@ -468,7 +468,7 @@ mod tests {
         let key = EncryptionKey::new("test-key", vec![1, 2, 3], "AES-256-GCM");
         let rotated = key.complete_rotation(vec![4, 5, 6]);
         assert_eq!(rotated.version, 2);
-        assert!(rotated.rotated_at.is_some());
+        assert!(rotated.rotated_at.is_some(), "rotated_at should be set after complete_rotation");
         assert!(rotated.is_active());
     }
 
@@ -561,7 +561,7 @@ mod tests {
         let refreshed =
             session.refresh_tokens("new_token", Utc::now() + chrono::Duration::hours(2));
         assert_eq!(refreshed.access_token_encrypted, "new_token");
-        assert!(refreshed.last_refreshed.is_some());
+        assert!(refreshed.last_refreshed.is_some(), "last_refreshed should be set after refresh_tokens");
     }
 
     #[test]

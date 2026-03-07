@@ -65,7 +65,7 @@ mod tests {
         let result = lifecycle
             .on_connect(&serde_json::json!({}), "conn-1")
             .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "noop lifecycle should accept any connection");
     }
 
     #[tokio::test]
@@ -74,6 +74,6 @@ mod tests {
         let result = lifecycle
             .on_subscribe("orderCreated", &serde_json::json!({}), "conn-1")
             .await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "noop lifecycle should accept any subscription");
     }
 }

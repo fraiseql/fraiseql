@@ -500,7 +500,6 @@ mod tests {
         let entry = StructuredLogEntry::new(LogLevel::Info, "operation executed".to_string())
             .with_request_context(context.clone());
 
-        assert!(entry.request_context.is_some());
         assert_eq!(entry.request_context.unwrap().operation, Some("Query".to_string()));
     }
 
@@ -555,7 +554,7 @@ mod tests {
         let entry = logger.info("test message");
 
         assert_eq!(entry.level, LogLevel::Info);
-        assert!(entry.request_context.is_some());
+        assert!(entry.request_context.is_some(), "RequestLogger should attach request_context to every log entry");
     }
 
     #[test]

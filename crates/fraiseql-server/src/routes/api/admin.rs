@@ -538,7 +538,7 @@ mod tests {
         };
 
         assert_eq!(request.scope, "entity");
-        assert!(request.entity_type.is_some());
+        assert_eq!(request.entity_type.as_deref(), Some("User"));
     }
 
     #[test]
@@ -550,7 +550,7 @@ mod tests {
         };
 
         assert_eq!(request.scope, "pattern");
-        assert!(request.pattern.is_some());
+        assert_eq!(request.pattern.as_deref(), Some("*_user"));
     }
 
     #[test]

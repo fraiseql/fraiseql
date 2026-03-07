@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_validate_passes_for_defaults() {
-        assert!(PoolTuningConfig::default().validate().is_ok());
+        assert!(PoolTuningConfig::default().validate().is_ok(), "default pool tuning config should pass validation");
     }
 
     #[test]

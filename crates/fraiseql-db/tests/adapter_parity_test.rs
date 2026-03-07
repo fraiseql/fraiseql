@@ -31,7 +31,7 @@ use serde_json::json;
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn pg_gen() -> PostgresWhereGenerator {
+const fn pg_gen() -> PostgresWhereGenerator {
     PostgresWhereGenerator::new()
 }
 

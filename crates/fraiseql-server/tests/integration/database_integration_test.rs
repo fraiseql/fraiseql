@@ -19,6 +19,7 @@ use fraiseql_test_utils::database_url;
 
 /// Test PostgreSQL adapter initialization with default configuration.
 #[tokio::test]
+#[ignore = "requires live PostgreSQL (set DATABASE_URL)"]
 async fn test_postgres_adapter_initialization() {
     let db_url = database_url();
 
@@ -31,6 +32,7 @@ async fn test_postgres_adapter_initialization() {
 
 /// Test PostgreSQL adapter with custom pool configuration.
 #[tokio::test]
+#[ignore = "requires live PostgreSQL (set DATABASE_URL)"]
 async fn test_postgres_adapter_with_pool_config() {
     let db_url =
         database_url();
@@ -99,6 +101,7 @@ fn test_server_config_database_url_override() {
 
 /// Test adapter cloning for Arc wrapper compatibility
 #[tokio::test]
+#[ignore = "requires live PostgreSQL (set DATABASE_URL)"]
 async fn test_postgres_adapter_arc_compatibility() {
     let db_url =
         database_url();

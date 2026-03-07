@@ -39,13 +39,16 @@ fn valid_claims() -> Claims {
         iat,
         exp,
         iss:   ISSUER.to_string(),
-        aud:   vec![],
+        aud:   vec!["test".to_string()],
         extra: HashMap::new(),
     }
 }
 
 fn validator() -> JwtValidator {
-    JwtValidator::new(ISSUER, Algorithm::HS256).expect("validator creation failed")
+    JwtValidator::new(ISSUER, Algorithm::HS256)
+        .expect("validator creation failed")
+        .with_audiences(&["test"])
+        .expect("audience configuration failed")
 }
 
 // ============================================================================

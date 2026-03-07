@@ -102,7 +102,6 @@ mod tests {
         let ctx = TenantContext {
             org_id: Some("org-123".to_string()),
         };
-        assert!(ctx.require_org_id().is_ok());
         assert_eq!(ctx.require_org_id().unwrap(), "org-123");
     }
 

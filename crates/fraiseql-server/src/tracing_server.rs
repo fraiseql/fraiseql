@@ -462,10 +462,9 @@ mod tests {
         assert!(span.end_time_ms.is_none());
 
         span.finish();
-        assert!(span.end_time_ms.is_some());
+        assert!(span.end_time_ms.is_some(), "span end_time_ms should be set after finish()");
 
         let duration = span.duration_ms();
-        assert!(duration.is_some());
         assert!(duration.unwrap() >= 0);
     }
 

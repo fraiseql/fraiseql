@@ -589,7 +589,7 @@ mod tests {
         let schema =
             Arc::new(Schema::new(vec![Field::new("count", DataType::Int32, false)]));
         let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
-        let rows = vec![vec![Some(Value::Float(3.14))]];
+        let rows = vec![vec![Some(Value::Float(std::f64::consts::PI))]];
         let result = converter.convert_batch(rows);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Expected int"));

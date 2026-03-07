@@ -214,7 +214,7 @@ mod tests {
         let bridge = EventBridge::new(manager, config);
 
         // Verify bridge is created
-        assert!(bridge.sender().try_reserve().is_ok());
+        assert!(bridge.sender().try_reserve().is_ok(), "event bridge channel should have capacity for at least one message");
     }
 
     #[test]
@@ -287,7 +287,7 @@ mod tests {
 
         let subscription_event = EventBridge::convert_event(entity_event);
 
-        assert!(subscription_event.old_data.is_some());
+        assert!(subscription_event.old_data.is_some(), "update events should carry old_data for delta computation");
     }
 
     #[tokio::test]

@@ -187,6 +187,59 @@ cargo bench --bench sql_generation
 
 ---
 
+## Running Ignored Tests
+
+Many tests are `#[ignore]` because they require live infrastructure (PostgreSQL,
+Redis, NATS, Vault). Here is the complete procedure to run them all.
+
+### Quick start
+
+```bash
+# 1. Start all required services (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)
+make db-up
+
+# 2. Run every #[ignore] test suite
+make test-all-ignored
+
+# 3. Tear down when done
+make db-down
+```
+
+`make test-all-ignored` sets all required environment variables internally. To run
+a specific ignored suite manually, export the vars below first:
+
+### Required environment variables
+
+| Variable | Default used by `make test-*` | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql` | PostgreSQL connection |
+| `MYSQL_URL` | `mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql` | MySQL for cross-DB parity |
+| `REDIS_URL` | `redis://localhost:6379` | Redis for APQ and rate-limiting |
+| `TEST_DATABASE_URL` | same as `DATABASE_URL` | Observer PostgreSQL transport |
+| `SAGA_STORE_TEST_URL` | same as `DATABASE_URL` | Saga store integration |
+| `VAULT_ADDR` | `http://localhost:8200` | HashiCorp Vault secrets tests |
+| `VAULT_TOKEN` | `fraiseql-test-token` | Vault auth token |
+
+### Running a single ignored suite
+
+```bash
+# Redis APQ tests
+REDIS_URL=redis://localhost:6379 \
+  cargo nextest run -p fraiseql-core --features redis-apq --lib redis -- --ignored
+
+# Observer NATS transport
+cargo nextest run -p fraiseql-observers --features nats --test nats_integration -- --ignored
+
+# Vault secrets
+VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=fraiseql-test-token \
+  cargo nextest run -p fraiseql-server --test secrets_manager_integration_test -- --ignored
+```
+
+> **Note**: `cargo nextest run` uses `--ignored` to run only ignored tests.
+> Standard `cargo test` uses `-- --ignored` (double dash).
+
+---
+
 ## Infrastructure Setup
 
 ```bash

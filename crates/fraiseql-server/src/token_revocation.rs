@@ -456,12 +456,12 @@ mod tests {
     #[tokio::test]
     async fn manager_allows_missing_jti_when_not_required() {
         let mgr = TokenRevocationManager::new(memory_store(), false, false);
-        assert!(mgr.check_token(None).await.is_ok());
+        assert!(mgr.check_token(None).await.is_ok(), "missing jti should be allowed when jti is not required");
     }
 
     #[tokio::test]
     async fn manager_allows_empty_jti_when_not_required() {
         let mgr = TokenRevocationManager::new(memory_store(), false, false);
-        assert!(mgr.check_token(Some("")).await.is_ok());
+        assert!(mgr.check_token(Some("")).await.is_ok(), "empty jti should be allowed when jti is not required");
     }
 }

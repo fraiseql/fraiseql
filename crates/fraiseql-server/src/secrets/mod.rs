@@ -352,7 +352,7 @@ mod tests {
         let manager = SecretManager::new(provider, "test-key".to_string());
 
         assert!(!manager.is_initialized().await);
-        assert!(manager.initialize().await.is_ok());
+        assert!(manager.initialize().await.is_ok(), "secret manager initialization should succeed");
         assert!(manager.is_initialized().await);
     }
 
@@ -408,6 +408,6 @@ mod tests {
         let manager = SecretManager::new(provider, "test-key".to_string())
             .with_context_prefix("fraiseql-prod".to_string());
 
-        assert!(manager.encrypt(b"data", None).await.is_ok());
+        assert!(manager.encrypt(b"data", None).await.is_ok(), "encryption with context prefix should succeed");
     }
 }

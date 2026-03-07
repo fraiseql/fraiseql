@@ -625,7 +625,7 @@ mod tests {
 
         breaker.record_failure();
         breaker.check(); // → HalfOpen, probe_in_flight = true
-        assert!(breaker.check().is_some()); // blocked: probe in flight
+        assert!(breaker.check().is_some(), "second check should return backoff while probe is in flight"); // blocked: probe in flight
 
         breaker.record_success(); // successes=1, probe_in_flight = false
         assert!(breaker.check().is_none()); // second probe now allowed

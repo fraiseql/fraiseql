@@ -543,6 +543,6 @@ mod tests {
 
         let provider = PostgresBackupProvider::new(url, dir.path().to_str().unwrap().to_string());
         let info = provider.backup().await.unwrap();
-        assert!(provider.verify_backup(&info.backup_id).await.is_ok());
+        assert!(provider.verify_backup(&info.backup_id).await.is_ok(), "backup just created should pass verification");
     }
 }

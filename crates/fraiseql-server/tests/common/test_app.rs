@@ -10,7 +10,10 @@ use axum::{
     body::Body,
     routing::{get, post},
 };
-use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+use fraiseql_core::{
+    runtime::Executor,
+    schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
+};
 use fraiseql_server::routes::{
     api::{
         query::{explain_handler, stats_handler, validate_handler},
@@ -27,6 +30,42 @@ use tower::ServiceExt;
 /// Create a default `AppState` with a healthy `FailingAdapter` and empty schema.
 pub fn make_test_state() -> AppState<FailingAdapter> {
     let schema = CompiledSchema::new();
+    let adapter = Arc::new(FailingAdapter::new());
+    AppState::new(Arc::new(Executor::new(schema, adapter)))
+}
+
+/// Create an `AppState` backed by a minimal but populated schema.
+///
+/// The schema contains:
+/// - A `User` type with `id` (ID) and `name` (String) fields
+/// - A `user` query returning `User`
+/// - SDL text that includes `type Query`, `type User`, and `type Mutation`
+///
+/// Use this helper when the test needs to verify that the schema export endpoints
+/// return actual content rather than an empty response.
+pub fn make_populated_test_state() -> AppState<FailingAdapter> {
+    let user_type = TypeDefinition {
+        name:                  "User".into(),
+        sql_source:            "v_user".into(),
+        jsonb_column:          "data".to_string(),
+        fields:                vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::new("name", FieldType::String),
+        ],
+        description:           Some("A user in the system".to_string()),
+        sql_projection_hint:   None,
+        implements:            vec![],
+        requires_role:         None,
+        is_error:              false,
+        relay:                 false,
+    };
+    let user_query = QueryDefinition::new("user", "User");
+    let mut schema = CompiledSchema::new();
+    schema.types.push(user_type);
+    schema.queries.push(user_query);
+    schema.schema_sdl = Some(
+        "type Query {\n  user(id: ID!): User\n}\n\ntype User {\n  id: ID!\n  name: String!\n}\n\ntype Mutation {\n  createUser(name: String!): User\n}\n".to_string(),
+    );
     let adapter = Arc::new(FailingAdapter::new());
     AppState::new(Arc::new(Executor::new(schema, adapter)))
 }

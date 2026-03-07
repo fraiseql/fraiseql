@@ -868,14 +868,17 @@ mod tests {
         let json = r#"{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"abc123"}}}"#;
         let request: GraphQLRequest = serde_json::from_str(json).unwrap();
         assert!(request.query.is_none());
-        assert!(request.extensions.is_some());
+        assert!(request.extensions.is_some(), "APQ hash-only request must carry extensions with persistedQuery");
     }
 
     #[test]
     fn test_graphql_request_with_variables() {
         let json = r#"{"query": "query($id: ID!) { user(id: $id) { name } }", "variables": {"id": "123"}}"#;
         let request: GraphQLRequest = serde_json::from_str(json).unwrap();
-        assert!(request.variables.is_some());
+        assert_eq!(
+            request.variables,
+            Some(serde_json::json!({"id": "123"})),
+        );
     }
 
     #[test]
@@ -901,7 +904,6 @@ mod tests {
         }))
         .unwrap();
 
-        assert!(params.variables.is_some());
         let vars_str = params.variables.unwrap();
         let vars: serde_json::Value = serde_json::from_str(&vars_str).unwrap();
         assert_eq!(vars["id"], "123");
@@ -1106,14 +1108,14 @@ mod tests {
         let limiter = KeyedRateLimiter::new(config);
 
         // IP 1 should be allowed 3 times
-        assert!(limiter.check("192.0.2.1").is_ok());
-        assert!(limiter.check("192.0.2.1").is_ok());
-        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok(), "request 1 for 192.0.2.1 should be within limit");
+        assert!(limiter.check("192.0.2.1").is_ok(), "request 2 for 192.0.2.1 should be within limit");
+        assert!(limiter.check("192.0.2.1").is_ok(), "request 3 for 192.0.2.1 should be within limit");
 
         // IP 2 should have independent limit
-        assert!(limiter.check("10.0.0.1").is_ok());
-        assert!(limiter.check("10.0.0.1").is_ok());
-        assert!(limiter.check("10.0.0.1").is_ok());
+        assert!(limiter.check("10.0.0.1").is_ok(), "request 1 for 10.0.0.1 should be within independent limit");
+        assert!(limiter.check("10.0.0.1").is_ok(), "request 2 for 10.0.0.1 should be within independent limit");
+        assert!(limiter.check("10.0.0.1").is_ok(), "request 3 for 10.0.0.1 should be within independent limit");
     }
 
     #[test]
@@ -1125,8 +1127,8 @@ mod tests {
         };
         let limiter = KeyedRateLimiter::new(config);
 
-        assert!(limiter.check("192.0.2.1").is_ok());
-        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok(), "request 1 within 2-request limit should be allowed");
+        assert!(limiter.check("192.0.2.1").is_ok(), "request 2 within 2-request limit should be allowed");
         assert!(limiter.check("192.0.2.1").is_err());
     }
 
@@ -1140,9 +1142,9 @@ mod tests {
         let limiter = KeyedRateLimiter::new(config);
 
         // When disabled, should allow unlimited requests
-        assert!(limiter.check("192.0.2.1").is_ok());
-        assert!(limiter.check("192.0.2.1").is_ok());
-        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok(), "disabled rate limiter should allow request 1");
+        assert!(limiter.check("192.0.2.1").is_ok(), "disabled rate limiter should allow request 2");
+        assert!(limiter.check("192.0.2.1").is_ok(), "disabled rate limiter should allow request 3");
     }
 
     #[test]
@@ -1154,10 +1156,10 @@ mod tests {
         };
         let limiter = KeyedRateLimiter::new(config);
 
-        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok(), "first request within 1-request window should be allowed");
         // With 0 second window, the window should reset immediately
         // In practice, the window immediately expires and resets
-        assert!(limiter.check("192.0.2.1").is_ok());
+        assert!(limiter.check("192.0.2.1").is_ok(), "request after window reset should be allowed");
     }
 
     // APQ helper unit tests
@@ -1201,13 +1203,11 @@ mod tests {
 
         // Register: hash + body
         let result = resolve_apq(&store, &metrics, &hash, Some(query)).await;
-        assert!(result.is_ok());
         assert_eq!(result.unwrap(), query);
         assert_eq!(metrics.get_stored(), 1);
 
         // Hit: hash only
         let result = resolve_apq(&store, &metrics, &hash, None).await;
-        assert!(result.is_ok());
         assert_eq!(result.unwrap(), query);
         assert_eq!(metrics.get_hits(), 1);
     }

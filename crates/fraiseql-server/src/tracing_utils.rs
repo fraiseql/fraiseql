@@ -41,8 +41,6 @@ mod tests {
         );
 
         let ctx = extract_trace_context(&headers);
-        assert!(ctx.is_some());
-
         let ctx = ctx.unwrap();
         assert_eq!(ctx.trace_id, "4bf92f3577b34da6a3ce929d0e0e4736");
         assert_eq!(ctx.parent_span_id, "00f067aa0ba902b7");

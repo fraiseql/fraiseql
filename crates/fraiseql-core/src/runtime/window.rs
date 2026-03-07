@@ -102,7 +102,10 @@ impl WindowSqlGenerator {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
                 };
-                sql.push_str(&format!("{} {}", self.quote_identifier(&order.field), dir));
+                // Fields in the outer ORDER BY may be JSONB path expressions
+                // (e.g. `data->>'category'`) or window aliases (e.g. `rank`); they
+                // are validated at planner parse time and must not be identifier-quoted.
+                sql.push_str(&format!("{} {}", order.field, dir));
             }
         }
 
@@ -259,21 +262,6 @@ impl WindowSqlGenerator {
         }
 
         Ok(sql)
-    }
-
-    /// Quote an identifier (column/table name) in a database-specific way.
-    ///
-    /// SECURITY: All column and table name identifiers must pass through this
-    /// function before being embedded in SQL to prevent SQL injection.
-    fn quote_identifier(&self, name: &str) -> String {
-        match self.database_type {
-            DatabaseType::MySQL => format!("`{}`", name.replace('`', "``")),
-            DatabaseType::SQLServer => format!("[{}]", name.replace(']', "]]")),
-            // PostgreSQL and SQLite both use double-quote delimiters.
-            DatabaseType::PostgreSQL | DatabaseType::SQLite => {
-                format!("\"{}\"", name.replace('"', "\"\""))
-            },
-        }
     }
 
     /// Format frame boundary

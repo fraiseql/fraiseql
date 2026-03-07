@@ -309,7 +309,7 @@ mod tests {
             name: "postgres".to_string(),
         });
 
-        assert!(manager.register_provider("postgres".to_string(), provider).await.is_ok());
+        assert!(manager.register_provider("postgres".to_string(), provider).await.is_ok(), "registering a new provider should succeed");
     }
 
     #[tokio::test]
@@ -343,7 +343,6 @@ mod tests {
         manager.backup("postgres").await.unwrap();
 
         let status = manager.get_provider_status("postgres").await;
-        assert!(status.is_some());
         assert_eq!(status.unwrap().status, "healthy");
     }
 

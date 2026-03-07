@@ -159,6 +159,6 @@ mod tests {
 
         let ctx = TraceContext::new();
         set_context(ctx.clone());
-        assert!(get_context().is_some());
+        assert!(get_context().is_some(), "get_context should return Some after set_context");
     }
 }

@@ -3,9 +3,7 @@
 //! Tests that malicious path segments cannot be used to inject SQL.
 //! These tests verify the escaping mechanisms work correctly.
 
-#[cfg(test)]
-mod path_injection_tests {
-    use fraiseql_core::db::path_escape;
+use fraiseql_core::db::path_escape;
 
     // ============================================================================
     // PostgreSQL JSONB Injection Tests
@@ -408,4 +406,3 @@ mod path_injection_tests {
         assert!(escaped.contains("user\\'name"), "Quote should be escaped");
         assert!(escaped.contains("email"), "Second segment should be present");
     }
-}

@@ -492,7 +492,7 @@ mod tests {
         };
 
         assert!(!response.query.is_empty());
-        assert!(response.sql.is_some());
+        assert_eq!(response.sql.as_deref(), Some("SELECT id FROM users"));
         assert_eq!(response.complexity.depth, 2);
         assert_eq!(response.estimated_cost, 50);
     }

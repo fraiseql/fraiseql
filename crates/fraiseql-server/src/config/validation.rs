@@ -33,6 +33,11 @@ impl ValidationResult {
         self.errors.is_empty()
     }
 
+    /// Return `true` if any errors were collected.
+    pub fn is_err(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
     /// Add a configuration error to the result.
     pub fn add_error(&mut self, error: ConfigError) {
         self.errors.push(error);

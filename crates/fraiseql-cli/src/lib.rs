@@ -578,7 +578,7 @@ enum MigrateCommands {
     /// Apply pending migrations
     Up {
         /// Database connection URL
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
         /// Migration directory
@@ -589,7 +589,7 @@ enum MigrateCommands {
     /// Roll back migrations
     Down {
         /// Database connection URL
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
         /// Migration directory
@@ -604,7 +604,7 @@ enum MigrateCommands {
     /// Show migration status
     Status {
         /// Database connection URL
-        #[arg(short, long, value_name = "DATABASE_URL")]
+        #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
         /// Migration directory
