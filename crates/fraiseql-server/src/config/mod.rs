@@ -13,7 +13,6 @@ use serde::Deserialize;
 pub mod cors;
 pub mod env;
 pub mod error_sanitization;
-pub mod jsonb_optimization;
 pub mod loader;
 pub mod metrics;
 pub mod pool_tuning;
@@ -26,8 +25,6 @@ pub mod validation;
 // Re-export config types
 pub use cors::CorsConfig;
 pub use error_sanitization::{ErrorSanitizationConfig, ErrorSanitizer};
-pub use jsonb_optimization::{JsonbOptimizationConfig, JsonbStrategy};
-// Note: JsonbOptimizationOptions is the core version, re-exported from fraiseql-core
 pub use metrics::{LatencyTargets, MetricsConfig, SloConfig};
 pub use pool_tuning::PoolTuningConfig;
 pub use rate_limiting::{BackpressureConfig, RateLimitRule, RateLimitingConfig};
@@ -113,9 +110,6 @@ pub struct RuntimeConfig {
     #[serde(default)]
     pub lifecycle: Option<LifecycleConfig>,
 
-    /// JSONB column optimization strategy.
-    #[serde(default)]
-    pub jsonb_optimization: Option<JsonbOptimizationConfig>,
 }
 
 /// HTTP server binding configuration.

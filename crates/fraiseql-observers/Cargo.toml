@@ -12,8 +12,6 @@ colored = "2.1"
 dashmap = "6.1"
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
-# Observer Macros Dependencies
-fraiseql-observers-macros = {workspace = true, optional = true}
 futures = "0.3"
 http = "1.1"
 prometheus = {version = "0.14", optional = true}
@@ -51,8 +49,6 @@ checkpoint = []
 dedup = ["redis"]
 # Default features (PostgreSQL for backward compatibility)
 default = ["postgres"]
-# Macro Features
-macros = ["fraiseql-observers-macros"]
 metrics = ["prometheus"]
 # SQL Server uses tiberius crate (sqlx doesn't support MSSQL in v0.8)
 mssql = ["tiberius", "tokio-util", "bb8", "bb8-tiberius"]
@@ -63,7 +59,7 @@ mysql = ["sqlx/mysql"]
 nats = ["async-nats"]
 # Descriptive bundles
 enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
-analytics = ["macros", "arrow"]
+analytics = ["arrow"]
 # Database backends (enable sqlx features)
 postgres = ["sqlx/postgres"]
 queue = ["redis"]

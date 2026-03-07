@@ -2709,7 +2709,6 @@ dependencies = [
  "criterion",
  "dashmap",
  "fraiseql-arrow",
- "fraiseql-observers-macros",
  "fraiseql-test-utils",
  "futures",
  "http 1.4.0",
@@ -2731,18 +2730,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "fraiseql-observers-macros"
-version = "2.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

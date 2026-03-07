@@ -28,7 +28,6 @@ members = [
   "crates/fraiseql-db",
   "crates/fraiseql-error",
   "crates/fraiseql-observers",
-  "crates/fraiseql-observers-macros",
   "crates/fraiseql-secrets",
   "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, files
   "crates/fraiseql-webhooks",
@@ -63,7 +62,6 @@ fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0", default-featu
 fraiseql-db = {path = "crates/fraiseql-db", version = "2.1.0", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0", default-features = false}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0"}
-fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.1.0"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0"}
 futures = "0.3"
@@ -193,7 +191,6 @@ version = "2.1.0"
 #   fraiseql-webhooks:          2,139 lines
 #   fraiseql-test-utils:        1,248 lines
 #   fraiseql-error:               686 lines
-#   fraiseql-observers-macros:    192 lines
 # ---------------------------------------------------------------------------
 [workspace.metadata.crate-size-budget]
 fraiseql-core             = 110_000  # post-split budget; fraiseql-db extracted (CS-3)
@@ -208,7 +205,6 @@ fraiseql-db               = 25_000
 fraiseql-webhooks         = 10_000
 fraiseql-test-utils       = 5_000
 fraiseql-error            = 5_000
-fraiseql-observers-macros = 2_000
 
 [patch.crates-io]
 # Local patch: upgrade thiserror dependency from 1.x to 2.x to eliminate
