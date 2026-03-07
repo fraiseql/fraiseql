@@ -1,7 +1,7 @@
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════════════╗
-║                        FRAISEQL FRAMEWORK — ARCHITECTURE MAP                           ║
-║                        (v2.1.0 — guide for quality domain scans)                       ║
+║                        FRAISEQL FRAMEWORK — ARCHITECTURE MAP                             ║
+║                        (v2.1.0 — guide for quality domain scans)                         ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════╝
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -12,15 +12,15 @@
   ──────────────────────────────         ──────────────────          ─────────────────────
   @fraiseql.type                         fraiseql-cli                fraiseql-server
   @fraiseql.mutation      ──────────►  ┌─────────────────┐  ──────► Server<DatabaseAdapter>
-  @fraiseql.subscription                │  compile        │           └─ loads from JSON
-  @fraiseql.query                       │  validate-docs  │           └─ env var overrides
-  fraiseql.field()                      │  generate-views │           └─ pure Rust runtime
-         │                              │  introspect     │
-         ▼                              │  migrate        │
+  @fraiseql.subscription               │  compile        │           └─ loads from JSON
+  @fraiseql.query                      │  validate-docs  │           └─ env var overrides
+  fraiseql.field()                     │  generate-views │           └─ pure Rust runtime
+         │                             │  introspect     │
+         ▼                             │  migrate        │
     schema.json              ──────►   │  lint / analyze │  ──────►  schema.compiled.json
-    (types + ops)                       │  cost / sbom    │           (types + SQL + config)
-                                        │  explain / init │
-                                        └─────────────────┘
+    (types + ops)                      │  cost / sbom    │           (types + SQL + config)
+                                       │  explain / init │
+                                       └─────────────────┘
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  LAYER 1 — CRATE DEPENDENCY GRAPH
@@ -33,16 +33,16 @@
                 ┌──────────────────────────────────────────────┐
                 │                         │                    │
                 ▼                         ▼                    ▼
-        ┌───────────────┐       ┌──────────────────┐   ┌──────────────┐
-        │ fraiseql-cli  │       │ fraiseql-server  │   │ fraiseql-wire│
-        └───────┬───────┘       └────────┬─────────┘   └──────┬───────┘
+        ┌───────────────┐       ┌──────────────────┐   ┌─────────────┐
+        │ fraiseql-cli  │       │ fraiseql-server  │   │fraiseql-wire│
+        └───────┬───────┘       └────────┬─────────┘   └───────┬─────┘
                 │                        │                     │
                 │          ┌─────────────┼───────────────┐     │
                 │          │             │               │     │
-                │    ┌─────▼──────┐  ┌──▼──────────┐  ┌▼─────▼──────┐
-                │    │fraiseql-   │  │fraiseql-    │  │ fraiseql-   │
-                │    │ auth       │  │ secrets     │  │ observers   │
-                │    └─────┬──────┘  └──┬──────────┘  └─────┬───────┘
+                │    ┌─────▼──────┐  ┌───▼──────────┐  ┌─▼─────▼─────┐
+                │    │fraiseql-   │  │fr aiseql-    │  │ fraiseql-   │
+                │    │ auth       │  │ s ecrets     │  │ observers   │
+                │    └─────┬──────┘  └──┬───────────┘  └─────┬───────┘
                 │          │            │                    │
                 └──────────┴────────────┴────────────────────┘
                                         │ all depend on
