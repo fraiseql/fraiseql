@@ -29,55 +29,72 @@ impl ObserverRepository {
     ) -> Result<(Vec<Observer>, i64), ServerError> {
         let offset = (query.page - 1) * query.page_size;
 
-        // Build dynamic WHERE clause
-        let mut conditions = vec!["1=1".to_string()];
+        // --- count query ---
+        let mut count_qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
 
         if !query.include_deleted {
-            conditions.push("deleted_at IS NULL".to_string());
+            count_qb.push(" AND deleted_at IS NULL");
         }
-
         if let Some(ref entity_type) = query.entity_type {
-            conditions.push(format!("entity_type = '{}'", entity_type.replace('\'', "''")));
+            count_qb.push(" AND entity_type = ").push_bind(entity_type);
         }
-
         if let Some(ref event_type) = query.event_type {
-            conditions.push(format!("event_type = '{}'", event_type.replace('\'', "''")));
+            count_qb.push(" AND event_type = ").push_bind(event_type);
         }
-
         if let Some(enabled) = query.enabled {
-            conditions.push(format!("enabled = {}", enabled));
+            count_qb.push(" AND enabled = ").push_bind(enabled);
         }
-
         if let Some(org_id) = customer_org {
-            conditions.push(format!("(fk_customer_org IS NULL OR fk_customer_org = {})", org_id));
+            count_qb
+                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
+                .push_bind(org_id)
+                .push(")");
         }
 
-        let where_clause = conditions.join(" AND ");
-
-        // Get total count
-        let count_sql = format!("SELECT COUNT(*) as count FROM tb_observer WHERE {}", where_clause);
-        let total_count: (i64,) = sqlx::query_as(&count_sql)
+        let total_count: (i64,) = count_qb
+            .build_query_as()
             .fetch_one(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
 
-        // Get paginated results
-        let select_sql = format!(
-            r"
-            SELECT
-                pk_observer, id, name, description, entity_type, event_type,
-                condition_expression, actions, enabled, priority, retry_config,
-                timeout_ms, fk_customer_org, created_at, updated_at,
-                created_by, updated_by, deleted_at
-            FROM tb_observer
-            WHERE {}
-            ORDER BY priority ASC, pk_observer ASC
-            LIMIT {} OFFSET {}
-            ",
-            where_clause, query.page_size, offset
+        // --- select query ---
+        let mut select_qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
+            r"SELECT pk_observer, id, name, description, entity_type, event_type,
+              condition_expression, actions, enabled, priority, retry_config,
+              timeout_ms, fk_customer_org, created_at, updated_at,
+              created_by, updated_by, deleted_at
+              FROM tb_observer WHERE 1=1",
         );
 
-        let observers: Vec<Observer> = sqlx::query_as(&select_sql)
+        if !query.include_deleted {
+            select_qb.push(" AND deleted_at IS NULL");
+        }
+        if let Some(ref entity_type) = query.entity_type {
+            select_qb.push(" AND entity_type = ").push_bind(entity_type);
+        }
+        if let Some(ref event_type) = query.event_type {
+            select_qb.push(" AND event_type = ").push_bind(event_type);
+        }
+        if let Some(enabled) = query.enabled {
+            select_qb.push(" AND enabled = ").push_bind(enabled);
+        }
+        if let Some(org_id) = customer_org {
+            select_qb
+                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
+                .push_bind(org_id)
+                .push(")");
+        }
+
+        select_qb
+            .push(" ORDER BY priority ASC, pk_observer ASC")
+            .push(" LIMIT ")
+            .push_bind(query.page_size)
+            .push(" OFFSET ")
+            .push_bind(offset);
+
+        let observers: Vec<Observer> = select_qb
+            .build_query_as()
             .fetch_all(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
@@ -91,27 +108,23 @@ impl ObserverRepository {
         id: Uuid,
         customer_org: Option<i64>,
     ) -> Result<Option<Observer>, ServerError> {
-        let mut query = String::from(
-            r"
-            SELECT
-                pk_observer, id, name, description, entity_type, event_type,
-                condition_expression, actions, enabled, priority, retry_config,
-                timeout_ms, fk_customer_org, created_at, updated_at,
-                created_by, updated_by, deleted_at
-            FROM tb_observer
-            WHERE id = $1 AND deleted_at IS NULL
-            ",
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
+            r"SELECT pk_observer, id, name, description, entity_type, event_type,
+              condition_expression, actions, enabled, priority, retry_config,
+              timeout_ms, fk_customer_org, created_at, updated_at,
+              created_by, updated_by, deleted_at
+              FROM tb_observer WHERE id = ",
         );
+        qb.push_bind(id).push(" AND deleted_at IS NULL");
 
         if let Some(org_id) = customer_org {
-            query.push_str(&format!(
-                " AND (fk_customer_org IS NULL OR fk_customer_org = {})",
-                org_id
-            ));
+            qb.push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
+                .push_bind(org_id)
+                .push(")");
         }
 
-        let observer: Option<Observer> = sqlx::query_as(&query)
-            .bind(id)
+        let observer: Option<Observer> = qb
+            .build_query_as()
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
@@ -297,23 +310,19 @@ impl ObserverRepository {
 
     /// Soft delete an observer.
     pub async fn delete(&self, id: Uuid, customer_org: Option<i64>) -> Result<bool, ServerError> {
-        let mut sql = String::from(
-            r"
-            UPDATE tb_observer
-            SET deleted_at = NOW()
-            WHERE id = $1 AND deleted_at IS NULL
-            ",
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
+            "UPDATE tb_observer SET deleted_at = NOW() WHERE id = ",
         );
+        qb.push_bind(id).push(" AND deleted_at IS NULL");
 
         if let Some(org_id) = customer_org {
-            sql.push_str(&format!(
-                " AND (fk_customer_org IS NULL OR fk_customer_org = {})",
-                org_id
-            ));
+            qb.push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
+                .push_bind(org_id)
+                .push(")");
         }
 
-        let result = sqlx::query(&sql)
-            .bind(id)
+        let result = qb
+            .build()
             .execute(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
@@ -327,24 +336,26 @@ impl ObserverRepository {
         observer_id: Option<Uuid>,
         customer_org: Option<i64>,
     ) -> Result<Vec<ObserverStats>, ServerError> {
-        let mut sql = String::from("SELECT * FROM vw_observer_stats WHERE 1=1");
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT * FROM vw_observer_stats WHERE 1=1");
 
         if let Some(id) = observer_id {
-            sql.push_str(&format!(" AND observer_id = '{}'", id));
+            qb.push(" AND observer_id = ").push_bind(id);
         }
 
         if let Some(org_id) = customer_org {
-            // Note: vw_observer_stats would need to include fk_customer_org
-            // For now, we filter via a join or subquery
-            sql.push_str(&format!(
-                " AND pk_observer IN (SELECT pk_observer FROM tb_observer WHERE fk_customer_org IS NULL OR fk_customer_org = {})",
-                org_id
-            ));
+            qb.push(
+                " AND pk_observer IN (SELECT pk_observer FROM tb_observer \
+                 WHERE fk_customer_org IS NULL OR fk_customer_org = ",
+            )
+            .push_bind(org_id)
+            .push(")");
         }
 
-        sql.push_str(" ORDER BY observer_name ASC");
+        qb.push(" ORDER BY observer_name ASC");
 
-        let stats: Vec<ObserverStats> = sqlx::query_as(&sql)
+        let stats: Vec<ObserverStats> = qb
+            .build_query_as()
             .fetch_all(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
@@ -360,57 +371,77 @@ impl ObserverRepository {
     ) -> Result<(Vec<ObserverLog>, i64), ServerError> {
         let offset = (query.page - 1) * query.page_size;
 
-        let mut conditions = vec!["1=1".to_string()];
+        // --- count query ---
+        let mut count_qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer_log WHERE 1=1");
 
         if let Some(observer_id) = query.observer_id {
-            conditions.push(format!(
-                "fk_observer = (SELECT pk_observer FROM tb_observer WHERE id = '{}')",
-                observer_id
-            ));
+            count_qb
+                .push(" AND fk_observer = (SELECT pk_observer FROM tb_observer WHERE id = ")
+                .push_bind(observer_id)
+                .push(")");
         }
-
         if let Some(ref status) = query.status {
-            conditions.push(format!("status = '{}'", status.replace('\'', "''")));
+            count_qb.push(" AND status = ").push_bind(status);
         }
-
         if let Some(event_id) = query.event_id {
-            conditions.push(format!("event_id = '{}'", event_id));
+            count_qb.push(" AND event_id = ").push_bind(event_id);
         }
-
         if let Some(ref trace_id) = query.trace_id {
-            conditions.push(format!("trace_id = '{}'", trace_id.replace('\'', "''")));
+            count_qb.push(" AND trace_id = ").push_bind(trace_id);
         }
-
         if let Some(org_id) = customer_org {
-            conditions.push(format!("(fk_customer_org IS NULL OR fk_customer_org = {})", org_id));
+            count_qb
+                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
+                .push_bind(org_id)
+                .push(")");
         }
 
-        let where_clause = conditions.join(" AND ");
-
-        // Get total count
-        let count_sql =
-            format!("SELECT COUNT(*) as count FROM tb_observer_log WHERE {}", where_clause);
-        let total_count: (i64,) = sqlx::query_as(&count_sql)
+        let total_count: (i64,) = count_qb
+            .build_query_as()
             .fetch_one(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
 
-        // Get paginated results
-        let select_sql = format!(
-            r"
-            SELECT
-                pk_observer_log, id, fk_observer, event_id, entity_type, entity_id,
-                event_type, status, action_index, action_type, started_at, completed_at,
-                duration_ms, error_code, error_message, attempt_number, trace_id, created_at
-            FROM tb_observer_log
-            WHERE {}
-            ORDER BY created_at DESC
-            LIMIT {} OFFSET {}
-            ",
-            where_clause, query.page_size, offset
+        // --- select query ---
+        let mut select_qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
+            r"SELECT pk_observer_log, id, fk_observer, event_id, entity_type, entity_id,
+              event_type, status, action_index, action_type, started_at, completed_at,
+              duration_ms, error_code, error_message, attempt_number, trace_id, created_at
+              FROM tb_observer_log WHERE 1=1",
         );
 
-        let logs: Vec<ObserverLog> = sqlx::query_as(&select_sql)
+        if let Some(observer_id) = query.observer_id {
+            select_qb
+                .push(" AND fk_observer = (SELECT pk_observer FROM tb_observer WHERE id = ")
+                .push_bind(observer_id)
+                .push(")");
+        }
+        if let Some(ref status) = query.status {
+            select_qb.push(" AND status = ").push_bind(status);
+        }
+        if let Some(event_id) = query.event_id {
+            select_qb.push(" AND event_id = ").push_bind(event_id);
+        }
+        if let Some(ref trace_id) = query.trace_id {
+            select_qb.push(" AND trace_id = ").push_bind(trace_id);
+        }
+        if let Some(org_id) = customer_org {
+            select_qb
+                .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
+                .push_bind(org_id)
+                .push(")");
+        }
+
+        select_qb
+            .push(" ORDER BY created_at DESC")
+            .push(" LIMIT ")
+            .push_bind(query.page_size)
+            .push(" OFFSET ")
+            .push_bind(offset);
+
+        let logs: Vec<ObserverLog> = select_qb
+            .build_query_as()
             .fetch_all(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
@@ -420,6 +451,7 @@ impl ObserverRepository {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use super::super::RetryConfig;
 
@@ -430,5 +462,103 @@ mod tests {
         assert_eq!(config.backoff, "exponential");
         assert_eq!(config.initial_delay_ms, 1000);
         assert_eq!(config.max_delay_ms, 60000);
+    }
+
+    // --- SQL structure unit tests (no database required) ---
+    //
+    // These verify the central injection-safety invariant: bound values produced by
+    // push_bind() are assigned $N placeholders and never appear in the SQL string itself.
+
+    #[test]
+    fn test_list_entity_type_not_inlined() {
+        let malicious = "' OR '1'='1";
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+        qb.push(" AND entity_type = ").push_bind(malicious);
+        let sql = qb.sql();
+        assert!(!sql.contains(malicious), "user input must not appear in SQL string");
+        assert!(sql.contains("$1"), "placeholder must be present");
+    }
+
+    #[test]
+    fn test_list_event_type_not_inlined() {
+        let malicious = "'; DROP TABLE tb_observer; --";
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+        qb.push(" AND event_type = ").push_bind(malicious);
+        let sql = qb.sql();
+        assert!(!sql.contains(malicious));
+        assert!(sql.contains("$1"));
+    }
+
+    #[test]
+    fn test_list_logs_status_not_inlined() {
+        let malicious = "' UNION SELECT * FROM secrets --";
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM tb_observer_log WHERE 1=1");
+        qb.push(" AND status = ").push_bind(malicious);
+        let sql = qb.sql();
+        assert!(!sql.contains(malicious));
+        assert!(sql.contains("$1"));
+    }
+
+    #[test]
+    fn test_list_logs_trace_id_not_inlined() {
+        let malicious = "x' OR fk_customer_org IS NOT NULL--";
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM tb_observer_log WHERE 1=1");
+        qb.push(" AND trace_id = ").push_bind(malicious);
+        let sql = qb.sql();
+        assert!(!sql.contains(malicious));
+        assert!(sql.contains("$1"));
+    }
+
+    #[test]
+    fn test_list_no_filters_produces_minimal_sql() {
+        let qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+        let sql = qb.sql();
+        assert!(!sql.contains("entity_type"));
+        assert!(!sql.contains("event_type"));
+        assert!(!sql.contains("enabled"));
+        assert!(!sql.contains("fk_customer_org"));
+        assert!(!sql.contains("deleted_at"));
+    }
+
+    #[test]
+    fn test_list_exclude_deleted_adds_condition() {
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+        qb.push(" AND deleted_at IS NULL");
+        let sql = qb.sql();
+        assert!(sql.contains("deleted_at IS NULL"));
+    }
+
+    #[test]
+    fn test_list_logs_observer_id_uses_placeholder() {
+        let observer_id = uuid::Uuid::new_v4();
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM tb_observer_log WHERE 1=1");
+        qb.push(" AND fk_observer = (SELECT pk_observer FROM tb_observer WHERE id = ")
+            .push_bind(observer_id)
+            .push(")");
+        let sql = qb.sql();
+        assert!(!sql.contains(&observer_id.to_string()), "UUID must not be inlined in SQL");
+        assert!(sql.contains("$1"));
+    }
+
+    #[test]
+    fn test_multiple_filters_use_sequential_placeholders() {
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM tb_observer WHERE 1=1");
+        qb.push(" AND entity_type = ").push_bind("Order");
+        qb.push(" AND event_type = ").push_bind("INSERT");
+        qb.push(" AND enabled = ").push_bind(true);
+        let sql = qb.sql();
+        assert!(sql.contains("$1"));
+        assert!(sql.contains("$2"));
+        assert!(sql.contains("$3"));
+        assert!(!sql.contains("Order"));
+        assert!(!sql.contains("INSERT"));
     }
 }
