@@ -188,15 +188,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     rps_per_user = rate_config.rps_per_user,
                     "Initializing rate limiting from server config"
                 );
-                let limiter_config = crate::middleware::RateLimitConfig {
-                    enabled:               true,
-                    rps_per_ip:            rate_config.rps_per_ip,
-                    rps_per_user:          rate_config.rps_per_user,
-                    burst_size:            rate_config.burst_size,
-                    cleanup_interval_secs: rate_config.cleanup_interval_secs,
-                    trust_proxy_headers:   false,
-                };
-                Some(Arc::new(RateLimiter::new(limiter_config)))
+                Some(Arc::new(RateLimiter::new(rate_config.clone())))
             } else {
                 info!("Rate limiting disabled by configuration");
                 None

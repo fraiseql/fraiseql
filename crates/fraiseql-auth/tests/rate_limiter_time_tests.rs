@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use fraiseql_auth::{KeyedRateLimiter, RateLimitConfig};
+use fraiseql_auth::{AuthRateLimitConfig, KeyedRateLimiter};
 
 // ── Cycle 5.2: Window expiry ────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ use fraiseql_auth::{KeyedRateLimiter, RateLimitConfig};
 #[ignore = "uses real 2 s sleep; run with --ignored in a dedicated slow-test CI job"]
 fn rate_limiter_resets_after_window_expires() {
     // Use a 1-second window so the test completes quickly.
-    let config = RateLimitConfig {
+    let config = AuthRateLimitConfig {
         enabled:      true,
         max_requests: 3,
         window_secs:  1,
@@ -50,7 +50,7 @@ fn rate_limiter_resets_after_window_expires() {
 #[ignore = "uses real 2 s sleep; run with --ignored in a dedicated slow-test CI job"]
 fn rate_limiter_allows_exactly_max_requests_then_resets() {
     // Verify reset after window, not just the initial fill.
-    let config = RateLimitConfig {
+    let config = AuthRateLimitConfig {
         enabled:      true,
         max_requests: 2,
         window_secs:  1,
@@ -89,7 +89,7 @@ const fn broken_clock() -> u64 {
 fn rate_limiter_fails_open_on_broken_system_clock() {
     // A broken clock (returns u64::MAX) must cause all requests to be allowed.
     let limiter = KeyedRateLimiter::with_clock(
-        RateLimitConfig {
+        AuthRateLimitConfig {
             enabled:      true,
             max_requests: 3, // Normally blocks after 3 requests.
             window_secs:  60,
@@ -114,7 +114,7 @@ fn rate_limiter_injectable_clock_controls_window_expiry() {
     let time_for_limiter = Arc::clone(&time);
 
     let limiter = KeyedRateLimiter::with_clock(
-        RateLimitConfig {
+        AuthRateLimitConfig {
             enabled:      true,
             max_requests: 2,
             window_secs:  60,
@@ -143,7 +143,7 @@ fn rate_limiter_injectable_clock_controls_window_expiry() {
 fn rate_limiter_allows_exactly_max_requests() {
     // Verify the off-by-one comparison: `count < max_requests` (not `<=`).
     // With max_requests = 5, requests 1–5 must be allowed, request 6 must be denied.
-    let limiter = KeyedRateLimiter::new(RateLimitConfig {
+    let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
         enabled:      true,
         max_requests: 5,
         window_secs:  60,

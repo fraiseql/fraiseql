@@ -10,11 +10,11 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 
-use fraiseql_auth::{KeyedRateLimiter, RateLimitConfig};
+use fraiseql_auth::{AuthRateLimitConfig, KeyedRateLimiter};
 
 #[test]
 fn test_100_threads_exact_limit_enforcement() {
-    let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+    let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
         enabled:      true,
         max_requests: 50,
         window_secs:  3600,
@@ -49,7 +49,7 @@ fn test_100_threads_exact_limit_enforcement() {
 
 #[test]
 fn test_per_key_isolation_under_contention() {
-    let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+    let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
         enabled:      true,
         max_requests: 10,
         window_secs:  3600,
@@ -84,7 +84,7 @@ fn test_per_key_isolation_under_contention() {
 
 #[test]
 fn test_concurrent_check_and_clear() {
-    let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+    let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
         enabled:      true,
         max_requests: 50,
         window_secs:  3600,
@@ -117,7 +117,7 @@ fn test_concurrent_check_and_clear() {
 
 #[test]
 fn test_high_contention_single_key() {
-    let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+    let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
         enabled:      true,
         max_requests: 100,
         window_secs:  3600,

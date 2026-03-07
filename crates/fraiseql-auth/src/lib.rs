@@ -113,7 +113,7 @@ pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
 pub use proxy::ProxyConfig;
-pub use rate_limiting::{KeyedRateLimiter, RateLimitConfig, RateLimiters};
+pub use rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter, RateLimiters};
 pub use security_config::{
     AuditLoggingSettings, ErrorSanitizationSettings, RateLimitingSettings,
     SecurityConfigFromSchema, StateEncryptionSettings,

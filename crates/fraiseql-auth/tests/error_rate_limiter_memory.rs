@@ -4,10 +4,10 @@
 //! Tests `KeyedRateLimiter` behavior under high key cardinality and verifies
 //! that `clear()` reclaims tracked entries.
 
-use fraiseql_auth::{KeyedRateLimiter, RateLimitConfig};
+use fraiseql_auth::{AuthRateLimitConfig, KeyedRateLimiter};
 
-const fn high_limit_config() -> RateLimitConfig {
-    RateLimitConfig {
+const fn high_limit_config() -> AuthRateLimitConfig {
+    AuthRateLimitConfig {
         enabled:      true,
         max_requests: 1_000_000,
         window_secs:  3600,
@@ -43,7 +43,7 @@ fn test_rate_limiter_memory_bounded_by_entry_count() {
 
 #[test]
 fn test_rate_limiter_disabled_skips_tracking() {
-    let config = RateLimitConfig {
+    let config = AuthRateLimitConfig {
         enabled:      false,
         max_requests: 10,
         window_secs:  60,

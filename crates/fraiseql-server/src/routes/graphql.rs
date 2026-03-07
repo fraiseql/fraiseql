@@ -32,7 +32,7 @@ use crate::{
     tracing_utils,
 };
 #[cfg(feature = "auth")]
-use crate::auth::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
+use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 
 /// GraphQL request payload (for POST requests).
 #[derive(Debug, Deserialize)]
@@ -153,7 +153,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             config: None,
             #[cfg(feature = "auth")]
             graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
-                RateLimitConfig::per_ip_standard(),
+                AuthRateLimitConfig::per_ip_standard(),
             )),
             #[cfg(feature = "secrets")]
             secrets_manager: None,
@@ -1100,7 +1100,7 @@ mod tests {
 
     #[test]
     fn test_graphql_rate_limiter_is_per_ip() {
-        let config = RateLimitConfig {
+        let config = AuthRateLimitConfig {
             enabled:      true,
             max_requests: 3,
             window_secs:  60,
@@ -1120,7 +1120,7 @@ mod tests {
 
     #[test]
     fn test_graphql_rate_limiter_enforces_limit() {
-        let config = RateLimitConfig {
+        let config = AuthRateLimitConfig {
             enabled:      true,
             max_requests: 2,
             window_secs:  60,
@@ -1134,7 +1134,7 @@ mod tests {
 
     #[test]
     fn test_graphql_rate_limiter_disabled() {
-        let config = RateLimitConfig {
+        let config = AuthRateLimitConfig {
             enabled:      false,
             max_requests: 1,
             window_secs:  60,
@@ -1149,7 +1149,7 @@ mod tests {
 
     #[test]
     fn test_graphql_rate_limiter_window_reset() {
-        let config = RateLimitConfig {
+        let config = AuthRateLimitConfig {
             enabled:      true,
             max_requests: 1,
             window_secs:  0, // Immediate window reset for testing

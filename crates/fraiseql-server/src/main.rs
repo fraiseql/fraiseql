@@ -7,7 +7,7 @@ use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_server::{
-    CompiledSchemaLoader, Server, ServerConfig, server_config::RateLimitingConfig,
+    CompiledSchemaLoader, Server, ServerConfig, middleware::RateLimitConfig,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -103,23 +103,25 @@ async fn main() -> anyhow::Result<()> {
         if let Some(ref mut rate_limit) = config.rate_limiting {
             rate_limit.enabled = enabled;
         } else {
-            config.rate_limiting = Some(RateLimitingConfig {
+            config.rate_limiting = Some(RateLimitConfig {
                 enabled,
-                rps_per_ip: 100,
-                rps_per_user: 1000,
-                burst_size: 500,
+                rps_per_ip:            100,
+                rps_per_user:          1000,
+                burst_size:            500,
                 cleanup_interval_secs: 300,
+                trust_proxy_headers:   false,
             });
         }
     }
     if let Ok(rps_per_ip) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP") {
         if let Ok(value) = rps_per_ip.parse() {
-            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitingConfig {
+            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitConfig {
                 enabled:               true,
                 rps_per_ip:            100,
                 rps_per_user:          1000,
                 burst_size:            500,
                 cleanup_interval_secs: 300,
+                trust_proxy_headers:   false,
             });
             rate_config.rps_per_ip = value;
             config.rate_limiting = Some(rate_config);
@@ -127,12 +129,13 @@ async fn main() -> anyhow::Result<()> {
     }
     if let Ok(rps_per_user) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER") {
         if let Ok(value) = rps_per_user.parse() {
-            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitingConfig {
+            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitConfig {
                 enabled:               true,
                 rps_per_ip:            100,
                 rps_per_user:          1000,
                 burst_size:            500,
                 cleanup_interval_secs: 300,
+                trust_proxy_headers:   false,
             });
             rate_config.rps_per_user = value;
             config.rate_limiting = Some(rate_config);
@@ -140,12 +143,13 @@ async fn main() -> anyhow::Result<()> {
     }
     if let Ok(burst_size) = env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE") {
         if let Ok(value) = burst_size.parse() {
-            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitingConfig {
+            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitConfig {
                 enabled:               true,
                 rps_per_ip:            100,
                 rps_per_user:          1000,
                 burst_size:            500,
                 cleanup_interval_secs: 300,
+                trust_proxy_headers:   false,
             });
             rate_config.burst_size = value;
             config.rate_limiting = Some(rate_config);

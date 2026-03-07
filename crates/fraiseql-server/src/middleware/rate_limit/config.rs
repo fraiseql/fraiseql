@@ -40,7 +40,13 @@ pub struct RateLimitingSecurityConfig {
     pub trust_proxy_headers: bool,
 }
 
-/// Rate limiting configuration.
+/// Rate limiting configuration (token-bucket algorithm).
+///
+/// Enforces request-per-second limits per IP/user across all GraphQL
+/// operations. This is the canonical rate limiter for request throttling.
+///
+/// Distinct from `fraiseql_auth::AuthRateLimitConfig`, which uses a
+/// sliding-window algorithm for auth endpoint brute-force protection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
     /// Enable rate limiting

@@ -5,6 +5,8 @@ use std::{net::SocketAddr, path::PathBuf};
 use fraiseql_core::security::OidcConfig;
 use serde::{Deserialize, Serialize};
 
+use crate::middleware::RateLimitConfig;
+
 /// GraphQL IDE/playground tool to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -73,30 +75,6 @@ pub struct DatabaseTlsConfig {
     /// Path to CA certificate bundle for verifying server certificates.
     #[serde(default)]
     pub ca_bundle_path: Option<PathBuf>,
-}
-
-/// Rate limiting configuration for GraphQL requests.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateLimitingConfig {
-    /// Enable rate limiting (default: true for security).
-    #[serde(default = "default_rate_limiting_enabled")]
-    pub enabled: bool,
-
-    /// Requests per second per IP address.
-    #[serde(default = "default_rate_limit_rps_per_ip")]
-    pub rps_per_ip: u32,
-
-    /// Requests per second per authenticated user.
-    #[serde(default = "default_rate_limit_rps_per_user")]
-    pub rps_per_user: u32,
-
-    /// Burst capacity (maximum accumulated tokens).
-    #[serde(default = "default_rate_limit_burst_size")]
-    pub burst_size: u32,
-
-    /// Cleanup interval for stale entries (seconds).
-    #[serde(default = "default_rate_limit_cleanup_interval")]
-    pub cleanup_interval_secs: u64,
 }
 
 /// Server configuration.
@@ -348,7 +326,7 @@ pub struct ServerConfig {
     /// burst_size = 500      # Allow bursts up to 500 requests
     /// ```
     #[serde(default)]
-    pub rate_limiting: Option<RateLimitingConfig>,
+    pub rate_limiting: Option<RateLimitConfig>,
 
     /// Observer runtime configuration (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
@@ -740,25 +718,6 @@ const fn default_verify_certs() -> bool {
     true
 }
 
-const fn default_rate_limiting_enabled() -> bool {
-    true
-}
-
-const fn default_rate_limit_rps_per_ip() -> u32 {
-    100
-}
-
-const fn default_rate_limit_rps_per_user() -> u32 {
-    1000
-}
-
-const fn default_rate_limit_burst_size() -> u32 {
-    500
-}
-
-const fn default_rate_limit_cleanup_interval() -> u64 {
-    300
-}
 
 #[cfg(test)]
 mod tests {

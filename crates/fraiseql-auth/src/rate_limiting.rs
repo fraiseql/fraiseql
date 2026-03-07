@@ -24,9 +24,15 @@ use std::{
 
 use crate::error::{AuthError, Result};
 
-/// Rate limit configuration for an endpoint
+/// Rate limit configuration for authentication endpoints (sliding-window algorithm).
+///
+/// Uses a per-key sliding-window counter for brute-force protection on
+/// authentication endpoints (login, token refresh, callback).
+///
+/// Distinct from `fraiseql_server::middleware::RateLimitConfig`, which uses
+/// a token-bucket algorithm for general request rate limiting.
 #[derive(Debug, Clone)]
-pub struct RateLimitConfig {
+pub struct AuthRateLimitConfig {
     /// Whether rate limiting is enabled for this endpoint
     pub enabled:      bool,
     /// Maximum number of requests allowed in the window
@@ -35,7 +41,7 @@ pub struct RateLimitConfig {
     pub window_secs:  u64,
 }
 
-impl RateLimitConfig {
+impl AuthRateLimitConfig {
     /// IP-based rate limiting for public endpoints
     /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
     pub fn per_ip_standard() -> Self {
@@ -105,7 +111,7 @@ const PURGE_INTERVAL: u64 = 1_000;
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 pub struct KeyedRateLimiter {
     records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
-    config:      RateLimitConfig,
+    config:      AuthRateLimitConfig,
     /// Monotonically increasing call counter for triggering periodic sweeps.
     check_count: AtomicU64,
     /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
@@ -140,7 +146,7 @@ fn system_clock() -> u64 {
 
 impl KeyedRateLimiter {
     /// Create a new keyed rate limiter using wall-clock time.
-    pub fn new(config: RateLimitConfig) -> Self {
+    pub fn new(config: AuthRateLimitConfig) -> Self {
         Self {
             records:     Arc::new(Mutex::new(HashMap::new())),
             config,
@@ -153,7 +159,7 @@ impl KeyedRateLimiter {
     ///
     /// The `clock` function is called on every `check()` to obtain the current Unix timestamp.
     /// Pass `|| u64::MAX` to simulate a broken system clock and verify fail-open behavior.
-    pub fn with_clock<F>(config: RateLimitConfig, clock: F) -> Self
+    pub fn with_clock<F>(config: AuthRateLimitConfig, clock: F) -> Self
     where
         F: Fn() -> u64 + Send + Sync + 'static,
     {
@@ -262,7 +268,7 @@ impl KeyedRateLimiter {
     }
 
     /// Create a copy for independent testing
-    pub fn clone_config(&self) -> RateLimitConfig {
+    pub fn clone_config(&self) -> AuthRateLimitConfig {
         self.config.clone()
     }
 }
@@ -285,21 +291,21 @@ impl RateLimiters {
     /// Create default rate limiters for all endpoints
     pub fn new() -> Self {
         Self {
-            auth_start:    KeyedRateLimiter::new(RateLimitConfig::per_ip_standard()),
-            auth_callback: KeyedRateLimiter::new(RateLimitConfig::per_ip_strict()),
-            auth_refresh:  KeyedRateLimiter::new(RateLimitConfig::per_user_standard()),
-            auth_logout:   KeyedRateLimiter::new(RateLimitConfig::per_user_standard()),
-            failed_logins: KeyedRateLimiter::new(RateLimitConfig::failed_login_attempts()),
+            auth_start:    KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard()),
+            auth_callback: KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict()),
+            auth_refresh:  KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
+            auth_logout:   KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
+            failed_logins: KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts()),
         }
     }
 
     /// Create with custom configurations
     pub fn with_configs(
-        start_cfg: RateLimitConfig,
-        callback_cfg: RateLimitConfig,
-        refresh_cfg: RateLimitConfig,
-        logout_cfg: RateLimitConfig,
-        failed_cfg: RateLimitConfig,
+        start_cfg: AuthRateLimitConfig,
+        callback_cfg: AuthRateLimitConfig,
+        refresh_cfg: AuthRateLimitConfig,
+        logout_cfg: AuthRateLimitConfig,
+        failed_cfg: AuthRateLimitConfig,
     ) -> Self {
         Self {
             auth_start:    KeyedRateLimiter::new(start_cfg),
@@ -325,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_allows_within_limit() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 3,
             window_secs:  60,
@@ -340,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_rejects_over_limit() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 2,
             window_secs:  60,
@@ -356,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_per_key() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 2,
             window_secs:  60,
@@ -373,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_error_contains_retry_after() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 1,
             window_secs:  60,
@@ -392,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_active_limiters_count() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 100,
             window_secs:  60,
@@ -422,24 +428,24 @@ mod tests {
 
     #[test]
     fn test_rate_limit_config_presets() {
-        let standard_ip = RateLimitConfig::per_ip_standard();
+        let standard_ip = AuthRateLimitConfig::per_ip_standard();
         assert_eq!(standard_ip.max_requests, 100);
         assert_eq!(standard_ip.window_secs, 60);
 
-        let strict_ip = RateLimitConfig::per_ip_strict();
+        let strict_ip = AuthRateLimitConfig::per_ip_strict();
         assert_eq!(strict_ip.max_requests, 50);
 
-        let user_limit = RateLimitConfig::per_user_standard();
+        let user_limit = AuthRateLimitConfig::per_user_standard();
         assert_eq!(user_limit.max_requests, 10);
 
-        let failed = RateLimitConfig::failed_login_attempts();
+        let failed = AuthRateLimitConfig::failed_login_attempts();
         assert_eq!(failed.max_requests, 5);
         assert_eq!(failed.window_secs, 3600);
     }
 
     #[test]
     fn test_ip_based_rate_limiting() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig::per_ip_standard());
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard());
 
         let ip = "203.0.113.1";
 
@@ -456,7 +462,7 @@ mod tests {
 
     #[test]
     fn test_rejected_login_tracking() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig::failed_login_attempts());
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts());
 
         let user = "alice@example.com";
 
@@ -473,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_multiple_users_independent() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig::failed_login_attempts());
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts());
 
         // User 1 uses attempts
         for _ in 0..5 {
@@ -491,7 +497,7 @@ mod tests {
 
     #[test]
     fn test_clear_limiters() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 1,
             window_secs:  60,
@@ -512,7 +518,7 @@ mod tests {
     fn test_thread_safe_rate_limiting() {
         use std::sync::Arc as StdArc;
 
-        let limiter = StdArc::new(KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = StdArc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 100,
             window_secs:  60,
@@ -541,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiting_many_keys() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 10,
             window_secs:  60,
@@ -583,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_attack_prevention_scenario() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 10,
             window_secs:  60,
@@ -603,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_disabled() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      false,
             max_requests: 1,
             window_secs:  60,
@@ -625,7 +631,7 @@ mod tests {
         // This verifies that atomic operations prevent exceeding the limit
         use std::{sync::Arc, thread};
 
-        let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 50,
             window_secs:  60,
@@ -672,7 +678,7 @@ mod tests {
         // This verifies that per-key isolation works under concurrent access
         use std::{sync::Arc, thread};
 
-        let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 10,
             window_secs:  60,
@@ -719,7 +725,7 @@ mod tests {
     fn test_atomic_check_and_update_not_interleaved() {
         // This test verifies that the check-and-update sequence is atomic
         // by ensuring the counter never gets into an inconsistent state
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 3,
             window_secs:  60,
@@ -749,7 +755,7 @@ mod tests {
     fn test_concurrent_window_reset_safety() {
         // Verify that window reset (when window expires) is atomic
         // even under concurrent access
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 2,
             window_secs:  3600, // 1 hour - won't expire in test
@@ -777,7 +783,7 @@ mod tests {
     fn test_no_toctou_race_condition() {
         // Time-of-Check-Time-of-Use (TOCTOU) race condition test
         // Verifies that checking the limit and updating the counter happen atomically
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 1, // Very strict: only 1 request allowed
             window_secs:  60,

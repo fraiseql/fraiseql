@@ -3,11 +3,11 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod rate_limiting_tests {
-    use crate::rate_limiting::{KeyedRateLimiter, RateLimitConfig};
+    use crate::rate_limiting::{KeyedRateLimiter, AuthRateLimitConfig};
 
     #[test]
     fn test_rate_limit_allows_requests_within_limit() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 10,
             window_secs:  60,
@@ -21,7 +21,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_rate_limit_rejects_over_limit() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 3,
             window_secs:  60,
@@ -38,7 +38,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_rate_limit_per_key_independent() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 2,
             window_secs:  60,
@@ -53,7 +53,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_rate_limit_error_contains_retry_info() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 1,
             window_secs:  60,
@@ -72,7 +72,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_rate_limit_by_ip() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 5,
             window_secs:  60,
@@ -91,7 +91,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_different_ips_independent_limits() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 3,
             window_secs:  60,
@@ -113,7 +113,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_rejected_login_attempts() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 5,
             window_secs:  3600,
@@ -132,7 +132,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_multiple_users_independent() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 5,
             window_secs:  3600,
@@ -151,7 +151,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_active_limiters_count() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 100,
             window_secs:  60,
@@ -168,7 +168,7 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_clear_limiters() {
-        let limiter = KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 1,
             window_secs:  60,
@@ -188,7 +188,7 @@ mod rate_limiting_tests {
     fn test_thread_safe_rate_limiting() {
         use std::sync::Arc;
 
-        let limiter = Arc::new(KeyedRateLimiter::new(RateLimitConfig {
+        let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
             enabled:      true,
             max_requests: 100,
             window_secs:  60,
@@ -216,17 +216,17 @@ mod rate_limiting_tests {
 
     #[test]
     fn test_presets() {
-        let standard_ip = RateLimitConfig::per_ip_standard();
+        let standard_ip = AuthRateLimitConfig::per_ip_standard();
         assert_eq!(standard_ip.max_requests, 100);
         assert_eq!(standard_ip.window_secs, 60);
 
-        let strict_ip = RateLimitConfig::per_ip_strict();
+        let strict_ip = AuthRateLimitConfig::per_ip_strict();
         assert_eq!(strict_ip.max_requests, 50);
 
-        let user_limit = RateLimitConfig::per_user_standard();
+        let user_limit = AuthRateLimitConfig::per_user_standard();
         assert_eq!(user_limit.max_requests, 10);
 
-        let failed = RateLimitConfig::failed_login_attempts();
+        let failed = AuthRateLimitConfig::failed_login_attempts();
         assert_eq!(failed.max_requests, 5);
         assert_eq!(failed.window_secs, 3600);
     }
