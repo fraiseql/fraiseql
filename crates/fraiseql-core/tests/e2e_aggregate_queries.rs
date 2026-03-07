@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-end aggregate query tests
 //!
 //! These tests exercise the full analytics pipeline from query parsing to SQL generation

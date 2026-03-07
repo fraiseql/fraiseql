@@ -81,6 +81,8 @@ pub type CustomScalarResult = Result<Value>;
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::{Value, json};
 
     use super::CustomScalar;

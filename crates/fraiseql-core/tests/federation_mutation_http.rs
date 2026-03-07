@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! HTTP mutation transport tests
 //!
 //! Tests for executing extended mutations via HTTP to remote subgraphs.

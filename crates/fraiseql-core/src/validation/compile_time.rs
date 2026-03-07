@@ -383,6 +383,8 @@ impl CompileTimeValidator {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     fn create_test_context() -> SchemaContext {

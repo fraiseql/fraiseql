@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+
 //! SQL Projection Performance Benchmarks
 //!
 //! This benchmark suite measures the performance of the SQL projection optimization system.

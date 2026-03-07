@@ -16,6 +16,9 @@ name = "sql_projection_benchmark"
 harness = false
 name = "federation_bench"
 
+[lints]
+workspace = true
+
 [dependencies]
 fraiseql-error = {workspace = true}
 # Database abstraction layer (adapters, collation, introspector, filters)

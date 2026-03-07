@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Tests end-to-end analytics functionality:
 //! - Fact table metadata in schema
 //! - Validator rejects invalid schemas

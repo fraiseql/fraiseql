@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-End Tests: TypeScript Schema Authoring → JSON Compilation → Runtime Execution
 //!
 //! This test suite validates the complete flow from TypeScript federation decorator authoring

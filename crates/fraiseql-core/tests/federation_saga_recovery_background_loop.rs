@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! # Saga Recovery Manager - Background Loop with Store Integration
 //!
 //! Comprehensive tests for background recovery loop and saga store integration.

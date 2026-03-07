@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test mutation return type nullability handling.
 //!
 //! This test verifies that:

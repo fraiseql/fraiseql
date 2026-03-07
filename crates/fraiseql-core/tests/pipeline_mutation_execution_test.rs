@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline 3 integration tests — mutation execution end-to-end.
 //!
 //! Drives the **mutation execution pipeline** end-to-end:

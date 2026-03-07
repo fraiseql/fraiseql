@@ -5,6 +5,13 @@
 #![warn(clippy::missing_errors_doc)]
 #![warn(clippy::missing_panics_doc)]
 
+// Reason: These pedantic lints are too noisy for a large core crate.
+// Each allow is justified below.
+#![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style throughout
+#![allow(clippy::must_use_candidate)]      // Reason: many builder/accessor methods
+#![allow(clippy::missing_errors_doc)]      // Reason: errors documented at module level
+#![allow(clippy::doc_markdown)]            // Reason: prose in docs doesn't need backticks
+
 //! ## Architecture
 //!
 //! FraiseQL v2 compiles GraphQL schemas into optimized SQL execution plans at build time,

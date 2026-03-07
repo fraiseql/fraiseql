@@ -276,6 +276,8 @@ pub fn create_validator_from_rule(rule: &ValidationRule) -> Option<Box<dyn Valid
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

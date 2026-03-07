@@ -235,6 +235,8 @@ impl FragmentResolver {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     fn make_field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {

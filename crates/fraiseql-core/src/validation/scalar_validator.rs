@@ -158,6 +158,8 @@ pub fn validate_custom_scalar_parse_value(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use serde_json::{Value, json};
 
     use super::*;

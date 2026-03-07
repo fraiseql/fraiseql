@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test mutation argument binding and parameter handling.
 //!
 //! This test verifies that:

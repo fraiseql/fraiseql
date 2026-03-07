@@ -335,6 +335,8 @@ fn parse_graphql_type(graphql_type: &query::Type<String>) -> GraphQLType {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

@@ -240,6 +240,8 @@ pub fn validate_max_days_in_past(date_str: &str, max_days: i64) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use chrono::Datelike;
 
     use super::*;

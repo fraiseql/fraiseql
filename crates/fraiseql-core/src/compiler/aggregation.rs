@@ -599,6 +599,8 @@ impl AggregationPlanner {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
 

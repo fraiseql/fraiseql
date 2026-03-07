@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Integration tests for validation rate limiting.
 //!
 //! Tests validation-specific rate limiting with per-dimension tracking

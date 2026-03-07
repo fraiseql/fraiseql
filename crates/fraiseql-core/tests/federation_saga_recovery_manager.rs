@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! # Saga Recovery Manager - Production Implementation
 //!
 //! Comprehensive recovery system for distributed sagas with crash resilience.

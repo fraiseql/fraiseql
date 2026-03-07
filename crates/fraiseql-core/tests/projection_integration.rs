@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Tests end-to-end SQL projection functionality:
 //! - Schema compilation with projection hints
 //! - Multi-database projection SQL generation

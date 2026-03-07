@@ -430,6 +430,8 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

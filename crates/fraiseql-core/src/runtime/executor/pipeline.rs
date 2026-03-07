@@ -233,6 +233,8 @@ impl<A: DatabaseAdapter> Executor<A> {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use std::sync::Arc;
 
     use async_trait::async_trait;

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Field federation directive tests
 
 use fraiseql_core::federation::types::{

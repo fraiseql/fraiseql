@@ -1,3 +1,7 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::doc_markdown)] // Reason: benchmark documentation with special formatting
+#![allow(clippy::single_char_pattern)] // Reason: string pattern matching in benchmarks
+
 //! Adapter Performance Comparison: tokio-postgres vs fraiseql-wire
 //!
 //! This benchmark suite compares the performance characteristics of two database adapters:

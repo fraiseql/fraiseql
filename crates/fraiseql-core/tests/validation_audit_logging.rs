@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Integration tests for validation audit logging.
 //!
 //! Tests validation-specific audit logging with tenant isolation, PII redaction,

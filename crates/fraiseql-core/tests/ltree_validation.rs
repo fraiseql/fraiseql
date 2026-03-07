@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test LTree format validation and edge cases.
 //!
 //! This test verifies that:

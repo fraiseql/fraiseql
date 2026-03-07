@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Federation @requires/@provides Directive Enforcement
 //!
 //! Comprehensive tests for compile-time and runtime enforcement of @requires and @provides

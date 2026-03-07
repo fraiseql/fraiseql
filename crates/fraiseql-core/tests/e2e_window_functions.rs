@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-end window function tests
 //!
 //! These tests exercise the full window function pipeline from planning to SQL generation

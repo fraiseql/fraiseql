@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Cycle 14: Saga Chaos Testing
 //!
 //! Validates saga system resilience under non-deterministic failure conditions.

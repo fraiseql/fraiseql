@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Cycle 15: Federation Composition Validation
 //!
 //! Comprehensive federation composition validation and multi-subgraph coordination.

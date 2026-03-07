@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline 3 integration tests — mutation error-type field population.
 //!
 //! Tests that when a mutation returns a failure status, the executor populates

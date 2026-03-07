@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test custom scalar JSON serialization and roundtrip preservation.
 //!
 //! This test verifies that:

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+
 //! Full Pipeline Performance Comparison: tokio-postgres vs fraiseql-wire
 //!
 //! This benchmark suite compares the **complete FraiseQL execution pipeline**:

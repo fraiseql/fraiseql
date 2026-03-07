@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline 4 integration tests — cache invalidation.
 //!
 //! Drives the **cache invalidation pipeline** after a successful mutation:

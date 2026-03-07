@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+
 //! Cycle 13: Saga Performance Benchmarks
 //!
 //! Criterion.rs benchmarks for precise latency and throughput measurement of the

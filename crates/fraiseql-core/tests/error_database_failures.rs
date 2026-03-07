@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Database failure injection tests.
 //!
 //! Tests error paths when the database adapter returns various failure types.

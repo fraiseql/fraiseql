@@ -40,6 +40,8 @@ pub use types::{
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::schema::{AutoParams, FieldDenyPolicy, FieldType};
 

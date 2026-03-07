@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! EP-8 — Validator error branch coverage.
 //!
 //! Each test passes an invalid value to a validator and asserts that:

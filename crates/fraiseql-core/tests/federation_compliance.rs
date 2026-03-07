@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Apollo Federation v2 specification compliance tests
 //!
 //! Validates FraiseQL implementation against Apollo Federation v2 specification:

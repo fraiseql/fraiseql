@@ -66,6 +66,8 @@ pub fn find_type_with_key<'a>(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use crate::federation::types::KeyDirective;
 

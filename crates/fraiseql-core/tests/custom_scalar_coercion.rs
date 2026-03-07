@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test custom scalar type coercion in WHERE clauses.
 //!
 //! This test verifies that:

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! End-to-end integration tests for federation observability.
 //!
 //! Validates complete observability coverage for federation queries:

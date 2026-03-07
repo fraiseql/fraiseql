@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Design Quality Analysis Tests
 //!
 //! Tests for the design quality enforcement engine that detects architectural

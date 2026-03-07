@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Cycle 13: Saga Performance Budget Tests
 //!
 //! Validates performance budgets and detects regressions for saga operations.

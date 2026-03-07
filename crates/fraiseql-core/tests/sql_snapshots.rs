@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! SQL generation snapshot tests using insta
 //!
 //! These tests verify that SQL generation doesn't regress between releases.

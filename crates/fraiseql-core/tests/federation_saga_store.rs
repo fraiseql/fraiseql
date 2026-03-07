@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Week 13, Cycle 2: Saga Store - PostgreSQL Persistence for Distributed Transactions
 //!
 //! This module implements persistent saga state storage, enabling crash recovery and

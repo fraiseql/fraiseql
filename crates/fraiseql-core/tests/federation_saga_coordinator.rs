@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Comprehensive saga coordinator testing for distributed transactions:
 //! - Saga creation and initialization
 //! - Mutation parsing into saga steps

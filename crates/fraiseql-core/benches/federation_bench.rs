@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+
 //! Performance benchmarks for federation operations
 //!
 //! Measures latency and throughput for:

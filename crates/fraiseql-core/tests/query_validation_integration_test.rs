@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Behavioral tests for GraphQL query parsing and schema validation.
 //!
 //! Exercises the real `parse_query` and `CompiledSchema` APIs

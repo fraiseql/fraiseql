@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Pipeline integration tests — codegen → executor end-to-end.
 //!
 //! These tests drive the **core compiler pipeline** end-to-end:

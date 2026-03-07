@@ -115,6 +115,8 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

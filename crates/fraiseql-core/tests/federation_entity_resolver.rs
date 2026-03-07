@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Federation entity resolver tests
 //!
 //! Test suite for federation entity resolution functionality covering:

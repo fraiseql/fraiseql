@@ -1417,6 +1417,8 @@ pub fn is_safe_sql_identifier(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use super::super::observer_types::RetryConfig;
 

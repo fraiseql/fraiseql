@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Integration tests for ELO Rust validator integration.
 //!
 //! Tests validator registry with ELO expressions, caching, concurrent access,

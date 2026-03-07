@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test NULL handling in complex WHERE clause logic.
 //!
 //! This test verifies that:

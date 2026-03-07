@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 //! Test WHERE clause with deeply nested JSON paths.
 //!
 //! This test verifies that:
