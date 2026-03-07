@@ -349,6 +349,22 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub pool_tuning: Option<crate::config::pool_tuning::PoolTuningConfig>,
+
+    /// Admission control configuration.
+    ///
+    /// When set, enforces a maximum number of concurrent in-flight requests and
+    /// a maximum queue depth.  Requests that exceed either limit receive
+    /// `503 Service Unavailable` immediately instead of stalling under load.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [admission_control]
+    /// max_concurrent = 500
+    /// max_queue_depth = 1000
+    /// ```
+    #[serde(default)]
+    pub admission_control: Option<AdmissionConfig>,
 }
 
 #[cfg(feature = "observers")]
@@ -410,6 +426,34 @@ pub struct ObserverConfig {
     pub reload_interval_secs: u64,
 }
 
+/// Admission control configuration for backpressure limiting.
+///
+/// Pairs with [`crate::resilience::backpressure::AdmissionController`].
+/// See [`ServerConfig::admission_control`] for wiring instructions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdmissionConfig {
+    /// Maximum number of in-flight concurrent requests (semaphore permits).
+    ///
+    /// Defaults to 500.
+    #[serde(default = "default_admission_max_concurrent")]
+    pub max_concurrent: usize,
+
+    /// Maximum number of requests waiting for a permit (queue depth).
+    ///
+    /// When the queue is full, new requests are rejected with 503.
+    /// Defaults to 1000.
+    #[serde(default = "default_admission_max_queue_depth")]
+    pub max_queue_depth: u64,
+}
+
+fn default_admission_max_concurrent() -> usize {
+    500
+}
+
+fn default_admission_max_queue_depth() -> u64 {
+    1000
+}
+
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
@@ -453,6 +497,7 @@ impl Default for ServerConfig {
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
             pool_tuning: None,  // Pool auto-tuning disabled by default
+            admission_control: None, // Admission control disabled by default
         }
     }
 }

@@ -98,16 +98,10 @@ pub mod tracing_server;
 
 /// Runtime configuration types loaded from `fraiseql.toml` or environment variables.
 pub mod config;
-/// Server lifecycle management: health checks and graceful shutdown.
-pub mod lifecycle;
-/// Observability infrastructure: metrics, tracing context, and logging helpers.
+/// Observability infrastructure: tracing context and logging helpers.
 pub mod observability;
-/// Operational tools: feature flags, circuit breakers, and runtime controls.
-pub mod operational;
 /// Resilience primitives: backpressure and retry policies.
 pub mod resilience;
-/// Application-wide runtime state shared across request handlers via dependency injection.
-pub mod runtime_state;
 /// Utilities for distributed tracing, span propagation, and trace context formatting.
 pub mod tracing_utils;
 

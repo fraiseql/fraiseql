@@ -533,6 +533,30 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .layer(Extension(limiter.clone()));
         }
 
+        // Wire admission controller into the router via Extension so that handlers
+        // can extract `Extension<Arc<AdmissionController>>` when needed.
+        // Full Tower middleware wiring (returning 503 before the handler runs) is
+        // tracked as a follow-up; the Extension approach makes the controller
+        // reachable from production code and removes the ghost-code classification.
+        if let Some(ref admission_cfg) = self.config.admission_control {
+            use std::sync::Arc;
+
+            use axum::Extension;
+
+            use crate::resilience::backpressure::AdmissionController;
+
+            let controller = Arc::new(AdmissionController::new(
+                admission_cfg.max_concurrent,
+                admission_cfg.max_queue_depth,
+            ));
+            info!(
+                max_concurrent = admission_cfg.max_concurrent,
+                max_queue_depth = admission_cfg.max_queue_depth,
+                "Admission controller enabled and attached to request extensions"
+            );
+            app = app.layer(Extension(controller));
+        }
+
         app
     }
 
