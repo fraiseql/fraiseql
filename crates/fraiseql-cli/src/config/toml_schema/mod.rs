@@ -3,15 +3,26 @@
 //!
 //! This module extends FraiseQLConfig to support the full TOML-based schema definition.
 
+pub mod caching;
 pub mod domain;
 pub mod federation;
+pub mod observability;
+pub mod observers;
+pub mod operations;
 pub mod security;
+pub mod server_settings;
+pub mod subscriptions;
+pub mod types;
 
+pub use caching::{AnalyticsConfig, AnalyticsQuery, CacheRule, CachingConfig};
 pub use domain::{Domain, DomainDiscovery, ResolvedIncludes, SchemaIncludes};
 pub use federation::{
     FederationCircuitBreakerConfig, FederationConfig, FederationEntity,
     PerDatabaseCircuitBreakerOverride,
 };
+pub use observability::ObservabilityConfig;
+pub use observers::{EventHandler, ObserversConfig};
+pub use operations::{MutationDefinition, QueryDefaults, QueryDefinition, SchemaMetadata};
 pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
     EncryptionAlgorithm, EnterpriseSecurityConfig, ErrorSanitizationTomlConfig, FieldAuthRule,
@@ -19,6 +30,9 @@ pub use security::{
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig,
     TrustedDocumentMode, TrustedDocumentsConfig,
 };
+pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
+pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
+pub use types::{ArgumentDefinition, FieldDefinition, TypeDefinition};
 
 use std::collections::BTreeMap;
 
@@ -27,45 +41,6 @@ use serde::{Deserialize, Serialize};
 
 use super::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 use super::expand_env_vars;
-
-/// Global defaults for list-query auto-params.
-///
-/// Applied when a per-query `auto_params` does not specify a given flag.
-/// Relay queries and single-item queries are never affected.
-///
-/// ```toml
-/// [query_defaults]
-/// where    = true
-/// order_by = true
-/// limit    = false  # e.g. Relay-first project
-/// offset   = false
-/// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct QueryDefaults {
-    /// Enable automatic `where` filter parameter (default: true)
-    #[serde(rename = "where", default = "default_true")]
-    pub where_clause: bool,
-    /// Enable automatic `order_by` parameter (default: true)
-    #[serde(default = "default_true")]
-    pub order_by: bool,
-    /// Enable automatic `limit` parameter (default: true)
-    #[serde(default = "default_true")]
-    pub limit: bool,
-    /// Enable automatic `offset` parameter (default: true)
-    #[serde(default = "default_true")]
-    pub offset: bool,
-}
-
-impl Default for QueryDefaults {
-    fn default() -> Self {
-        Self { where_clause: true, order_by: true, limit: true, offset: true }
-    }
-}
-
-fn default_true() -> bool {
-    true
-}
 
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -163,331 +138,6 @@ pub struct TomlSchema {
     /// MCP (Model Context Protocol) server configuration.
     #[serde(default)]
     pub mcp: McpConfig,
-}
-
-/// MCP (Model Context Protocol) server configuration.
-///
-/// Enables AI/LLM tools to interact with FraiseQL queries and mutations
-/// through the standardized Model Context Protocol.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct McpConfig {
-    /// Enable MCP server endpoint.
-    pub enabled:      bool,
-    /// Transport mode: "http", "stdio", or "both".
-    pub transport:    String,
-    /// HTTP path for MCP endpoint (e.g., "/mcp").
-    pub path:         String,
-    /// Require authentication for MCP requests.
-    pub require_auth: bool,
-    /// Whitelist of query/mutation names to expose (empty = all).
-    #[serde(default)]
-    pub include:      Vec<String>,
-    /// Blacklist of query/mutation names to hide.
-    #[serde(default)]
-    pub exclude:      Vec<String>,
-}
-
-impl Default for McpConfig {
-    fn default() -> Self {
-        Self {
-            enabled:      false,
-            transport:    "http".to_string(),
-            path:         "/mcp".to_string(),
-            require_auth: true,
-            include:      Vec::new(),
-            exclude:      Vec::new(),
-        }
-    }
-}
-
-/// Schema metadata
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SchemaMetadata {
-    /// Schema name
-    pub name:            String,
-    /// Schema version
-    pub version:         String,
-    /// Optional schema description
-    pub description:     Option<String>,
-    /// Target database (postgresql, mysql, sqlite, sqlserver)
-    pub database_target: String,
-}
-
-impl Default for SchemaMetadata {
-    fn default() -> Self {
-        Self {
-            name:            "myapp".to_string(),
-            version:         "1.0.0".to_string(),
-            description:     None,
-            database_target: "postgresql".to_string(),
-        }
-    }
-}
-
-/// Type definition in TOML
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct TypeDefinition {
-    /// SQL source table or view
-    pub sql_source:  String,
-    /// Human-readable type description
-    pub description: Option<String>,
-    /// Field definitions
-    pub fields:      BTreeMap<String, FieldDefinition>,
-}
-
-impl Default for TypeDefinition {
-    fn default() -> Self {
-        Self {
-            sql_source:  "v_entity".to_string(),
-            description: None,
-            fields:      BTreeMap::new(),
-        }
-    }
-}
-
-/// Field definition
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct FieldDefinition {
-    /// GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)
-    #[serde(rename = "type")]
-    pub field_type:  String,
-    /// Whether field can be null
-    #[serde(default)]
-    pub nullable:    bool,
-    /// Field description
-    pub description: Option<String>,
-}
-
-/// Query definition in TOML
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct QueryDefinition {
-    /// Return type name
-    pub return_type:  String,
-    /// Whether query returns an array
-    #[serde(default)]
-    pub return_array: bool,
-    /// SQL source for the query
-    pub sql_source:   String,
-    /// Query description
-    pub description:  Option<String>,
-    /// Query arguments
-    pub args:         Vec<ArgumentDefinition>,
-}
-
-impl Default for QueryDefinition {
-    fn default() -> Self {
-        Self {
-            return_type:  "String".to_string(),
-            return_array: false,
-            sql_source:   "v_entity".to_string(),
-            description:  None,
-            args:         vec![],
-        }
-    }
-}
-
-/// Mutation definition in TOML
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct MutationDefinition {
-    /// Return type name
-    pub return_type: String,
-    /// SQL function or procedure source
-    pub sql_source:  String,
-    /// Operation type (CREATE, UPDATE, DELETE)
-    pub operation:   String,
-    /// Mutation description
-    pub description: Option<String>,
-    /// Mutation arguments
-    pub args:        Vec<ArgumentDefinition>,
-}
-
-impl Default for MutationDefinition {
-    fn default() -> Self {
-        Self {
-            return_type: "String".to_string(),
-            sql_source:  "fn_operation".to_string(),
-            operation:   "CREATE".to_string(),
-            description: None,
-            args:        vec![],
-        }
-    }
-}
-
-/// Argument definition
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ArgumentDefinition {
-    /// Argument name
-    pub name:        String,
-    /// Argument type
-    #[serde(rename = "type")]
-    pub arg_type:    String,
-    /// Whether argument is required
-    #[serde(default)]
-    pub required:    bool,
-    /// Default value if not provided
-    pub default:     Option<serde_json::Value>,
-    /// Argument description
-    pub description: Option<String>,
-}
-
-/// Observers/event system configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ObserversConfig {
-    /// Enable observers system
-    #[serde(default)]
-    pub enabled:   bool,
-    /// Backend service (redis, nats, postgresql, mysql, in-memory)
-    pub backend:   String,
-    /// Redis connection URL (required when backend = "redis")
-    pub redis_url: Option<String>,
-    /// NATS connection URL (required when backend = "nats")
-    ///
-    /// Example: `nats://localhost:4222`
-    /// Can be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.
-    pub nats_url:  Option<String>,
-    /// Event handlers
-    pub handlers:  Vec<EventHandler>,
-}
-
-impl Default for ObserversConfig {
-    fn default() -> Self {
-        Self {
-            enabled:   false,
-            backend:   "redis".to_string(),
-            redis_url: None,
-            nats_url:  None,
-            handlers:  vec![],
-        }
-    }
-}
-
-/// Event handler configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct EventHandler {
-    /// Handler name
-    pub name:           String,
-    /// Event type to handle
-    pub event:          String,
-    /// Action to perform (slack, email, sms, webhook, push, etc.)
-    pub action:         String,
-    /// Webhook URL for webhook actions
-    pub webhook_url:    Option<String>,
-    /// Retry strategy
-    pub retry_strategy: Option<String>,
-    /// Maximum retry attempts
-    pub max_retries:    Option<u32>,
-    /// Handler description
-    pub description:    Option<String>,
-}
-
-/// Caching configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct CachingConfig {
-    /// Enable caching
-    #[serde(default)]
-    pub enabled:   bool,
-    /// Cache backend (redis, memory, postgresql)
-    pub backend:   String,
-    /// Redis connection URL
-    pub redis_url: Option<String>,
-    /// Cache invalidation rules
-    pub rules:     Vec<CacheRule>,
-}
-
-impl Default for CachingConfig {
-    fn default() -> Self {
-        Self {
-            enabled:   false,
-            backend:   "redis".to_string(),
-            redis_url: None,
-            rules:     vec![],
-        }
-    }
-}
-
-/// Cache invalidation rule
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct CacheRule {
-    /// Query pattern to cache
-    pub query:                 String,
-    /// Time-to-live in seconds
-    pub ttl_seconds:           u32,
-    /// Events that trigger cache invalidation
-    pub invalidation_triggers: Vec<String>,
-}
-
-/// Analytics configuration
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct AnalyticsConfig {
-    /// Enable analytics
-    #[serde(default)]
-    pub enabled: bool,
-    /// Analytics queries
-    pub queries: Vec<AnalyticsQuery>,
-}
-
-/// Analytics query definition
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AnalyticsQuery {
-    /// Query name
-    pub name:        String,
-    /// SQL source for the query
-    pub sql_source:  String,
-    /// Query description
-    pub description: Option<String>,
-}
-
-/// Observability configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ObservabilityConfig {
-    /// Enable Prometheus metrics
-    pub prometheus_enabled:            bool,
-    /// Port for Prometheus metrics endpoint
-    pub prometheus_port:               u16,
-    /// Enable OpenTelemetry tracing
-    pub otel_enabled:                  bool,
-    /// OpenTelemetry exporter type
-    pub otel_exporter:                 String,
-    /// Jaeger endpoint for trace collection
-    pub otel_jaeger_endpoint:          Option<String>,
-    /// Enable health check endpoint
-    pub health_check_enabled:          bool,
-    /// Health check interval in seconds
-    pub health_check_interval_seconds: u32,
-    /// Log level threshold
-    pub log_level:                     String,
-    /// Log output format (json, text)
-    pub log_format:                    String,
-}
-
-impl Default for ObservabilityConfig {
-    fn default() -> Self {
-        Self {
-            prometheus_enabled:            false,
-            prometheus_port:               9090,
-            otel_enabled:                  false,
-            otel_exporter:                 "jaeger".to_string(),
-            otel_jaeger_endpoint:          None,
-            health_check_enabled:          true,
-            health_check_interval_seconds: 30,
-            log_level:                     "info".to_string(),
-            log_format:                    "json".to_string(),
-        }
-    }
 }
 
 impl TomlSchema {
@@ -665,112 +315,6 @@ impl TomlSchema {
             "types": types_json,
             "queries": queries_json,
         })
-    }
-}
-
-/// WebSocket subscription configuration.
-///
-/// ```toml
-/// [subscriptions]
-/// max_subscriptions_per_connection = 50
-///
-/// [subscriptions.hooks]
-/// on_connect = "http://localhost:8001/hooks/ws-connect"
-/// on_disconnect = "http://localhost:8001/hooks/ws-disconnect"
-/// on_subscribe = "http://localhost:8001/hooks/ws-subscribe"
-/// timeout_ms = 500
-/// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SubscriptionsConfig {
-    /// Maximum subscriptions per WebSocket connection.
-    /// `None` (or omitted) means unlimited.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_subscriptions_per_connection: Option<u32>,
-
-    /// Webhook lifecycle hooks.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hooks: Option<SubscriptionHooksConfig>,
-}
-
-/// Webhook URLs invoked during subscription lifecycle events.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SubscriptionHooksConfig {
-    /// URL to POST on WebSocket `connection_init` (fail-closed).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub on_connect: Option<String>,
-
-    /// URL to POST on WebSocket disconnect (fire-and-forget).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub on_disconnect: Option<String>,
-
-    /// URL to POST before a subscription is registered (fail-closed).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub on_subscribe: Option<String>,
-
-    /// Timeout in milliseconds for fail-closed hooks (default: 500).
-    #[serde(default = "default_hook_timeout_ms")]
-    pub timeout_ms: u64,
-}
-
-fn default_hook_timeout_ms() -> u64 {
-    500
-}
-
-/// Query validation limits (depth and complexity).
-///
-/// ```toml
-/// [validation]
-/// max_query_depth = 10
-/// max_query_complexity = 100
-/// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ValidationConfig {
-    /// Maximum allowed query nesting depth. `None` uses the server default (10).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_query_depth: Option<u32>,
-
-    /// Maximum allowed query complexity score. `None` uses the server default (100).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_query_complexity: Option<u32>,
-}
-
-/// Debug/development configuration.
-///
-/// Controls features that should only be enabled during development or
-/// in trusted environments. All flags default to off.
-///
-/// ```toml
-/// [debug]
-/// enabled = true
-/// database_explain = true
-/// expose_sql = true
-/// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct DebugConfig {
-    /// Master switch — all debug features require this to be `true`.
-    pub enabled: bool,
-
-    /// When `true`, the explain endpoint will also run `EXPLAIN` against the
-    /// database and include the query plan in the response.
-    pub database_explain: bool,
-
-    /// When `true`, the explain endpoint includes the generated SQL in the
-    /// response. Defaults to `true` (SQL is shown even without
-    /// `database_explain`).
-    pub expose_sql: bool,
-}
-
-impl Default for DebugConfig {
-    fn default() -> Self {
-        Self {
-            enabled:          false,
-            database_explain: false,
-            expose_sql:       true,
-        }
     }
 }
 
