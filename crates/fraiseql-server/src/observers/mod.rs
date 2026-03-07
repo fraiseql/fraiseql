@@ -191,43 +191,58 @@ pub struct UpdateObserverRequest {
 pub enum ActionConfig {
     /// HTTP webhook action
     Webhook {
+        /// Target URL for the webhook POST request.
         url:           String,
+        /// HTTP method (default: POST).
         #[serde(default = "default_method")]
         method:        String,
+        /// Optional custom request headers.
         #[serde(default)]
         headers:       Option<std::collections::HashMap<String, String>>,
+        /// Optional Handlebars body template.
         #[serde(default)]
         body_template: Option<String>,
     },
 
     /// Email notification action
     Email {
+        /// Primary recipient address.
         to:               String,
+        /// Optional CC recipient address.
         #[serde(default)]
         cc:               Option<String>,
+        /// Handlebars template for the email subject.
         subject_template: String,
+        /// Handlebars template for the email body.
         body_template:    String,
     },
 
     /// Slack message action
     Slack {
+        /// Incoming webhook URL for the Slack workspace.
         webhook_url:      String,
+        /// Optional target channel override.
         #[serde(default)]
         channel:          Option<String>,
+        /// Handlebars template for the Slack message text.
         message_template: String,
     },
 
     /// Database function call
     Database {
+        /// Name of the PostgreSQL function to invoke.
         function_name: String,
+        /// Optional JSON parameters passed to the function.
         #[serde(default)]
         params:        Option<serde_json::Value>,
     },
 
     /// Log action (for debugging)
     Log {
+        /// Log level: "trace", "debug", "info", "warn", or "error".
         #[serde(default = "default_log_level")]
         level:            String,
+        /// Handlebars template for the log message.
         message_template: String,
     },
 }
@@ -324,21 +339,37 @@ pub struct ObserverLog {
 /// Observer statistics from vw_observer_stats view.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ObserverStats {
+    /// Internal primary key of the observer.
     pub pk_observer:           i64,
+    /// External UUID of the observer.
     pub observer_id:           Uuid,
+    /// Name of the observer.
     pub observer_name:         String,
+    /// Entity type filter (if set on the observer).
     pub entity_type:           Option<String>,
+    /// Event type filter (if set on the observer).
     pub event_type:            Option<String>,
+    /// Whether the observer is currently enabled.
     pub enabled:               bool,
+    /// Total number of executions recorded.
     pub total_executions:      i64,
+    /// Number of executions that completed successfully.
     pub successful_executions: i64,
+    /// Number of executions that ended in failure.
     pub failed_executions:     i64,
+    /// Number of executions that timed out.
     pub timeout_executions:    i64,
+    /// Number of executions that were skipped (condition not met).
     pub skipped_executions:    i64,
+    /// Percentage of successful executions (0–100).
     pub success_rate_pct:      Option<f64>,
+    /// Average execution duration in milliseconds.
     pub avg_duration_ms:       Option<f64>,
+    /// Maximum execution duration in milliseconds.
     pub max_duration_ms:       Option<i32>,
+    /// Minimum execution duration in milliseconds.
     pub min_duration_ms:       Option<i32>,
+    /// Timestamp of the most recent execution.
     pub last_execution_at:     Option<DateTime<Utc>>,
 }
 
@@ -401,14 +432,20 @@ pub struct ListObserverLogsQuery {
 /// Paginated response wrapper.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
+    /// Items on the current page.
     pub data:        Vec<T>,
+    /// Current page number (1-based).
     pub page:        i64,
+    /// Number of items per page.
     pub page_size:   i64,
+    /// Total number of items across all pages.
     pub total_count: i64,
+    /// Total number of pages.
     pub total_pages: i64,
 }
 
 impl<T> PaginatedResponse<T> {
+    /// Construct a paginated response from a page of data and the total item count.
     pub fn new(data: Vec<T>, page: i64, page_size: i64, total_count: i64) -> Self {
         let total_pages = (total_count + page_size - 1) / page_size;
         Self {

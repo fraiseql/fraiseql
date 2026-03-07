@@ -458,14 +458,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let rbac_backend = Arc::new(
                     crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
                 );
-                // Ensure RBAC schema tables exist before serving requests.
-                // Spawned as a background task because build_router() is not async.
-                let rbac_init = rbac_backend.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = rbac_init.ensure_schema().await {
-                        error!("Failed to initialize RBAC schema: {e}");
-                    }
-                });
+                // Schema is initialized by serve_with_shutdown() before this
+                // function is called; build_router() is sync so no await here.
                 let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
                 let auth_state = BearerAuthState::new(token.clone());
                 let rbac_router = crate::api::rbac_management_router(rbac_state)

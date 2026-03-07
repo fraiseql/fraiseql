@@ -19,6 +19,7 @@ use super::{
 /// Application state for observer handlers.
 #[derive(Clone)]
 pub struct ObserverState {
+    /// Repository used by all observer HTTP handlers.
     pub repository: ObserverRepository,
 }
 

@@ -1,14 +1,17 @@
 //! Observer repository integration tests.
 //!
 //! These tests verify the SQL layer end-to-end against a real PostgreSQL
-//! database: correct row returns, pagination, tenant isolation, and — the
-//! critical case — that injection payloads do not affect other rows.
+//! database spun up via testcontainers: correct row returns, pagination,
+//! tenant isolation, and — the critical case — that injection payloads do
+//! not affect other rows.
+//!
+//! No external database or environment variables are required; each test
+//! creates its own container automatically.
 //!
 //! # Running
 //!
 //! ```bash
-//! export DATABASE_URL="postgresql://postgres:postgres@localhost/fraiseql_test"
-//! cargo test --test observer_repository_test --features observers -- --ignored --nocapture
+//! cargo test --test observer_repository_test --features observers
 //! ```
 
 #![cfg(feature = "observers")]
@@ -22,18 +25,36 @@ mod observer_test_helpers;
 use fraiseql_server::observers::{
     CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
 };
-use observer_test_helpers::{cleanup_test_data, create_test_pool, setup_observer_schema};
-use serde_json::json;
+use observer_test_helpers::setup_observer_schema;
+use sqlx::PgPool;
+use testcontainers::runners::AsyncRunner;
+use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Container-backed pool setup
 // ---------------------------------------------------------------------------
 
-/// Insert a minimal observer row directly via SQL, bypassing the repository
-/// create path so we can control fk_customer_org precisely.
+/// Start a throw-away PostgreSQL container and return a connection pool.
+///
+/// The returned container must be bound to a local variable for its entire
+/// lifetime — dropping it stops the container and closes the pool connections.
+async fn setup_pg() -> (PgPool, impl std::any::Any) {
+    let container = Postgres::default().start().await.unwrap();
+    let port = container.get_host_port_ipv4(5432).await.unwrap();
+    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    setup_observer_schema(&pool).await.unwrap();
+    (pool, container)
+}
+
+// ---------------------------------------------------------------------------
+// Row insertion helpers
+// ---------------------------------------------------------------------------
+
+/// Insert a minimal observer row, controlling fk_customer_org precisely.
 async fn insert_observer(
-    pool: &sqlx::PgPool,
+    pool: &PgPool,
     name: &str,
     entity_type: &str,
     event_type: &str,
@@ -57,7 +78,7 @@ async fn insert_observer(
 
 /// Insert a minimal observer log row linked to a given pk_observer.
 async fn insert_log(
-    pool: &sqlx::PgPool,
+    pool: &PgPool,
     pk_observer: i64,
     status: &str,
     trace_id: Option<&str>,
@@ -85,21 +106,18 @@ async fn insert_log(
 // ---------------------------------------------------------------------------
 
 /// Verify that list() with a customer_org filter only returns observers
-/// belonging to that org (or org-agnostic rows).
+/// belonging to that org.
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
 async fn test_list_tenant_isolation() {
-    let pool = create_test_pool().await;
-    setup_observer_schema(&pool).await.unwrap();
+    let (pool, _container) = setup_pg().await;
 
-    let test_id = Uuid::new_v4().to_string();
-    let name_a = format!("obs-a-{test_id}");
-    let name_b = format!("obs-b-{test_id}");
-
+    let id = Uuid::new_v4().to_string();
+    let name_a = format!("obs-a-{id}");
+    let name_b = format!("obs-b-{id}");
     insert_observer(&pool, &name_a, "Order", "INSERT", Some(1)).await;
     insert_observer(&pool, &name_b, "Payment", "INSERT", Some(2)).await;
 
-    let repo = ObserverRepository::new(pool.clone());
+    let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
         page: 1,
         page_size: 50,
@@ -115,27 +133,19 @@ async fn test_list_tenant_isolation() {
     assert!(names.contains(&name_a.as_str()), "org-1 observer should appear");
     assert!(!names.contains(&name_b.as_str()), "org-2 observer must not appear");
     assert!(count >= 1);
-
-    cleanup_test_data(&pool, &test_id).await.unwrap();
 }
 
 /// The critical injection test: a malicious entity_type string is treated as
-/// a literal value, returning 0 rows rather than leaking cross-tenant data or
-/// throwing an error.
+/// a literal value, returning 0 rows rather than leaking cross-tenant data.
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
 async fn test_list_injection_payload_returns_no_rows() {
-    let pool = create_test_pool().await;
-    setup_observer_schema(&pool).await.unwrap();
+    let (pool, _container) = setup_pg().await;
 
-    let test_id = Uuid::new_v4().to_string();
-    let name_1 = format!("inj-1-{test_id}");
-    let name_2 = format!("inj-2-{test_id}");
+    let id = Uuid::new_v4().to_string();
+    insert_observer(&pool, &format!("inj-1-{id}"), "Order", "INSERT", Some(1)).await;
+    insert_observer(&pool, &format!("inj-2-{id}"), "Payment", "INSERT", Some(2)).await;
 
-    insert_observer(&pool, &name_1, "Order", "INSERT", Some(1)).await;
-    insert_observer(&pool, &name_2, "Payment", "INSERT", Some(2)).await;
-
-    let repo = ObserverRepository::new(pool.clone());
+    let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
         page: 1,
         page_size: 50,
@@ -151,31 +161,26 @@ async fn test_list_injection_payload_returns_no_rows() {
     assert_eq!(
         observers.len(),
         0,
-        "injection payload must not match any rows (got {} rows, count={})",
+        "injection payload must not match any rows (got {}, count={})",
         observers.len(),
         count,
     );
     assert_eq!(count, 0);
-
-    cleanup_test_data(&pool, &test_id).await.unwrap();
 }
 
-/// Verify that all optional list() filters, when set, narrow the result to the
-/// matching single row.
+/// Verify that all optional list() filters narrow the result to exactly the
+/// matching row.
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
 async fn test_list_all_filters() {
-    let pool = create_test_pool().await;
-    setup_observer_schema(&pool).await.unwrap();
+    let (pool, _container) = setup_pg().await;
 
-    let test_id = Uuid::new_v4().to_string();
-    let target_name = format!("filter-target-{test_id}");
-    let other_name = format!("filter-other-{test_id}");
+    let id = Uuid::new_v4().to_string();
+    let target = format!("filter-target-{id}");
+    let other = format!("filter-other-{id}");
+    insert_observer(&pool, &target, "Invoice", "UPDATE", Some(10)).await;
+    insert_observer(&pool, &other, "Order", "INSERT", Some(10)).await;
 
-    insert_observer(&pool, &target_name, "Invoice", "UPDATE", Some(10)).await;
-    insert_observer(&pool, &other_name, "Order", "INSERT", Some(10)).await;
-
-    let repo = ObserverRepository::new(pool.clone());
+    let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
         page: 1,
         page_size: 50,
@@ -188,27 +193,22 @@ async fn test_list_all_filters() {
     let (observers, count) = repo.list(&query, Some(10)).await.unwrap();
     let names: Vec<&str> = observers.iter().map(|o| o.name.as_str()).collect();
 
-    assert!(names.contains(&target_name.as_str()));
-    assert!(!names.contains(&other_name.as_str()));
+    assert!(names.contains(&target.as_str()));
+    assert!(!names.contains(&other.as_str()));
     assert_eq!(count, 1);
-
-    cleanup_test_data(&pool, &test_id).await.unwrap();
 }
 
 /// Verify that pagination (page 1 + page 2) covers all rows without duplicates.
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
 async fn test_list_pagination_correctness() {
-    let pool = create_test_pool().await;
-    setup_observer_schema(&pool).await.unwrap();
+    let (pool, _container) = setup_pg().await;
 
-    let test_id = Uuid::new_v4().to_string();
-    // Insert 3 observers; paginate with page_size=2
+    let id = Uuid::new_v4().to_string();
     for i in 0..3 {
-        insert_observer(&pool, &format!("pag-{i}-{test_id}"), "Widget", "INSERT", Some(99)).await;
+        insert_observer(&pool, &format!("pag-{i}-{id}"), "Widget", "INSERT", Some(99)).await;
     }
 
-    let repo = ObserverRepository::new(pool.clone());
+    let repo = ObserverRepository::new(pool);
     let base = ListObserversQuery {
         page: 1,
         page_size: 2,
@@ -219,35 +219,28 @@ async fn test_list_pagination_correctness() {
     };
 
     let (page1, total) = repo.list(&base, Some(99)).await.unwrap();
-    let (page2, _) = repo
-        .list(&ListObserversQuery { page: 2, ..base }, Some(99))
-        .await
-        .unwrap();
+    let (page2, _) =
+        repo.list(&ListObserversQuery { page: 2, ..base }, Some(99)).await.unwrap();
 
     assert_eq!(total, 3);
     assert_eq!(page1.len(), 2);
     assert_eq!(page2.len(), 1);
 
-    // No duplicates across pages
     let ids1: std::collections::HashSet<_> = page1.iter().map(|o| o.pk_observer).collect();
     let ids2: std::collections::HashSet<_> = page2.iter().map(|o| o.pk_observer).collect();
     assert!(ids1.is_disjoint(&ids2), "pages must not share rows");
-
-    cleanup_test_data(&pool, &test_id).await.unwrap();
 }
 
-/// Verify list_logs() filters (status, trace_id, observer_id) each narrow
-/// results correctly and that a malicious trace_id does not leak rows.
+/// Verify list_logs() filters (status, trace_id, observer_id) narrow results
+/// correctly, and that a malicious trace_id does not leak rows.
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
 async fn test_list_logs_filters() {
-    let pool = create_test_pool().await;
-    setup_observer_schema(&pool).await.unwrap();
+    let (pool, _container) = setup_pg().await;
 
-    let test_id = Uuid::new_v4().to_string();
-    let pk = insert_observer(&pool, &format!("log-obs-{test_id}"), "Item", "DELETE", None).await;
+    let id = Uuid::new_v4().to_string();
+    let pk = insert_observer(&pool, &format!("log-obs-{id}"), "Item", "DELETE", None).await;
 
-    let trace = format!("trace-{test_id}");
+    let trace = format!("trace-{id}");
     insert_log(&pool, pk, "success", Some(&trace)).await;
     insert_log(&pool, pk, "failure", None).await;
 
@@ -258,22 +251,22 @@ async fn test_list_logs_filters() {
             .await
             .unwrap();
 
-    let repo = ObserverRepository::new(pool.clone());
+    let repo = ObserverRepository::new(pool);
 
-    // Filter by status
+    // Filter by status — all returned rows must be "success"
     let q_status = ListObserverLogsQuery {
         page: 1,
         page_size: 50,
-        observer_id: None,
+        observer_id: Some(obs_uuid.0),
         status: Some("success".to_string()),
         event_id: None,
         trace_id: None,
     };
     let (logs, _) = repo.list_logs(&q_status, None).await.unwrap();
-    let statuses: Vec<&str> = logs.iter().map(|l| l.status.as_str()).collect();
-    assert!(statuses.iter().all(|s| *s == "success"));
+    assert!(logs.iter().all(|l| l.status == "success"));
+    assert_eq!(logs.len(), 1);
 
-    // Filter by trace_id
+    // Filter by trace_id — exactly one match
     let q_trace = ListObserverLogsQuery {
         page: 1,
         page_size: 50,
@@ -286,7 +279,7 @@ async fn test_list_logs_filters() {
     assert_eq!(count, 1);
     assert_eq!(logs[0].trace_id.as_deref(), Some(trace.as_str()));
 
-    // Malicious trace_id returns 0 rows
+    // Malicious trace_id must return 0 rows
     let q_inject = ListObserverLogsQuery {
         page: 1,
         page_size: 50,
@@ -299,7 +292,7 @@ async fn test_list_logs_filters() {
     assert_eq!(logs_inject.len(), 0, "injection payload must not match rows");
     assert_eq!(cnt_inject, 0);
 
-    // Filter by observer_id
+    // Filter by observer_id — both rows visible
     let q_obs = ListObserverLogsQuery {
         page: 1,
         page_size: 50,
@@ -309,50 +302,39 @@ async fn test_list_logs_filters() {
         trace_id: None,
     };
     let (logs_obs, cnt_obs) = repo.list_logs(&q_obs, None).await.unwrap();
-    assert_eq!(cnt_obs, 2, "both logs should be found by observer_id");
-    let all_for_obs = logs_obs.iter().all(|l| l.fk_observer == pk);
-    assert!(all_for_obs);
-
-    cleanup_test_data(&pool, &test_id).await.unwrap();
+    assert_eq!(cnt_obs, 2);
+    assert!(logs_obs.iter().all(|l| l.fk_observer == pk));
 }
 
 /// Verify delete() only soft-deletes when the observer belongs to the
 /// specified customer_org (tenant isolation).
 #[tokio::test]
-#[ignore = "requires PostgreSQL"]
 async fn test_delete_tenant_isolation() {
-    let pool = create_test_pool().await;
-    setup_observer_schema(&pool).await.unwrap();
+    let (pool, _container) = setup_pg().await;
 
-    let test_id = Uuid::new_v4().to_string();
-    let name_org1 = format!("del-org1-{test_id}");
-    let name_org2 = format!("del-org2-{test_id}");
+    let id = Uuid::new_v4().to_string();
+    insert_observer(&pool, &format!("del-org1-{id}"), "Thing", "INSERT", Some(1)).await;
+    insert_observer(&pool, &format!("del-org2-{id}"), "Thing", "INSERT", Some(2)).await;
 
-    insert_observer(&pool, &name_org1, "Thing", "INSERT", Some(1)).await;
-    insert_observer(&pool, &name_org2, "Thing", "INSERT", Some(2)).await;
-
-    // Retrieve UUIDs
     let (uuid_org2,): (Uuid,) =
         sqlx::query_as("SELECT id FROM tb_observer WHERE name = $1")
-            .bind(&name_org2)
+            .bind(format!("del-org2-{id}"))
             .fetch_one(&pool)
             .await
             .unwrap();
 
     let repo = ObserverRepository::new(pool.clone());
 
-    // Attempt to delete org-2's observer while acting as org-1 — must fail (false)
+    // Attempt to delete org-2's observer while acting as org-1 — must return false
     let deleted = repo.delete(uuid_org2, Some(1)).await.unwrap();
     assert!(!deleted, "cross-tenant delete must be rejected");
 
-    // Verify the row is still alive
+    // The row must still be alive
     let still_there: Option<(Uuid,)> =
         sqlx::query_as("SELECT id FROM tb_observer WHERE name = $1 AND deleted_at IS NULL")
-            .bind(&name_org2)
+            .bind(format!("del-org2-{id}"))
             .fetch_optional(&pool)
             .await
             .unwrap();
     assert!(still_there.is_some(), "observer must not have been deleted");
-
-    cleanup_test_data(&pool, &test_id).await.unwrap();
 }
