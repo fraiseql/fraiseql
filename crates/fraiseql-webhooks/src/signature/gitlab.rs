@@ -31,6 +31,11 @@ impl SignatureVerifier for GitLabVerifier {
         _timestamp: Option<&str>,
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "GitLab webhook token must not be empty".to_string(),
+            ));
+        }
         // GitLab uses a simple token comparison
         Ok(constant_time_eq(signature.as_bytes(), secret.as_bytes()))
     }

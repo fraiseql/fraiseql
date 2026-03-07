@@ -74,6 +74,11 @@ impl SignatureVerifier for StripeVerifier {
         _timestamp: Option<&str>,
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Stripe webhook secret must not be empty".to_string(),
+            ));
+        }
         // Parse Stripe signature format: t=timestamp,v1=signature
         let parts: HashMap<&str, &str> = signature
             .split(',')

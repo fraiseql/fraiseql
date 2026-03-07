@@ -38,7 +38,8 @@ pub fn escape_postgres_jsonb_path(path: &[String]) -> Vec<String> {
 /// Escape a JSON path for MySQL JSON_EXTRACT/JSON_UNQUOTE.
 ///
 /// MySQL JSON paths use dot notation: '$.field.subfield'
-/// Single quotes must be escaped for SQL string literals.
+/// Single quotes are doubled (`''`) rather than backslash-escaped so that the
+/// path is safe even when the server runs with `NO_BACKSLASH_ESCAPES` mode.
 ///
 /// # Example
 /// ```
@@ -49,17 +50,20 @@ pub fn escape_postgres_jsonb_path(path: &[String]) -> Vec<String> {
 /// ```
 pub fn escape_mysql_json_path(path: &[String]) -> String {
     let json_path = path.join(".");
-    // Escape single quotes for SQL string literal
-    format!("$.{}", json_path.replace('\'', "\\'"))
+    // Double single quotes for SQL string literal; safe under NO_BACKSLASH_ESCAPES.
+    format!("$.{}", json_path.replace('\'', "''"))
 }
 
 /// Escape a JSON path for SQLite json_extract.
 ///
 /// SQLite JSON paths use dot notation: '$.field.subfield'
-/// Single quotes must be escaped for SQL string literals.
+/// Single quotes are doubled (`''`) rather than backslash-escaped so that the
+/// path is safe regardless of SQLite compile-time escape settings.
 pub fn escape_sqlite_json_path(path: &[String]) -> String {
     let json_path = path.join(".");
-    format!("$.{}", json_path.replace('\'', "\\'"))
+    // Double single quotes for SQL string literal; backslash escaping is not
+    // a reliable cross-mode choice for SQLite.
+    format!("$.{}", json_path.replace('\'', "''"))
 }
 
 /// Escape a JSON path for SQL Server JSON_VALUE.
@@ -101,13 +105,13 @@ mod tests {
     #[test]
     fn test_mysql_single_quote() {
         let result = escape_mysql_json_path(&["user'admin".to_string()]);
-        assert_eq!(result, "$.user\\'admin");
+        assert_eq!(result, "$.user''admin");
     }
 
     #[test]
     fn test_sqlite_single_quote() {
         let result = escape_sqlite_json_path(&["user'admin".to_string()]);
-        assert_eq!(result, "$.user\\'admin");
+        assert_eq!(result, "$.user''admin");
     }
 
     #[test]
@@ -223,9 +227,10 @@ mod tests {
     fn test_mysql_injection_drop_table() {
         let payload = "'; DROP TABLE users; --";
         let result = escape_mysql_json_path(&[payload.to_string()]);
-        // MySQL uses backslash escaping: ' → \'
-        // The result should contain \' (backslash then single quote) not bare '
-        assert!(result.contains("\\'"), "Single quote must be backslash-escaped for MySQL");
+        // MySQL single quotes are doubled (not backslash-escaped) so the path
+        // is safe even under NO_BACKSLASH_ESCAPES.
+        assert!(result.contains("''"), "Single quote must be doubled for MySQL");
+        assert!(!result.contains("\\'"), "Must not use backslash escaping");
         // Path must start with $.
         assert!(result.starts_with("$."), "MySQL path must start with $.");
     }
@@ -234,10 +239,10 @@ mod tests {
     fn test_mysql_injection_or_1_eq_1() {
         let payload = "' OR '1'='1";
         let result = escape_mysql_json_path(&[payload.to_string()]);
-        // All 4 single quotes in "' OR '1'='1" must be escaped with backslash
+        // All 4 single quotes in "' OR '1'='1" must be doubled.
         let original_quote_count = payload.chars().filter(|&c| c == '\'').count();
-        let escaped_count = result.matches("\\'").count();
-        assert_eq!(escaped_count, original_quote_count, "Every single quote must be backslash-escaped in MySQL");
+        let doubled_count = result.matches("''").count();
+        assert_eq!(doubled_count, original_quote_count, "Every single quote must be doubled in MySQL");
     }
 
     #[test]
@@ -304,8 +309,10 @@ mod tests {
     fn test_sqlite_injection_drop_table() {
         let payload = "'; DROP TABLE users; --";
         let result = escape_sqlite_json_path(&[payload.to_string()]);
-        // SQLite uses backslash escaping: ' → \' (same as MySQL)
-        assert!(result.contains("\\'"), "Single quote must be backslash-escaped for SQLite");
+        // SQLite single quotes are doubled (not backslash-escaped) for
+        // consistent behaviour across SQLite builds.
+        assert!(result.contains("''"), "Single quote must be doubled for SQLite");
+        assert!(!result.contains("\\'"), "Must not use backslash escaping");
         assert!(result.starts_with("$."), "SQLite path must start with $.");
     }
 
@@ -314,8 +321,8 @@ mod tests {
         let payload = "' OR '1'='1";
         let result = escape_sqlite_json_path(&[payload.to_string()]);
         let original_quote_count = payload.chars().filter(|&c| c == '\'').count();
-        let escaped_count = result.matches("\\'").count();
-        assert_eq!(escaped_count, original_quote_count, "Every single quote must be backslash-escaped in SQLite");
+        let doubled_count = result.matches("''").count();
+        assert_eq!(doubled_count, original_quote_count, "Every single quote must be doubled in SQLite");
     }
 
     #[test]
@@ -463,8 +470,10 @@ mod tests {
         let payload = "user'name";
         let mysql_result = escape_mysql_json_path(&[payload.to_string()]);
         let sqlite_result = escape_sqlite_json_path(&[payload.to_string()]);
-        // Both use backslash escaping
+        // Both use double-single-quote escaping (no backslash dependency)
         assert_eq!(mysql_result, sqlite_result, "MySQL and SQLite should escape single quotes identically");
+        assert!(mysql_result.contains("''"), "MySQL must use double-single-quote escaping");
+        assert!(!mysql_result.contains("\\'"), "MySQL must not use backslash escaping");
     }
 
     #[test]
@@ -490,5 +499,27 @@ mod tests {
         let path = vec!["user".to_string(), "address".to_string(), "city".to_string()];
         let result = escape_mysql_json_path(&path);
         assert_eq!(result, "$.user.address.city");
+    }
+
+    // --- NO_BACKSLASH_ESCAPES safety ---
+
+    #[test]
+    fn mysql_escape_single_quote_no_backslash_mode() {
+        // Verifies that the MySQL path escaper uses '' rather than \' so it is
+        // safe when the server operates with NO_BACKSLASH_ESCAPES enabled.
+        let result = escape_mysql_json_path(&["user'name".to_string()]);
+        assert!(!result.contains('\\'), "Must not contain backslash (breaks under NO_BACKSLASH_ESCAPES)");
+        assert!(result.contains("''"), "Must double single quotes");
+        assert_eq!(result, "$.user''name");
+    }
+
+    #[test]
+    fn sqlite_escape_single_quote_no_backslash_mode() {
+        // SQLite does not recognise \' as an escape sequence in standard mode;
+        // doubling the quote is the only portable approach.
+        let result = escape_sqlite_json_path(&["user'name".to_string()]);
+        assert!(!result.contains('\\'), "Must not contain backslash");
+        assert!(result.contains("''"), "Must double single quotes");
+        assert_eq!(result, "$.user''name");
     }
 }

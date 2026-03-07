@@ -173,6 +173,26 @@ pub struct CacheConfig {
     /// Default: [`RlsEnforcement::Error`]
     #[serde(default)]
     pub rls_enforcement: RlsEnforcement,
+
+    /// Maximum bytes for a single cache entry. Entries exceeding this are silently skipped.
+    ///
+    /// Prevents a single oversized response from consuming a disproportionate share of
+    /// the cache. The size is estimated by serializing the result to JSON and measuring
+    /// the byte length.
+    ///
+    /// Default: `None` (no per-entry limit). Suggested value: 10 MB (10_485_760).
+    #[serde(default)]
+    pub max_entry_bytes: Option<usize>,
+
+    /// Maximum total bytes across all cache entries. Triggers LRU eviction when exceeded.
+    ///
+    /// When set, `put()` checks whether adding the new entry would exceed the budget.
+    /// If the budget is already exceeded the entry is silently skipped (the LRU count
+    /// limit continues to apply independently).
+    ///
+    /// Default: `None` (no total limit). Suggested value: 1 GB (1_073_741_824).
+    #[serde(default)]
+    pub max_total_bytes: Option<usize>,
 }
 
 impl Default for CacheConfig {
@@ -200,6 +220,8 @@ impl Default for CacheConfig {
             ttl_seconds:        86_400, // 24 hours
             cache_list_queries: true,
             rls_enforcement:    RlsEnforcement::Error,
+            max_entry_bytes:    None,
+            max_total_bytes:    None,
         }
     }
 }
@@ -230,6 +252,8 @@ impl CacheConfig {
             ttl_seconds:        86_400,
             cache_list_queries: true,
             rls_enforcement:    RlsEnforcement::Error,
+            max_entry_bytes:    None,
+            max_total_bytes:    None,
         }
     }
 
@@ -258,6 +282,8 @@ impl CacheConfig {
             ttl_seconds,
             cache_list_queries: true,
             rls_enforcement:    RlsEnforcement::Error,
+            max_entry_bytes:    None,
+            max_total_bytes:    None,
         }
     }
 
@@ -283,6 +309,8 @@ impl CacheConfig {
             ttl_seconds:        86_400,
             cache_list_queries: true,
             rls_enforcement:    RlsEnforcement::Error,
+            max_entry_bytes:    None,
+            max_total_bytes:    None,
         }
     }
 
@@ -307,6 +335,8 @@ impl CacheConfig {
             ttl_seconds:        86_400,
             cache_list_queries: true,
             rls_enforcement:    RlsEnforcement::Error,
+            max_entry_bytes:    None,
+            max_total_bytes:    None,
         }
     }
 

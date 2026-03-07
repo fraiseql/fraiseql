@@ -1,6 +1,7 @@
 //! `FraiseQLFlightService` construction and state management methods.
 
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 use arrow::array::RecordBatch;
 use arrow_flight::{FlightData, flight_service_server::FlightServiceServer};
@@ -52,6 +53,12 @@ fn read_flight_session_secret() -> Option<String> {
     }
 }
 
+/// Default maximum number of concurrent Arrow Flight `do_get` streams.
+///
+/// When all permits are taken, new `do_get` requests immediately receive
+/// `Status::resource_exhausted` rather than being queued indefinitely.
+const DEFAULT_MAX_CONCURRENT_STREAMS: usize = 50;
+
 impl FraiseQLFlightService {
     /// Create a new Flight service with placeholder data (for testing/development).
     #[must_use]
@@ -70,6 +77,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -112,6 +120,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -152,6 +161,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 
@@ -201,6 +211,7 @@ impl FraiseQLFlightService {
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
             session_secret: read_flight_session_secret(),
+            stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }
 

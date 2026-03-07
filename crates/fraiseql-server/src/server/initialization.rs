@@ -54,7 +54,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         const fn default_ttl()    -> u64    { 600 }
         fn default_method() -> String { "S256".into() }
 
-        let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone()).ok()?;
+        let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone())
+            .inspect_err(|e| warn!(error = %e, "Failed to deserialize pkce config — disabling PKCE"))
+            .ok()?;
         if !cfg.enabled {
             return None;
         }
@@ -159,7 +161,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // The full schema JSON lives in the executor's compiled schema.
         // Access it via the security Value (which contains the embedded JSON blob).
         // We expose the root schema JSON here.
-        let schema_json = serde_json::to_value(schema).ok()?;
+        let schema_json = serde_json::to_value(schema)
+            .inspect_err(|e| warn!(error = %e, "Failed to serialize compiled schema for OIDC client construction"))
+            .ok()?;
         crate::auth::OidcServerClient::from_compiled_schema(&schema_json)
     }
 
@@ -270,7 +274,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             reload_interval_secs: u64,
         }
 
-        let cfg: TdCfgMinimal = serde_json::from_value(td_cfg.clone()).ok()?;
+        let cfg: TdCfgMinimal = serde_json::from_value(td_cfg.clone())
+            .inspect_err(|e| warn!(error = %e, "Failed to deserialize trusted_documents config — disabling trusted documents"))
+            .ok()?;
         if !cfg.enabled {
             return None;
         }

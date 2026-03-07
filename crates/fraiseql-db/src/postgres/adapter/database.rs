@@ -52,6 +52,14 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> Result<serde_json::Value> {
         let (select_sql, typed_params) =
             build_where_select_sql(view, where_clause, limit, offset)?;
+        // Defense-in-depth: compiler-generated SQL should never contain a
+        // semicolon, but guard against it to prevent statement injection.
+        if select_sql.contains(';') {
+            return Err(FraiseQLError::Validation {
+                message: "EXPLAIN SQL must be a single statement".into(),
+                path: None,
+            });
+        }
         let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
 
         let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
@@ -162,11 +170,15 @@ impl DatabaseAdapter for PostgresAdapter {
         function_name: &str,
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Build: SELECT * FROM fn_name($1, $2, ...)
+        // Build: SELECT * FROM "fn_name"($1, $2, ...)
+        // The function name is double-quoted so that reserved words, mixed-case
+        // names, and names with special characters are handled correctly.
+        // Any embedded double quotes are escaped by doubling them ("").
+        let quoted_fn = format!("\"{}\"", function_name.replace('"', "\"\""));
         let placeholders: Vec<String> =
             (1..=args.len()).map(|i| format!("${i}")).collect();
         let sql = format!(
-            "SELECT * FROM {function_name}({})",
+            "SELECT * FROM {quoted_fn}({})",
             placeholders.join(", ")
         );
 
@@ -222,6 +234,15 @@ impl DatabaseAdapter for PostgresAdapter {
         sql: &str,
         _params: &[serde_json::Value],
     ) -> Result<serde_json::Value> {
+        // Defense-in-depth: reject multi-statement input even though this SQL is
+        // compiler-generated. A semicolon would allow a second statement to be
+        // appended to the EXPLAIN prefix.
+        if sql.contains(';') {
+            return Err(FraiseQLError::Validation {
+                message: "EXPLAIN SQL must be a single statement".into(),
+                path: None,
+            });
+        }
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
         let client = self.acquire_connection_with_retry().await?;
         let rows: Vec<Row> = client.query(explain_sql.as_str(), &[]).await.map_err(|e| {

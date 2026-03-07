@@ -17,7 +17,16 @@ use super::{
     tracing::{FederationSpan, FederationTraceContext},
     types::{EntityRepresentation, FederationResolver},
 };
-use crate::{db::traits::DatabaseAdapter, error::Result};
+use crate::{
+    db::traits::DatabaseAdapter,
+    error::{FraiseQLError, Result},
+};
+
+/// Maximum number of entity representations allowed in a single `_entities` query.
+///
+/// Requests exceeding this limit are rejected immediately with a validation error
+/// to prevent unbounded memory and CPU consumption from oversized federation batches.
+const MAX_ENTITIES_BATCH_SIZE: usize = 1_000;
 
 /// Result of entity resolution
 #[derive(Debug)]
@@ -91,7 +100,10 @@ pub fn construct_batch_where_clause(
             .collect();
 
         if !values.is_empty() && !values.iter().all(|v| v == "''") {
-            conditions.push(format!("{} IN ({})", key_col, values.join(", ")));
+            // Double-quote the column identifier so that reserved words and
+            // mixed-case names are handled correctly in PostgreSQL.
+            let quoted_col = format!("\"{}\"", key_col.replace('"', "\"\""));
+            conditions.push(format!("{quoted_col} IN ({})", values.join(", ")));
         }
     }
 
@@ -195,6 +207,18 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     selection: &FieldSelection,
     trace_context: Option<FederationTraceContext>,
 ) -> Result<EntityResolutionMetrics> {
+    // Reject oversized batches immediately to prevent resource exhaustion.
+    if representations.len() > MAX_ENTITIES_BATCH_SIZE {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Federation batch size {} exceeds maximum {}",
+                representations.len(),
+                MAX_ENTITIES_BATCH_SIZE
+            ),
+            path: Some("_entities".into()),
+        });
+    }
+
     let start_time = Instant::now();
     let query_id = Uuid::new_v4().to_string();
 
@@ -464,7 +488,8 @@ mod tests {
         let where_clause = construct_batch_where_clause(&reps, &["id".to_string()]).unwrap();
 
         assert!(where_clause.contains("WHERE"));
-        assert!(where_clause.contains("id IN"));
+        // Column name must be double-quoted for PostgreSQL identifier safety.
+        assert!(where_clause.contains("\"id\" IN"), "expected quoted column \"id\" IN");
         assert!(where_clause.contains("123"));
         assert!(where_clause.contains("456"));
     }

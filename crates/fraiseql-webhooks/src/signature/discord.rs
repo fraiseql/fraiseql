@@ -62,6 +62,12 @@ impl SignatureVerifier for DiscordVerifier {
         timestamp: Option<&str>,
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Discord public key must not be empty".to_string(),
+            ));
+        }
+
         let timestamp = timestamp.ok_or(SignatureError::MissingTimestamp)?;
 
         // SECURITY: Reject replayed requests by checking timestamp freshness.

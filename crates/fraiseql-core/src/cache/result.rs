@@ -323,6 +323,22 @@ impl QueryResultCache {
             return Ok(());
         }
 
+        // Enforce per-entry size limit: estimate entry size from serialized JSON.
+        if let Some(max_entry) = self.config.max_entry_bytes {
+            let estimated = serde_json::to_vec(&result).map(|v| v.len()).unwrap_or(0);
+            if estimated > max_entry {
+                return Ok(()); // silently skip oversized entries
+            }
+        }
+
+        // Enforce total cache size limit.
+        if let Some(max_total) = self.config.max_total_bytes {
+            let current = self.memory_bytes.load(Ordering::Relaxed);
+            if current >= max_total {
+                return Ok(()); // silently skip when budget is exhausted
+            }
+        }
+
         let now = self.clock.now_secs();
         let memory_size = std::mem::size_of::<CachedResult>() + cache_key.len() * 2;
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);

@@ -17,6 +17,13 @@ pub(super) async fn handle(
     svc: &FraiseQLFlightService,
     request: Request<Ticket>,
 ) -> std::result::Result<Response<FlightDataStream>, Status> {
+    // Enforce concurrent stream limit: non-blocking acquire so we immediately
+    // reject when at capacity rather than queueing indefinitely.
+    let _permit = svc
+        .stream_semaphore
+        .try_acquire()
+        .map_err(|_| tonic::Status::resource_exhausted("Max concurrent Flight streams reached"))?;
+
     // Validate session token from metadata
     let session_token = extract_session_token(&request)?;
     let secret = svc

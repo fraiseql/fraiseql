@@ -445,6 +445,14 @@ impl DatabaseAdapter for MySqlAdapter {
     ) -> Result<serde_json::Value> {
         use sqlx::Row as _;
 
+        // Defense-in-depth: compiler-generated SQL should never contain a
+        // semicolon, but guard against it to prevent statement injection.
+        if sql.contains(';') {
+            return Err(FraiseQLError::Validation {
+                message: "EXPLAIN SQL must be a single statement".into(),
+                path: None,
+            });
+        }
         let explain_sql = format!("EXPLAIN FORMAT=JSON {sql}");
         let row: sqlx::mysql::MySqlRow =
             sqlx::query(&explain_sql).fetch_one(&self.pool).await.map_err(|e| {

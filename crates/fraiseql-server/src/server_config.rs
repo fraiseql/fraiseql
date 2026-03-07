@@ -446,11 +446,11 @@ pub struct AdmissionConfig {
     pub max_queue_depth: u64,
 }
 
-fn default_admission_max_concurrent() -> usize {
+const fn default_admission_max_concurrent() -> usize {
     500
 }
 
-fn default_admission_max_queue_depth() -> u64 {
+const fn default_admission_max_queue_depth() -> u64 {
     1000
 }
 

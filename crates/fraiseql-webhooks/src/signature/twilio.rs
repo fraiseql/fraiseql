@@ -92,6 +92,12 @@ impl SignatureVerifier for TwilioVerifier {
             )
         })?;
 
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Twilio auth token must not be empty".to_string(),
+            ));
+        }
+
         let signing_string = build_signing_string(url, payload);
 
         let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())

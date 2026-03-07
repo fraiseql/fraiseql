@@ -64,6 +64,11 @@ impl SignatureVerifier for SlackVerifier {
         timestamp: Option<&str>,
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Slack signing secret must not be empty".to_string(),
+            ));
+        }
         // Slack format: v0=<hex>
         let sig_hex = signature.strip_prefix("v0=").ok_or(SignatureError::InvalidFormat)?;
 

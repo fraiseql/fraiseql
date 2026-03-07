@@ -39,6 +39,7 @@ mod service;
 mod tests;
 
 use std::{pin::Pin, sync::Arc};
+use tokio::sync::Semaphore;
 
 use arrow_flight::{ActionType, FlightData, FlightInfo, HandshakeResponse, PutResult};
 use async_trait::async_trait;
@@ -164,6 +165,12 @@ pub struct FraiseQLFlightService {
     /// Read once at service construction from `FLIGHT_SESSION_SECRET` environment
     /// variable, or supplied via [`FraiseQLFlightService::with_session_secret`].
     pub(crate) session_secret: Option<String>,
+    /// Semaphore limiting the number of concurrent `do_get` streams.
+    ///
+    /// `try_acquire()` is used (non-blocking): when all permits are taken, new
+    /// `do_get` calls immediately return `Status::resource_exhausted` instead of
+    /// queuing indefinitely. Default capacity: 50.
+    pub(crate) stream_semaphore: Arc<Semaphore>,
 }
 
 /// Security context for authenticated Flight requests.

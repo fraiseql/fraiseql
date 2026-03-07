@@ -13,11 +13,39 @@ use crate::{
     traits::SignatureVerifier,
 };
 
+/// Default maximum age of a Paddle webhook timestamp before it is considered a replay.
+const DEFAULT_TOLERANCE_SECS: i64 = 300; // 5 minutes
+
 /// Verifies Paddle Billing v2 webhook signatures using HMAC-SHA256.
 ///
 /// Paddle signs `<timestamp>:<body>` and sends `ts=<timestamp>;h1=<hex>` in the
-/// `Paddle-Signature` header.
-pub struct PaddleVerifier;
+/// `Paddle-Signature` header. Timestamps outside the tolerance window are rejected
+/// to prevent replay attacks.
+pub struct PaddleVerifier {
+    /// Maximum acceptable age of a timestamp in seconds.
+    tolerance_secs: i64,
+}
+
+impl PaddleVerifier {
+    /// Create a verifier with the default 5-minute timestamp tolerance.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { tolerance_secs: DEFAULT_TOLERANCE_SECS }
+    }
+
+    /// Set a custom timestamp tolerance (in seconds).
+    #[must_use]
+    pub fn with_tolerance(mut self, seconds: u64) -> Self {
+        self.tolerance_secs = seconds as i64;
+        self
+    }
+}
+
+impl Default for PaddleVerifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Parse the Paddle v2 signature header.
 ///
@@ -59,7 +87,22 @@ impl SignatureVerifier for PaddleVerifier {
         _timestamp: Option<&str>,
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "Paddle webhook secret must not be empty".to_string(),
+            ));
+        }
+
         let (timestamp, h1_hex) = parse_paddle_signature(signature)?;
+
+        // SECURITY: Validate timestamp freshness to prevent replay attacks.
+        let ts_secs: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidFormat)?;
+        let now: i64 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(i64::MAX, |d| d.as_secs() as i64);
+        if (now - ts_secs).abs() > self.tolerance_secs {
+            return Err(SignatureError::TimestampExpired);
+        }
 
         // Paddle v2 signing string: "<timestamp>:<body>"
         let mut signing = timestamp.as_bytes().to_vec();
@@ -81,6 +124,14 @@ impl SignatureVerifier for PaddleVerifier {
 mod tests {
     use super::*;
 
+    fn fresh_timestamp() -> String {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string()
+    }
+
     fn make_signature(timestamp: &str, payload: &[u8], secret: &str) -> String {
         let mut signing = timestamp.as_bytes().to_vec();
         signing.push(b':');
@@ -94,34 +145,62 @@ mod tests {
 
     #[test]
     fn test_valid_signature() {
-        let verifier = PaddleVerifier;
+        let verifier = PaddleVerifier::new();
         let payload = br#"{"event_type":"subscription.created"}"#;
         let secret = "pdl_ntfset_test_secret";
-        let timestamp = "1749283200";
-        let sig = make_signature(timestamp, payload, secret);
+        let timestamp = fresh_timestamp();
+        let sig = make_signature(&timestamp, payload, secret);
 
         assert!(verifier.verify(payload, &sig, secret, None, None).unwrap());
     }
 
     #[test]
     fn test_invalid_hmac() {
-        let verifier = PaddleVerifier;
-        let sig = "ts=1749283200;h1=deadbeefdeadbeefdeadbeefdeadbeef";
-        assert!(!verifier.verify(b"payload", sig, "secret", None, None).unwrap());
+        let verifier = PaddleVerifier::new();
+        let ts = fresh_timestamp();
+        let sig = format!("ts={ts};h1=deadbeefdeadbeefdeadbeefdeadbeef");
+        assert!(!verifier.verify(b"payload", &sig, "secret", None, None).unwrap());
     }
 
     #[test]
     fn test_invalid_format_missing_ts() {
-        let verifier = PaddleVerifier;
+        let verifier = PaddleVerifier::new();
         let result = verifier.verify(b"payload", "h1=abc123", "secret", None, None);
         assert!(matches!(result, Err(SignatureError::InvalidFormat)));
     }
 
     #[test]
     fn test_invalid_format_missing_h1() {
-        let verifier = PaddleVerifier;
-        let result = verifier.verify(b"payload", "ts=12345", "secret", None, None);
+        let verifier = PaddleVerifier::new();
+        let ts = fresh_timestamp();
+        let sig = format!("ts={ts}");
+        let result = verifier.verify(b"payload", &sig, "secret", None, None);
         assert!(matches!(result, Err(SignatureError::InvalidFormat)));
+    }
+
+    #[test]
+    fn test_expired_timestamp_rejected() {
+        let verifier = PaddleVerifier::new();
+        let old_ts = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            - 600)
+            .to_string();
+        let payload = b"payload";
+        let secret = "secret";
+        let sig = make_signature(&old_ts, payload, secret);
+        let result = verifier.verify(payload, &sig, secret, None, None);
+        assert!(matches!(result, Err(SignatureError::TimestampExpired)));
+    }
+
+    #[test]
+    fn test_empty_secret_rejected() {
+        let verifier = PaddleVerifier::new();
+        let ts = fresh_timestamp();
+        let sig = format!("ts={ts};h1=abc123");
+        let result = verifier.verify(b"payload", &sig, "", None, None);
+        assert!(matches!(result, Err(SignatureError::Crypto(_))));
     }
 
     #[test]

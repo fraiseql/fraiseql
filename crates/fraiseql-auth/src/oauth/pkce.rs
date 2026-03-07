@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq as _;
 
 /// PKCE code challenge for public clients
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,7 +45,11 @@ impl PKCEChallenge {
         let digest = hasher.finalize();
         let computed_challenge = urlencoding::encode_binary(&digest).to_string();
 
-        computed_challenge == self.code_challenge
+        // SECURITY: Use constant-time comparison to prevent timing attacks.
+        computed_challenge
+            .as_bytes()
+            .ct_eq(self.code_challenge.as_bytes())
+            .into()
     }
 }
 
@@ -79,7 +84,14 @@ impl StateParameter {
 
     /// Verify state matches and is not expired
     pub fn verify(&self, provided_state: &str) -> bool {
-        self.state == provided_state && !self.is_expired()
+        // SECURITY: Use constant-time comparison before checking expiry to prevent
+        // timing oracles that could reveal information about the stored state value.
+        let match_ok: bool = self
+            .state
+            .as_bytes()
+            .ct_eq(provided_state.as_bytes())
+            .into();
+        match_ok && !self.is_expired()
     }
 }
 
@@ -114,7 +126,14 @@ impl NonceParameter {
 
     /// Verify nonce matches and is not expired
     pub fn verify(&self, provided_nonce: &str) -> bool {
-        self.nonce == provided_nonce && !self.is_expired()
+        // SECURITY: Use constant-time comparison before checking expiry to prevent
+        // timing oracles that could reveal information about the stored nonce value.
+        let match_ok: bool = self
+            .nonce
+            .as_bytes()
+            .ct_eq(provided_nonce.as_bytes())
+            .into();
+        match_ok && !self.is_expired()
     }
 }
 

@@ -35,6 +35,15 @@ fn generate_p256_key() -> (SigningKey, String) {
     (signing_key, pem)
 }
 
+/// Return the current Unix timestamp as a decimal string.
+fn fresh_timestamp() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string()
+}
+
 /// Sign `timestamp + payload` with the provided signing key and return a
 /// Base64-encoded DER signature (the format SendGrid uses).
 fn sendgrid_sign(signing_key: &SigningKey, payload: &[u8], timestamp: &str) -> String {
@@ -56,12 +65,12 @@ fn sendgrid_sign(signing_key: &SigningKey, payload: &[u8], timestamp: &str) -> S
 fn valid_ecdsa_p256_signature_over_timestamp_and_payload_verifies() {
     let (signing_key, pem_public_key) = generate_p256_key();
     let payload = b"[{\"email\":\"test@example.com\",\"event\":\"delivered\"}]";
-    let timestamp = "1609459200";
+    let timestamp = fresh_timestamp();
 
-    let sig_b64 = sendgrid_sign(&signing_key, payload, timestamp);
-    let verifier = SendGridVerifier;
+    let sig_b64 = sendgrid_sign(&signing_key, payload, &timestamp);
+    let verifier = SendGridVerifier::new();
 
-    let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(timestamp), None);
+    let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(&timestamp), None);
 
     assert!(
         result.as_ref().is_ok_and(|&v| v),
@@ -80,7 +89,7 @@ fn hmac_sha256_forged_signature_is_rejected_by_ecdsa_verifier() {
 
     let (_signing_key, pem_public_key) = generate_p256_key();
     let payload = b"[{\"email\":\"test@example.com\",\"event\":\"bounce\"}]";
-    let timestamp = "1609459200";
+    let timestamp = fresh_timestamp();
 
     // Forge: compute HMAC-SHA256 over timestamp+payload (wrong algorithm)
     let mut mac = Hmac::<Sha256>::new_from_slice(b"forged_secret").unwrap();
@@ -88,8 +97,8 @@ fn hmac_sha256_forged_signature_is_rejected_by_ecdsa_verifier() {
     mac.update(payload);
     let forged_sig = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
-    let verifier = SendGridVerifier;
-    let result = verifier.verify(payload, &forged_sig, &pem_public_key, Some(timestamp), None);
+    let verifier = SendGridVerifier::new();
+    let result = verifier.verify(payload, &forged_sig, &pem_public_key, Some(&timestamp), None);
 
     assert!(
         result.is_err() || !result.unwrap_or(true),
@@ -105,12 +114,16 @@ fn signature_over_wrong_timestamp_is_rejected() {
     let (signing_key, pem_public_key) = generate_p256_key();
     let payload = b"[{\"event\":\"click\"}]";
 
-    // Sign with timestamp "100"
-    let sig_b64 = sendgrid_sign(&signing_key, payload, "100");
+    // Sign with a fresh timestamp
+    let sign_ts = fresh_timestamp();
+    // Claim a slightly different timestamp at verification (still fresh, but doesn't match signed message)
+    let verify_ts = format!("{}9", sign_ts); // append "9" to make it different but still parse as i64
 
-    let verifier = SendGridVerifier;
-    // Verify claiming timestamp "999" — signed message does not match
-    let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some("999"), None);
+    let sig_b64 = sendgrid_sign(&signing_key, payload, &sign_ts);
+
+    let verifier = SendGridVerifier::new();
+    // Verify claiming a different timestamp — signed message does not match
+    let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(&verify_ts), None);
 
     assert!(
         result.is_err() || !result.unwrap_or(true),
@@ -126,14 +139,14 @@ fn signature_from_different_key_is_rejected() {
     let (_signing_key_b, pem_b) = generate_p256_key();
 
     let payload = b"[{\"event\":\"open\"}]";
-    let timestamp = "1609459200";
+    let timestamp = fresh_timestamp();
 
     // Sign with key A
-    let sig_b64 = sendgrid_sign(&signing_key_a, payload, timestamp);
+    let sig_b64 = sendgrid_sign(&signing_key_a, payload, &timestamp);
 
     // Verify against key B — must fail
-    let verifier = SendGridVerifier;
-    let result = verifier.verify(payload, &sig_b64, &pem_b, Some(timestamp), None);
+    let verifier = SendGridVerifier::new();
+    let result = verifier.verify(payload, &sig_b64, &pem_b, Some(&timestamp), None);
 
     assert!(
         result.is_err() || !result.unwrap_or(true),
@@ -145,7 +158,8 @@ fn signature_from_different_key_is_rejected() {
 #[test]
 fn invalid_base64_signature_returns_error() {
     let (_signing_key, pem_public_key) = generate_p256_key();
-    let verifier = SendGridVerifier;
-    let result = verifier.verify(b"payload", "not-valid-base64!!!", &pem_public_key, Some("1609459200"), None);
+    let verifier = SendGridVerifier::new();
+    let ts = fresh_timestamp();
+    let result = verifier.verify(b"payload", "not-valid-base64!!!", &pem_public_key, Some(&ts), None);
     assert!(result.is_err(), "O2 regression: invalid base64 signature must return Err");
 }

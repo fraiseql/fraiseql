@@ -47,9 +47,15 @@ impl ProviderRegistry {
             Arc::new(SlackVerifier::new().with_tolerance(tolerance_secs)),
         );
         providers.insert("twilio".into(), Arc::new(TwilioVerifier));
-        providers.insert("sendgrid".into(), Arc::new(SendGridVerifier));
+        providers.insert(
+            "sendgrid".into(),
+            Arc::new(SendGridVerifier::new().with_tolerance(tolerance_secs)),
+        );
         providers.insert("postmark".into(), Arc::new(PostmarkVerifier));
-        providers.insert("paddle".into(), Arc::new(PaddleVerifier));
+        providers.insert(
+            "paddle".into(),
+            Arc::new(PaddleVerifier::new().with_tolerance(tolerance_secs)),
+        );
         providers.insert("lemonsqueezy".into(), Arc::new(LemonSqueezyVerifier));
 
         // Extended providers

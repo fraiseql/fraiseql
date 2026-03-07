@@ -69,6 +69,31 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .await
             .map_err(|e| ServerError::BindError(e.to_string()))?;
 
+        // Warn if the process file descriptor limit is below the recommended minimum.
+        // A low limit causes "too many open files" errors under load.
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(limits) = std::fs::read_to_string("/proc/self/limits") {
+                for line in limits.lines() {
+                    if line.starts_with("Max open files") {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if let Some(soft) = parts.get(3) {
+                            if let Ok(n) = soft.parse::<u64>() {
+                                if n < 65_536 {
+                                    warn!(
+                                        current_fd_limit = n,
+                                        recommended = 65_536,
+                                        "File descriptor limit is low; consider raising ulimit -n"
+                                    );
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
         // Log TLS configuration
         if tls_setup.is_tls_enabled() {
             // Verify TLS setup is valid (will error if certificates are missing/invalid)

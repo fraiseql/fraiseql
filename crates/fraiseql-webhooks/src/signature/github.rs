@@ -34,6 +34,11 @@ impl SignatureVerifier for GitHubVerifier {
         _timestamp: Option<&str>,
         _url: Option<&str>,
     ) -> Result<bool, SignatureError> {
+        if secret.is_empty() {
+            return Err(SignatureError::Crypto(
+                "GitHub webhook secret must not be empty".to_string(),
+            ));
+        }
         // GitHub format: sha256=<hex>
         let sig_hex = signature.strip_prefix("sha256=").ok_or(SignatureError::InvalidFormat)?;
 
