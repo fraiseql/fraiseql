@@ -741,10 +741,6 @@ fn test_default_policy() {
     assert_eq!(config.cache_duration_seconds, 300);
 }
 
-// ============================================================================
-// PHASE 08 — COMPLETE FIELD ASSERTIONS
-// ============================================================================
-
 // --- AuthorizeConfig: every field ---
 
 #[test]

@@ -1196,6 +1196,45 @@ jobs:
           path: target/criterion
 
 
+  # Feature flag compilation coverage for fraiseql-server
+  feature-flags:
+    name: Feature Flag Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mold linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-feature-flags-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Test fraiseql-server no-default-features
+        run: cargo check -p fraiseql-server --no-default-features
+
+      - name: Test fraiseql-server feature arrow
+        run: cargo check -p fraiseql-server --no-default-features --features arrow
+
+      - name: Test fraiseql-server feature observers-nats
+        run: cargo check -p fraiseql-server --no-default-features --features observers-nats
+
+      - name: Test fraiseql-server feature redis-rate-limiting
+        run: cargo check -p fraiseql-server --no-default-features --features redis-rate-limiting
+
+      - name: Test fraiseql-server all features
+        run: cargo check -p fraiseql-server --all-features
+
   # Cross-SDK schema parity
   sdk-parity:
     name: Cross-SDK Schema Parity
@@ -1284,6 +1323,7 @@ jobs:
       - dependency-audit
       - integration-cross-db
       - docs
+      - feature-flags
       - sdk-parity
     runs-on: ubuntu-latest
     steps:

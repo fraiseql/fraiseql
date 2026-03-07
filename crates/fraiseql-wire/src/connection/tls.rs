@@ -188,10 +188,15 @@ impl TlsConfigBuilder {
     ///
     /// Only use for testing with self-signed certificates.
     ///
+    /// # Errors
+    ///
+    /// [`TlsConfigBuilder::build`] returns `Error::Config` when this option is `true`
+    /// in a release build (`cfg(not(debug_assertions))`).
+    ///
     /// # Examples
     ///
     /// ```no_run
-    /// // Requires: debug build only (panics in release mode).
+    /// // Requires: debug build only (returns Err in release mode).
     /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .danger_accept_invalid_certs(true)
@@ -214,7 +219,7 @@ impl TlsConfigBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// // Requires: debug build only (panics in release mode if certs also invalid).
+    /// // Requires: debug build only.
     /// use fraiseql_wire::connection::TlsConfig;
     /// let tls = TlsConfig::builder()
     ///     .danger_accept_invalid_hostnames(true)
@@ -247,7 +252,7 @@ impl TlsConfigBuilder {
     /// ```
     pub fn build(self) -> Result<TlsConfig> {
         // SECURITY: Validate TLS configuration before creating client
-        validate_tls_security(self.danger_accept_invalid_certs);
+        validate_tls_security(self.danger_accept_invalid_certs)?;
 
         let client_config = if self.danger_accept_invalid_certs {
             // Create a client config that accepts any certificate (development only)
@@ -348,9 +353,8 @@ impl TlsConfigBuilder {
 
 /// Validate TLS configuration for security constraints.
 ///
-/// Enforces:
-/// - Release builds cannot use `danger_accept_invalid_certs`
-/// - Production environment rejects danger mode
+/// Enforces that release builds cannot use `danger_accept_invalid_certs`.
+/// Development builds emit a warning but proceed.
 ///
 /// # Arguments
 ///
@@ -358,14 +362,14 @@ impl TlsConfigBuilder {
 ///
 /// # Errors
 ///
-/// Returns an error or panics if validation fails
-fn validate_tls_security(danger_accept_invalid_certs: bool) {
+/// Returns `Error::Config` if `danger_accept_invalid_certs` is set in a release build.
+fn validate_tls_security(danger_accept_invalid_certs: bool) -> Result<()> {
     if danger_accept_invalid_certs {
-        // SECURITY: Panic in release builds to prevent accidental production use
+        // SECURITY: Return an error in release builds to prevent accidental production use
         #[cfg(not(debug_assertions))]
-        {
-            panic!("🚨 CRITICAL: TLS certificate validation bypass not allowed in release builds");
-        }
+        return Err(Error::Config(
+            "TLS certificate validation bypass not permitted in release builds".into(),
+        ));
 
         // Development builds: warn but allow
         #[cfg(debug_assertions)]
@@ -374,6 +378,7 @@ fn validate_tls_security(danger_accept_invalid_certs: bool) {
             tracing::warn!("This mode is only for development with self-signed certificates");
         }
     }
+    Ok(())
 }
 
 /// Parse server name from hostname for TLS SNI (Server Name Indication).
@@ -495,12 +500,17 @@ mod tests {
 
     #[test]
     #[cfg(not(debug_assertions))]
-    #[should_panic(expected = "TLS certificate validation bypass")]
-    fn test_danger_mode_panics_in_release_build() {
-        // This test only runs in release builds and should panic
-        let _ = TlsConfig::builder()
+    fn test_danger_mode_returns_error_in_release_build() {
+        // This test only runs in release builds; danger mode must return an error
+        let result = TlsConfig::builder()
             .danger_accept_invalid_certs(true)
             .build();
+        assert!(result.is_err(), "danger mode must be rejected in release builds");
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("not permitted in release builds"),
+            "error message must explain the restriction",
+        );
     }
 
     #[test]
