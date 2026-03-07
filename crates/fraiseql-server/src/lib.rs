@@ -98,8 +98,6 @@ pub mod tracing_server;
 
 /// Runtime configuration types loaded from `fraiseql.toml` or environment variables.
 pub mod config;
-/// Observability infrastructure: tracing context and logging helpers.
-pub mod observability;
 /// Resilience primitives: backpressure and retry policies.
 pub mod resilience;
 /// Utilities for distributed tracing, span propagation, and trace context formatting.
@@ -108,10 +106,6 @@ pub mod tracing_utils;
 // Webhooks (extracted to fraiseql-webhooks crate) — optional, enable with `features = ["webhooks"]`
 #[cfg(feature = "webhooks")]
 pub use fraiseql_webhooks as webhooks;
-
-// fraiseql-files modules (merged) — optional, enable with `features = ["files"]`
-#[cfg(feature = "files")]
-pub mod files;
 
 // Authentication (extracted to fraiseql-auth crate) — optional, enable with `features = ["auth"]`
 #[cfg(feature = "auth")]
@@ -161,20 +155,12 @@ pub mod auth {
     }
 }
 
-// Secrets management
-pub mod secrets;
-
 // Secrets management and encryption (extracted to fraiseql-secrets crate) — optional, enable with `features = ["secrets"]`
 #[cfg(feature = "secrets")]
 pub use fraiseql_secrets::{encryption, secrets_manager};
 
-// Backup and disaster recovery — optional, enable with `features = ["backup"]`
-#[cfg(feature = "backup")]
-pub mod backup;
-
 // TLS/SSL and encryption
 pub mod tls;
-pub mod tls_listener;
 
 // Observer management - optional
 #[cfg(feature = "observers")]
@@ -207,7 +193,6 @@ pub use performance::{
     OperationProfile, PerformanceMonitor, PerformanceStats, PerformanceTimer, QueryPerformance,
 };
 pub use schema::CompiledSchemaLoader;
-pub use secrets::SecretManager;
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use tls::TlsSetup;
