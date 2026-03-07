@@ -57,6 +57,9 @@ where
     let mut tx = pool.begin().await.map_err(|e| WebhookError::Database(e.to_string()))?;
 
     // Set isolation level
+    // Safety: `isolation.as_sql()` is a match expression that returns only one of three
+    // hardcoded `&'static str` literals ("READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE").
+    // No user input reaches this call; PostgreSQL does not accept parameters for SET commands.
     sqlx::query(&format!("SET TRANSACTION ISOLATION LEVEL {}", isolation.as_sql()))
         .execute(&mut *tx)
         .await
