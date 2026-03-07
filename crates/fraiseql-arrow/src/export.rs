@@ -1,6 +1,6 @@
 //! Bulk export functionality for multiple data formats.
 //!
-//! Supports exporting Arrow RecordBatches to Parquet, CSV, and JSON formats.
+//! Supports exporting Arrow `RecordBatches` to Parquet, CSV, and JSON formats.
 
 use std::str::FromStr;
 
@@ -48,7 +48,7 @@ impl ExportFormat {
 
     /// Get file extension for this format.
     #[must_use]
-    pub fn extension(&self) -> &'static str {
+    pub const fn extension(&self) -> &'static str {
         match self {
             Self::Parquet => "parquet",
             Self::Csv => "csv",
@@ -58,7 +58,7 @@ impl ExportFormat {
 
     /// Get MIME type for this format.
     #[must_use]
-    pub fn mime_type(&self) -> &'static str {
+    pub const fn mime_type(&self) -> &'static str {
         match self {
             Self::Parquet => "application/octet-stream",
             Self::Csv => "text/csv",
@@ -67,15 +67,15 @@ impl ExportFormat {
     }
 }
 
-/// Bulk exporter for converting Arrow RecordBatches to various formats.
+/// Bulk exporter for converting Arrow `RecordBatches` to various formats.
 pub struct BulkExporter;
 
 impl BulkExporter {
-    /// Export a RecordBatch to the specified format.
+    /// Export a `RecordBatch` to the specified format.
     ///
     /// # Arguments
     ///
-    /// * `batch` - Arrow RecordBatch to export
+    /// * `batch` - Arrow `RecordBatch` to export
     /// * `format` - Target export format
     ///
     /// # Returns
@@ -93,7 +93,7 @@ impl BulkExporter {
         }
     }
 
-    /// Export RecordBatch to Parquet format.
+    /// Export `RecordBatch` to Parquet format.
     ///
     /// Parquet provides efficient columnar storage with compression.
     /// Ideal for large datasets and analytical workloads.
@@ -116,7 +116,7 @@ impl BulkExporter {
         Ok(buf)
     }
 
-    /// Export RecordBatch to CSV format.
+    /// Export `RecordBatch` to CSV format.
     ///
     /// CSV is widely compatible and human-readable.
     /// Good for data interchange and spreadsheet applications.
@@ -134,7 +134,7 @@ impl BulkExporter {
         Ok(buf)
     }
 
-    /// Export RecordBatch to JSON Lines format (NDJSON).
+    /// Export `RecordBatch` to JSON Lines format (NDJSON).
     ///
     /// Each row is a separate JSON object (one per line).
     /// Good for streaming and log-based consumption.
@@ -170,7 +170,7 @@ impl BulkExporter {
     }
 }
 
-/// Statistics about an exported RecordBatch
+/// Statistics about an exported `RecordBatch`
 #[derive(Debug, Clone)]
 pub struct BatchStats {
     /// Number of rows

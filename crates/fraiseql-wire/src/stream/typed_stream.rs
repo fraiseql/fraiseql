@@ -1,8 +1,8 @@
 //! Typed JSON stream implementation
 //!
-//! TypedJsonStream wraps a raw JSON stream and deserializes each item to a target type T.
+//! `TypedJsonStream` wraps a raw JSON stream and deserializes each item to a target type T.
 //! Type T is **consumer-side only** - it does NOT affect SQL generation, filtering,
-//! ordering, or wire protocol. Deserialization happens lazily at poll_next().
+//! ordering, or wire protocol. Deserialization happens lazily at `poll_next()`.
 
 use crate::{Error, Result};
 use futures::stream::Stream;
@@ -19,9 +19,9 @@ use std::task::{Context, Poll};
 ///
 /// **Important**: Type T is **consumer-side only**.
 /// - T does NOT affect SQL generation (still `SELECT data FROM v_{entity}`)
-/// - T does NOT affect filtering (where_sql, where_rust, order_by)
+/// - T does NOT affect filtering (`where_sql`, `where_rust`, `order_by`)
 /// - T does NOT affect wire protocol (identical for all T)
-/// - T ONLY affects consumer-side deserialization at poll_next()
+/// - T ONLY affects consumer-side deserialization at `poll_next()`
 ///
 /// # Examples
 ///

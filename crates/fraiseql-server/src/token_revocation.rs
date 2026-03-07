@@ -48,7 +48,7 @@ pub struct TokenRevocationConfig {
 }
 
 fn default_backend() -> String { "memory".into() }
-fn default_true() -> bool { true }
+const fn default_true() -> bool { true }
 
 // ───────────────────────────────────────────────────────────────
 // Trait
@@ -298,7 +298,7 @@ impl TokenRevocationManager {
 
     /// Whether JTI is required.
     #[must_use]
-    pub fn require_jti(&self) -> bool {
+    pub const fn require_jti(&self) -> bool {
         self.require_jti
     }
 }

@@ -84,7 +84,7 @@ pub struct AggregationRequest {
 }
 
 /// GROUP BY selection
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupBySelection {
     /// Group by JSONB dimension
     Dimension {
@@ -130,7 +130,7 @@ impl GroupBySelection {
 }
 
 /// Aggregate selection (what to compute)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateSelection {
     /// COUNT(*)
     Count {
@@ -178,7 +178,7 @@ impl AggregateSelection {
 }
 
 /// HAVING condition (post-aggregation filter)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HavingCondition {
     /// Aggregate to filter on
     pub aggregate: AggregateSelection,
@@ -204,7 +204,7 @@ pub struct AggregationPlan {
 }
 
 /// Validated GROUP BY expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupByExpression {
     /// JSONB dimension extraction
     JsonbPath {
@@ -236,7 +236,7 @@ pub enum GroupByExpression {
 }
 
 /// Validated aggregate expression
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateExpression {
     /// COUNT(*)
     Count {
@@ -284,7 +284,7 @@ pub enum AggregateExpression {
 }
 
 /// Validated HAVING condition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidatedHavingCondition {
     /// Aggregate expression to filter on
     pub aggregate: AggregateExpression,

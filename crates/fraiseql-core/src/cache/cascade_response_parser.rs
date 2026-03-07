@@ -83,7 +83,7 @@ pub struct CascadeEntities {
 
 impl CascadeEntities {
     /// Create new cascade entities with separate updated and deleted lists.
-    pub fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
+    pub const fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
         Self { updated, deleted }
     }
 
@@ -97,7 +97,7 @@ impl CascadeEntities {
 
     /// Check if cascade has any affected entities.
     #[must_use]
-    pub fn has_changes(&self) -> bool {
+    pub const fn has_changes(&self) -> bool {
         !self.updated.is_empty() || !self.deleted.is_empty()
     }
 }
@@ -112,7 +112,7 @@ pub struct CascadeResponseParser;
 impl CascadeResponseParser {
     /// Create new cascade response parser.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 

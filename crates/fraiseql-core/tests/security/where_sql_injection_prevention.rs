@@ -84,7 +84,7 @@ fn assert_injection_safe(sql: &str, payload: &str, context: &str) {
 }
 
 // =============================================================================
-// Phase 1: Operator-specific injection tests
+// Operator-specific injection tests
 // =============================================================================
 
 #[test]
@@ -261,7 +261,7 @@ fn test_nin_operator_injection_generates_safe_sql() {
 }
 
 // =============================================================================
-// Phase 2: Path injection tests (field names, not values)
+// Path injection tests (field names, not values)
 // =============================================================================
 
 #[test]
@@ -324,7 +324,7 @@ fn test_injection_in_nested_path_generates_safe_sql() {
 }
 
 // =============================================================================
-// Phase 3: Compound clause injection tests
+// Compound clause injection tests
 // =============================================================================
 
 #[test]
@@ -385,7 +385,7 @@ fn test_injection_in_not_clause_generates_safe_sql() {
 }
 
 // =============================================================================
-// Phase 4: Edge case injection tests
+// Edge case injection tests
 // =============================================================================
 
 #[test]
@@ -522,7 +522,7 @@ fn test_real_world_owasp_payloads_generate_safe_sql() {
 }
 
 // =============================================================================
-// Phase 5: Meta-tests (all operators covered)
+// Meta-tests (all operators covered)
 // =============================================================================
 
 #[test]

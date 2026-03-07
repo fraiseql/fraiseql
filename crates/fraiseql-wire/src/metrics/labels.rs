@@ -5,7 +5,7 @@
 /// Label: entity name (table/view being queried)
 pub const ENTITY: &str = "entity";
 
-/// Label: error category (connection, protocol, json_decode, etc.)
+/// Label: error category (connection, protocol, `json_decode`, etc.)
 pub const ERROR_CATEGORY: &str = "error_category";
 
 /// Label: type name for deserialization metrics

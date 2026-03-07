@@ -85,7 +85,7 @@ pub struct IntrospectionConfig {
 impl IntrospectionConfig {
     /// Create a configuration that detects all introspection patterns
     #[must_use]
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self {
             detect_schema:    true,
             detect_type:      true,
@@ -96,7 +96,7 @@ impl IntrospectionConfig {
 
     /// Create a configuration that detects only the main introspection patterns
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             detect_schema:    true,
             detect_type:      true,
@@ -119,7 +119,7 @@ pub struct IntrospectionEnforcer {
 impl IntrospectionEnforcer {
     /// Create a new introspection enforcer with a specific policy
     #[must_use]
-    pub fn new(policy: IntrospectionPolicy) -> Self {
+    pub const fn new(policy: IntrospectionPolicy) -> Self {
         Self {
             policy,
             config: IntrospectionConfig::all(),
@@ -128,25 +128,25 @@ impl IntrospectionEnforcer {
 
     /// Create enforcer with custom configuration
     #[must_use]
-    pub fn with_config(policy: IntrospectionPolicy, config: IntrospectionConfig) -> Self {
+    pub const fn with_config(policy: IntrospectionPolicy, config: IntrospectionConfig) -> Self {
         Self { policy, config }
     }
 
     /// Create enforcer with Allowed policy (standard)
     #[must_use]
-    pub fn allowed() -> Self {
+    pub const fn allowed() -> Self {
         Self::new(IntrospectionPolicy::Allowed)
     }
 
     /// Create enforcer with Disabled policy (strict)
     #[must_use]
-    pub fn disabled() -> Self {
+    pub const fn disabled() -> Self {
         Self::new(IntrospectionPolicy::Disabled)
     }
 
     /// Create enforcer with InternalOnly policy (regulated)
     #[must_use]
-    pub fn internal_only() -> Self {
+    pub const fn internal_only() -> Self {
         Self::new(IntrospectionPolicy::InternalOnly)
     }
 

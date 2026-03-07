@@ -149,7 +149,7 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     ///
-    /// * `view_name` - View name (e.g., "va_orders")
+    /// * `view_name` - View name (e.g., "`va_orders`")
     /// * `schema` - Pre-compiled Arrow schema
     ///
     /// Version numbers are incremented automatically on each registration.
@@ -208,7 +208,7 @@ impl SchemaRegistry {
     ///
     /// # Arguments
     ///
-    /// * `view_name` - View to reload (e.g., "va_orders")
+    /// * `view_name` - View to reload (e.g., "`va_orders`")
     /// * `db_adapter` - Database adapter to query view schema
     ///
     /// # Returns

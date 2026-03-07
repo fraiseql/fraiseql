@@ -43,7 +43,7 @@ pub struct CyclePath {
 impl CyclePath {
     /// Create a new cycle path from a list of nodes.
     #[must_use]
-    pub fn new(nodes: Vec<String>) -> Self {
+    pub const fn new(nodes: Vec<String>) -> Self {
         Self { nodes }
     }
 
@@ -71,19 +71,19 @@ impl CyclePath {
 
     /// Check if this is a self-referencing cycle (single node).
     #[must_use]
-    pub fn is_self_reference(&self) -> bool {
+    pub const fn is_self_reference(&self) -> bool {
         self.nodes.len() == 1
     }
 
     /// Get the length of the cycle (number of types involved).
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.nodes.len()
     }
 
     /// Check if the cycle is empty (should never happen in practice).
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
 }
@@ -100,7 +100,7 @@ pub struct ChangeImpact {
 impl ChangeImpact {
     /// Create a new change impact result.
     #[must_use]
-    pub fn new(affected_types: HashSet<String>, breaking_changes: Vec<String>) -> Self {
+    pub const fn new(affected_types: HashSet<String>, breaking_changes: Vec<String>) -> Self {
         Self {
             affected_types,
             breaking_changes,

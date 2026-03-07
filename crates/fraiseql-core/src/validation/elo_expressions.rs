@@ -23,7 +23,7 @@ pub struct EloExpressionEvaluator {
 }
 
 /// Validation result from ELO expression evaluation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EloValidationResult {
     /// Whether the expression evaluated to true
     pub valid: bool,
@@ -33,7 +33,7 @@ pub struct EloValidationResult {
 
 impl EloExpressionEvaluator {
     /// Create a new ELO expression evaluator.
-    pub fn new(expression: String) -> Self {
+    pub const fn new(expression: String) -> Self {
         Self { expression }
     }
 
@@ -76,10 +76,7 @@ impl EloExpressionEvaluator {
             }
 
             let right_result = self.evaluate_expression(right, context)?;
-            return Ok(EloValidationResult {
-                valid: right_result.valid,
-                error: right_result.error,
-            });
+            return Ok(right_result);
         }
 
         // Then, split by && (higher precedence than ||)
@@ -93,10 +90,7 @@ impl EloExpressionEvaluator {
             }
 
             let right_result = self.evaluate_expression(right, context)?;
-            return Ok(EloValidationResult {
-                valid: right_result.valid,
-                error: right_result.error,
-            });
+            return Ok(right_result);
         }
 
         // Handle negation (!)

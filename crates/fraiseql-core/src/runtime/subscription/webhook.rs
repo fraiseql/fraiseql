@@ -47,21 +47,21 @@ impl WebhookTransportConfig {
 
     /// Set the request timeout.
     #[must_use]
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
     }
 
     /// Set maximum retry attempts.
     #[must_use]
-    pub fn with_max_retries(mut self, max_retries: u32) -> Self {
+    pub const fn with_max_retries(mut self, max_retries: u32) -> Self {
         self.max_retries = max_retries;
         self
     }
 
     /// Set initial retry delay.
     #[must_use]
-    pub fn with_retry_delay(mut self, delay_ms: u64) -> Self {
+    pub const fn with_retry_delay(mut self, delay_ms: u64) -> Self {
         self.retry_delay_ms = delay_ms;
         self
     }

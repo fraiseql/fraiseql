@@ -1,4 +1,4 @@
-//! Multi-root query pipelining (Phase 6A — parallel execution).
+//! Multi-root query pipelining — parallel execution of independent query roots.
 //!
 //! Dispatches multi-root GraphQL queries concurrently using
 //! [`futures::future::try_join_all`], then merges the results into a single
@@ -72,7 +72,7 @@ impl PipelineResult {
 /// Only applies to anonymous queries and `query { ... }` operations; mutations
 /// and subscriptions are not affected.
 #[must_use]
-pub fn is_multi_root(parsed: &ParsedQuery) -> bool {
+pub const fn is_multi_root(parsed: &ParsedQuery) -> bool {
     parsed.selections.len() > 1
 }
 

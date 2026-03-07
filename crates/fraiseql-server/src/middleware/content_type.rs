@@ -44,7 +44,9 @@ pub async fn require_json_content_type(
         return Err((
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             [(CONTENT_TYPE, "application/json")],
-            serde_json::to_string(&body).unwrap_or_default(),
+            serde_json::to_string(&body).unwrap_or_else(|_| {
+                r#"{"errors":[{"message":"Unsupported Media Type"}]}"#.to_owned()
+            }),
         )
             .into_response());
     }

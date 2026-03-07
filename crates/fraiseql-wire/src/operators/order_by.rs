@@ -38,7 +38,7 @@ use std::fmt;
 /// ```
 #[derive(Debug, Clone)]
 pub struct OrderByClause {
-    /// Field name (validated separately based on field_source)
+    /// Field name (validated separately based on `field_source`)
     pub field: String,
 
     /// Where the field comes from
@@ -86,7 +86,7 @@ impl OrderByClause {
     }
 
     /// Add NULLS handling to this clause
-    pub fn with_nulls(mut self, handling: NullsHandling) -> Self {
+    pub const fn with_nulls(mut self, handling: NullsHandling) -> Self {
         self.nulls_handling = Some(handling);
         self
     }
@@ -103,8 +103,7 @@ impl OrderByClause {
                 .field
                 .chars()
                 .next()
-                .map(|c| !c.is_alphabetic() && c != '_')
-                .unwrap_or(false)
+                .is_some_and(|c| !c.is_alphabetic() && c != '_')
         {
             return Err(format!("Invalid field name: {}", self.field));
         }

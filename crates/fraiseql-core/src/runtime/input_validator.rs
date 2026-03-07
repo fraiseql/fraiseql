@@ -31,12 +31,12 @@ impl ValidationErrorCollection {
     }
 
     /// Check if there are any errors.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Get the number of errors.
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.errors.len()
     }
 

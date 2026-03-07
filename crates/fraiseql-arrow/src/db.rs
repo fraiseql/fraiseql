@@ -6,7 +6,7 @@
 //!
 //! # Note
 //!
-//! This trait is simpler than fraiseql_core::db::DatabaseAdapter and only includes
+//! This trait is simpler than `fraiseql_core::db::DatabaseAdapter` and only includes
 //! the methods needed for Arrow Flight streaming. In fraiseql-server, a wrapper
 //! can implement both traits by delegating to the core adapter.
 
@@ -51,8 +51,8 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///
 /// # Implementation Notes
 ///
-/// In fraiseql-server, the PostgresAdapter from fraiseql-core should be wrapped
-/// to implement this trait by delegating to its execute_raw_query method.
+/// In fraiseql-server, the `PostgresAdapter` from fraiseql-core should be wrapped
+/// to implement this trait by delegating to its `execute_raw_query` method.
 ///
 /// # Example
 ///
@@ -87,12 +87,12 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Returns
     ///
-    /// Vec of HashMap where each HashMap represents a row with column names as keys
-    /// and column values as serde_json::Value
+    /// Vec of `HashMap` where each `HashMap` represents a row with column names as keys
+    /// and column values as `serde_json::Value`
     ///
     /// # Errors
     ///
-    /// Returns DatabaseError if the query fails for any reason.
+    /// Returns `DatabaseError` if the query fails for any reason.
     async fn execute_raw_query(
         &self,
         sql: &str,

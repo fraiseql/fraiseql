@@ -224,7 +224,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get server configuration if configured.
-    pub fn server_config(&self) -> Option<&Arc<crate::config::ServerConfig>> {
+    pub const fn server_config(&self) -> Option<&Arc<crate::config::ServerConfig>> {
         self.config.as_ref()
     }
 
@@ -248,7 +248,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Get secrets manager if configured.
     #[cfg(feature = "secrets")]
-    pub fn secrets_manager(&self) -> Option<&Arc<crate::secrets_manager::SecretsManager>> {
+    pub const fn secrets_manager(&self) -> Option<&Arc<crate::secrets_manager::SecretsManager>> {
         self.secrets_manager.as_ref()
     }
 
@@ -320,7 +320,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Set the request validator (query depth/complexity limits).
     #[must_use]
-    pub fn with_validator(mut self, validator: crate::validation::RequestValidator) -> Self {
+    pub const fn with_validator(mut self, validator: crate::validation::RequestValidator) -> Self {
         self.validator = validator;
         self
     }

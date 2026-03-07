@@ -40,7 +40,7 @@ pub struct ConnectionConfig {
     pub keepalive_idle: Option<Duration>,
     /// Application name for Postgres logs (default: "fraiseql-wire")
     pub application_name: Option<String>,
-    /// Postgres extra_float_digits setting
+    /// Postgres `extra_float_digits` setting
     pub extra_float_digits: Option<i32>,
 }
 
@@ -169,7 +169,7 @@ impl ConnectionConfigBuilder {
     /// # Arguments
     ///
     /// * `duration` - Timeout duration for establishing TCP connection
-    pub fn connect_timeout(mut self, duration: Duration) -> Self {
+    pub const fn connect_timeout(mut self, duration: Duration) -> Self {
         self.connect_timeout = Some(duration);
         self
     }
@@ -181,7 +181,7 @@ impl ConnectionConfigBuilder {
     /// # Arguments
     ///
     /// * `duration` - Timeout duration for query execution
-    pub fn statement_timeout(mut self, duration: Duration) -> Self {
+    pub const fn statement_timeout(mut self, duration: Duration) -> Self {
         self.statement_timeout = Some(duration);
         self
     }
@@ -193,14 +193,14 @@ impl ConnectionConfigBuilder {
     /// # Arguments
     ///
     /// * `duration` - Idle duration before sending keepalive probes
-    pub fn keepalive_idle(mut self, duration: Duration) -> Self {
+    pub const fn keepalive_idle(mut self, duration: Duration) -> Self {
         self.keepalive_idle = Some(duration);
         self
     }
 
     /// Set application name for Postgres logs
     ///
-    /// Default: None (Postgres will not set application_name)
+    /// Default: None (Postgres will not set `application_name`)
     ///
     /// # Arguments
     ///
@@ -210,14 +210,14 @@ impl ConnectionConfigBuilder {
         self
     }
 
-    /// Set extra_float_digits for float precision
+    /// Set `extra_float_digits` for float precision
     ///
     /// Default: None (use Postgres default)
     ///
     /// # Arguments
     ///
     /// * `digits` - Number of extra digits (typically 0-2)
-    pub fn extra_float_digits(mut self, digits: i32) -> Self {
+    pub const fn extra_float_digits(mut self, digits: i32) -> Self {
         self.extra_float_digits = Some(digits);
         self
     }
@@ -260,7 +260,7 @@ impl Connection {
     }
 
     /// Get current connection state
-    pub fn state(&self) -> ConnectionState {
+    pub const fn state(&self) -> ConnectionState {
         self.state
     }
 
@@ -726,14 +726,11 @@ impl Connection {
 
                             // Wait with optional timeout
                             if let Some(timeout) = pause_timeout {
-                                match tokio::time::timeout(timeout, resume_signal.notified()).await {
-                                    Ok(_) => {
-                                        tracing::debug!("stream resumed");
-                                    }
-                                    Err(_) => {
-                                        tracing::debug!("pause timeout expired, auto-resuming");
-                                        crate::metrics::counters::stream_pause_timeout_expired(&entity_for_metrics);
-                                    }
+                                if tokio::time::timeout(timeout, resume_signal.notified()).await == Ok(()) {
+                                    tracing::debug!("stream resumed");
+                                } else {
+                                    tracing::debug!("pause timeout expired, auto-resuming");
+                                    crate::metrics::counters::stream_pause_timeout_expired(&entity_for_metrics);
                                 }
                             } else {
                                 // No timeout, wait indefinitely

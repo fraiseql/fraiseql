@@ -53,7 +53,7 @@ pub enum ErrorCode {
 impl ErrorCode {
     /// Get HTTP status code for this error.
     #[must_use]
-    pub fn status_code(self) -> StatusCode {
+    pub const fn status_code(self) -> StatusCode {
         match self {
             Self::ValidationError | Self::ParseError | Self::RequestError => {
                 StatusCode::BAD_REQUEST
@@ -340,7 +340,7 @@ impl GraphQLError {
 impl ErrorResponse {
     /// Create new error response.
     #[must_use]
-    pub fn new(errors: Vec<GraphQLError>) -> Self {
+    pub const fn new(errors: Vec<GraphQLError>) -> Self {
         Self { errors }
     }
 

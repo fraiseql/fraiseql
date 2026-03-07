@@ -10,8 +10,8 @@
 //! we apply explicit type casting:
 //!
 //! - String comparisons: No cast needed (text = text)
-//! - Numeric comparisons: Cast to integer or float (text::integer > $1)
-//! - Boolean comparisons: Cast to boolean (text::boolean = true)
+//! - Numeric comparisons: Cast to integer or float (`text::integer` > $1)
+//! - Boolean comparisons: Cast to boolean (`text::boolean` = true)
 //! - Array comparisons: No special handling (uses array operators)
 //!
 //! Direct columns use native types from the database schema.
@@ -32,8 +32,8 @@ fn escape_like_literal(s: &str) -> String {
 
 /// Infers the PostgreSQL type cast needed for a value
 ///
-/// Returns the type cast suffix (e.g., "::integer", "::text") if needed
-fn infer_type_cast(value: &Value) -> &'static str {
+/// Returns the type cast suffix (e.g., "`::integer`", "`::text`") if needed
+const fn infer_type_cast(value: &Value) -> &'static str {
     match value {
         Value::String(_) => "::text",
         Value::Number(_) => "::numeric", // numeric handles both int and float

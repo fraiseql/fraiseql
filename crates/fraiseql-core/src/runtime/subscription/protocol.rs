@@ -38,7 +38,7 @@ impl ClientMessageType {
 
     /// Get string representation.
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::ConnectionInit => "connection_init",
             Self::Ping => "ping",
@@ -69,7 +69,7 @@ pub enum ServerMessageType {
 impl ServerMessageType {
     /// Get string representation.
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::ConnectionAck => "connection_ack",
             Self::Ping => "ping",
@@ -106,7 +106,7 @@ impl ClientMessage {
 
     /// Extract connection parameters from connection_init payload.
     #[must_use]
-    pub fn connection_params(&self) -> Option<&serde_json::Value> {
+    pub const fn connection_params(&self) -> Option<&serde_json::Value> {
         self.payload.as_ref()
     }
 
@@ -303,13 +303,13 @@ pub enum CloseCode {
 impl CloseCode {
     /// Get the close code value.
     #[must_use]
-    pub fn code(self) -> u16 {
+    pub const fn code(self) -> u16 {
         self as u16
     }
 
     /// Get the close reason message.
     #[must_use]
-    pub fn reason(self) -> &'static str {
+    pub const fn reason(self) -> &'static str {
         match self {
             Self::Normal => "Normal closure",
             Self::ProtocolError => "Protocol error",

@@ -98,7 +98,7 @@ pub enum DirectiveError {
 /// Result of custom directive evaluation.
 ///
 /// Determines how a field should be handled after directive processing.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum DirectiveResult {
     /// Include the field in the response (default behavior).
     #[default]
@@ -172,7 +172,7 @@ impl EvaluationContext {
 
     /// Set operation type.
     #[must_use]
-    pub fn with_operation_type(mut self, op_type: OperationType) -> Self {
+    pub const fn with_operation_type(mut self, op_type: OperationType) -> Self {
         self.operation_type = Some(op_type);
         self
     }
@@ -568,7 +568,7 @@ impl CustomDirectiveEvaluator {
 
     /// Enable strict mode where unknown directives cause errors.
     #[must_use]
-    pub fn strict(mut self) -> Self {
+    pub const fn strict(mut self) -> Self {
         self.strict_mode = true;
         self
     }

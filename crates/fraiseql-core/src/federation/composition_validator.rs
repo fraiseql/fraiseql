@@ -183,7 +183,7 @@ impl CrossSubgraphValidator {
     /// - `subgraphs`: Vector of (subgraph_name, metadata) tuples
     ///
     /// Subgraph names are used in error messages to identify problem sources.
-    pub fn new(subgraphs: Vec<(String, FederationMetadata)>) -> Self {
+    pub const fn new(subgraphs: Vec<(String, FederationMetadata)>) -> Self {
         Self { subgraphs }
     }
 
@@ -427,7 +427,7 @@ impl CompositionValidator {
     /// // See: tests/integration/ for runnable examples.
     /// let validator = CompositionValidator::new();
     /// ```
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 
@@ -528,7 +528,7 @@ pub struct ComposedSchema {
 
 impl ComposedSchema {
     /// Create a new empty composed schema
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { types: Vec::new() }
     }
 }

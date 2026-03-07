@@ -232,7 +232,7 @@ impl QueryResultCache {
     /// Used by `CachedDatabaseAdapter` to short-circuit the SHA-256 key generation
     /// and result clone overhead when caching is disabled.
     #[must_use]
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.config.enabled
     }
 

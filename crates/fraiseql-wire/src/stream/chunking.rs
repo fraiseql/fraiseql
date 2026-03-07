@@ -9,7 +9,7 @@ pub struct RowChunk {
 
 impl RowChunk {
     /// Create new chunk
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { rows: Vec::new() }
     }
 
@@ -26,12 +26,12 @@ impl RowChunk {
     }
 
     /// Check if chunk is empty
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
 
     /// Get chunk size
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.rows.len()
     }
 
@@ -54,12 +54,12 @@ pub struct ChunkingStrategy {
 
 impl ChunkingStrategy {
     /// Create new strategy with given chunk size
-    pub fn new(chunk_size: usize) -> Self {
+    pub const fn new(chunk_size: usize) -> Self {
         Self { chunk_size }
     }
 
     /// Check if chunk is full
-    pub fn is_full(&self, chunk: &RowChunk) -> bool {
+    pub const fn is_full(&self, chunk: &RowChunk) -> bool {
         chunk.len() >= self.chunk_size
     }
 

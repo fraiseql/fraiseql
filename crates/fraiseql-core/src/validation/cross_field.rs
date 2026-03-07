@@ -59,7 +59,7 @@ impl ComparisonOperator {
     }
 
     /// Get the symbol for display.
-    pub fn symbol(&self) -> &'static str {
+    pub const fn symbol(&self) -> &'static str {
         match self {
             Self::LessThan => "<",
             Self::LessEqual => "<=",
@@ -71,7 +71,7 @@ impl ComparisonOperator {
     }
 
     /// Get the long name for error messages.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::LessThan => "less than",
             Self::LessEqual => "less than or equal to",
@@ -201,7 +201,7 @@ fn compare_values(
 }
 
 /// Get the type name of a JSON value.
-fn value_type_name(val: &Value) -> &'static str {
+const fn value_type_name(val: &Value) -> &'static str {
     match val {
         Value::Null => "null",
         Value::Bool(_) => "boolean",

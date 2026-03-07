@@ -1,7 +1,7 @@
 //! Arrow schema for FraiseQL observer events.
 //!
-//! This module defines the Arrow schema for EntityEvent streaming via Arrow Flight.
-//! Events are converted from NATS JetStream to Arrow RecordBatches for high-performance
+//! This module defines the Arrow schema for `EntityEvent` streaming via Arrow Flight.
+//! Events are converted from NATS `JetStream` to Arrow `RecordBatches` for high-performance
 //! analytics and real-time processing.
 
 use std::sync::Arc;
@@ -26,14 +26,14 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 ///
 /// # Schema Fields
 ///
-/// - **event_id**: UUID of the event (Utf8)
-/// - **event_type**: Event type (e.g., "Order.Created") (Utf8)
-/// - **entity_type**: Entity type (e.g., "Order") (Utf8)
-/// - **entity_id**: Entity identifier (Utf8)
+/// - **`event_id`**: UUID of the event (Utf8)
+/// - **`event_type`**: Event type (e.g., "Order.Created") (Utf8)
+/// - **`entity_type`**: Entity type (e.g., "Order") (Utf8)
+/// - **`entity_id`**: Entity identifier (Utf8)
 /// - **timestamp**: Event timestamp in UTC (Timestamp microseconds)
 /// - **data**: Event payload as JSON string (Utf8)
-/// - **user_id**: Optional user identifier (Utf8, nullable)
-/// - **tenant_id**: Optional tenant identifier for multi-tenant isolation (Utf8, nullable)
+/// - **`user_id`**: Optional user identifier (Utf8, nullable)
+/// - **`tenant_id`**: Optional tenant identifier for multi-tenant isolation (Utf8, nullable)
 ///
 /// # Example
 ///

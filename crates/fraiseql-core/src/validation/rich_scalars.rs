@@ -38,7 +38,7 @@ impl EmailValidator {
     }
 
     /// Return the standard validation error message for an invalid email.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid email format"
     }
 }
@@ -60,7 +60,7 @@ impl PhoneNumberValidator {
     }
 
     /// Return the standard validation error message for an invalid phone number.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid phone number format"
     }
 }
@@ -83,7 +83,7 @@ impl VinValidator {
     }
 
     /// Return the standard validation error message for an invalid VIN.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid VIN format (must be 17 alphanumeric characters, excluding I, O, Q)"
     }
 }
@@ -357,7 +357,7 @@ impl CountryCodeValidator {
     }
 
     /// Return the standard validation error message for an invalid country code.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid country code (must be ISO 3166-1 alpha-2)"
     }
 }

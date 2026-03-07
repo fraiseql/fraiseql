@@ -112,7 +112,7 @@ impl InMemoryRateLimiter {
     }
 
     /// Get rate limiter configuration.
-    pub(super) fn config(&self) -> &RateLimitConfig {
+    pub(super) const fn config(&self) -> &RateLimitConfig {
         &self.config
     }
 
@@ -216,7 +216,7 @@ impl InMemoryRateLimiter {
     }
 
     /// Number of per-path rate limit rules registered.
-    pub(super) fn path_rule_count(&self) -> usize {
+    pub(super) const fn path_rule_count(&self) -> usize {
         self.path_rules.len()
     }
 

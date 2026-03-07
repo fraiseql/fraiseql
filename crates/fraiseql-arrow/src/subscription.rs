@@ -29,7 +29,7 @@ pub struct EventSubscription {
 /// to matching subscribers. It's designed for in-memory subscriptions and
 /// can be extended to support persistent subscriptions.
 pub struct SubscriptionManager {
-    /// Map of subscription_id -> EventSubscription
+    /// Map of `subscription_id` -> `EventSubscription`
     subscriptions: Arc<DashMap<String, EventSubscription>>,
     /// Reference to event storage for historical queries (optional)
     event_storage: Option<Arc<dyn EventStorage>>,

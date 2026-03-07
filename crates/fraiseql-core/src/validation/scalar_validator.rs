@@ -22,7 +22,7 @@ pub enum ValidationContext {
 
 impl ValidationContext {
     /// Get the string representation of this context.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Serialize => "serialize",
             Self::ParseValue => "parseValue",

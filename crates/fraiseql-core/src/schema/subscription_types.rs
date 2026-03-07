@@ -53,7 +53,7 @@ pub struct SubscriptionDefinition {
 }
 
 /// Filter configuration for subscription event matching.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubscriptionFilter {
     /// Mapping of argument names to JSONB paths in event data.
     /// The path uses JSON pointer syntax (e.g., "/id", "/user/name").
@@ -67,7 +67,7 @@ pub struct SubscriptionFilter {
 }
 
 /// A static filter condition for subscription matching.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StaticFilterCondition {
     /// JSONB path in event data.
     pub path:     String,
@@ -189,7 +189,7 @@ impl SubscriptionDefinition {
 
     /// Check if this subscription is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 

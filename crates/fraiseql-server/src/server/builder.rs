@@ -329,7 +329,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
     /// Set maximum subscriptions allowed per WebSocket connection.
     #[must_use]
-    pub fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
+    pub const fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
         self.max_subscriptions_per_connection = Some(max);
         self
     }

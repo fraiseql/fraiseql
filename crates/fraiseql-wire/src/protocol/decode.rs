@@ -5,9 +5,9 @@ use super::message::{AuthenticationMessage, BackendMessage, ErrorFields, FieldDe
 use bytes::{Bytes, BytesMut};
 use std::io;
 
-/// Decode a backend message from BytesMut without cloning
+/// Decode a backend message from `BytesMut` without cloning
 ///
-/// This version decodes in-place from a mutable BytesMut buffer and returns
+/// This version decodes in-place from a mutable `BytesMut` buffer and returns
 /// the number of bytes consumed. The caller must advance the buffer after calling this.
 ///
 /// # Returns

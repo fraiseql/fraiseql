@@ -8,7 +8,7 @@
 /// Matches `local-part@domain` where the domain consists of at least two
 /// dot-separated labels (e.g. `example.com`).  Single-label domains such as
 /// `user@localhost` are intentionally rejected.
-pub(crate) const EMAIL: &str = concat!(
+pub const EMAIL: &str = concat!(
     r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+",  // local-part
     r"@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?", // first domain label
     r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$", // one or more further labels

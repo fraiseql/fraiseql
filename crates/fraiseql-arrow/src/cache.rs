@@ -24,7 +24,7 @@ struct CacheEntry {
 /// Caches query results keyed by SQL query string. Entries expire after
 /// a configurable TTL (default 60 seconds).
 ///
-/// Uses DashMap for concurrent lock-free access without blocking the
+/// Uses `DashMap` for concurrent lock-free access without blocking the
 /// Flight service during cache operations.
 ///
 /// # Example
@@ -131,11 +131,11 @@ impl QueryCache {
     /// Invalidate cache entries for specific views by name.
     ///
     /// Removes all entries whose queries mention any of the given view names.
-    /// Used for entity-based cache invalidation (e.g., "v_user", "v_order").
+    /// Used for entity-based cache invalidation (e.g., "`v_user`", "`v_order`").
     ///
     /// # Arguments
     ///
-    /// * `view_names` - View names to invalidate (e.g., ["v_user"])
+    /// * `view_names` - View names to invalidate (e.g., ["`v_user`"])
     ///
     /// # Returns
     ///
@@ -144,7 +144,7 @@ impl QueryCache {
         let mut removed = 0;
         let mut to_remove = Vec::new();
 
-        for entry in self.entries.iter() {
+        for entry in &self.entries {
             let query = entry.key();
             for view_name in view_names {
                 if query.contains(view_name) {
@@ -179,7 +179,7 @@ impl QueryCache {
         let mut removed = 0;
         let mut to_remove = Vec::new();
 
-        for entry in self.entries.iter() {
+        for entry in &self.entries {
             let query = entry.key();
             // Simple wildcard matching: * matches any sequence of characters
             if self.matches_pattern(query, pattern) {

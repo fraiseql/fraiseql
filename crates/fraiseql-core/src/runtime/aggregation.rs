@@ -744,7 +744,7 @@ impl AggregationSqlGenerator {
     }
 
     /// Convert WhereOperator to SQL operator
-    fn operator_to_sql(&self, operator: &WhereOperator) -> &'static str {
+    const fn operator_to_sql(&self, operator: &WhereOperator) -> &'static str {
         match operator {
             WhereOperator::Eq => "=",
             WhereOperator::Neq => "!=",

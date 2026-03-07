@@ -47,7 +47,7 @@ pub struct ErrorSanitizer {
 impl ErrorSanitizer {
     /// Create a new sanitizer with the given configuration.
     #[must_use]
-    pub fn new(config: ErrorSanitizationConfig) -> Self {
+    pub const fn new(config: ErrorSanitizationConfig) -> Self {
         Self { config }
     }
 
@@ -98,7 +98,7 @@ impl ErrorSanitizer {
 
     /// Whether sanitization is enabled.
     #[must_use]
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.config.enabled
     }
 }

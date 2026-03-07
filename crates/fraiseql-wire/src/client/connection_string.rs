@@ -2,8 +2,8 @@
 //!
 //! Supports formats:
 //! * postgres://[user[:password]@][host][:port][/database]
-//! * postgres:///database (Unix socket, local)
-//! * postgres:///database?host=/path/to/socket (Unix socket, custom directory)
+//! * <postgres:///database> (Unix socket, local)
+//! * <postgres:///database?host=/path/to/socket> (Unix socket, custom directory)
 
 use crate::connection::ConnectionConfig;
 use crate::{Error, Result};
@@ -198,7 +198,7 @@ impl ConnectionInfo {
         })
     }
 
-    /// Convert to ConnectionConfig
+    /// Convert to `ConnectionConfig`
     pub fn to_config(&self) -> ConnectionConfig {
         let mut config = ConnectionConfig::new(&self.database, &self.user);
         if let Some(ref password) = self.password {

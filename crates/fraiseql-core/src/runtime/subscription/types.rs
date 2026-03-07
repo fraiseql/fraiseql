@@ -20,7 +20,7 @@ impl SubscriptionId {
 
     /// Create from a UUID.
     #[must_use]
-    pub fn from_uuid(uuid: Uuid) -> Self {
+    pub const fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
     }
 }
@@ -120,7 +120,7 @@ impl SubscriptionEvent {
 
     /// Set the sequence number.
     #[must_use]
-    pub fn with_sequence(mut self, seq: u64) -> Self {
+    pub const fn with_sequence(mut self, seq: u64) -> Self {
         self.sequence_number = seq;
         self
     }

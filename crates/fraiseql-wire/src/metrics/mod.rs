@@ -12,7 +12,7 @@
 //!
 //! Metrics are recorded automatically throughout the query execution pipeline.
 //! The `metrics` crate provides a framework-agnostic API that can be used with
-//! various exporters (Prometheus, OpenTelemetry, DataDog, etc.).
+//! various exporters (Prometheus, `OpenTelemetry`, `DataDog`, etc.).
 //!
 //! # Example
 //!

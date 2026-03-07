@@ -43,7 +43,7 @@ impl WsProtocol {
 
     /// The protocol name to echo back in the WebSocket upgrade response.
     #[must_use]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::GraphqlTransportWs => "graphql-transport-ws",
             Self::GraphqlWs => "graphql-ws",
@@ -60,13 +60,13 @@ pub struct ProtocolCodec {
 impl ProtocolCodec {
     /// Create a new codec for the given protocol.
     #[must_use]
-    pub fn new(protocol: WsProtocol) -> Self {
+    pub const fn new(protocol: WsProtocol) -> Self {
         Self { protocol }
     }
 
     /// The negotiated protocol.
     #[must_use]
-    pub fn protocol(&self) -> WsProtocol {
+    pub const fn protocol(&self) -> WsProtocol {
         self.protocol
     }
 

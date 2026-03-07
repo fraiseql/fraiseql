@@ -190,7 +190,7 @@ pub fn memory_limit_exceeded(entity: &str) {
 
 /// Record an adaptive chunk size adjustment
 ///
-/// Called when adaptive chunking decides to increase or decrease chunk_size
+/// Called when adaptive chunking decides to increase or decrease `chunk_size`
 /// based on channel occupancy observations.
 ///
 /// # Labels

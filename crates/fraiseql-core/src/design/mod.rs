@@ -30,7 +30,7 @@ pub enum IssueSeverity {
 
 impl IssueSeverity {
     /// Get numeric weight for scoring (critical=3, warning=2, info=1)
-    pub fn weight(&self) -> u32 {
+    pub const fn weight(&self) -> u32 {
         match self {
             IssueSeverity::Critical => 3,
             IssueSeverity::Warning => 2,
@@ -121,7 +121,7 @@ pub struct DesignAudit {
 
 impl DesignAudit {
     /// Create a new empty audit
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             federation_issues: Vec::new(),
             cost_warnings:     Vec::new(),

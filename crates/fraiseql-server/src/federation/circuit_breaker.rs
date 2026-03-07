@@ -81,7 +81,7 @@ struct EntityCircuitBreaker {
 }
 
 impl EntityCircuitBreaker {
-    fn new(config: CircuitBreakerConfig) -> Self {
+    const fn new(config: CircuitBreakerConfig) -> Self {
         Self {
             config,
             state: Mutex::new(CircuitState::Closed {

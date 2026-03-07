@@ -67,7 +67,7 @@ impl LuhnValidator {
     }
 
     /// Get a human-readable description of why validation failed.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid checksum (Luhn algorithm)"
     }
 }
@@ -154,7 +154,7 @@ impl Mod97Validator {
     }
 
     /// Get a human-readable description of why validation failed.
-    pub fn error_message() -> &'static str {
+    pub const fn error_message() -> &'static str {
         "Invalid checksum (MOD-97 algorithm)"
     }
 }

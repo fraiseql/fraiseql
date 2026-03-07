@@ -29,13 +29,13 @@
 //! # Operator Coverage
 //!
 //! - **Comparison**: Eq, Neq, Gt, Gte, Lt, Lte
-//! - **Array**: In, Nin, Contains, ArrayContains, ArrayContainedBy, ArrayOverlaps
-//! - **Array Length**: LenEq, LenGt, LenGte, LenLt, LenLte
+//! - **Array**: In, Nin, Contains, `ArrayContains`, `ArrayContainedBy`, `ArrayOverlaps`
+//! - **Array Length**: `LenEq`, `LenGt`, `LenGte`, `LenLt`, `LenLte`
 //! - **String**: Contains, Icontains, Startswith, Endswith, Like, Ilike
-//! - **Null**: IsNull
-//! - **Vector Distance**: L2Distance, CosineDistance, InnerProduct, JaccardDistance
-//! - **Full-Text Search**: Matches, PlainQuery, PhraseQuery, WebsearchQuery
-//! - **Network**: IsIPv4, IsIPv6, IsPrivate, IsLoopback, InSubnet, ContainsSubnet, ContainsIP, IPRangeOverlap
+//! - **Null**: `IsNull`
+//! - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `JaccardDistance`
+//! - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
+//! - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
 
 pub mod field;
 pub mod order_by;

@@ -131,7 +131,7 @@ impl SubscriptionState {
 
     /// Set maximum subscriptions per connection.
     #[must_use]
-    pub fn with_max_subscriptions(mut self, max: Option<u32>) -> Self {
+    pub const fn with_max_subscriptions(mut self, max: Option<u32>) -> Self {
         self.max_subscriptions_per_connection = max;
         self
     }

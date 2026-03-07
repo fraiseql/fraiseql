@@ -12,13 +12,13 @@
 //!
 //! ### Key Components
 //!
-//! - **Schema**: Compiled schema representation (reused from v1)
-//! - **Compiler**: GraphQL schema → SQL template compiler (new for v2)
-//! - **Runtime**: Compiled query executor (new for v2)
-//! - **Database**: Connection pooling and transaction management (from v1)
-//! - **Cache**: Query result caching with coherency (from v1)
-//! - **Security**: Authentication, authorization, and audit (from v1)
-//! - **APQ**: Automatic Persisted Queries (from v1)
+//! - **Schema**: Compiled schema representation (types, fields, SQL mappings)
+//! - **Compiler**: GraphQL schema → SQL template compiler
+//! - **Runtime**: Compiled query executor
+//! - **Database**: Connection pooling and transaction management
+//! - **Cache**: Query result caching with coherency
+//! - **Security**: Authentication, authorization, and audit
+//! - **APQ**: Automatic Persisted Queries
 //!
 //! ## Compilation Flow
 //!

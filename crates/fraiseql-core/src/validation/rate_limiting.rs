@@ -24,7 +24,7 @@ pub struct RateLimitDimension {
 }
 
 impl RateLimitDimension {
-    fn is_rate_limited(&self) -> bool {
+    const fn is_rate_limited(&self) -> bool {
         self.max_requests == 0
     }
 }

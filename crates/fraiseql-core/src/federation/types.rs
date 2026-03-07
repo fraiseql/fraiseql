@@ -76,13 +76,13 @@ impl FieldFederationDirectives {
     }
 
     /// Mark as @external
-    pub fn external(mut self) -> Self {
+    pub const fn external(mut self) -> Self {
         self.external = true;
         self
     }
 
     /// Mark as @shareable
-    pub fn shareable(mut self) -> Self {
+    pub const fn shareable(mut self) -> Self {
         self.shareable = true;
         self
     }

@@ -43,7 +43,7 @@ fn is_valid_type(base_type: &str, defined_types: &std::collections::HashSet<&str
 }
 
 /// Validation error.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationError {
     /// Error message.
     pub message:  String,
@@ -59,7 +59,7 @@ pub struct SchemaValidator {
 impl SchemaValidator {
     /// Create new validator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 

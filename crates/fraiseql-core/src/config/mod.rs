@@ -748,7 +748,7 @@ impl ConfigBuilder {
 
     /// Set the server port.
     #[must_use]
-    pub fn port(mut self, port: u16) -> Self {
+    pub const fn port(mut self, port: u16) -> Self {
         self.config.server.port = port;
         self.config.port = port;
         self
@@ -756,7 +756,7 @@ impl ConfigBuilder {
 
     /// Set maximum database connections.
     #[must_use]
-    pub fn max_connections(mut self, n: u32) -> Self {
+    pub const fn max_connections(mut self, n: u32) -> Self {
         self.config.database.max_connections = n;
         self.config.max_connections = n;
         self
@@ -764,7 +764,7 @@ impl ConfigBuilder {
 
     /// Set query timeout.
     #[must_use]
-    pub fn query_timeout(mut self, secs: u64) -> Self {
+    pub const fn query_timeout(mut self, secs: u64) -> Self {
         self.config.database.query_timeout_secs = secs;
         self.config.query_timeout_secs = secs;
         self
@@ -793,7 +793,7 @@ impl ConfigBuilder {
 
     /// Set cache configuration.
     #[must_use]
-    pub fn cache(mut self, cache: CacheConfig) -> Self {
+    pub const fn cache(mut self, cache: CacheConfig) -> Self {
         self.config.cache = cache;
         self
     }

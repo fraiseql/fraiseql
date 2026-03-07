@@ -125,7 +125,7 @@ impl ProjectionMapper {
 
     /// Create new projection mapper with field mappings (supports aliases).
     #[must_use]
-    pub fn with_mappings(fields: Vec<FieldMapping>) -> Self {
+    pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             fields,
             typename: None,
@@ -276,7 +276,7 @@ impl ResultProjector {
 
     /// Create new result projector with field mappings (supports aliases).
     #[must_use]
-    pub fn with_mappings(fields: Vec<FieldMapping>) -> Self {
+    pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             mapper: ProjectionMapper::with_mappings(fields),
         }

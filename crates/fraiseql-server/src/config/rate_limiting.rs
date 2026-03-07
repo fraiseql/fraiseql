@@ -28,7 +28,7 @@ pub struct RateLimitingConfig {
     pub backpressure: BackpressureConfig,
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 fn default_backend() -> String {
@@ -94,12 +94,12 @@ impl Default for BackpressureConfig {
     }
 }
 
-fn default_queue_size() -> usize {
+const fn default_queue_size() -> usize {
     100
 }
 fn default_queue_timeout() -> String {
     "5s".to_string()
 }
-fn default_load_shed() -> bool {
+const fn default_load_shed() -> bool {
     true
 }

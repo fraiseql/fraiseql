@@ -18,7 +18,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         match schema.security.as_ref() {
             None => Ok(None),
             Some(s) => {
-                let s_val = serde_json::to_value(s).unwrap_or_default();
+                let s_val = serde_json::to_value(s)
+                    .map_err(|e| ServerError::ConfigError(
+                        format!("Failed to serialize security config: {e}")
+                    ))?;
                 crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(&s_val)
                     .map_err(|e| ServerError::ConfigError(e.to_string()))
             },
@@ -48,7 +51,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             code_challenge_method: String,
             redis_url: Option<String>,
         }
-        fn default_ttl()    -> u64    { 600 }
+        const fn default_ttl()    -> u64    { 600 }
         fn default_method() -> String { "S256".into() }
 
         let cfg: PkceCfgMinimal = serde_json::from_value(pkce_cfg.clone()).ok()?;

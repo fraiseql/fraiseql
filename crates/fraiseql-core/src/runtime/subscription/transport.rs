@@ -189,13 +189,13 @@ pub struct DeliveryResult {
 impl DeliveryResult {
     /// Check if all deliveries succeeded.
     #[must_use]
-    pub fn all_succeeded(&self) -> bool {
+    pub const fn all_succeeded(&self) -> bool {
         self.failed == 0
     }
 
     /// Check if at least one delivery succeeded.
     #[must_use]
-    pub fn any_succeeded(&self) -> bool {
+    pub const fn any_succeeded(&self) -> bool {
         self.successful > 0
     }
 }

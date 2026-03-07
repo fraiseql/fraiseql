@@ -324,7 +324,7 @@ impl CompiledSchema {
 
     /// Get total number of operations (queries + mutations + subscriptions).
     #[must_use]
-    pub fn operation_count(&self) -> usize {
+    pub const fn operation_count(&self) -> usize {
         self.queries.len() + self.mutations.len() + self.subscriptions.len()
     }
 
@@ -388,13 +388,13 @@ impl CompiledSchema {
 
     /// Check if schema contains any observers.
     #[must_use]
-    pub fn has_observers(&self) -> bool {
+    pub const fn has_observers(&self) -> bool {
         !self.observers.is_empty()
     }
 
     /// Get total number of observers.
     #[must_use]
-    pub fn observer_count(&self) -> usize {
+    pub const fn observer_count(&self) -> usize {
         self.observers.len()
     }
 
@@ -436,7 +436,7 @@ impl CompiledSchema {
     ///
     /// Security configuration if present (includes role definitions)
     #[must_use]
-    pub fn security_config(&self) -> Option<&SecurityConfig> {
+    pub const fn security_config(&self) -> Option<&SecurityConfig> {
         self.security.as_ref()
     }
 
@@ -857,7 +857,7 @@ impl QueryDefinition {
 
     /// Set this query to return a list.
     #[must_use]
-    pub fn returning_list(mut self) -> Self {
+    pub const fn returning_list(mut self) -> Self {
         self.returns_list = true;
         self
     }
@@ -888,7 +888,7 @@ impl QueryDefinition {
 
     /// Check if this query is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1031,7 +1031,7 @@ impl MutationDefinition {
 
     /// Check if this mutation is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1045,7 +1045,7 @@ impl MutationDefinition {
 /// Mutation operation types.
 ///
 /// This enum describes what kind of database operation a mutation performs.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum MutationOperation {
     /// INSERT into a table.
@@ -1146,7 +1146,7 @@ impl ArgumentDefinition {
 
     /// Check if this argument is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -1160,7 +1160,7 @@ impl ArgumentDefinition {
 /// Auto-wired query parameters.
 ///
 /// These are standard parameters automatically added to list queries.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)] // Reason: these are intentional feature flags
 pub struct AutoParams {
     /// Enable `where` filtering.
@@ -1183,7 +1183,7 @@ pub struct AutoParams {
 impl AutoParams {
     /// Create with all auto-params enabled (common for list queries).
     #[must_use]
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self {
             has_where:    true,
             has_order_by: true,
@@ -1282,7 +1282,7 @@ impl DirectiveDefinition {
 
     /// Mark this directive as repeatable.
     #[must_use]
-    pub fn repeatable(mut self) -> Self {
+    pub const fn repeatable(mut self) -> Self {
         self.is_repeatable = true;
         self
     }
@@ -1358,7 +1358,7 @@ pub enum DirectiveLocationKind {
 impl DirectiveLocationKind {
     /// Check if this is an executable directive location.
     #[must_use]
-    pub fn is_executable(&self) -> bool {
+    pub const fn is_executable(&self) -> bool {
         matches!(
             self,
             Self::Query
@@ -1374,7 +1374,7 @@ impl DirectiveLocationKind {
 
     /// Check if this is a type system directive location.
     #[must_use]
-    pub fn is_type_system(&self) -> bool {
+    pub const fn is_type_system(&self) -> bool {
         !self.is_executable()
     }
 }

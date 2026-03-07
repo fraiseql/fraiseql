@@ -21,7 +21,7 @@
 //!
 //! - High-performance columnar data transfer
 //! - Zero-copy deserialization in clients (Python, R, Java)
-//! - Direct integration with data warehouses (ClickHouse, Snowflake)
+//! - Direct integration with data warehouses (`ClickHouse`, Snowflake)
 //!
 //! Arrow columnar format provides better throughput and memory efficiency compared to
 //! row-oriented JSON. See `benches/arrow_vs_json_serialization.rs` for performance measurements.

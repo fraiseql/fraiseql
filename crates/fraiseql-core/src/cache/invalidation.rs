@@ -269,7 +269,7 @@ impl InvalidationContext {
     /// assert_eq!(ctx.view_count(), 2);
     /// ```
     #[must_use]
-    pub fn view_count(&self) -> usize {
+    pub const fn view_count(&self) -> usize {
         self.modified_views.len()
     }
 

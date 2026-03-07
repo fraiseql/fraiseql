@@ -67,7 +67,7 @@ pub enum Error {
     Deserialization {
         /// Name of the type we were deserializing to
         type_name: String,
-        /// Details from serde_json about what went wrong
+        /// Details from `serde_json` about what went wrong
         details: String,
     },
 
@@ -89,7 +89,7 @@ pub enum Error {
     MemoryLimitExceeded {
         /// Configured memory limit in bytes
         limit: usize,
-        /// Current estimated memory in bytes (items_buffered * 2048)
+        /// Current estimated memory in bytes (`items_buffered` * 2048)
         estimated_memory: usize,
     },
 }
@@ -165,14 +165,14 @@ impl Error {
     /// - Invalid schema (won't change between attempts)
     /// - Invalid configuration (needs user intervention)
     /// - SQL errors (query is invalid)
-    pub fn is_retriable(&self) -> bool {
+    pub const fn is_retriable(&self) -> bool {
         matches!(self, Error::Io(_) | Error::ConnectionClosed)
     }
 
     /// Get error category for observability and logging
     ///
     /// Used to categorize errors for metrics, tracing, and error handling decisions.
-    pub fn category(&self) -> &'static str {
+    pub const fn category(&self) -> &'static str {
         match self {
             Error::Connection(_) => "connection",
             Error::Authentication(_) => "authentication",

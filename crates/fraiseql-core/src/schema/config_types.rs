@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Federation configuration for Apollo Federation v2 support.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FederationConfig {
     /// Enable Apollo federation.
     #[serde(default)]
@@ -38,7 +38,7 @@ pub struct FederationEntity {
 }
 
 /// Circuit breaker configuration for federation entity resolution.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CircuitBreakerConfig {
     /// Enable circuit breaker protection.
     #[serde(default)]
@@ -57,15 +57,15 @@ pub struct CircuitBreakerConfig {
     pub per_entity:            Vec<EntityCircuitBreakerOverride>,
 }
 
-fn default_failure_threshold() -> u32 {
+const fn default_failure_threshold() -> u32 {
     5
 }
 
-fn default_recovery_timeout() -> u64 {
+const fn default_recovery_timeout() -> u64 {
     30
 }
 
-fn default_success_threshold() -> u32 {
+const fn default_success_threshold() -> u32 {
     2
 }
 
@@ -95,7 +95,7 @@ pub struct EntityCircuitBreakerOverride {
 }
 
 /// Security configuration compiled from fraiseql.toml.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompiledSecurityConfig {
     /// Default authorization policy.
     pub default_policy: Option<String>,
@@ -165,7 +165,7 @@ pub struct FieldAuthRule {
 }
 
 /// Enterprise security features.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnterpriseSecurityConfig {
     /// Enable rate limiting.
     #[serde(default = "default_true")]
@@ -199,15 +199,15 @@ pub struct EnterpriseSecurityConfig {
     pub pkce_enabled:                 bool,
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
-fn default_auth_max_requests() -> u32 {
+const fn default_auth_max_requests() -> u32 {
     100
 }
 
-fn default_auth_window() -> u64 {
+const fn default_auth_window() -> u64 {
     60
 }
 
@@ -215,7 +215,7 @@ fn default_audit_backend() -> String {
     "postgresql".to_string()
 }
 
-fn default_audit_retention() -> u32 {
+const fn default_audit_retention() -> u32 {
     365
 }
 
@@ -237,7 +237,7 @@ impl Default for EnterpriseSecurityConfig {
 }
 
 /// Observers/event system configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObserversConfig {
     /// Enable observers system.
     #[serde(default)]
@@ -294,7 +294,7 @@ pub struct EventHandler {
 }
 
 /// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DebugConfig {
     /// Master switch — all debug features require this to be `true`.
@@ -316,7 +316,7 @@ impl Default for DebugConfig {
 }
 
 /// Query validation limits (compiled from `[validation]` in `fraiseql.toml`).
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ValidationConfig {
     /// Maximum allowed query nesting depth.
@@ -328,7 +328,7 @@ pub struct ValidationConfig {
 }
 
 /// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct McpConfig {
     /// Whether MCP is enabled.
@@ -359,7 +359,7 @@ impl Default for McpConfig {
 }
 
 /// WebSocket subscription configuration (compiled from `[subscriptions]` in `fraiseql.toml`).
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubscriptionsConfig {
     /// Maximum subscriptions per WebSocket connection (`None` = unlimited).
@@ -371,7 +371,7 @@ pub struct SubscriptionsConfig {
 }
 
 /// Webhook URLs invoked during subscription lifecycle events.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubscriptionHooksConfig {
     /// URL to POST on WebSocket `connection_init` (fail-closed).

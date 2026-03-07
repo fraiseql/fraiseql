@@ -1,7 +1,7 @@
 //! Database row to Arrow Value conversion.
 //!
-//! This module bridges database-agnostic row data (HashMap<String, serde_json::Value>)
-//! to Arrow Values for RecordBatch construction.
+//! This module bridges database-agnostic row data (`HashMap`<String, `serde_json::Value`>)
+//! to Arrow Values for `RecordBatch` construction.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -16,7 +16,7 @@ use crate::{
 /// Convert database rows to Arrow Values.
 ///
 /// Takes rows returned from `DatabaseAdapter::execute_raw_query()` and converts
-/// them to the Arrow Value enum for RecordBatch construction.
+/// them to the Arrow Value enum for `RecordBatch` construction.
 ///
 /// # Arguments
 ///
@@ -169,6 +169,8 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                 // Date32 is days since Unix epoch (1970-01-01)
                 NaiveDate::parse_from_str(s, "%Y-%m-%d")
                     .map(|date| {
+                        // SAFETY: 1970-01-01 is a valid calendar date; cannot fail.
+                        #[allow(clippy::unwrap_used)]
                         let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                         let days = (date - epoch).num_days() as i32;
                         Value::Date(days)

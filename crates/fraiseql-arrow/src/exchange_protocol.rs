@@ -1,12 +1,12 @@
 //! Arrow Flight exchange protocol for bidirectional streaming.
 //!
-//! This module defines the protocol for bi-directional streaming via do_exchange(),
+//! This module defines the protocol for bi-directional streaming via `do_exchange()`,
 //! enabling request/response correlation and supporting multiple operation types
 //! in a single stream.
 
 use serde::{Deserialize, Serialize};
 
-/// Exchange message wrapper for do_exchange() streaming.
+/// Exchange message wrapper for `do_exchange()` streaming.
 ///
 /// Encapsulates requests, responses, and control messages with correlation IDs
 /// to match requests to responses in a bidirectional stream.
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 pub enum ExchangeMessage {
     /// Client request with correlation ID for tracking.
     ///
-    /// The correlation_id is used to match this request to its response(s).
+    /// The `correlation_id` is used to match this request to its response(s).
     /// Multiple requests can be in-flight simultaneously.
     Request {
         /// Unique identifier for this request (UUID recommended)
@@ -25,9 +25,9 @@ pub enum ExchangeMessage {
 
     /// Server response with correlation ID.
     ///
-    /// Response is correlated to request via correlation_id.
+    /// Response is correlated to request via `correlation_id`.
     Response {
-        /// Matches the correlation_id from the original request
+        /// Matches the `correlation_id` from the original request
         correlation_id: String,
         /// Result of the operation (error or Arrow-encoded data)
         result:         Result<Vec<u8>, String>,
@@ -39,7 +39,7 @@ pub enum ExchangeMessage {
     /// Receiving this does NOT mean the stream is closed, just that this
     /// direction of the stream is done.
     Complete {
-        /// For informational purposes (often empty or correlation_id of last message)
+        /// For informational purposes (often empty or `correlation_id` of last message)
         correlation_id: String,
     },
 }
@@ -52,7 +52,7 @@ pub enum RequestType {
     /// Execute a GraphQL query.
     ///
     /// Returns Arrow-encoded result of the query in the Response.result field.
-    /// Result is serialized as a RecordBatch in Arrow IPC format.
+    /// Result is serialized as a `RecordBatch` in Arrow IPC format.
     Query {
         /// GraphQL query string
         query:     String,
@@ -60,23 +60,23 @@ pub enum RequestType {
         variables: Option<serde_json::Value>,
     },
 
-    /// Upload a batch of data (similar to do_put but in exchange context).
+    /// Upload a batch of data (similar to `do_put` but in exchange context).
     ///
     /// Inserts data into the specified table. The batch field contains
-    /// a pre-encoded Arrow RecordBatch in IPC format.
+    /// a pre-encoded Arrow `RecordBatch` in IPC format.
     ///
     /// Response contains operation status and affected row count.
     Upload {
         /// Target table name
         table: String,
-        /// Serialized Arrow RecordBatch (IPC format)
+        /// Serialized Arrow `RecordBatch` (IPC format)
         batch: Vec<u8>,
     },
 
     /// Subscribe to entity change events (FUTURE).
     ///
     /// Currently unimplemented. When implemented, will stream change events
-    /// matching the specified entity_type and optional filter.
+    /// matching the specified `entity_type` and optional filter.
     Subscribe {
         /// Entity type to subscribe to (e.g., "Order", "User")
         entity_type: String,
@@ -86,7 +86,7 @@ pub enum RequestType {
 }
 
 impl ExchangeMessage {
-    /// Serialize message to JSON bytes for transmission in FlightData.app_metadata.
+    /// Serialize message to JSON bytes for transmission in `FlightData.app_metadata`.
     ///
     /// # Errors
     ///
@@ -95,7 +95,7 @@ impl ExchangeMessage {
         serde_json::to_vec(self).map_err(|e| format!("Failed to serialize exchange message: {}", e))
     }
 
-    /// Deserialize message from JSON bytes received in FlightData.app_metadata.
+    /// Deserialize message from JSON bytes received in `FlightData.app_metadata`.
     ///
     /// # Errors
     ///

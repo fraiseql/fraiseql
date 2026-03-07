@@ -270,7 +270,7 @@ impl FraiseQLFlightService {
     /// Enabling raw SQL allows authenticated clients to bypass RLS and execute
     /// arbitrary queries. It is disabled by default.
     #[must_use]
-    pub fn with_raw_sql_enabled(mut self) -> Self {
+    pub const fn with_raw_sql_enabled(mut self) -> Self {
         self.allow_raw_sql = true;
         self
     }
@@ -306,7 +306,7 @@ impl FraiseQLFlightService {
 
     /// Check if executor is configured for real query execution.
     ///
-    /// Returns true if an executor has been set via set_executor().
+    /// Returns true if an executor has been set via `set_executor()`.
     /// When false, queries return placeholder data.
     #[must_use]
     pub fn has_executor(&self) -> bool {
@@ -339,7 +339,7 @@ impl FraiseQLFlightService {
 
     /// Check if event storage is configured for historical event queries.
     ///
-    /// Returns true if event storage has been set via set_event_storage().
+    /// Returns true if event storage has been set via `set_event_storage()`.
     #[must_use]
     pub fn has_event_storage(&self) -> bool {
         self.event_storage.is_some()
@@ -347,7 +347,7 @@ impl FraiseQLFlightService {
 
     /// Get a reference to the subscription manager for real-time event subscriptions.
     #[must_use]
-    pub fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
+    pub const fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
         &self.subscription_manager
     }
 
@@ -356,7 +356,7 @@ impl FraiseQLFlightService {
     /// Returns true if handshake was successful and security context is set.
     /// Subsequent Flight RPC calls require valid authentication.
     #[must_use]
-    pub fn is_authenticated(&self) -> bool {
+    pub const fn is_authenticated(&self) -> bool {
         self.security_context.is_some()
     }
 
@@ -365,7 +365,7 @@ impl FraiseQLFlightService {
     /// Returns the current security context if authentication succeeded.
     /// Contains session token, user ID, and expiration information.
     #[must_use]
-    pub fn security_context(&self) -> Option<&SecurityContext> {
+    pub const fn security_context(&self) -> Option<&SecurityContext> {
         self.security_context.as_ref()
     }
 
@@ -396,7 +396,7 @@ impl FraiseQLFlightService {
     ///
     /// # Security Integration
     ///
-    /// SecurityContext flows through the executor for row-level security (RLS):
+    /// `SecurityContext` flows through the executor for row-level security (RLS):
     ///
     /// **Setup (in fraiseql-server)**:
     /// 1. Import `fraiseql_core::runtime::Executor`
@@ -409,11 +409,11 @@ impl FraiseQLFlightService {
     /// 1. Check `has_executor()` - if true, real execution available
     /// 2. Downcast executor: `executor.downcast_ref::<Executor<A>>()`
     /// 3. Call `executor.execute_with_security(query, variables, &security_context).await`
-    /// 4. Convert JSON to Arrow RecordBatches
+    /// 4. Convert JSON to Arrow `RecordBatches`
     ///
     /// **Result Streaming**:
     /// 1. Schema message (first)
-    /// 2. Data batches (RecordBatch messages)
+    /// 2. Data batches (`RecordBatch` messages)
     /// 3. Empty payload signals completion
     pub(crate) async fn execute_graphql_query(
         &self,
@@ -453,7 +453,7 @@ impl FraiseQLFlightService {
                 // first_batch.schema() returns SchemaRef = &Arc<Schema>
                 // schema_to_flight_data expects &Arc<Schema>
                 let schema_ref = first_batch.schema();
-                messages.push(Ok(schema_to_flight_data(&schema_ref.clone())?));
+                messages.push(Ok(schema_to_flight_data(&schema_ref)?));
             }
 
             for batch in batches {
@@ -554,12 +554,12 @@ impl FraiseQLFlightService {
     /// Uses pre-compiled Arrow schemas, eliminating runtime type inference.
     /// Results are cached if caching is enabled.
     ///
-    /// SecurityContext is passed through for RLS filtering at the executor level.
+    /// `SecurityContext` is passed through for RLS filtering at the executor level.
     /// When executor is configured, RLS policies determine what rows the user can access.
     ///
     /// # Arguments
     ///
-    /// * `view` - View name (e.g., "va_orders")
+    /// * `view` - View name (e.g., "`va_orders`")
     /// * `filter` - Optional WHERE clause
     /// * `order_by` - Optional ORDER BY clause
     /// * `limit` - Optional LIMIT
@@ -572,7 +572,7 @@ impl FraiseQLFlightService {
     /// - Pre-load and cache pre-compiled Arrow schemas from metadata
     /// - Schema optimization with registry
     /// - Database adapter for real data execution (fallback to placeholder if not configured)
-    /// - RLS filtering via SecurityContext (passed to executor when configured)
+    /// - RLS filtering via `SecurityContext` (passed to executor when configured)
     pub(crate) async fn execute_optimized_view(
         &self,
         view: &str,
@@ -692,7 +692,7 @@ impl FraiseQLFlightService {
     /// Improves throughput by 20-30% compared to individual requests.
     /// Results are cached if caching is enabled, improving throughput further for repeated batches.
     ///
-    /// SecurityContext is passed through for RLS filtering.
+    /// `SecurityContext` is passed through for RLS filtering.
     /// When executor is configured, each query respects RLS policies.
     ///
     /// # Arguments
@@ -702,7 +702,7 @@ impl FraiseQLFlightService {
     ///
     /// # Returns
     ///
-    /// Stream of FlightData with combined results from all queries
+    /// Stream of `FlightData` with combined results from all queries
     pub(crate) async fn execute_batched_queries(
         &self,
         queries: Vec<String>,
@@ -953,7 +953,7 @@ impl FraiseQLFlightService {
             batch_size: 10_000,
             max_rows:   None,
         };
-        let converter = RowToArrowConverter::new(schema.clone(), config);
+        let converter = RowToArrowConverter::new(schema, config);
 
         let batches: Vec<RecordBatch> = arrow_rows
             .chunks(config.batch_size)
@@ -995,7 +995,7 @@ impl FraiseQLFlightService {
         Ok(Response::new(Box::pin(stream)))
     }
 
-    /// Handle ClearCache action
+    /// Handle `ClearCache` action
     pub(crate) fn handle_clear_cache(&self) -> ActionResultStream {
         info!("ClearCache action triggered");
 
@@ -1062,7 +1062,7 @@ impl FraiseQLFlightService {
     /// Useful for debugging schema reload issues.
     ///
     /// Returns a JSON result with array of:
-    /// - `view_name`: the view name (e.g., "va_orders")
+    /// - `view_name`: the view name (e.g., "`va_orders`")
     /// - `version`: current schema version number
     /// - `created_at`: when this version was created (ISO 8601)
     pub(crate) fn handle_get_schema_versions(&self) -> ActionResultStream {
@@ -1094,7 +1094,7 @@ impl FraiseQLFlightService {
         Box::pin(stream)
     }
 
-    /// Handle HealthCheck action
+    /// Handle `HealthCheck` action
     pub(crate) fn handle_health_check(&self) -> ActionResultStream {
         info!("HealthCheck action triggered");
 

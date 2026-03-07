@@ -1,7 +1,7 @@
-//! SQL Row → Arrow RecordBatch conversion.
+//! SQL Row → Arrow `RecordBatch` conversion.
 //!
 //! This module provides the core conversion logic for transforming database rows
-//! into Apache Arrow RecordBatches for high-performance data transfer.
+//! into Apache Arrow `RecordBatches` for high-performance data transfer.
 
 use std::sync::Arc;
 
@@ -17,7 +17,7 @@ use arrow::{
 /// Configuration for Arrow batch conversion.
 #[derive(Debug, Clone, Copy)]
 pub struct ConvertConfig {
-    /// Number of rows per RecordBatch (default: 10,000)
+    /// Number of rows per `RecordBatch` (default: 10,000)
     pub batch_size: usize,
 
     /// Maximum total rows to convert (default: unlimited)
@@ -53,7 +53,7 @@ pub enum Value {
     Date(i32),
 }
 
-/// Convert SQL rows to Arrow RecordBatches.
+/// Convert SQL rows to Arrow `RecordBatches`.
 ///
 /// This is the core conversion logic that powers GraphQL → Arrow streaming.
 ///
@@ -87,11 +87,11 @@ pub struct RowToArrowConverter {
 impl RowToArrowConverter {
     /// Create a new row-to-Arrow converter with the given schema and configuration.
     #[must_use]
-    pub fn new(schema: Arc<Schema>, config: ConvertConfig) -> Self {
+    pub const fn new(schema: Arc<Schema>, config: ConvertConfig) -> Self {
         Self { schema, config }
     }
 
-    /// Convert a batch of rows into a single RecordBatch.
+    /// Convert a batch of rows into a single `RecordBatch`.
     ///
     /// Rows are provided as `Vec<Vec<Option<Value>>>` where:
     /// - Outer Vec: rows
@@ -103,7 +103,7 @@ impl RowToArrowConverter {
     /// Returns `ArrowError` if:
     /// - Row column count doesn't match schema
     /// - Value type doesn't match expected Arrow type
-    /// - RecordBatch construction fails
+    /// - `RecordBatch` construction fails
     pub fn convert_batch(&self, rows: Vec<Vec<Option<Value>>>) -> Result<RecordBatch, ArrowError> {
         if rows.is_empty() {
             return Ok(RecordBatch::new_empty(self.schema.clone()));

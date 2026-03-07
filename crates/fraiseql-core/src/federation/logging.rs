@@ -108,7 +108,7 @@ pub enum OperationStatus {
 
 impl FederationLogContext {
     /// Create new federation log context.
-    pub fn new(
+    pub const fn new(
         operation_type: FederationOperationType,
         query_id: String,
         entity_count: usize,
@@ -132,7 +132,7 @@ impl FederationLogContext {
     }
 
     /// Set resolution strategy.
-    pub fn with_strategy(mut self, strategy: ResolutionStrategy) -> Self {
+    pub const fn with_strategy(mut self, strategy: ResolutionStrategy) -> Self {
         self.strategy = Some(strategy);
         self
     }
@@ -150,19 +150,19 @@ impl FederationLogContext {
     }
 
     /// Set entity count after deduplication.
-    pub fn with_entity_count_unique(mut self, count: usize) -> Self {
+    pub const fn with_entity_count_unique(mut self, count: usize) -> Self {
         self.entity_count_unique = Some(count);
         self
     }
 
     /// Set resolved entity count.
-    pub fn with_resolved_count(mut self, count: usize) -> Self {
+    pub const fn with_resolved_count(mut self, count: usize) -> Self {
         self.resolved_count = Some(count);
         self
     }
 
     /// Set HTTP status code.
-    pub fn with_http_status(mut self, status: u16) -> Self {
+    pub const fn with_http_status(mut self, status: u16) -> Self {
         self.http_status = Some(status);
         self
     }
@@ -180,7 +180,7 @@ impl FederationLogContext {
     }
 
     /// Mark operation as completed successfully.
-    pub fn complete(mut self, duration_ms: f64) -> Self {
+    pub const fn complete(mut self, duration_ms: f64) -> Self {
         self.status = OperationStatus::Success;
         self.duration_ms = duration_ms;
         self
@@ -195,7 +195,7 @@ impl FederationLogContext {
     }
 
     /// Mark operation as timed out.
-    pub fn timeout(mut self, duration_ms: f64) -> Self {
+    pub const fn timeout(mut self, duration_ms: f64) -> Self {
         self.status = OperationStatus::Timeout;
         self.duration_ms = duration_ms;
         self

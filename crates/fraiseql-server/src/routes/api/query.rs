@@ -340,7 +340,7 @@ fn generate_warnings(complexity: &ComplexityInfo) -> Vec<String> {
 }
 
 /// Estimate execution cost based on complexity.
-fn estimate_cost(complexity: &ComplexityInfo) -> usize {
+const fn estimate_cost(complexity: &ComplexityInfo) -> usize {
     // Simple cost model: base cost + scaling factor
     let base_cost = 50;
     let depth_cost = complexity.depth.saturating_mul(10);

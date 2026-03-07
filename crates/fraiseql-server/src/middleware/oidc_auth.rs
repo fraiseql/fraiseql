@@ -24,7 +24,7 @@ pub struct OidcAuthState {
 impl OidcAuthState {
     /// Create new OIDC auth state.
     #[must_use]
-    pub fn new(validator: Arc<OidcValidator>) -> Self {
+    pub const fn new(validator: Arc<OidcValidator>) -> Self {
         Self { validator }
     }
 }

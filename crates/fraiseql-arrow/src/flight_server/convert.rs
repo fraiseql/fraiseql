@@ -11,21 +11,21 @@ use tonic::Status;
 #[cfg(any(test, feature = "testing"))]
 use tracing::warn;
 
-/// Convert RecordBatch to FlightData using Arrow IPC encoding.
+/// Convert `RecordBatch` to `FlightData` using Arrow IPC encoding.
 ///
 /// # Arguments
 ///
-/// * `batch` - Arrow RecordBatch to encode
+/// * `batch` - Arrow `RecordBatch` to encode
 ///
 /// # Returns
 ///
-/// FlightData message with IPC-encoded batch
+/// `FlightData` message with IPC-encoded batch
 ///
 /// # Errors
 ///
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn record_batch_to_flight_data(
+pub fn record_batch_to_flight_data(
     batch: &RecordBatch,
 ) -> std::result::Result<FlightData, Status> {
     use arrow::ipc::writer::CompressionContext;
@@ -47,7 +47,7 @@ pub(crate) fn record_batch_to_flight_data(
     })
 }
 
-/// Convert schema to FlightData for initial message.
+/// Convert schema to `FlightData` for initial message.
 ///
 /// # Arguments
 ///
@@ -55,13 +55,13 @@ pub(crate) fn record_batch_to_flight_data(
 ///
 /// # Returns
 ///
-/// FlightData message with IPC-encoded schema
+/// `FlightData` message with IPC-encoded schema
 ///
 /// # Errors
 ///
 /// Returns error if IPC encoding fails
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn schema_to_flight_data(
+pub fn schema_to_flight_data(
     schema: &Arc<arrow::datatypes::Schema>,
 ) -> std::result::Result<FlightData, Status> {
     let options = IpcWriteOptions::default();
@@ -82,7 +82,7 @@ pub(crate) fn schema_to_flight_data(
 ///
 /// # Arguments
 ///
-/// * `view` - View name (e.g., "va_orders"); quoted as a SQL identifier
+/// * `view` - View name (e.g., "`va_orders`"); quoted as a SQL identifier
 /// * `filter` - Must be `None`; raw WHERE clauses are rejected to prevent SQL injection
 /// * `order_by` - Optional ORDER BY as `"col [ASC|DESC], ..."` (validated, identifiers quoted)
 /// * `limit` - Optional LIMIT
@@ -105,7 +105,7 @@ pub(crate) fn schema_to_flight_data(
 /// )?;
 /// // Returns: SELECT * FROM "va_orders" ORDER BY "created_at" DESC LIMIT 100 OFFSET 0
 /// ```
-pub(crate) fn build_optimized_sql(
+pub fn build_optimized_sql(
     view: &str,
     filter: Option<String>,
     order_by: Option<String>,
@@ -296,19 +296,19 @@ pub(crate) fn execute_placeholder_query(
     rows
 }
 
-/// Decode FlightData message into an Arrow RecordBatch.
+/// Decode `FlightData` message into an Arrow `RecordBatch`.
 ///
-/// Parses the IPC format data contained in FlightData.data_body.
+/// Parses the IPC format data contained in `FlightData.data_body`.
 ///
 /// # Arguments
-/// * `flight_data` - FlightData message containing serialized RecordBatch
+/// * `flight_data` - `FlightData` message containing serialized `RecordBatch`
 ///
 /// # Returns
-/// Decoded RecordBatch
+/// Decoded `RecordBatch`
 ///
 /// # Errors
 /// Returns error if decoding fails
-pub(crate) fn decode_flight_data_to_batch(
+pub fn decode_flight_data_to_batch(
     flight_data: &FlightData,
 ) -> std::result::Result<RecordBatch, String> {
     use std::io::Cursor;
@@ -350,7 +350,7 @@ fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
-/// Convert an Arrow RecordBatch column value to SQL literal.
+/// Convert an Arrow `RecordBatch` column value to SQL literal.
 ///
 /// Handles type conversion and escaping for SQL INSERT statements.
 ///
@@ -367,7 +367,7 @@ fn arrow_value_to_sql(
     array: &std::sync::Arc<dyn arrow::array::Array>,
     row: usize,
 ) -> std::result::Result<String, String> {
-    use arrow::{array::*, datatypes::DataType};
+    use arrow::{array::{Array, Int8Array, Int16Array, Int32Array, Int64Array, UInt8Array, UInt16Array, UInt32Array, UInt64Array, Float32Array, Float64Array, StringArray, LargeStringArray, BooleanArray, TimestampMicrosecondArray, TimestampNanosecondArray, TimestampMillisecondArray, TimestampSecondArray, Date32Array}, datatypes::DataType};
 
     if array.is_null(row) {
         return Ok("NULL".to_string());
@@ -513,20 +513,20 @@ fn arrow_value_to_sql(
     }
 }
 
-/// Build a SQL INSERT statement from a RecordBatch.
+/// Build a SQL INSERT statement from a `RecordBatch`.
 ///
 /// Generates parameterized INSERT query with proper escaping.
 ///
 /// # Arguments
 /// * `table_name` - Target table name
-/// * `batch` - Arrow RecordBatch containing rows to insert
+/// * `batch` - Arrow `RecordBatch` containing rows to insert
 ///
 /// # Returns
 /// SQL INSERT statement
 ///
 /// # Errors
 /// Returns error if column types are unsupported
-pub(crate) fn build_insert_query(
+pub fn build_insert_query(
     table_name: &str,
     batch: &RecordBatch,
 ) -> std::result::Result<String, String> {
@@ -561,7 +561,7 @@ pub(crate) fn build_insert_query(
     ))
 }
 
-/// Encode JSON result from GraphQL query into Arrow RecordBatch.
+/// Encode JSON result from GraphQL query into Arrow `RecordBatch`.
 ///
 /// Converts JSON query result into columnar Arrow format for efficient streaming.
 /// As a simple implementation, wraps JSON in a single string column.
@@ -570,11 +570,11 @@ pub(crate) fn build_insert_query(
 /// * `json_str` - JSON string from GraphQL query result
 ///
 /// # Returns
-/// Arrow RecordBatch with single "result" column
+/// Arrow `RecordBatch` with single "result" column
 ///
 /// # Errors
-/// Returns error if RecordBatch creation fails
-pub(crate) fn encode_json_to_arrow_batch(
+/// Returns error if `RecordBatch` creation fails
+pub fn encode_json_to_arrow_batch(
     json_str: &str,
 ) -> std::result::Result<RecordBatch, String> {
     use arrow::{
@@ -591,19 +591,19 @@ pub(crate) fn encode_json_to_arrow_batch(
     Ok(batch)
 }
 
-/// Decode serialized Arrow RecordBatch from upload request.
+/// Decode serialized Arrow `RecordBatch` from upload request.
 ///
 /// Deserializes Arrow IPC format batch data.
 ///
 /// # Arguments
-/// * `batch_bytes` - Serialized RecordBatch in Arrow IPC format
+/// * `batch_bytes` - Serialized `RecordBatch` in Arrow IPC format
 ///
 /// # Returns
-/// Decoded RecordBatch
+/// Decoded `RecordBatch`
 ///
 /// # Errors
 /// Returns error if deserialization fails
-pub(crate) fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, String> {
+pub fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatch, String> {
     use std::io::Cursor;
 
     use arrow::ipc::reader::StreamReader;

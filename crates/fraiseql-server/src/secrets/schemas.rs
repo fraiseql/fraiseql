@@ -207,13 +207,13 @@ impl ExternalAuthProviderRecord {
     }
 
     /// Enable provider
-    pub fn enable(mut self) -> Self {
+    pub const fn enable(mut self) -> Self {
         self.enabled = true;
         self
     }
 
     /// Disable provider
-    pub fn disable(mut self) -> Self {
+    pub const fn disable(mut self) -> Self {
         self.enabled = false;
         self
     }
@@ -225,7 +225,7 @@ impl ExternalAuthProviderRecord {
     }
 
     /// Check if provider is enabled
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.enabled
     }
 

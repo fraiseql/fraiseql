@@ -79,7 +79,7 @@ pub enum QueryCardinality {
 impl QueryCardinality {
     /// Get expected cache hit rate for this cardinality (0-1).
     #[must_use]
-    pub fn expected_hit_rate(&self) -> f64 {
+    pub const fn expected_hit_rate(&self) -> f64 {
         match self {
             Self::Single => 0.91,
             Self::Multiple => 0.88,
@@ -107,7 +107,7 @@ pub struct QueryEntityProfile {
 
 impl QueryEntityProfile {
     /// Create a new query profile.
-    pub fn new(
+    pub const fn new(
         query_name: String,
         entity_type: Option<String>,
         cardinality: QueryCardinality,
@@ -121,7 +121,7 @@ impl QueryEntityProfile {
 
     /// Expected cache hit rate for this query profile.
     #[must_use]
-    pub fn expected_hit_rate(&self) -> f64 {
+    pub const fn expected_hit_rate(&self) -> f64 {
         self.cardinality.expected_hit_rate()
     }
 }
@@ -138,7 +138,7 @@ pub struct QueryAnalyzer;
 impl QueryAnalyzer {
     /// Create new query analyzer.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 

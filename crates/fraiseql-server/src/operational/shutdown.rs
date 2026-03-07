@@ -82,7 +82,7 @@ pub async fn install_signal_handlers(handler: ShutdownHandler) -> Result<(), std
         });
     }
 
-    let handler_clone = handler.clone();
+    let handler_clone = handler;
     tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         handler_clone.request_shutdown();

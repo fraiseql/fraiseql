@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 ///     },
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObserverDefinition {
     /// Observer name (unique identifier).
     pub name: String,
@@ -103,13 +103,13 @@ impl ObserverDefinition {
 
     /// Check if this observer has a condition.
     #[must_use]
-    pub fn has_condition(&self) -> bool {
+    pub const fn has_condition(&self) -> bool {
         self.condition.is_some()
     }
 
     /// Get the number of actions.
     #[must_use]
-    pub fn action_count(&self) -> usize {
+    pub const fn action_count(&self) -> usize {
         self.actions.len()
     }
 }

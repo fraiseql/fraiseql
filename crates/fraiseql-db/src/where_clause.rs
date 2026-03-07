@@ -152,7 +152,7 @@ impl WhereClause {
 
 /// WHERE operators (FraiseQL v1 compatibility).
 ///
-/// All operators from v1 are supported for backwards compatibility.
+/// All standard operators are supported.
 /// No underscore prefix (e.g., `eq`, `icontains`, not `_eq`, `_icontains`).
 ///
 /// Note: ExtendedOperator variants may contain f64 values which don't implement Eq,

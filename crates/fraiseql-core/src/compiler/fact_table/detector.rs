@@ -250,7 +250,7 @@ impl FactTableDetector {
     }
 
     /// Check if SQL type is numeric (suitable for aggregation)
-    pub(super) fn is_numeric_type(sql_type: &SqlType) -> bool {
+    pub(super) const fn is_numeric_type(sql_type: &SqlType) -> bool {
         matches!(sql_type, SqlType::Int | SqlType::BigInt | SqlType::Decimal | SqlType::Float)
     }
 

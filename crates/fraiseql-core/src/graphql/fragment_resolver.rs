@@ -72,7 +72,7 @@ impl FragmentResolver {
 
     /// Create a resolver with a custom max depth.
     #[must_use]
-    pub fn with_max_depth(mut self, max_depth: u32) -> Self {
+    pub const fn with_max_depth(mut self, max_depth: u32) -> Self {
         self.max_depth = max_depth;
         self
     }

@@ -48,7 +48,7 @@ pub use fraiseql_db::types::DatabaseType;
 mod tests;
 
 /// Metadata about a fact table structure
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableMetadata {
     /// Table name (e.g., "tf_sales")
     pub table_name:           String,
@@ -64,7 +64,7 @@ pub struct FactTableMetadata {
 }
 
 /// A measure column (aggregatable numeric type)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasureColumn {
     /// Column name (e.g., "revenue")
     pub name:     String,
@@ -75,7 +75,7 @@ pub struct MeasureColumn {
 }
 
 /// SQL data types
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SqlType {
     /// SMALLINT, INT, INTEGER
     Int,
@@ -104,7 +104,7 @@ pub enum SqlType {
 }
 
 /// Dimension column (JSONB)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DimensionColumn {
     /// Column name (default: "dimensions" for fact tables)
     pub name:  String,
@@ -113,7 +113,7 @@ pub struct DimensionColumn {
 }
 
 /// A dimension path within the JSONB column
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DimensionPath {
     /// Path name (e.g., "category")
     pub name:      String,
@@ -149,7 +149,7 @@ pub struct DimensionPath {
 ///   "year": 2024
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarDimension {
     /// Source timestamp column (e.g., "occurred_at")
     pub source_column: String,
@@ -159,7 +159,7 @@ pub struct CalendarDimension {
 }
 
 /// Calendar granularity column with pre-computed fields
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarGranularity {
     /// Column name (e.g., "date_info", "month_info")
     pub column_name: String,
@@ -169,7 +169,7 @@ pub struct CalendarGranularity {
 }
 
 /// Pre-computed temporal bucket in calendar JSONB
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarBucket {
     /// JSON path key (e.g., "date", "month", "quarter")
     pub json_key: String,
@@ -182,7 +182,7 @@ pub struct CalendarBucket {
 }
 
 /// A denormalized filter column
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterColumn {
     /// Column name (e.g., "customer_id")
     pub name:     String,
@@ -236,7 +236,7 @@ pub enum AggregationStrategy {
 ///   }
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableDeclaration {
     /// Fact table name (e.g., "tf_sales")
     pub name: String,
@@ -255,7 +255,7 @@ pub struct FactTableDeclaration {
 }
 
 /// Metadata for explicitly declared fact tables
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableDeclarationMetadata {
     /// Aggregation strategy (how data is updated)
     #[serde(default)]

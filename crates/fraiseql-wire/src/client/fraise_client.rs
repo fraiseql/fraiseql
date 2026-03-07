@@ -1,4 +1,4 @@
-//! FraiseClient implementation
+//! `FraiseClient` implementation
 
 use super::connection_string::{ConnectionInfo, TransportType};
 use super::query_builder::QueryBuilder;

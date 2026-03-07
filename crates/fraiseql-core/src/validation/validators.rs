@@ -72,12 +72,12 @@ pub struct LengthValidator {
 
 impl LengthValidator {
     /// Create a new length validator.
-    pub fn new(min: Option<usize>, max: Option<usize>) -> Self {
+    pub const fn new(min: Option<usize>, max: Option<usize>) -> Self {
         Self { min, max }
     }
 
     /// Validate that a string is within the specified length bounds.
-    pub fn validate_length(&self, value: &str) -> bool {
+    pub const fn validate_length(&self, value: &str) -> bool {
         let len = value.len();
         if let Some(min) = self.min {
             if len < min {
@@ -127,12 +127,12 @@ pub struct RangeValidator {
 
 impl RangeValidator {
     /// Create a new range validator.
-    pub fn new(min: Option<i64>, max: Option<i64>) -> Self {
+    pub const fn new(min: Option<i64>, max: Option<i64>) -> Self {
         Self { min, max }
     }
 
     /// Validate that a number is within the specified range.
-    pub fn validate_range(&self, value: i64) -> bool {
+    pub const fn validate_range(&self, value: i64) -> bool {
         if let Some(min) = self.min {
             if value < min {
                 return false;

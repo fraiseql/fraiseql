@@ -125,7 +125,7 @@ impl SqlQueryLogBuilder {
     }
 
     /// Set slow query threshold in microseconds.
-    pub fn with_slow_threshold(mut self, threshold_us: u64) -> Self {
+    pub const fn with_slow_threshold(mut self, threshold_us: u64) -> Self {
         self.slow_threshold_us = Some(threshold_us);
         self
     }
@@ -222,7 +222,7 @@ impl SqlQueryLog {
     }
 
     /// Check if query was slow based on threshold.
-    pub fn is_slow(&self) -> bool {
+    pub const fn is_slow(&self) -> bool {
         self.was_slow
     }
 

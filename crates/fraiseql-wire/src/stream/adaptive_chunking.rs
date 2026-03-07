@@ -10,10 +10,10 @@
 //!
 //! **Control Signal Interpretation**:
 //! - **High occupancy** (>80%): Producer waiting on channel capacity, consumer slow
-//!   → **Reduce chunk_size**: smaller batches reduce pressure, lower latency per item
+//!   → **Reduce `chunk_size`**: smaller batches reduce pressure, lower latency per item
 //!
 //! - **Low occupancy** (<20%): Consumer faster than producer, frequent context switches
-//!   → **Increase chunk_size**: larger batches amortize parsing cost, less frequent wakeups
+//!   → **Increase `chunk_size`**: larger batches amortize parsing cost, less frequent wakeups
 //!
 //! **Design Principles**:
 //! - Measurement-based adjustment (50-item window) for stability
@@ -108,7 +108,7 @@ impl AdaptiveChunking {
     /// # Arguments
     ///
     /// * `items_buffered` - Number of items currently in the channel
-    /// * `capacity` - Total capacity of the channel (usually equal to chunk_size)
+    /// * `capacity` - Total capacity of the channel (usually equal to `chunk_size`)
     ///
     /// # Examples
     ///
@@ -165,7 +165,7 @@ impl AdaptiveChunking {
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
-    pub fn current_size(&self) -> usize {
+    pub const fn current_size(&self) -> usize {
         self.current_size
     }
 
@@ -177,7 +177,7 @@ impl AdaptiveChunking {
     /// # Arguments
     ///
     /// * `min_size` - Minimum chunk size (must be > 0)
-    /// * `max_size` - Maximum chunk size (must be >= min_size)
+    /// * `max_size` - Maximum chunk size (must be >= `min_size`)
     ///
     /// # Examples
     ///
@@ -252,7 +252,7 @@ impl AdaptiveChunking {
     /// **Logic**:
     /// - If avg > 80%: **DECREASE** by factor of 1.5 (high occupancy = producer backed up)
     /// - If avg < 20%: **INCREASE** by factor of 1.5 (low occupancy = consumer fast)
-    /// - Clamps to [min_size, max_size]
+    /// - Clamps to [`min_size`, `max_size`]
     /// - Clears measurements after adjustment
     ///
     /// Returns `Some(new_size)` if size actually changed, `None` if no change needed.

@@ -82,7 +82,7 @@ impl ScramClient {
 
     /// Process server first message and generate client final message
     ///
-    /// Returns (client_final_message, internal_state)
+    /// Returns (`client_final_message`, `internal_state`)
     pub fn client_final(&mut self, server_first: &str) -> Result<(String, ScramState), ScramError> {
         // Parse server first message: r=<client_nonce><server_nonce>,s=<salt>,i=<iterations>
         let (server_nonce, salt, iterations) = parse_server_first(server_first)?;
@@ -225,7 +225,7 @@ fn calculate_client_proof(
         *proof_byte ^= sig_byte;
     }
 
-    Ok(proof.to_vec())
+    Ok(proof.clone())
 }
 
 /// Calculate server key for server signature verification

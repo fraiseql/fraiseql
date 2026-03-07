@@ -80,7 +80,7 @@ impl RateLimiter {
     }
 
     /// Return the active rate limit configuration.
-    pub fn config(&self) -> &RateLimitConfig {
+    pub const fn config(&self) -> &RateLimitConfig {
         match self {
             Self::InMemory(rl) => rl.config(),
             #[cfg(feature = "redis-rate-limiting")]
@@ -89,7 +89,7 @@ impl RateLimiter {
     }
 
     /// Number of per-path rate limit rules registered.
-    pub fn path_rule_count(&self) -> usize {
+    pub const fn path_rule_count(&self) -> usize {
         match self {
             Self::InMemory(rl) => rl.path_rule_count(),
             #[cfg(feature = "redis-rate-limiting")]
@@ -486,7 +486,7 @@ mod tests {
         limiter.cleanup().await; // Should not panic
     }
 
-    // --- Phase 05: from_security_config() tests ---
+    // --- from_security_config() tests ---
 
     #[test]
     fn test_from_security_config_maps_fields() {

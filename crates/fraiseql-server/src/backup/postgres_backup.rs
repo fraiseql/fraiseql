@@ -89,7 +89,10 @@ impl PostgresBackupProvider {
             "created_at": unix_now(),
         });
         let path = self.meta_path(backup_id);
-        tokio::fs::write(&path, serde_json::to_string(&meta).unwrap_or_default())
+        let meta_json = serde_json::to_string(&meta).map_err(|e| BackupError::StorageError {
+            message: format!("Failed to serialize metadata for backup {backup_id}: {e}"),
+        })?;
+        tokio::fs::write(&path, meta_json)
             .await
             .map_err(|e| BackupError::StorageError {
                 message: format!("Failed to write metadata to {}: {e}", path.display()),

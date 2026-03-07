@@ -118,11 +118,11 @@ pub struct CheckResult {
 }
 
 impl CheckResult {
-    pub(super) fn allow(remaining: f64) -> Self {
+    pub(super) const fn allow(remaining: f64) -> Self {
         Self { allowed: true, remaining, retry_after_secs: 0 }
     }
 
-    pub(super) fn deny(retry_after_secs: u32) -> Self {
+    pub(super) const fn deny(retry_after_secs: u32) -> Self {
         Self { allowed: false, remaining: 0.0, retry_after_secs }
     }
 }

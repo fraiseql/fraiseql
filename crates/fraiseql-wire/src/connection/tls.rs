@@ -52,7 +52,7 @@ pub struct TlsConfig {
     danger_accept_invalid_certs: bool,
     /// Whether to accept invalid hostnames (development only)
     danger_accept_invalid_hostnames: bool,
-    /// Compiled rustls ClientConfig
+    /// Compiled rustls `ClientConfig`
     client_config: Arc<ClientConfig>,
 }
 
@@ -73,23 +73,23 @@ impl TlsConfig {
         TlsConfigBuilder::default()
     }
 
-    /// Get the rustls ClientConfig for this TLS configuration.
+    /// Get the rustls `ClientConfig` for this TLS configuration.
     pub fn client_config(&self) -> Arc<ClientConfig> {
         self.client_config.clone()
     }
 
     /// Check if hostname verification is enabled.
-    pub fn verify_hostname(&self) -> bool {
+    pub const fn verify_hostname(&self) -> bool {
         self.verify_hostname
     }
 
     /// Check if invalid certificates are accepted (development only).
-    pub fn danger_accept_invalid_certs(&self) -> bool {
+    pub const fn danger_accept_invalid_certs(&self) -> bool {
         self.danger_accept_invalid_certs
     }
 
     /// Check if invalid hostnames are accepted (development only).
-    pub fn danger_accept_invalid_hostnames(&self) -> bool {
+    pub const fn danger_accept_invalid_hostnames(&self) -> bool {
         self.danger_accept_invalid_hostnames
     }
 }
@@ -176,7 +176,7 @@ impl TlsConfigBuilder {
     ///     .build()?;
     /// # fraiseql_wire::Result::Ok(())
     /// ```
-    pub fn verify_hostname(mut self, verify: bool) -> Self {
+    pub const fn verify_hostname(mut self, verify: bool) -> Self {
         self.verify_hostname = verify;
         self
     }
@@ -198,7 +198,7 @@ impl TlsConfigBuilder {
     ///     .build()?;
     /// # fraiseql_wire::Result::Ok(())
     /// ```
-    pub fn danger_accept_invalid_certs(mut self, accept: bool) -> Self {
+    pub const fn danger_accept_invalid_certs(mut self, accept: bool) -> Self {
         self.danger_accept_invalid_certs = accept;
         self
     }
@@ -221,7 +221,7 @@ impl TlsConfigBuilder {
     ///     .build()?;
     /// # fraiseql_wire::Result::Ok(())
     /// ```
-    pub fn danger_accept_invalid_hostnames(mut self, accept: bool) -> Self {
+    pub const fn danger_accept_invalid_hostnames(mut self, accept: bool) -> Self {
         self.danger_accept_invalid_hostnames = accept;
         self
     }

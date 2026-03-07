@@ -446,7 +446,7 @@ impl SubscriptionManager {
 /// let alt = get_json_pointer_value(&data, "user.id"); // Some(&123)
 /// let missing = get_json_pointer_value(&data, "admin/id"); // None
 /// ```
-pub(crate) fn get_json_pointer_value<'a>(
+pub fn get_json_pointer_value<'a>(
     data: &'a serde_json::Value,
     path: &str,
 ) -> Option<&'a serde_json::Value> {
@@ -461,7 +461,7 @@ pub(crate) fn get_json_pointer_value<'a>(
 }
 
 /// Evaluate a filter condition against an actual value.
-pub(crate) fn evaluate_filter_condition(
+pub fn evaluate_filter_condition(
     actual: Option<&serde_json::Value>,
     operator: crate::schema::FilterOperator,
     expected: &serde_json::Value,

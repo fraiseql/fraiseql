@@ -12,12 +12,12 @@ use serde_json::Value;
 ///
 /// # Arguments
 ///
-/// * `graphql_type` - GraphQL type name (e.g., "String", "Int", "DateTime")
+/// * `graphql_type` - GraphQL type name (e.g., "String", "Int", "`DateTime`")
 /// * `nullable` - Whether the field is nullable
 ///
 /// # Returns
 ///
-/// The corresponding Arrow DataType
+/// The corresponding Arrow `DataType`
 ///
 /// # Example
 ///
@@ -54,7 +54,7 @@ pub fn graphql_type_to_arrow(graphql_type: &str, _nullable: bool) -> DataType {
 ///
 /// # Arguments
 ///
-/// * `fields` - Vector of (field_name, graphql_type, nullable) tuples
+/// * `fields` - Vector of (`field_name`, `graphql_type`, nullable) tuples
 ///
 /// # Returns
 ///
@@ -93,7 +93,7 @@ pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
 ///
 /// # Arguments
 ///
-/// * `rows` - Vector of HashMap representing database rows
+/// * `rows` - Vector of `HashMap` representing database rows
 ///
 /// # Returns
 ///
@@ -125,11 +125,11 @@ pub fn infer_schema_from_rows(
 ///
 /// # Arguments
 ///
-/// * `value` - serde_json::Value to infer type from
+/// * `value` - `serde_json::Value` to infer type from
 ///
 /// # Returns
 ///
-/// Corresponding Arrow DataType
+/// Corresponding Arrow `DataType`
 fn infer_type_from_value(value: &Value) -> DataType {
     match value {
         Value::Null => DataType::Null,

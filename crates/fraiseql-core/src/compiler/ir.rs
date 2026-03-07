@@ -113,7 +113,7 @@ impl Default for AuthoringIR {
 }
 
 /// IR Type definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRType {
     /// Type name (e.g., "User").
     pub name: String,
@@ -129,7 +129,7 @@ pub struct IRType {
 }
 
 /// IR Field definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRField {
     /// Field name.
     pub name: String,
@@ -233,7 +233,7 @@ pub struct IRArgument {
 }
 
 /// Auto-wired parameters configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AutoParams {
     /// Enable WHERE parameter?
     #[serde(default)]
@@ -269,7 +269,7 @@ pub enum MutationOperation {
 }
 
 /// IR Enum definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IREnum {
     /// Enum name (e.g., "Status").
     pub name: String,
@@ -282,7 +282,7 @@ pub struct IREnum {
 }
 
 /// IR Enum value definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IREnumValue {
     /// Value name (e.g., "ACTIVE").
     pub name: String,
@@ -295,7 +295,7 @@ pub struct IREnumValue {
 }
 
 /// IR Interface definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRInterface {
     /// Interface name (e.g., "Node").
     pub name: String,
@@ -308,7 +308,7 @@ pub struct IRInterface {
 }
 
 /// IR Union definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IRUnion {
     /// Union name (e.g., "SearchResult").
     pub name: String,
@@ -380,7 +380,7 @@ pub struct IRScalar {
 impl IRScalar {
     /// Create a new scalar definition with minimal required fields.
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub const fn new(name: String) -> Self {
         Self {
             name,
             description: None,

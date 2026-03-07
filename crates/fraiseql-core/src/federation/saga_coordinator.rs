@@ -273,6 +273,9 @@ impl SagaCoordinator {
     /// ];
     /// let saga_id = coordinator.create_saga(steps).await?;
     /// ```
+    // Reason: SagaStore uses `dyn Any` for step callbacks; those types are not Send.
+    // The coordinator is designed for single-executor use, not cross-thread dispatch.
+    #[allow(clippy::future_not_send)]
     pub async fn create_saga(&self, steps: Vec<SagaStep>) -> SagaStoreResult<Uuid> {
         // Validate at least one step
         if steps.is_empty() {
@@ -350,6 +353,8 @@ impl SagaCoordinator {
     ///     _ => println!("Partial or unknown state"),
     /// }
     /// ```
+    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
+    #[allow(clippy::future_not_send)]
     pub async fn execute_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga execution started");
 
@@ -391,6 +396,8 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Current saga status
+    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
+    #[allow(clippy::future_not_send)]
     pub async fn get_saga_status(&self, saga_id: Uuid) -> SagaStoreResult<SagaStatus> {
         // In full implementation, would load from store
 
@@ -421,6 +428,8 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Final saga result after cancellation
+    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
+    #[allow(clippy::future_not_send)]
     pub async fn cancel_saga(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         info!(saga_id = %saga_id, "Saga cancellation requested");
 
@@ -448,6 +457,8 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// Final saga result with all step outcomes
+    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
+    #[allow(clippy::future_not_send)]
     pub async fn get_saga_result(&self, saga_id: Uuid) -> SagaStoreResult<SagaResult> {
         debug!(saga_id = %saga_id, "Saga result queried");
 
@@ -468,6 +479,8 @@ impl SagaCoordinator {
     /// # Returns
     ///
     /// List of in-flight saga IDs
+    // Reason: SagaStore uses `dyn Any`; not Send. Coordinator is single-executor only.
+    #[allow(clippy::future_not_send)]
     pub async fn list_in_flight_sagas(&self) -> SagaStoreResult<Vec<Uuid>> {
         // In full implementation, would query store for Executing/Compensating states
         let sagas = vec![];
@@ -478,7 +491,7 @@ impl SagaCoordinator {
     }
 
     /// Get compensation strategy
-    pub fn strategy(&self) -> CompensationStrategy {
+    pub const fn strategy(&self) -> CompensationStrategy {
         self.strategy
     }
 }

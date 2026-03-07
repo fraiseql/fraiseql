@@ -44,7 +44,7 @@ pub enum InheritanceMode {
 
 impl InheritanceMode {
     /// Get a human-readable description.
-    pub fn description(&self) -> &'static str {
+    pub const fn description(&self) -> &'static str {
         match self {
             Self::Override => "Child rules override parent rules completely",
             Self::Merge => "All parent and child rules apply (union)",
@@ -79,13 +79,13 @@ impl RuleMetadata {
     }
 
     /// Mark this rule as non-overrideable.
-    pub fn non_overrideable(mut self) -> Self {
+    pub const fn non_overrideable(mut self) -> Self {
         self.overrideable = false;
         self
     }
 
     /// Mark this rule as inherited.
-    pub fn as_inherited(mut self) -> Self {
+    pub const fn as_inherited(mut self) -> Self {
         self.inherited = true;
         self
     }

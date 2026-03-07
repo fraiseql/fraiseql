@@ -120,7 +120,7 @@ pub enum SagaState {
 
 impl SagaState {
     /// Return a lowercase string identifier for this state.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             SagaState::Pending => "pending",
             SagaState::Executing => "executing",
@@ -162,7 +162,7 @@ pub enum StepState {
 
 impl StepState {
     /// Return a lowercase string identifier for this step state.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             StepState::Pending => "pending",
             StepState::Executing => "executing",
@@ -198,7 +198,7 @@ pub enum MutationType {
 
 impl MutationType {
     /// Convert to string representation
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             MutationType::Create => "create",
             MutationType::Update => "update",

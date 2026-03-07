@@ -162,7 +162,7 @@ impl TypeDefinition {
 
     /// Check if type has SQL projection hint.
     #[must_use]
-    pub fn has_sql_projection(&self) -> bool {
+    pub const fn has_sql_projection(&self) -> bool {
         self.sql_projection_hint.is_some()
     }
 
@@ -201,7 +201,7 @@ impl TypeDefinition {
 ///     description: Some("Possible states of an order".to_string()),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumDefinition {
     /// Enum type name (e.g., "OrderStatus").
     pub name: String,
@@ -270,7 +270,7 @@ impl EnumDefinition {
 /// let value = EnumValueDefinition::new("ACTIVE")
 ///     .with_description("The item is currently active");
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EnumValueDefinition {
     /// Value name (e.g., "PENDING").
     pub name: String,
@@ -311,7 +311,7 @@ impl EnumValueDefinition {
 
     /// Check if this value is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 }
@@ -480,7 +480,7 @@ impl InputFieldDefinition {
 
     /// Check if this field is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -506,7 +506,7 @@ impl InputFieldDefinition {
 
     /// Check if this field has validation rules.
     #[must_use]
-    pub fn has_validation_rules(&self) -> bool {
+    pub const fn has_validation_rules(&self) -> bool {
         !self.validation_rules.is_empty()
     }
 }
@@ -608,7 +608,7 @@ impl InterfaceDefinition {
 ///     description: Some("Possible search result types".to_string()),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnionDefinition {
     /// Union name (e.g., "SearchResult").
     pub name: String,

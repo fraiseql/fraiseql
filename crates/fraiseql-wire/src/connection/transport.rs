@@ -109,7 +109,7 @@ impl Transport {
     /// Connect via TLS-encrypted TCP using PostgreSQL SSL negotiation protocol.
     ///
     /// PostgreSQL requires a specific SSL upgrade sequence:
-    /// 1. Send SSLRequest message (8 bytes)
+    /// 1. Send `SSLRequest` message (8 bytes)
     /// 2. Server responds with 'S' (accept) or 'N' (reject)
     /// 3. If accepted, perform TLS handshake
     pub async fn connect_tcp_tls(

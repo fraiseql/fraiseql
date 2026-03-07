@@ -402,7 +402,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
     /// Get fact table cache configuration.
     #[must_use]
-    pub fn fact_table_config(&self) -> &FactTableCacheConfig {
+    pub const fn fact_table_config(&self) -> &FactTableCacheConfig {
         &self.fact_table_config
     }
 

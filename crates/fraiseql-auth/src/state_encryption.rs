@@ -183,7 +183,7 @@ pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
 //   - Can be constructed from the compiled schema JSON
 //   - Key never appears in `Debug` output
 //
-// This is the service used by Phase 04 (PKCE) and wired into `Server`.
+// This is the PKCE state encryption service wired into `Server`.
 
 /// Errors that can occur during decryption by `StateEncryptionService`.
 #[derive(Debug, thiserror::Error)]

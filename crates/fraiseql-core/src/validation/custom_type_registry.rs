@@ -82,7 +82,7 @@ pub struct CustomTypeDef {
 impl CustomTypeDef {
     /// Create a new custom type definition with minimal required fields.
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub const fn new(name: String) -> Self {
         Self {
             name,
             description: None,

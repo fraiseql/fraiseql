@@ -11,7 +11,7 @@ use crate::error::{ArrowFlightError, Result};
 ///
 /// Tickets are serialized as JSON for human readability during development.
 /// In production, a more compact format (protobuf, msgpack) could be used.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum FlightTicket {
     /// GraphQL query result.
@@ -71,7 +71,7 @@ pub enum FlightTicket {
     /// }
     /// ```
     OptimizedView {
-        /// View name (e.g., "va_orders", "va_users")
+        /// View name (e.g., "`va_orders`", "`va_users`")
         view:     String,
         /// Optional WHERE clause filter
         filter:   Option<String>,

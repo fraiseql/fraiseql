@@ -55,14 +55,14 @@ pub struct PoolTuningConfig {
     pub samples_before_action: u32,
 }
 
-fn default_min_pool_size() -> u32 { 5 }
-fn default_max_pool_size() -> u32 { 50 }
-fn default_target_queue_depth() -> u32 { 3 }
-fn default_scale_up_step() -> u32 { 5 }
-fn default_scale_down_step() -> u32 { 2 }
-fn default_scale_down_idle_ratio() -> f64 { 0.5 }
-fn default_tuning_interval_ms() -> u64 { 30_000 }
-fn default_samples_before_action() -> u32 { 3 }
+const fn default_min_pool_size() -> u32 { 5 }
+const fn default_max_pool_size() -> u32 { 50 }
+const fn default_target_queue_depth() -> u32 { 3 }
+const fn default_scale_up_step() -> u32 { 5 }
+const fn default_scale_down_step() -> u32 { 2 }
+const fn default_scale_down_idle_ratio() -> f64 { 0.5 }
+const fn default_tuning_interval_ms() -> u64 { 30_000 }
+const fn default_samples_before_action() -> u32 { 3 }
 
 impl Default for PoolTuningConfig {
     fn default() -> Self {

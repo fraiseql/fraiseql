@@ -13,16 +13,16 @@ use super::field::{Field, Value};
 /// # Categories
 ///
 /// - **Comparison**: Eq, Neq, Gt, Gte, Lt, Lte
-/// - **Array**: In, Nin, Contains, ArrayContains, ArrayContainedBy, ArrayOverlaps
-/// - **Array Length**: LenEq, LenGt, LenGte, LenLt, LenLte
+/// - **Array**: In, Nin, Contains, `ArrayContains`, `ArrayContainedBy`, `ArrayOverlaps`
+/// - **Array Length**: `LenEq`, `LenGt`, `LenGte`, `LenLt`, `LenLte`
 /// - **String**: Icontains, Startswith, Istartswith, Endswith, Iendswith, Like, Ilike
-/// - **Null**: IsNull
-/// - **Vector Distance**: L2Distance, CosineDistance, InnerProduct, L1Distance, HammingDistance, JaccardDistance
-/// - **Full-Text Search**: Matches, PlainQuery, PhraseQuery, WebsearchQuery
-/// - **Network**: IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback, InSubnet, ContainsSubnet, ContainsIP, IPRangeOverlap
-/// - **JSONB**: StrictlyContains
-/// - **LTree**: AncestorOf, DescendantOf, MatchesLquery, MatchesLtxtquery, MatchesAnyLquery,
-///   DepthEq, DepthNeq, DepthGt, DepthGte, DepthLt, DepthLte, Lca
+/// - **Null**: `IsNull`
+/// - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `L1Distance`, `HammingDistance`, `JaccardDistance`
+/// - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
+/// - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsPublic`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
+/// - **JSONB**: `StrictlyContains`
+/// - **`LTree`**: `AncestorOf`, `DescendantOf`, `MatchesLquery`, `MatchesLtxtquery`, `MatchesAnyLquery`,
+///   `DepthEq`, `DepthNeq`, `DepthGt`, `DepthGte`, `DepthLt`, `DepthLte`, Lca
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum WhereOperator {
@@ -276,19 +276,19 @@ pub enum WhereOperator {
     },
 
     // ============ Network/INET Operators ============
-    /// Check if IP is IPv4: `family(field) = 4`
+    /// Check if IP is `IPv4`: `family(field) = 4`
     IsIPv4(Field),
 
-    /// Check if IP is IPv6: `family(field) = 6`
+    /// Check if IP is `IPv6`: `family(field) = 6`
     IsIPv6(Field),
 
     /// Check if IP is private (RFC1918): matches private ranges
     IsPrivate(Field),
 
-    /// Check if IP is public (not private): opposite of IsPrivate
+    /// Check if IP is public (not private): opposite of `IsPrivate`
     IsPublic(Field),
 
-    /// Check if IP is loopback: IPv4 127.0.0.0/8 or IPv6 ::1/128
+    /// Check if IP is loopback: `IPv4` 127.0.0.0/8 or `IPv6` `::1/128`
     IsLoopback(Field),
 
     /// IP is in subnet: `field << subnet`
@@ -388,7 +388,7 @@ pub enum WhereOperator {
         patterns: Vec<String>,
     },
 
-    /// LTree depth equals: `nlevel(field) = depth`
+    /// `LTree` depth equals: `nlevel(field) = depth`
     DepthEq {
         /// The ltree field to check
         field: Field,
@@ -396,7 +396,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth not equals: `nlevel(field) != depth`
+    /// `LTree` depth not equals: `nlevel(field) != depth`
     DepthNeq {
         /// The ltree field to check
         field: Field,
@@ -404,7 +404,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth greater than: `nlevel(field) > depth`
+    /// `LTree` depth greater than: `nlevel(field) > depth`
     DepthGt {
         /// The ltree field to check
         field: Field,
@@ -412,7 +412,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth greater than or equal: `nlevel(field) >= depth`
+    /// `LTree` depth greater than or equal: `nlevel(field) >= depth`
     DepthGte {
         /// The ltree field to check
         field: Field,
@@ -420,7 +420,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth less than: `nlevel(field) < depth`
+    /// `LTree` depth less than: `nlevel(field) < depth`
     DepthLt {
         /// The ltree field to check
         field: Field,
@@ -428,7 +428,7 @@ pub enum WhereOperator {
         depth: usize,
     },
 
-    /// LTree depth less than or equal: `nlevel(field) <= depth`
+    /// `LTree` depth less than or equal: `nlevel(field) <= depth`
     DepthLte {
         /// The ltree field to check
         field: Field,
@@ -449,7 +449,7 @@ pub enum WhereOperator {
 
 impl WhereOperator {
     /// Get a human-readable name for this operator
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
             WhereOperator::Eq(_, _) => "Eq",
             WhereOperator::Neq(_, _) => "Neq",

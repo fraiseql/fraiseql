@@ -35,12 +35,12 @@ impl MetricCounter {
     }
 
     /// Increment the counter
-    pub fn increment(&mut self) {
+    pub const fn increment(&mut self) {
         self.value += 1;
     }
 
     /// Increment by n
-    pub fn increment_by(&mut self, n: u64) {
+    pub const fn increment_by(&mut self, n: u64) {
         self.value += n;
     }
 }

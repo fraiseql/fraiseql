@@ -46,7 +46,7 @@ pub struct RequirePermissionDirective;
 impl RequirePermissionDirective {
     /// Create a new require_permission directive handler.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self
     }
 

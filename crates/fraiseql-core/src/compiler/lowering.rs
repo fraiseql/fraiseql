@@ -148,7 +148,7 @@ pub struct SqlTemplate {
 
 impl SqlTemplate {
     /// Create a new query template.
-    fn query(name: String, template: String, parameters: Vec<String>) -> Self {
+    const fn query(name: String, template: String, parameters: Vec<String>) -> Self {
         Self {
             name,
             kind: TemplateKind::Query,
@@ -162,21 +162,21 @@ impl SqlTemplate {
 
     /// Enable WHERE clause support.
     #[must_use]
-    pub fn with_where(mut self) -> Self {
+    pub const fn with_where(mut self) -> Self {
         self.supports_where = true;
         self
     }
 
     /// Enable ORDER BY support.
     #[must_use]
-    pub fn with_order_by(mut self) -> Self {
+    pub const fn with_order_by(mut self) -> Self {
         self.supports_order_by = true;
         self
     }
 
     /// Enable pagination support.
     #[must_use]
-    pub fn with_pagination(mut self) -> Self {
+    pub const fn with_pagination(mut self) -> Self {
         self.supports_pagination = true;
         self
     }
@@ -190,7 +190,7 @@ pub struct SqlTemplateGenerator {
 impl SqlTemplateGenerator {
     /// Create new SQL template generator.
     #[must_use]
-    pub fn new(target: DatabaseTarget) -> Self {
+    pub const fn new(target: DatabaseTarget) -> Self {
         Self { target }
     }
 
@@ -451,13 +451,12 @@ impl SqlTemplateGenerator {
 
         // Replace parameter placeholders
         for (i, param_name) in template.parameters.iter().enumerate() {
+            let placeholder = format!("{{{param_name}}}");
             if let Some(value) = params.get(param_name) {
-                let placeholder = format!("{{{param_name}}}");
                 let replacement = self.value_to_sql(value);
                 sql = sql.replace(&placeholder, &replacement);
             } else {
                 // Replace with positional placeholder for unbound params
-                let placeholder = format!("{{{param_name}}}");
                 sql = sql.replace(&placeholder, &self.target.placeholder(i + 1));
             }
         }

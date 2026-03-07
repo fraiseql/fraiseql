@@ -57,7 +57,7 @@ pub struct SchemaParser {
 impl SchemaParser {
     /// Create new schema parser.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 

@@ -64,14 +64,14 @@ impl VaultConfig {
 
     /// Set TLS verification.
     #[must_use]
-    pub fn with_verify_tls(mut self, verify_tls: bool) -> Self {
+    pub const fn with_verify_tls(mut self, verify_tls: bool) -> Self {
         self.verify_tls = verify_tls;
         self
     }
 
     /// Set request timeout in seconds.
     #[must_use]
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
     }

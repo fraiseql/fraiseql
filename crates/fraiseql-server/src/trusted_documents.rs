@@ -96,7 +96,7 @@ impl TrustedDocumentStore {
     }
 
     /// Returns the enforcement mode.
-    pub fn mode(&self) -> TrustedDocumentMode {
+    pub const fn mode(&self) -> TrustedDocumentMode {
         self.mode
     }
 

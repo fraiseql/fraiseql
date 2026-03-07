@@ -70,12 +70,12 @@ fn parse_date(date_str: &str) -> Result<(u32, u32, u32)> {
 }
 
 /// Check if a year is a leap year.
-fn is_leap_year(year: u32) -> bool {
+const fn is_leap_year(year: u32) -> bool {
     (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }
 
 /// Get the number of days in a month.
-fn get_days_in_month(month: u32, year: u32) -> u32 {
+const fn get_days_in_month(month: u32, year: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,

@@ -41,7 +41,7 @@ pub enum InjectedParamSource {
 ///   "scopes": ["admin:*"]
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoleDefinition {
     /// Role name (e.g., "admin", "user", "viewer").
     pub name: RoleName,
@@ -110,7 +110,7 @@ impl RoleDefinition {
 ///
 /// Contains role definitions and other security-related settings
 /// that are compiled into schema.compiled.json.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SecurityConfig {
     /// Role definitions mapping role names to their granted scopes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

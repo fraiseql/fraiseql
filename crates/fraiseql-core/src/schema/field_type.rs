@@ -28,7 +28,7 @@ use super::scalar_types;
 ///     distance_metric: DistanceMetric::Cosine,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VectorConfig {
     /// Number of dimensions in the vector (e.g., 1536 for OpenAI embeddings).
     pub dimensions: u32,
@@ -55,7 +55,7 @@ impl VectorConfig {
 
     /// Create a vector config for OpenAI embeddings (1536 dimensions, cosine).
     #[must_use]
-    pub fn openai() -> Self {
+    pub const fn openai() -> Self {
         Self {
             dimensions:      1536,
             index_type:      VectorIndexType::Hnsw,
@@ -65,7 +65,7 @@ impl VectorConfig {
 
     /// Create a vector config for OpenAI small embeddings (512 dimensions, cosine).
     #[must_use]
-    pub fn openai_small() -> Self {
+    pub const fn openai_small() -> Self {
         Self {
             dimensions:      512,
             index_type:      VectorIndexType::Hnsw,
@@ -75,14 +75,14 @@ impl VectorConfig {
 
     /// Set the index type.
     #[must_use]
-    pub fn with_index(mut self, index_type: VectorIndexType) -> Self {
+    pub const fn with_index(mut self, index_type: VectorIndexType) -> Self {
         self.index_type = index_type;
         self
     }
 
     /// Set the distance metric.
     #[must_use]
-    pub fn with_distance(mut self, distance_metric: DistanceMetric) -> Self {
+    pub const fn with_distance(mut self, distance_metric: DistanceMetric) -> Self {
         self.distance_metric = distance_metric;
         self
     }
@@ -344,7 +344,7 @@ pub struct FieldDefinition {
 ///     algorithm: "AES-256-GCM".to_string(),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldEncryptionConfig {
     /// Path or name for fetching the encryption key from the secrets backend.
     pub key_reference: String,
@@ -371,7 +371,7 @@ fn default_encryption_algorithm() -> String {
 ///     reason: Some("Use 'userId' instead".to_string()),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeprecationInfo {
     /// Deprecation reason (what to use instead).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -459,7 +459,7 @@ impl FieldDefinition {
 
     /// Set the deny policy for when a user lacks the required scope.
     #[must_use]
-    pub fn with_on_deny(mut self, policy: FieldDenyPolicy) -> Self {
+    pub const fn with_on_deny(mut self, policy: FieldDenyPolicy) -> Self {
         self.on_deny = policy;
         self
     }
@@ -480,7 +480,7 @@ impl FieldDefinition {
 
     /// Add vector configuration to field.
     #[must_use]
-    pub fn with_vector_config(mut self, config: VectorConfig) -> Self {
+    pub const fn with_vector_config(mut self, config: VectorConfig) -> Self {
         self.vector_config = Some(config);
         self
     }
@@ -527,13 +527,13 @@ impl FieldDefinition {
 
     /// Check if this field has an alias.
     #[must_use]
-    pub fn has_alias(&self) -> bool {
+    pub const fn has_alias(&self) -> bool {
         self.alias.is_some()
     }
 
     /// Check if this is a vector field.
     #[must_use]
-    pub fn is_vector(&self) -> bool {
+    pub const fn is_vector(&self) -> bool {
         matches!(self.field_type, FieldType::Vector)
     }
 
@@ -556,7 +556,7 @@ impl FieldDefinition {
 
     /// Check if this field is deprecated.
     #[must_use]
-    pub fn is_deprecated(&self) -> bool {
+    pub const fn is_deprecated(&self) -> bool {
         self.deprecation.is_some()
     }
 
@@ -575,7 +575,7 @@ impl FieldDefinition {
 
     /// Check if this field is encrypted.
     #[must_use]
-    pub fn is_encrypted(&self) -> bool {
+    pub const fn is_encrypted(&self) -> bool {
         self.encryption.is_some()
     }
 }

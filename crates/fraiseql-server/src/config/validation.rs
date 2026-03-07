@@ -21,7 +21,7 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Create an empty validation result.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             errors:   Vec::new(),
             warnings: Vec::new(),
@@ -29,12 +29,12 @@ impl ValidationResult {
     }
 
     /// Return `true` if no errors were collected.
-    pub fn is_ok(&self) -> bool {
+    pub const fn is_ok(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Return `true` if any errors were collected.
-    pub fn is_err(&self) -> bool {
+    pub const fn is_err(&self) -> bool {
         !self.errors.is_empty()
     }
 

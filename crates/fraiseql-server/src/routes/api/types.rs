@@ -141,7 +141,7 @@ impl SanitizedConfig {
     }
 
     /// Verify configuration has been properly sanitized.
-    pub fn is_sanitized(&self) -> bool {
+    pub const fn is_sanitized(&self) -> bool {
         self.sanitized
     }
 }

@@ -469,7 +469,7 @@ impl AggregateQueryParser {
             if let Some(stripped) = agg_name.strip_suffix("_bool_and") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field:    dimension_path.clone(),
+                        field:    dimension_path,
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::And,
                         alias:    agg_name.to_string(),
                     });
@@ -478,7 +478,7 @@ impl AggregateQueryParser {
             if let Some(stripped) = agg_name.strip_suffix("_bool_or") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field:    dimension_path.clone(),
+                        field:    dimension_path,
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::Or,
                         alias:    agg_name.to_string(),
                     });
@@ -525,7 +525,7 @@ impl AggregateQueryParser {
                 if agg_name == expected_name {
                     // For dimension aggregates, store the path as the "measure"
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure:  dimension_path.clone(),
+                        measure:  dimension_path,
                         function: func.1,
                         alias:    agg_name.to_string(),
                     });

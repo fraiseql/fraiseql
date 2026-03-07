@@ -21,7 +21,7 @@ pub fn build_rate_limit_key(
 ///
 /// Used to warn operators that rate limiting may be inoperative when running
 /// behind a reverse proxy without `trust_proxy_headers = true`.
-pub(super) fn is_private_or_loopback(ip: std::net::IpAddr) -> bool {
+pub(super) const fn is_private_or_loopback(ip: std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
         std::net::IpAddr::V6(v6) => v6.is_loopback(),

@@ -41,7 +41,7 @@ pub struct QueryMatcher {
 impl QueryMatcher {
     /// Create new query matcher.
     #[must_use]
-    pub fn new(schema: CompiledSchema) -> Self {
+    pub const fn new(schema: CompiledSchema) -> Self {
         Self { schema }
     }
 

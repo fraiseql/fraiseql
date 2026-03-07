@@ -23,6 +23,10 @@ use crate::secrets_manager::{SecretsError, SecretsManager};
 ///
 /// Enables automatic encryption/decryption at the query layer without
 /// requiring manual encryption/decryption in application code.
+// Reason: `EncryptedFieldAdapter` is used only as a static bound — there is no `dyn`
+// usage in this codebase. The `async_fn_in_trait` warning about Send-unbounded futures
+// is not applicable here. If `dyn` dispatch is ever needed, switch to explicit
+// `-> impl Future<Output = ...> + Send` return types or add `#[async_trait]`.
 #[allow(async_fn_in_trait)]
 pub trait EncryptedFieldAdapter: Send + Sync {
     /// Get list of encrypted field names

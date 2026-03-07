@@ -134,7 +134,7 @@ impl SagaExecutor {
     /// Create a new saga executor without a saga store
     ///
     /// This is suitable for testing. For production, use `with_store()`.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { store: None }
     }
 
@@ -142,13 +142,13 @@ impl SagaExecutor {
     ///
     /// This enables persistence of saga state and recovery from failures.
     #[must_use]
-    pub fn with_store(store: Arc<PostgresSagaStore>) -> Self {
+    pub const fn with_store(store: Arc<PostgresSagaStore>) -> Self {
         Self { store: Some(store) }
     }
 
     /// Check if executor has a saga store configured
     #[must_use]
-    pub fn has_store(&self) -> bool {
+    pub const fn has_store(&self) -> bool {
         self.store.is_some()
     }
 

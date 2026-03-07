@@ -166,7 +166,7 @@ pub enum Value {
 
 impl Value {
     /// Check if value is NULL
-    pub fn is_null(&self) -> bool {
+    pub const fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
 

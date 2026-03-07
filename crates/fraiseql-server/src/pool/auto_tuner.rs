@@ -56,7 +56,7 @@ pub struct PoolAutoTuner {
 
 impl PoolAutoTuner {
     /// Create a new auto-tuner with the given configuration.
-    pub fn new(config: PoolTuningConfig) -> Self {
+    pub const fn new(config: PoolTuningConfig) -> Self {
         Self {
             config,
             high_queue_samples: AtomicU32::new(0),

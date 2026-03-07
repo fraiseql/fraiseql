@@ -21,11 +21,11 @@
 //!
 //! | Feature | Status | Reason |
 //! |---------|--------|--------|
-//! | Subscribe (do_exchange) | v2.1 | Real-time event streaming requires observer integration |
-//! | BulkExport GetSchema/GetFlightInfo | — | Schema varies by table; use do_get directly |
-//! | RefreshSchemaRegistry action | v2.1 | Requires safe schema update mechanism for running queries |
-//! | Observer events (do_get) | v2.1 | Requires observer system integration |
-//! | PollFlightInfo | ✅ v2.1 | Synchronous: delegates to `get_flight_info`, returns `progress=1.0` |
+//! | Subscribe (`do_exchange`) | v2.1 | Real-time event streaming requires observer integration |
+//! | `BulkExport` GetSchema/GetFlightInfo | — | Schema varies by table; use `do_get` directly |
+//! | `RefreshSchemaRegistry` action | v2.1 | Requires safe schema update mechanism for running queries |
+//! | Observer events (`do_get`) | v2.1 | Requires observer system integration |
+//! | `PollFlightInfo` | ✅ v2.1 | Synchronous: delegates to `get_flight_info`, returns `progress=1.0` |
 //! | Zero-copy Arrow conversion | v2.1 | Significant complexity for moderate performance gain |
 //!
 //! All deferred features return `Status::unimplemented()` or descriptive error messages
@@ -67,15 +67,15 @@ use crate::{
 /// Trait for executing GraphQL queries with security context (RLS filtering).
 ///
 /// This trait abstracts over the generic `Executor<A>` type (where `A` is the database adapter),
-/// allowing FraiseQLFlightService to execute queries without knowing the specific database adapter
+/// allowing `FraiseQLFlightService` to execute queries without knowing the specific database adapter
 /// type.
 ///
 /// **Architecture Note:**
 /// The Executor in fraiseql-core is generic over the database adapter type A.
 /// This trait provides a type-erased interface that:
 /// 1. Accepts GraphQL queries as strings
-/// 2. Applies Row-Level Security (RLS) policies based on SecurityContext
-/// 3. Returns JSON results that can be converted to Arrow RecordBatches
+/// 2. Applies Row-Level Security (RLS) policies based on `SecurityContext`
+/// 3. Returns JSON results that can be converted to Arrow `RecordBatches`
 #[async_trait]
 pub trait QueryExecutor: Send + Sync {
     /// Execute a GraphQL query with security context (RLS filtering).
@@ -83,7 +83,7 @@ pub trait QueryExecutor: Send + Sync {
     /// # Arguments
     /// * `query` - GraphQL query string
     /// * `variables` - Optional GraphQL variables as JSON
-    /// * `security_context` - Security context from fraiseql_core for RLS policy evaluation
+    /// * `security_context` - Security context from `fraiseql_core` for RLS policy evaluation
     ///
     /// # Returns
     /// * `Ok(String)` - JSON result from query execution
@@ -153,7 +153,7 @@ pub struct FraiseQLFlightService {
     pub(crate) event_storage:        Option<Arc<dyn EventStorage>>,
     /// Subscription manager for real-time event streaming
     pub(crate) subscription_manager: Arc<SubscriptionManager>,
-    /// Allow clients to submit raw SQL via BatchedQueries tickets.
+    /// Allow clients to submit raw SQL via `BatchedQueries` tickets.
     ///
     /// **SECURITY**: Disabled by default. Enabling this allows authenticated clients
     /// to execute arbitrary SQL, which bypasses RLS and query-level authorization.

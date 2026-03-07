@@ -93,7 +93,7 @@ impl SanitizationConfig {
     ///
     /// Used in development environments.
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self {
             hide_database_urls: false,
             hide_sql:           false,
@@ -108,7 +108,7 @@ impl SanitizationConfig {
     ///
     /// Used in staging environments.
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self {
             hide_database_urls: true,
             hide_sql:           true,
@@ -123,7 +123,7 @@ impl SanitizationConfig {
     ///
     /// Used in production environments.
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             hide_database_urls: true,
             hide_sql:           true,
@@ -148,7 +148,7 @@ pub struct ErrorFormatter {
 impl ErrorFormatter {
     /// Create a new error formatter with a specific detail level
     #[must_use]
-    pub fn new(detail_level: DetailLevel) -> Self {
+    pub const fn new(detail_level: DetailLevel) -> Self {
         let config = Self::config_for_level(detail_level);
         Self {
             detail_level,
@@ -158,7 +158,7 @@ impl ErrorFormatter {
 
     /// Create formatter with custom sanitization configuration
     #[must_use]
-    pub fn with_config(detail_level: DetailLevel, config: SanitizationConfig) -> Self {
+    pub const fn with_config(detail_level: DetailLevel, config: SanitizationConfig) -> Self {
         Self {
             detail_level,
             config,
@@ -167,24 +167,24 @@ impl ErrorFormatter {
 
     /// Create formatter for development (full details)
     #[must_use]
-    pub fn development() -> Self {
+    pub const fn development() -> Self {
         Self::new(DetailLevel::Development)
     }
 
     /// Create formatter for staging (moderate details)
     #[must_use]
-    pub fn staging() -> Self {
+    pub const fn staging() -> Self {
         Self::new(DetailLevel::Staging)
     }
 
     /// Create formatter for production (minimal details)
     #[must_use]
-    pub fn production() -> Self {
+    pub const fn production() -> Self {
         Self::new(DetailLevel::Production)
     }
 
     /// Get the sanitization configuration for a detail level
-    fn config_for_level(level: DetailLevel) -> SanitizationConfig {
+    const fn config_for_level(level: DetailLevel) -> SanitizationConfig {
         match level {
             DetailLevel::Development => SanitizationConfig::permissive(),
             DetailLevel::Staging => SanitizationConfig::standard(),

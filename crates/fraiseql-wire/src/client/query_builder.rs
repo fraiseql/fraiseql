@@ -6,11 +6,11 @@
 //!
 //! Type T does NOT affect:
 //! - SQL generation (always `SELECT data FROM {entity}`)
-//! - Filtering (where_sql, where_rust, order_by)
+//! - Filtering (`where_sql`, `where_rust`, `order_by`)
 //! - Wire protocol (identical for all T)
 //!
 //! Type T ONLY affects:
-//! - Consumer-side deserialization at poll_next()
+//! - Consumer-side deserialization at `poll_next()`
 //! - Error messages (type name included)
 
 use crate::client::FraiseClient;
@@ -26,7 +26,7 @@ type RustPredicate = Box<dyn Fn(&Value) -> bool + Send>;
 /// Generic query builder
 ///
 /// The type parameter T controls consumer-side deserialization only.
-/// Default type T = serde_json::Value for backward compatibility.
+/// Default type T = `serde_json::Value` for backward compatibility.
 ///
 /// # Examples
 ///
@@ -114,7 +114,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     ///
     /// Type T does NOT affect filtering.
     /// Applied after SQL filtering, runs on streamed JSON values.
-    /// Predicates receive &serde_json::Value regardless of T.
+    /// Predicates receive &`serde_json::Value` regardless of T.
     pub fn where_rust<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&Value) -> bool + Send + 'static,
@@ -186,7 +186,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn limit(mut self, count: usize) -> Self {
+    pub const fn limit(mut self, count: usize) -> Self {
         self.limit = Some(count);
         self
     }
@@ -208,13 +208,13 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn offset(mut self, count: usize) -> Self {
+    pub const fn offset(mut self, count: usize) -> Self {
         self.offset = Some(count);
         self
     }
 
     /// Set chunk size (default: 256)
-    pub fn chunk_size(mut self, size: usize) -> Self {
+    pub const fn chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = size;
         self
     }
@@ -250,8 +250,8 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// If memory limit is exceeded:
     /// - It indicates the consumer is too slow relative to data arrival
     /// - The error is terminal (non-retriable) — retrying won't help
-    /// - Consider: increasing consumer throughput, reducing chunk_size, or removing limit
-    pub fn max_memory(mut self, bytes: usize) -> Self {
+    /// - Consider: increasing consumer throughput, reducing `chunk_size`, or removing limit
+    pub const fn max_memory(mut self, bytes: usize) -> Self {
         self.max_memory = Some(bytes);
         self
     }
@@ -264,7 +264,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Parameters
     ///
     /// - `warn_threshold`: Percentage (0.0-1.0) at which to emit a warning
-    /// - `fail_threshold`: Percentage (0.0-1.0) at which to return error (must be > warn_threshold)
+    /// - `fail_threshold`: Percentage (0.0-1.0) at which to return error (must be > `warn_threshold`)
     ///
     /// # Example
     ///
@@ -321,7 +321,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn adaptive_chunking(mut self, enabled: bool) -> Self {
+    pub const fn adaptive_chunking(mut self, enabled: bool) -> Self {
         self.enable_adaptive_chunking = enabled;
         self
     }
@@ -349,7 +349,7 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn adaptive_min_size(mut self, size: usize) -> Self {
+    pub const fn adaptive_min_size(mut self, size: usize) -> Self {
         self.adaptive_min_chunk_size = Some(size);
         self
     }
@@ -377,14 +377,14 @@ impl<T: DeserializeOwned + Unpin + 'static> QueryBuilder<T> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn adaptive_max_size(mut self, size: usize) -> Self {
+    pub const fn adaptive_max_size(mut self, size: usize) -> Self {
         self.adaptive_max_chunk_size = Some(size);
         self
     }
 
     /// Execute query and return typed stream
     ///
-    /// Type T ONLY affects consumer-side deserialization at poll_next().
+    /// Type T ONLY affects consumer-side deserialization at `poll_next()`.
     /// SQL, filtering, ordering, and wire protocol are identical regardless of T.
     ///
     /// The returned stream supports pause/resume/stats for advanced stream control.

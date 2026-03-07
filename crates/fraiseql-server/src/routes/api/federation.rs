@@ -132,7 +132,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
     let content = generate_federation_graph(&format, federation);
 
     let response = GraphResponse {
-        format: format.clone(),
+        format,
         content,
     };
 

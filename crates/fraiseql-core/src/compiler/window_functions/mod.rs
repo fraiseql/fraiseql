@@ -168,7 +168,7 @@ pub struct WindowRequest {
 }
 
 /// Column selection for window query (semantic names).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum WindowSelectColumn {
     /// Select a measure column (e.g., "revenue")
@@ -209,7 +209,7 @@ impl WindowSelectColumn {
 }
 
 /// Window function request (high-level, semantic).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WindowFunctionRequest {
     /// Window function type and parameters
     pub function: WindowFunctionSpec,
@@ -231,7 +231,7 @@ pub struct WindowFunctionRequest {
 ///
 /// Unlike `WindowFunctionType` which uses raw SQL expressions,
 /// this uses measure/dimension names that get validated against metadata.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum WindowFunctionSpec {
     // =========================================================================
@@ -351,7 +351,7 @@ pub enum WindowFunctionSpec {
 }
 
 /// PARTITION BY column specification (semantic).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PartitionByColumn {
     /// Partition by dimension from JSONB
@@ -374,7 +374,7 @@ pub enum PartitionByColumn {
 }
 
 /// ORDER BY clause for window functions (semantic field names).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WindowOrderBy {
     /// Field name (measure, dimension, or filter)
     pub field: String,

@@ -239,7 +239,7 @@ impl SecurityContext {
     ///
     /// `true` if tenant_id is present, `false` otherwise.
     #[must_use]
-    pub fn is_multi_tenant(&self) -> bool {
+    pub const fn is_multi_tenant(&self) -> bool {
         self.tenant_id.is_some()
     }
 

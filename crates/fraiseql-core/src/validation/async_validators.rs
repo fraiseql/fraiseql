@@ -75,7 +75,7 @@ pub struct AsyncValidatorConfig {
 
 impl AsyncValidatorConfig {
     /// Create a new async validator configuration.
-    pub fn new(provider: AsyncValidatorProvider, timeout_ms: u64) -> Self {
+    pub const fn new(provider: AsyncValidatorProvider, timeout_ms: u64) -> Self {
         Self {
             provider,
             timeout: Duration::from_millis(timeout_ms),
@@ -85,7 +85,7 @@ impl AsyncValidatorConfig {
     }
 
     /// Set cache TTL for this validator.
-    pub fn with_cache_ttl(mut self, secs: u64) -> Self {
+    pub const fn with_cache_ttl(mut self, secs: u64) -> Self {
         self.cache_ttl_secs = secs;
         self
     }
@@ -143,7 +143,7 @@ pub struct EmailFormatValidator {
 impl EmailFormatValidator {
     /// Create a new email format validator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         // Duration::MAX signals "no timeout" — this validator is purely local (regex only).
         let mut config = AsyncValidatorConfig::new(AsyncValidatorProvider::EmailFormatCheck, 0);
         config.timeout = Duration::MAX;
@@ -205,7 +205,7 @@ pub struct PhoneE164Validator {
 impl PhoneE164Validator {
     /// Create a new E.164 phone number validator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         // Duration::MAX signals "no timeout" — this validator is purely local (regex only).
         let mut config = AsyncValidatorConfig::new(AsyncValidatorProvider::PhoneE164Check, 0);
         config.timeout = Duration::MAX;

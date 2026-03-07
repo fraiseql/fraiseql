@@ -105,7 +105,7 @@ pub struct TlsConnection {
 impl TlsConnection {
     /// Create a new TLS connection info (typically HTTP, not secure)
     #[must_use]
-    pub fn new_http() -> Self {
+    pub const fn new_http() -> Self {
         Self {
             is_secure:         false,
             version:           TlsVersion::V1_2, // Irrelevant for HTTP
@@ -116,7 +116,7 @@ impl TlsConnection {
 
     /// Create a new secure TLS connection
     #[must_use]
-    pub fn new_secure(version: TlsVersion) -> Self {
+    pub const fn new_secure(version: TlsVersion) -> Self {
         Self {
             is_secure: true,
             version,
@@ -127,7 +127,7 @@ impl TlsConnection {
 
     /// Create a new secure TLS connection with a valid client certificate
     #[must_use]
-    pub fn new_secure_with_client_cert(version: TlsVersion) -> Self {
+    pub const fn new_secure_with_client_cert(version: TlsVersion) -> Self {
         Self {
             is_secure: true,
             version,
@@ -160,7 +160,7 @@ impl TlsConfig {
     /// - Client certs optional
     /// - TLS 1.2 minimum (if TLS is used)
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self {
             tls_required:  false,
             mtls_required: false,
@@ -174,7 +174,7 @@ impl TlsConfig {
     /// - Client certs optional
     /// - TLS 1.2 minimum
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self {
             tls_required:  true,
             mtls_required: false,
@@ -188,7 +188,7 @@ impl TlsConfig {
     /// - Client certs required (mTLS)
     /// - TLS 1.3 minimum
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             tls_required:  true,
             mtls_required: true,
@@ -209,25 +209,25 @@ pub struct TlsEnforcer {
 impl TlsEnforcer {
     /// Create a new TLS enforcer from configuration
     #[must_use]
-    pub fn from_config(config: TlsConfig) -> Self {
+    pub const fn from_config(config: TlsConfig) -> Self {
         Self { config }
     }
 
     /// Create enforcer with permissive settings (development)
     #[must_use]
-    pub fn permissive() -> Self {
+    pub const fn permissive() -> Self {
         Self::from_config(TlsConfig::permissive())
     }
 
     /// Create enforcer with standard settings (production)
     #[must_use]
-    pub fn standard() -> Self {
+    pub const fn standard() -> Self {
         Self::from_config(TlsConfig::standard())
     }
 
     /// Create enforcer with strict settings (regulated)
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self::from_config(TlsConfig::strict())
     }
 

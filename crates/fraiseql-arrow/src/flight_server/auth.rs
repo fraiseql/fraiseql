@@ -8,7 +8,7 @@ use tracing::warn;
 use super::SessionTokenClaims;
 
 /// Map security error to gRPC status.
-pub(crate) fn map_security_error_to_status(
+pub fn map_security_error_to_status(
     error: fraiseql_core::security::SecurityError,
 ) -> Status {
     use fraiseql_core::security::SecurityError;
@@ -34,7 +34,7 @@ pub(crate) fn map_security_error_to_status(
 /// `secret` is the HMAC-SHA256 key, read once at service startup from
 /// `FLIGHT_SESSION_SECRET` and cached in [`FraiseQLFlightService::session_secret`].
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn create_session_token(
+pub fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
     secret: &str,
 ) -> std::result::Result<String, Status> {
@@ -71,7 +71,7 @@ pub(crate) fn create_session_token(
 /// * `Ok(AuthenticatedUser)` - Valid token with user identity
 /// * `Err(Status)` - Invalid token, expired, or malformed
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn validate_session_token(
+pub fn validate_session_token(
     token: &str,
     secret: &str,
 ) -> std::result::Result<fraiseql_core::security::auth_middleware::AuthenticatedUser, Status> {
@@ -113,7 +113,7 @@ pub(crate) fn validate_session_token(
 
 /// Extract session token from gRPC request metadata.
 ///
-/// Looks for "authorization" header in format: "Bearer <session_token>"
+/// Looks for "authorization" header in format: "Bearer <`session_token`>"
 ///
 /// # Arguments
 /// * `request` - Tonic gRPC request with metadata
@@ -122,7 +122,7 @@ pub(crate) fn validate_session_token(
 /// * `Ok(String)` - Session token extracted from header
 /// * `Err(Status)` - Missing or malformed authorization header
 #[allow(clippy::result_large_err)] // Reason: tonic::Status is inherently large; boxing would add indirection in hot path
-pub(crate) fn extract_session_token<T>(
+pub fn extract_session_token<T>(
     request: &Request<T>,
 ) -> std::result::Result<String, Status> {
     let metadata = request.metadata();
