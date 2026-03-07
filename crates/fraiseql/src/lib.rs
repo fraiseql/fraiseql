@@ -67,7 +67,7 @@ pub use fraiseql_cli as cli;
 pub use fraiseql_core::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
 // Re-export core modules for namespaced access
 pub use fraiseql_core::{
-    apq, audit, cache, compiler, db, federation, graphql, runtime, schema, security, tenancy,
+    apq, cache, compiler, db, federation, graphql, runtime, schema, security, tenancy,
     validation,
 };
 // Re-export error types
