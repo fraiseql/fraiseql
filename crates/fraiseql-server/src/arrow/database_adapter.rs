@@ -129,6 +129,8 @@ impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     /// Test that adapter can be created from PostgresAdapter

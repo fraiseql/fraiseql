@@ -246,6 +246,8 @@ pub fn api_key_authenticator_from_schema(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     fn sha256_hex(input: &str) -> String {

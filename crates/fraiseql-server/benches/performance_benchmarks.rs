@@ -7,6 +7,8 @@
 //! 4. Query parsing performance
 //! 5. Performance under concurrent load
 
+#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+
 use std::sync::{Arc, atomic::Ordering};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};

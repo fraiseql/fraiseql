@@ -4,6 +4,8 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 #[test]
 fn test_openapi_spec_is_valid_json() {
     use fraiseql_server::routes::api::openapi::get_openapi_spec;

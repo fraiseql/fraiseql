@@ -3,6 +3,8 @@
 //! Provides router builders and HTTP request helpers that exercise real
 //! production handlers through axum's `tower::ServiceExt::oneshot`.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use std::sync::Arc;
 
 use axum::{

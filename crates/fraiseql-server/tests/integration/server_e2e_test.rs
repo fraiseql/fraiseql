@@ -10,6 +10,8 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use fraiseql_server::{
     error::{ErrorCode, ErrorExtensions, ErrorResponse, GraphQLError},
     routes::graphql::GraphQLRequest,

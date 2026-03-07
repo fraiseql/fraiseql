@@ -13,6 +13,8 @@
 //! - Cache hit rate: Accurate calculation (0%, 50%, 100%)
 //!
 //! **Performance Impact:**
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 //! - Metrics overhead negligible (<1µs per op = <0.1% overhead)
 //! - Lock-free atomics prevent blocking under load
 //! - SLO tracking enables compliance monitoring

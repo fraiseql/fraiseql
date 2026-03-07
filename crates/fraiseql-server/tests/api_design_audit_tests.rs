@@ -7,6 +7,8 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use fraiseql_server::routes::api::design::{
     CategoryAuditResponse, DesignAuditRequest, DesignIssueResponse,
 };

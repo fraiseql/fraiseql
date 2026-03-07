@@ -12,6 +12,8 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use fraiseql_server::auth::{OAuthProvider, oidc_provider::OidcProvider};
 use serde_json::json;
 use wiremock::{

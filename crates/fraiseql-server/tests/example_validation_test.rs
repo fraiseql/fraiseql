@@ -13,6 +13,8 @@
 //!
 //! 1. Error creation: `new()`, `validation()`, `parse()`, `database()`, etc.
 //! 2. Error enrichment: `with_location()`, `with_path()`, `with_extensions()`
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 //! 3. Request tracing: `with_request_id()` for distributed tracing
 //! 4. Error chaining: Builder pattern for combining metadata
 //! 5. HTTP status codes: Complete mapping of error codes to status codes

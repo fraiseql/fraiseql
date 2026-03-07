@@ -12,6 +12,7 @@
 //! **Parallelism:** safe
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::{sync::Arc, time::Duration};
 

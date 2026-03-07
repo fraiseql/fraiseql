@@ -13,6 +13,8 @@
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none
+
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 //! **Parallelism:** safe
 
 use axum::{

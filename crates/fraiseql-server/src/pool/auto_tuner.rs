@@ -239,6 +239,8 @@ impl PoolAutoTuner {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
     use async_trait::async_trait;
     use fraiseql_core::db::types::{DatabaseType, JsonbValue};

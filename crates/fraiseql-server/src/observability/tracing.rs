@@ -96,6 +96,8 @@ pub fn create_span(name: impl Into<String>) -> SpanBuilder {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]

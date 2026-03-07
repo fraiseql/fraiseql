@@ -8,6 +8,8 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 mod common;
 
 use common::test_app::{get_json, health_router, make_test_state, make_test_state_with};
