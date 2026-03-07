@@ -62,6 +62,10 @@ use crate::{
         identifier::{
             quote_mysql_identifier, quote_postgres_identifier, quote_sqlserver_identifier,
         },
+        path_escape::{
+            escape_mysql_json_path, escape_postgres_jsonb_segment, escape_sqlite_json_path,
+            escape_sqlserver_json_path,
+        },
         types::DatabaseType,
         where_clause::{WhereClause, WhereOperator},
     },
@@ -225,20 +229,33 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate JSONB extraction SQL
+    /// Generate JSONB extraction SQL with per-database path escaping.
+    ///
+    /// Each database uses a different string literal syntax for JSON paths.
+    /// Single quotes or other metacharacters in `path` could otherwise break
+    /// out of the string literal and inject arbitrary SQL. The per-database
+    /// escape functions from `fraiseql_db::path_escape` are applied here as
+    /// a second line of defence after schema allowlist validation in the planner.
     fn jsonb_extract_sql(&self, jsonb_column: &str, path: &str) -> String {
         match self.database_type {
             DatabaseType::PostgreSQL => {
-                format!("{}->>'{}' ", jsonb_column, path)
+                let escaped = escape_postgres_jsonb_segment(path);
+                format!("{}->>'{}' ", jsonb_column, escaped)
             },
             DatabaseType::MySQL => {
-                format!("JSON_UNQUOTE(JSON_EXTRACT({}, '$.{}'))", jsonb_column, path)
+                // escape_mysql_json_path returns "$.escaped_segment"
+                let escaped = escape_mysql_json_path(&[path.to_owned()]);
+                format!("JSON_UNQUOTE(JSON_EXTRACT({}, '{}'))", jsonb_column, escaped)
             },
             DatabaseType::SQLite => {
-                format!("json_extract({}, '$.{}')", jsonb_column, path)
+                // escape_sqlite_json_path returns "$.escaped_segment"
+                let escaped = escape_sqlite_json_path(&[path.to_owned()]);
+                format!("json_extract({}, '{}')", jsonb_column, escaped)
             },
             DatabaseType::SQLServer => {
-                format!("JSON_VALUE({}, '$.{}')", jsonb_column, path)
+                // escape_sqlserver_json_path returns "$.escaped_segment"
+                let escaped = escape_sqlserver_json_path(&[path.to_owned()]);
+                format!("JSON_VALUE({}, '{}')", jsonb_column, escaped)
             },
         }
     }
@@ -1399,5 +1416,61 @@ mod tests {
         // A literal '!' in the value must be doubled so it is not mistaken for ESCAPE prefix.
         let escaped = gen.escape_like_value("hello!world");
         assert!(escaped.contains("!!"), "! must be escaped: {escaped}");
+    }
+
+    // ── jsonb_extract_sql injection tests ──────────────────────────────────────
+
+    #[test]
+    fn test_jsonb_postgres_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.jsonb_extract_sql("dimensions", "user'name");
+        // Single quote must be doubled; must not break out of the string literal.
+        assert!(sql.contains("user''name"), "Expected doubled quote, got: {sql}");
+        assert!(!sql.contains("user'name'"), "Unescaped quote still present");
+    }
+
+    #[test]
+    fn test_jsonb_postgres_pg_sleep_injection_neutralised() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.jsonb_extract_sql("dimensions", "a' || pg_sleep(10) --");
+        // The injected payload must appear inside the string literal (quote doubled).
+        assert!(sql.contains("a'' || pg_sleep(10) --"), "Escaping not applied: {sql}");
+    }
+
+    #[test]
+    fn test_jsonb_postgres_clean_path_unchanged() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.jsonb_extract_sql("dimensions", "category");
+        assert!(sql.contains("dimensions->>'category'"), "Clean path altered: {sql}");
+    }
+
+    #[test]
+    fn test_jsonb_mysql_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = gen.jsonb_extract_sql("dimensions", "user'name");
+        assert!(sql.contains("\\'"), "Expected backslash-escaped quote in MySQL: {sql}");
+    }
+
+    #[test]
+    fn test_jsonb_mysql_path_prefix_not_doubled() {
+        // escape_mysql_json_path already adds "$." — must not appear as "$.$.path"
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = gen.jsonb_extract_sql("dimensions", "category");
+        assert!(sql.contains("$.category"), "Path prefix missing: {sql}");
+        assert!(!sql.contains("$.$."), "Double prefix detected: {sql}");
+    }
+
+    #[test]
+    fn test_jsonb_sqlite_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
+        let sql = gen.jsonb_extract_sql("dimensions", "it's");
+        assert!(sql.contains("\\'"), "Expected backslash-escaped quote in SQLite: {sql}");
+    }
+
+    #[test]
+    fn test_jsonb_sqlserver_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+        let sql = gen.jsonb_extract_sql("dimensions", "user'name");
+        assert!(sql.contains("user''name"), "Expected doubled quote in SQL Server: {sql}");
     }
 }

@@ -343,7 +343,22 @@ impl AggregationPlanner {
         for selection in selections {
             match selection {
                 GroupBySelection::Dimension { path, alias } => {
-                    // Validate dimension exists in metadata (for now, just accept any path)
+                    // When the schema declares dimension paths, validate against the allowlist.
+                    // This prevents unrecognised paths from reaching `jsonb_extract_sql` even
+                    // after SQL-level escaping (defence in depth). If no paths are declared,
+                    // all paths are accepted — escaping in the runtime layer still applies.
+                    let known_paths = &metadata.dimensions.paths;
+                    if !known_paths.is_empty()
+                        && !known_paths.iter().any(|p| p.name == *path)
+                    {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "Dimension '{}' not found in fact table '{}'",
+                                path, metadata.table_name
+                            ),
+                            path:    None,
+                        });
+                    }
                     expressions.push(GroupByExpression::JsonbPath {
                         jsonb_column: metadata.dimensions.name.clone(),
                         path:         path.clone(),
@@ -833,5 +848,89 @@ mod tests {
     fn test_order_by_array_rejects_injection_field() {
         let json = serde_json::json!([{ "field": "x' OR '1'='1", "direction": "ASC" }]);
         assert!(OrderByClause::from_graphql_json(&json).is_err());
+    }
+
+    /// Helper: metadata with declared dimension paths (for allowlist tests).
+    fn create_metadata_with_paths() -> FactTableMetadata {
+        use crate::compiler::fact_table::DimensionPath;
+        let mut meta = create_test_metadata();
+        meta.dimensions.paths = vec![
+            DimensionPath {
+                name:      "category".to_string(),
+                json_path: "dimensions->>'category'".to_string(),
+                data_type: "text".to_string(),
+            },
+        ];
+        meta
+    }
+
+    #[test]
+    fn test_dimension_allowlist_accepts_declared_path() {
+        let metadata = create_metadata_with_paths();
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: None,
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
+                alias: "category".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        assert!(AggregationPlanner::plan(request, metadata).is_ok());
+    }
+
+    #[test]
+    fn test_dimension_allowlist_rejects_unknown_path() {
+        let metadata = create_metadata_with_paths();
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: None,
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "undeclared_path".to_string(),
+                alias: "x".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        let result = AggregationPlanner::plan(request, metadata);
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("not found"),
+            "Error message should mention 'not found'"
+        );
+    }
+
+    #[test]
+    fn test_dimension_allowlist_accepts_any_path_when_paths_empty() {
+        // When metadata.dimensions.paths is empty, any path is allowed
+        // (schema did not declare a dimension allowlist).
+        let metadata = create_test_metadata(); // paths: vec![]
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: None,
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "any_undeclared_path".to_string(),
+                alias: "x".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        assert!(AggregationPlanner::plan(request, metadata).is_ok());
     }
 }
