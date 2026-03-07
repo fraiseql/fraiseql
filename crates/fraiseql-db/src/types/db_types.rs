@@ -8,8 +8,11 @@ use tokio_postgres::types::{IsNull, ToSql, Type};
 ///
 /// # Stability
 ///
-/// This enum is marked `#[non_exhaustive]` to allow adding new database types
-/// in future versions without breaking backward compatibility.
+/// This enum is **not** marked `#[non_exhaustive]`. All match sites in the codebase
+/// are required to handle every variant explicitly, giving compile-time assurance that
+/// new database backends are fully integrated before release.
+///
+/// Adding a new variant here requires updating every exhaustive `match` on `DatabaseType`.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DatabaseType {
     /// PostgreSQL database (primary, full feature set).

@@ -1,4 +1,7 @@
-//! Prometheus metrics for observability.
+//! Canonical metrics implementation for `fraiseql-server`.
+//!
+//! Use [`MetricsCollector`] to instrument request handling.
+//! The previous `observability/metrics.rs` ghost layer has been removed.
 //!
 //! Tracks:
 //! - GraphQL query execution time

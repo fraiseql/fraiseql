@@ -42,7 +42,7 @@ aes-gcm = "0.10"
 anyhow = "1.0"
 async-trait = "0.1"
 # HTTP server (Axum)
-axum = {version = "0.7"}
+axum = {version = "0.8"}
 # Encoding
 base64 = "0.22"
 # Utilities

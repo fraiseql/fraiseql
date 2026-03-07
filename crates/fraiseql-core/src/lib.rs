@@ -66,8 +66,11 @@
 //! ```
 
 #![forbid(unsafe_code)]
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
+// The workspace Cargo.toml already enforces `deny` for clippy::all and clippy::pedantic
+// via [workspace.lints.clippy]. Repeating `#![warn(...)]` here would downgrade those
+// workspace-level denials for this crate, which is wrong. Suppressions below use
+// `#![allow(...)]` which are still needed for legitimate per-crate overrides.
+//
 // Allow common pedantic lints that are too noisy for this codebase
 #![allow(clippy::doc_markdown)] // Would require 150+ doc changes for backticks
 #![allow(clippy::return_self_not_must_use)] // Builder pattern doesn't always need #[must_use]
@@ -158,4 +161,4 @@ pub use tenancy::TenantContext;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Minimum supported Rust version
-pub const MSRV: &str = "1.75";
+pub const MSRV: &str = "1.88";

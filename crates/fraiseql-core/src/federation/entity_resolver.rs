@@ -13,6 +13,7 @@ use uuid::Uuid;
 use super::{
     database_resolver::DatabaseEntityResolver,
     logging::{FederationLogContext, FederationOperationType, ResolutionStrategy},
+    representation::validate_representations,
     selection_parser::FieldSelection,
     tracing::{FederationSpan, FederationTraceContext},
     types::{EntityRepresentation, FederationResolver},
@@ -218,6 +219,17 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
             path: Some("_entities".into()),
         });
     }
+
+    // Validate that all representations reference known types with required key fields.
+    validate_representations(representations, &fed_resolver.metadata).map_err(|errors| {
+        FraiseQLError::Validation {
+            message: format!(
+                "Invalid entity representations: {}",
+                errors.join("; ")
+            ),
+            path: Some("_entities".into()),
+        }
+    })?;
 
     let start_time = Instant::now();
     let query_id = Uuid::new_v4().to_string();

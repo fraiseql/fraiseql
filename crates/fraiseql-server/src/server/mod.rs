@@ -49,6 +49,24 @@ mod lifecycle;
 mod routing;
 
 /// FraiseQL HTTP Server.
+///
+/// `Server<A>` is generic over a `DatabaseAdapter` implementation, which allows
+/// swapping database backends and injecting mock adapters in tests.
+///
+/// # Feature: `observers`
+///
+/// When compiled with the `observers` Cargo feature, the server mounts observer
+/// management and runtime-health API endpoints under `/api/observers`. These
+/// endpoints require a live **PostgreSQL** connection pool (`sqlx::PgPool`).
+///
+/// Pass `Some(pg_pool)` as the `db_pool` argument to [`Server::new`] when the
+/// `observers` feature is enabled. Passing `None` causes the observer routes to
+/// be skipped at startup (an error is logged) rather than panicking, but the
+/// rest of the server continues to function normally.
+///
+/// The PostgreSQL pool is distinct from the generic `DatabaseAdapter`: the
+/// adapter handles application queries, while the pool is used exclusively by
+/// the observer subsystem to store and retrieve reactive rule metadata.
 pub struct Server<A: DatabaseAdapter> {
     pub(super) config:               ServerConfig,
     pub(super) executor:             Arc<Executor<A>>,

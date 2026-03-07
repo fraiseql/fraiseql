@@ -1,10 +1,18 @@
 [dependencies]
-axum = "0.8"
+# axum is optional: only needed when fraiseql-error is used as an HTTP layer.
+# Crates that expose HTTP handlers (e.g. fraiseql-server) should enable the
+# `axum-compat` feature. Pure logic crates (e.g. fraiseql-db) must NOT enable it.
+axum = {workspace = true, optional = true}
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
 sqlx = {version = "0.8", default-features = false}
 thiserror = "2"
 toml = "0.8"
+
+[features]
+# Enables `impl IntoResponse for RuntimeError` and HTTP error conversion utilities.
+# Enable this feature in crates that serve HTTP responses (e.g. fraiseql-server).
+axum-compat = ["dep:axum"]
 
 [lints]
 workspace = true

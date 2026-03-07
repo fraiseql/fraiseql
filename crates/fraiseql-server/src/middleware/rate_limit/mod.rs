@@ -28,7 +28,6 @@ use axum::{
 };
 use tracing::warn;
 
-use self::config::RateLimitConfig as _RateLimitConfig;
 use self::in_memory::InMemoryRateLimiter;
 use self::key::is_private_or_loopback;
 #[cfg(feature = "redis-rate-limiting")]
@@ -286,7 +285,7 @@ pub async fn rate_limit_middleware(
         .extensions()
         .get::<Arc<RateLimiter>>()
         .cloned()
-        .unwrap_or_else(|| Arc::new(RateLimiter::new(_RateLimitConfig::default())));
+        .unwrap_or_else(|| Arc::new(RateLimiter::new(RateLimitConfig::default())));
 
     let ip = extract_real_ip(&req, limiter.config().trust_proxy_headers, &addr);
     let path = req.uri().path().to_string();

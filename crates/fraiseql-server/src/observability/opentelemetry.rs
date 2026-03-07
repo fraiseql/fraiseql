@@ -16,6 +16,7 @@ use tracing::info;
 /// - `service_name`: Name of the service for traces
 /// - `otlp_endpoint`: Jaeger OTLP HTTP endpoint (e.g., "http://localhost:4318")
 /// - `sampling_rate`: Sampling rate (0.0 to 1.0)
+/// - `timeout_secs`: OTLP exporter request timeout in seconds (from `TracingConfig`)
 ///
 /// # Returns
 /// A guard that must be kept alive for the duration of the application.
@@ -28,6 +29,7 @@ pub fn init_jaeger(
     service_name: &str,
     otlp_endpoint: &str,
     sampling_rate: f64,
+    timeout_secs: u64,
 ) -> Result<impl Drop, Box<dyn std::error::Error>> {
     info!(
         service_name = service_name,
@@ -40,7 +42,7 @@ pub fn init_jaeger(
     let otlp_exporter = opentelemetry_otlp::new_exporter()
         .http()
         .with_endpoint(otlp_endpoint)
-        .with_timeout(Duration::from_secs(10))
+        .with_timeout(Duration::from_secs(timeout_secs))
         .with_headers(std::collections::HashMap::new());
 
     // Create tracer with sampler

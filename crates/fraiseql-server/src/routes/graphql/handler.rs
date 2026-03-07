@@ -382,6 +382,12 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 GraphQLError::parse(msg)
             },
             crate::validation::ValidationError::InvalidVariables(msg) => GraphQLError::request(msg),
+            crate::validation::ValidationError::TooManyAliases {
+                max_aliases,
+                actual_aliases,
+            } => GraphQLError::validation(format!(
+                "Query exceeds maximum alias count: {actual_aliases} > {max_aliases}"
+            )),
         };
         return Err(ErrorResponse::from_error(graphql_error));
     }

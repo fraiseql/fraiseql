@@ -125,6 +125,7 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                         .adapter()
                         .explain_query(&plan.sql, &[])
                         .await
+                        .inspect_err(|e| tracing::warn!(error = %e, "EXPLAIN query failed"))
                         .ok()
                 } else {
                     None

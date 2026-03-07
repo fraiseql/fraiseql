@@ -718,7 +718,7 @@ mod tests {
         let predicate: Box<dyn Fn(&serde_json::Value) -> bool + Send> =
             Box::new(|v| v["active"].as_bool().unwrap_or(false));
         let filtered: Box<
-            dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin,
+            dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Send + Unpin,
         > = Box::new(FilteredStream::new(json_stream, predicate));
 
         // Step 2: TypedJsonStream deserializes to TestUser

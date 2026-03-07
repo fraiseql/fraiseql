@@ -266,6 +266,31 @@ async fn handle_subscription_connection(
     let mut ping_interval = tokio::time::interval(PING_INTERVAL);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+    // A44 — Token expiry re-check on long-lived subscriptions.
+    //
+    // JWTs validated at ConnectionInit may expire while the WebSocket is open.
+    // The check below should be added when the auth layer surfaces expiry data:
+    //
+    //   1. At ConnectionInit, extract the `exp` claim from the JWT and store it:
+    //      `let token_expires_at: Option<std::time::Instant> = extract_exp(&init_payload);`
+    //
+    //   2. In the select! loop (before processing each client message or broadcast event),
+    //      check expiry:
+    //      ```rust,ignore
+    //      if token_expires_at.is_some_and(|exp| std::time::Instant::now() >= exp) {
+    //          warn!(connection_id = %connection_id, "Token expired; closing WebSocket");
+    //          let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+    //              code: CloseCode::Unauthorized.code(),
+    //              reason: "Token expired".into(),
+    //          }))).await;
+    //          break;
+    //      }
+    //      ```
+    //
+    // This requires the lifecycle `on_connect` hook or the JWT middleware to return
+    // the expiry time, which is not yet threaded through `SubscriptionState`.
+    // Tracked as A44 in the remediation plan.
+
     // Main message loop
     loop {
         tokio::select! {

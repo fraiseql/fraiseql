@@ -176,6 +176,11 @@ pub struct RelayPageResult {
 /// - `RelayDatabaseAdapter` — Optional trait for keyset pagination
 /// - `DatabaseCapabilities` — Feature detection for the adapter
 /// - [Performance Guide](https://docs.fraiseql.rs/performance/database-adapters.md)
+// Reason: `dyn DatabaseAdapter` is used at multiple call sites across fraiseql-core
+// and fraiseql-arrow. Native async fn in traits (stable since Rust 1.75) is not
+// object-safe when used with `dyn Trait`, since each impl creates a different Future
+// type. `#[async_trait]` erases these to `Pin<Box<dyn Future>>`, enabling dynamic
+// dispatch without requiring the caller to know the concrete adapter type.
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a WHERE query against a view and return JSONB rows.

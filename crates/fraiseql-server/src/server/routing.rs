@@ -560,7 +560,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         app
     }
 
-    /// Add observer-related routes to the router
+    /// Add observer-related routes to the router.
+    ///
+    /// # PostgreSQL requirement
+    ///
+    /// The `observers` feature requires a PostgreSQL connection pool (`db_pool`).
+    /// When this feature is enabled, `Server::new()` must receive a `Some(PgPool)` as the
+    /// `db_pool` argument. If no pool is provided, observer management routes are skipped
+    /// and an error is logged rather than panicking, so the server can still serve other
+    /// requests. Callers should treat a missing pool as a configuration error.
     #[cfg(feature = "observers")]
     pub(super) fn add_observer_routes(&self, app: Router) -> Router {
         use crate::observers::{
@@ -568,11 +576,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             observer_runtime_routes,
         };
 
+        // Management API requires a PostgreSQL pool. If no pool was supplied at
+        // construction time, log an error and skip observer routes entirely rather
+        // than panicking. Callers should pass `Some(db_pool)` to `Server::new()`
+        // when the `observers` feature is compiled in.
+        let Some(db_pool) = self.db_pool.clone() else {
+            error!(
+                "Observer management routes not mounted: \
+                 the `observers` feature requires a PostgreSQL pool (`db_pool`). \
+                 Pass `Some(sqlx::PgPool)` to Server::new() to enable observer endpoints."
+            );
+            return app;
+        };
+
         // Management API (always available with feature)
         let observer_state = ObserverState {
-            repository: ObserverRepository::new(
-                self.db_pool.clone().expect("Pool required for observers"),
-            ),
+            repository: ObserverRepository::new(db_pool),
         };
 
         let app = app.nest("/api/observers", observer_routes(observer_state));

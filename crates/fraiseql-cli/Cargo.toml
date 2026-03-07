@@ -29,7 +29,7 @@ tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt", "ansi"]}
 walkdir = "2"
 
 [features]
-default = ["run-server"]
+default = []
 run-server = ["dep:fraiseql-server"]
 
 [[bin]]

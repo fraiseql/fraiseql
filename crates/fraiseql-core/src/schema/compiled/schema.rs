@@ -225,6 +225,24 @@ impl CompiledSchema {
     /// The authoring language emits `schema.json`; `fraiseql-cli compile` produces
     /// `schema.compiled.json`; Rust deserializes and owns the result.
     ///
+    /// # Integrity Checking
+    ///
+    /// When `fraiseql-cli compile` embeds a `_content_hash` field in the compiled JSON,
+    /// the runtime should verify it against `content_hash()` before accepting the schema.
+    /// This guards against accidental corruption or tampering between compilation and
+    /// deployment. The check is not performed here because `_content_hash` is not yet
+    /// written by the CLI; once it is, add a post-deserialization step:
+    ///
+    /// ```rust,ignore
+    /// let schema = CompiledSchema::from_json(json)?;
+    /// if let Some(expected) = &schema._content_hash {
+    ///     let actual = schema.content_hash();
+    ///     if *expected != actual {
+    ///         return Err(IntegrityError::HashMismatch { expected, actual });
+    ///     }
+    /// }
+    /// ```
+    ///
     /// # Errors
     ///
     /// Returns error if JSON is malformed or doesn't match schema structure.

@@ -3,6 +3,7 @@
 //! Provides validation for GraphQL queries including:
 //! - Query depth validation (prevent deeply nested queries)
 //! - Query complexity scoring (prevent complex queries)
+//! - Alias count validation (prevent alias amplification attacks)
 //! - Variable type validation (ensure variable types match schema)
 //!
 //! # Security
@@ -40,6 +41,15 @@ pub enum ValidationError {
         actual_complexity: usize,
     },
 
+    /// Query contains too many aliases (alias amplification attack).
+    #[error("Query exceeds maximum alias count of {max_aliases}: count = {actual_aliases}")]
+    TooManyAliases {
+        /// Maximum allowed alias count
+        max_aliases:    usize,
+        /// Actual alias count
+        actual_aliases: usize,
+    },
+
     /// Invalid query variables.
     #[error("Invalid variables: {0}")]
     InvalidVariables(String),
@@ -53,13 +63,15 @@ pub enum ValidationError {
 #[derive(Debug, Clone)]
 pub struct RequestValidator {
     /// Maximum query depth allowed.
-    max_depth:           usize,
+    max_depth:            usize,
     /// Maximum query complexity score allowed.
-    max_complexity:      usize,
+    max_complexity:       usize,
+    /// Maximum number of field aliases per query (alias amplification protection).
+    max_aliases_per_query: usize,
     /// Enable query depth validation.
-    validate_depth:      bool,
+    validate_depth:       bool,
     /// Enable query complexity validation.
-    validate_complexity: bool,
+    validate_complexity:  bool,
 }
 
 impl RequestValidator {
@@ -97,6 +109,17 @@ impl RequestValidator {
         self
     }
 
+    /// Set maximum number of aliases per query.
+    ///
+    /// Aliases allow a client to rename fields in a response. A large number of aliases
+    /// on the same field (alias amplification) can force the server to resolve the same
+    /// expensive field many times. Default is 30.
+    #[must_use]
+    pub const fn with_max_aliases(mut self, max_aliases: usize) -> Self {
+        self.max_aliases_per_query = max_aliases;
+        self
+    }
+
     /// Validate a GraphQL query string.
     ///
     /// # Errors
@@ -108,7 +131,7 @@ impl RequestValidator {
             return Err(ValidationError::MalformedQuery("Empty query".to_string()));
         }
 
-        // Skip AST parsing if both validations are disabled
+        // Skip AST parsing if all validations are disabled
         if !self.validate_depth && !self.validate_complexity {
             return Ok(());
         }
@@ -150,6 +173,15 @@ impl RequestValidator {
                     actual_complexity: complexity,
                 });
             }
+        }
+
+        // Check alias count (alias amplification attack protection)
+        let alias_count = self.count_aliases_ast(&document);
+        if alias_count > self.max_aliases_per_query {
+            return Err(ValidationError::TooManyAliases {
+                max_aliases:    self.max_aliases_per_query,
+                actual_aliases: alias_count,
+            });
         }
 
         Ok(())
@@ -366,15 +398,67 @@ impl RequestValidator {
         // Default multiplier for fields without explicit limits
         1
     }
+
+    /// Count total field aliases across the entire document.
+    ///
+    /// Aliases allow renaming response fields (`alias: fieldName`). A query with many
+    /// aliases on the same expensive field (alias amplification) can force repeated
+    /// resolution work on the server side. This method counts all aliased fields.
+    fn count_aliases_ast(&self, document: &Document<String>) -> usize {
+        let mut count = 0;
+        for definition in &document.definitions {
+            match definition {
+                Definition::Operation(op) => {
+                    let ss = match op {
+                        OperationDefinition::Query(q) => &q.selection_set,
+                        OperationDefinition::Mutation(m) => &m.selection_set,
+                        OperationDefinition::Subscription(s) => &s.selection_set,
+                        OperationDefinition::SelectionSet(ss) => ss,
+                    };
+                    count += self.count_aliases_in_selection_set(ss);
+                },
+                Definition::Fragment(f) => {
+                    count += self.count_aliases_in_selection_set(&f.selection_set);
+                },
+            }
+        }
+        count
+    }
+
+    /// Recursively count aliases in a selection set.
+    // Reason: `&self` is required for the recursive call syntax; the method
+    // delegates entirely through self-calls on nested selection sets.
+    #[allow(clippy::self_only_used_in_recursion)]
+    fn count_aliases_in_selection_set(&self, selection_set: &SelectionSet<String>) -> usize {
+        let mut count = 0;
+        for selection in &selection_set.items {
+            match selection {
+                Selection::Field(field) => {
+                    if field.alias.is_some() {
+                        count += 1;
+                    }
+                    count += self.count_aliases_in_selection_set(&field.selection_set);
+                },
+                Selection::InlineFragment(inline) => {
+                    count += self.count_aliases_in_selection_set(&inline.selection_set);
+                },
+                Selection::FragmentSpread(_) => {
+                    // Fragment spreads are counted at the definition site
+                },
+            }
+        }
+        count
+    }
 }
 
 impl Default for RequestValidator {
     fn default() -> Self {
         Self {
-            max_depth:           10,
-            max_complexity:      100,
-            validate_depth:      true,
-            validate_complexity: true,
+            max_depth:             10,
+            max_complexity:        100,
+            max_aliases_per_query: 30,
+            validate_depth:        true,
+            validate_complexity:   true,
         }
     }
 }
@@ -536,5 +620,71 @@ mod tests {
         let validator = RequestValidator::new();
         let result = validator.validate_query("{ invalid query {{}}");
         assert!(result.is_err(), "Malformed queries must be rejected");
+    }
+
+    // SECURITY: Alias amplification protection tests (A26)
+
+    #[test]
+    fn test_alias_count_within_limit() {
+        let validator = RequestValidator::new().with_max_aliases(5);
+
+        // 3 aliases — should pass
+        let query = "query { a: user { id } b: user { id } c: user { id } }";
+        assert!(validator.validate_query(query).is_ok(), "3 aliases should be within limit of 5");
+    }
+
+    #[test]
+    fn test_alias_count_exceeds_limit() {
+        let validator = RequestValidator::new().with_max_aliases(2);
+
+        // 3 aliases — should fail
+        let query = "query { a: user { id } b: user { id } c: user { id } }";
+        let result = validator.validate_query(query);
+        assert!(result.is_err(), "Alias count exceeding limit must be rejected");
+        assert!(
+            matches!(result, Err(ValidationError::TooManyAliases { actual_aliases: 3, .. })),
+            "Error should report correct alias count"
+        );
+    }
+
+    #[test]
+    fn test_no_aliases_allowed_by_zero_limit() {
+        let validator = RequestValidator::new().with_max_aliases(0);
+
+        // Any alias should fail
+        let query = "query { a: user { id } }";
+        let result = validator.validate_query(query);
+        assert!(result.is_err(), "Alias when limit is 0 must be rejected");
+    }
+
+    #[test]
+    fn test_nested_aliases_counted() {
+        let validator = RequestValidator::new().with_max_aliases(1);
+
+        // Alias inside a nested selection
+        let query = "query { user { x: id } }";
+        let result = validator.validate_query(query);
+        assert!(result.is_ok(), "Single nested alias within limit should pass");
+
+        let query_two = "query { a: user { x: id } }";
+        let result_two = validator.validate_query(query_two);
+        assert!(result_two.is_err(), "Two aliases should exceed limit of 1");
+    }
+
+    #[test]
+    fn test_default_alias_limit_is_30() {
+        let validator = RequestValidator::new();
+
+        // Build a query with exactly 30 aliases
+        let fields: String =
+            (0..30).fold(String::new(), |mut s, i| { use std::fmt::Write; let _ = write!(s, "f{i}: user {{ id }} "); s });
+        let query = format!("query {{ {fields} }}");
+        assert!(validator.validate_query(&query).is_ok(), "30 aliases should be within default limit");
+
+        // Build a query with 31 aliases
+        let fields: String =
+            (0..31).fold(String::new(), |mut s, i| { use std::fmt::Write; let _ = write!(s, "f{i}: user {{ id }} "); s });
+        let query = format!("query {{ {fields} }}");
+        assert!(validator.validate_query(&query).is_err(), "31 aliases should exceed default limit of 30");
     }
 }

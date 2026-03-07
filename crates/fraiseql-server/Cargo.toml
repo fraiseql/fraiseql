@@ -16,7 +16,7 @@ aws-config = {version = "1", optional = true}
 # V3: rustls 0.21 transitive via aws-smithy-http-client; blocked on AWS upstream
 aws-sdk-s3 = {version = "1", optional = true}
 # HTTP server
-axum = {version = "0.8", features = ["macros", "ws"]}
+axum = {workspace = true, features = ["macros", "ws"]}
 base64 = "0.22"
 # File processing
 bytes = "1"
@@ -36,7 +36,7 @@ fraiseql-core = {workspace = true, features = ["postgres"]}
 fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks
 fraiseql-webhooks = {workspace = true, optional = true}
-fraiseql-error = {workspace = true}
+fraiseql-error = {workspace = true, features = ["axum-compat"]}
 # FraiseQL observers (optional)
 fraiseql-observers = {workspace = true, optional = true}
 futures = "0.3"

@@ -31,9 +31,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             if self.config.admin_token.is_some() {
                 let rbac_backend =
                     crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone());
-                if let Err(e) = rbac_backend.ensure_schema().await {
-                    error!("Failed to initialize RBAC schema: {e}");
-                }
+                rbac_backend.ensure_schema().await.map_err(|e| {
+                    ServerError::ConfigError(format!("Failed to initialize RBAC schema: {e}"))
+                })?;
             }
         }
 

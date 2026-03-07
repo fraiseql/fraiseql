@@ -53,15 +53,19 @@ use std::task::{Context, Poll};
 /// # }
 /// ```
 pub struct TypedJsonStream<T: DeserializeOwned> {
-    /// Inner stream of JSON values
-    inner: Box<dyn Stream<Item = Result<Value>> + Unpin>,
+    /// Inner stream of JSON values.
+    ///
+    /// The `Send` bound ensures that `TypedJsonStream` itself is `Send`,
+    /// allowing it to be held across `.await` points in async tasks and
+    /// transferred between threads (e.g. via `tokio::spawn`).
+    inner: Box<dyn Stream<Item = Result<Value>> + Send + Unpin>,
     /// Phantom data for type T (zero runtime cost)
     _phantom: PhantomData<T>,
 }
 
 impl<T: DeserializeOwned> TypedJsonStream<T> {
     /// Create a new typed stream from a raw JSON stream
-    pub fn new(inner: Box<dyn Stream<Item = Result<Value>> + Unpin>) -> Self {
+    pub fn new(inner: Box<dyn Stream<Item = Result<Value>> + Send + Unpin>) -> Self {
         Self {
             inner,
             _phantom: PhantomData,

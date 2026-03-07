@@ -9,7 +9,7 @@ use chrono::Utc;
 use fraiseql_core::security::OidcValidator;
 use futures::Stream;
 use tonic::{Response, Status};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use super::{
     ActionResultStream, FlightDataStream, FraiseQLFlightService, QueryExecutor, SecurityContext,
@@ -611,7 +611,7 @@ impl FraiseQLFlightService {
         // 3. Check cache before executing query
         let db_rows = if let Some(cache) = &self.cache {
             if let Some(cached_result) = cache.get(&sql) {
-                info!("Cache hit for query: {}", sql);
+                debug!("Cache hit for query: {}", sql);
                 (*cached_result).clone()
             } else {
                 // Cache miss: execute query and cache result
@@ -744,12 +744,12 @@ impl FraiseQLFlightService {
         let mut first_query = true;
 
         for query in &queries {
-            info!("Executing batched query: {}", query);
+            debug!("Executing batched query: {}", query);
 
             // Try to get from cache first
             let db_rows = if let Some(cache) = &self.cache {
                 if let Some(cached_result) = cache.get(query) {
-                    info!("Cache hit for batched query: {}", query);
+                    debug!("Cache hit for batched query: {}", query);
                     (*cached_result).clone()
                 } else {
                     // Cache miss: execute and cache
@@ -929,7 +929,7 @@ impl FraiseQLFlightService {
             sql.push_str(&l.to_string());
         }
 
-        info!(sql = %sql, "Executing export query");
+        debug!(sql = %sql, "Executing export query");
 
         // Execute query
         let rows = db_adapter

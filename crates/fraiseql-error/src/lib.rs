@@ -40,6 +40,7 @@ pub mod core_error;
 mod auth;
 mod config;
 mod file;
+#[cfg(feature = "axum-compat")]
 mod http;
 mod integration;
 mod notification;
@@ -50,7 +51,8 @@ pub use auth::AuthError;
 pub use core_error::{ErrorContext, FraiseQLError, Result, ValidationFieldError};
 pub use config::ConfigError;
 pub use file::FileError;
-// Re-export for convenience
+// Re-export for convenience — only available with the `axum-compat` feature
+#[cfg(feature = "axum-compat")]
 pub use http::{ErrorResponse, IntoHttpResponse};
 pub use integration::IntegrationError;
 pub use notification::NotificationError;

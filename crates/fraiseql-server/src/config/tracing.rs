@@ -20,15 +20,24 @@ pub struct TracingConfig {
     /// Service name for distributed tracing
     #[serde(default = "default_service_name")]
     pub service_name: String,
+
+    /// OTLP exporter timeout in seconds.
+    ///
+    /// Controls how long the OTLP HTTP exporter waits for a response from the
+    /// collector before timing out. Defaults to 10 seconds.
+    /// Override via `[tracing] otlp_export_timeout_secs = 30` in `fraiseql.toml`.
+    #[serde(default = "default_otlp_timeout_secs")]
+    pub otlp_export_timeout_secs: u64,
 }
 
 impl Default for TracingConfig {
     fn default() -> Self {
         Self {
-            enabled:      default_enabled(),
-            level:        default_level(),
-            format:       default_format(),
-            service_name: default_service_name(),
+            enabled:                default_enabled(),
+            level:                  default_level(),
+            format:                 default_format(),
+            service_name:           default_service_name(),
+            otlp_export_timeout_secs: default_otlp_timeout_secs(),
         }
     }
 }
@@ -44,4 +53,7 @@ fn default_format() -> String {
 }
 fn default_service_name() -> String {
     "fraiseql".to_string()
+}
+const fn default_otlp_timeout_secs() -> u64 {
+    10
 }
