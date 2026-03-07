@@ -145,10 +145,6 @@ pub mod types;
 pub mod utils;
 pub mod validation;
 
-// Arrow Flight integration (optional)
-#[cfg(feature = "arrow")]
-pub mod arrow_executor;
-
 // Re-exports for convenience
 pub use config::FraiseQLConfig;
 pub use error::{FraiseQLError, Result};

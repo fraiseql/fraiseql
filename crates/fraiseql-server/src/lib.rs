@@ -82,7 +82,6 @@ pub mod extractors;
 pub mod federation;
 pub mod logging;
 pub mod middleware;
-pub mod performance;
 pub mod routes;
 pub mod schema;
 pub mod server;
@@ -92,7 +91,6 @@ pub mod validation;
 
 // Renamed to avoid conflicts with runtime modules
 pub mod metrics_server;
-pub mod tracing_server;
 
 // fraiseql-runtime modules (merged)
 
@@ -189,14 +187,10 @@ pub use logging::{
     StructuredLogEntry,
 };
 pub use metrics_server::{MetricsCollector, PrometheusMetrics};
-pub use performance::{
-    OperationProfile, PerformanceMonitor, PerformanceStats, PerformanceTimer, QueryPerformance,
-};
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
 pub use server_config::ServerConfig;
 pub use tls::TlsSetup;
-pub use tracing_server::{SpanStatus, TraceContext, TraceEvent, TraceParseError, TraceSpan};
 pub use validation::{RequestValidator, ValidationError};
 
 /// Server error type.

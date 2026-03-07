@@ -17,8 +17,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_server::{
-    LogLevel, LogMetrics, MetricsCollector, PerformanceMonitor, QueryPerformance, RequestContext,
-    RequestValidator, StructuredLogEntry, TraceContext,
+    LogLevel, LogMetrics, MetricsCollector, RequestContext, RequestValidator, StructuredLogEntry,
 };
 
 /// Benchmark query validation performance
@@ -110,68 +109,6 @@ fn bench_structured_logging(c: &mut Criterion) {
     });
 }
 
-/// Benchmark performance monitoring
-fn bench_performance_monitoring(c: &mut Criterion) {
-    let monitor = PerformanceMonitor::new(100.0);
-
-    c.bench_function("performance_monitor_record", |b| {
-        b.iter(|| {
-            let perf = QueryPerformance::new(
-                black_box(25000),
-                black_box(2),
-                black_box(5),
-                black_box(false),
-                black_box(15000),
-            );
-            monitor.record_query(black_box(perf));
-        });
-    });
-
-    c.bench_function("performance_monitor_stats", |b| {
-        // Pre-populate some data
-        for i in 0..100 {
-            let perf = QueryPerformance::new(
-                (25000 + i * 100) as u64,
-                2,
-                5,
-                i % 3 == 0,
-                (15000 + i * 50) as u64,
-            );
-            monitor.record_query(perf);
-        }
-
-        b.iter(|| {
-            let _ = monitor.stats();
-            let _ = monitor.avg_duration_ms();
-            let _ = monitor.slow_query_percentage();
-            let _ = monitor.cache_hit_rate();
-        });
-    });
-}
-
-/// Benchmark distributed tracing
-fn bench_distributed_tracing(c: &mut Criterion) {
-    c.bench_function("trace_context_creation", |b| b.iter(TraceContext::new));
-
-    c.bench_function("trace_context_child_span", |b| {
-        let ctx = TraceContext::new();
-        b.iter(|| ctx.child_span());
-    });
-
-    c.bench_function("trace_context_w3c_header", |b| {
-        let ctx = TraceContext::new();
-        b.iter(|| ctx.to_w3c_traceparent());
-    });
-
-    c.bench_function("trace_context_baggage", |b| {
-        b.iter(|| {
-            TraceContext::new()
-                .with_baggage("user_id".to_string(), black_box("user123".to_string()))
-                .with_baggage("tenant".to_string(), black_box("acme".to_string()))
-        });
-    });
-}
-
 /// Benchmark request context creation
 fn bench_request_context(c: &mut Criterion) {
     c.bench_function("request_context_new", |b| b.iter(RequestContext::new));
@@ -251,8 +188,6 @@ criterion_group!(
     bench_query_validation,
     bench_metrics_collection,
     bench_structured_logging,
-    bench_performance_monitoring,
-    bench_distributed_tracing,
     bench_request_context,
     bench_concurrent_metrics,
     bench_complex_log_entry

@@ -2,7 +2,6 @@
 //!
 //! Tests real production types:
 //! - `MetricsCollector` atomic counters
-//! - `TraceContext` W3C traceparent generation and child spans
 //! - `tracing_utils::extract_trace_context` header parsing
 //!
 //! **Execution engine:** none
@@ -29,7 +28,7 @@ mod common;
 use std::sync::atomic::Ordering;
 
 use common::test_app::{health_router, make_test_state};
-use fraiseql_server::{MetricsCollector, TraceContext};
+use fraiseql_server::MetricsCollector;
 use tower::ServiceExt;
 
 // ============================================================================
@@ -73,54 +72,6 @@ fn metrics_collector_records_entity_resolution() {
     assert_eq!(metrics.federation_entity_resolutions_total.load(Ordering::Relaxed), 2);
     assert_eq!(metrics.federation_entity_resolutions_errors.load(Ordering::Relaxed), 1);
     assert_eq!(metrics.federation_entity_resolution_duration_us.load(Ordering::Relaxed), 3000);
-}
-
-// ============================================================================
-// TRACE CONTEXT
-// ============================================================================
-
-#[test]
-fn trace_context_generates_valid_ids() {
-    let ctx = TraceContext::new();
-    assert!(!ctx.trace_id.is_empty());
-    assert!(!ctx.span_id.is_empty());
-    assert!(ctx.parent_span_id.is_none());
-}
-
-#[test]
-fn trace_context_child_span_inherits_trace_id() {
-    let parent = TraceContext::new();
-    let child = parent.child_span();
-
-    assert_eq!(child.trace_id, parent.trace_id);
-    assert_ne!(child.span_id, parent.span_id);
-    assert_eq!(child.parent_span_id, Some(parent.span_id));
-}
-
-#[test]
-fn trace_context_w3c_traceparent_format() {
-    let ctx = TraceContext::new();
-    let traceparent = ctx.to_w3c_traceparent();
-
-    // Format: 00-{trace_id}-{span_id}-{flags}
-    let parts: Vec<&str> = traceparent.split('-').collect();
-    assert_eq!(parts[0], "00", "version should be 00");
-    assert_eq!(parts.len(), 4, "traceparent should have 4 parts");
-}
-
-#[test]
-fn trace_context_baggage_propagation() {
-    let ctx = TraceContext::new()
-        .with_baggage("user_id".into(), "user-123".into())
-        .with_baggage("env".into(), "test".into());
-
-    assert_eq!(ctx.baggage_item("user_id"), Some("user-123"));
-    assert_eq!(ctx.baggage_item("env"), Some("test"));
-    assert_eq!(ctx.baggage_item("missing"), None);
-
-    // Child inherits baggage
-    let child = ctx.child_span();
-    assert_eq!(child.baggage_item("user_id"), Some("user-123"));
 }
 
 // ============================================================================
