@@ -8,6 +8,8 @@
 //! cargo run --example streaming
 //! ```
 
+#![allow(clippy::doc_markdown)]             // Reason: example docs
+
 use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;
 use std::time::Instant;

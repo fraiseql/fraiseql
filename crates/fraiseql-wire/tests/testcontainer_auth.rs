@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]       // Reason: test code, panics are acceptable
+
 //! Authentication tests using testcontainers
 //!
 //! These tests spin up a PostgreSQL container with SCRAM-SHA-256 authentication

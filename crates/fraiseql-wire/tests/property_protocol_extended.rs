@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)]       // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_wrap)]       // Reason: test data casts
+
 //! Extended property-based tests for wire protocol correctness.
 //!
 //! Builds on property_protocol.rs with additional properties covering

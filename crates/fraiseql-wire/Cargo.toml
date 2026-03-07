@@ -73,6 +73,9 @@ bench-with-tokio-postgres = []
 name = "fraiseql_wire"
 path = "src/lib.rs"
 
+[lints]
+workspace = true
+
 [package]
 authors = ["Lionel Hamayon <lionel@evolution-digitale.fr>"]
 categories = ["database", "asynchronous"]

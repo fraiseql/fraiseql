@@ -1,3 +1,5 @@
+#![allow(clippy::range_plus_one)]           // Reason: example string slicing
+
 //! Example: SCRAM-SHA-256 Authentication with fraiseql-wire
 //!
 //! This example demonstrates how to connect to PostgreSQL using SCRAM-SHA-256

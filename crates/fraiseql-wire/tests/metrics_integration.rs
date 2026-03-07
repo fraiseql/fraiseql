@@ -3,6 +3,8 @@
 //! These tests verify that metrics are recorded correctly during query execution.
 //! Tests use the metrics crate to validate that counters and histograms are updated.
 
+#![allow(clippy::unreadable_literal)]       // Reason: test memory size assertions
+
 use fraiseql_wire::metrics;
 use fraiseql_wire::stream::StreamStats;
 

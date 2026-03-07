@@ -1,3 +1,7 @@
+#![allow(clippy::unwrap_used)]       // Reason: test code, panics are acceptable
+#![allow(clippy::cast_possible_truncation)] // Reason: test protocol encoding casts
+#![allow(clippy::cast_possible_wrap)]       // Reason: test protocol encoding casts
+
 //! Property-based tests for wire protocol message decoding
 
 use bytes::{BufMut, BytesMut};

@@ -264,6 +264,7 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]

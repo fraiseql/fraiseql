@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]       // Reason: test code, panics are acceptable
+
 //! Integration tests for connection configuration
 //!
 //! Tests that verify configuration options are properly applied during connection startup.

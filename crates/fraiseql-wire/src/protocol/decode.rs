@@ -370,6 +370,7 @@ fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use super::*;
 
     #[test]
