@@ -187,13 +187,13 @@ test-e2e:
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
-# Format code
+# Format code (nightly rustfmt for advanced formatting options)
 fmt:
-	cargo fmt --all
+	cargo +nightly fmt --all
 
 # Check formatting
 fmt-check:
-	cargo fmt --all -- --check
+	cargo +nightly fmt --all -- --check
 
 # Run all checks
 check: fmt-check clippy test

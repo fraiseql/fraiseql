@@ -1,6 +1,9 @@
 [toolchain]
-# Nightly is used for development tooling only (cargo-expand, advanced clippy).
-# Production MSRV is 1.88 stable. See .github/workflows/ci.yml for MSRV enforcement
-# (test matrix includes rust: ["1.88"]).
-channel = "nightly-2026-02-15"
+# Pinned to MSRV — makes local development match the minimum we guarantee.
+# Update this line when bumping rust-version in Cargo.toml.
+#
+# Nightly is required only for rustfmt (some advanced formatting options).
+# Use `cargo +nightly fmt` or `make fmt` for formatting; all other commands
+# (check, clippy, test, build) use this stable toolchain.
+channel = "1.88"
 components = ["rustfmt", "clippy", "rust-analyzer"]

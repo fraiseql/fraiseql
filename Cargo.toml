@@ -121,35 +121,67 @@ tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 uuid = {version = "1.21", features = ["v4", "serde"]}
 
 [workspace.lints.clippy]
-# Deny all warnings in CI (priority -1 lets individual lints override)
-all = {level = "deny", priority = -1}
-cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
-cargo_common_metadata = "allow"  # Internal crates don't need all metadata
-if_not_else = "allow"  # Style preference
-multiple_crate_versions = "allow"  # Transitive dependencies cause this
-missing_errors_doc = "warn"   # Public fallible fns should document error variants
-missing_panics_doc = "warn"  # Public fns that can panic should document when
-must_use_candidate = "allow"  # We'll use this selectively
-nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
-option_if_let_else = "allow"  # Style preference
-or_fun_call = "allow"  # Often clearer to keep explicit
-pedantic = {level = "deny", priority = -1}
-redundant_closure_for_method_calls = "allow"  # Style preference
-return_self_not_must_use = "allow"  # Builder pattern compatibility
-significant_drop_tightening = "allow"  # Too aggressive, false positives
+# ── Global levels ────────────────────────────────────────────────────────────
+# priority = -1 lets individual lint entries below override the group level.
+all          = {level = "deny",  priority = -1}
+pedantic     = {level = "deny",  priority = -1}
+# Reason: nursery lints are experimental and may have false positives; keep as warn
+#         so they surface in CI without blocking builds.
+nursery      = {level = "warn",  priority = -1}
+# Reason: crates.io metadata (description, keywords, categories) is missing on
+#         some internal crates; this is non-blocking for a private workspace.
+cargo        = {level = "warn",  priority = -1}
+
+# ── Selective pedantic/cargo allows ──────────────────────────────────────────
+# Every entry here is a conscious trade-off documented below.
+
+# Reason: internal crates don't need all crates.io metadata fields.
+cargo_common_metadata = "allow"
+# Reason: negative-first guard clauses are sometimes more readable than positive-first.
+if_not_else = "allow"
+# Reason: transitive dependencies routinely pull in multiple versions; not actionable.
+multiple_crate_versions = "allow"
+# Reason: public fallible functions should document errors — warn, not deny, because
+#         coverage is an ongoing effort rather than a gating requirement.
+missing_errors_doc = "warn"
+# Reason: public functions that can panic should document when — same rationale as above.
+missing_panics_doc = "warn"
+# Reason: builder methods and fluent APIs generate noise; applied selectively per crate.
+must_use_candidate = "allow"
+# Reason: explicit match is sometimes clearer than map_or_else for multi-line branches.
+option_if_let_else = "allow"
+# Reason: `.unwrap_or(default_fn())` is sometimes clearer than `.unwrap_or_else(|| ...)`.
+or_fun_call = "allow"
+# Reason: style preference — closure is sometimes clearer than a method reference.
+redundant_closure_for_method_calls = "allow"
+# Reason: builder pattern — chained methods don't always return a value callers must check.
+return_self_not_must_use = "allow"
+# Reason: false positives in async code with MutexGuard held across await points.
+significant_drop_tightening = "allow"
+# Reason: short variable names are idiomatic in SQL generation (lhs, rhs, sq, op).
 similar_names = "allow"
-struct_excessive_bools = "allow"  # Schema structs often have many bool flags
-# Allow some pedantic lints that are too strict for practical use
+# Reason: config structs have many independent boolean flags that map directly to TOML;
+#         converting to bitflags would break serde deserialization.
+struct_excessive_bools = "allow"
+# Reason: clippy's too_many_lines threshold is hardcoded at 100 lines with no config option;
+#         large match arms and SQL generation tables legitimately exceed this limit.
 too_many_lines = "allow"
-# Additional allows for common pedantic/nursery lints that don't add value
-uninlined_format_args = "allow"  # Style preference, too noisy
-unnecessary_wraps = "allow"  # API consistency over strictness
-unused_async = "allow"  # Sometimes needed for trait conformance
-unused_enumerate_index = "allow"  # Sometimes index needed later
-unused_self = "allow"  # Sometimes needed for API compatibility
-use_self = "allow"  # Style preference
-# unwrap_used is deny: production code must use .expect("reason") instead of .unwrap().
-# Test/bench code suppresses this with #[allow(clippy::unwrap_used)] // Reason: test code.
+# Reason: style preference; `format!("{}", x)` and `format!("{x}")` are both clear.
+uninlined_format_args = "allow"
+# Reason: some functions return Option/Result to match a trait signature even when
+#         they always succeed; API consistency takes priority here.
+unnecessary_wraps = "allow"
+# Reason: some trait adapter methods are async for future extensibility or trait conformance.
+unused_async = "allow"
+# Reason: enumerate index is sometimes added preemptively for debugging or future use.
+unused_enumerate_index = "allow"
+# Reason: some trait implementations accept self for API uniformity even when unused.
+unused_self = "allow"
+# Reason: using the concrete type name is sometimes clearer than Self in impl blocks.
+use_self = "allow"
+# ── Security ─────────────────────────────────────────────────────────────────
+# Reason: production code must use .expect("reason") to document assumptions;
+#         .unwrap() is only permitted in tests/examples with an explicit allow + Reason.
 unwrap_used = "deny"
 
 [workspace.lints.rust]

@@ -2,10 +2,6 @@
 //!
 //! Core execution engine for FraiseQL v2 - A compiled GraphQL execution engine.
 
-#![warn(clippy::missing_errors_doc)]
-#![warn(clippy::missing_panics_doc)]
-
-
 //! ## Architecture
 //!
 //! FraiseQL v2 compiles GraphQL schemas into optimized SQL execution plans at build time,
@@ -71,52 +67,105 @@
 // workspace-level denials for this crate, which is wrong. Suppressions below use
 // `#![allow(...)]` which are still needed for legitimate per-crate overrides.
 //
-// Allow common pedantic lints that are too noisy for this codebase
-#![allow(clippy::doc_markdown)] // Would require 150+ doc changes for backticks
-#![allow(clippy::return_self_not_must_use)] // Builder pattern doesn't always need #[must_use]
-#![allow(clippy::uninlined_format_args)] // Style preference, not a bug
-#![allow(clippy::unused_self)] // Often needed for trait consistency
-#![allow(clippy::unnecessary_wraps)] // Sometimes needed for API consistency
-#![allow(clippy::must_use_candidate)] // Too noisy for builder methods
-#![allow(clippy::missing_errors_doc)] // Would require extensive doc additions
-#![allow(clippy::module_name_repetitions)] // Common in Rust APIs
-#![allow(clippy::match_same_arms)] // Sometimes clearer to be explicit
-#![allow(clippy::cast_possible_truncation)] // Many intentional u64->u32 casts
-#![allow(clippy::cast_precision_loss)] // Intentional f64 conversions
-#![allow(clippy::cast_sign_loss)] // Intentional signed->unsigned conversions
-#![allow(clippy::too_many_arguments)] // Some complex functions need many args
-#![allow(clippy::format_push_string)] // Sometimes clearer than write!
-#![allow(clippy::redundant_closure_for_method_calls)] // Sometimes clearer
-#![allow(clippy::explicit_iter_loop)] // Explicit .iter() can be clearer
-#![allow(clippy::bool_to_int_with_if)] // Sometimes clearer than conversion
-#![allow(clippy::single_match_else)] // Sometimes clearer than if-else
-#![allow(clippy::wildcard_imports)] // Used intentionally for enum variants
-#![allow(clippy::struct_excessive_bools)] // AutoParams struct uses bools for flags
-#![allow(clippy::missing_panics_doc)] // Would require extensive doc additions
-#![allow(clippy::similar_names)] // Variable naming style
-#![allow(clippy::option_if_let_else)] // Sometimes clearer
-#![allow(clippy::if_not_else)] // Sometimes clearer
-#![allow(clippy::useless_format)] // Sometimes needed for consistency
-#![allow(clippy::or_fun_call)] // Sometimes clearer with function call
-#![allow(clippy::unused_async)] // Placeholder for future async work
-#![allow(clippy::should_implement_trait)] // from_str intentionally different
-#![allow(clippy::needless_pass_by_value)] // Sometimes clearer API
-#![allow(clippy::manual_saturating_arithmetic)] // Explicit can be clearer
-#![allow(clippy::match_wildcard_for_single_variants)] // Sometimes clearer
-#![allow(clippy::single_char_pattern)] // Very minor optimization
-#![allow(clippy::doc_link_with_quotes)] // Documentation style choice
-#![allow(clippy::collapsible_if)] // Sometimes clearer when separate
-#![allow(clippy::map_unwrap_or)] // Sometimes clearer
-#![allow(clippy::manual_map)] // Sometimes clearer
-#![allow(clippy::default_trait_access)] // Map::default() vs Default::default()
-#![allow(clippy::implicit_saturating_sub)] // Explicit subtraction can be clearer
-#![allow(clippy::ptr_arg)] // Sometimes &Vec is clearer than &[T]
-#![allow(clippy::enum_glob_use)] // Wildcard enum imports for readability
-#![allow(clippy::unwrap_or_default)] // or_insert_with(Vec::new) style preference
-#![allow(clippy::redundant_closure)] // Sometimes clearer
-#![allow(clippy::suspicious_doc_comments)] // /// vs //! style is intentional
-#![allow(clippy::float_cmp)] // Test assertions with exact float comparison are intentional
-#![allow(clippy::large_stack_arrays)] // Test fixtures sometimes require larger arrays
+// Per-crate overrides for workspace pedantic denials.
+// Each entry documents the trade-off rather than being a silent suppression.
+// Reason: ~300+ existing doc comments use backticks without code fencing; converting
+//         all of them is a separate cleanup effort, not blocking current development.
+#![allow(clippy::doc_markdown)]
+// Reason: builder pattern — callers chain these methods and the return is not "must check".
+#![allow(clippy::return_self_not_must_use)]
+// Reason: style preference; `format!("{}", x)` and `format!("{x}")` are both clear.
+#![allow(clippy::uninlined_format_args)]
+// Reason: some trait adapter methods accept &mut self or &self for API uniformity.
+#![allow(clippy::unused_self)]
+// Reason: some functions return Option<T> / Result<T> to match a trait signature.
+#![allow(clippy::unnecessary_wraps)]
+// Reason: builder methods and fluent APIs are too noisy with must_use everywhere.
+#![allow(clippy::must_use_candidate)]
+// Reason: fraiseql-core has ~300+ public fallible functions; error-doc coverage is
+//         a separate effort tracked in the backlog.
+#![allow(clippy::missing_errors_doc)]
+// Reason: common naming convention in Rust; e.g. `schema::SchemaField` is idiomatic.
+#![allow(clippy::module_name_repetitions)]
+// Reason: explicit duplicate arms can clarify intent in complex match expressions.
+#![allow(clippy::match_same_arms)]
+// Reason: many intentional u64→u32 casts in cache shard index computation
+//         where the value is always < 64.
+#![allow(clippy::cast_possible_truncation)]
+// Reason: intentional f64 conversions in latency histogram bucketing.
+#![allow(clippy::cast_precision_loss)]
+// Reason: intentional signed→unsigned conversions for offset/length calculations.
+#![allow(clippy::cast_sign_loss)]
+// Reason: schema compilation functions take type, context, config, security, and modifiers;
+//         splitting into builder structs is planned but not done.
+#![allow(clippy::too_many_arguments)]
+// Reason: `push_str(&format!(...))` is sometimes clearer than `write!` in SQL builders.
+#![allow(clippy::format_push_string)]
+// Reason: style preference; suppressed workspace-wide but needed per-crate too.
+#![allow(clippy::redundant_closure_for_method_calls)]
+// Reason: explicit `.iter()` is sometimes clearer in SQL generation loops.
+#![allow(clippy::explicit_iter_loop)]
+// Reason: `if condition { 1 } else { 0 }` is sometimes clearer than `usize::from(cond)`.
+#![allow(clippy::bool_to_int_with_if)]
+// Reason: single-arm match with else can be clearer than if-let for complex branches.
+#![allow(clippy::single_match_else)]
+// Reason: wildcard imports used intentionally for enum variants in local match blocks.
+#![allow(clippy::wildcard_imports)]
+// Reason: config structs have many independent boolean flags that map directly to TOML.
+//         Converting to bitflags would break serde deserialization.
+#![allow(clippy::struct_excessive_bools)]
+// Reason: fraiseql-core has ~300+ public functions; panic-doc coverage is
+//         a separate effort tracked in the backlog.
+#![allow(clippy::missing_panics_doc)]
+// Reason: short variable names are idiomatic in SQL generation (lhs, rhs, sq, op).
+#![allow(clippy::similar_names)]
+// Reason: explicit match can be clearer than map_or_else for multi-line branches.
+#![allow(clippy::option_if_let_else)]
+// Reason: negative-first guard clauses are sometimes more readable.
+#![allow(clippy::if_not_else)]
+// Reason: `format!("{}", x)` is occasionally needed for type coercion via Display.
+#![allow(clippy::useless_format)]
+// Reason: `.unwrap_or(default_fn())` is sometimes clearer than `.unwrap_or_else(|| ...)`.
+#![allow(clippy::or_fun_call)]
+// Reason: some trait adapter methods are async for future extensibility.
+#![allow(clippy::unused_async)]
+// Reason: `from_str` / `from_value` are intentionally named differently from `FromStr`.
+#![allow(clippy::should_implement_trait)]
+// Reason: some public API functions take owned values for ergonomics at call sites.
+#![allow(clippy::needless_pass_by_value)]
+// Reason: explicit `x.checked_sub(y).unwrap_or(0)` is clearer than saturating_sub in
+//         some contexts.
+#![allow(clippy::manual_saturating_arithmetic)]
+// Reason: wildcard arms after exhaustive matches can be clearer than listing all arms.
+#![allow(clippy::match_wildcard_for_single_variants)]
+// Reason: single-char string patterns are micro-optimizations not worth the noise.
+#![allow(clippy::single_char_pattern)]
+// Reason: doc links with quotes are a style choice in this codebase.
+#![allow(clippy::doc_link_with_quotes)]
+// Reason: nested if statements are sometimes clearer than `&&` conditions for readability.
+#![allow(clippy::collapsible_if)]
+// Reason: `.map(...).unwrap_or(...)` can be clearer than `.map_or(...)`.
+#![allow(clippy::map_unwrap_or)]
+// Reason: explicit match can be clearer than `.map(|x| ...)` for some transformations.
+#![allow(clippy::manual_map)]
+// Reason: `HashMap::default()` is explicit about the concrete type at instantiation.
+#![allow(clippy::default_trait_access)]
+// Reason: explicit `if a > b { a - b } else { 0 }` is clearer than implicit saturating.
+#![allow(clippy::implicit_saturating_sub)]
+// Reason: `&Vec<T>` is sometimes used for clarity at call sites that own the Vec.
+#![allow(clippy::ptr_arg)]
+// Reason: wildcard enum imports improve readability in heavily match-driven modules.
+#![allow(clippy::enum_glob_use)]
+// Reason: `.unwrap_or_default()` is correct; false positives with `or_insert_with`.
+#![allow(clippy::unwrap_or_default)]
+// Reason: closure is sometimes clearer than a method reference for non-obvious callables.
+#![allow(clippy::redundant_closure)]
+// Reason: mixing `///` and `//!` within the same file is intentional for module vs item docs.
+#![allow(clippy::suspicious_doc_comments)]
+// Reason: exact float comparison is intentional in test assertions for deterministic values.
+#![allow(clippy::float_cmp)]
+// Reason: test fixtures sometimes require larger arrays that exceed the default stack limit.
+#![allow(clippy::large_stack_arrays)]
 
 // Core modules
 pub mod config;
