@@ -2668,6 +2668,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-wire",
  "futures",
+ "proptest",
  "regex",
  "serde",
  "serde_json",

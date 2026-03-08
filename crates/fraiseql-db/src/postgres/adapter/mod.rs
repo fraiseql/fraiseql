@@ -13,6 +13,7 @@ use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use tokio_postgres::{NoTls, Row};
 
 use super::where_generator::PostgresWhereGenerator;
+use crate::dialect::PostgresDialect;
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
@@ -328,7 +329,7 @@ impl PostgresAdapter {
 
         // Add WHERE clause if present
         if let Some(clause) = where_clause {
-            let generator = PostgresWhereGenerator::new();
+            let generator = PostgresWhereGenerator::new(PostgresDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
@@ -405,7 +406,7 @@ pub(super) fn build_where_select_sql(
 
     // Collect WHERE clause params (if any)
     let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
-        let generator = PostgresWhereGenerator::new();
+        let generator = PostgresWhereGenerator::new(PostgresDialect);
         let (where_sql, where_params) = generator.generate(clause)?;
         sql.push_str(" WHERE ");
         sql.push_str(&where_sql);

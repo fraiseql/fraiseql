@@ -7,6 +7,7 @@ use sqlx::{
 };
 
 use super::where_generator::MySqlWhereGenerator;
+use crate::dialect::MySqlDialect;
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
@@ -208,17 +209,16 @@ impl DatabaseAdapter for MySqlAdapter {
             quote_mysql_identifier(view)
         );
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
-            let generator = super::where_generator::MySqlWhereGenerator::new();
+        let params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
+            let generator = super::where_generator::MySqlWhereGenerator::new(MySqlDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT if present
         if let Some(lim) = limit {
@@ -239,17 +239,16 @@ impl DatabaseAdapter for MySqlAdapter {
         // Build base query
         let mut sql = format!("SELECT data FROM {}", quote_mysql_identifier(view));
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
-            let generator = MySqlWhereGenerator::new();
+        let mut params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
+            let generator = MySqlWhereGenerator::new(MySqlDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT and OFFSET
         // Note: MySQL requires LIMIT when using OFFSET, so we use a large number for "unlimited"
@@ -662,7 +661,7 @@ impl RelayDatabaseAdapter for MySqlAdapter {
         // ── User WHERE clause ──────────────────────────────────────────────
         let (user_where_sql, user_where_params): (Option<String>, Vec<serde_json::Value>) =
             if let Some(clause) = where_clause {
-                let generator = MySqlWhereGenerator::new();
+                let generator = MySqlWhereGenerator::new(MySqlDialect);
                 let (sql, params) = generator.generate(clause)?;
                 (Some(sql), params)
             } else {

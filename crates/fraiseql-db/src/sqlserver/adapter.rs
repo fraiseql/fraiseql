@@ -7,6 +7,7 @@ use tiberius::Config;
 use tracing;
 
 use super::where_generator::SqlServerWhereGenerator;
+use crate::dialect::SqlServerDialect;
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
@@ -274,17 +275,16 @@ impl DatabaseAdapter for SqlServerAdapter {
             )
         };
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
-            let generator = super::where_generator::SqlServerWhereGenerator::new();
+        let params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
+            let generator = super::where_generator::SqlServerWhereGenerator::new(SqlServerDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Execute the query
         self.execute_raw(&sql, params).await
@@ -310,19 +310,18 @@ impl DatabaseAdapter for SqlServerAdapter {
             format!("SELECT data FROM {}", quote_sqlserver_identifier(view))
         };
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-        let mut param_count = 0;
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
-            let generator = SqlServerWhereGenerator::new();
-            let (where_sql, where_params) = generator.generate(clause)?;
-            sql.push_str(" WHERE ");
-            sql.push_str(&where_sql);
-            param_count = where_params.len();
-            params = where_params;
-        }
+        let (mut params, mut param_count): (Vec<serde_json::Value>, usize) =
+            if let Some(clause) = where_clause {
+                let generator = SqlServerWhereGenerator::new(SqlServerDialect);
+                let (where_sql, where_params) = generator.generate(clause)?;
+                sql.push_str(" WHERE ");
+                sql.push_str(&where_sql);
+                let len = where_params.len();
+                (where_params, len)
+            } else {
+                (Vec::new(), 0)
+            };
 
         // Handle pagination with OFFSET...FETCH (requires ORDER BY)
         // SQL Server uses @p1, @p2, ... for parameters
@@ -708,7 +707,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
         // ── User WHERE clause ────────────────────────────────────────────────
         let mut user_where_params: Vec<serde_json::Value> = Vec::new();
         let page_user_where_sql: Option<String> = if let Some(clause) = where_clause {
-            let generator = SqlServerWhereGenerator::new();
+            let generator = SqlServerWhereGenerator::new(SqlServerDialect);
             let (sql, params) =
                 generator.generate_with_param_offset(clause, cursor_param_count)?;
             user_where_params = params;
@@ -781,7 +780,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
         // the count is a standalone query.
         let total_count = if include_total_count {
             let (count_sql, count_params) = if let Some(clause) = where_clause {
-                let generator = SqlServerWhereGenerator::new();
+                let generator = SqlServerWhereGenerator::new(SqlServerDialect);
                 let (where_sql, params) =
                     generator.generate_with_param_offset(clause, 0)?;
                 (

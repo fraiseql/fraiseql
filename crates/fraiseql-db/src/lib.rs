@@ -62,9 +62,11 @@
 
 // New modules (types extracted from fraiseql-core)
 pub mod collation_config;
+pub mod dialect;
 pub mod filters;
 pub mod introspector;
 pub mod types;
+pub mod where_generator;
 
 // DB adapter modules (from the old db/ directory)
 pub mod collation;
@@ -121,5 +123,10 @@ pub use traits::{
 };
 pub use types::sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint};
 pub use types::{DatabaseType, JsonbValue, PoolMetrics};
+pub use dialect::{
+    MySqlDialect, PostgresDialect, SqlDialect, SqlServerDialect, SqliteDialect,
+    UnsupportedOperator,
+};
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
+pub use where_generator::GenericWhereGenerator;
 pub use where_sql_generator::WhereSqlGenerator;

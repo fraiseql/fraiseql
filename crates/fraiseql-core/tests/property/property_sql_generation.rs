@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 use fraiseql_core::db::{
-    WhereClause, WhereOperator, postgres::PostgresWhereGenerator,
+    PostgresDialect, WhereClause, WhereOperator, postgres::PostgresWhereGenerator,
     where_sql_generator::WhereSqlGenerator,
 };
 use proptest::prelude::*;
@@ -151,7 +151,7 @@ proptest! {
         path in arb_path(),
         value in "[a-zA-Z0-9]{1,20}",
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Field {
             path,
             operator: WhereOperator::Eq,
@@ -173,7 +173,7 @@ proptest! {
     /// Property: Parameter count in SQL matches params vector length.
     #[test]
     fn prop_postgres_param_count_matches(clause in arb_where_clause()) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let result = gen.generate(&clause);
 
         if let Ok((sql, params)) = result {
@@ -189,7 +189,7 @@ proptest! {
     /// Property: Parameter placeholders are sequential ($1, $2, $3...).
     #[test]
     fn prop_postgres_params_sequential(clause in arb_where_clause()) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let result = gen.generate(&clause);
 
         if let Ok((sql, params)) = result {
@@ -215,7 +215,7 @@ proptest! {
             Just("\\'; TRUNCATE users; --"),
         ],
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let payload = format!("{}{}", prefix, injection);
         let clause = WhereClause::Field {
             path,
@@ -248,7 +248,7 @@ proptest! {
         suffix in "[a-zA-Z]{1,5}",
         operator in arb_comparison_operator(),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         // Path with embedded single quote
         let path_segment = format!("{}'{}",  prefix, suffix);
         let clause = WhereClause::Field {
@@ -274,7 +274,7 @@ proptest! {
     /// Property: AND/OR clauses produce balanced parentheses.
     #[test]
     fn prop_postgres_balanced_parentheses(clause in arb_where_clause()) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let result = gen.generate(&clause);
 
         if let Ok((sql, _)) = result {
@@ -292,7 +292,7 @@ proptest! {
     fn prop_postgres_empty_logic_identity(
         use_and in any::<bool>(),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = if use_and {
             WhereClause::And(vec![])
         } else {
@@ -312,7 +312,7 @@ proptest! {
     /// Property: NOT wraps inner clause in NOT (...).
     #[test]
     fn prop_postgres_not_wraps_inner(inner in arb_leaf_clause()) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Not(Box::new(inner));
         let result = gen.generate(&clause);
 
@@ -334,7 +334,7 @@ proptest! {
         path in arb_path(),
         is_null in any::<bool>(),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Field {
             path,
             operator: WhereOperator::IsNull,
@@ -358,7 +358,7 @@ proptest! {
         path in arb_path(),
         values in prop::collection::vec(arb_string_value(), 1..=10),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Field {
             path,
             operator: WhereOperator::In,
@@ -379,7 +379,7 @@ proptest! {
         operator in arb_string_operator(),
         value in "[a-zA-Z0-9]{1,20}",
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Field {
             path,
             operator,
@@ -414,7 +414,7 @@ proptest! {
         operator in arb_comparison_operator(),
         value in any::<i64>(),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Field {
             path,
             operator,
@@ -434,7 +434,7 @@ proptest! {
         path in arb_path(),
         value in any::<bool>(),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let clause = WhereClause::Field {
             path,
             operator: WhereOperator::Eq,
@@ -454,7 +454,7 @@ proptest! {
         clause1 in arb_leaf_clause(),
         clause2 in arb_leaf_clause(),
     ) {
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
 
         let result1 = gen.generate(&clause1);
         let result2 = gen.generate(&clause2);
@@ -691,7 +691,7 @@ proptest! {
             value,
         };
 
-        let generator = PostgresWhereGenerator::new();
+        let generator = PostgresWhereGenerator::new(PostgresDialect);
         if let Ok((sql, params)) = generator.generate(&clause) {
             // Should not be empty
             prop_assert!(!sql.is_empty(), "Generated SQL should not be empty");
@@ -717,7 +717,7 @@ proptest! {
             value,
         };
 
-        let generator = PostgresWhereGenerator::new();
+        let generator = PostgresWhereGenerator::new(PostgresDialect);
         // Should either succeed or fail safely, never panic
         let _result = generator.generate(&clause);
     }
@@ -735,8 +735,8 @@ proptest! {
             value,
         };
 
-        let gen1 = PostgresWhereGenerator::new();
-        let gen2 = PostgresWhereGenerator::new();
+        let gen1 = PostgresWhereGenerator::new(PostgresDialect);
+        let gen2 = PostgresWhereGenerator::new(PostgresDialect);
 
         let result1 = gen1.generate(&clause);
         let result2 = gen2.generate(&clause);

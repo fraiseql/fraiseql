@@ -24,6 +24,7 @@
 use fraiseql_db::{
     postgres::PostgresWhereGenerator,
     where_clause::{WhereClause, WhereOperator},
+    PostgresDialect,
 };
 use serde_json::json;
 
@@ -32,7 +33,7 @@ use serde_json::json;
 // ---------------------------------------------------------------------------
 
 const fn pg_gen() -> PostgresWhereGenerator {
-    PostgresWhereGenerator::new()
+    PostgresWhereGenerator::new(PostgresDialect)
 }
 
 fn field(field_name: &str, op: WhereOperator, val: serde_json::Value) -> WhereClause {
@@ -200,10 +201,10 @@ fn pg_contains_param_count() {
 #[cfg(feature = "sqlite")]
 mod parity {
     use super::*;
-    use fraiseql_db::sqlite::SqliteWhereGenerator;
+    use fraiseql_db::{SqliteDialect, sqlite::SqliteWhereGenerator};
 
-    fn sq_gen() -> SqliteWhereGenerator {
-        SqliteWhereGenerator::new()
+    const fn sq_gen() -> SqliteWhereGenerator {
+        SqliteWhereGenerator::new(SqliteDialect)
     }
 
     #[test]

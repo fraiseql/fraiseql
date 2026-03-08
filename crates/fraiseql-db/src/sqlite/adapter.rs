@@ -19,6 +19,7 @@ use sqlx::{
 };
 
 use super::where_generator::SqliteWhereGenerator;
+use crate::dialect::SqliteDialect;
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
@@ -226,17 +227,16 @@ impl DatabaseAdapter for SqliteAdapter {
             quote_sqlite_identifier(view)
         );
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
-            let generator = super::where_generator::SqliteWhereGenerator::new();
+        let params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
+            let generator = super::where_generator::SqliteWhereGenerator::new(SqliteDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT if present (SQLite uses LIMIT before OFFSET)
         if let Some(lim) = limit {
@@ -257,17 +257,16 @@ impl DatabaseAdapter for SqliteAdapter {
         // Build base query - SQLite uses double quotes for identifiers
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
 
-        // Collect WHERE clause params (if any)
-        let mut params: Vec<serde_json::Value> = Vec::new();
-
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
-            let generator = SqliteWhereGenerator::new();
+        let mut params: Vec<serde_json::Value> = if let Some(clause) = where_clause {
+            let generator = SqliteWhereGenerator::new(SqliteDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-            params = where_params;
-        }
+            where_params
+        } else {
+            Vec::new()
+        };
 
         // Add LIMIT and OFFSET
         // Note: SQLite requires LIMIT when using OFFSET, so we use LIMIT -1 for "unlimited"
@@ -411,6 +410,7 @@ impl DatabaseAdapter for SqliteAdapter {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use serde_json::json;
     use sqlx::Executor as _;
@@ -832,7 +832,7 @@ mod tests {
             .await
             .expect("explain_query should succeed");
         // EXPLAIN QUERY PLAN returns at least one step
-        assert!(result.as_array().map_or(false, |a| !a.is_empty()));
+        assert!(result.as_array().is_some_and(|a| !a.is_empty()));
     }
 
     // ── Projection ────────────────────────────────────────────────────────────

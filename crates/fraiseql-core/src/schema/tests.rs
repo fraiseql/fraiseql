@@ -864,8 +864,10 @@ fn test_python_generated_vector_schema_compat() {
 
 #[test]
 fn test_compiled_schema_has_version_after_stamp() {
-    let mut schema = CompiledSchema::default();
-    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
+    let schema = CompiledSchema {
+        schema_format_version: Some(CURRENT_SCHEMA_FORMAT_VERSION),
+        ..Default::default()
+    };
     let json = serde_json::to_string(&schema).unwrap();
     let reloaded: CompiledSchema = serde_json::from_str(&json).unwrap();
     assert_eq!(reloaded.schema_format_version, Some(CURRENT_SCHEMA_FORMAT_VERSION));

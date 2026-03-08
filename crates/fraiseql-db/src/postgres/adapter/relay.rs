@@ -13,6 +13,7 @@ use crate::{
 };
 
 use super::{escape_jsonb_key, PostgresAdapter};
+use crate::dialect::PostgresDialect;
 use crate::postgres::where_generator::PostgresWhereGenerator;
 
 #[async_trait]
@@ -98,7 +99,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         // cursor_param_count so parameter indices don't collide).
         let mut user_where_json_params: Vec<serde_json::Value> = Vec::new();
         let page_user_where_sql: Option<String> = if let Some(clause) = where_clause {
-            let generator = PostgresWhereGenerator::new();
+            let generator = PostgresWhereGenerator::new(PostgresDialect);
             let (sql, params) =
                 generator.generate_with_param_offset(clause, cursor_param_count)?;
             user_where_json_params = params;
@@ -203,7 +204,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         // extra pool acquisition.
         let total_count = if include_total_count {
             let (count_sql, count_typed_params) = if let Some(clause) = where_clause {
-                let generator = PostgresWhereGenerator::new();
+                let generator = PostgresWhereGenerator::new(PostgresDialect);
                 let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
                 let sql = format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({where_sql})");
                 let typed: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();

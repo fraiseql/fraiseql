@@ -458,13 +458,13 @@ mod relay_aggregation {
 
 mod generated_sql {
     use insta::assert_snapshot;
-    use fraiseql_core::db::{WhereClause, WhereOperator, postgres::PostgresWhereGenerator};
+    use fraiseql_core::db::{WhereClause, WhereOperator, postgres::PostgresWhereGenerator, PostgresDialect};
     #[allow(unused_imports)]
     use fraiseql_core::db::where_sql_generator::WhereSqlGenerator;
     use serde_json::json;
 
     const fn pg() -> PostgresWhereGenerator {
-        PostgresWhereGenerator::new()
+        PostgresWhereGenerator::new(PostgresDialect)
     }
 
     // -----------------------------------------------------------------------
@@ -732,39 +732,39 @@ mod generated_sql {
     #[cfg(feature = "mysql")]
     #[test]
     fn generated_mysql_eq() {
-        use fraiseql_core::db::mysql::MySqlWhereGenerator;
+        use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
         let clause = WhereClause::Field {
             path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
             value: json!("alice@example.com"),
         };
-        let (sql, _params) = MySqlWhereGenerator.generate(&clause).unwrap();
+        let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
     }
 
     #[cfg(feature = "mysql")]
     #[test]
     fn generated_mysql_like() {
-        use fraiseql_core::db::mysql::MySqlWhereGenerator;
+        use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
         let clause = WhereClause::Field {
             path: vec!["name".to_string()],
             operator: WhereOperator::Like,
             value: json!("%alice%"),
         };
-        let (sql, _params) = MySqlWhereGenerator.generate(&clause).unwrap();
+        let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
     }
 
     #[cfg(feature = "mysql")]
     #[test]
     fn generated_mysql_in_operator() {
-        use fraiseql_core::db::mysql::MySqlWhereGenerator;
+        use fraiseql_core::db::{MySqlDialect, mysql::MySqlWhereGenerator};
         let clause = WhereClause::Field {
             path: vec!["status".to_string()],
             operator: WhereOperator::In,
             value: json!(["active", "pending"]),
         };
-        let (sql, _params) = MySqlWhereGenerator.generate(&clause).unwrap();
+        let (sql, _params) = MySqlWhereGenerator::new(MySqlDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
     }
 
@@ -775,39 +775,39 @@ mod generated_sql {
     #[cfg(feature = "sqlite")]
     #[test]
     fn generated_sqlite_eq() {
-        use fraiseql_core::db::sqlite::SqliteWhereGenerator;
+        use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
         let clause = WhereClause::Field {
             path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
             value: json!("alice@example.com"),
         };
-        let (sql, _params) = SqliteWhereGenerator.generate(&clause).unwrap();
+        let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
     }
 
     #[cfg(feature = "sqlite")]
     #[test]
     fn generated_sqlite_like() {
-        use fraiseql_core::db::sqlite::SqliteWhereGenerator;
+        use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
         let clause = WhereClause::Field {
             path: vec!["name".to_string()],
             operator: WhereOperator::Like,
             value: json!("%alice%"),
         };
-        let (sql, _params) = SqliteWhereGenerator.generate(&clause).unwrap();
+        let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
     }
 
     #[cfg(feature = "sqlite")]
     #[test]
     fn generated_sqlite_gt() {
-        use fraiseql_core::db::sqlite::SqliteWhereGenerator;
+        use fraiseql_core::db::{SqliteDialect, sqlite::SqliteWhereGenerator};
         let clause = WhereClause::Field {
             path: vec!["score".to_string()],
             operator: WhereOperator::Gt,
             value: json!(50),
         };
-        let (sql, _params) = SqliteWhereGenerator.generate(&clause).unwrap();
+        let (sql, _params) = SqliteWhereGenerator::new(SqliteDialect).generate(&clause).unwrap();
         assert_snapshot!(sql);
     }
 
@@ -823,7 +823,7 @@ mod generated_sql {
             operator: WhereOperator::Eq,
             value: json!("Alice"),
         };
-        let gen = PostgresWhereGenerator::new();
+        let gen = PostgresWhereGenerator::new(PostgresDialect);
         let (sql, _params) = gen.generate_with_param_offset(&clause, 2).unwrap();
         assert_snapshot!(sql);
     }

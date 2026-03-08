@@ -12,13 +12,13 @@
 //! [`docs/testing.md`]: ../../../../docs/testing.md
 
 use fraiseql_core::db::{
-    postgres::PostgresWhereGenerator,
+    PostgresDialect, postgres::PostgresWhereGenerator,
     where_clause::{WhereClause, WhereOperator},
 };
 use serde_json::json;
 
 const fn pg() -> PostgresWhereGenerator {
-    PostgresWhereGenerator::new()
+    PostgresWhereGenerator::new(PostgresDialect)
 }
 
 // ============================================================================
