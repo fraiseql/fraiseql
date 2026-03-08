@@ -172,7 +172,7 @@ pub async fn auth_callback(
 ) -> Response {
     // ── Surface OIDC provider errors immediately ──────────────────────────
     if let Some(err) = q.error {
-        let desc = q.error_description.unwrap_or_default();
+        let desc = q.error_description.as_deref().unwrap_or("(no description provided)");
         // Log the full provider response for debugging, but return only a
         // fixed allowlisted message to the client to avoid leaking internal
         // provider details (tenant info, stack traces) or enabling injection.
@@ -574,6 +574,23 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["error"].as_str().unwrap_or(""), "Authorization failed");
+    }
+
+    #[tokio::test]
+    async fn test_auth_callback_oidc_error_no_description_uses_fallback() {
+        let app = auth_router();
+        let req = Request::builder()
+            .uri("/auth/callback?error=access_denied")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        // The tracing log (not the HTTP response) includes the desc; the HTTP
+        // response is the sanitised allowlist message. We verify the handler does
+        // not panic and returns the mapped client message.
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"].as_str().unwrap_or(""), "Access was denied");
     }
 
     /// Full HTTP-level PKCE round-trip: `/auth/start` → extract state → `/auth/callback`.

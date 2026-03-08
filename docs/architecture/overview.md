@@ -1,8 +1,8 @@
 # FraiseQL v2 Architecture Principles
 
-**Last Updated**: February 5, 2026
+**Last Updated**: March 8, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.0.0-alpha.1 Production-Ready
+**Status**: v2.1.0 Production-Ready
 
 ---
 
@@ -646,10 +646,10 @@ use fraiseql_observers::ObserverRuntime;
 ### Potential Extensions
 
 - Distributed tracing (OpenTelemetry integration for observability)
-- APQ over Redis backend (currently in-memory only)
+- APQ over Redis backend (landed in v2.1.0; in-memory and Redis backends available)
 - Schema registry integration (Confluent, AWS Glue)
 - More database backends (CockroachDB, YugabyteDB)
-- Configuration management enhancements (v2.1 planning: hierarchical config, observability, finalization)
+- Configuration management enhancements (hierarchical config, expanded observability)
 
 ### NOT Planned
 
@@ -709,8 +709,8 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Production-ready (v2.0.0-alpha.1)
-**Last Updated**: February 5, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
+**Architecture Status**: Production-ready (v2.1.0)
+**Last Updated**: March 8, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
 **Lines of Code**: ~180,000 across workspace
 **Test Coverage**: 2,400+ tests (unit, integration, E2E, chaos engineering)
 **Unsafe Code**: Zero (forbidden at compile time)
