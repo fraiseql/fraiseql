@@ -155,6 +155,7 @@ impl SchemaConverter {
             schema_sdl: None,                                        // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(), // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
+            ..Default::default()
         };
 
         // Populate custom scalars from intermediate schema

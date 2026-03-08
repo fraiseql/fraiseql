@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit
 
 # Default target
 help:
@@ -342,9 +342,17 @@ coverage:
 	cargo llvm-cov --all-features --workspace --html
 	@echo "Coverage report generated in target/llvm-cov/html/index.html"
 
-# Security audit
+# Security audit (cargo-audit only)
 audit:
 	cargo audit
+
+# Full security checks: advisory scan + supply-chain policy gate
+# Run before opening a PR to catch new advisories early.
+.PHONY: security
+security:
+	cargo deny check
+	cargo audit
+	@echo "Security checks passed"
 
 # Update dependencies
 update:

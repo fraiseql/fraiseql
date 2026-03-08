@@ -47,7 +47,7 @@ pub use kms::{
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryMetrics, QueryValidator, QueryValidatorConfig};
-pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy};
+pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause};
 pub use security_context::SecurityContext;
 pub use tls_enforcer::{TlsConfig, TlsConnection, TlsEnforcer, TlsVersion};
 pub use validation_audit::{

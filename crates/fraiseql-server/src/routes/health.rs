@@ -10,11 +10,28 @@ use crate::routes::graphql::AppState;
 /// Health check response.
 #[derive(Debug, Serialize)]
 pub struct HealthResponse {
-    /// Server status.
+    /// Overall server status: `"healthy"`, `"degraded"`, or `"unhealthy"`.
+    ///
+    /// - `"healthy"` — database and all enabled subsystems are reachable.
+    /// - `"degraded"` — database is healthy but an optional subsystem is failing.
+    ///   Returns HTTP 200 so load balancers keep the pod in rotation; alert on the field value.
+    /// - `"unhealthy"` — database is unreachable. Returns HTTP 503.
     pub status: String,
 
     /// Database status.
     pub database: DatabaseStatus,
+
+    /// Observer runtime health (present when the `observers` feature is compiled in).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observers: Option<ObserverHealth>,
+
+    /// Cache / Redis health (present when a Redis cache backend is configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<CacheHealth>,
+
+    /// Secrets backend health (present when Vault or another secrets backend is configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secrets: Option<SecretsHealth>,
 
     /// Server version.
     pub version: String,
@@ -26,6 +43,47 @@ pub struct HealthResponse {
     /// a schema mismatch (e.g. partial rollout or stale deployment).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema_hash: Option<String>,
+}
+
+/// Observer runtime health snapshot.
+#[derive(Debug, Serialize)]
+pub struct ObserverHealth {
+    /// Whether the observer runtime is currently running.
+    pub running: bool,
+    /// Approximate number of events pending in the internal queue.
+    pub pending_events: usize,
+    /// Last error message from the observer runtime, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+/// Cache subsystem health.
+#[derive(Debug, Serialize)]
+pub struct CacheHealth {
+    /// Whether the cache backend is reachable (Redis ping succeeded, or always
+    /// `true` for the in-memory backend).
+    pub connected: bool,
+    /// Cache backend type: `"redis"` or `"in-memory"`.
+    pub backend: String,
+}
+
+/// Secrets backend health.
+#[derive(Debug, Serialize)]
+pub struct SecretsHealth {
+    /// Whether the secrets backend is reachable and the token is valid.
+    pub connected: bool,
+    /// Backend type: `"vault"`, `"env"`, `"aws-secrets"`, etc.
+    pub backend: String,
+}
+
+/// Readiness response (subset of HealthResponse).
+#[derive(Debug, Serialize)]
+pub struct ReadinessResponse {
+    /// `"ready"` or `"not_ready"`.
+    pub status: String,
+    /// Human-readable reason when `status = "not_ready"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Database status.
@@ -104,6 +162,9 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     let response = HealthResponse {
         status: status.to_string(),
         database,
+        observers: None, // Populated when observer health probe is wired into AppState
+        cache: None,     // Populated when Redis cache probe is wired into AppState
+        secrets: None,   // Populated when Vault probe is wired into AppState
         version: env!("CARGO_PKG_VERSION").to_string(),
         schema_hash,
     };
@@ -115,6 +176,37 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     };
 
     (status_code, Json(response))
+}
+
+/// Readiness probe handler.
+///
+/// Returns `200 OK` when the server can serve traffic (database reachable),
+/// or `503 Service Unavailable` when it cannot.
+///
+/// Kubernetes usage:
+/// - `livenessProbe` → `GET /health` (always 200 while process is alive)
+/// - `readinessProbe` → `GET /readiness` (503 while not ready to serve traffic)
+pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+) -> impl IntoResponse {
+    debug!("Readiness check requested");
+
+    let db_healthy = state.executor.adapter().health_check().await.is_ok();
+
+    if db_healthy {
+        (
+            StatusCode::OK,
+            Json(ReadinessResponse { status: "ready".to_string(), reason: None }),
+        )
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ReadinessResponse {
+                status:  "not_ready".to_string(),
+                reason:  Some("Database connection unavailable".to_string()),
+            }),
+        )
+    }
 }
 
 /// Federation health check handler.
@@ -171,6 +263,9 @@ mod tests {
                 active_connections: Some(2),
                 idle_connections:   Some(8),
             },
+            observers:   None,
+            cache:       None,
+            secrets:     None,
             version:     "2.0.0-a1".to_string(),
             schema_hash: Some("abc123def456abc1".to_string()),
         };

@@ -40,8 +40,13 @@ pub struct QueryMatcher {
 
 impl QueryMatcher {
     /// Create new query matcher.
+    ///
+    /// Indexes are (re)built at construction time so that `match_query`
+    /// works correctly regardless of whether `build_indexes()` was called
+    /// on the schema before passing it here.
     #[must_use]
-    pub const fn new(schema: CompiledSchema) -> Self {
+    pub fn new(mut schema: CompiledSchema) -> Self {
+        schema.build_indexes();
         Self { schema }
     }
 

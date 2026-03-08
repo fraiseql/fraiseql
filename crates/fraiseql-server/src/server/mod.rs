@@ -32,7 +32,7 @@ use crate::{
     },
     routes::{
         PlaygroundState, SubscriptionState, api,
-        graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
+        graphql::AppState, graphql_get_handler, graphql_handler, health_handler, readiness_handler,
         introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
         subscription_handler,
     },

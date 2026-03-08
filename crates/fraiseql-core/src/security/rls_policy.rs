@@ -70,6 +70,57 @@ use crate::{
     utils::clock::{Clock, SystemClock},
 };
 
+/// A WHERE clause that has been evaluated by an RLS policy.
+///
+/// This type is a compile-time guarantee that the WHERE clause was produced
+/// by [`RLSPolicy::evaluate()`] rather than arbitrary user code.
+///
+/// `RlsWhereClause` can only be constructed within `fraiseql-core` via
+/// [`RlsWhereClause::new()`], ensuring all instances originate from RLS evaluation.
+///
+/// # Invariant
+///
+/// Any value of this type was produced by an [`RLSPolicy`] implementation
+/// invoked on a [`SecurityContext`], not by arbitrary caller code. This makes
+/// it impossible to accidentally bypass RLS when composing cache keys or
+/// building filtered queries.
+///
+/// # Example
+///
+/// ```no_run
+/// // The executor receives an RlsWhereClause after evaluating the policy.
+/// // It cannot construct one directly — that would be a compile error.
+/// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+/// let rls = DefaultRLSPolicy::new();
+/// let rls_clause = rls.evaluate(&context, "Post").unwrap();
+/// // rls_clause is Option<RlsWhereClause> — proven to have gone through RLS
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct RlsWhereClause {
+    inner: WhereClause,
+}
+
+impl RlsWhereClause {
+    /// Construct from an evaluated WHERE clause.
+    ///
+    /// `pub(crate)` — only RLS policy implementations within `fraiseql-core`
+    /// may construct this type. External callers obtain instances through
+    /// [`RLSPolicy::evaluate()`].
+    pub(crate) const fn new(inner: WhereClause) -> Self {
+        Self { inner }
+    }
+
+    /// Borrow the underlying WHERE clause.
+    pub const fn as_where_clause(&self) -> &WhereClause {
+        &self.inner
+    }
+
+    /// Consume this wrapper and return the underlying WHERE clause.
+    pub fn into_where_clause(self) -> WhereClause {
+        self.inner
+    }
+}
+
 /// Cache entry for RLS policy decisions with TTL support
 #[derive(Debug, Clone)]
 struct CacheEntry {
@@ -101,7 +152,7 @@ pub trait RLSPolicy: Send + Sync {
     ///
     /// # Returns
     ///
-    /// - `Ok(Some(clause))`: RLS filter to apply to query
+    /// - `Ok(Some(clause))`: RLS filter to apply to query (wrapped in [`RlsWhereClause`])
     /// - `Ok(None)`: No RLS filter (full access)
     /// - `Err(e)`: Policy evaluation error (access denied)
     ///
@@ -112,10 +163,14 @@ pub trait RLSPolicy: Send + Sync {
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
     /// let rls = DefaultRLSPolicy::new();
-    /// // filter is Some(WhereClause::Field { path: ["author_id"], operator: Eq, value: "u1" })
+    /// // filter is Some(RlsWhereClause) wrapping the evaluated WhereClause
     /// let filter = rls.evaluate(&context, "Post").unwrap();
     /// ```
-    fn evaluate(&self, context: &SecurityContext, type_name: &str) -> Result<Option<WhereClause>>;
+    fn evaluate(
+        &self,
+        context: &SecurityContext,
+        type_name: &str,
+    ) -> Result<Option<RlsWhereClause>>;
 
     /// Optional: Cache RLS decisions for performance.
     ///
@@ -185,7 +240,11 @@ impl Default for DefaultRLSPolicy {
 }
 
 impl RLSPolicy for DefaultRLSPolicy {
-    fn evaluate(&self, context: &SecurityContext, _type_name: &str) -> Result<Option<WhereClause>> {
+    fn evaluate(
+        &self,
+        context: &SecurityContext,
+        _type_name: &str,
+    ) -> Result<Option<RlsWhereClause>> {
         // Admins bypass RLS
         if context.is_admin() {
             return Ok(None);
@@ -211,12 +270,13 @@ impl RLSPolicy for DefaultRLSPolicy {
             value:    serde_json::json!(context.user_id.clone()),
         });
 
-        // Combine all filters with AND
-        match filters.len() {
-            0 => Ok(None),
-            1 => Ok(Some(filters.into_iter().next().expect("len matched == 1"))),
-            _ => Ok(Some(WhereClause::And(filters))),
-        }
+        // Combine all filters with AND and wrap in RlsWhereClause
+        let clause = match filters.len() {
+            0 => return Ok(None),
+            1 => filters.into_iter().next().expect("len matched == 1"),
+            _ => WhereClause::And(filters),
+        };
+        Ok(Some(RlsWhereClause::new(clause)))
     }
 }
 
@@ -229,7 +289,7 @@ impl RLSPolicy for NoRLSPolicy {
         &self,
         _context: &SecurityContext,
         _type_name: &str,
-    ) -> Result<Option<WhereClause>> {
+    ) -> Result<Option<RlsWhereClause>> {
         Ok(None)
     }
 }
@@ -307,7 +367,11 @@ pub struct RLSRule {
 }
 
 impl RLSPolicy for CompiledRLSPolicy {
-    fn evaluate(&self, context: &SecurityContext, type_name: &str) -> Result<Option<WhereClause>> {
+    fn evaluate(
+        &self,
+        context: &SecurityContext,
+        type_name: &str,
+    ) -> Result<Option<RlsWhereClause>> {
         // Admins bypass all RLS (never cache admin access)
         if context.is_admin() {
             return Ok(None);
@@ -328,21 +392,23 @@ impl RLSPolicy for CompiledRLSPolicy {
                 None
             };
 
-            // Try to retrieve from cache
+            // Try to retrieve from cache (CacheEntry stores raw WhereClause internally)
             if let Some(ref key) = cache_key {
                 let cache = self.cache.read();
                 if let Some(entry) = cache.get(key) {
                     if self.clock.now_secs() < entry.expires_at {
-                        return Ok(entry.result.clone());
+                        // Re-wrap: the cached clause originated from RLS evaluation
+                        return Ok(entry.result.clone().map(RlsWhereClause::new));
                     }
                 }
                 drop(cache);
             }
 
             // Evaluate the RLS expression and generate WHERE clause
-            let result = evaluate_rls_expression(&rule.expression, context)?;
+            let result: Option<WhereClause> =
+                evaluate_rls_expression(&rule.expression, context)?;
 
-            // Cache the result if rule is cacheable
+            // Cache the raw WhereClause for reuse
             if let Some(key) = cache_key {
                 if let Some(ttl_secs) = rule.cache_ttl_seconds {
                     let expires_at = self.clock.now_secs() + ttl_secs;
@@ -355,7 +421,7 @@ impl RLSPolicy for CompiledRLSPolicy {
                 }
             }
 
-            Ok(result)
+            Ok(result.map(RlsWhereClause::new))
         } else {
             Ok(None)
         }

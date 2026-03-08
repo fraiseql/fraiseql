@@ -184,6 +184,7 @@ fn create_compiled_schema_with_rbac() -> CompiledSchema {
         schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
+        ..CompiledSchema::default()
     }
 }
 

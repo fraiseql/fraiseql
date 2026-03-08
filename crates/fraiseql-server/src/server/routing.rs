@@ -162,6 +162,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Build base routes (always available without auth)
         let mut app = Router::new()
             .route(&self.config.health_path, get(health_handler::<A>))
+            .route(&self.config.readiness_path, get(readiness_handler::<A>))
             .with_state(state.clone())
             .merge(graphql_router);
 

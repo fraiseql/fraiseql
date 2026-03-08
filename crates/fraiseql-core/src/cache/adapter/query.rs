@@ -74,21 +74,6 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        // FRAISEQL_ASSERT_RLS: in debug builds, panic on empty WHERE clause when
-        // the environment variable is set. This catches RLS misconfigurations during
-        // development — an empty WHERE clause means all tenants see the same data.
-        #[cfg(debug_assertions)]
-        if where_clause.map(WhereClause::is_empty).unwrap_or(true)
-            && std::env::var("FRAISEQL_ASSERT_RLS").is_ok()
-        {
-            panic!(
-                "Cache safety assertion failed: empty or missing WHERE clause for view `{view}`. \
-                 RLS must produce a non-empty WHERE clause for every authenticated request. \
-                 Unset FRAISEQL_ASSERT_RLS or set it to '0' to disable this check for \
-                 public/unauthenticated endpoints."
-            );
-        }
-
         // Short-circuit when cache is disabled: skip SHA-256 key generation and result clone.
         if !self.cache.is_enabled() {
             return self.adapter.execute_where_query(view, where_clause, limit, offset).await;

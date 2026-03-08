@@ -157,6 +157,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
         schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
+        ..CompiledSchema::default()
     }
 }
 

@@ -38,6 +38,18 @@ pub struct RateLimitingSecurityConfig {
     /// without a trusted proxy allows clients to spoof their IP address.
     #[serde(default)]
     pub trust_proxy_headers: bool,
+
+    /// CIDR ranges trusted as proxy IPs (e.g. `["10.0.0.0/8", "172.16.0.0/12"]`).
+    ///
+    /// When set and `trust_proxy_headers = true`, X-Forwarded-For is only honoured
+    /// when the direct connection IP falls within one of these CIDR ranges.
+    /// Requests arriving from outside these ranges use the connection IP directly,
+    /// preventing clients from spoofing their address by setting X-Forwarded-For.
+    ///
+    /// When `None` and `trust_proxy_headers = true`, all proxy IPs are trusted
+    /// (less secure — a startup warning is emitted).
+    #[serde(default)]
+    pub trusted_proxy_cidrs: Option<Vec<String>>,
 }
 
 /// Rate limiting configuration (token-bucket algorithm).
@@ -68,6 +80,13 @@ pub struct RateLimitConfig {
     ///
     /// Must only be enabled when behind a trusted reverse proxy.
     pub trust_proxy_headers: bool,
+
+    /// Parsed CIDR ranges trusted as proxy IPs.
+    ///
+    /// When non-empty, X-Forwarded-For is only trusted if the direct connection IP
+    /// falls within one of these ranges.  An empty `Vec` with `trust_proxy_headers = true`
+    /// means all direct IPs are treated as trusted proxies (less secure).
+    pub trusted_proxy_cidrs: Vec<ipnet::IpNet>,
 }
 
 impl Default for RateLimitConfig {
@@ -79,6 +98,7 @@ impl Default for RateLimitConfig {
             burst_size:            500,  // Allow bursts up to 500 requests
             cleanup_interval_secs: 300,  // Clean up every 5 minutes
             trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         }
     }
 }
@@ -94,6 +114,20 @@ impl RateLimitConfig {
     /// (abuse is traceable) and include service accounts with higher call rates.
     /// Operators can override with `requests_per_second_per_user` in `fraiseql.toml`.
     pub fn from_security_config(sec: &RateLimitingSecurityConfig) -> Self {
+        let trusted_proxy_cidrs = sec
+            .trusted_proxy_cidrs
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .filter_map(|s| {
+                s.parse::<ipnet::IpNet>()
+                    .map_err(|e| {
+                        tracing::warn!(cidr = %s, error = %e, "Invalid trusted_proxy_cidr — skipping");
+                    })
+                    .ok()
+            })
+            .collect();
+
         Self {
             enabled:               sec.enabled,
             rps_per_ip:            sec.requests_per_second,
@@ -103,6 +137,7 @@ impl RateLimitConfig {
             burst_size:            sec.burst_size,
             cleanup_interval_secs: 300,
             trust_proxy_headers:   sec.trust_proxy_headers,
+            trusted_proxy_cidrs,
         }
     }
 }

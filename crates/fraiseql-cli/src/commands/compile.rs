@@ -5,7 +5,7 @@
 use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::schema::{CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION};
 use tracing::{info, warn};
 
 use crate::{
@@ -215,6 +215,9 @@ pub async fn compile_to_schema(
     // 5. Optimize schema and generate SQL hints (mutates schema in place, report for display)
     info!("Analyzing schema for optimization opportunities...");
     let report = SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
+
+    // 5a. Stamp schema format version for runtime compatibility checks.
+    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
 
     // 5b. Optional: Validate indexed columns against database
     if let Some(db_url) = opts.database {
@@ -541,6 +544,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         // Validation is done inside SchemaConverter::convert, not exposed separately
@@ -591,6 +595,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         // Note: Validation is private to SchemaConverter

@@ -58,15 +58,14 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
     assert!(user_result.is_some(), "Non-admin users should have RLS filter");
 
     // Verify filter is a WHERE clause on author_id == user_id
-    if let Some(WhereClause::Field {
-        path,
-        operator,
-        value,
-    }) = user_result
-    {
-        assert_eq!(path, vec!["author_id".to_string()]);
-        assert_eq!(operator, fraiseql_core::db::WhereOperator::Eq);
-        assert_eq!(value, serde_json::json!("user1"));
+    if let Some(rls) = user_result {
+        if let WhereClause::Field { path, operator, value } = rls.into_where_clause() {
+            assert_eq!(path, vec!["author_id".to_string()]);
+            assert_eq!(operator, fraiseql_core::db::WhereOperator::Eq);
+            assert_eq!(value, serde_json::json!("user1"));
+        } else {
+            panic!("Expected Field WHERE clause for author_id");
+        }
     } else {
         panic!("Expected WHERE clause for author_id field");
     }
@@ -96,10 +95,14 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
     assert!(result.is_some(), "Multi-tenant context should have RLS filter");
 
     // Result should be AND of both tenant_id and author_id filters
-    if let Some(WhereClause::And(clauses)) = result {
-        assert_eq!(clauses.len(), 2, "Should have 2 filters: tenant_id AND author_id");
+    if let Some(rls) = result {
+        if let WhereClause::And(clauses) = rls.into_where_clause() {
+            assert_eq!(clauses.len(), 2, "Should have 2 filters: tenant_id AND author_id");
+        } else {
+            panic!("Expected AND clause for tenant isolation + author filter");
+        }
     } else {
-        panic!("Expected AND clause for tenant isolation + author filter");
+        panic!("Expected RLS filter for multi-tenant context");
     }
 }
 
@@ -231,7 +234,7 @@ fn test_rls_policy_produces_correct_where_clauses() {
     assert!(result.is_some(), "Non-admin should have WHERE filter");
 
     // Verify structure
-    match result.unwrap() {
+    match result.unwrap().into_where_clause() {
         WhereClause::Field {
             path,
             operator,
@@ -270,7 +273,7 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
     assert!(result.is_some(), "Multi-tenant user should have WHERE filter");
 
     // Should be AND of tenant_id AND author_id
-    match result.unwrap() {
+    match result.unwrap().into_where_clause() {
         WhereClause::And(clauses) => {
             assert_eq!(clauses.len(), 2, "Should have 2 filters: tenant_id AND author_id");
 

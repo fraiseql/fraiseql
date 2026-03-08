@@ -167,6 +167,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_graceful_shutdown(shutdown)
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
+
+            let shutdown_timeout = std::time::Duration::from_secs(self.config.shutdown_timeout_secs);
+            info!(
+                timeout_secs = self.config.shutdown_timeout_secs,
+                "HTTP server stopped, draining remaining work"
+            );
+
+            let drain = tokio::time::timeout(shutdown_timeout, async {
+                #[cfg(feature = "observers")]
+                if let Some(ref runtime) = self.observer_runtime {
+                    let mut guard = runtime.write().await;
+                    match guard.stop().await {
+                        Ok(()) => info!("Observer runtime stopped cleanly"),
+                        Err(e) => warn!("Observer runtime shutdown error: {e}"),
+                    }
+                }
+            })
+            .await;
+
+            match drain {
+                Ok(()) => info!("Graceful shutdown complete"),
+                Err(_) => warn!(
+                    timeout_secs = self.config.shutdown_timeout_secs,
+                    "Shutdown drain timed out; forcing exit"
+                ),
+            }
         }
 
         Ok(())

@@ -2,7 +2,7 @@
 
 **Source files**:
 - `crates/fraiseql-core/src/cache/adapter/` — `CachedDatabaseAdapter`, the main entry point (split into `mod.rs`, `query.rs`, `mutation.rs`, `tests.rs`)
-- `crates/fraiseql-core/src/cache/result.rs` (~1,177 lines) — `QueryResultCache` (64-shard LRU) and `CachedResult`
+- `crates/fraiseql-core/src/cache/result.rs` (~1,177 lines) — `QueryResultCache` (single-Mutex LRU) and `CachedResult`
 - `crates/fraiseql-core/src/cache/key.rs` (~632 lines) — cache key construction and security model
 - `crates/fraiseql-core/src/cache/cascade_invalidator.rs` — view dependency graph and cascade invalidation
 - Supporting: `invalidation_api.rs`, `fact_table_cache.rs`, `relay_cache.rs`, `config.rs`
@@ -23,30 +23,10 @@ results in an in-process LRU cache. The design has three critical properties:
    ensuring that two users with different RLS policies never share cached data.
 2. **View-based invalidation** — invalidation is coarse-grained (per-view, not per-row),
    which is fast but causes over-invalidation on write-heavy workloads.
-3. **64-shard architecture** — a single `Arc<Mutex<LruCache>>` is a contention bottleneck
-   under high concurrency; sharding eliminates the hot lock.
-
----
-
-## Sharding Scheme
-
-```
-Cache key (string)
-      ↓ SHA-256
-[byte_0, byte_1, ..., byte_31]
-      ↓ byte_0 % 64
-Shard index (0..63)
-      ↓
-LruCache<String, CachedResult>  ← each shard has its own Mutex
-```
-
-**Why 64 shards?** Powers of 2 are standard for shard counts; 64 gives a good balance
-between contention reduction and memory overhead. Under 64 concurrent writers, the expected
-lock wait approaches zero.
-
-**Why first byte of SHA-256?** SHA-256 output is uniform — the first byte distributes
-evenly across 0–255, so `byte % 64` gives a near-uniform shard distribution regardless
-of query content.
+3. **Single-lock LRU** — `Arc<Mutex<LruCache>>` with `AtomicU64`/`AtomicUsize` counters
+   for metrics (no second lock in the hot path). If single-Mutex contention becomes
+   measurable under profiling, a sharded structure (e.g., 64 shards with `DashMap`) can
+   be introduced without changing the public API.
 
 ---
 
@@ -137,8 +117,8 @@ your view dependency graph conservatively.
 
 **Memory estimation**:
 ```
-64 shards × LRU capacity × average entry size
-Example: 64 × 1000 × 10KB = ~640MB
+LRU capacity × average entry size
+Example: 10,000 × 10KB = ~100MB
 ```
 
 **Metrics** exposed on `/metrics`:

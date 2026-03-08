@@ -353,6 +353,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -408,6 +409,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -463,6 +465,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -518,6 +521,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -573,6 +577,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();
@@ -638,6 +643,7 @@ mod tests {
             schema_sdl:            None,
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
+            ..Default::default()
         };
 
         let report = SchemaOptimizer::optimize(&mut schema).unwrap();

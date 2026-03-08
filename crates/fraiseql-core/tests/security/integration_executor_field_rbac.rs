@@ -150,6 +150,7 @@ fn create_executor_test_schema() -> CompiledSchema {
         schema_format_version: None,
         schema_sdl:     None,
         custom_scalars: Default::default(),
+        ..CompiledSchema::default()
     }
 }
 

@@ -7,6 +7,12 @@
 //! 4. Executes actions with retry logic
 //! 5. Handles failures via Dead Letter Queue
 
+mod dispatch;
+mod summary;
+
+pub(crate) use dispatch::ActionDispatcher;
+pub use summary::ExecutionSummary;
+
 use std::{sync::Arc, time::Duration};
 
 use tokio::time::sleep;
@@ -19,7 +25,6 @@ use crate::metrics::MetricsRegistry;
 use crate::{
     actions::{EmailAction, SlackAction, WebhookAction},
     actions_additional::{CacheAction, PushAction, SearchAction, SmsAction},
-    condition::ConditionParser,
     config::{ActionConfig, BackoffStrategy, FailurePolicy, RetryConfig},
     error::{ObserverError, Result},
     event::EntityEvent,
@@ -27,253 +32,14 @@ use crate::{
     traits::{ActionResult, DeadLetterQueue},
 };
 
-/// Internal trait for dispatching actions to their concrete implementations.
-///
-/// This seam exists solely to enable unit-testing of retry logic and failure
-/// policies without making real network calls. Production code always uses
-/// `DefaultActionDispatcher`; tests inject `MockActionDispatcher`.
-pub(crate) trait ActionDispatcher: Send + Sync {
-    /// Dispatch a single action and return its result.
-    fn dispatch<'a>(
-        &'a self,
-        action: &'a ActionConfig,
-        event: &'a EntityEvent,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>;
-}
-
-/// Production action dispatcher that delegates to the concrete action structs.
-struct DefaultActionDispatcher {
-    /// Webhook action executor
-    webhook_action: Arc<WebhookAction>,
-    /// Slack action executor
-    slack_action:   Arc<SlackAction>,
-    /// Email action executor
-    email_action:   Arc<EmailAction>,
-    /// SMS action executor
-    sms_action:     Arc<SmsAction>,
-    /// Push notification action executor
-    push_action:    Arc<PushAction>,
-    /// Search index action executor
-    search_action:  Arc<SearchAction>,
-    /// Cache action executor
-    cache_action:   Arc<CacheAction>,
-}
-
-/// Resolve a URL from an explicit value or an environment variable.
-///
-/// Returns `Ok(url)` if `explicit` is set, or falls back to reading `env_var`.
-/// Returns `Err(ObserverError::InvalidActionConfig)` if neither is set or the
-/// env var is missing.
-fn resolve_url(
-    explicit: Option<&str>,
-    env_var: Option<&str>,
-    action_name: &str,
-) -> Result<String> {
-    if let Some(u) = explicit {
-        return Ok(u.to_owned());
-    }
-    if let Some(var_name) = env_var {
-        return std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
-            reason: format!("{action_name} URL env var {var_name} not found"),
-        });
-    }
-    Err(ObserverError::InvalidActionConfig {
-        reason: format!("{action_name} URL not provided"),
-    })
-}
-
-impl ActionDispatcher for DefaultActionDispatcher {
-    fn dispatch<'a>(
-        &'a self,
-        action: &'a ActionConfig,
-        event: &'a EntityEvent,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ActionResult>> + Send + 'a>>
-    {
-        Box::pin(async move {
-            debug!("Executing action: {} for event {}", action.action_type(), event.id);
-
-            match action {
-                ActionConfig::Webhook {
-                    url,
-                    url_env,
-                    headers,
-                    body_template,
-                } => {
-                    debug!("Webhook action: url={:?}, url_env={:?}", url, url_env);
-                    let webhook_url = resolve_url(url.as_deref(), url_env.as_deref(), "Webhook")?;
-
-                    match self
-                        .webhook_action
-                        .execute(&webhook_url, headers, body_template.as_deref(), event)
-                        .await
-                    {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "webhook".to_string(),
-                            success:     true,
-                            message:     format!("HTTP {}", response.status_code),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Slack {
-                    webhook_url,
-                    webhook_url_env,
-                    channel,
-                    message_template,
-                } => {
-                    let slack_url =
-                        resolve_url(webhook_url.as_deref(), webhook_url_env.as_deref(), "Slack")?;
-
-                    match self
-                        .slack_action
-                        .execute(
-                            &slack_url,
-                            channel.as_deref(),
-                            message_template.as_deref(),
-                            event,
-                        )
-                        .await
-                    {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "slack".to_string(),
-                            success:     true,
-                            message:     format!("HTTP {}", response.status_code),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Email {
-                    to,
-                    to_template: _,
-                    subject,
-                    subject_template: _,
-                    body_template,
-                    reply_to: _,
-                } => {
-                    let email_to = to.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                        reason: "Email 'to' not provided".to_string(),
-                    })?;
-
-                    let email_subject =
-                        subject.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Email 'subject' not provided".to_string(),
-                        })?;
-
-                    match self
-                        .email_action
-                        .execute(email_to, email_subject, body_template.as_deref(), event)
-                        .await
-                    {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "email".to_string(),
-                            success:     response.success,
-                            message:     response
-                                .message_id
-                                .unwrap_or_else(|| "queued".to_string()),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Sms {
-                    phone,
-                    phone_template: _,
-                    message_template,
-                } => {
-                    let sms_phone = phone.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                        reason: "SMS 'phone' not provided".to_string(),
-                    })?;
-
-                    match self
-                        .sms_action
-                        .execute(sms_phone.clone(), message_template.as_deref(), event)
-                    {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "sms".to_string(),
-                            success:     response.success,
-                            message:     response
-                                .message_id
-                                .unwrap_or_else(|| "sent".to_string()),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Push {
-                    device_token,
-                    title_template,
-                    body_template,
-                } => {
-                    let token =
-                        device_token.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Push 'device_token' not provided".to_string(),
-                        })?;
-
-                    let title =
-                        title_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Push 'title_template' not provided".to_string(),
-                        })?;
-
-                    let body =
-                        body_template.as_ref().ok_or(ObserverError::InvalidActionConfig {
-                            reason: "Push 'body_template' not provided".to_string(),
-                        })?;
-
-                    match self.push_action.execute(token.clone(), title.clone(), body.clone()) {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "push".to_string(),
-                            success:     response.success,
-                            message:     response
-                                .notification_id
-                                .unwrap_or_else(|| "sent".to_string()),
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Search { index, id_template } => {
-                    match self
-                        .search_action
-                        .execute(index.clone(), id_template.as_deref(), event)
-                    {
-                        Ok(response) => Ok(ActionResult {
-                            action_type: "search".to_string(),
-                            success:     response.success,
-                            message:     if response.indexed {
-                                "indexed".to_string()
-                            } else {
-                                "not_indexed".to_string()
-                            },
-                            duration_ms: response.duration_ms,
-                        }),
-                        Err(e) => Err(e),
-                    }
-                },
-                ActionConfig::Cache {
-                    key_pattern,
-                    action,
-                } => match self.cache_action.execute(key_pattern.clone(), action) {
-                    Ok(response) => Ok(ActionResult {
-                        action_type: "cache".to_string(),
-                        success:     response.success,
-                        message:     format!("affected: {}", response.keys_affected),
-                        duration_ms: response.duration_ms,
-                    }),
-                    Err(e) => Err(e),
-                },
-            }
-        })
-    }
-}
+use dispatch::DefaultActionDispatcher;
 
 /// Main observer executor engine
 pub struct ObserverExecutor {
     /// Event-to-observer matcher
     matcher:          Arc<EventMatcher>,
     /// Condition parser and evaluator
-    condition_parser: Arc<ConditionParser>,
+    condition_parser: Arc<crate::condition::ConditionParser>,
     /// Action dispatcher (production or mock)
     dispatcher:       Arc<dyn ActionDispatcher>,
     /// Dead letter queue for failed actions
@@ -310,7 +76,7 @@ impl ObserverExecutor {
         });
         Self {
             matcher: Arc::new(matcher),
-            condition_parser: Arc::new(ConditionParser::new()),
+            condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             dispatcher,
             dlq,
             cache_backend,
@@ -337,7 +103,7 @@ impl ObserverExecutor {
         });
         Self {
             matcher: Arc::new(matcher),
-            condition_parser: Arc::new(ConditionParser::new()),
+            condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             dispatcher,
             dlq,
             #[cfg(feature = "metrics")]
@@ -357,7 +123,7 @@ impl ObserverExecutor {
     ) -> Self {
         Self {
             matcher: Arc::new(matcher),
-            condition_parser: Arc::new(ConditionParser::new()),
+            condition_parser: Arc::new(crate::condition::ConditionParser::new()),
             dispatcher,
             dlq,
             #[cfg(feature = "caching")]
@@ -432,7 +198,7 @@ impl ObserverExecutor {
     }
 
     /// Execute a single action with retry logic
-    async fn execute_action_with_retry(
+    pub(crate) async fn execute_action_with_retry(
         &self,
         action: &ActionConfig,
         event: &EntityEvent,
@@ -498,7 +264,7 @@ impl ObserverExecutor {
     }
 
     /// Execute action and return result
-    async fn execute_action_internal(
+    pub(crate) async fn execute_action_internal(
         &self,
         action: &ActionConfig,
         event: &EntityEvent,
@@ -525,7 +291,7 @@ impl ObserverExecutor {
     }
 
     /// Handle action failure based on failure policy
-    async fn handle_action_failure(
+    pub(crate) async fn handle_action_failure(
         &self,
         action: &ActionConfig,
         event: &EntityEvent,
@@ -582,7 +348,7 @@ impl ObserverExecutor {
     }
 
     /// Calculate backoff delay based on attempt number and strategy
-    fn calculate_backoff(&self, attempt: u32, config: &RetryConfig) -> Duration {
+    pub(crate) fn calculate_backoff(&self, attempt: u32, config: &RetryConfig) -> Duration {
         let delay_ms = match config.backoff_strategy {
             BackoffStrategy::Exponential => {
                 // 2^(attempt-1) * initial_delay, capped at max_delay
@@ -907,52 +673,7 @@ impl ObserverExecutor {
     }
 }
 
-/// Summary of event processing results
-#[derive(Debug, Clone, Default)]
-pub struct ExecutionSummary {
-    /// Number of successful action executions
-    pub successful_actions: usize,
-    /// Number of failed action executions
-    pub failed_actions:     usize,
-    /// Number of observers skipped due to condition
-    pub conditions_skipped: usize,
-    /// Total execution time in milliseconds
-    pub total_duration_ms:  f64,
-    /// DLQ push errors
-    pub dlq_errors:         usize,
-    /// Other errors encountered
-    pub errors:             Vec<String>,
-    /// Whether this event was skipped due to deduplication
-    pub duplicate_skipped:  bool,
-    /// Whether this event was rejected due to a tenant scope violation
-    pub tenant_rejected:    bool,
-    /// Number of cache hits during action execution
-    pub cache_hits:         usize,
-    /// Number of cache misses during action execution
-    pub cache_misses:       usize,
-}
-
-impl ExecutionSummary {
-    /// Create a new empty summary
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Check if execution was successful
-    #[must_use]
-    pub fn is_success(&self) -> bool {
-        self.failed_actions == 0 && self.dlq_errors == 0 && self.errors.is_empty()
-    }
-
-    /// Get total actions processed
-    #[must_use]
-    pub const fn total_actions(&self) -> usize {
-        self.successful_actions + self.failed_actions
-    }
-}
-
-#[allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     use serde_json::json;

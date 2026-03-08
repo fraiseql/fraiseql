@@ -160,6 +160,27 @@ pub struct CompiledSchema {
     /// Not serialized - populated at runtime from `ir.scalars`.
     #[serde(skip)]
     pub custom_scalars: CustomTypeRegistry,
+
+    /// O(1) lookup index: query name → index into `self.queries`.
+    /// Built at construction time by `build_indexes()`; not serialized.
+    /// Populated automatically by `from_json()`; call `build_indexes()` after
+    /// direct mutation of `self.queries`.
+    #[serde(skip)]
+    pub query_index: HashMap<String, usize>,
+
+    /// O(1) lookup index: mutation name → index into `self.mutations`.
+    /// Built at construction time by `build_indexes()`; not serialized.
+    /// Populated automatically by `from_json()`; call `build_indexes()` after
+    /// direct mutation of `self.mutations`.
+    #[serde(skip)]
+    pub mutation_index: HashMap<String, usize>,
+
+    /// O(1) lookup index: subscription name → index into `self.subscriptions`.
+    /// Built at construction time by `build_indexes()`; not serialized.
+    /// Populated automatically by `from_json()`; call `build_indexes()` after
+    /// direct mutation of `self.subscriptions`.
+    #[serde(skip)]
+    pub subscription_index: HashMap<String, usize>,
 }
 
 impl PartialEq for CompiledSchema {
@@ -219,6 +240,31 @@ impl CompiledSchema {
         }
     }
 
+    /// Build O(1) lookup indexes for queries, mutations, and subscriptions.
+    ///
+    /// Called automatically by `from_json()`. Must be called manually after any
+    /// direct mutation of `self.queries`, `self.mutations`, or `self.subscriptions`.
+    pub fn build_indexes(&mut self) {
+        self.query_index = self
+            .queries
+            .iter()
+            .enumerate()
+            .map(|(i, q)| (q.name.clone(), i))
+            .collect();
+        self.mutation_index = self
+            .mutations
+            .iter()
+            .enumerate()
+            .map(|(i, m)| (m.name.clone(), i))
+            .collect();
+        self.subscription_index = self
+            .subscriptions
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.name.clone(), i))
+            .collect();
+    }
+
     /// Deserialize from JSON string.
     ///
     /// This is the primary way to create a schema from any authoring language.
@@ -256,7 +302,9 @@ impl CompiledSchema {
     /// let schema = CompiledSchema::from_json(json).unwrap();
     /// ```
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(json)
+        let mut schema: Self = serde_json::from_str(json)?;
+        schema.build_indexes();
+        Ok(schema)
     }
 
     /// Serialize to JSON string.
@@ -317,21 +365,42 @@ impl CompiledSchema {
     }
 
     /// Find a query definition by name.
+    ///
+    /// Uses the O(1) pre-built index when available; falls back to O(n) linear
+    /// scan for schemas built directly in tests without calling `build_indexes()`.
     #[must_use]
     pub fn find_query(&self, name: &str) -> Option<&QueryDefinition> {
-        self.queries.iter().find(|q| q.name == name)
+        if self.query_index.is_empty() && !self.queries.is_empty() {
+            self.queries.iter().find(|q| q.name == name)
+        } else {
+            self.query_index.get(name).map(|&i| &self.queries[i])
+        }
     }
 
     /// Find a mutation definition by name.
+    ///
+    /// Uses the O(1) pre-built index when available; falls back to O(n) linear
+    /// scan for schemas built directly in tests without calling `build_indexes()`.
     #[must_use]
     pub fn find_mutation(&self, name: &str) -> Option<&MutationDefinition> {
-        self.mutations.iter().find(|m| m.name == name)
+        if self.mutation_index.is_empty() && !self.mutations.is_empty() {
+            self.mutations.iter().find(|m| m.name == name)
+        } else {
+            self.mutation_index.get(name).map(|&i| &self.mutations[i])
+        }
     }
 
     /// Find a subscription definition by name.
+    ///
+    /// Uses the O(1) pre-built index when available; falls back to O(n) linear
+    /// scan for schemas built directly in tests without calling `build_indexes()`.
     #[must_use]
     pub fn find_subscription(&self, name: &str) -> Option<&SubscriptionDefinition> {
-        self.subscriptions.iter().find(|s| s.name == name)
+        if self.subscription_index.is_empty() && !self.subscriptions.is_empty() {
+            self.subscriptions.iter().find(|s| s.name == name)
+        } else {
+            self.subscription_index.get(name).map(|&i| &self.subscriptions[i])
+        }
     }
 
     /// Find a custom directive definition by name.

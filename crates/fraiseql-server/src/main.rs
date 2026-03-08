@@ -107,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
                 burst_size:            500,
                 cleanup_interval_secs: 300,
                 trust_proxy_headers:   false,
+                trusted_proxy_cidrs:   Vec::new(),
             });
         }
     }
@@ -119,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
                 burst_size:            500,
                 cleanup_interval_secs: 300,
                 trust_proxy_headers:   false,
+                trusted_proxy_cidrs:   Vec::new(),
             });
             rate_config.rps_per_ip = value;
             config.rate_limiting = Some(rate_config);
@@ -133,6 +135,7 @@ async fn main() -> anyhow::Result<()> {
                 burst_size:            500,
                 cleanup_interval_secs: 300,
                 trust_proxy_headers:   false,
+                trusted_proxy_cidrs:   Vec::new(),
             });
             rate_config.rps_per_user = value;
             config.rate_limiting = Some(rate_config);
@@ -147,6 +150,7 @@ async fn main() -> anyhow::Result<()> {
                 burst_size:            500,
                 cleanup_interval_secs: 300,
                 trust_proxy_headers:   false,
+                trusted_proxy_cidrs:   Vec::new(),
             });
             rate_config.burst_size = value;
             config.rate_limiting = Some(rate_config);

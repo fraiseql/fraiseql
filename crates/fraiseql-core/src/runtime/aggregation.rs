@@ -1450,7 +1450,8 @@ mod tests {
     fn test_jsonb_mysql_single_quote_escaped() {
         let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
         let sql = gen.jsonb_extract_sql("dimensions", "user'name");
-        assert!(sql.contains("\\'"), "Expected backslash-escaped quote in MySQL: {sql}");
+        // MySQL JSON paths use doubled-quote escaping (''): backslash escaping is NOT used.
+        assert!(sql.contains("user''name"), "Expected doubled-quote escape in MySQL: {sql}");
     }
 
     #[test]
@@ -1466,7 +1467,8 @@ mod tests {
     fn test_jsonb_sqlite_single_quote_escaped() {
         let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
         let sql = gen.jsonb_extract_sql("dimensions", "it's");
-        assert!(sql.contains("\\'"), "Expected backslash-escaped quote in SQLite: {sql}");
+        // SQLite JSON paths use doubled-quote escaping (''): backslash escaping is NOT used.
+        assert!(sql.contains("it''s"), "Expected doubled-quote escape in SQLite: {sql}");
     }
 
     #[test]

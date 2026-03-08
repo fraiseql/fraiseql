@@ -185,6 +185,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return None;
         }
 
+        // Warn when trust_proxy_headers is enabled without restricting which IPs are
+        // trusted proxies — any client can then spoof X-Forwarded-For.
+        if sec.trust_proxy_headers && sec.trusted_proxy_cidrs.as_ref().is_none_or(Vec::is_empty) {
+            warn!(
+                "Rate limiter: trust_proxy_headers = true but trusted_proxy_cidrs is not set. \
+                 Any client can spoof X-Forwarded-For and bypass per-IP rate limits. \
+                 Set trusted_proxy_cidrs in [security.rate_limiting] to restrict which \
+                 proxy IPs are trusted (e.g. [\"10.0.0.0/8\"] for internal load balancers)."
+            );
+        }
+
         let config = crate::middleware::RateLimitConfig::from_security_config(&sec);
 
         let limiter: RateLimiter = if let Some(ref redis_url) = sec.redis_url {

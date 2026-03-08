@@ -44,6 +44,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
+        // Validate compiled schema format version before any further setup.
+        // Warns for legacy schemas (no version field); rejects incompatible future versions.
+        if schema.schema_format_version.is_none() {
+            warn!(
+                "Loaded schema has no schema_format_version (pre-v2.1 format). \
+                 Re-compile with the current fraiseql-cli for version compatibility checking."
+            );
+        }
+        schema.validate_format_version().map_err(|msg| {
+            ServerError::ConfigError(format!("Incompatible compiled schema: {msg}"))
+        })?;
+
         // Read security configs from compiled schema BEFORE schema is moved.
         let circuit_breaker = schema
             .federation

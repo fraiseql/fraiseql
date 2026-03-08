@@ -247,8 +247,7 @@ async fn test_extended_mutation_data_consistency_after_mutation() {
     // Update user
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs());
     let new_name = format!("Updated_{}", timestamp);
     let mutation = format!(
         r#"

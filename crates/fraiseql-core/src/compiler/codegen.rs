@@ -195,7 +195,7 @@ impl CodeGenerator {
         // Build custom type registry from IRScalars
         let custom_scalars = Self::build_custom_type_registry(&ir.scalars)?;
 
-        Ok(CompiledSchema {
+        let mut schema = CompiledSchema {
             types,
             enums,
             input_types,
@@ -231,7 +231,11 @@ impl CodeGenerator {
             schema_format_version: Some(crate::schema::CURRENT_SCHEMA_FORMAT_VERSION),
             // Custom scalar types registry
             custom_scalars,
-        })
+            // Index fields are private; fill with defaults and build below.
+            ..CompiledSchema::default()
+        };
+        schema.build_indexes();
+        Ok(schema)
     }
 
     /// Map IR fields to compiled schema fields.

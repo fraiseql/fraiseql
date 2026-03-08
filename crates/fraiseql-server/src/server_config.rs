@@ -128,9 +128,18 @@ pub struct ServerConfig {
     #[serde(default = "default_graphql_path")]
     pub graphql_path: String,
 
-    /// Health check endpoint path.
+    /// Health check endpoint path (liveness probe).
+    ///
+    /// Returns 200 as long as the process is alive, 503 if the database is down.
     #[serde(default = "default_health_path")]
     pub health_path: String,
+
+    /// Readiness probe endpoint path.
+    ///
+    /// Returns 200 when the server is ready to serve traffic (database reachable),
+    /// 503 otherwise. Kubernetes `readinessProbe` should point here.
+    #[serde(default = "default_readiness_path")]
+    pub readiness_path: String,
 
     /// Introspection endpoint path.
     #[serde(default = "default_introspection_path")]
@@ -365,6 +374,20 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub admission_control: Option<AdmissionConfig>,
+
+    /// Graceful shutdown drain timeout in seconds (default: 30).
+    ///
+    /// After a SIGTERM or Ctrl+C signal, the server stops accepting new connections and
+    /// waits for in-flight requests and background runtimes (observers) to finish.
+    /// If the drain takes longer than this value, the process logs a warning and exits
+    /// immediately instead of hanging indefinitely.
+    ///
+    /// Set this to match `terminationGracePeriodSeconds` in your Kubernetes pod spec
+    /// minus a small buffer (e.g., 25s when `terminationGracePeriodSeconds = 30`).
+    ///
+    /// Override with `FRAISEQL_SHUTDOWN_TIMEOUT_SECS`.
+    #[serde(default = "default_shutdown_timeout_secs")]
+    pub shutdown_timeout_secs: u64,
 }
 
 #[cfg(feature = "observers")]
@@ -470,6 +493,7 @@ impl Default for ServerConfig {
             cache_enabled: true,
             graphql_path: default_graphql_path(),
             health_path: default_health_path(),
+            readiness_path: default_readiness_path(),
             introspection_path: default_introspection_path(),
             metrics_path: default_metrics_path(),
             metrics_json_path: default_metrics_json_path(),
@@ -498,6 +522,7 @@ impl Default for ServerConfig {
             observers: None, // Observers disabled by default
             pool_tuning: None,  // Pool auto-tuning disabled by default
             admission_control: None, // Admission control disabled by default
+            shutdown_timeout_secs: default_shutdown_timeout_secs(),
         }
     }
 }
@@ -705,6 +730,14 @@ fn default_graphql_path() -> String {
 
 fn default_health_path() -> String {
     "/health".to_string()
+}
+
+fn default_readiness_path() -> String {
+    "/readiness".to_string()
+}
+
+const fn default_shutdown_timeout_secs() -> u64 {
+    30
 }
 
 fn default_introspection_path() -> String {

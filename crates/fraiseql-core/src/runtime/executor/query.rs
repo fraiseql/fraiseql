@@ -7,7 +7,7 @@ use crate::{
     },
     error::{FraiseQLError, Result},
     schema::SqlProjectionHint,
-    security::SecurityContext,
+    security::{RlsWhereClause, SecurityContext},
 };
 
 use super::{Executor, null_masked_fields, resolve_inject_value};
@@ -62,8 +62,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
 
-        // 4. Evaluate RLS policy and build WHERE clause filter
-        let rls_where_clause: Option<WhereClause> =
+        // 4. Evaluate RLS policy and build WHERE clause filter.
+        //    The return type is Option<RlsWhereClause> — a compile-time proof
+        //    that the clause passed through RLS evaluation.
+        let rls_where_clause: Option<RlsWhereClause> =
             if let Some(ref rls_policy) = self.config.rls_policy {
                 // Evaluate RLS policy with user's security context
                 rls_policy.evaluate(security_context, &query_match.query_def.name)?
@@ -107,7 +109,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    Inject conditions always come after RLS so they cannot bypass it.
         let combined_where: Option<WhereClause> =
             if query_match.query_def.inject_params.is_empty() {
-                rls_where_clause // common path: no-op
+                // Common path: unwrap RlsWhereClause into WhereClause for the adapter
+                rls_where_clause.map(RlsWhereClause::into_where_clause)
             } else {
                 let mut conditions: Vec<WhereClause> = query_match
                     .query_def
@@ -124,7 +127,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .collect::<Result<Vec<_>>>()?;
 
                 if let Some(rls) = rls_where_clause {
-                    conditions.insert(0, rls);
+                    conditions.insert(0, rls.into_where_clause());
                 }
                 match conditions.len() {
                     0 => None,

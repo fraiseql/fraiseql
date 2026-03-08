@@ -334,7 +334,7 @@ mod query_optimization_tests {
 
         let mut total_size = 0;
         for row in &rows {
-            total_size += serde_json::to_string(&row.as_value()).map(|s| s.len()).unwrap_or(0);
+            total_size += serde_json::to_string(&row.as_value()).map_or(0, |s| s.len());
         }
 
         assert!(
@@ -360,7 +360,7 @@ mod query_optimization_tests {
 
         let mut total_size = 0;
         if let Ok(ref json_result) = result {
-            total_size = serde_json::to_string(json_result).map(|s| s.len()).unwrap_or(0);
+            total_size = serde_json::to_string(json_result).map_or(0, |s| s.len());
         }
 
         assert!(

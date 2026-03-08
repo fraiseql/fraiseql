@@ -11,9 +11,11 @@
 //! compiled schema JSON and holds one independent breaker per entity type name.
 
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, Instant},
 };
+
+use parking_lot::Mutex;
 
 use dashmap::DashMap;
 use serde::Deserialize;
@@ -98,10 +100,7 @@ impl EntityCircuitBreaker {
     /// - `HalfOpen`: allows exactly one in-flight probe; subsequent calls are rejected
     ///   until the probe outcome is recorded via [`record_success`] or [`record_failure`].
     fn check(&self) -> Option<u64> {
-        let mut state = self.state.lock().unwrap_or_else(|poisoned| {
-            tracing::error!("Circuit breaker state mutex poisoned; recovering with current state");
-            poisoned.into_inner()
-        });
+        let mut state = self.state.lock();
 
         // Read-only phase: decide what action to take (or return early).
         // The immutable borrow of `*state` ends when this match completes.
@@ -159,10 +158,7 @@ impl EntityCircuitBreaker {
     /// In `HalfOpen`, increments the success counter, clears `probe_in_flight` so the
     /// next probe can be issued, and closes the circuit when the threshold is reached.
     fn record_success(&self) {
-        let mut state = self.state.lock().unwrap_or_else(|poisoned| {
-            tracing::error!("Circuit breaker state mutex poisoned; recovering with current state");
-            poisoned.into_inner()
-        });
+        let mut state = self.state.lock();
 
         // Read current successes (HalfOpen only); return early otherwise.
         let new_successes = match &*state {
@@ -193,12 +189,7 @@ impl EntityCircuitBreaker {
     /// Works from both `Closed` and `HalfOpen` states; the counter resets to zero on
     /// the next successful recovery so `HalfOpen` re-trips cleanly.
     fn record_failure(&self) {
-        let mut state = self.state.lock().unwrap_or_else(|poisoned| {
-            tracing::error!(
-                "Circuit breaker state mutex poisoned; recovering with current state"
-            );
-            poisoned.into_inner()
-        });
+        let mut state = self.state.lock();
 
         // Read new failure count; short-circuit if already Open.
         let new_count = match &*state {
@@ -254,10 +245,7 @@ impl EntityCircuitBreaker {
     ///
     /// `0` = Closed, `1` = Open, `2` = HalfOpen.
     fn state_code(&self) -> u64 {
-        let state = self.state.lock().unwrap_or_else(|poisoned| {
-            tracing::error!("Circuit breaker state mutex poisoned; recovering with current state");
-            poisoned.into_inner()
-        });
+        let state = self.state.lock();
         match &*state {
             CircuitState::Closed { .. } => STATE_CLOSED,
             CircuitState::Open { .. } => STATE_OPEN,

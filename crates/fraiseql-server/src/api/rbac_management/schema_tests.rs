@@ -1,7 +1,6 @@
 // Tests verify the schema migrations create proper table structure, indexes, and constraints
 
 #[cfg(test)]
-#[allow(clippy::module_inception)] // Reason: test module mirrors source module structure for clarity
 mod schema_verification {
     /// Test that audit_log table has all required columns
     #[test]
