@@ -12,10 +12,7 @@ use axum::{
     body::Body,
     routing::{get, post},
 };
-use fraiseql_core::{
-    runtime::Executor,
-    schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
-};
+use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 use fraiseql_server::routes::{
     api::{
         query::{explain_handler, stats_handler, validate_handler},
@@ -25,7 +22,10 @@ use fraiseql_server::routes::{
     health::health_handler,
     introspection::introspection_handler,
 };
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
+use fraiseql_test_utils::{
+    failing_adapter::FailingAdapter,
+    schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder},
+};
 use http::{Request, StatusCode};
 use tower::ServiceExt;
 
@@ -45,26 +45,19 @@ pub fn make_test_state() -> AppState<FailingAdapter> {
 ///
 /// Use this helper when the test needs to verify that the schema export endpoints
 /// return actual content rather than an empty response.
+// Migration 6: make_populated_test_state (TypeDefinition struct literal → TestTypeBuilder)
 pub fn make_populated_test_state() -> AppState<FailingAdapter> {
-    let user_type = TypeDefinition {
-        name:                  "User".into(),
-        sql_source:            "v_user".into(),
-        jsonb_column:          "data".to_string(),
-        fields:                vec![
-            FieldDefinition::new("id", FieldType::Id),
-            FieldDefinition::new("name", FieldType::String),
-        ],
-        description:           Some("A user in the system".to_string()),
-        sql_projection_hint:   None,
-        implements:            vec![],
-        requires_role:         None,
-        is_error:              false,
-        relay:                 false,
-    };
-    let user_query = QueryDefinition::new("user", "User");
-    let mut schema = CompiledSchema::new();
-    schema.types.push(user_type);
-    schema.queries.push(user_query);
+    use fraiseql_core::schema::FieldType;
+    let mut schema = TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("User", "v_user")
+                .with_description("A user in the system")
+                .with_simple_field("id", FieldType::Id)
+                .with_simple_field("name", FieldType::String)
+                .build(),
+        )
+        .with_query(TestQueryBuilder::new("user", "User").no_sql_source().build())
+        .build();
     schema.schema_sdl = Some(
         "type Query {\n  user(id: ID!): User\n}\n\ntype User {\n  id: ID!\n  name: String!\n}\n\ntype Mutation {\n  createUser(name: String!): User\n}\n".to_string(),
     );

@@ -1,4 +1,3 @@
-#![cfg(test)]
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
 

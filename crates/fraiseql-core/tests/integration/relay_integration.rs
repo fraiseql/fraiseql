@@ -24,10 +24,10 @@ use fraiseql_core::{
         relay::{decode_uuid_cursor, encode_node_id, encode_uuid_cursor},
     },
     schema::{
-        AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, InterfaceDefinition,
-        QueryDefinition, TypeDefinition,
+        CompiledSchema, CursorType, FieldDefinition, FieldType, InterfaceDefinition,
     },
 };
+use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::json;
 
 // =============================================================================
@@ -203,91 +203,33 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
 // =============================================================================
 
 /// Build a minimal schema with a relay-enabled `users` query.
+// Migration 2 (TypeDefinition) + Migration 3 (QueryDefinition): relay_schema
 fn relay_schema() -> CompiledSchema {
-    let mut schema = CompiledSchema::new();
-
-    // User type (relay=true so inject_relay_types would mark it)
-    let user_type = TypeDefinition {
-        name:                "User".into(),
-        sql_source:          "v_user".into(),
-        jsonb_column:        "data".to_string(),
-        fields:              vec![
-            FieldDefinition {
-                name:           "id".into(),
-                field_type:     FieldType::Uuid,
-                nullable:       false,
-                description:    None,
-                default_value:  None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
-                requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
-                encryption:     None,
-            },
-            FieldDefinition {
-                name:           "name".into(),
-                field_type:     FieldType::String,
-                nullable:       false,
-                description:    None,
-                default_value:  None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
-                requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
-                encryption:     None,
-            },
-        ],
-        description:         None,
-        sql_projection_hint: None,
-        implements:          vec!["Node".to_string()],
-        requires_role:       None,
-        is_error:            false,
-        relay:               true,
-    };
-    schema.types.push(user_type);
+    // User type — relay node implementing the Node interface
+    let user_type = TestTypeBuilder::new("User", "v_user")
+        .relay_node()
+        .with_implements(&["Node"])
+        .with_simple_field("id", FieldType::Uuid)
+        .with_simple_field("name", FieldType::String)
+        .build();
 
     // Node interface (normally injected by inject_relay_types)
-    schema.interfaces.push(
-        InterfaceDefinition::new("Node")
-            .with_description("Relay Node interface.")
-            .with_field(FieldDefinition {
-                name:           "id".into(),
-                field_type:     FieldType::Id,
-                nullable:       false,
-                description:    None,
-                default_value:  None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
-                requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
-                encryption:     None,
-            }),
-    );
+    let node_interface = InterfaceDefinition::new("Node")
+        .with_description("Relay Node interface.")
+        .with_field(FieldDefinition::new("id", FieldType::Id));
 
-    // Relay-enabled `users` query
-    schema.queries.push(QueryDefinition {
-        name:                "users".to_string(),
-        return_type:         "User".to_string(),
-        returns_list:        true,
-        nullable:            false,
-        arguments:           vec![],
-        sql_source:          Some("v_user".to_string()),
-        description:         None,
-        auto_params:         AutoParams::default(),
-        deprecation:         None,
-        jsonb_column:        "data".to_string(),
-        relay:               true,
-        relay_cursor_column: Some("pk_user".to_string()),
-        relay_cursor_type:   Default::default(),
-        inject_params:       Default::default(),
-        cache_ttl_seconds:   None,
-        additional_views: vec![],
-        requires_role:       None,
-    });
+    // Relay-enabled `users` query with bigint cursor on pk_user
+    let users_query = TestQueryBuilder::new("users", "User")
+        .returns_list(true)
+        .with_sql_source("v_user")
+        .relay_cursor_column("pk_user")
+        .build();
 
+    let mut schema = TestSchemaBuilder::new()
+        .with_type(user_type)
+        .with_query(users_query)
+        .build();
+    schema.interfaces.push(node_interface);
     schema
 }
 
@@ -795,71 +737,28 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
 }
 
 /// Build a schema with a relay-enabled `items` query that uses a UUID cursor column.
+// Migration 4 (TypeDefinition) + Migration 5 (QueryDefinition): uuid_relay_schema
 fn uuid_relay_schema() -> CompiledSchema {
-    let mut schema = CompiledSchema::new();
+    // Item type — relay node with UUID cursor field
+    let item_type = TestTypeBuilder::new("Item", "v_item")
+        .relay_node()
+        .with_implements(&["Node"])
+        .with_simple_field("id", FieldType::Uuid)
+        .with_simple_field("name", FieldType::String)
+        .build();
 
-    let item_type = TypeDefinition {
-        name:                "Item".into(),
-        sql_source:          "v_item".into(),
-        jsonb_column:        "data".to_string(),
-        fields:              vec![
-            FieldDefinition {
-                name:           "id".into(),
-                field_type:     FieldType::Uuid,
-                nullable:       false,
-                default_value:  None,
-                description:    None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
-                requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
-                encryption:     None,
-            },
-            FieldDefinition {
-                name:           "name".into(),
-                field_type:     FieldType::String,
-                nullable:       false,
-                default_value:  None,
-                description:    None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
-                requires_scope: None,
-                on_deny: FieldDenyPolicy::default(),
-                encryption:     None,
-            },
-        ],
-        requires_role:       None,
-        is_error:            false,
-        description:         None,
-        sql_projection_hint: None,
-        implements:          vec!["Node".to_string()],
-        relay:               true,
-    };
-    schema.types.push(item_type);
+    // Relay query using UUID cursor column
+    let items_query = TestQueryBuilder::new("items", "Item")
+        .returns_list(true)
+        .with_sql_source("v_item")
+        .relay_cursor_column("id")
+        .relay_cursor_type(CursorType::Uuid)
+        .build();
 
-    schema.queries.push(QueryDefinition {
-        name: "items".to_string(),
-        return_type: "Item".to_string(),
-        returns_list: true,
-        nullable: false,
-        arguments: vec![],
-        sql_source: Some("v_item".to_string()),
-        description: None,
-        auto_params: AutoParams::default(),
-        deprecation: None,
-        jsonb_column: "data".to_string(),
-        relay: true,
-        relay_cursor_column: Some("id".to_string()),
-        relay_cursor_type: CursorType::Uuid,
-        inject_params: Default::default(),
-        cache_ttl_seconds:   None,
-        additional_views: vec![],
-        requires_role:       None,
-    });
-
-    schema
+    TestSchemaBuilder::new()
+        .with_type(item_type)
+        .with_query(items_query)
+        .build()
 }
 
 fn uuid_executor() -> Executor<UuidRelayMockAdapter> {

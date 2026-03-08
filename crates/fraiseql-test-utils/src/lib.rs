@@ -40,6 +40,7 @@ pub mod mock_db;
 pub mod observers;
 pub mod saga;
 pub mod schema;
+pub mod schema_builder;
 
 // Re-export assertion helpers for direct use
 pub use assertions::{
@@ -58,6 +59,11 @@ pub use observers::get_test_id;
 
 // Re-export saga types for convenience
 pub use saga::{SagaStepDef, SagaStepResult, StepStatusEnum, TestSagaExecutor};
+
+// Re-export schema builder types for convenience
+pub use schema_builder::{
+    TestFieldBuilder, TestMutationBuilder, TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder,
+};
 
 /// Setup test environment
 ///

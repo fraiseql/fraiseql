@@ -5,10 +5,8 @@
 //! Exercises the real `parse_query` and `CompiledSchema` APIs
 //! rather than hand-constructing JSON values.
 
-use fraiseql_core::{
-    graphql::parse_query,
-    schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
-};
+use fraiseql_core::{graphql::parse_query, schema::FieldType};
+use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 
 // ============================================================================
 // PARSE QUERY
@@ -65,23 +63,27 @@ fn parse_query_extracts_variables() {
 
 #[test]
 fn compiled_schema_new_is_empty() {
-    let schema = CompiledSchema::new();
+    let schema = TestSchemaBuilder::new().build();
     assert!(schema.types.is_empty());
     assert!(schema.queries.is_empty());
     assert!(schema.mutations.is_empty());
 }
 
+// Migration 8: compiled_schema_from_json_roundtrip
 #[test]
 fn compiled_schema_from_json_roundtrip() {
-    let mut schema = CompiledSchema::new();
-    let mut user_type = TypeDefinition::new("User", "v_user");
-    user_type.fields.push(FieldDefinition::new("id", FieldType::Int));
-    user_type.fields.push(FieldDefinition::new("name", FieldType::String));
-    schema.types.push(user_type);
-    schema.queries.push(QueryDefinition::new("getUser", "User"));
+    let schema = TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("User", "v_user")
+                .with_simple_field("id", FieldType::Int)
+                .with_simple_field("name", FieldType::String)
+                .build(),
+        )
+        .with_simple_query("getUser", "User", false)
+        .build();
 
     let json = serde_json::to_string(&schema).unwrap();
-    let restored = CompiledSchema::from_json(&json).unwrap();
+    let restored = fraiseql_core::schema::CompiledSchema::from_json(&json).unwrap();
 
     assert_eq!(restored.types.len(), 1);
     assert_eq!(restored.types[0].name, "User");
@@ -91,11 +93,13 @@ fn compiled_schema_from_json_roundtrip() {
     assert_eq!(restored.queries[0].return_type, "User");
 }
 
+// Migration 9: compiled_schema_type_lookup
 #[test]
 fn compiled_schema_type_lookup() {
-    let mut schema = CompiledSchema::new();
-    schema.types.push(TypeDefinition::new("User", "v_user"));
-    schema.types.push(TypeDefinition::new("Post", "v_post"));
+    let schema = TestSchemaBuilder::new()
+        .with_empty_type("User", "v_user")
+        .with_empty_type("Post", "v_post")
+        .build();
 
     let user = schema.types.iter().find(|t| t.name == "User");
     assert!(user.is_some());
@@ -104,11 +108,13 @@ fn compiled_schema_type_lookup() {
     assert!(missing.is_none());
 }
 
+// Migration 10: query_return_type_references_existing_type
 #[test]
 fn query_return_type_references_existing_type() {
-    let mut schema = CompiledSchema::new();
-    schema.types.push(TypeDefinition::new("User", "v_user"));
-    schema.queries.push(QueryDefinition::new("getUser", "User"));
+    let schema = TestSchemaBuilder::new()
+        .with_empty_type("User", "v_user")
+        .with_simple_query("getUser", "User", false)
+        .build();
 
     let query = &schema.queries[0];
     let type_exists = schema.types.iter().any(|t| t.name == query.return_type);

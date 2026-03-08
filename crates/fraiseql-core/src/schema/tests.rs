@@ -874,8 +874,7 @@ fn test_compiled_schema_has_version_after_stamp() {
 
 #[test]
 fn test_future_schema_version_is_rejected() {
-    let mut schema = CompiledSchema::default();
-    schema.schema_format_version = Some(999);
+    let schema = CompiledSchema { schema_format_version: Some(999), ..Default::default() };
     assert!(schema.validate_format_version().is_err());
 }
 
