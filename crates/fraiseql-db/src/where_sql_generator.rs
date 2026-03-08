@@ -17,6 +17,18 @@ use crate::{WhereClause, WhereOperator};
 const MAX_SQL_VALUE_BYTES: usize = 65_536;
 
 /// Generates SQL WHERE clause strings from AST.
+///
+/// # Note on continued existence
+///
+/// This generator embeds values as escaped string literals rather than using
+/// bind parameters.  It is intentionally retained for the **FraiseQL Wire
+/// Adapter** (`fraiseql_wire_adapter`), which constructs raw SQL strings for
+/// the wire protocol — a context where parameterized queries are not available.
+///
+/// **Do not use this in new production code.**  All other query paths must use
+/// [`GenericWhereGenerator`](crate::GenericWhereGenerator) which produces
+/// parameterized SQL (`$1`, `?`, etc.) and is safe by design.
+#[doc(hidden)]
 pub struct WhereSqlGenerator;
 
 impl WhereSqlGenerator {
@@ -24,8 +36,9 @@ impl WhereSqlGenerator {
     ///
     /// # Example
     ///
-    /// ```rust
-    /// use fraiseql_core::db::{WhereClause, WhereOperator, where_sql_generator::WhereSqlGenerator};
+    /// ```rust,no_run
+    /// // fraiseql-db can be used directly or via `fraiseql_core::db` (re-export).
+    /// use fraiseql_db::{WhereClause, WhereOperator, where_sql_generator::WhereSqlGenerator};
     /// use serde_json::json;
     ///
     /// let clause = WhereClause::Field {

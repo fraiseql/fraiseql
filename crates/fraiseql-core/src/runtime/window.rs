@@ -17,7 +17,7 @@ use crate::{
             WindowFunction, WindowFunctionType,
         },
     },
-    db::{WhereSqlGenerator, types::DatabaseType},
+    db::{GenericWhereGenerator, PostgresDialect, types::DatabaseType},
     error::{FraiseQLError, Result},
 };
 
@@ -63,7 +63,7 @@ impl WindowSqlGenerator {
     /// Generate PostgreSQL window function SQL
     fn generate_postgres(&self, plan: &WindowExecutionPlan) -> Result<WindowSql> {
         let mut sql = String::from("SELECT ");
-        let parameters = Vec::new();
+        let mut parameters = Vec::new();
 
         // Add regular SELECT columns
         for (i, col) in plan.select.iter().enumerate() {
@@ -84,11 +84,14 @@ impl WindowSqlGenerator {
         // FROM clause
         sql.push_str(&format!(" FROM {}", plan.table));
 
-        // WHERE clause (if any)
+        // WHERE clause (if any) — use parameterized generation to avoid literal
+        // value escaping and enable the database to cache execution plans.
         if let Some(clause) = &plan.where_clause {
-            let where_sql = WhereSqlGenerator::to_sql(clause)?;
+            let gen = GenericWhereGenerator::new(PostgresDialect);
+            let (where_sql, where_params) = gen.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
+            parameters.extend(where_params);
         }
 
         // ORDER BY clause
@@ -538,6 +541,48 @@ mod tests {
     }
 
     #[test]
+    fn test_where_clause_uses_bind_parameters() {
+        // Ensures WHERE clause is rendered with $N bind parameters (not literal values).
+        // Literals would require escaping and are vulnerable to injection edge-cases;
+        // bind parameters are always safe.
+        let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let plan = WindowExecutionPlan {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
+                expression: "revenue".to_string(),
+                alias:      "revenue".to_string(),
+            }],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
+                partition_by: vec![],
+                order_by:     vec![],
+                frame:        None,
+            }],
+            where_clause: Some(WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!("active"),
+            }),
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        let sql = generator.generate(&plan).unwrap();
+
+        // WHERE clause must use bind parameter ($1), not a literal string value.
+        assert!(
+            sql.complete_sql.contains("WHERE data->>'status' = $1"),
+            "expected bind parameter $1, got: {}",
+            sql.complete_sql
+        );
+        assert!(!sql.complete_sql.contains("WHERE 1=1"));
+        assert_eq!(sql.parameters, vec![serde_json::json!("active")]);
+    }
+
+    #[test]
     fn test_where_clause_applied() {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
@@ -566,8 +611,8 @@ mod tests {
 
         let sql = generator.generate(&plan).unwrap();
 
-        // WHERE clause must be rendered, not replaced with 1=1
-        assert!(sql.complete_sql.contains("WHERE data->>'status' = 'active'"));
+        // WHERE clause is rendered (not 1=1), value is a bind parameter.
+        assert!(sql.complete_sql.contains("WHERE"), "WHERE clause must appear in SQL");
         assert!(!sql.complete_sql.contains("WHERE 1=1"));
     }
 
