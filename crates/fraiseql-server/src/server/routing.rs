@@ -91,7 +91,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Start pool auto-tuner if configured and enabled
         if let Some(ref cfg) = self.pool_tuning_config {
             if cfg.enabled {
-                let tuner = std::sync::Arc::new(crate::pool::PoolAutoTuner::new(cfg.clone()));
+                let tuner = std::sync::Arc::new(crate::pool::PoolSizingAdvisor::new(cfg.clone()));
                 // Spawn background polling task (recommendation mode — no resize_fn supplied
                 // because deadpool-postgres does not expose runtime resize).
                 let _handle = std::sync::Arc::clone(&tuner)

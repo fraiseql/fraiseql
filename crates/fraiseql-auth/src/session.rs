@@ -104,6 +104,7 @@ pub struct TokenPair {
 ///     }
 /// }
 /// ```
+// Reason: used as dyn Trait (Arc<dyn SessionStore>); async_trait ensures Send bounds and dyn-compatibility
 #[async_trait]
 pub trait SessionStore: Send + Sync {
     /// Create a new session and return token pair
@@ -212,6 +213,8 @@ impl Default for InMemorySessionStore {
 }
 
 #[cfg(test)]
+// Reason: SessionStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl SessionStore for InMemorySessionStore {
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {

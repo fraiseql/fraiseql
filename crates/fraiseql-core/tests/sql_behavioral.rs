@@ -340,19 +340,19 @@ fn aggregate_sum_produces_correct_sql() {
         .expect("generate");
 
     assert!(
-        sql.complete_sql.contains("SUM(amount)"),
+        sql.raw_sql.contains("SUM(amount)"),
         "Expected SUM(amount) in: {}",
-        sql.complete_sql
+        sql.raw_sql
     );
     assert!(
-        sql.complete_sql.contains("tf_sales"),
+        sql.raw_sql.contains("tf_sales"),
         "Expected table name in: {}",
-        sql.complete_sql
+        sql.raw_sql
     );
     assert!(
-        !sql.complete_sql.to_uppercase().contains("GROUP BY"),
+        !sql.raw_sql.to_uppercase().contains("GROUP BY"),
         "SUM without grouping must not emit GROUP BY: {}",
-        sql.complete_sql
+        sql.raw_sql
     );
 }
 
@@ -415,19 +415,19 @@ fn aggregate_group_by_produces_correct_sql() {
         .expect("generate");
 
     assert!(
-        sql.complete_sql.to_uppercase().contains("GROUP BY"),
+        sql.raw_sql.to_uppercase().contains("GROUP BY"),
         "Expected GROUP BY in: {}",
-        sql.complete_sql
+        sql.raw_sql
     );
     assert!(
-        sql.complete_sql.contains("category"),
+        sql.raw_sql.contains("category"),
         "Expected dimension name in: {}",
-        sql.complete_sql
+        sql.raw_sql
     );
     assert!(
-        sql.complete_sql.contains("SUM(amount)"),
+        sql.raw_sql.contains("SUM(amount)"),
         "Expected SUM aggregate in: {}",
-        sql.complete_sql
+        sql.raw_sql
     );
 }
 

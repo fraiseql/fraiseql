@@ -10,11 +10,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Runtime resize
 ///
-/// If a `resize_fn` is supplied to `PoolAutoTuner::start`, the tuner will call it
+/// If a `resize_fn` is supplied to `PoolSizingAdvisor::start`, the advisor will call it
 /// to apply resizes in real time.  If no resize function is available (e.g. the
-/// database adapter does not expose pool mutation), the tuner operates in
-/// **recommendation mode**: it still emits `fraiseql_pool_recommended_size` and
-/// logs a warning, but does not change the actual pool size.
+/// database adapter does not expose pool mutation), the advisor operates in
+/// **advisory mode**: it still emits `fraiseql_pool_recommended_size` and
+/// logs at INFO level, but does not change the actual pool size.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PoolTuningConfig {
     /// Enable adaptive pool sizing.  Default: `false`.

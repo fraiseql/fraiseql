@@ -264,7 +264,7 @@ fn test_webhook_payload_from_event() {
 #[test]
 fn test_webhook_adapter_debug() {
     let config = WebhookConfig::new("https://api.example.com/webhooks").with_secret("secret-key");
-    let adapter = WebhookAdapter::new(config);
+    let adapter = WebhookAdapter::new(config).unwrap();
 
     let debug = format!("{:?}", adapter);
     assert!(debug.contains("WebhookAdapter"));
@@ -275,7 +275,7 @@ fn test_webhook_adapter_debug() {
 #[test]
 fn test_webhook_adapter_name() {
     let config = WebhookConfig::new("https://api.example.com/webhooks");
-    let adapter = WebhookAdapter::new(config);
+    let adapter = WebhookAdapter::new(config).unwrap();
 
     assert_eq!(adapter.name(), "webhook");
 }
@@ -371,7 +371,7 @@ fn test_transport_manager_new() {
 fn test_transport_manager_add_adapter() {
     let mut manager = TransportManager::new();
 
-    let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/webhooks"));
+    let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/webhooks")).unwrap();
     manager.add_adapter(Box::new(webhook));
 
     assert!(!manager.is_empty());
@@ -381,7 +381,7 @@ fn test_transport_manager_add_adapter() {
 #[test]
 fn test_transport_manager_debug() {
     let mut manager = TransportManager::new();
-    let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/webhooks"));
+    let webhook = WebhookAdapter::new(WebhookConfig::new("https://api.example.com/webhooks")).unwrap();
     manager.add_adapter(Box::new(webhook));
 
     let debug = format!("{:?}", manager);

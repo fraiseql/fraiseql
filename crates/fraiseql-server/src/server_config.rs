@@ -528,6 +528,17 @@ impl Default for ServerConfig {
 }
 
 impl ServerConfig {
+    /// Load server configuration from a TOML file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the file cannot be read or the TOML cannot be parsed.
+    pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
+        let content = std::fs::read_to_string(path.as_ref())
+            .map_err(|e| format!("Cannot read config file: {e}"))?;
+        toml::from_str(&content).map_err(|e| format!("Invalid TOML config: {e}"))
+    }
+
     /// Check if running in production mode.
     ///
     /// Production mode is detected via `FRAISEQL_ENV` environment variable.

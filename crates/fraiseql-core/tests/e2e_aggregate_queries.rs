@@ -702,28 +702,28 @@ fn test_temporal_bucket_multi_database() {
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("DATE_TRUNC('day', occurred_at)"));
+    assert!(pg_sql.raw_sql.contains("DATE_TRUNC('day', occurred_at)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("DATE_FORMAT(occurred_at,"));
+    assert!(mysql_sql.raw_sql.contains("DATE_FORMAT(occurred_at,"));
 
     // SQLite
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
     let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
     let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
-    assert!(sqlite_sql.complete_sql.contains("strftime("));
+    assert!(sqlite_sql.raw_sql.contains("strftime("));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("CAST(occurred_at AS DATE)"));
+    assert!(mssql_sql.raw_sql.contains("CAST(occurred_at AS DATE)"));
 }
 
 #[test]
@@ -842,28 +842,28 @@ fn test_advanced_aggregates_multi_database() {
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("STRING_AGG(customer_id"));
+    assert!(pg_sql.raw_sql.contains("STRING_AGG(customer_id"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("GROUP_CONCAT(customer_id"));
+    assert!(mysql_sql.raw_sql.contains("GROUP_CONCAT(customer_id"));
 
     // SQLite
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
     let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
     let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
-    assert!(sqlite_sql.complete_sql.contains("GROUP_CONCAT(customer_id"));
+    assert!(sqlite_sql.raw_sql.contains("GROUP_CONCAT(customer_id"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("STRING_AGG"));
+    assert!(mssql_sql.raw_sql.contains("STRING_AGG"));
 }
 
 // =============================================================================
@@ -894,21 +894,21 @@ fn test_stddev_postgres_mysql() {
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("STDDEV_SAMP(revenue)"));
+    assert!(pg_sql.raw_sql.contains("STDDEV_SAMP(revenue)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("STDDEV_SAMP(revenue)"));
+    assert!(mysql_sql.raw_sql.contains("STDDEV_SAMP(revenue)"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("STDEV(revenue)"));
+    assert!(mssql_sql.raw_sql.contains("STDEV(revenue)"));
 }
 
 #[test]
@@ -935,21 +935,21 @@ fn test_variance_postgres_mysql() {
     let pg_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate(&pg_plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("VAR_SAMP(revenue)"));
+    assert!(pg_sql.raw_sql.contains("VAR_SAMP(revenue)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate(&mysql_plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("VAR_SAMP(revenue)"));
+    assert!(mysql_sql.raw_sql.contains("VAR_SAMP(revenue)"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let mssql_parsed = AggregateQueryParser::parse(&query, &metadata).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate(&mssql_plan).unwrap();
-    assert!(mssql_sql.complete_sql.contains("VAR(revenue)"));
+    assert!(mssql_sql.raw_sql.contains("VAR(revenue)"));
 }
 
 #[test]
@@ -979,6 +979,6 @@ fn test_statistical_functions_sqlite_unsupported() {
     let sqlite_sql = sqlite_gen.generate(&sqlite_plan).unwrap();
 
     // SQLite doesn't support STDDEV/VARIANCE natively
-    assert!(sqlite_sql.complete_sql.contains("NULL /* STDDEV not supported"));
-    assert!(sqlite_sql.complete_sql.contains("NULL /* VARIANCE not supported"));
+    assert!(sqlite_sql.raw_sql.contains("NULL /* STDDEV not supported"));
+    assert!(sqlite_sql.raw_sql.contains("NULL /* VARIANCE not supported"));
 }

@@ -108,6 +108,8 @@ impl PostgresSessionStore {
     }
 }
 
+// Reason: SessionStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl SessionStore for PostgresSessionStore {
     async fn create_session(&self, user_id: &str, expires_at: u64) -> Result<TokenPair> {

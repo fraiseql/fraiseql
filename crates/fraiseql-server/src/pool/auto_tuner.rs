@@ -15,33 +15,43 @@ use fraiseql_core::db::types::PoolMetrics;
 
 use crate::config::pool_tuning::PoolTuningConfig;
 
-/// Decision produced by [`PoolAutoTuner::evaluate`].
+/// Recommendation produced by [`PoolSizingAdvisor::evaluate`].
+///
+/// `RecommendScaleUp` and `RecommendScaleDown` are *recommendations*, not executed actions.
+/// Whether they are applied depends on whether a `resize_fn` was configured in
+/// [`PoolSizingAdvisor::start`]. Without a `resize_fn`, decisions are logged at INFO level
+/// only — no actual pool resize occurs.
 #[derive(Debug, PartialEq, Eq)]
-pub enum PoolTuningDecision {
-    /// No change needed.
+#[non_exhaustive]
+pub enum PoolSizingRecommendation {
+    /// Pool size is appropriate. No action needed.
     Stable,
-    /// Grow the pool to `new_size` connections.
-    ScaleUp {
+    /// Pool should be grown to `new_size` connections.
+    ///
+    /// Applied only if a `resize_fn` was configured; otherwise logged as an advisory.
+    RecommendScaleUp {
         /// New target pool size.
         new_size: u32,
-        /// Human-readable reason for the decision.
+        /// Human-readable reason for the recommendation.
         reason:   String,
     },
-    /// Shrink the pool to `new_size` connections.
-    ScaleDown {
+    /// Pool should be shrunk to `new_size` connections.
+    ///
+    /// Applied only if a `resize_fn` was configured; otherwise logged as an advisory.
+    RecommendScaleDown {
         /// New target pool size.
         new_size: u32,
-        /// Human-readable reason for the decision.
+        /// Human-readable reason for the recommendation.
         reason:   String,
     },
 }
 
 /// Adaptive connection pool auto-tuner.
 ///
-/// Call [`PoolAutoTuner::evaluate`] with current [`PoolMetrics`] to get a
-/// [`PoolTuningDecision`], or call [`PoolAutoTuner::start`] to launch a
+/// Call [`PoolSizingAdvisor::evaluate`] with current [`PoolMetrics`] to get a
+/// [`PoolSizingRecommendation`], or call [`PoolSizingAdvisor::start`] to launch a
 /// background task that polls the adapter automatically.
-pub struct PoolAutoTuner {
+pub struct PoolSizingAdvisor {
     /// Tuning configuration.
     pub(crate) config: PoolTuningConfig,
     /// Consecutive samples with high queue depth.
@@ -54,7 +64,7 @@ pub struct PoolAutoTuner {
     current_target: AtomicU32,
 }
 
-impl PoolAutoTuner {
+impl PoolSizingAdvisor {
     /// Create a new auto-tuner with the given configuration.
     pub const fn new(config: PoolTuningConfig) -> Self {
         Self {
@@ -71,7 +81,7 @@ impl PoolAutoTuner {
     /// This method is pure computation — no I/O, no async.  It updates internal
     /// sample counters so consecutive calls with the same condition accumulate
     /// toward `samples_before_action`.
-    pub fn evaluate(&self, metrics: &PoolMetrics) -> PoolTuningDecision {
+    pub fn evaluate(&self, metrics: &PoolMetrics) -> PoolSizingRecommendation {
         let current = self.current_size(metrics);
         let min = self.config.min_pool_size;
         let max = self.config.max_pool_size;
@@ -87,7 +97,7 @@ impl PoolAutoTuner {
                     self.high_queue_samples.store(0, Ordering::Relaxed);
                     self.adjustments_total.fetch_add(1, Ordering::Relaxed);
                     self.current_target.store(desired, Ordering::Relaxed);
-                    return PoolTuningDecision::ScaleUp {
+                    return PoolSizingRecommendation::RecommendScaleUp {
                         new_size: desired,
                         reason:   format!(
                             "{} requests waiting (threshold {}); grown by {}",
@@ -100,7 +110,7 @@ impl PoolAutoTuner {
                 // Already at max — reset and stay stable
                 self.high_queue_samples.store(0, Ordering::Relaxed);
             }
-            return PoolTuningDecision::Stable;
+            return PoolSizingRecommendation::Stable;
         }
 
         self.high_queue_samples.store(0, Ordering::Relaxed);
@@ -120,7 +130,7 @@ impl PoolAutoTuner {
                     self.low_idle_samples.store(0, Ordering::Relaxed);
                     self.adjustments_total.fetch_add(1, Ordering::Relaxed);
                     self.current_target.store(desired, Ordering::Relaxed);
-                    return PoolTuningDecision::ScaleDown {
+                    return PoolSizingRecommendation::RecommendScaleDown {
                         new_size: desired,
                         reason:   format!(
                             "idle ratio {:.0}% > {:.0}% threshold; shrunk by {}",
@@ -130,12 +140,12 @@ impl PoolAutoTuner {
                         ),
                     };
                 }
-                return PoolTuningDecision::Stable;
+                return PoolSizingRecommendation::Stable;
             }
         }
 
         self.low_idle_samples.store(0, Ordering::Relaxed);
-        PoolTuningDecision::Stable
+        PoolSizingRecommendation::Stable
     }
 
     /// Total number of resize operations applied or recommended.
@@ -167,10 +177,10 @@ impl PoolAutoTuner {
 
         tokio::spawn(async move {
             if resize_fn.is_none() {
-                tracing::warn!(
-                    "Pool auto-tuner running in recommendation-only mode: \
-                     the database pool library does not expose a runtime resize API. \
-                     Scaling decisions will be logged but not applied automatically."
+                tracing::info!(
+                    "Pool sizing advisor running in advisory mode: \
+                     RecommendScaleUp/RecommendScaleDown recommendations will be logged \
+                     but not applied. Configure resize_fn to enable active pool management."
                 );
             }
 
@@ -183,8 +193,8 @@ impl PoolAutoTuner {
                 let metrics = adapter.pool_metrics();
 
                 match self.evaluate(&metrics) {
-                    PoolTuningDecision::Stable => {}
-                    PoolTuningDecision::ScaleUp { new_size, ref reason } => {
+                    PoolSizingRecommendation::Stable => {}
+                    PoolSizingRecommendation::RecommendScaleUp { new_size, ref reason } => {
                         if let Some(ref f) = resize_fn {
                             tracing::info!(
                                 new_size,
@@ -201,7 +211,7 @@ impl PoolAutoTuner {
                             );
                         }
                     }
-                    PoolTuningDecision::ScaleDown { new_size, ref reason } => {
+                    PoolSizingRecommendation::RecommendScaleDown { new_size, ref reason } => {
                         if let Some(ref f) = resize_fn {
                             tracing::info!(
                                 new_size,
@@ -265,6 +275,8 @@ mod tests {
         }
     }
 
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DatabaseAdapter for MockAdapter {
         async fn execute_where_query(
@@ -290,8 +302,8 @@ mod tests {
         { Ok(vec![]) }
     }
 
-    fn make_tuner(min: u32, max: u32, target_queue: u32) -> PoolAutoTuner {
-        PoolAutoTuner::new(PoolTuningConfig {
+    fn make_tuner(min: u32, max: u32, target_queue: u32) -> PoolSizingAdvisor {
+        PoolSizingAdvisor::new(PoolTuningConfig {
             enabled:               true,
             min_pool_size:         min,
             max_pool_size:         max,
@@ -314,7 +326,7 @@ mod tests {
     fn test_evaluate_stable_when_queue_low_and_idle_at_threshold() {
         // 10/20 = 50% idle — exactly at threshold, NOT above it → Stable
         let tuner = make_tuner(5, 50, 3);
-        assert_eq!(tuner.evaluate(&metrics(20, 10, 0)), PoolTuningDecision::Stable);
+        assert_eq!(tuner.evaluate(&metrics(20, 10, 0)), PoolSizingRecommendation::Stable);
     }
 
     #[test]
@@ -322,7 +334,7 @@ mod tests {
         let tuner = make_tuner(5, 50, 3);
         let decision = tuner.evaluate(&metrics(20, 2, 8));
         assert!(
-            matches!(&decision, PoolTuningDecision::ScaleUp { new_size, .. } if *new_size == 25),
+            matches!(&decision, PoolSizingRecommendation::RecommendScaleUp { new_size, .. } if *new_size == 25),
             "expected ScaleUp to 25, got {decision:?}"
         );
     }
@@ -333,7 +345,7 @@ mod tests {
         // 18/20 = 0.9 idle ratio > 0.5 threshold
         let decision = tuner.evaluate(&metrics(20, 18, 0));
         assert!(
-            matches!(&decision, PoolTuningDecision::ScaleDown { new_size, .. } if *new_size == 18),
+            matches!(&decision, PoolSizingRecommendation::RecommendScaleDown { new_size, .. } if *new_size == 18),
             "expected ScaleDown to 18, got {decision:?}"
         );
     }
@@ -345,7 +357,7 @@ mod tests {
         tuner.current_target.store(12, Ordering::Relaxed);
         let decision = tuner.evaluate(&metrics(12, 12, 0));
         assert!(
-            matches!(&decision, PoolTuningDecision::ScaleDown { new_size, .. } if *new_size >= 10),
+            matches!(&decision, PoolSizingRecommendation::RecommendScaleDown { new_size, .. } if *new_size >= 10),
             "must not go below min=10, got {decision:?}"
         );
     }
@@ -357,14 +369,14 @@ mod tests {
         let decision = tuner.evaluate(&metrics(25, 0, 20));
         assert_eq!(
             decision,
-            PoolTuningDecision::Stable,
+            PoolSizingRecommendation::Stable,
             "cannot scale above max"
         );
     }
 
     #[test]
     fn test_consecutive_samples_required_before_action() {
-        let tuner = PoolAutoTuner::new(PoolTuningConfig {
+        let tuner = PoolSizingAdvisor::new(PoolTuningConfig {
             enabled:               true,
             min_pool_size:         5,
             max_pool_size:         50,
@@ -374,20 +386,20 @@ mod tests {
             ..Default::default()
         });
         let high_queue = metrics(20, 2, 8);
-        assert_eq!(tuner.evaluate(&high_queue), PoolTuningDecision::Stable);
-        assert_eq!(tuner.evaluate(&high_queue), PoolTuningDecision::Stable);
-        assert!(matches!(tuner.evaluate(&high_queue), PoolTuningDecision::ScaleUp { .. }));
+        assert_eq!(tuner.evaluate(&high_queue), PoolSizingRecommendation::Stable);
+        assert_eq!(tuner.evaluate(&high_queue), PoolSizingRecommendation::Stable);
+        assert!(matches!(tuner.evaluate(&high_queue), PoolSizingRecommendation::RecommendScaleUp { .. }));
     }
 
     #[test]
     fn test_auto_tuner_recommended_size_initialises_to_zero() {
-        let tuner = PoolAutoTuner::new(PoolTuningConfig::default());
+        let tuner = PoolSizingAdvisor::new(PoolTuningConfig::default());
         assert_eq!(tuner.recommended_size(), 0);
     }
 
     #[test]
     fn test_auto_tuner_adjustments_counter_starts_at_zero() {
-        let tuner = PoolAutoTuner::new(PoolTuningConfig::default());
+        let tuner = PoolSizingAdvisor::new(PoolTuningConfig::default());
         assert_eq!(tuner.adjustments_total(), 0);
     }
 
@@ -420,9 +432,9 @@ mod tests {
             samples_before_action: 100, // never actually act
             ..Default::default()
         };
-        let tuner = Arc::new(PoolAutoTuner::new(config));
+        let tuner = Arc::new(PoolSizingAdvisor::new(config));
         let adapter = Arc::new(MockAdapter::with_metrics(metrics(10, 8, 0)));
-        let handle = PoolAutoTuner::start(tuner.clone(), adapter, None);
+        let handle = PoolSizingAdvisor::start(tuner.clone(), adapter, None);
         tokio::time::sleep(Duration::from_millis(50)).await;
         // Not crashing and handle is alive = success
         assert!(!handle.is_finished());

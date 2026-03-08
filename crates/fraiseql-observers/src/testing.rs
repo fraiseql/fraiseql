@@ -6,6 +6,7 @@ pub mod mocks {
     //! Mock implementations of traits for use in tests.
     use std::{collections::HashMap, collections::VecDeque, sync::Mutex};
 
+    #[cfg(feature = "checkpoint")]
     use async_trait::async_trait;
     use uuid::Uuid;
 
@@ -381,6 +382,7 @@ pub mod mocks {
     }
 
     /// Mock checkpoint store for testing
+    #[cfg(feature = "checkpoint")]
     #[derive(Clone)]
     pub struct MockCheckpointStore {
         checkpoints: std::sync::Arc<
@@ -388,6 +390,7 @@ pub mod mocks {
         >,
     }
 
+    #[cfg(feature = "checkpoint")]
     impl MockCheckpointStore {
         /// Create a new mock checkpoint store
         #[must_use]
@@ -398,12 +401,16 @@ pub mod mocks {
         }
     }
 
+    #[cfg(feature = "checkpoint")]
     impl Default for MockCheckpointStore {
         fn default() -> Self {
             Self::new()
         }
     }
 
+    // Reason: CheckpointStore is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[cfg(feature = "checkpoint")]
     #[async_trait]
     impl crate::checkpoint::CheckpointStore for MockCheckpointStore {
         async fn load(

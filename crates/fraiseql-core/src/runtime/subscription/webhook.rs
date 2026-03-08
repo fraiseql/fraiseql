@@ -142,7 +142,7 @@ impl WebhookPayload {
 ///     .with_secret("my_secret_key")
 ///     .with_max_retries(3);
 ///
-/// let adapter = WebhookAdapter::new(config);
+/// let adapter = WebhookAdapter::new(config)?;
 /// adapter.deliver(&event, "orderCreated").await?;
 /// ```
 pub struct WebhookAdapter {
@@ -153,17 +153,16 @@ pub struct WebhookAdapter {
 impl WebhookAdapter {
     /// Create a new webhook adapter.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the HTTP client cannot be built (should not happen in practice).
-    #[must_use]
-    pub fn new(config: WebhookTransportConfig) -> Self {
+    /// Returns an error if the underlying HTTP client cannot be initialized
+    /// (e.g., TLS stack unavailable, OS resource exhaustion).
+    pub fn new(config: WebhookTransportConfig) -> Result<Self, reqwest::Error> {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(config.timeout_ms))
-            .build()
-            .expect("Failed to build HTTP client");
+            .build()?;
 
-        Self { config, client }
+        Ok(Self { config, client })
     }
 
     /// Compute HMAC-SHA256 signature for payload.
@@ -173,8 +172,11 @@ impl WebhookAdapter {
 
         let secret = self.config.secret.as_ref()?;
 
+        #[allow(clippy::expect_used)]
+        // Reason: SHA-256 HMAC (FIPS 198-1) accepts keys of any size;
+        //         new_from_slice only fails for fixed-block-size ciphers (e.g., AES-CMAC).
         let mut mac =
-            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take any size key");
+            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("SHA-256 HMAC accepts any key size");
         mac.update(payload.as_bytes());
 
         let result = mac.finalize();
@@ -182,6 +184,8 @@ impl WebhookAdapter {
     }
 }
 
+// Reason: TransportAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl TransportAdapter for WebhookAdapter {
     async fn deliver(

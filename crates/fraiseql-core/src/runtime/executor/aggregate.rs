@@ -137,7 +137,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql = sql_generator.generate(&plan)?;
 
         // 4. Execute SQL
-        let rows = self.adapter.execute_raw_query(&sql.complete_sql).await?;
+        let rows = self.adapter.execute_raw_query(&sql.raw_sql).await?;
 
         // 5. Project results
         let projected = super::super::AggregationProjector::project(rows, &plan)?;
@@ -206,7 +206,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql = sql_generator.generate(&plan)?;
 
         // 4. Execute SQL
-        let rows = self.adapter.execute_raw_query(&sql.complete_sql).await?;
+        let rows = self.adapter.execute_raw_query(&sql.raw_sql).await?;
 
         // 5. Project results
         let projected = super::super::WindowProjector::project(rows, &plan)?;

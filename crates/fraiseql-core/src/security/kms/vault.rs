@@ -124,6 +124,8 @@ impl VaultKmsProvider {
     }
 }
 
+// Reason: BaseKmsProvider is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl BaseKmsProvider for VaultKmsProvider {
     fn provider_name(&self) -> &'static str {

@@ -199,6 +199,8 @@ impl FraiseWireAdapter {
     }
 }
 
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for FraiseWireAdapter {
     async fn execute_with_projection(

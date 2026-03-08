@@ -51,6 +51,8 @@ mod mock_dlq {
         }
     }
 
+    // Reason: DeadLetterQueue is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DeadLetterQueue for MockDeadLetterQueue {
         async fn push(

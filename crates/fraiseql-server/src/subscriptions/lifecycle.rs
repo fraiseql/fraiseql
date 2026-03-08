@@ -17,6 +17,7 @@ use async_trait::async_trait;
 ///   rejects the connection or subscription.
 /// - `on_disconnect` / `on_unsubscribe` are **fire-and-forget**: the connection
 ///   is already closing and there is nothing to reject.
+// Reason: used as dyn Trait (Arc<dyn SubscriptionLifecycle>); async_trait ensures Send bounds and dyn-compatibility
 #[async_trait]
 pub trait SubscriptionLifecycle: Send + Sync + 'static {
     /// Called after `connection_init` is received, before `connection_ack`.
@@ -52,6 +53,8 @@ pub trait SubscriptionLifecycle: Send + Sync + 'static {
 /// No-op lifecycle that accepts everything.
 pub struct NoopLifecycle;
 
+// Reason: SubscriptionLifecycle is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl SubscriptionLifecycle for NoopLifecycle {}
 

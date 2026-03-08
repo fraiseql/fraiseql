@@ -18,6 +18,8 @@ use crate::ticket::FlightTicket;
 /// Dummy executor for testing that implements `QueryExecutor` trait.
 struct DummyExecutor;
 
+// Reason: QueryExecutor is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl QueryExecutor for DummyExecutor {
     async fn execute_with_security(

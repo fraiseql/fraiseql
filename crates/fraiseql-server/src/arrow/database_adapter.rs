@@ -98,6 +98,8 @@ impl FlightDatabaseAdapter {
 }
 
 #[cfg(all(feature = "arrow", not(feature = "wire-backend")))]
+// Reason: ArrowDatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
     async fn execute_raw_query(
@@ -113,6 +115,8 @@ impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
 }
 
 #[cfg(all(feature = "arrow", feature = "wire-backend"))]
+// Reason: ArrowDatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
     async fn execute_raw_query(

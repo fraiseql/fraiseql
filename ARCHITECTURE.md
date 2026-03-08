@@ -1,3 +1,6 @@
+> **Navigation**: Full documentation index at [`docs/README.md`](docs/README.md) —
+> Architecture Decision Records at [`docs/adr/`](docs/adr/)
+
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════════════╗
 ║                        FRAISEQL FRAMEWORK — ARCHITECTURE MAP                             ║

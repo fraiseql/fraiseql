@@ -1,7 +1,7 @@
 //! Connection pool management.
 //!
-//! Provides adaptive pool sizing via [`PoolAutoTuner`].
+//! Provides adaptive pool sizing via [`PoolSizingAdvisor`].
 
 pub mod auto_tuner;
 
-pub use auto_tuner::{PoolAutoTuner, PoolTuningDecision};
+pub use auto_tuner::{PoolSizingAdvisor, PoolSizingRecommendation};

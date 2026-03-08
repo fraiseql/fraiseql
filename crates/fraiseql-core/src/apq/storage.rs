@@ -11,6 +11,7 @@ use serde_json::json;
 /// Implementations of this trait provide different storage strategies:
 /// - Memory: In-process LRU cache (single instance, fast)
 /// - `PostgreSQL`: Distributed storage (multi-instance, persistent)
+// Reason: used as dyn Trait (Arc<dyn ApqStorage>); async_trait ensures Send bounds and dyn-compatibility
 #[async_trait]
 pub trait ApqStorage: Send + Sync {
     /// Get query by hash

@@ -24,8 +24,9 @@ use crate::{
 /// Generated SQL for window function query
 #[derive(Debug, Clone)]
 pub struct WindowSql {
-    /// Complete SQL query
-    pub complete_sql: String,
+    /// Assembled SQL with user values escaped via `escape_sql_string`.
+    /// Passed to `execute_raw_query`; not a parameterised query.
+    pub raw_sql: String,
 
     /// Parameterized values (for WHERE clause)
     pub parameters: Vec<serde_json::Value>,
@@ -121,7 +122,7 @@ impl WindowSqlGenerator {
         }
 
         Ok(WindowSql {
-            complete_sql: sql,
+            raw_sql: sql,
             parameters,
         })
     }
@@ -342,9 +343,9 @@ mod tests {
 
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("ROW_NUMBER()"));
-        assert!(sql.complete_sql.contains("PARTITION BY data->>'category'"));
-        assert!(sql.complete_sql.contains("ORDER BY revenue DESC"));
+        assert!(sql.raw_sql.contains("ROW_NUMBER()"));
+        assert!(sql.raw_sql.contains("PARTITION BY data->>'category'"));
+        assert!(sql.raw_sql.contains("ORDER BY revenue DESC"));
     }
 
     #[test]
@@ -388,8 +389,8 @@ mod tests {
 
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("SUM(revenue) OVER"));
-        assert!(sql.complete_sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"));
+        assert!(sql.raw_sql.contains("SUM(revenue) OVER"));
+        assert!(sql.raw_sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"));
     }
 
     #[test]
@@ -437,8 +438,8 @@ mod tests {
 
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("LAG(revenue, 1, 0)"));
-        assert!(sql.complete_sql.contains("LEAD(revenue, 1)"));
+        assert!(sql.raw_sql.contains("LAG(revenue, 1, 0)"));
+        assert!(sql.raw_sql.contains("LEAD(revenue, 1)"));
     }
 
     #[test]
@@ -496,8 +497,8 @@ mod tests {
 
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("AVG(revenue) OVER"));
-        assert!(sql.complete_sql.contains("ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"));
+        assert!(sql.raw_sql.contains("AVG(revenue) OVER"));
+        assert!(sql.raw_sql.contains("ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"));
     }
 
     #[test]
@@ -536,8 +537,8 @@ mod tests {
         let sql = generator.generate(&plan).unwrap();
 
         // SQL Server uses STDEV/VAR instead of STDDEV/VARIANCE
-        assert!(sql.complete_sql.contains("STDEV(revenue)"));
-        assert!(sql.complete_sql.contains("VAR(revenue)"));
+        assert!(sql.raw_sql.contains("STDEV(revenue)"));
+        assert!(sql.raw_sql.contains("VAR(revenue)"));
     }
 
     #[test]
@@ -574,11 +575,11 @@ mod tests {
 
         // WHERE clause must use bind parameter ($1), not a literal string value.
         assert!(
-            sql.complete_sql.contains("WHERE data->>'status' = $1"),
+            sql.raw_sql.contains("WHERE data->>'status' = $1"),
             "expected bind parameter $1, got: {}",
-            sql.complete_sql
+            sql.raw_sql
         );
-        assert!(!sql.complete_sql.contains("WHERE 1=1"));
+        assert!(!sql.raw_sql.contains("WHERE 1=1"));
         assert_eq!(sql.parameters, vec![serde_json::json!("active")]);
     }
 
@@ -612,8 +613,8 @@ mod tests {
         let sql = generator.generate(&plan).unwrap();
 
         // WHERE clause is rendered (not 1=1), value is a bind parameter.
-        assert!(sql.complete_sql.contains("WHERE"), "WHERE clause must appear in SQL");
-        assert!(!sql.complete_sql.contains("WHERE 1=1"));
+        assert!(sql.raw_sql.contains("WHERE"), "WHERE clause must appear in SQL");
+        assert!(!sql.raw_sql.contains("WHERE 1=1"));
     }
 
     #[test]
@@ -639,6 +640,6 @@ mod tests {
         let sql = generator.generate(&plan).unwrap();
 
         // No WHERE clause in output
-        assert!(!sql.complete_sql.contains("WHERE"));
+        assert!(!sql.raw_sql.contains("WHERE"));
     }
 }

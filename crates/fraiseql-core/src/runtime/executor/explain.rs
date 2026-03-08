@@ -189,6 +189,8 @@ mod tests {
     // Minimal mock adapter for unit tests — no database required.
     struct MockAdapter;
 
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl crate::db::traits::DatabaseAdapter for MockAdapter {
         async fn execute_where_query(

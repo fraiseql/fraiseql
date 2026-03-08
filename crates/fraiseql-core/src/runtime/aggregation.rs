@@ -92,8 +92,9 @@ pub struct AggregationSql {
     pub limit:        Option<u32>,
     /// OFFSET clause (if present)
     pub offset:       Option<u32>,
-    /// Complete SQL query
-    pub complete_sql: String,
+    /// Assembled SQL with user values escaped via `escape_sql_string`.
+    /// Passed to `execute_raw_query`; not a parameterised query.
+    pub raw_sql: String,
 }
 
 /// Aggregation SQL generator
@@ -150,7 +151,7 @@ impl AggregationSqlGenerator {
         };
 
         // Build complete SQL
-        let complete_sql = self.assemble_sql(
+        let raw_sql = self.assemble_sql(
             &select,
             &from,
             where_clause.as_deref(),
@@ -170,7 +171,7 @@ impl AggregationSqlGenerator {
             order_by,
             limit: plan.request.limit,
             offset: plan.request.offset,
-            complete_sql,
+            raw_sql,
         })
     }
 
@@ -1090,12 +1091,12 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("dimensions->>'category'"));
-        assert!(sql.complete_sql.contains("DATE_TRUNC('day', occurred_at)"));
-        assert!(sql.complete_sql.contains("COUNT(*)"));
-        assert!(sql.complete_sql.contains("SUM(revenue)"));
-        assert!(sql.complete_sql.contains("GROUP BY"));
-        assert!(sql.complete_sql.contains("LIMIT 10"));
+        assert!(sql.raw_sql.contains("dimensions->>'category'"));
+        assert!(sql.raw_sql.contains("DATE_TRUNC('day', occurred_at)"));
+        assert!(sql.raw_sql.contains("COUNT(*)"));
+        assert!(sql.raw_sql.contains("SUM(revenue)"));
+        assert!(sql.raw_sql.contains("GROUP BY"));
+        assert!(sql.raw_sql.contains("LIMIT 10"));
     }
 
     #[test]
@@ -1105,12 +1106,12 @@ mod tests {
         let sql = generator.generate(&plan).unwrap();
 
         assert!(
-            sql.complete_sql
+            sql.raw_sql
                 .contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))")
         );
-        assert!(sql.complete_sql.contains("DATE_FORMAT(occurred_at"));
-        assert!(sql.complete_sql.contains("COUNT(*)"));
-        assert!(sql.complete_sql.contains("SUM(revenue)"));
+        assert!(sql.raw_sql.contains("DATE_FORMAT(occurred_at"));
+        assert!(sql.raw_sql.contains("COUNT(*)"));
+        assert!(sql.raw_sql.contains("SUM(revenue)"));
     }
 
     #[test]
@@ -1119,10 +1120,10 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("json_extract(dimensions, '$.category')"));
-        assert!(sql.complete_sql.contains("strftime"));
-        assert!(sql.complete_sql.contains("COUNT(*)"));
-        assert!(sql.complete_sql.contains("SUM(revenue)"));
+        assert!(sql.raw_sql.contains("json_extract(dimensions, '$.category')"));
+        assert!(sql.raw_sql.contains("strftime"));
+        assert!(sql.raw_sql.contains("COUNT(*)"));
+        assert!(sql.raw_sql.contains("SUM(revenue)"));
     }
 
     #[test]
@@ -1131,10 +1132,10 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("JSON_VALUE(dimensions, '$.category')"));
-        assert!(sql.complete_sql.contains("CAST(occurred_at AS DATE)"));
-        assert!(sql.complete_sql.contains("COUNT(*)"));
-        assert!(sql.complete_sql.contains("SUM(revenue)"));
+        assert!(sql.raw_sql.contains("JSON_VALUE(dimensions, '$.category')"));
+        assert!(sql.raw_sql.contains("CAST(occurred_at AS DATE)"));
+        assert!(sql.raw_sql.contains("COUNT(*)"));
+        assert!(sql.raw_sql.contains("SUM(revenue)"));
     }
 
     #[test]
@@ -1339,8 +1340,8 @@ mod tests {
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = generator.generate(&plan).unwrap();
 
-        assert!(sql.complete_sql.contains("ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)"));
-        assert!(sql.complete_sql.contains("STRING_AGG(product_name, ', ')"));
+        assert!(sql.raw_sql.contains("ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)"));
+        assert!(sql.raw_sql.contains("STRING_AGG(product_name, ', ')"));
     }
 
     // ========================================

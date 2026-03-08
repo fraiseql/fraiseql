@@ -217,6 +217,8 @@ impl KafkaAdapter {
 }
 
 #[cfg(feature = "kafka")]
+// Reason: TransportAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(
@@ -341,6 +343,8 @@ impl KafkaAdapter {
 }
 
 #[cfg(not(feature = "kafka"))]
+// Reason: TransportAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(

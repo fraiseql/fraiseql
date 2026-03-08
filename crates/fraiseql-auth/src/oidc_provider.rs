@@ -143,6 +143,8 @@ impl OidcProvider {
     }
 }
 
+// Reason: OAuthProvider is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl OAuthProvider for OidcProvider {
     fn name(&self) -> &str {

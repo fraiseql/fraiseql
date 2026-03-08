@@ -42,6 +42,8 @@ impl MockDatabaseAdapter {
     }
 }
 
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_with_projection(
@@ -125,6 +127,8 @@ impl MockMutationDatabaseAdapter {
     }
 }
 
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
 impl DatabaseAdapter for MockMutationDatabaseAdapter {
     async fn execute_with_projection(

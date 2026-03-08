@@ -43,6 +43,7 @@ pub struct HistoricalEvent {
 /// - PostgreSQL: Query from a `fraiseql_events` table
 /// - `DuckDB`: Query from Parquet files in cloud storage
 /// - `ClickHouse`: Query from a distributed events table
+// Reason: used as dyn Trait (Arc<dyn EventStorage>); async_trait ensures Send bounds and dyn-compatibility
 #[async_trait]
 pub trait EventStorage: Send + Sync {
     /// Query historical events by entity type and optional date range.

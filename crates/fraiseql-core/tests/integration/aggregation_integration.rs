@@ -206,11 +206,11 @@ fn test_sql_generation_postgres() {
     let sql = sql_generator.generate(&plan).unwrap();
 
     // Verify SQL contains expected clauses
-    assert!(sql.complete_sql.contains("data->>'category'"));
-    assert!(sql.complete_sql.contains("COUNT(*)"));
-    assert!(sql.complete_sql.contains("SUM(revenue)"));
-    assert!(sql.complete_sql.contains("GROUP BY"));
-    assert!(sql.complete_sql.contains("FROM tf_sales"));
+    assert!(sql.raw_sql.contains("data->>'category'"));
+    assert!(sql.raw_sql.contains("COUNT(*)"));
+    assert!(sql.raw_sql.contains("SUM(revenue)"));
+    assert!(sql.raw_sql.contains("GROUP BY"));
+    assert!(sql.raw_sql.contains("FROM tf_sales"));
 }
 
 #[test]
@@ -240,22 +240,22 @@ fn test_temporal_bucket_sql_generation() {
     // Test PostgreSQL SQL generation
     let pg_generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let pg_sql = pg_generator.generate(&plan).unwrap();
-    assert!(pg_sql.complete_sql.contains("DATE_TRUNC('day', occurred_at)"));
+    assert!(pg_sql.raw_sql.contains("DATE_TRUNC('day', occurred_at)"));
 
     // Test MySQL SQL generation
     let mysql_generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
     let mysql_sql = mysql_generator.generate(&plan).unwrap();
-    assert!(mysql_sql.complete_sql.contains("DATE_FORMAT(occurred_at"));
+    assert!(mysql_sql.raw_sql.contains("DATE_FORMAT(occurred_at"));
 
     // Test SQLite SQL generation
     let sqlite_generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
     let sqlite_sql = sqlite_generator.generate(&plan).unwrap();
-    assert!(sqlite_sql.complete_sql.contains("strftime"));
+    assert!(sqlite_sql.raw_sql.contains("strftime"));
 
     // Test SQL Server SQL generation
     let sqlserver_generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
     let sqlserver_sql = sqlserver_generator.generate(&plan).unwrap();
-    assert!(sqlserver_sql.complete_sql.contains("CAST(occurred_at AS DATE)"));
+    assert!(sqlserver_sql.raw_sql.contains("CAST(occurred_at AS DATE)"));
 }
 
 // ============================================================================

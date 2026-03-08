@@ -24,7 +24,7 @@ fn plan_and_generate(query: &serde_json::Value, db_type: DatabaseType) -> String
     let plan = WindowFunctionPlanner::plan(query, &metadata).unwrap();
     let sql_result = generator.generate(&plan).unwrap();
 
-    sql_result.complete_sql
+    sql_result.raw_sql
 }
 
 fn plan_and_generate_pg(query: &serde_json::Value) -> String {

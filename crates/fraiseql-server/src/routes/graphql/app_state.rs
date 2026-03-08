@@ -59,7 +59,7 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
     pub debug_config: Option<fraiseql_core::schema::DebugConfig>,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
-    pub pool_tuner:   Option<Arc<crate::pool::PoolAutoTuner>>,
+    pub pool_tuner:   Option<Arc<crate::pool::PoolSizingAdvisor>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -248,7 +248,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Attach an adaptive connection pool auto-tuner.
     #[must_use]
-    pub fn with_pool_tuner(mut self, tuner: Arc<crate::pool::PoolAutoTuner>) -> Self {
+    pub fn with_pool_tuner(mut self, tuner: Arc<crate::pool::PoolSizingAdvisor>) -> Self {
         self.pool_tuner = Some(tuner);
         self
     }

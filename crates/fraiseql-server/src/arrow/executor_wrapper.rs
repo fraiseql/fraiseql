@@ -29,6 +29,8 @@ impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
     }
 }
 
+// Reason: QueryExecutor is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
     async fn execute_with_security(

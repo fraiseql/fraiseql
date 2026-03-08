@@ -14,6 +14,8 @@ use crate::{
 
 use super::{build_where_select_sql, PostgresAdapter};
 
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
     async fn execute_with_projection(

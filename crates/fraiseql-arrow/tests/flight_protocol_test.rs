@@ -35,6 +35,8 @@ use tonic::Request;
 /// to avoid unsupported Arrow type conversions (e.g. `Timestamp(Microsecond, UTC)`).
 struct MockAdapter;
 
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for MockAdapter {
     async fn execute_raw_query(

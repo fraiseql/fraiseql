@@ -3,38 +3,36 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 // Allow common pedantic lints that are too noisy for this codebase
-#![allow(clippy::struct_excessive_bools)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::unnecessary_wraps)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::no_effect_underscore_binding)]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::struct_field_names)]
-#![allow(clippy::wildcard_imports)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::new_without_default)]
-#![allow(clippy::manual_let_else)]
-#![allow(clippy::match_same_arms)]
-#![allow(clippy::match_wildcard_for_single_variants)]
-#![allow(clippy::unused_async)]
-// Test-related - exact float comparison is intentional in tests
-#![allow(clippy::float_cmp)]
-#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used
-// Nursery lints - experimental, too noisy
-#![allow(clippy::collection_is_never_read)]
-#![allow(clippy::future_not_send)]
-#![allow(clippy::significant_drop_in_scrutinee)]
+#![allow(clippy::struct_excessive_bools)] // Reason: config structs have independent boolean flags; splitting would not improve clarity
+#![allow(clippy::cast_possible_truncation)] // Reason: index casts are bounded by validated input sizes
+#![allow(clippy::missing_errors_doc)] // Reason: error variants are self-documenting; repeating them in doc comments adds noise
+#![allow(clippy::missing_panics_doc)] // Reason: panics only in impossible branches (pre-validated state)
+#![allow(clippy::unused_self)] // Reason: trait impls require &self for consistency even when the method doesn't use it
+#![allow(clippy::unnecessary_wraps)] // Reason: trait methods must return Result for mock/real symmetry
+#![allow(clippy::needless_pass_by_value)] // Reason: trait method signatures must match; consuming at the boundary is intentional
+#![allow(clippy::must_use_candidate)] // Reason: side-effectful methods intentionally not marked must_use
+#![allow(clippy::module_name_repetitions)] // Reason: ObserverExecutor, ObserverError etc. are the conventional names in this domain
+#![allow(clippy::doc_markdown)] // Reason: prose descriptions don't require backtick-wrapping of every term
+#![allow(clippy::return_self_not_must_use)] // Reason: builder methods are used for side effects, not chaining
+#![allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics counters
+#![allow(clippy::cast_sign_loss)] // Reason: values are validated non-negative before cast
+#![allow(clippy::too_many_lines)] // Reason: executor/mod.rs and condition.rs are domain-dense; split tracked as U1
+#![allow(clippy::cast_possible_wrap)] // Reason: wrapping is acceptable for metric counters (not security-sensitive)
+#![allow(clippy::no_effect_underscore_binding)] // Reason: _field in structs documents intentional unused slots
+#![allow(clippy::default_trait_access)] // Reason: Default::default() is explicit and readable
+#![allow(clippy::struct_field_names)] // Reason: action_type, action_config etc. are accurate names with no clearer alternative
+#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for brevity; consistent with workspace test style
+#![allow(clippy::items_after_statements)] // Reason: nested helper types defined close to their use site for readability
+#![allow(clippy::new_without_default)] // Reason: constructors require arguments; a Default impl would be misleading
+#![allow(clippy::manual_let_else)] // Reason: some match branches are more readable than let-else at this complexity level
+#![allow(clippy::match_same_arms)] // Reason: symmetric arms document that all variants are explicitly considered
+#![allow(clippy::match_wildcard_for_single_variants)] // Reason: _ arm is intentional for forward compatibility with new variants
+#![allow(clippy::unused_async)] // Reason: trait methods must be async for mock/real symmetry
+#![allow(clippy::float_cmp)] // Reason: exact float comparison is intentional in metric threshold tests
+#![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used here
+#![allow(clippy::collection_is_never_read)] // Reason: collections populated for side effects (DLQ writes); reads are not the goal
+#![allow(clippy::future_not_send)] // Reason: some futures are deliberately not Send (single-threaded observer contexts)
+#![allow(clippy::significant_drop_in_scrutinee)] // Reason: lock guards in match arms are intentional; drop order is correct
 
 //! FraiseQL Observer System - Post-Mutation Side Effects
 //!
@@ -78,7 +76,9 @@ pub mod actions_additional;
 pub mod cache;
 #[cfg(feature = "caching")]
 pub mod cached_executor;
+#[cfg(feature = "checkpoint")]
 pub mod checkpoint;
+#[cfg(feature = "cli")]
 pub mod cli;
 pub mod concurrent;
 pub mod condition;
@@ -105,6 +105,7 @@ pub mod queue;
 #[cfg(feature = "queue")]
 pub mod queued_executor;
 pub mod resilience;
+#[cfg(feature = "search")]
 pub mod search;
 pub mod storage;
 pub mod traits;
@@ -119,6 +120,7 @@ pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};
 #[cfg(feature = "caching")]
 pub use cache::redis::RedisCacheBackend;
 pub use cache::{CacheBackend, CacheStats, CachedActionResult};
+#[cfg(feature = "checkpoint")]
 pub use checkpoint::{
     CheckpointMode, CheckpointState, CheckpointStore, CheckpointStrategy,
     InMemoryCheckpointStore, PostgresCheckpointStore, check_checkpoint_requirement,
@@ -173,6 +175,7 @@ pub use resilience::{
 };
 #[cfg(feature = "search")]
 pub use search::http::HttpSearchBackend;
+#[cfg(feature = "search")]
 pub use search::{IndexedEvent, SearchBackend, SearchStats};
 pub use storage::EventStorage;
 #[cfg(feature = "postgres")]

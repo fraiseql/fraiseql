@@ -55,6 +55,7 @@ const fn default_true() -> bool { true }
 // ───────────────────────────────────────────────────────────────
 
 /// Revocation store abstraction.
+// Reason: used as dyn Trait (Arc<dyn RevocationStore>); async_trait ensures Send bounds and dyn-compatibility
 #[async_trait]
 pub trait RevocationStore: Send + Sync {
     /// Check if a JTI has been revoked.
@@ -109,6 +110,8 @@ impl Default for InMemoryRevocationStore {
     }
 }
 
+// Reason: RevocationStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl RevocationStore for InMemoryRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
@@ -175,6 +178,8 @@ impl RedisRevocationStore {
 }
 
 #[cfg(feature = "redis-rate-limiting")]
+// Reason: RevocationStore is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl RevocationStore for RedisRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
