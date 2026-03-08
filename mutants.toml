@@ -1,0 +1,20 @@
+# cargo-mutants configuration for FraiseQL
+#
+# Priority files are chosen because they contain security-critical logic
+# (cache key generation, query execution flow) where a mutant surviving
+# would indicate a missing test that could allow data leakage or incorrect
+# behavior in production.
+#
+# Run locally (requires cargo install cargo-mutants):
+#   cargo mutants --package fraiseql-core --file src/cache/key.rs --timeout 60
+#
+# See .github/workflows/mutation.yml for the CI configuration.
+
+# Timeout per test (seconds) — keep low to avoid slow mutation runs.
+# If tests need more time, raise this but also investigate why.
+timeout_multiplier = 3.0
+
+# Only test the packages with mutation-sensitive logic.
+# Add packages here as their test suites mature.
+[profile.default]
+timeout_seconds = 60

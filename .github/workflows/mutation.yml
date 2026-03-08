@@ -1,0 +1,32 @@
+name: Mutation Testing
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly, Monday 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  mutants:
+    name: cargo-mutants (fraiseql-core priority files)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Non-blocking until baseline survival rate is established
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: Run mutation tests
+        run: |
+          cargo mutants --package fraiseql-core \
+            --file src/cache/key.rs \
+            --file src/runtime/executor/query.rs \
+            --file src/compiler/aggregation.rs \
+            --file src/cache/adapter/query.rs \
+            --timeout 60 \
+            --output mutants-report/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-report
+          path: mutants-report/
