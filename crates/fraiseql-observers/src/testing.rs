@@ -138,7 +138,6 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
     impl EventSource for MockEventSource {
         async fn next_event(&mut self) -> Option<EntityEvent> {
             self.events.lock().unwrap().pop_front()
@@ -189,7 +188,6 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
     impl ActionExecutor for MockActionExecutor {
         async fn execute(
             &self,

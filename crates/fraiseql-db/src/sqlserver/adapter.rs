@@ -652,7 +652,6 @@ fn build_relay_where_sql(
 
 impl MutationCapable for SqlServerAdapter {}
 
-#[async_trait]
 impl RelayDatabaseAdapter for SqlServerAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.
     ///

@@ -2849,7 +2849,6 @@ dependencies = [
 name = "fraiseql-webhooks"
 version = "2.1.0"
 dependencies = [
- "async-trait",
  "base64 0.22.1",
  "ed25519-dalek",
  "futures",

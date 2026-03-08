@@ -1,13 +1,11 @@
 //! Database introspection trait for querying table metadata.
 
-use async_trait::async_trait;
-
 use fraiseql_error::Result;
 
 use crate::DatabaseType;
 
 /// Database introspection trait for querying table metadata.
-#[async_trait]
+#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait DatabaseIntrospector: Send + Sync {
     /// List all fact tables in the database (tables starting with "tf_").
     ///

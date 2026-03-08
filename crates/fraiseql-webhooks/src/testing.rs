@@ -11,8 +11,6 @@ pub mod mocks {
         },
     };
 
-    use async_trait::async_trait;
-
     use crate::{
         Clock, IdempotencyStore, Result, SecretProvider, SignatureVerifier, WebhookError,
         signature::SignatureError,
@@ -153,7 +151,6 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
     impl IdempotencyStore for MockIdempotencyStore {
         async fn check(&self, provider: &str, event_id: &str) -> Result<bool> {
             Ok(self
@@ -231,7 +228,6 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
     impl SecretProvider for MockSecretProvider {
         async fn get_secret(&self, name: &str) -> Result<String> {
             self.secrets

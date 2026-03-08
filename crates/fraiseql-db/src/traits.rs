@@ -1,5 +1,7 @@
 //! Database adapter trait definitions.
 
+use std::future::Future;
+
 use async_trait::async_trait;
 
 use super::{
@@ -657,7 +659,6 @@ pub enum CursorValue {
 /// Construct an [`Executor`](crate::runtime::Executor) with
 /// [`Executor::new_with_relay`](crate::runtime::Executor::new_with_relay) to enable relay
 /// query execution. The bound `A: RelayDatabaseAdapter` is enforced at that call site.
-#[async_trait]
 pub trait RelayDatabaseAdapter: DatabaseAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.
     ///
@@ -676,18 +677,18 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Database` on SQL execution failure.
-    async fn execute_relay_page(
-        &self,
-        view: &str,
-        cursor_column: &str,
+    fn execute_relay_page<'a>(
+        &'a self,
+        view: &'a str,
+        cursor_column: &'a str,
         after: Option<CursorValue>,
         before: Option<CursorValue>,
         limit: u32,
         forward: bool,
-        where_clause: Option<&WhereClause>,
-        order_by: Option<&[OrderByClause]>,
+        where_clause: Option<&'a WhereClause>,
+        order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
-    ) -> Result<RelayPageResult>;
+    ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a;
 }
 
 /// Marker trait for database adapters that support write operations via stored functions.

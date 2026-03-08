@@ -3,6 +3,8 @@
 //! These traits define the boundaries between components, enabling
 //! mock implementations for testing without external dependencies.
 
+use std::future::Future;
+
 use async_trait::async_trait;
 use uuid::Uuid;
 
@@ -11,7 +13,7 @@ use crate::{config::ActionConfig, error::Result, event::EntityEvent};
 /// Event source abstraction for testing
 ///
 /// Allows tests to provide pre-defined events without database connectivity.
-#[async_trait]
+#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait EventSource: Send + Sync {
     /// Get the next event from the source
     ///
@@ -22,7 +24,6 @@ pub trait EventSource: Send + Sync {
 /// Action execution abstraction for testing
 ///
 /// Enables testing action execution without real external services.
-#[async_trait]
 pub trait ActionExecutor: Send + Sync {
     /// Execute an action on an event
     ///
@@ -32,7 +33,11 @@ pub trait ActionExecutor: Send + Sync {
     ///
     /// # Returns
     /// Result with action result on success or error
-    async fn execute(&self, event: &EntityEvent, action: &ActionConfig) -> Result<ActionResult>;
+    fn execute<'a>(
+        &'a self,
+        event: &'a EntityEvent,
+        action: &'a ActionConfig,
+    ) -> impl Future<Output = Result<ActionResult>> + Send + 'a;
 }
 
 /// Result of executing an action

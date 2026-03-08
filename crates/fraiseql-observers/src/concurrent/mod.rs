@@ -163,7 +163,6 @@ mod tests {
     #[derive(Clone)]
     struct TestExecutor;
 
-    #[async_trait::async_trait]
     impl ActionExecutor for TestExecutor {
         async fn execute(
             &self,

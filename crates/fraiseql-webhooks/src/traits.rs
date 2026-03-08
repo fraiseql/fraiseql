@@ -2,14 +2,12 @@
 //!
 //! All external dependencies are abstracted behind traits for easy testing.
 
-use async_trait::async_trait;
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
 
 use super::{Result, signature::SignatureError};
 
 /// Signature verification abstraction for testing
-#[async_trait]
 pub trait SignatureVerifier: Send + Sync {
     /// Provider name (e.g., "stripe", "github")
     fn name(&self) -> &'static str;
@@ -46,7 +44,7 @@ pub trait SignatureVerifier: Send + Sync {
 }
 
 /// Idempotency store abstraction for testing
-#[async_trait]
+#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait IdempotencyStore: Send + Sync {
     /// Check if event has already been processed
     async fn check(&self, provider: &str, event_id: &str) -> Result<bool>;
@@ -71,14 +69,14 @@ pub trait IdempotencyStore: Send + Sync {
 }
 
 /// Secret provider abstraction for testing
-#[async_trait]
+#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait SecretProvider: Send + Sync {
     /// Get webhook secret by name
     async fn get_secret(&self, name: &str) -> Result<String>;
 }
 
 /// Event handler abstraction for testing
-#[async_trait]
+#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait EventHandler: Send + Sync {
     /// Handle webhook event by calling database function
     async fn handle(

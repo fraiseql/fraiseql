@@ -8,7 +8,6 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity without extra imports
-use fraiseql_core::schema::FieldDenyPolicy;
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
@@ -144,7 +143,6 @@ impl DatabaseAdapter for RelayMockAdapter {
 
 impl MutationCapable for RelayMockAdapter {}
 
-#[async_trait]
 impl RelayDatabaseAdapter for RelayMockAdapter {
     /// Keyset pagination with optional filter, sort, and totalCount.
     ///
@@ -693,7 +691,6 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
 
 impl MutationCapable for UuidRelayMockAdapter {}
 
-#[async_trait]
 impl RelayDatabaseAdapter for UuidRelayMockAdapter {
     async fn execute_relay_page(
         &self,

@@ -1,7 +1,5 @@
 //! `RelayDatabaseAdapter` implementation for `PostgresAdapter`.
 
-use async_trait::async_trait;
-
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
@@ -16,7 +14,6 @@ use super::{escape_jsonb_key, PostgresAdapter};
 use crate::dialect::PostgresDialect;
 use crate::postgres::where_generator::PostgresWhereGenerator;
 
-#[async_trait]
 impl RelayDatabaseAdapter for PostgresAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.
     ///

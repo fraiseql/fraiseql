@@ -49,18 +49,23 @@ fn validate_documents_valid_manifest_exits_zero() {
     );
 }
 
-/// Valid manifest printed to stdout contains the document count.
+/// Valid manifest output (stderr) contains the document count.
 #[test]
 fn validate_documents_prints_document_count() {
     let out = cli()
         .args(["validate-documents", &fixture("valid_manifest.json")])
         .output()
         .unwrap();
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    // The CLI writes progress output to stderr (via OutputFormatter).
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
     // Either the count line or an "All documents valid" line must appear
     assert!(
-        stdout.contains('1') || stdout.contains("valid"),
-        "output must mention count or validity; got: {stdout}"
+        combined.contains('1') || combined.contains("valid"),
+        "output must mention count or validity; got: {combined}"
     );
 }
 

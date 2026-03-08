@@ -3,12 +3,9 @@
 //! Relay pagination results are not cached — all calls are forwarded
 //! directly to the underlying adapter.
 
-use async_trait::async_trait;
-
 use super::adapter::CachedDatabaseAdapter;
 use crate::{db::{DatabaseAdapter, RelayDatabaseAdapter}, error::Result};
 
-#[async_trait]
 impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter
     for CachedDatabaseAdapter<A>
 {

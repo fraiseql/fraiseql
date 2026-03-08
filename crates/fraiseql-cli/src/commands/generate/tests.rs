@@ -1,5 +1,4 @@
 //! Unit tests for the generate command.
-#![cfg(test)]
 
 use indexmap::IndexMap;
 

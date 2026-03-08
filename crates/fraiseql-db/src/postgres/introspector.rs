@@ -1,5 +1,4 @@
 /// ! PostgreSQL database introspection for fact tables.
-use async_trait::async_trait;
 use deadpool_postgres::Pool;
 use tokio_postgres::Row;
 
@@ -20,7 +19,6 @@ impl PostgresIntrospector {
     }
 }
 
-#[async_trait]
 impl DatabaseIntrospector for PostgresIntrospector {
     async fn list_fact_tables(&self) -> Result<Vec<String>> {
         let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {

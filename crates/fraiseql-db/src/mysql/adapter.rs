@@ -603,7 +603,6 @@ impl MutationCapable for MySqlAdapter {}
 
 // ── RelayDatabaseAdapter ───────────────────────────────────────────────────
 
-#[async_trait]
 impl RelayDatabaseAdapter for MySqlAdapter {
     /// Execute keyset (cursor-based) pagination against a JSONB view.
     ///

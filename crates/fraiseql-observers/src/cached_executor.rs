@@ -156,7 +156,6 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
 }
 
 #[cfg(feature = "caching")]
-#[async_trait::async_trait]
 impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecutor
     for CachedActionExecutor<E, C>
 {
@@ -255,7 +254,6 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl ActionExecutor for TestExecutor {
         async fn execute(
             &self,

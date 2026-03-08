@@ -87,7 +87,7 @@ fn schema_version_component_contributes_independently() {
 
 // ─── M3: Query + variables component (base_key) ───────────────────────────────
 
-/// If the base_key (query + variables) were omitted, queries that differ only
+/// If the `base_key` (query + variables) were omitted, queries that differ only
 /// in the query string would collide.
 #[test]
 fn query_component_contributes_independently() {
@@ -108,7 +108,7 @@ fn variables_component_contributes_independently() {
 // ─── M4: additional_views in extract_accessed_views ───────────────────────────
 
 /// If `views.extend(additional_views)` were removed, secondary views would be
-/// absent — cache invalidation for JOINed views would silently break.
+/// absent — cache invalidation for `JOINed` views would silently break.
 #[test]
 fn extract_views_includes_additional_views() {
     let query_def = QueryDefinition {
