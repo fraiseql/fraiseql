@@ -136,10 +136,10 @@ use fraiseql_core::db::path_escape;
         let path = vec!["user'; DROP TABLE users; --".to_string()];
         let escaped = path_escape::escape_mysql_json_path(&path);
 
-        // Should escape single quote with backslash
-        assert!(escaped.contains("\\'"), "Single quote not escaped for MySQL");
-        // Result should be: $.user\'; DROP TABLE users; --
-        assert_eq!(escaped, "$.user\\'; DROP TABLE users; --");
+        // Should escape single quote with doubled quotes (ANSI SQL, safe under NO_BACKSLASH_ESCAPES)
+        assert!(escaped.contains("''"), "Single quote not escaped for MySQL");
+        // Result should be: $.user''; DROP TABLE users; --
+        assert_eq!(escaped, "$.user''; DROP TABLE users; --");
     }
 
     #[test]
@@ -147,8 +147,8 @@ use fraiseql_core::db::path_escape;
         let path = vec!["user'".to_string(), "admin' OR '1'='1".to_string()];
         let escaped = path_escape::escape_mysql_json_path(&path);
 
-        // All quotes should be escaped
-        assert!(escaped.contains("\\'"), "Quotes not properly escaped");
+        // All quotes should be escaped with doubled quotes (ANSI SQL)
+        assert!(escaped.contains("''"), "Quotes not properly escaped");
     }
 
     #[test]
@@ -194,8 +194,9 @@ use fraiseql_core::db::path_escape;
         let path = vec!["user'; DROP TABLE users; --".to_string()];
         let escaped = path_escape::escape_sqlite_json_path(&path);
 
-        assert!(escaped.contains("\\'"), "Single quote not escaped for SQLite");
-        assert_eq!(escaped, "$.user\\'; DROP TABLE users; --");
+        // Should escape single quote with doubled quotes (ANSI SQL)
+        assert!(escaped.contains("''"), "Single quote not escaped for SQLite");
+        assert_eq!(escaped, "$.user''; DROP TABLE users; --");
     }
 
     #[test]
@@ -405,6 +406,6 @@ use fraiseql_core::db::path_escape;
 
         // Should preserve the dot notation structure
         assert!(escaped.starts_with("$."), "JSON path must start with $.");
-        assert!(escaped.contains("user\\'name"), "Quote should be escaped");
+        assert!(escaped.contains("user''name"), "Quote should be escaped with doubled quotes");
         assert!(escaped.contains("email"), "Second segment should be present");
     }

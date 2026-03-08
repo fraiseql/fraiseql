@@ -531,13 +531,13 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_default_rls_policy_admin_bypass() {
-        let policy = DefaultRLSPolicy::new();
-        let context = SecurityContext {
-            user_id:          "user123".to_string(),
-            roles:            vec!["admin".to_string()],
-            tenant_id:        Some("tenant1".to_string()),
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    fn make_context(user_id: &str, roles: Vec<&str>, tenant_id: Option<&str>) -> SecurityContext {
+        SecurityContext {
+            user_id:          user_id.to_string(),
+            roles:            roles.into_iter().map(String::from).collect(),
+            tenant_id:        tenant_id.map(String::from),
             scopes:           vec![],
             attributes:       HashMap::new(),
             request_id:       "req1".to_string(),
@@ -546,8 +546,70 @@ mod tests {
             expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
-        };
+        }
+    }
 
+    fn cacheable_owner_rule() -> RLSRule {
+        RLSRule {
+            name:              "owner_only".to_string(),
+            expression:        "user.id == object.author_id".to_string(),
+            cacheable:         true,
+            cache_ttl_seconds: Some(300),
+        }
+    }
+
+    fn policy_with_rule(rule: RLSRule) -> CompiledRLSPolicy {
+        let mut rules_by_type = std::collections::HashMap::new();
+        rules_by_type.insert("Post".to_string(), vec![rule]);
+        CompiledRLSPolicy::new(rules_by_type, None)
+    }
+
+    fn policy_with_rule_and_clock(
+        rule: RLSRule,
+        clock: std::sync::Arc<dyn crate::utils::clock::Clock>,
+    ) -> CompiledRLSPolicy {
+        let mut rules_by_type = std::collections::HashMap::new();
+        rules_by_type.insert("Post".to_string(), vec![rule]);
+        CompiledRLSPolicy::new_with_clock(rules_by_type, None, clock)
+    }
+
+    // ── DefaultRLSPolicy ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_with_tenant_field_sets_field_name() {
+        // Kills mutation: with_tenant_field → Default::default() (line 225).
+        // Default::default() returns a policy with tenant_field = "tenant_id";
+        // after with_tenant_field("org_id") it must be "org_id".
+        let policy = DefaultRLSPolicy::new().with_tenant_field("org_id".to_string());
+        assert_eq!(policy.tenant_field, "org_id", "with_tenant_field must update tenant_field");
+
+        // Verify the custom field name appears in the generated WHERE clause
+        let context = make_context("user1", vec!["viewer"], Some("org42"));
+        let result = policy.evaluate(&context, "Post").unwrap().unwrap();
+        let sql = format!("{:?}", result.into_where_clause());
+        assert!(sql.contains("org_id"), "custom tenant field must appear in WHERE clause: {sql}");
+        assert!(!sql.contains("\"tenant_id\""), "default field name must not appear: {sql}");
+    }
+
+    #[test]
+    fn test_with_owner_field_sets_field_name() {
+        // Kills mutation: with_owner_field → Default::default() (line 231).
+        // Default::default() returns a policy with owner_field = "author_id".
+        let policy = DefaultRLSPolicy::new().with_owner_field("creator_id".to_string());
+        assert_eq!(policy.owner_field, "creator_id", "with_owner_field must update owner_field");
+
+        // Verify the custom field appears in the generated WHERE clause
+        let context = make_context("user1", vec!["viewer"], None);
+        let result = policy.evaluate(&context, "Post").unwrap().unwrap();
+        let sql = format!("{:?}", result.into_where_clause());
+        assert!(sql.contains("creator_id"), "custom owner field must appear in WHERE clause: {sql}");
+        assert!(!sql.contains("author_id"), "default field name must not appear: {sql}");
+    }
+
+    #[test]
+    fn test_default_rls_policy_admin_bypass() {
+        let policy = DefaultRLSPolicy::new();
+        let context = make_context("user123", vec!["admin"], Some("tenant1"));
         let result = policy.evaluate(&context, "Post").unwrap();
         assert_eq!(result, None, "Admins should bypass RLS");
     }
@@ -555,20 +617,7 @@ mod tests {
     #[test]
     fn test_default_rls_policy_tenant_isolation() {
         let policy = DefaultRLSPolicy::new();
-        let context = SecurityContext {
-            user_id:          "user123".to_string(),
-            roles:            vec!["user".to_string()],
-            tenant_id:        Some("tenant1".to_string()),
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "req1".to_string(),
-            ip_address:       None,
-            authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-        };
-
+        let context = make_context("user123", vec!["user"], Some("tenant1"));
         let result = policy.evaluate(&context, "Post").unwrap();
         assert!(result.is_some(), "Non-admin users should have RLS filter applied");
     }
@@ -576,21 +625,279 @@ mod tests {
     #[test]
     fn test_no_rls_policy() {
         let policy = NoRLSPolicy;
-        let context = SecurityContext {
-            user_id:          "user123".to_string(),
+        let context = make_context("user123", vec![], None);
+        let result = policy.evaluate(&context, "Post").unwrap();
+        assert_eq!(result, None, "NoRLSPolicy should never apply filters");
+    }
+
+    // ── Cache TTL correctness (kills lines 399, 414) ─────────────────────────
+
+    #[test]
+    fn test_compiled_rls_cache_entry_has_correct_ttl() {
+        // Verifies: expires_at = clock.now_secs() + ttl_secs  (line 414)
+        // Mutation `+ → -` would give expires_at already in the past; `+ → *` gives huge value.
+        use crate::utils::clock::ManualClock;
+        let clock = std::sync::Arc::new(ManualClock::new());
+        let t0 = clock.now_secs();
+        // Move clock into policy (t0 already captured — clock not needed afterwards)
+        let policy = policy_with_rule_and_clock(cacheable_owner_rule(), clock);
+        let context = make_context("user1", vec!["viewer"], Some("t1"));
+
+        // First evaluation populates cache
+        policy.evaluate(&context, "Post").unwrap();
+
+        let cache = policy.cache.read();
+        let entry = cache.get("user1:Post").expect("cache should be populated after first evaluate");
+        assert_eq!(entry.expires_at, t0 + 300, "expires_at must be now_secs + ttl_secs (300)");
+    }
+
+    #[test]
+    fn test_compiled_rls_cache_hit_does_not_refresh_expiry() {
+        // Verifies: when now < expires_at, cache is read and expiry is NOT updated (line 399: <).
+        // Mutation `< → ==` would cause cache miss at any time ≠ expires_at.
+        // Mutation `< → >` would cause hit AFTER expiry (backward).
+        use crate::utils::clock::ManualClock;
+        let clock = std::sync::Arc::new(ManualClock::new());
+        let t0 = clock.now_secs();
+
+        let policy = policy_with_rule_and_clock(cacheable_owner_rule(), clock.clone());
+        let context = make_context("user1", vec!["viewer"], Some("t1"));
+
+        // Populate cache at T
+        policy.evaluate(&context, "Post").unwrap();
+        let first_expires_at = policy.cache.read().get("user1:Post").unwrap().expires_at;
+        assert_eq!(first_expires_at, t0 + 300);
+
+        // Advance to 1 second before expiry — still within TTL
+        clock.advance(std::time::Duration::from_secs(299));
+
+        // Should hit cache, NOT re-calculate expiry
+        policy.evaluate(&context, "Post").unwrap();
+        let second_expires_at = policy.cache.read().get("user1:Post").unwrap().expires_at;
+        assert_eq!(
+            second_expires_at, first_expires_at,
+            "Cache hit must not update expires_at (would indicate a miss + re-cache)"
+        );
+    }
+
+    #[test]
+    fn test_compiled_rls_cache_miss_after_expiry_refreshes_entry() {
+        // Verifies: when now >= expires_at, cache is NOT used and entry is refreshed (line 399: <).
+        // Mutation `< → >` would use the stale entry (no refresh), so expires_at stays at T+300.
+        use crate::utils::clock::ManualClock;
+        let clock = std::sync::Arc::new(ManualClock::new());
+        let t0 = clock.now_secs();
+
+        let policy = policy_with_rule_and_clock(cacheable_owner_rule(), clock.clone());
+        let context = make_context("user1", vec!["viewer"], Some("t1"));
+
+        // Populate cache at T → expires_at = T+300
+        policy.evaluate(&context, "Post").unwrap();
+
+        // Advance 301 seconds — clearly past expiry
+        clock.advance(std::time::Duration::from_secs(301));
+
+        // Cache miss: re-evaluates and re-caches with new expiry = (T+301)+300 = T+601
+        policy.evaluate(&context, "Post").unwrap();
+        let new_expires = policy.cache.read().get("user1:Post").unwrap().expires_at;
+        assert_eq!(
+            new_expires,
+            t0 + 601,
+            "After TTL expiry, cache must be refreshed with updated expires_at"
+        );
+    }
+
+    #[test]
+    fn test_compiled_rls_cache_expires_exactly_at_ttl_boundary() {
+        // Verifies: at exactly expires_at (now == expires_at), cache is expired (line 399: <).
+        // Mutation `< → <=` would treat the exact boundary as still valid (off-by-one).
+        use crate::utils::clock::ManualClock;
+        let clock = std::sync::Arc::new(ManualClock::new());
+        let t0 = clock.now_secs();
+
+        let policy = policy_with_rule_and_clock(cacheable_owner_rule(), clock.clone());
+        let context = make_context("user1", vec!["viewer"], Some("t1"));
+
+        // Populate cache at T → expires_at = T+300
+        policy.evaluate(&context, "Post").unwrap();
+
+        // Advance to EXACTLY the expiry second
+        clock.advance(std::time::Duration::from_secs(300));
+        assert_eq!(clock.now_secs(), t0 + 300);
+
+        // At exactly expires_at, the entry must be considered expired (now < expires_at is false)
+        policy.evaluate(&context, "Post").unwrap();
+        let refreshed_expires = policy.cache.read().get("user1:Post").unwrap().expires_at;
+        assert_eq!(
+            refreshed_expires,
+            t0 + 600,
+            "At exact TTL boundary, cache must expire and refresh (< not <=)"
+        );
+    }
+
+    // ── cache_result (kills line 432) ─────────────────────────────────────────
+
+    #[test]
+    fn test_cache_result_stores_with_300s_default_ttl() {
+        // Verifies: cache_result uses 300s TTL (line 432: +).
+        // Mutation `+ → -` gives expires_at already past; `+ → *` gives huge value.
+        // Mutation "delete entire method" would leave cache empty.
+        use crate::utils::clock::ManualClock;
+        let clock = std::sync::Arc::new(ManualClock::new());
+        let t0 = clock.now_secs();
+
+        let policy = CompiledRLSPolicy::new_with_clock(
+            std::collections::HashMap::new(),
+            None,
+            clock,
+        );
+
+        let result = Some(WhereClause::Field {
+            path:     vec!["author_id".to_string()],
+            operator: crate::db::WhereOperator::Eq,
+            value:    serde_json::json!("user_x"),
+        });
+
+        policy.cache_result("user_x:Post", &result);
+
+        let cache = policy.cache.read();
+        let entry = cache.get("user_x:Post").expect("cache_result must insert entry");
+        assert_eq!(entry.expires_at, t0 + 300, "cache_result must use 300s TTL");
+        assert_eq!(entry.result, result, "cache_result must store the provided result");
+    }
+
+    #[test]
+    fn test_cache_result_stores_none_result() {
+        // Verifies cache_result stores None (bypass) results correctly.
+        use crate::utils::clock::ManualClock;
+        let policy = CompiledRLSPolicy::new_with_clock(
+            std::collections::HashMap::new(),
+            None,
+            std::sync::Arc::new(ManualClock::new()),
+        );
+
+        policy.cache_result("user1:Post", &None);
+
+        let cache = policy.cache.read();
+        let entry = cache.get("user1:Post").expect("cache_result must store even None result");
+        assert!(entry.result.is_none(), "cached None result must remain None");
+    }
+
+    // ── extract_user_value (kills line 518) ──────────────────────────────────
+
+    #[test]
+    fn test_extract_user_value_id_field() {
+        // Mutation `→ None` gives None; `→ Some(Default)` gives Some(Null). Both fail.
+        let ctx = make_context("user_abc_123", vec![], None);
+        assert_eq!(
+            extract_user_value("id", &ctx),
+            Some(serde_json::json!("user_abc_123")),
+            "'id' must return the actual user_id"
+        );
+    }
+
+    #[test]
+    fn test_extract_user_value_user_id_alias() {
+        let ctx = make_context("user_abc_123", vec![], None);
+        assert_eq!(
+            extract_user_value("user_id", &ctx),
+            Some(serde_json::json!("user_abc_123")),
+            "'user_id' must return the same user_id as 'id'"
+        );
+    }
+
+    #[test]
+    fn test_extract_user_value_tenant_id_present() {
+        let ctx = make_context("u1", vec![], Some("tenant_xyz"));
+        assert_eq!(
+            extract_user_value("tenant_id", &ctx),
+            Some(serde_json::json!("tenant_xyz")),
+            "'tenant_id' must return the tenant id when present"
+        );
+    }
+
+    #[test]
+    fn test_extract_user_value_tenant_id_absent() {
+        let ctx = make_context("u1", vec![], None);
+        assert_eq!(
+            extract_user_value("tenant_id", &ctx),
+            None,
+            "'tenant_id' must return None when absent, not Some(null)"
+        );
+    }
+
+    #[test]
+    fn test_extract_user_value_roles_field() {
+        let ctx = make_context("u1", vec!["editor", "viewer"], None);
+        assert_eq!(
+            extract_user_value("roles", &ctx),
+            Some(serde_json::json!(["editor", "viewer"])),
+            "'roles' must return the full roles array"
+        );
+    }
+
+    #[test]
+    fn test_extract_user_value_custom_attribute() {
+        let mut attrs = HashMap::new();
+        attrs.insert("department".to_string(), serde_json::json!("engineering"));
+        let ctx = SecurityContext {
+            user_id:          "u1".to_string(),
             roles:            vec![],
             tenant_id:        None,
             scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "req1".to_string(),
+            attributes:       attrs,
+            request_id:       "r1".to_string(),
             ip_address:       None,
             authenticated_at: chrono::Utc::now(),
             expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
         };
+        assert_eq!(
+            extract_user_value("department", &ctx),
+            Some(serde_json::json!("engineering")),
+            "Custom attribute must be returned by name"
+        );
+    }
 
+    #[test]
+    fn test_extract_user_value_unknown_returns_none() {
+        let ctx = make_context("u1", vec![], None);
+        assert_eq!(
+            extract_user_value("nonexistent_field", &ctx),
+            None,
+            "Unknown field must return None, not Some(null)"
+        );
+    }
+
+    // ── extract_user_value integration: user_id flows to WHERE clause ─────────
+
+    #[test]
+    fn test_user_id_propagated_to_rls_where_clause() {
+        // Ensures extract_user_value("id") result reaches the generated WhereClause.
+        // Kills mutations → None and → Some(Default) on line 518.
+        let policy = policy_with_rule(RLSRule {
+            name:              "owner_only".to_string(),
+            expression:        "user.id == object.author_id".to_string(),
+            cacheable:         false,
+            cache_ttl_seconds: None,
+        });
+
+        let context = make_context("specific_user_42", vec!["viewer"], None);
         let result = policy.evaluate(&context, "Post").unwrap();
-        assert_eq!(result, None, "NoRLSPolicy should never apply filters");
+
+        let clause = result
+            .expect("non-admin user must receive an RLS filter")
+            .into_where_clause();
+        match clause {
+            WhereClause::Field { value, .. } => {
+                assert_eq!(
+                    value,
+                    serde_json::json!("specific_user_42"),
+                    "RLS WhereClause must embed the actual user_id, not null"
+                );
+            }
+            other => panic!("Expected Field clause, got {other:?}"),
+        }
     }
 }

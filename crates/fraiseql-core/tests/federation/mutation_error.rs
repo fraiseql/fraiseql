@@ -21,7 +21,7 @@ fn test_mutation_entity_not_found() {
 
     // Query builds successfully but returns error when executed against DB
     let query = build_update_query("User", &variables, &metadata).unwrap();
-    assert!(query.contains("WHERE id = 'nonexistent_user'"));
+    assert!(query.contains("WHERE \"id\" = 'nonexistent_user'"), "Expected quoted column in: {query}");
 }
 
 #[test]
