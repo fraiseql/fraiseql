@@ -45,6 +45,9 @@ test-postgres = []
 test-mysql = ["mysql"]
 test-sqlserver = ["sqlserver"]
 
+[dev-dependencies]
+proptest = {workspace = true}
+
 [lints]
 workspace = true
 
