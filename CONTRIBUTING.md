@@ -39,6 +39,62 @@ Be respectful, professional, and collaborative. We're building something great t
 
 ---
 
+## Where to Contribute
+
+This repository is a monorepo. Jump to the section that matches your area of interest:
+
+### Rust Engine (most contributors)
+
+Work in: `crates/`
+
+CI commands: `cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run`
+
+| Crate | Purpose |
+|-------|---------|
+| `fraiseql-core` | Core compilation and execution engine |
+| `fraiseql-server` | HTTP/GraphQL server |
+| `fraiseql-cli` | Compiler CLI (`fraiseql compile`, `fraiseql serve`) |
+| `fraiseql-db` | Database adapters (PostgreSQL, MySQL, SQLite, SQL Server) |
+| `fraiseql-auth` | Authentication and authorization |
+| `fraiseql-secrets` | Secrets management and field-level encryption |
+| `fraiseql-observers` | Event-driven observer system |
+| `fraiseql-arrow` | Apache Arrow Flight integration |
+| `fraiseql-wire` | Streaming JSON query engine |
+
+Ignore: `sdks/`, `fraisier/`, `examples/`, `k6/`
+
+### Python SDK
+
+Work in: `sdks/official/fraiseql-python/`
+
+CI commands: `uv run pytest`
+
+Ignore: `crates/`, other `sdks/`
+
+### TypeScript SDK
+
+Work in: `sdks/official/fraiseql-typescript/`
+
+CI commands: `npm test`
+
+Ignore: `crates/`, other `sdks/`
+
+### Fraisier (reference implementation)
+
+Work in: `fraisier/`
+
+This is a standalone Python application. See `fraisier/CONTRIBUTING.md` for its own workflow.
+
+CI is independent of the Rust engine — fraisier tests only run on `fraisier/**` changes.
+
+Ignore: `crates/`, `sdks/`
+
+### Documentation
+
+Work in: `docs/`
+
+---
+
 ## Development Setup
 
 ### Prerequisites

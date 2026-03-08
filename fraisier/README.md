@@ -10,6 +10,17 @@ A **fraisier** (French for strawberry plant) manages **fraises** (services).
 Just as a strawberry plant produces strawberries, Fraisier orchestrates
 the deployment of your services (fraises).
 
+## Release Independence
+
+Fraisier is **independently versioned** from the FraiseQL engine.
+
+- A fraisier bug does **NOT** block a FraiseQL engine release, and vice versa.
+- Fraisier CI runs only on changes to `fraisier/**` paths.
+- It does **not** run on Rust engine changes (`crates/**`, `Cargo.toml`, etc.).
+- Fraisier follows its own `ROADMAP.md` and has its own semver version in `fraisier/pyproject.toml`.
+
+---
+
 ## The Reference Implementation
 
 Fraisier is **THE canonical FraiseQL application** - the official example of how to build production software with FraiseQL. It lives inside the FraiseQL monorepo:

@@ -33,3 +33,14 @@
 /Cargo.toml @fraiseql/release-team
 /RELEASING.md @fraiseql/release-team
 /Cargo.lock @fraiseql/release-team
+
+# SDKs
+/sdks/official/fraiseql-python/ @fraiseql/python-sdk
+/sdks/official/fraiseql-typescript/ @fraiseql/typescript-sdk
+/sdks/ @fraiseql/sdk-team
+
+# Fraisier (reference implementation — independently versioned)
+/fraisier/ @fraiseql/fraisier
+
+# Vendored dependencies
+/vendor/ @fraiseql/release-team
