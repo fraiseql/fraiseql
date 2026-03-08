@@ -157,6 +157,11 @@ impl WhereClause {
 ///
 /// Note: ExtendedOperator variants may contain f64 values which don't implement Eq,
 /// so WhereOperator derives PartialEq only (not Eq).
+///
+/// This enum is marked `#[non_exhaustive]` so that new operators (e.g., `Between`,
+/// `Similar`) can be added in future minor versions without breaking downstream
+/// exhaustive `match` expressions.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WhereOperator {
     // ========================================================================

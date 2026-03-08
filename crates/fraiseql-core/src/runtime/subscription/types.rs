@@ -38,6 +38,10 @@ impl std::fmt::Display for SubscriptionId {
 }
 
 /// Database operation that triggered the event.
+///
+/// Marked `#[non_exhaustive]` to allow future CDC operations (e.g., `Truncate`)
+/// to be added without breaking downstream `match` expressions.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum SubscriptionOperation {

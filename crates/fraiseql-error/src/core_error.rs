@@ -50,6 +50,47 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///
 /// This enum is marked `#[non_exhaustive]` to allow adding new error variants
 /// in future minor versions without breaking backward compatibility.
+///
+/// External `match` expressions must include a wildcard `_` arm:
+///
+/// ```rust
+/// use fraiseql_error::FraiseQLError;
+///
+/// fn describe(e: &FraiseQLError) -> &'static str {
+///     match e {
+///         FraiseQLError::Parse { .. } => "parse error",
+///         FraiseQLError::Validation { .. } => "validation error",
+///         _ => "other error", // required: FraiseQLError is #[non_exhaustive]
+///     }
+/// }
+/// ```
+///
+/// The following would **not** compile (missing wildcard arm):
+///
+/// ```compile_fail
+/// use fraiseql_error::FraiseQLError;
+///
+/// fn describe(e: &FraiseQLError) -> &'static str {
+///     match e {
+///         FraiseQLError::Parse { .. } => "parse",
+///         FraiseQLError::Validation { .. } => "validation",
+///         FraiseQLError::Database { .. } => "database",
+///         FraiseQLError::Network { .. } => "network",
+///         FraiseQLError::Authorization { .. } => "authorization",
+///         FraiseQLError::NotFound { .. } => "not found",
+///         FraiseQLError::Conflict { .. } => "conflict",
+///         FraiseQLError::Configuration { .. } => "configuration",
+///         FraiseQLError::Unsupported { .. } => "unsupported",
+///         FraiseQLError::Internal { .. } => "internal",
+///         FraiseQLError::UnknownField { .. } => "unknown field",
+///         FraiseQLError::UnknownType { .. } => "unknown type",
+///         FraiseQLError::FieldExclusion { .. } => "field exclusion",
+///         FraiseQLError::TypeMismatch { .. } => "type mismatch",
+///         FraiseQLError::RateLimitExceeded { .. } => "rate limit",
+///         FraiseQLError::Forbidden { .. } => "forbidden",
+///     }
+/// }
+/// ```
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum FraiseQLError {

@@ -20,4 +20,7 @@ mod security {
     mod integration_field_rbac_runtime;
     mod integration_field_rbac_toml;
     mod integration_rls;
+
+    // APQ / RLS cache key isolation (pure unit tests, no database required)
+    mod apq_rls_isolation_test;
 }

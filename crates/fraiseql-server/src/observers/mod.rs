@@ -186,6 +186,10 @@ pub struct UpdateObserverRequest {
 }
 
 /// Action configuration for an observer.
+///
+/// Marked `#[non_exhaustive]` so that new action types can be added in future
+/// minor versions without breaking downstream exhaustive `match` expressions.
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ActionConfig {
