@@ -34,7 +34,7 @@ use tracing::info;
 
 use super::compile::{CompileOptions, compile_to_schema};
 use crate::config::{
-    DatabaseRuntimeConfig, FraiseQLConfig, ServerRuntimeConfig, TomlSchema,
+    DatabaseRuntimeConfig, TomlProjectConfig, ServerRuntimeConfig, TomlSchema,
     runtime::TlsRuntimeConfig,
 };
 
@@ -235,7 +235,7 @@ pub(crate) fn resolve_runtime_config(
 ///
 /// For `.toml` input files the sections are embedded directly.  For `.json`
 /// input files we look for a sibling `fraiseql.toml` and load it as
-/// `FraiseQLConfig`.  Falls back to defaults if no config is found.
+/// `TomlProjectConfig`.  Falls back to defaults if no config is found.
 fn load_runtime_config_from_toml(
     input_path: &Path,
 ) -> Result<(ServerRuntimeConfig, DatabaseRuntimeConfig)> {
@@ -258,13 +258,13 @@ fn load_runtime_config_from_toml(
         .join("fraiseql.toml");
 
     if toml_path.exists() {
-        match FraiseQLConfig::from_file(toml_path.to_str().unwrap_or("fraiseql.toml")) {
+        match TomlProjectConfig::from_file(toml_path.to_str().unwrap_or("fraiseql.toml")) {
             Ok(cfg) => {
                 info!("Loaded [server] and [database] config from {}", toml_path.display());
                 return Ok((cfg.server, cfg.database));
             },
             Err(e) => {
-                info!("Could not parse FraiseQLConfig for runtime config: {e}");
+                info!("Could not parse TomlProjectConfig for runtime config: {e}");
             },
         }
     }

@@ -53,7 +53,7 @@ use crate::error::{FraiseQLError, Result};
 /// Server-specific configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct ServerConfig {
+pub struct CoreServerConfig {
     /// Host to bind to.
     pub host: String,
 
@@ -70,7 +70,7 @@ pub struct ServerConfig {
     pub request_logging: bool,
 }
 
-impl Default for ServerConfig {
+impl Default for CoreServerConfig {
     fn default() -> Self {
         Self {
             host:            "0.0.0.0".to_string(),
@@ -387,7 +387,7 @@ pub use fraiseql_db::{
 #[serde(default)]
 pub struct FraiseQLConfig {
     /// Server configuration.
-    pub server: ServerConfig,
+    pub server: CoreServerConfig,
 
     /// Database configuration.
     pub database: DatabaseConfig,
@@ -434,7 +434,7 @@ pub struct FraiseQLConfig {
 
 impl Default for FraiseQLConfig {
     fn default() -> Self {
-        let server = ServerConfig::default();
+        let server = CoreServerConfig::default();
         let database = DatabaseConfig::default();
 
         Self {
@@ -525,7 +525,7 @@ impl FraiseQLConfig {
             .unwrap_or(30);
 
         let mut config = Self {
-            server: ServerConfig {
+            server: CoreServerConfig {
                 host: host.clone(),
                 port,
                 ..Default::default()
@@ -593,7 +593,7 @@ impl FraiseQLConfig {
     #[must_use]
     pub fn test() -> Self {
         Self {
-            server: ServerConfig {
+            server: CoreServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 0, // Random port
                 ..Default::default()

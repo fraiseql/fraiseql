@@ -19,7 +19,7 @@ use tracing::info;
 /// Project configuration from fraiseql.toml
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct FraiseQLConfig {
+pub struct TomlProjectConfig {
     /// Project metadata (name, version, description)
     #[serde(rename = "project")]
     pub project: ProjectConfig,
@@ -85,7 +85,7 @@ impl Default for FraiseQLSettings {
     }
 }
 
-impl FraiseQLConfig {
+impl TomlProjectConfig {
     /// Load configuration from fraiseql.toml file.
     ///
     /// Supports `${VAR}` environment variable interpolation throughout the file.
@@ -100,7 +100,7 @@ impl FraiseQLConfig {
         let raw = std::fs::read_to_string(path).context("Failed to read fraiseql.toml")?;
         let toml_content = expand_env_vars(&raw);
 
-        let config: FraiseQLConfig = toml::from_str(&toml_content)
+        let config: TomlProjectConfig = toml::from_str(&toml_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;
 
         Ok(config)
@@ -140,27 +140,27 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = FraiseQLConfig::default();
+        let config = TomlProjectConfig::default();
         assert_eq!(config.project.name, "my-fraiseql-app");
         assert_eq!(config.fraiseql.schema_file, "schema.json");
     }
 
     #[test]
     fn test_default_security_config() {
-        let config = FraiseQLConfig::default();
+        let config = TomlProjectConfig::default();
         assert!(config.fraiseql.security.audit_logging.enabled);
         assert!(config.fraiseql.security.rate_limiting.enabled);
     }
 
     #[test]
     fn test_validation() {
-        let config = FraiseQLConfig::default();
+        let config = TomlProjectConfig::default();
         assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_role_definitions_default() {
-        let config = FraiseQLConfig::default();
+        let config = TomlProjectConfig::default();
         assert!(config.fraiseql.security.role_definitions.is_empty());
         assert!(config.fraiseql.security.default_role.is_none());
     }
@@ -188,7 +188,7 @@ scopes = ["admin:*"]
 default_role = "viewer"
 "#;
 
-        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
 
         assert_eq!(config.fraiseql.security.role_definitions.len(), 2);
         assert_eq!(config.fraiseql.security.role_definitions[0].name, "viewer");
@@ -205,7 +205,7 @@ name = ""
 scopes = ["read:*"]
 "#;
 
-        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
         assert!(config.validate().is_err(), "Should fail with empty role name");
     }
 
@@ -217,7 +217,7 @@ name = "viewer"
 scopes = []
 "#;
 
-        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
         assert!(config.validate().is_err(), "Should fail with empty scopes");
     }
 
@@ -231,7 +231,7 @@ port = 9000
 [server.cors]
 origins = ["https://example.com"]
 "#;
-        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
         assert_eq!(config.server.host, "127.0.0.1");
         assert_eq!(config.server.port, 9000);
         assert_eq!(config.server.cors.origins, ["https://example.com"]);
@@ -246,7 +246,7 @@ pool_min = 3
 pool_max = 15
 ssl_mode = "require"
 "#;
-        let config: FraiseQLConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
         assert_eq!(config.database.url, Some("postgresql://localhost/testdb".to_string()));
         assert_eq!(config.database.pool_min, 3);
         assert_eq!(config.database.pool_max, 15);
@@ -261,7 +261,7 @@ ssl_mode = "require"
 url = "${TEST_DB_URL}"
 "#;
             let expanded = expand_env_vars(toml_str);
-            let config: FraiseQLConfig =
+            let config: TomlProjectConfig =
                 toml::from_str(&expanded).expect("Failed to parse TOML");
             assert_eq!(config.database.url, Some("postgres://test/db".to_string()));
         });

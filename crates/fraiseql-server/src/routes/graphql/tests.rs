@@ -122,7 +122,7 @@ fn test_sanitized_config_from_server_config() {
     // SanitizedConfig should extract non-sensitive fields
     use crate::routes::api::types::SanitizedConfig;
 
-    let config = crate::config::ServerConfig {
+    let config = crate::config::HttpServerConfig {
         port:    8080,
         host:    "0.0.0.0".to_string(),
         workers: Some(4),
@@ -146,7 +146,7 @@ fn test_sanitized_config_indicates_tls_without_exposing_keys() {
 
     use crate::routes::api::types::SanitizedConfig;
 
-    let config = crate::config::ServerConfig {
+    let config = crate::config::HttpServerConfig {
         port:    8080,
         host:    "localhost".to_string(),
         workers: None,
@@ -171,7 +171,7 @@ fn test_sanitized_config_redaction() {
     // Verify configuration redaction happens correctly
     use crate::routes::api::types::SanitizedConfig;
 
-    let config1 = crate::config::ServerConfig {
+    let config1 = crate::config::HttpServerConfig {
         port:    8000,
         host:    "127.0.0.1".to_string(),
         workers: None,
@@ -179,7 +179,7 @@ fn test_sanitized_config_redaction() {
         limits:  None,
     };
 
-    let config2 = crate::config::ServerConfig {
+    let config2 = crate::config::HttpServerConfig {
         port:    8000,
         host:    "127.0.0.1".to_string(),
         workers: None,

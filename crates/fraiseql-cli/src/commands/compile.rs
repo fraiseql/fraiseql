@@ -9,7 +9,7 @@ use fraiseql_core::schema::{CompiledSchema, CURRENT_SCHEMA_FORMAT_VERSION};
 use tracing::{info, warn};
 
 use crate::{
-    config::FraiseQLConfig,
+    config::TomlProjectConfig,
     schema::{
         IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator,
     },
@@ -166,10 +166,10 @@ pub async fn compile_to_schema(
     // 2a. Load and apply security configuration from fraiseql.toml if it exists.
     // Skip when the input itself is a TomlSchema file: in that case the security
     // settings are embedded in the TomlSchema, and the CWD fraiseql.toml uses a
-    // different TOML format (TomlSchema vs FraiseQLConfig) that is not compatible.
+    // different TOML format (TomlSchema vs TomlProjectConfig) that is not compatible.
     if !is_toml && Path::new("fraiseql.toml").exists() {
         info!("Loading security configuration from fraiseql.toml...");
-        match FraiseQLConfig::from_file("fraiseql.toml") {
+        match TomlProjectConfig::from_file("fraiseql.toml") {
             Ok(config) => {
                 info!("Validating security configuration...");
                 config.validate()?;
@@ -542,6 +542,9 @@ mod tests {
             debug_config:      None,
             mcp_config:        None,
             schema_sdl:            None,
+            // None is intentional here: this struct is used only for in-process
+            // validation assertions and is never serialised to disk. The real
+            // compile path stamps the version at compile_impl() line 220.
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
             ..Default::default()
@@ -593,6 +596,9 @@ mod tests {
             debug_config:      None,
             mcp_config:        None,
             schema_sdl:            None,
+            // None is intentional here: this struct is used only for in-process
+            // validation assertions and is never serialised to disk. The real
+            // compile path stamps the version at compile_impl() line 220.
             schema_format_version: None,
             custom_scalars:        CustomTypeRegistry::default(),
             ..Default::default()

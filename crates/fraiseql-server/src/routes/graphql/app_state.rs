@@ -26,7 +26,7 @@ pub struct AppState<A: DatabaseAdapter> {
     #[cfg(feature = "arrow")]
     pub cache:                Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
-    pub config:               Option<Arc<crate::config::ServerConfig>>,
+    pub config:               Option<Arc<crate::config::HttpServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     #[cfg(feature = "auth")]
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
@@ -116,7 +116,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     pub fn with_cache_and_config(
         executor: Arc<Executor<A>>,
         cache: Arc<fraiseql_arrow::cache::QueryCache>,
-        config: Arc<crate::config::ServerConfig>,
+        config: Arc<crate::config::HttpServerConfig>,
     ) -> Self {
         Self::new(executor).set_cache(cache).set_config(config)
     }
@@ -133,7 +133,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     #[cfg(feature = "arrow")]
-    fn set_config(mut self, config: Arc<crate::config::ServerConfig>) -> Self {
+    fn set_config(mut self, config: Arc<crate::config::HttpServerConfig>) -> Self {
         self.config = Some(config);
         self
     }
@@ -145,7 +145,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get server configuration if configured.
-    pub const fn server_config(&self) -> Option<&Arc<crate::config::ServerConfig>> {
+    pub const fn server_config(&self) -> Option<&Arc<crate::config::HttpServerConfig>> {
         self.config.as_ref()
     }
 

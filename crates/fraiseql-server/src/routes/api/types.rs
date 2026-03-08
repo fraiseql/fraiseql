@@ -130,7 +130,7 @@ impl SanitizedConfig {
     /// - TLS private keys and certificates (replaced with boolean flag)
     /// - Database connection strings (not included)
     /// - API keys and tokens (not included)
-    pub fn from_config(config: &crate::config::ServerConfig) -> Self {
+    pub fn from_config(config: &crate::config::HttpServerConfig) -> Self {
         Self {
             port:        config.port,
             host:        config.host.clone(),

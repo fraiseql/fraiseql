@@ -34,7 +34,7 @@ pub use tracing::TracingConfig;
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
     /// HTTP server binding, TLS, and connection-limit settings.
-    pub server:   ServerConfig,
+    pub server:   HttpServerConfig,
     /// Primary database connection and pool settings.
     pub database: DatabaseConfig,
 
@@ -114,7 +114,7 @@ pub struct RuntimeConfig {
 
 /// HTTP server binding configuration.
 #[derive(Debug, Clone, Deserialize)]
-pub struct ServerConfig {
+pub struct HttpServerConfig {
     /// TCP port to listen on.  Default: `4000`.
     #[serde(default = "default_port")]
     pub port: u16,
