@@ -33,6 +33,10 @@ pub struct HealthResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub secrets: Option<SecretsHealth>,
 
+    /// Federation circuit breaker state (present when federation is configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub federation: Option<FederationHealth>,
+
     /// Server version.
     pub version: String,
 
@@ -43,6 +47,15 @@ pub struct HealthResponse {
     /// a schema mismatch (e.g. partial rollout or stale deployment).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema_hash: Option<String>,
+}
+
+/// Federation circuit breaker health snapshot.
+#[derive(Debug, Serialize)]
+pub struct FederationHealth {
+    /// Whether federation is configured at all.
+    pub configured: bool,
+    /// Per-entity circuit breaker state.
+    pub subgraphs: Vec<crate::federation::circuit_breaker::SubgraphCircuitHealth>,
 }
 
 /// Observer runtime health snapshot.
@@ -159,12 +172,18 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let schema_hash = Some(state.executor.schema().content_hash());
 
+    let federation = state.circuit_breaker.as_ref().map(|cb| FederationHealth {
+        configured: true,
+        subgraphs:  cb.health_snapshot(),
+    });
+
     let response = HealthResponse {
         status: status.to_string(),
         database,
         observers: None, // Populated when observer health probe is wired into AppState
         cache: None,     // Populated when Redis cache probe is wired into AppState
         secrets: None,   // Populated when Vault probe is wired into AppState
+        federation,
         version: env!("CARGO_PKG_VERSION").to_string(),
         schema_hash,
     };
@@ -230,9 +249,30 @@ pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync 
         _ => ("not_configured", StatusCode::OK),
     };
 
+    let subgraphs = state.circuit_breaker.as_ref().map_or_else(Vec::new, |cb| {
+        cb.health_snapshot()
+            .into_iter()
+            .map(|entry| {
+                let available = matches!(
+                    entry.state,
+                    crate::federation::circuit_breaker::CircuitHealthState::Closed
+                        | crate::federation::circuit_breaker::CircuitHealthState::HalfOpen
+                );
+                crate::federation::SubgraphHealthStatus {
+                    name:                 entry.subgraph,
+                    available,
+                    latency_ms:           0.0,
+                    last_check:           chrono::Utc::now().to_rfc3339(),
+                    error_count_last_60s: 0,
+                    error_rate_percent:   0.0,
+                }
+            })
+            .collect()
+    });
+
     let response = FederationHealthResponse {
         status:    status.to_string(),
-        subgraphs: vec![],
+        subgraphs,
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
 
@@ -266,6 +306,7 @@ mod tests {
             observers:   None,
             cache:       None,
             secrets:     None,
+            federation:  None,
             version:     "2.0.0-a1".to_string(),
             schema_hash: Some("abc123def456abc1".to_string()),
         };
@@ -273,5 +314,60 @@ mod tests {
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("healthy"));
         assert!(json.contains("PostgreSQL"));
+    }
+
+    #[test]
+    fn test_health_response_omits_federation_when_none() {
+        let response = HealthResponse {
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
+                active_connections: None,
+                idle_connections:   None,
+            },
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  None,
+            version:     "2.0.0".to_string(),
+            schema_hash: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(!json.contains("federation"), "federation key must be absent when field is None");
+    }
+
+    #[test]
+    fn test_health_response_includes_federation_when_present() {
+        use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
+
+        let response = HealthResponse {
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
+                active_connections: None,
+                idle_connections:   None,
+            },
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  Some(FederationHealth {
+                configured: true,
+                subgraphs:  vec![SubgraphCircuitHealth {
+                    subgraph: "Product".to_string(),
+                    state:    CircuitHealthState::Open,
+                }],
+            }),
+            version:     "2.0.0".to_string(),
+            schema_hash: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("federation"), "federation key must be present");
+        assert!(json.contains("configured"), "configured field must appear");
+        assert!(json.contains("Product"), "subgraph name must appear");
+        assert!(json.contains("open"), "circuit state must be serialised as snake_case");
     }
 }

@@ -33,6 +33,8 @@ use serde_json::json;
         }
     }
 
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DatabaseAdapter for MockAdapter {
         async fn execute_with_projection(
@@ -1130,6 +1132,8 @@ use serde_json::json;
         }
     }
 
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DatabaseAdapter for BumpAdapter {
         async fn execute_where_query(
@@ -1261,4 +1265,45 @@ use serde_json::json;
 
         adapter.bump_fact_table_versions(&[]).await.unwrap();
         assert_eq!(adapter.inner().bump_call_count(), 0);
+    }
+
+    // =========================================================================
+    // view_name_to_entity_type
+    // =========================================================================
+
+    #[test]
+    fn test_view_name_to_entity_type_single_word() {
+        use crate::cache::adapter::view_name_to_entity_type;
+        assert_eq!(view_name_to_entity_type("v_user"), Some("User".to_string()));
+        assert_eq!(view_name_to_entity_type("v_product"), Some("Product".to_string()));
+    }
+
+    #[test]
+    fn test_view_name_to_entity_type_multi_word() {
+        use crate::cache::adapter::view_name_to_entity_type;
+        assert_eq!(view_name_to_entity_type("v_order_item"),  Some("OrderItem".to_string()));
+        assert_eq!(view_name_to_entity_type("v_user_profile"), Some("UserProfile".to_string()));
+        assert_eq!(view_name_to_entity_type("v_a_b_c"),        Some("ABC".to_string()));
+    }
+
+    #[test]
+    fn test_view_name_to_entity_type_arbitrary_prefix() {
+        use crate::cache::adapter::view_name_to_entity_type;
+        assert_eq!(view_name_to_entity_type("tv_user_event"), Some("UserEvent".to_string()));
+        assert_eq!(view_name_to_entity_type("mat_order"),     Some("Order".to_string()));
+    }
+
+    #[test]
+    fn test_view_name_to_entity_type_no_prefix() {
+        use crate::cache::adapter::view_name_to_entity_type;
+        // No underscore → not a typed view → None
+        assert_eq!(view_name_to_entity_type("users"), None);
+        assert_eq!(view_name_to_entity_type("orders"), None);
+    }
+
+    #[test]
+    fn test_view_name_to_entity_type_empty_after_prefix() {
+        use crate::cache::adapter::view_name_to_entity_type;
+        assert_eq!(view_name_to_entity_type("v_"), None);
+        assert_eq!(view_name_to_entity_type("_"), None);
     }

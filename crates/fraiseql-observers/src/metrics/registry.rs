@@ -46,8 +46,9 @@ pub struct MetricsRegistry {
     action_errors_total:     IntCounterVec,
 
     // Queue metrics
-    backlog_size: IntGauge,
-    dlq_items:    IntGauge,
+    backlog_size:       IntGauge,
+    dlq_items:          IntGauge,
+    dlq_overflow_total: IntCounter,
 
     // Job queue metrics
     job_queued_total:     IntCounter,
@@ -153,6 +154,12 @@ impl MetricsRegistry {
         )?;
         registry.register(Box::new(dlq_items.clone()))?;
 
+        let dlq_overflow_total = IntCounter::new(
+            "fraiseql_observer_dlq_overflow_total",
+            "Total entries dropped because the dead letter queue was at max_dlq_size",
+        )?;
+        registry.register(Box::new(dlq_overflow_total.clone()))?;
+
         // Job queue metrics
         let job_queued_total = IntCounter::new(
             "fraiseql_observer_job_queued_total",
@@ -215,6 +222,7 @@ impl MetricsRegistry {
             action_errors_total,
             backlog_size,
             dlq_items,
+            dlq_overflow_total,
             job_queued_total,
             job_executed_total,
             job_failed_total,
@@ -291,6 +299,11 @@ impl MetricsRegistry {
     /// Update the current DLQ item count
     pub fn set_dlq_items(&self, count: usize) {
         self.dlq_items.set(count as i64);
+    }
+
+    /// Record an entry dropped because the DLQ was full (at `max_dlq_size`).
+    pub fn dlq_overflow(&self) {
+        self.dlq_overflow_total.inc();
     }
 
     // Job queue metrics methods

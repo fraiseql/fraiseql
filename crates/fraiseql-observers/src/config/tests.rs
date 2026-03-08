@@ -14,6 +14,46 @@ fn test_observer_runtime_config_defaults() {
 }
 
 #[test]
+fn test_max_dlq_size_defaults_to_none() {
+    let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
+    assert!(config.max_dlq_size.is_none());
+    assert!(config.validate().is_ok());
+}
+
+#[test]
+fn test_max_dlq_size_defaults_to_none_from_json() {
+    let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
+    assert!(config.max_dlq_size.is_none());
+}
+
+#[test]
+fn test_max_dlq_size_zero_is_invalid() {
+    let config: ObserverRuntimeConfig =
+        serde_json::from_str(r#"{"max_dlq_size": 0}"#).unwrap();
+    assert_eq!(config.max_dlq_size, Some(0));
+    assert!(
+        config.validate().is_err(),
+        "max_dlq_size = 0 must be rejected by validate()"
+    );
+}
+
+#[test]
+fn test_max_dlq_size_positive_is_valid() {
+    let config: ObserverRuntimeConfig =
+        serde_json::from_str(r#"{"max_dlq_size": 10000}"#).unwrap();
+    assert_eq!(config.max_dlq_size, Some(10_000));
+    assert!(config.validate().is_ok());
+}
+
+#[test]
+fn test_max_dlq_size_one_is_valid() {
+    let config: ObserverRuntimeConfig =
+        serde_json::from_str(r#"{"max_dlq_size": 1}"#).unwrap();
+    assert_eq!(config.max_dlq_size, Some(1));
+    assert!(config.validate().is_ok());
+}
+
+#[test]
 fn test_transport_kind_default() {
     let kind = TransportKind::default();
     assert_eq!(kind, TransportKind::Postgres);

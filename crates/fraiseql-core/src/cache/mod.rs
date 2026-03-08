@@ -216,7 +216,7 @@ pub mod uuid_extractor;
 pub mod fact_table_version;
 
 // Public exports
-pub use adapter::CachedDatabaseAdapter;
+pub use adapter::{view_name_to_entity_type, CachedDatabaseAdapter};
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
 pub use cascade_metadata::CascadeMetadata;
 pub use cascade_response_parser::CascadeResponseParser;

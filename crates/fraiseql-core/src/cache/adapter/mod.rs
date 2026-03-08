@@ -86,6 +86,8 @@ mod query;
 #[cfg(test)]
 mod tests;
 
+pub use query::view_name_to_entity_type;
+
 /// Cached database adapter wrapper.
 ///
 /// Wraps any `DatabaseAdapter` implementation with transparent query result caching.
@@ -494,6 +496,8 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     }
 }
 
+// Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+// its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     async fn execute_with_projection(

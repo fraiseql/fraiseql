@@ -44,10 +44,29 @@ FraiseQL v2 achieves four goals simultaneously:
 │           Layer 3: Optional Extensions (Cargo Features)     │
 ├─────────────────────────────────────────────────────────────┤
 │  fraiseql-observers       [feature = "observers"]           │
-│  ├── Event system with retry/DLQ                            │
-│  ├── Actions: email, SMS, webhook, Slack                    │
-│  ├── Job queues, caching, deduplication                     │
-│  └── Search integration (Elasticsearch)                     │
+│                                                              │
+│  A parallel event-driven runtime that runs alongside the    │
+│  GraphQL server. Enabling this feature adds a second        │
+│  execution environment with its own thread pool,            │
+│  PostgreSQL LISTEN/NOTIFY connection, and job scheduler.    │
+│                                                              │
+│  Capabilities:                                               │
+│  ├── Event listener: PostgreSQL NOTIFY → conditions → acts  │
+│  ├── Actions: webhook, email, SMS, Slack, push, search idx  │
+│  ├── Delivery: retry with backoff, dead letter queue, dedup │
+│  ├── Transports: in-memory, NATS, PG NOTIFY, MySQL/MSSQL   │
+│  ├── Job queue: persistent async jobs (Redis or PG)         │
+│  ├── High availability: multi-listener with lease mgmt      │
+│  └── CLI: observer management (80+ commands)                │
+│                                                              │
+│  Resource budget when enabled:                               │
+│  - 1 additional PostgreSQL connection (LISTEN/NOTIFY)       │
+│  - 1 configurable thread pool (max_concurrency, default 50) │
+│  - Memory: channel_capacity events buffered (default 1000)  │
+│             + DLQ entries up to max_dlq_size                │
+│                                                              │
+│  ~30K lines of Rust — effectively a separate service        │
+│  compiled into the same binary.                             │
 │                                                              │
 │  fraiseql-arrow           [feature = "arrow"]               │
 │  └── Arrow Flight for analytics workloads                   │
@@ -175,13 +194,22 @@ cargo build --all-features
 **All behavior controlled by configuration, not code.**
 
 ```rust
-// Load config from file or environment
+// Construct config (defaults + environment variable overrides)
 let config = ServerConfig::from_file("fraiseql.toml")?;
+// Or use defaults for development:
+// let config = ServerConfig::default();
+// FRAISEQL_DATABASE_URL, FRAISEQL_BIND_ADDR, etc. override any field
 
-// Start server with config
+// Start server
 let server = Server::new(config, schema, adapter, db_pool).await?;
 server.serve().await?;
 ```
+
+> **Note on TOML configuration**: `ServerConfig::from_file` loads a `fraiseql.toml`
+> file directly. When using the `fraiseql-server` binary, pass `--config fraiseql.toml`;
+> the binary loads `RuntimeConfig` (an internal type) and translates it to `ServerConfig`
+> before calling `Server::new()`. For library users, construct `ServerConfig` directly
+> or via `from_file`.
 
 **Example Configuration:**
 
@@ -204,7 +232,18 @@ client_id_env = "GOOGLE_CLIENT_ID"
 [observers]
 enabled = true
 channel_capacity = 1000
+max_dlq_size = 10000   # prevent unbounded memory growth on persistent failures
 ```
+
+> **Resource note**: enabling `observers` adds one PostgreSQL connection
+> (for LISTEN/NOTIFY) and a thread pool. Size your connection pool
+> (`pool_max_size`) and container memory accordingly.
+>
+> Minimum additional resources per instance:
+> - 1 PostgreSQL connection
+> - `max_concurrency` × (average action memory) of working memory
+> - `channel_capacity` × (average event size) of channel buffer
+> - Up to `max_dlq_size` × (average DLQ entry size) for the dead letter queue
 
 **Benefits:**
 
@@ -380,6 +419,9 @@ struct MockDatabaseAdapter {
     responses: Vec<Vec<JsonbValue>>,
 }
 
+// Note: #[async_trait] is currently required for dyn-compatible async traits.
+// Native dyn-async-trait with Send is not yet stable in Rust 1.88 (MSRV),
+// and dynosaur is incompatible due to Tokio's Send requirement on futures.
 #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_where_query(...) -> Result<Vec<JsonbValue>> {
@@ -417,15 +459,21 @@ cargo test --no-default-features
 
 ### 1. Parameterized Queries (SQL Injection Prevention)
 
-All queries use parameters, never string concatenation:
+Standard queries and mutations use prepared statement parameters exclusively.
+User input (variables, WHERE operators, inject values) is never concatenated
+into SQL strings:
 
 ```rust
-// Safe
-execute("SELECT * FROM users WHERE id = $1", &[user_id])
-
-// Never this
-execute(&format!("SELECT * FROM users WHERE id = {}", user_id))
+// Standard path — always parameterized
+execute("SELECT data FROM v_user WHERE (data->>'id')::bigint = $1", &[user_id])
 ```
+
+**Exception — aggregate and window queries**: These paths use
+`execute_raw_query` with pre-assembled SQL strings. All user-supplied values
+are escaped via `format_sql_value` / `escape_sql_string` before inclusion;
+the guarantee of fully parameterised execution does not extend to these paths.
+This is a known trade-off: aggregate SQL is too dynamic for prepared statement
+parameters without query rewriting.
 
 ### 2. Authentication Layers
 
@@ -619,14 +667,27 @@ use fraiseql_observers::ObserverRuntime;
 
 ### Why Separate fraiseql-observers Crate?
 
-**Decision:** Keep observers as separate optional crate
+**Decision:** Keep observers as a separate optional crate compiled into the
+binary when enabled.
 
-**Reason:**
+**What it is:** fraiseql-observers is a full event-driven runtime, not a
+lightweight plugin. It includes its own transport layer, job queue, condition
+DSL, high-availability coordinator, and CLI. It adds approximately 30K lines
+of Rust and a second PostgreSQL connection to any deployment that enables it.
 
-- Large feature (9K LOC)
-- Many dependencies (Redis, NATS, Elasticsearch)
-- Can be disabled entirely for minimal deployments
-- Independent testing and versioning
+**Reason for separation:**
+
+- Deployments that don't need event-driven behaviour pay zero cost
+  (no compile time, no binary size, no runtime resources)
+- Dependencies are isolated: Redis, NATS, Elasticsearch are not pulled in
+  unless the feature is enabled
+- The observer runtime can be tested and versioned independently
+- Future option: deploy as a standalone sidecar if needed
+
+**Tradeoff:** Users choosing `--features observers` are getting a second
+runtime embedded in their server process. They should size their pod/container
+accordingly and configure `max_concurrency`, `channel_capacity`, and
+`max_dlq_size` for their workload.
 
 ### Why Remove RuntimeServer?
 
@@ -663,7 +724,7 @@ use fraiseql_observers::ObserverRuntime;
 
 ### Key Files
 
-- `fraiseql-core/src/runtime/executor.rs` - Core execution engine
+- `fraiseql-core/src/runtime/executor/mod.rs` - Core execution engine
 - `fraiseql-server/src/server.rs` - HTTP server implementation
 - `fraiseql-server/src/server_config.rs` - Configuration schema
 - `fraiseql-server/src/main.rs` - Binary entry point
@@ -674,6 +735,15 @@ use fraiseql_observers::ObserverRuntime;
 - `OAuthProvider` - Authentication provider abstraction
 - `StorageBackend` - File storage abstraction
 - `ActionExecutor` - Observer action abstraction (fraiseql-observers)
+
+### Configuration Guide
+
+| Approach | Method | When to Use |
+|----------|--------|-------------|
+| Defaults | `ServerConfig::default()` | Development, tests |
+| TOML file | `ServerConfig::from_file("fraiseql.toml")` | Production |
+| Env vars | `FRAISEQL_DATABASE_URL`, `FRAISEQL_BIND_ADDR`, etc. | Container deployments |
+| Binary | `fraiseql-server --config fraiseql.toml` | Managed deployments |
 
 ### Key Commands
 
@@ -711,6 +781,6 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 **Architecture Status**: Production-ready (v2.1.0)
 **Last Updated**: March 8, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
-**Lines of Code**: ~180,000 across workspace
+**Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
 **Test Coverage**: 2,400+ tests (unit, integration, E2E, chaos engineering)
 **Unsafe Code**: Zero (forbidden at compile time)

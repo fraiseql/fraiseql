@@ -18,7 +18,7 @@ use std::{
 use parking_lot::Mutex;
 
 use dashmap::DashMap;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 /// Prometheus gauge value: circuit is closed (normal operation).
@@ -27,6 +27,27 @@ pub const STATE_CLOSED: u64 = 0;
 pub const STATE_OPEN: u64 = 1;
 /// Prometheus gauge value: circuit is half-open (probing recovery).
 pub const STATE_HALF_OPEN: u64 = 2;
+
+/// Summary of circuit state for health reporting.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CircuitHealthState {
+    /// Accepting requests normally.
+    Closed,
+    /// Rejecting requests; recovery probe pending.
+    Open,
+    /// Probe request in flight; evaluating recovery.
+    HalfOpen,
+}
+
+/// Circuit health snapshot for a single federation entity type.
+#[derive(Debug, Clone, Serialize)]
+pub struct SubgraphCircuitHealth {
+    /// Entity type name as defined in the compiled schema.
+    pub subgraph: String,
+    /// Current circuit state.
+    pub state: CircuitHealthState,
+}
 
 /// Internal circuit state stored behind a `Mutex`.
 ///
@@ -252,6 +273,16 @@ impl EntityCircuitBreaker {
             CircuitState::HalfOpen { .. } => STATE_HALF_OPEN,
         }
     }
+
+    /// Returns the typed health state for the `/health` endpoint.
+    fn state_for_health(&self) -> CircuitHealthState {
+        let state = self.state.lock();
+        match &*state {
+            CircuitState::Closed { .. } => CircuitHealthState::Closed,
+            CircuitState::Open { .. } => CircuitHealthState::Open,
+            CircuitState::HalfOpen { .. } => CircuitHealthState::HalfOpen,
+        }
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -462,6 +493,20 @@ impl FederationCircuitBreakerManager {
             .map(|entry| (entry.key().clone(), entry.value().state_code()))
             .collect()
     }
+
+    /// Returns a health snapshot: one entry per configured entity type.
+    ///
+    /// Used to populate the `federation.subgraphs` field in the `/health` response.
+    #[must_use]
+    pub fn health_snapshot(&self) -> Vec<SubgraphCircuitHealth> {
+        self.breakers
+            .iter()
+            .map(|entry| SubgraphCircuitHealth {
+                subgraph: entry.key().clone(),
+                state:    entry.value().state_for_health(),
+            })
+            .collect()
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -513,6 +558,65 @@ mod tests {
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
     use super::*;
+
+    #[test]
+    fn test_state_for_health_returns_closed_initially() {
+        let breaker = EntityCircuitBreaker::new(CircuitBreakerConfig::default());
+        assert!(matches!(breaker.state_for_health(), CircuitHealthState::Closed));
+    }
+
+    #[test]
+    fn test_state_for_health_returns_open_after_threshold() {
+        let config = CircuitBreakerConfig {
+            failure_threshold:     1,
+            recovery_timeout_secs: 3600,
+            success_threshold:     2,
+        };
+        let breaker = EntityCircuitBreaker::new(config);
+        breaker.record_failure();
+        assert!(matches!(breaker.state_for_health(), CircuitHealthState::Open));
+    }
+
+    #[test]
+    fn test_state_for_health_returns_half_open_after_timeout() {
+        let config = CircuitBreakerConfig {
+            failure_threshold:     1,
+            recovery_timeout_secs: 0, // instant recovery for testing
+            success_threshold:     5,
+        };
+        let breaker = EntityCircuitBreaker::new(config);
+        breaker.record_failure();
+        breaker.check(); // transitions Open → HalfOpen
+        assert!(matches!(breaker.state_for_health(), CircuitHealthState::HalfOpen));
+    }
+
+    #[test]
+    fn test_health_snapshot_returns_entries_for_all_breakers() {
+        let json = serde_json::json!({
+            "circuit_breaker": {
+                "enabled": true,
+                "failure_threshold": 1,
+                "recovery_timeout_secs": 3600,
+                "success_threshold": 2,
+                "per_entity": [
+                    { "entity_type": "Product", "failure_threshold": 1 },
+                    { "entity_type": "User", "failure_threshold": 1 }
+                ]
+            }
+        });
+        let manager = FederationCircuitBreakerManager::from_schema_json(&json).unwrap();
+        // Trip Product's circuit
+        manager.record_failure("Product");
+
+        let snapshot = manager.health_snapshot();
+        assert_eq!(snapshot.len(), 2, "should have one entry per configured entity");
+
+        let product = snapshot.iter().find(|s| s.subgraph == "Product").unwrap();
+        assert!(matches!(product.state, CircuitHealthState::Open));
+
+        let user = snapshot.iter().find(|s| s.subgraph == "User").unwrap();
+        assert!(matches!(user.state, CircuitHealthState::Closed));
+    }
 
     #[test]
     fn test_circuit_starts_closed() {

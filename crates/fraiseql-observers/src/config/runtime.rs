@@ -57,9 +57,40 @@ pub struct ObserverRuntimeConfig {
     #[serde(default = "default_shutdown_timeout")]
     pub shutdown_timeout: String,
 
+    /// Maximum number of entries the dead letter queue may hold.
+    ///
+    /// When the DLQ reaches this limit, the newest entry is dropped (the current
+    /// failing action is discarded) and a warning is logged. This prevents
+    /// unbounded memory growth under sustained action failures.
+    ///
+    /// Default: `None` (unbounded — matches previous behaviour for
+    /// backwards compatibility).
+    ///
+    /// Recommended production value: `10_000`.
+    #[serde(default)]
+    pub max_dlq_size: Option<usize>,
+
     /// Observer definitions
     #[serde(default)]
     pub observers: HashMap<String, ObserverDefinition>,
+}
+
+impl ObserverRuntimeConfig {
+    /// Validate the runtime configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if any field has an invalid value.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        if let Some(max) = self.max_dlq_size {
+            if max == 0 {
+                return Err(ObserverError::InvalidConfig {
+                    message: "max_dlq_size must be greater than zero".to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 pub(super) const fn default_channel_capacity() -> usize {

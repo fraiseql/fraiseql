@@ -14,6 +14,43 @@ use crate::{
     schema::SqlProjectionHint,
 };
 
+/// Derives the GraphQL entity type name from a database view name.
+///
+/// Strips the view prefix (everything up to and including the first `_`),
+/// then converts the remainder from snake_case to PascalCase.
+///
+/// # Examples
+///
+/// ```
+/// use fraiseql_core::cache::adapter::view_name_to_entity_type;
+/// assert_eq!(view_name_to_entity_type("v_user"),        Some("User".to_string()));
+/// assert_eq!(view_name_to_entity_type("v_order_item"),  Some("OrderItem".to_string()));
+/// assert_eq!(view_name_to_entity_type("tv_user_event"), Some("UserEvent".to_string()));
+/// assert_eq!(view_name_to_entity_type("users"),         None);
+/// assert_eq!(view_name_to_entity_type("v_"),            None);
+/// ```
+pub fn view_name_to_entity_type(view: &str) -> Option<String> {
+    // Strip prefix: everything up to and including the first '_'.
+    // Returns None if there is no '_' (not a typed view) or if the
+    // remainder after the prefix is empty.
+    let after_prefix = view.splitn(2, '_').nth(1)?;
+    if after_prefix.is_empty() {
+        return None;
+    }
+    // snake_case → PascalCase: capitalise the first letter of each segment.
+    let pascal = after_prefix
+        .split('_')
+        .map(|segment| {
+            let mut chars = segment.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect::<String>();
+    Some(pascal)
+}
+
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// Cache-aware implementation of `execute_with_projection`.
     ///
@@ -56,9 +93,17 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             .execute_with_projection(view, projection, where_clause, limit)
             .await?;
 
-        // Store in cache
+        // Store in cache; derive entity type from view name so that
+        // selective entity-level invalidation can target precise entries.
         let ttl = self.view_ttl_overrides.get(view).copied();
-        self.cache.put(cache_key, result.clone(), vec![view.to_string()], ttl, None)?;
+        let entity_type = view_name_to_entity_type(view);
+        self.cache.put(
+            cache_key,
+            result.clone(),
+            vec![view.to_string()],
+            ttl,
+            entity_type.as_deref(),
+        )?;
 
         Ok(result)
     }
@@ -98,17 +143,19 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Cache miss - execute query
         let result = self.adapter.execute_where_query(view, where_clause, limit, offset).await?;
 
-        // Store in cache
-        // View-level tracking (single view name).
-        // Cascade invalidation via CascadeInvalidator expands this to transitively
-        // dependent views when invalidate_views() is called.
+        // Store in cache with entity-type index so that mutation-side
+        // invalidate_by_entity() can evict only the entries that actually
+        // fetched a specific entity, rather than all entries for the view.
+        // Cascade invalidation via CascadeInvalidator still expands the view
+        // list to transitively dependent views when invalidate_views() is called.
         let ttl = self.view_ttl_overrides.get(view).copied();
+        let entity_type = view_name_to_entity_type(view);
         self.cache.put(
             cache_key,
             result.clone(),
-            vec![view.to_string()], // accessed views
+            vec![view.to_string()],
             ttl,
-            None, // No entity-type index for WHERE queries
+            entity_type.as_deref(),
         )?;
 
         Ok(result)
