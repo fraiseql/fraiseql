@@ -610,7 +610,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::event::EventKind;
+    use crate::event::{EventKind, FieldChanges};
 
     #[test]
     fn test_parse_simple_comparison() {
@@ -982,5 +982,143 @@ mod tests {
         // field != 'pending' when status IS 'pending' should be false
         let result = parser.parse_and_evaluate("status != 'pending'", &event).unwrap();
         assert!(!result, "Inequality should fail when field matches value");
+    }
+
+    // ── FieldChangedTo / FieldChangedFrom / FieldChanged evaluation ──────────
+    // These tests cover evaluate() with the `changes` field populated on the event.
+    // Parsing is covered above; this section verifies the runtime evaluation path.
+
+    fn make_update_event_with_status_change(
+        old: &str,
+        new: &str,
+    ) -> EntityEvent {
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(
+            "status".to_string(),
+            FieldChanges { old: json!(old), new: json!(new) },
+        );
+        EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": new}),
+        )
+        .with_changes(changes)
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_to_matches() {
+        let parser = ConditionParser::new();
+        let event = make_update_event_with_status_change("pending", "shipped");
+
+        let result = parser.parse_and_evaluate("field_changed_to('status', 'shipped')", &event);
+        assert!(result.unwrap(), "field_changed_to should return true when new == expected");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_to_no_match() {
+        let parser = ConditionParser::new();
+        let event = make_update_event_with_status_change("pending", "shipped");
+
+        let result = parser.parse_and_evaluate("field_changed_to('status', 'pending')", &event);
+        assert!(!result.unwrap(), "field_changed_to should return false when new != expected");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_to_no_changes() {
+        let parser = ConditionParser::new();
+        // Event with NO changes (INSERT event, no changes map)
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped"}),
+        );
+        let result = parser.parse_and_evaluate("field_changed_to('status', 'shipped')", &event);
+        assert!(!result.unwrap(), "field_changed_to should return false when no changes present");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_from_matches() {
+        let parser = ConditionParser::new();
+        let event = make_update_event_with_status_change("pending", "shipped");
+
+        let result =
+            parser.parse_and_evaluate("field_changed_from('status', 'pending')", &event);
+        assert!(result.unwrap(), "field_changed_from should return true when old == expected");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_from_no_match() {
+        let parser = ConditionParser::new();
+        let event = make_update_event_with_status_change("pending", "shipped");
+
+        let result =
+            parser.parse_and_evaluate("field_changed_from('status', 'shipped')", &event);
+        assert!(!result.unwrap(), "field_changed_from should return false when old != expected");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_any_value() {
+        let parser = ConditionParser::new();
+        let event = make_update_event_with_status_change("pending", "shipped");
+
+        // field_changed('status') — true when status field is in changes map
+        let result = parser.parse_and_evaluate("field_changed('status')", &event);
+        assert!(result.unwrap(), "field_changed should return true when field is in changes");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_not_in_changes() {
+        let parser = ConditionParser::new();
+        let event = make_update_event_with_status_change("pending", "shipped");
+
+        // 'total' was NOT changed — should return false
+        let result = parser.parse_and_evaluate("field_changed('total')", &event);
+        assert!(!result.unwrap(), "field_changed should return false when field not in changes");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_to_combined_with_and() {
+        // Compound condition: field changed to 'shipped' AND total > 100
+        let parser = ConditionParser::new();
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(
+            "status".to_string(),
+            FieldChanges { old: json!("pending"), new: json!("shipped") },
+        );
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "shipped", "total": 150}),
+        )
+        .with_changes(changes);
+
+        let result = parser
+            .parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
+        assert!(result.unwrap(), "combined condition with field_changed_to should evaluate correctly");
+    }
+
+    #[test]
+    fn test_evaluate_field_changed_to_combined_false_when_not_changed() {
+        let parser = ConditionParser::new();
+        // 'status' was NOT changed — only 'total' changed
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(
+            "total".to_string(),
+            FieldChanges { old: json!(50), new: json!(150) },
+        );
+        let event = EntityEvent::new(
+            EventKind::Updated,
+            "Order".to_string(),
+            Uuid::new_v4(),
+            json!({"status": "pending", "total": 150}),
+        )
+        .with_changes(changes);
+
+        let result = parser
+            .parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
+        assert!(!result.unwrap(), "condition should be false when field_changed_to mismatch");
     }
 }
