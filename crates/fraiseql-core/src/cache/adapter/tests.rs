@@ -1,6 +1,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::iter_on_single_items)] // Reason: test uses single-element iter for clarity
-    use serde_json::json;
+
+use async_trait::async_trait;
+use serde_json::json;
 
     use super::*;
     use crate::{

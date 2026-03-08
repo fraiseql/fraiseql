@@ -21,8 +21,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: perf test metric computations cast u64/u128→f64 for display assertions
 use std::{collections::HashMap, sync::Arc, time::Instant};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, MutationCapable},
@@ -75,7 +75,7 @@ impl PerfTestDatabaseAdapter {
     // Note: with_test_orders() can be added for future tests with order entities
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for PerfTestDatabaseAdapter {
     async fn execute_with_projection(
         &self,

@@ -9,8 +9,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity without extra imports
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
         traits::{CursorValue, DatabaseAdapter, MutationCapable, RelayDatabaseAdapter},

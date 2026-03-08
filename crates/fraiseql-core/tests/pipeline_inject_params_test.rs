@@ -13,8 +13,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use chrono::Utc;
 use fraiseql_core::{
     db::{
@@ -34,7 +34,7 @@ use fraiseql_core::{
 
 struct NoopAdapter;
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for NoopAdapter {
     async fn execute_with_projection(
         &self,

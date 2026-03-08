@@ -65,7 +65,7 @@ mod webhook;
 
 pub use kafka::{KafkaAdapter, KafkaConfig, KafkaMessage};
 pub use manager::SubscriptionManager;
-pub use transport::{DeliveryResult, TransportAdapter, TransportManager};
+pub use transport::{BoxDynTransportAdapter, DeliveryResult, TransportAdapter, TransportManager};
 pub use types::{
     ActiveSubscription, SubscriptionEvent, SubscriptionId, SubscriptionOperation,
     SubscriptionPayload,

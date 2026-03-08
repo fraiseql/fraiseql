@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::Serialize;
 
 use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionEvent};
@@ -181,7 +182,7 @@ impl WebhookAdapter {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl TransportAdapter for WebhookAdapter {
     async fn deliver(
         &self,

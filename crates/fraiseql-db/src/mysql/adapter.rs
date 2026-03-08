@@ -1,6 +1,7 @@
 //! MySQL database adapter implementation.
 
 use async_trait::async_trait;
+
 use sqlx::{
     Column, Row,
     mysql::{MySqlPool, MySqlPoolOptions, MySqlRow},

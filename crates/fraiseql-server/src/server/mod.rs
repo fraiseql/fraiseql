@@ -88,7 +88,7 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     pub(super) revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
-    pub(super) apq_store:            Option<Arc<dyn fraiseql_core::apq::ApqStorage>>,
+    pub(super) apq_store:            Option<fraiseql_core::apq::ArcApqStorage>,
     pub(super) trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
 
     #[cfg(feature = "observers")]

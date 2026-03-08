@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use async_trait::async_trait;
 use serde_json::json;
 
 use crate::security::kms::{
@@ -123,7 +124,7 @@ impl VaultKmsProvider {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl BaseKmsProvider for VaultKmsProvider {
     fn provider_name(&self) -> &'static str {
         "vault"

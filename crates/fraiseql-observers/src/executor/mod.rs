@@ -1321,7 +1321,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_failure_policy_dlq_error_counted() {
-        use async_trait::async_trait;
         use uuid::Uuid;
 
         use crate::traits::{DlqItem, DeadLetterQueue};
@@ -1329,7 +1328,7 @@ mod tests {
         /// A DLQ that always returns an error from push().
         struct AlwaysFailDlq;
 
-        #[async_trait]
+        #[async_trait::async_trait]
         impl DeadLetterQueue for AlwaysFailDlq {
             async fn push(
                 &self,

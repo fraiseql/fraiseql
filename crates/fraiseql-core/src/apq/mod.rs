@@ -29,4 +29,4 @@ pub use memory_storage::InMemoryApqStorage;
 pub use metrics::ApqMetrics;
 #[cfg(feature = "redis-apq")]
 pub use redis_storage::RedisApqStorage;
-pub use storage::{ApqError, ApqStats, ApqStorage};
+pub use storage::{ArcApqStorage, ApqError, ApqStats, ApqStorage};

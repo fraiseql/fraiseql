@@ -118,7 +118,8 @@ pub use sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
 pub use sqlserver::SqlServerAdapter;
 pub use traits::{
-    CursorValue, DatabaseAdapter, DatabaseCapabilities, MutationCapable, RelayDatabaseAdapter,
+    ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
+    MutationCapable, RelayDatabaseAdapter,
     RelayPageResult,
 };
 pub use types::sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint};

@@ -5,6 +5,8 @@
 
 use std::collections::HashMap;
 
+use async_trait::async_trait;
+
 use crate::{
     security::kms::{
         error::{KmsError, KmsResult},
@@ -19,7 +21,7 @@ use crate::{
 /// - Public methods (encrypt, decrypt, etc.) handle common logic
 /// - Protected abstract methods (do_encrypt, do_decrypt, etc.) are implemented by concrete
 ///   providers
-#[async_trait::async_trait]
+#[async_trait]
 pub trait BaseKmsProvider: Send + Sync {
     /// Unique provider identifier (e.g., 'vault', 'aws', 'gcp').
     fn provider_name(&self) -> &str;
@@ -256,6 +258,11 @@ pub trait BaseKmsProvider: Send + Sync {
     /// Provider-specific rotation policy retrieval.
     async fn do_get_rotation_policy(&self, key_id: &str) -> KmsResult<RotationPolicyInfo>;
 }
+
+/// Type alias for arc-wrapped dynamic KMS provider.
+///
+/// Used for thread-safe, reference-counted storage of KMS providers.
+pub type ArcKmsProvider = std::sync::Arc<dyn BaseKmsProvider>;
 
 /// Key information returned by provider.
 #[derive(Debug, Clone)]

@@ -28,8 +28,8 @@ pub mod scalar_validator;
 pub mod validators;
 
 pub use async_validators::{
-    AsyncValidator, AsyncValidatorConfig, AsyncValidatorProvider, ChecksumAsyncValidator,
-    EmailFormatValidator, PhoneE164Validator,
+    ArcAsyncValidator, AsyncValidator, AsyncValidatorConfig, AsyncValidatorProvider,
+    ChecksumAsyncValidator, EmailFormatValidator, PhoneE164Validator,
 };
 pub use checksum::{LuhnValidator, Mod97Validator};
 pub use compile_time::{

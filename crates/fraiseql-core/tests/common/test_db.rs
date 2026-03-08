@@ -11,7 +11,7 @@ use fraiseql_core::{
     compiler::fact_table::{
         DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     },
-    db::{postgres::PostgresAdapter, traits::DatabaseAdapter, types::DatabaseType},
+    db::{postgres::PostgresAdapter, traits::DatabaseAdapter, types::DatabaseType, ArcDatabaseAdapter},
 };
 
 /// Test database connection URL
@@ -19,7 +19,7 @@ pub const TEST_DB_URL: &str = "postgresql://fraiseql:fraiseql_password@localhost
 
 /// Test database adapter wrapper
 pub struct TestDatabase {
-    pub adapter: Arc<dyn DatabaseAdapter>,
+    pub adapter: ArcDatabaseAdapter,
     pub db_type: DatabaseType,
 }
 

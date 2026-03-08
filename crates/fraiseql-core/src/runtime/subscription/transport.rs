@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use super::{SubscriptionError, types::SubscriptionEvent};
 
 // =============================================================================
@@ -13,7 +15,7 @@ use super::{SubscriptionError, types::SubscriptionEvent};
 ///
 /// - [`super::WebhookAdapter`] - HTTP POST delivery with retry logic
 /// - [`super::KafkaAdapter`] - Apache Kafka event streaming
-#[async_trait::async_trait]
+#[async_trait]
 pub trait TransportAdapter: Send + Sync {
     /// Deliver an event to the transport.
     ///
@@ -38,6 +40,11 @@ pub trait TransportAdapter: Send + Sync {
     async fn health_check(&self) -> bool;
 }
 
+/// Type alias for boxed dynamic transport adapter.
+///
+/// Used to store transport adapters without generic type parameters.
+pub type BoxDynTransportAdapter = Box<dyn TransportAdapter>;
+
 /// Multi-transport delivery manager.
 ///
 /// Manages multiple transport adapters and delivers events to all configured
@@ -61,7 +68,7 @@ pub trait TransportAdapter: Send + Sync {
 /// manager.deliver_all(&event, "orderCreated").await?;
 /// ```
 pub struct TransportManager {
-    adapters: Vec<Box<dyn TransportAdapter>>,
+    adapters: Vec<BoxDynTransportAdapter>,
 }
 
 impl TransportManager {
@@ -74,7 +81,7 @@ impl TransportManager {
     }
 
     /// Add a transport adapter.
-    pub fn add_adapter(&mut self, adapter: Box<dyn TransportAdapter>) {
+    pub fn add_adapter(&mut self, adapter: BoxDynTransportAdapter) {
         tracing::info!(adapter = adapter.name(), "Added transport adapter");
         self.adapters.push(adapter);
     }

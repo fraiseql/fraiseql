@@ -4,8 +4,8 @@
 #![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
 #![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::{collections::HashMap, sync::Arc, time::Duration};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, MutationCapable},
@@ -42,7 +42,7 @@ impl MockDatabaseAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_with_projection(
         &self,
@@ -125,7 +125,7 @@ impl MockMutationDatabaseAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for MockMutationDatabaseAdapter {
     async fn execute_with_projection(
         &self,

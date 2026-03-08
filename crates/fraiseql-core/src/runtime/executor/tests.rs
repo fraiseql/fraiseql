@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-use async_trait::async_trait;
 
 use super::*;
+use async_trait::async_trait;
 use crate::{
     db::{MutationCapable, types::JsonbValue, where_clause::WhereClause},
     runtime::{JsonbOptimizationOptions, JsonbStrategy},
@@ -19,7 +19,7 @@ impl MockAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for MockAdapter {
     async fn execute_with_projection(
         &self,

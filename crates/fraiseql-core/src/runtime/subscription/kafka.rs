@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::Serialize;
 
 use super::{SubscriptionError, transport::TransportAdapter, types::SubscriptionEvent};
@@ -216,7 +217,7 @@ impl KafkaAdapter {
 }
 
 #[cfg(feature = "kafka")]
-#[async_trait::async_trait]
+#[async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(
         &self,
@@ -340,7 +341,7 @@ impl KafkaAdapter {
 }
 
 #[cfg(not(feature = "kafka"))]
-#[async_trait::async_trait]
+#[async_trait]
 impl TransportAdapter for KafkaAdapter {
     async fn deliver(
         &self,

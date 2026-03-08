@@ -176,6 +176,7 @@ mod tests {
 
     use std::sync::Arc;
 
+    use async_trait::async_trait;
     use serde_json::json;
 
     use crate::{
@@ -184,7 +185,6 @@ mod tests {
         runtime::Executor,
         schema::{CompiledSchema, MutationDefinition, QueryDefinition},
     };
-    use async_trait::async_trait;
 
     // Minimal mock adapter for unit tests — no database required.
     struct MockAdapter;

@@ -1,9 +1,9 @@
 //! In-memory APQ storage backend with LRU eviction and TTL support.
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use async_trait::async_trait;
 use serde_json::json;
 
 use super::storage::{ApqError, ApqStats, ApqStorage};

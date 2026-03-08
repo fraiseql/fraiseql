@@ -147,6 +147,11 @@ pub enum ApqError {
     ConfigError(String),
 }
 
+/// Type alias for arc-wrapped dynamic APQ storage.
+///
+/// Used for thread-safe, reference-counted storage of APQ backends.
+pub type ArcApqStorage = std::sync::Arc<dyn ApqStorage>;
+
 #[cfg(test)]
 mod tests {
     use super::*;

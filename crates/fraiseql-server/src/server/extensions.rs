@@ -104,7 +104,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
 
         // Initialize APQ store when enabled.
         if server.config.apq_enabled {
-            let apq_store: Arc<dyn fraiseql_core::apq::ApqStorage> =
+            let apq_store: fraiseql_core::apq::ArcApqStorage =
                 Arc::new(fraiseql_core::apq::InMemoryApqStorage::default());
             server.apq_store = Some(apq_store);
             info!("APQ (Automatic Persisted Queries) enabled — in-memory backend");
@@ -254,7 +254,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             revocation_manager,
             apq_store: if apq_enabled {
                 Some(Arc::new(fraiseql_core::apq::InMemoryApqStorage::default())
-                    as Arc<dyn fraiseql_core::apq::ApqStorage>)
+                    as fraiseql_core::apq::ArcApqStorage)
             } else {
                 None
             },

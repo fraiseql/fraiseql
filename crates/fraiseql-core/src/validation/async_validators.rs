@@ -9,6 +9,7 @@
 
 use std::{sync::LazyLock, time::Duration};
 
+use async_trait::async_trait;
 use regex::Regex;
 
 use crate::error::{FraiseQLError, Result};
@@ -100,7 +101,7 @@ impl AsyncValidatorConfig {
 /// Trait for async validators.
 ///
 /// Implementers should handle timeout and error cases gracefully.
-#[async_trait::async_trait]
+#[async_trait]
 pub trait AsyncValidator: Send + Sync {
     /// Validate a value asynchronously.
     ///
@@ -118,6 +119,11 @@ pub trait AsyncValidator: Send + Sync {
     /// Get the timeout for this validator
     fn timeout(&self) -> Duration;
 }
+
+/// Type alias for arc-wrapped dynamic async validator.
+///
+/// Used for thread-safe, reference-counted storage of async validators.
+pub type ArcAsyncValidator = std::sync::Arc<dyn AsyncValidator>;
 
 /// Email format validator.
 ///
@@ -157,7 +163,7 @@ impl Default for EmailFormatValidator {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl AsyncValidator for EmailFormatValidator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
         if EMAIL_REGEX.is_match(value) {
@@ -219,7 +225,7 @@ impl Default for PhoneE164Validator {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl AsyncValidator for PhoneE164Validator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
         if PHONE_E164_REGEX.is_match(value) {
@@ -266,7 +272,7 @@ impl ChecksumAsyncValidator {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl AsyncValidator for ChecksumAsyncValidator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
         use crate::validation::checksum::{LuhnValidator, Mod97Validator};

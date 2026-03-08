@@ -16,8 +16,8 @@
 //! the production executor uses.
 
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use chrono::Utc;
 use fraiseql_core::{
     cache::{
@@ -50,7 +50,7 @@ impl InnerMockAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for InnerMockAdapter {
     async fn execute_with_projection(
         &self,

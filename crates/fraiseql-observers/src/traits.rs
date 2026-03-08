@@ -5,7 +5,6 @@
 
 use std::future::Future;
 
-use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::{config::ActionConfig, error::Result, event::EntityEvent};
@@ -56,7 +55,7 @@ pub struct ActionResult {
 /// Dead letter queue abstraction for testing
 ///
 /// Allows testing failed action storage without database.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait DeadLetterQueue: Send + Sync {
     /// Add a failed action to the DLQ
     ///
@@ -99,6 +98,7 @@ pub trait DeadLetterQueue: Send + Sync {
         Ok(())
     }
 }
+
 
 /// Item in the dead letter queue
 #[derive(Debug, Clone)]

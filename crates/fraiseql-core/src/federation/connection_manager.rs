@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    db::traits::DatabaseAdapter,
+    db::ArcDatabaseAdapter,
     error::{FraiseQLError, Result},
 };
 
@@ -60,7 +60,7 @@ impl RemoteDatabaseConfig {
 /// Manages connections to remote databases
 pub struct ConnectionManager {
     /// Cached adapters keyed by connection string
-    adapters: Arc<Mutex<HashMap<String, Arc<dyn DatabaseAdapter>>>>,
+    adapters: Arc<Mutex<HashMap<String, ArcDatabaseAdapter>>>,
 }
 
 impl ConnectionManager {
@@ -87,7 +87,7 @@ impl ConnectionManager {
     pub async fn get_or_create_connection(
         &self,
         config: RemoteDatabaseConfig,
-    ) -> Result<Arc<dyn DatabaseAdapter>> {
+    ) -> Result<ArcDatabaseAdapter> {
         // Check cache first
         {
             let adapters = self.adapters.lock().map_err(|e| FraiseQLError::Internal {

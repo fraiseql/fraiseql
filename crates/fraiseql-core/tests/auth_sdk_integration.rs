@@ -9,8 +9,8 @@
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for readability
 #![allow(clippy::items_after_statements)] // Reason: test-local use statements after variable declarations
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     compiler::{
         fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
@@ -41,7 +41,7 @@ impl MockAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for MockAdapter {
     async fn execute_with_projection(
         &self,

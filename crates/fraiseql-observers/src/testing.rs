@@ -250,7 +250,7 @@ pub mod mocks {
         }
     }
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl DeadLetterQueue for MockDeadLetterQueue {
         async fn push(
             &self,

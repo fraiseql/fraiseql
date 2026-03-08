@@ -11,8 +11,8 @@
 //! adapter call — catching the class of regression described in issue #53 for mutations.
 
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use chrono::Utc;
 use fraiseql_core::{
     db::{
@@ -103,7 +103,7 @@ impl RecordingMockAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for RecordingMockAdapter {
     async fn execute_with_projection(
         &self,

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use fraiseql_core::{
-    apq::{ApqMetrics, ApqStorage},
+    apq::{ApqMetrics, ArcApqStorage},
     db::traits::DatabaseAdapter,
     runtime::Executor,
 };
@@ -49,7 +49,7 @@ pub struct AppState<A: DatabaseAdapter> {
     pub api_key_authenticator:
         Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     /// APQ persistent query store (optional, enabled via compiled schema config).
-    pub apq_store:   Option<Arc<dyn ApqStorage>>,
+    pub apq_store:   Option<ArcApqStorage>,
     /// Trusted document store (optional, enabled via `[security.trusted_documents]`).
     pub trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
     /// APQ metrics tracker.
@@ -224,7 +224,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Attach an APQ store for Automatic Persisted Queries.
     #[must_use]
-    pub fn with_apq_store(mut self, store: Arc<dyn ApqStorage>) -> Self {
+    pub fn with_apq_store(mut self, store: ArcApqStorage) -> Self {
         self.apq_store = Some(store);
         self
     }

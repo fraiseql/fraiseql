@@ -1,6 +1,6 @@
 //! SQL Server database adapter implementation.
-
 use async_trait::async_trait;
+
 use bb8::Pool;
 use bb8_tiberius::ConnectionManager;
 use tiberius::Config;

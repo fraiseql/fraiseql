@@ -9,8 +9,8 @@
 
 #![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
 use std::collections::HashMap;
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, MutationCapable},
@@ -115,7 +115,7 @@ impl MockDatabaseAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_with_projection(
         &self,

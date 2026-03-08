@@ -11,8 +11,8 @@
 
 #![allow(clippy::literal_string_with_formatting_args)] // Reason: test expected strings contain format-like patterns that are literal data, not format args
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     db::{
         traits::{DatabaseAdapter, MutationCapable},
@@ -39,7 +39,7 @@ impl ErrorMockAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for ErrorMockAdapter {
     async fn execute_with_projection(
         &self,

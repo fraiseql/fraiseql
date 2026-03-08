@@ -13,8 +13,8 @@
 //! `Compiler::compile()` so any bug in codegen is caught here.
 
 use std::{collections::HashMap, sync::Arc};
-
 use async_trait::async_trait;
+
 use fraiseql_core::{
     compiler::Compiler,
     db::{
@@ -44,7 +44,7 @@ impl PipelineMockAdapter {
     }
 }
 
-#[async_trait]
+    #[async_trait]
 impl DatabaseAdapter for PipelineMockAdapter {
     async fn execute_with_projection(
         &self,

@@ -13,6 +13,7 @@
 //! For mutation support, use PostgreSQL, MySQL, or SQL Server.
 
 use async_trait::async_trait;
+
 use sqlx::{
     Column, Row,
     sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow},

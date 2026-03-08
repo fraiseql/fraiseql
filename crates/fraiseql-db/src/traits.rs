@@ -178,11 +178,10 @@ pub struct RelayPageResult {
 /// - `RelayDatabaseAdapter` — Optional trait for keyset pagination
 /// - `DatabaseCapabilities` — Feature detection for the adapter
 /// - [Performance Guide](https://docs.fraiseql.rs/performance/database-adapters.md)
-// Reason: `dyn DatabaseAdapter` is used at multiple call sites across fraiseql-core
-// and fraiseql-arrow. Native async fn in traits (stable since Rust 1.75) is not
-// object-safe when used with `dyn Trait`, since each impl creates a different Future
-// type. `#[async_trait]` erases these to `Pin<Box<dyn Future>>`, enabling dynamic
-// dispatch without requiring the caller to know the concrete adapter type.
+// Reason: `DatabaseAdapter` is used both generically (`<A: DatabaseAdapter>` in axum
+// handlers) and dynamically (`Arc<dyn DatabaseAdapter + Send + Sync>` in federation).
+// `#[async_trait]` ensures the returned futures are `Send` (required by axum's Handler)
+// and makes the trait dyn-compatible via `Pin<Box<dyn Future + Send>>`.
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a WHERE query against a view and return JSONB rows.
@@ -718,3 +717,26 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// SQLite is suitable for read-only development and testing. Use PostgreSQL, MySQL, or
 /// SQL Server when your schema includes mutations.
 pub trait MutationCapable: DatabaseAdapter {}
+
+/// Type alias for boxed dynamic database adapters.
+///
+/// Used to store database adapters without generic type parameters in collections
+/// or struct fields. The adapter type is determined at runtime.
+///
+/// # Example
+///
+/// ```ignore
+/// let adapter: BoxDatabaseAdapter = Box::new(postgres_adapter);
+/// ```
+pub type BoxDatabaseAdapter = Box<dyn DatabaseAdapter>;
+
+/// Type alias for arc-wrapped dynamic database adapters.
+///
+/// Used for thread-safe, reference-counted storage of adapters in shared state.
+///
+/// # Example
+///
+/// ```ignore
+/// let adapter: ArcDatabaseAdapter = Arc::new(postgres_adapter);
+/// ```
+pub type ArcDatabaseAdapter = std::sync::Arc<dyn DatabaseAdapter>;
