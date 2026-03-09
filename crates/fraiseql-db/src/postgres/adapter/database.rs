@@ -7,7 +7,7 @@ use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
     traits::{DatabaseAdapter, MutationCapable},
-    types::{DatabaseType, JsonbValue, PoolMetrics},
+    types::{DatabaseType, JsonbValue, PoolMetrics, QueryParam},
     types::sql_hints::SqlProjectionHint,
     where_clause::WhereClause,
 };
@@ -160,6 +160,55 @@ impl DatabaseAdapter for PostgresAdapter {
                     map.insert(column_name, value);
                 }
 
+                map
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    async fn execute_parameterized_aggregate(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Convert serde_json::Value params to QueryParam so that strings are bound
+        // as TEXT (not JSONB), which is required for correct WHERE comparisons against
+        // data->>'field' expressions that return TEXT.
+        let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+            typed.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+
+        let client = self.acquire_connection_with_retry().await?;
+        let rows: Vec<Row> =
+            client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Parameterized aggregate query failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        let results = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+                for (idx, column) in row.columns().iter().enumerate() {
+                    let column_name = column.name().to_string();
+                    let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, String>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+                        v
+                    } else {
+                        serde_json::Value::Null
+                    };
+                    map.insert(column_name, value);
+                }
                 map
             })
             .collect();

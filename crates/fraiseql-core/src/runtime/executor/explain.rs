@@ -236,6 +236,14 @@ mod tests {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
     }
 
     fn make_schema_with_query(name: &str, sql_source: &str) -> CompiledSchema {

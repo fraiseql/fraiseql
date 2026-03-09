@@ -300,6 +300,14 @@ mod tests {
             &self, _sql: &str,
         ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>>
         { Ok(vec![]) }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
     }
 
     fn make_tuner(min: u32, max: u32, target_queue: u32) -> PoolSizingAdvisor {

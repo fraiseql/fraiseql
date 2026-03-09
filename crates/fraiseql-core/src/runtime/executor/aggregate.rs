@@ -132,12 +132,15 @@ impl<A: DatabaseAdapter> Executor<A> {
         let plan =
             crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
 
-        // 3. Generate SQL
+        // 3. Generate parameterized SQL
         let sql_generator = super::super::AggregationSqlGenerator::new(self.adapter.database_type());
-        let sql = sql_generator.generate(&plan)?;
+        let parameterized = sql_generator.generate_parameterized(&plan)?;
 
-        // 4. Execute SQL
-        let rows = self.adapter.execute_raw_query(&sql.raw_sql).await?;
+        // 4. Execute with bind parameters (eliminates escape-based injection risk)
+        let rows = self
+            .adapter
+            .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
+            .await?;
 
         // 5. Project results
         let projected = super::super::AggregationProjector::project(rows, &plan)?;

@@ -380,6 +380,72 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(results)
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let mut query = sqlx::query(sql);
+        for param in params {
+            query = match param {
+                serde_json::Value::String(s) => query.bind(s.clone()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        query.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        query.bind(f)
+                    } else {
+                        query.bind(n.to_string())
+                    }
+                },
+                serde_json::Value::Bool(b) => query.bind(*b),
+                serde_json::Value::Null => query.bind(Option::<String>::None),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                    query.bind(param.to_string())
+                },
+            };
+        }
+
+        let rows: Vec<SqliteRow> = query.fetch_all(&self.pool).await.map_err(|e| {
+            FraiseQLError::Database {
+                message:   format!("SQLite parameterized aggregate query failed: {e}"),
+                sql_state: None,
+            }
+        })?;
+
+        let results = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+                for column in row.columns() {
+                    let column_name = column.name().to_string();
+                    let value: serde_json::Value =
+                        if let Ok(v) = row.try_get::<i32, _>(column_name.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<i64, _>(column_name.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<f64, _>(column_name.as_str()) {
+                            serde_json::json!(v)
+                        } else if let Ok(v) = row.try_get::<String, _>(column_name.as_str()) {
+                            if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&v) {
+                                json_val
+                            } else {
+                                serde_json::json!(v)
+                            }
+                        } else if let Ok(v) = row.try_get::<bool, _>(column_name.as_str()) {
+                            serde_json::json!(v)
+                        } else {
+                            serde_json::Value::Null
+                        };
+                    map.insert(column_name, value);
+                }
+                map
+            })
+            .collect();
+
+        Ok(results)
+    }
+
     async fn explain_query(
         &self,
         sql: &str,

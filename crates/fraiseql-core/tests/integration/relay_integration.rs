@@ -134,6 +134,14 @@ impl DatabaseAdapter for RelayMockAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -681,6 +689,14 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
     }
 
     async fn execute_raw_query(&self, _sql: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
 

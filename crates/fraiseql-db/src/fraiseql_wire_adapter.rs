@@ -307,6 +307,18 @@ impl DatabaseAdapter for FraiseWireAdapter {
         })
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        // fraiseql-wire does not support aggregate queries with arbitrary SQL.
+        Err(FraiseQLError::Database {
+            message: "fraiseql-wire does not support aggregate SQL queries.".to_string(),
+            sql_state: None,
+        })
+    }
+
 }
 
 #[cfg(test)]

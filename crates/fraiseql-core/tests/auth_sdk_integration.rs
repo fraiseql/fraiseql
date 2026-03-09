@@ -94,6 +94,17 @@ impl DatabaseAdapter for MockAdapter {
         Ok(vec![result])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let mut result = HashMap::new();
+        result.insert("count".to_string(), json!(10));
+        result.insert("revenue_sum".to_string(), json!(1500.50));
+        Ok(vec![result])
+    }
+
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -445,12 +456,13 @@ fn test_where_denormalized_filter() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("WHERE"));
     assert!(sql.contains("customer_id"));
     assert!(sql.contains('='));
-    assert!(sql.contains("550e8400-e29b-41d4-a716-446655440000"));
+    assert!(params.contains(&json!("550e8400-e29b-41d4-a716-446655440000")));
     // Should be direct column, not JSONB
     assert!(!sql.contains("->"));
 }
@@ -466,12 +478,13 @@ fn test_where_jsonb_dimension() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("WHERE"));
     assert!(sql.contains("data->>'category'"));
     assert!(sql.contains('='));
-    assert!(sql.contains("electronics"));
+    assert!(params.contains(&json!("electronics")));
 }
 
 /// Test WHERE clause with AND operator (denormalized + JSONB)
@@ -492,7 +505,8 @@ fn test_where_and_operator() {
     ]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("customer_id"));
     assert!(sql.contains("data->>'category'"));
@@ -517,12 +531,13 @@ fn test_where_or_operator() {
     ]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("data->>'category'"));
     assert!(sql.contains(" OR "));
-    assert!(sql.contains("electronics"));
-    assert!(sql.contains("furniture"));
+    assert!(params.contains(&json!("electronics")));
+    assert!(params.contains(&json!("furniture")));
 }
 
 /// Test WHERE clause with NOT operator
@@ -536,7 +551,8 @@ fn test_where_not_operator() {
     }));
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("NOT"));
     assert!(sql.contains("data->>'category'"));
@@ -554,7 +570,8 @@ fn test_where_comparison_operators() {
         value:    json!("2024-01-01"),
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains('>'));
 
     // Test Lte
@@ -563,7 +580,8 @@ fn test_where_comparison_operators() {
         operator: WhereOperator::Lte,
         value:    json!("2024-12-31"),
     };
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("<="));
 }
 
@@ -578,12 +596,13 @@ fn test_where_in_operator() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("IN"));
-    assert!(sql.contains("electronics"));
-    assert!(sql.contains("furniture"));
-    assert!(sql.contains("clothing"));
+    assert!(params.contains(&json!("electronics")));
+    assert!(params.contains(&json!("furniture")));
+    assert!(params.contains(&json!("clothing")));
 }
 
 /// Test WHERE clause with LIKE operator
@@ -598,9 +617,10 @@ fn test_where_like_operators() {
         value:    json!("electr"),
     };
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("LIKE"));
-    assert!(sql.contains("%electr%"));
+    assert!(params.iter().any(|p| p.as_str() == Some("%electr%")));
 
     // Test Startswith (LIKE 'value%')
     let where_clause = WhereClause::Field {
@@ -608,8 +628,10 @@ fn test_where_like_operators() {
         operator: WhereOperator::Startswith,
         value:    json!("electr"),
     };
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
-    assert!(sql.contains("'electr%'"));
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
+    assert!(sql.contains("LIKE"));
+    assert!(params.iter().any(|p| p.as_str() == Some("electr%")));
 
     // Test Endswith (LIKE '%value')
     let where_clause = WhereClause::Field {
@@ -617,8 +639,10 @@ fn test_where_like_operators() {
         operator: WhereOperator::Endswith,
         value:    json!("onics"),
     };
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
-    assert!(sql.contains("'%onics'"));
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
+    assert!(sql.contains("LIKE"));
+    assert!(params.iter().any(|p| p.as_str() == Some("%onics")));
 }
 
 /// Test WHERE clause with case-insensitive operators (PostgreSQL)
@@ -632,11 +656,12 @@ fn test_where_case_insensitive_postgresql() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     // PostgreSQL should use ILIKE
     assert!(sql.contains("ILIKE"));
-    assert!(sql.contains("%ELECTR%"));
+    assert!(params.iter().any(|p| p.as_str() == Some("%ELECTR%")));
 }
 
 /// Test WHERE clause with case-insensitive operators (MySQL - uses UPPER)
@@ -650,7 +675,8 @@ fn test_where_case_insensitive_mysql() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     // MySQL should use UPPER() for case-insensitive
     assert!(sql.contains("UPPER"));
@@ -668,7 +694,8 @@ fn test_where_is_null_operator() {
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("IS NULL"));
     assert!(sql.contains("data->>'category'"));
@@ -686,22 +713,26 @@ fn test_where_multi_database_compatibility() {
 
     // PostgreSQL: data->>'category'
     let pg = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = pg.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = pg.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("data->>'category'"));
 
     // MySQL: JSON_UNQUOTE(JSON_EXTRACT(...))
     let mysql = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let sql = mysql.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = mysql.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("JSON_EXTRACT") || sql.contains("JSON_UNQUOTE"));
 
     // SQLite: json_extract(...)
     let sqlite = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sql = sqlite.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = sqlite.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("json_extract"));
 
     // SQL Server: JSON_VALUE(...)
     let mssql = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let sql = mssql.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = mssql.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
     assert!(sql.contains("JSON_VALUE"));
 }
 
@@ -712,7 +743,8 @@ fn test_where_empty_clause() {
     let where_clause = WhereClause::And(vec![]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     // Empty WHERE should return empty string (no WHERE keyword)
     assert_eq!(sql, "");
@@ -745,12 +777,13 @@ fn test_where_complex_nested() {
     ]);
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.build_where_clause(&where_clause, &metadata).unwrap();
+    let mut params: Vec<serde_json::Value> = vec![];
+    let sql = generator.build_where_clause_parameterized(&where_clause, &metadata, &mut params).unwrap();
 
     assert!(sql.contains("customer_id"));
     assert!(sql.contains("data->>'category'"));
     assert!(sql.contains(" AND "));
     assert!(sql.contains(" OR "));
-    assert!(sql.contains("electronics"));
-    assert!(sql.contains("furniture"));
+    assert!(params.contains(&json!("electronics")));
+    assert!(params.contains(&json!("furniture")));
 }

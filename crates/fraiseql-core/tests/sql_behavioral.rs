@@ -336,23 +336,23 @@ fn aggregate_sum_produces_correct_sql() {
 
     let plan = AggregationPlanner::plan(request, metadata).expect("plan");
     let sql = AggregationSqlGenerator::new(DatabaseType::PostgreSQL)
-        .generate(&plan)
+        .generate_parameterized(&plan)
         .expect("generate");
 
     assert!(
-        sql.raw_sql.contains("SUM(amount)"),
+        sql.sql.contains("SUM(amount)"),
         "Expected SUM(amount) in: {}",
-        sql.raw_sql
+        sql.sql
     );
     assert!(
-        sql.raw_sql.contains("tf_sales"),
+        sql.sql.contains("tf_sales"),
         "Expected table name in: {}",
-        sql.raw_sql
+        sql.sql
     );
     assert!(
-        !sql.raw_sql.to_uppercase().contains("GROUP BY"),
+        !sql.sql.to_uppercase().contains("GROUP BY"),
         "SUM without grouping must not emit GROUP BY: {}",
-        sql.raw_sql
+        sql.sql
     );
 }
 
@@ -411,23 +411,23 @@ fn aggregate_group_by_produces_correct_sql() {
 
     let plan = AggregationPlanner::plan(request, metadata).expect("plan");
     let sql = AggregationSqlGenerator::new(DatabaseType::PostgreSQL)
-        .generate(&plan)
+        .generate_parameterized(&plan)
         .expect("generate");
 
     assert!(
-        sql.raw_sql.to_uppercase().contains("GROUP BY"),
+        sql.sql.to_uppercase().contains("GROUP BY"),
         "Expected GROUP BY in: {}",
-        sql.raw_sql
+        sql.sql
     );
     assert!(
-        sql.raw_sql.contains("category"),
+        sql.sql.contains("category"),
         "Expected dimension name in: {}",
-        sql.raw_sql
+        sql.sql
     );
     assert!(
-        sql.raw_sql.contains("SUM(amount)"),
+        sql.sql.contains("SUM(amount)"),
         "Expected SUM aggregate in: {}",
-        sql.raw_sql
+        sql.sql
     );
 }
 

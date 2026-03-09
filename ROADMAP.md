@@ -154,25 +154,6 @@ no `resize()` API. To act on tuner recommendations, operators must restart the s
 with an adjusted `max_connections` value. A future migration to a pool library with
 runtime resize support (e.g. `bb8`) would unlock active tuning.
 
-### Aggregate WHERE/HAVING parameterization
-Aggregate queries (GROUP BY, HAVING, window functions) build WHERE clause values as
-escaped string literals rather than using `$N`/`?` bind parameters. This is a
-deliberate trade-off: aggregate SQL shapes are highly dynamic (arbitrary GROUP BY
-combinations, HAVING thresholds, temporal buckets) and cannot be expressed as a
-single static prepared statement. The current `execute_raw_query` API takes only
-`&str` with no bind params; extending it would require a new `execute_aggregate_query`
-method on `DatabaseAdapter`, a `WhereFragment { sql, params }` refactor in the
-aggregate builder, and HAVING clause parameterization.
-
-**Current safety**: all string values are escaped via `escape_sql_string` (single-quote
-doubling; MySQL also doubles backslashes). Numeric and boolean values are emitted via
-their `to_string()` representation from typed Rust values, not user strings. JSONB
-path segments and identifiers are compile-time schema values, not runtime user input.
-
-**Acceptance criterion**: no runtime GraphQL variable flows into aggregate SQL without
-either parameterization, type-system guarantees (numeric/boolean), or compile-time
-origin (schema). When `execute_aggregate_query(&str, Vec<SqlParam>)` is added to
-`DatabaseAdapter`, refactor the aggregate WHERE/HAVING builder to use it.
 
 ### Compile-time MutationCapable enforcement
 The `MutationCapable` marker trait gates mutation support, but enforcement is currently

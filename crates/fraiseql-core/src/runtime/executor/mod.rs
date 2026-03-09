@@ -37,10 +37,10 @@
 //! **Zero SQL string concatenation for regular queries and mutations** — complete
 //! protection against SQL injection on the standard execution paths.
 //!
-//! > **Note on aggregate and window queries**: These paths use `execute_raw_query` with
-//! > pre-assembled SQL strings rather than prepared statement parameters. All user-supplied
-//! > values are escaped via `format_sql_value` / `escape_sql_string`, but the guarantee
-//! > of parameterised execution does not extend to these paths.
+//! > **Note on window queries**: The window query path uses `execute_raw_query` with a
+//! > pre-assembled SQL string. Aggregate queries (`GROUP BY` / `HAVING`) use
+//! > `execute_parameterized_aggregate` with `$N`/`?`/`@P1` bind parameters and are
+//! > therefore fully protected. Window query parameterization is a future follow-up.
 //!
 //! ## 3. Execution Phase — Run and Process Results
 //! The `DatabaseAdapter` executes the parameterized SQL:

@@ -308,6 +308,14 @@ mod tests {
         ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
     }
 
     fn make_executor(names: &[(&str, &str)]) -> Executor<MockAdapter> {

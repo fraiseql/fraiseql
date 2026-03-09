@@ -430,6 +430,58 @@ impl DatabaseAdapter for SqlServerAdapter {
         Ok(results)
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let string_params = serialise_complex_params(params);
+        let mut query = tiberius::Query::new(sql);
+        bind_json_params(&mut query, params, &string_params)?;
+
+        let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("SQL Server parameterized aggregate query failed: {e}"),
+            sql_state: e.code().and_then(map_mssql_error_code),
+        })?;
+
+        let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to get aggregate result set: {e}"),
+            sql_state: e.code().and_then(map_mssql_error_code),
+        })?;
+
+        let results = rows
+            .into_iter()
+            .map(|row| {
+                let mut map = std::collections::HashMap::new();
+                for (idx, column) in row.columns().iter().enumerate() {
+                    let col = column.name().to_string();
+                    let value: serde_json::Value =
+                        if let Some(v) = row.try_get::<i32, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(v) = row.try_get::<i64, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(v) = row.try_get::<f64, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(v) = row.try_get::<bool, _>(idx).ok().flatten() {
+                            serde_json::json!(v)
+                        } else if let Some(s) = row.try_get::<&str, _>(idx).ok().flatten() {
+                            serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!(s))
+                        } else {
+                            serde_json::Value::Null
+                        };
+                    map.insert(col, value);
+                }
+                map
+            })
+            .collect();
+
+        Ok(results)
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,

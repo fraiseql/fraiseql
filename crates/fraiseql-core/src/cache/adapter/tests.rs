@@ -97,6 +97,17 @@ use serde_json::json;
             Ok(vec![row])
         }
 
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            self.raw_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let mut row = std::collections::HashMap::new();
+            row.insert("count".to_string(), json!(42));
+            Ok(vec![row])
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -1176,6 +1187,14 @@ use serde_json::json;
         async fn execute_raw_query(
             &self,
             _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }

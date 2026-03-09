@@ -540,6 +540,18 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.execute_aggregation_query(sql).await
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Parameterized aggregate results are not cacheable by SQL template alone;
+        // delegate directly to the underlying adapter to avoid caching with an
+        // incorrect key (the same SQL template with different params would return
+        // different results).
+        self.adapter.execute_parameterized_aggregate(sql, params).await
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,

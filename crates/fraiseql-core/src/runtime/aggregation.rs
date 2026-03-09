@@ -73,28 +73,16 @@ use crate::{
     utils::casing::to_snake_case,
 };
 
-/// SQL query components
+/// Aggregate query with bind parameters instead of escaped string literals.
+///
+/// Produced by [`AggregationSqlGenerator::generate_parameterized`].  Pass `sql`
+/// and `params` directly to [`crate::db::DatabaseAdapter::execute_parameterized_aggregate`].
 #[derive(Debug, Clone)]
-pub struct AggregationSql {
-    /// SELECT clause
-    pub select:       String,
-    /// FROM clause
-    pub from:         String,
-    /// WHERE clause (if present)
-    pub where_clause: Option<String>,
-    /// GROUP BY clause (if present)
-    pub group_by:     Option<String>,
-    /// HAVING clause (if present)
-    pub having:       Option<String>,
-    /// ORDER BY clause (if present)
-    pub order_by:     Option<String>,
-    /// LIMIT clause (if present)
-    pub limit:        Option<u32>,
-    /// OFFSET clause (if present)
-    pub offset:       Option<u32>,
-    /// Assembled SQL with user values escaped via `escape_sql_string`.
-    /// Passed to `execute_raw_query`; not a parameterised query.
-    pub raw_sql: String,
+pub struct ParameterizedAggregationSql {
+    /// SQL with `$N` (PostgreSQL), `?` (MySQL / SQLite), or `@P1` (SQL Server) placeholders.
+    pub sql:    String,
+    /// Bind parameters in placeholder order.
+    pub params: Vec<serde_json::Value>,
 }
 
 /// Aggregation SQL generator
@@ -107,72 +95,6 @@ impl AggregationSqlGenerator {
     #[must_use]
     pub const fn new(database_type: DatabaseType) -> Self {
         Self { database_type }
-    }
-
-    /// Generate SQL from aggregation plan
-    ///
-    /// # Errors
-    ///
-    /// Returns error if SQL generation fails
-    pub fn generate(&self, plan: &AggregationPlan) -> Result<AggregationSql> {
-        // Build SELECT clause
-        let select =
-            self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
-
-        // Build FROM clause
-        let from = format!("FROM {}", plan.request.table_name);
-
-        // Build WHERE clause (if present)
-        let where_clause = if let Some(ref where_clause) = plan.request.where_clause {
-            Some(self.build_where_clause(where_clause, &plan.metadata)?)
-        } else {
-            None
-        };
-
-        // Build GROUP BY clause (if present)
-        let group_by = if !plan.group_by_expressions.is_empty() {
-            Some(self.build_group_by_clause(&plan.group_by_expressions)?)
-        } else {
-            None
-        };
-
-        // Build HAVING clause (if present)
-        let having = if !plan.having_conditions.is_empty() {
-            Some(self.build_having_clause(&plan.having_conditions)?)
-        } else {
-            None
-        };
-
-        // Build ORDER BY clause (if present)
-        let order_by = if !plan.request.order_by.is_empty() {
-            Some(self.build_order_by_clause(&plan.request.order_by)?)
-        } else {
-            None
-        };
-
-        // Build complete SQL
-        let raw_sql = self.assemble_sql(
-            &select,
-            &from,
-            where_clause.as_deref(),
-            group_by.as_deref(),
-            having.as_deref(),
-            order_by.as_deref(),
-            plan.request.limit,
-            plan.request.offset,
-        );
-
-        Ok(AggregationSql {
-            select,
-            from,
-            where_clause,
-            group_by,
-            having,
-            order_by,
-            limit: plan.request.limit,
-            offset: plan.request.offset,
-            raw_sql,
-        })
     }
 
     /// Build SELECT clause
@@ -588,167 +510,6 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Build a SQL `WHERE` clause string from a [`WhereClause`] AST node.
-    ///
-    /// Returns an empty string when `where_clause` is empty (no filtering needed),
-    /// or a `WHERE ...` fragment otherwise.  The fragment is database-dialect-aware:
-    /// the SQL generator held by `self` determines parameter placeholder style
-    /// (`$1` for PostgreSQL, `?` for MySQL/SQLite) and JSON accessor syntax.
-    ///
-    /// Handles two categories of filterable fields:
-    /// 1. **Denormalized filters** (direct columns): `WHERE customer_id = $1`
-    /// 2. **JSONB dimensions** (path into the `data` column): `WHERE data->>'category' = $1`
-    ///
-    /// Compound clauses (`And` / `Or`) are rendered recursively with parentheses.
-    ///
-    /// # Arguments
-    ///
-    /// * `where_clause` - The [`WhereClause`] AST to convert; may be empty
-    /// * `metadata` - [`FactTableMetadata`] describing which fields are denormalized
-    ///   columns vs. JSONB dimensions
-    ///
-    /// # Returns
-    ///
-    /// An owned `String` containing either an empty string or a complete `WHERE …`
-    /// SQL fragment (without a trailing newline or semicolon).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::FraiseQLError::Validation`] if an unknown operator or
-    /// unsupported field path is encountered during SQL generation.
-    pub fn build_where_clause(
-        &self,
-        where_clause: &WhereClause,
-        metadata: &FactTableMetadata,
-    ) -> Result<String> {
-        if where_clause.is_empty() {
-            return Ok(String::new());
-        }
-
-        let condition_sql = self.where_clause_to_sql(where_clause, metadata)?;
-        Ok(format!("WHERE {}", condition_sql))
-    }
-
-    /// Convert WhereClause AST to SQL
-    fn where_clause_to_sql(
-        &self,
-        clause: &WhereClause,
-        metadata: &FactTableMetadata,
-    ) -> Result<String> {
-        match clause {
-            WhereClause::Field {
-                path,
-                operator,
-                value,
-            } => {
-                let field_name = &path[0];
-
-                // Check if field is a denormalized filter (direct column)
-                let is_denormalized =
-                    metadata.denormalized_filters.iter().any(|f| f.name == *field_name);
-
-                if is_denormalized {
-                    // Direct column: WHERE customer_id = $1
-                    self.generate_direct_column_where(field_name, operator, value)
-                } else {
-                    // JSONB dimension: WHERE data->>'category' = $1
-                    let jsonb_column = &metadata.dimensions.name; // "data"
-                    self.generate_jsonb_where(jsonb_column, path, operator, value)
-                }
-            },
-            WhereClause::And(clauses) => {
-                let conditions: Vec<String> = clauses
-                    .iter()
-                    .map(|c| self.where_clause_to_sql(c, metadata))
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(format!("({})", conditions.join(" AND ")))
-            },
-            WhereClause::Or(clauses) => {
-                let conditions: Vec<String> = clauses
-                    .iter()
-                    .map(|c| self.where_clause_to_sql(c, metadata))
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(format!("({})", conditions.join(" OR ")))
-            },
-            WhereClause::Not(clause) => {
-                let inner = self.where_clause_to_sql(clause, metadata)?;
-                Ok(format!("NOT ({})", inner))
-            },
-        }
-    }
-
-    /// Generate WHERE for direct column (denormalized filter)
-    fn generate_direct_column_where(
-        &self,
-        field: &str,
-        operator: &WhereOperator,
-        value: &serde_json::Value,
-    ) -> Result<String> {
-        let op_sql = self.operator_to_sql(operator);
-
-        // Handle NULL checks (no value needed)
-        if matches!(operator, WhereOperator::IsNull) {
-            return Ok(format!("{} IS NULL", field));
-        }
-
-        // Handle IN/NOT IN (array values)
-        if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
-            let values = self.format_array_values(value)?;
-            return Ok(format!("{} {} ({})", field, op_sql, values));
-        }
-
-        // Regular comparison
-        let value_sql = self.format_sql_value(value);
-        Ok(format!("{} {} {}", field, op_sql, value_sql))
-    }
-
-    /// Generate WHERE for JSONB dimension field
-    fn generate_jsonb_where(
-        &self,
-        jsonb_column: &str,
-        path: &[String],
-        operator: &WhereOperator,
-        value: &serde_json::Value,
-    ) -> Result<String> {
-        let field_path = &path[0]; // Simple path for now (no nested paths)
-        // Convert GraphQL field name (camelCase) to database column name (snake_case)
-        let db_field_path = to_snake_case(field_path);
-        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
-        let op_sql = self.operator_to_sql(operator);
-
-        // Handle NULL checks
-        if matches!(operator, WhereOperator::IsNull) {
-            return Ok(format!("{} IS NULL", jsonb_extract));
-        }
-
-        // Handle case-insensitive operators
-        if operator.is_case_insensitive() {
-            return self.generate_case_insensitive_where(&jsonb_extract, operator, value);
-        }
-
-        // Handle IN/NOT IN for JSONB
-        if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
-            let values = self.format_array_values(value)?;
-            return Ok(format!("{} {} ({})", jsonb_extract, op_sql, values));
-        }
-
-        // Handle LIKE pattern operators (Contains, Startswith, Endswith)
-        if matches!(
-            operator,
-            WhereOperator::Contains | WhereOperator::Startswith | WhereOperator::Endswith
-        ) {
-            let value_str = value
-                .as_str()
-                .ok_or_else(|| FraiseQLError::validation("LIKE operators require string values"))?;
-            let pattern = self.format_like_pattern(operator, value_str);
-            return Ok(format!("{} {} {}", jsonb_extract, op_sql, pattern));
-        }
-
-        // Regular comparison
-        let value_sql = self.format_sql_value(value);
-        Ok(format!("{} {} {}", jsonb_extract, op_sql, value_sql))
-    }
-
     /// Convert WhereOperator to SQL operator
     const fn operator_to_sql(&self, operator: &WhereOperator) -> &'static str {
         match operator {
@@ -781,85 +542,6 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Generate case-insensitive WHERE clause
-    fn generate_case_insensitive_where(
-        &self,
-        column: &str,
-        operator: &WhereOperator,
-        value: &serde_json::Value,
-    ) -> Result<String> {
-        let value_str = value.as_str().ok_or_else(|| {
-            FraiseQLError::validation("Case-insensitive operators require string values")
-        })?;
-
-        if self.database_type == DatabaseType::PostgreSQL {
-            // PostgreSQL has ILIKE
-            let op = self.operator_to_sql(operator);
-            let pattern = self.format_like_pattern(operator, value_str);
-            Ok(format!("{} {} {}", column, op, pattern))
-        } else {
-            // Other databases: use UPPER() for case-insensitive comparison
-            let op = "LIKE";
-            let pattern = self.format_like_pattern(operator, &value_str.to_uppercase());
-            Ok(format!("UPPER({}) {} {}", column, op, pattern))
-        }
-    }
-
-    /// Format LIKE pattern based on operator.
-    ///
-    /// For semantic wildcard operators (`contains`, `startswith`, `endswith` and their
-    /// case-insensitive variants) the user's value is treated as a literal string —
-    /// `%` and `_` characters are **not** wildcards.  These are escaped using `!` as
-    /// the LIKE ESCAPE character (supported by PostgreSQL, MySQL, SQLite, and SQL Server).
-    ///
-    /// For the bare `like`/`ilike` operators the caller explicitly intends to pass
-    /// wildcard characters, so only the SQL string delimiter is escaped.
-    fn format_like_pattern(&self, operator: &WhereOperator, value: &str) -> String {
-        match operator {
-            WhereOperator::Contains | WhereOperator::Icontains => {
-                let escaped = self.escape_like_value(value);
-                format!("'%{escaped}%' ESCAPE '!'")
-            },
-            WhereOperator::Startswith | WhereOperator::Istartswith => {
-                let escaped = self.escape_like_value(value);
-                format!("'{escaped}%' ESCAPE '!'")
-            },
-            WhereOperator::Endswith | WhereOperator::Iendswith => {
-                let escaped = self.escape_like_value(value);
-                format!("'%{escaped}' ESCAPE '!'")
-            },
-            _ => {
-                // Like/Ilike: intentional wildcards — only escape the SQL string delimiter.
-                let escaped = self.escape_sql_string(value);
-                format!("'{escaped}'")
-            },
-        }
-    }
-
-    /// Escape a string for use as a LIKE pattern literal where `!` is the ESCAPE character.
-    ///
-    /// Doubles the ESCAPE character `!` first, then escapes LIKE wildcards `%` and `_`.
-    /// SQL string delimiter escaping (via [`Self::escape_sql_string`]) is applied last so
-    /// that the backslash doubling required for MySQL does not interact with `!` escaping.
-    fn escape_like_value(&self, s: &str) -> String {
-        // Escape LIKE metacharacters using '!' as the ESCAPE character.
-        // '!' is doubled first to avoid double-escaping the newly inserted '!' prefixes.
-        let like_escaped = s.replace('!', "!!").replace('%', "!%").replace('_', "!_");
-        // Then apply SQL string literal escaping (handles MySQL backslash, standard '' quoting).
-        self.escape_sql_string(&like_escaped)
-    }
-
-    /// Format array values for IN/NOT IN clauses
-    fn format_array_values(&self, value: &serde_json::Value) -> Result<String> {
-        let array = value
-            .as_array()
-            .ok_or_else(|| FraiseQLError::validation("IN/NOT IN operators require array values"))?;
-
-        let formatted: Vec<String> = array.iter().map(|v| self.format_sql_value(v)).collect();
-
-        Ok(formatted.join(", "))
-    }
-
     /// Quote a validated field alias/column name using the database-appropriate identifier syntax.
     ///
     /// Field names arrive here after `OrderByClause::validate_field_name` has verified they
@@ -872,29 +554,6 @@ impl AggregationSqlGenerator {
             DatabaseType::SQLServer => quote_sqlserver_identifier(name),
             // PostgreSQL and SQLite both use double-quote syntax.
             DatabaseType::PostgreSQL | DatabaseType::SQLite => quote_postgres_identifier(name),
-        }
-    }
-
-    /// Format a single SQL value
-    fn format_sql_value(&self, value: &serde_json::Value) -> String {
-        match value {
-            serde_json::Value::Null => "NULL".to_string(),
-            serde_json::Value::Bool(b) => match self.database_type {
-                // SQL Server has no boolean literal; use 1/0.
-                DatabaseType::SQLServer => if *b { "1" } else { "0" }.to_string(),
-                _ => b.to_string(),
-            },
-            serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::String(s) => {
-                let escaped = self.escape_sql_string(s);
-                format!("'{escaped}'")
-            },
-            // Arrays and objects cannot be represented as a scalar SQL literal.
-            // They are mapped to NULL so that the generated WHERE/HAVING clause
-            // evaluates to a no-match condition rather than a syntax error.
-            // The calling layer (GraphQL argument validation) is responsible for
-            // rejecting array/object values before they reach this function.
-            _ => "NULL".to_string(),
         }
     }
 
@@ -936,36 +595,6 @@ impl AggregationSqlGenerator {
         Ok(format!("GROUP BY {}", columns.join(", ")))
     }
 
-    /// Build HAVING clause
-    fn build_having_clause(
-        &self,
-        having_conditions: &[ValidatedHavingCondition],
-    ) -> Result<String> {
-        let mut conditions = Vec::new();
-
-        for condition in having_conditions {
-            let aggregate_sql = self.aggregate_expression_to_sql(&condition.aggregate)?;
-            let operator_sql = condition.operator.sql_operator();
-
-            // Format value based on type
-            let value_sql = match &condition.value {
-                serde_json::Value::Number(n) => n.to_string(),
-                serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
-                serde_json::Value::Bool(b) => b.to_string(),
-                _ => {
-                    return Err(FraiseQLError::Validation {
-                        message: "Invalid HAVING value type".to_string(),
-                        path:    None,
-                    });
-                },
-            };
-
-            conditions.push(format!("{} {} {}", aggregate_sql, operator_sql, value_sql));
-        }
-
-        Ok(format!("HAVING {}", conditions.join(" AND ")))
-    }
-
     /// Build ORDER BY clause
     fn build_order_by_clause(&self, order_by: &[OrderByClause]) -> Result<String> {
         let clauses: Vec<String> = order_by
@@ -982,55 +611,339 @@ impl AggregationSqlGenerator {
         Ok(format!("ORDER BY {}", clauses.join(", ")))
     }
 
-    /// Assemble complete SQL query
-    fn assemble_sql(
+    // =========================================================================
+    // Parameterized query generation (bind parameters, no string embedding)
+    // =========================================================================
+
+    /// Returns the bind-parameter placeholder for position `index` (0-based).
+    fn placeholder(&self, index: usize) -> String {
+        match self.database_type {
+            DatabaseType::PostgreSQL => format!("${}", index + 1),
+            DatabaseType::SQLServer  => format!("@P{}", index + 1),
+            _                        => "?".to_string(),
+        }
+    }
+
+    /// If `value` is non-NULL, appends it to `params` and returns the placeholder.
+    ///
+    /// `NULL` is emitted inline as the literal `NULL`; it cannot be reliably
+    /// parameterized across all four database drivers in the same way.
+    fn emit_value_param(
         &self,
-        select: &str,
-        from: &str,
-        where_clause: Option<&str>,
-        group_by: Option<&str>,
-        having: Option<&str>,
-        order_by: Option<&str>,
-        limit: Option<u32>,
-        offset: Option<u32>,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
     ) -> String {
-        let mut sql = String::new();
+        if matches!(value, serde_json::Value::Null) {
+            return "NULL".to_string();
+        }
+        let idx = params.len();
+        params.push(value.clone());
+        self.placeholder(idx)
+    }
 
-        sql.push_str(select);
-        sql.push('\n');
-        sql.push_str(from);
+    /// Build a LIKE pattern string, escape LIKE metacharacters with `!`, bind it as a
+    /// parameter, and return the placeholder.  Returns `(placeholder, needs_escape_clause)`
+    /// where `needs_escape_clause` indicates whether `ESCAPE '!'` should be appended to
+    /// the SQL fragment.
+    fn emit_like_pattern_param(
+        &self,
+        operator: &WhereOperator,
+        value: &str,
+        params: &mut Vec<serde_json::Value>,
+    ) -> (String, bool) {
+        // Strip null bytes before binding (same invariant as escape_sql_string).
+        let clean: String = if value.contains('\0') {
+            value.replace('\0', "")
+        } else {
+            value.to_string()
+        };
 
-        if let Some(where_sql) = where_clause {
-            sql.push('\n');
-            sql.push_str(where_sql);
+        let (pattern, needs_escape) = match operator {
+            WhereOperator::Contains | WhereOperator::Icontains => {
+                let esc = clean.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+                (format!("%{esc}%"), true)
+            },
+            WhereOperator::Startswith | WhereOperator::Istartswith => {
+                let esc = clean.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+                (format!("{esc}%"), true)
+            },
+            WhereOperator::Endswith | WhereOperator::Iendswith => {
+                let esc = clean.replace('!', "!!").replace('%', "!%").replace('_', "!_");
+                (format!("%{esc}"), true)
+            },
+            // Like / Ilike: caller controls wildcards — bind as-is.
+            _ => (clean, false),
+        };
+
+        let ph = self.emit_value_param(&serde_json::Value::String(pattern), params);
+        (ph, needs_escape)
+    }
+
+    /// Convert a [`WhereClause`] AST to parameterized SQL, appending bind values to `params`.
+    fn where_clause_to_sql_parameterized(
+        &self,
+        clause: &WhereClause,
+        metadata: &FactTableMetadata,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        match clause {
+            WhereClause::Field { path, operator, value } => {
+                let field_name = &path[0];
+                let is_denormalized =
+                    metadata.denormalized_filters.iter().any(|f| f.name == *field_name);
+                if is_denormalized {
+                    self.generate_direct_column_where_parameterized(
+                        field_name, operator, value, params,
+                    )
+                } else {
+                    let jsonb_column = &metadata.dimensions.name;
+                    self.generate_jsonb_where_parameterized(
+                        jsonb_column, path, operator, value, params,
+                    )
+                }
+            },
+            WhereClause::And(clauses) => {
+                let conditions: Vec<String> = clauses
+                    .iter()
+                    .map(|c| self.where_clause_to_sql_parameterized(c, metadata, params))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(format!("({})", conditions.join(" AND ")))
+            },
+            WhereClause::Or(clauses) => {
+                let conditions: Vec<String> = clauses
+                    .iter()
+                    .map(|c| self.where_clause_to_sql_parameterized(c, metadata, params))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(format!("({})", conditions.join(" OR ")))
+            },
+            WhereClause::Not(inner) => {
+                let s = self.where_clause_to_sql_parameterized(inner, metadata, params)?;
+                Ok(format!("NOT ({s})"))
+            },
+        }
+    }
+
+    /// Parameterized WHERE for a denormalized (direct column) filter.
+    fn generate_direct_column_where_parameterized(
+        &self,
+        field: &str,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        if matches!(operator, WhereOperator::IsNull) {
+            return Ok(format!("{field} IS NULL"));
         }
 
-        if let Some(group_by_sql) = group_by {
-            sql.push('\n');
-            sql.push_str(group_by_sql);
+        let op_sql = self.operator_to_sql(operator);
+
+        if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
+            let arr = value.as_array().ok_or_else(|| {
+                FraiseQLError::validation("IN/NOT IN operators require array values")
+            })?;
+            let phs: Vec<String> =
+                arr.iter().map(|v| self.emit_value_param(v, params)).collect();
+            return Ok(format!("{field} {op_sql} ({})", phs.join(", ")));
         }
 
-        if let Some(having_sql) = having {
-            sql.push('\n');
-            sql.push_str(having_sql);
+        if matches!(
+            operator,
+            WhereOperator::Contains
+                | WhereOperator::Startswith
+                | WhereOperator::Endswith
+                | WhereOperator::Like
+        ) {
+            let s = value.as_str().ok_or_else(|| {
+                FraiseQLError::validation("LIKE operators require string values")
+            })?;
+            let (ph, needs_escape) = self.emit_like_pattern_param(operator, s, params);
+            return if needs_escape {
+                Ok(format!("{field} {op_sql} {ph} ESCAPE '!'"))
+            } else {
+                Ok(format!("{field} {op_sql} {ph}"))
+            };
         }
 
-        if let Some(order_by_sql) = order_by {
-            sql.push('\n');
-            sql.push_str(order_by_sql);
+        if operator.is_case_insensitive() {
+            let s = value.as_str().ok_or_else(|| {
+                FraiseQLError::validation("Case-insensitive operators require string values")
+            })?;
+            return self.generate_case_insensitive_where_parameterized(
+                field, operator, s, params,
+            );
         }
 
-        if let Some(limit_val) = limit {
-            sql.push('\n');
-            sql.push_str(&format!("LIMIT {}", limit_val));
+        let ph = self.emit_value_param(value, params);
+        Ok(format!("{field} {op_sql} {ph}"))
+    }
+
+    /// Parameterized WHERE for a JSONB dimension field.
+    fn generate_jsonb_where_parameterized(
+        &self,
+        jsonb_column: &str,
+        path: &[String],
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let field_path = &path[0];
+        let db_field_path = to_snake_case(field_path);
+        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
+        let op_sql = self.operator_to_sql(operator);
+
+        if matches!(operator, WhereOperator::IsNull) {
+            return Ok(format!("{jsonb_extract} IS NULL"));
         }
 
-        if let Some(offset_val) = offset {
-            sql.push('\n');
-            sql.push_str(&format!("OFFSET {}", offset_val));
+        if operator.is_case_insensitive() {
+            let s = value.as_str().ok_or_else(|| {
+                FraiseQLError::validation("Case-insensitive operators require string values")
+            })?;
+            return self.generate_case_insensitive_where_parameterized(
+                &jsonb_extract, operator, s, params,
+            );
         }
 
-        sql
+        if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
+            let arr = value.as_array().ok_or_else(|| {
+                FraiseQLError::validation("IN/NOT IN operators require array values")
+            })?;
+            let phs: Vec<String> =
+                arr.iter().map(|v| self.emit_value_param(v, params)).collect();
+            return Ok(format!("{jsonb_extract} {op_sql} ({})", phs.join(", ")));
+        }
+
+        if matches!(
+            operator,
+            WhereOperator::Contains | WhereOperator::Startswith | WhereOperator::Endswith
+        ) {
+            let s = value.as_str().ok_or_else(|| {
+                FraiseQLError::validation("LIKE operators require string values")
+            })?;
+            // needs_escape is always true for semantic LIKE operators (Contains etc.)
+            let (ph, _) = self.emit_like_pattern_param(operator, s, params);
+            return Ok(format!("{jsonb_extract} {op_sql} {ph} ESCAPE '!'"));
+        }
+
+        let ph = self.emit_value_param(value, params);
+        Ok(format!("{jsonb_extract} {op_sql} {ph}"))
+    }
+
+    /// Parameterized case-insensitive WHERE (ILIKE for PostgreSQL, UPPER() for others).
+    fn generate_case_insensitive_where_parameterized(
+        &self,
+        column: &str,
+        operator: &WhereOperator,
+        value_str: &str,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let op = self.operator_to_sql(operator);
+        if self.database_type == DatabaseType::PostgreSQL {
+            let (ph, needs_escape) = self.emit_like_pattern_param(operator, value_str, params);
+            Ok(if needs_escape {
+                format!("{column} {op} {ph} ESCAPE '!'")
+            } else {
+                format!("{column} {op} {ph}")
+            })
+        } else {
+            let upper = value_str.to_uppercase();
+            let (ph, needs_escape) = self.emit_like_pattern_param(operator, &upper, params);
+            Ok(if needs_escape {
+                format!("UPPER({column}) LIKE {ph} ESCAPE '!'")
+            } else {
+                format!("UPPER({column}) LIKE {ph}")
+            })
+        }
+    }
+
+    /// Build a parameterized `WHERE …` clause, or an empty string if the clause is empty.
+    pub fn build_where_clause_parameterized(
+        &self,
+        where_clause: &WhereClause,
+        metadata: &FactTableMetadata,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        if where_clause.is_empty() {
+            return Ok(String::new());
+        }
+        let cond = self.where_clause_to_sql_parameterized(where_clause, metadata, params)?;
+        Ok(format!("WHERE {cond}"))
+    }
+
+    /// Build a parameterized `HAVING …` clause.
+    fn build_having_clause_parameterized(
+        &self,
+        having_conditions: &[ValidatedHavingCondition],
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        if having_conditions.is_empty() {
+            return Ok(String::new());
+        }
+        let mut conditions = Vec::new();
+        for condition in having_conditions {
+            let aggregate_sql = self.aggregate_expression_to_sql(&condition.aggregate)?;
+            let operator_sql  = condition.operator.sql_operator();
+            let value_sql     = self.emit_value_param(&condition.value, params);
+            conditions.push(format!("{aggregate_sql} {operator_sql} {value_sql}"));
+        }
+        Ok(format!("HAVING {}", conditions.join(" AND ")))
+    }
+
+    /// Generate a parameterized aggregate SQL query.
+    ///
+    /// All user-supplied string values in `WHERE` and `HAVING` clauses are emitted as
+    /// bind placeholders (`$N` / `?` / `@P1` depending on the database dialect) rather
+    /// than being embedded as escaped string literals.  Numeric, boolean, and `NULL`
+    /// values are still inlined since they carry no injection risk.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if SQL generation fails (unknown aggregate function, etc.).
+    pub fn generate_parameterized(
+        &self,
+        plan: &AggregationPlan,
+    ) -> Result<ParameterizedAggregationSql> {
+        let mut params: Vec<serde_json::Value> = Vec::new();
+
+        let select_sql =
+            self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
+        let from_sql = format!("FROM {}", plan.request.table_name);
+
+        let where_sql = if let Some(ref wc) = plan.request.where_clause {
+            self.build_where_clause_parameterized(wc, &plan.metadata, &mut params)?
+        } else {
+            String::new()
+        };
+
+        let group_sql = if !plan.group_by_expressions.is_empty() {
+            self.build_group_by_clause(&plan.group_by_expressions)?
+        } else {
+            String::new()
+        };
+
+        let having_sql =
+            self.build_having_clause_parameterized(&plan.having_conditions, &mut params)?;
+
+        let order_sql = if !plan.request.order_by.is_empty() {
+            self.build_order_by_clause(&plan.request.order_by)?
+        } else {
+            String::new()
+        };
+
+        let mut parts: Vec<&str> =
+            vec![&select_sql, &from_sql, &where_sql, &group_sql, &having_sql, &order_sql];
+        parts.retain(|s| !s.is_empty());
+
+        let mut sql = parts.join("\n");
+
+        if let Some(limit) = plan.request.limit {
+            sql.push_str(&format!("\nLIMIT {limit}"));
+        }
+        if let Some(offset) = plan.request.offset {
+            sql.push_str(&format!("\nOFFSET {offset}"));
+        }
+
+        Ok(ParameterizedAggregationSql { sql, params })
     }
 }
 
@@ -1102,53 +1015,53 @@ mod tests {
     fn test_postgres_sql_generation() {
         let plan = create_test_plan();
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        assert!(sql.raw_sql.contains("dimensions->>'category'"));
-        assert!(sql.raw_sql.contains("DATE_TRUNC('day', occurred_at)"));
-        assert!(sql.raw_sql.contains("COUNT(*)"));
-        assert!(sql.raw_sql.contains("SUM(revenue)"));
-        assert!(sql.raw_sql.contains("GROUP BY"));
-        assert!(sql.raw_sql.contains("LIMIT 10"));
+        assert!(sql.sql.contains("dimensions->>'category'"));
+        assert!(sql.sql.contains("DATE_TRUNC('day', occurred_at)"));
+        assert!(sql.sql.contains("COUNT(*)"));
+        assert!(sql.sql.contains("SUM(revenue)"));
+        assert!(sql.sql.contains("GROUP BY"));
+        assert!(sql.sql.contains("LIMIT 10"));
     }
 
     #[test]
     fn test_mysql_sql_generation() {
         let plan = create_test_plan();
         let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
         assert!(
-            sql.raw_sql
+            sql.sql
                 .contains("JSON_UNQUOTE(JSON_EXTRACT(dimensions, '$.category'))")
         );
-        assert!(sql.raw_sql.contains("DATE_FORMAT(occurred_at"));
-        assert!(sql.raw_sql.contains("COUNT(*)"));
-        assert!(sql.raw_sql.contains("SUM(revenue)"));
+        assert!(sql.sql.contains("DATE_FORMAT(occurred_at"));
+        assert!(sql.sql.contains("COUNT(*)"));
+        assert!(sql.sql.contains("SUM(revenue)"));
     }
 
     #[test]
     fn test_sqlite_sql_generation() {
         let plan = create_test_plan();
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLite);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        assert!(sql.raw_sql.contains("json_extract(dimensions, '$.category')"));
-        assert!(sql.raw_sql.contains("strftime"));
-        assert!(sql.raw_sql.contains("COUNT(*)"));
-        assert!(sql.raw_sql.contains("SUM(revenue)"));
+        assert!(sql.sql.contains("json_extract(dimensions, '$.category')"));
+        assert!(sql.sql.contains("strftime"));
+        assert!(sql.sql.contains("COUNT(*)"));
+        assert!(sql.sql.contains("SUM(revenue)"));
     }
 
     #[test]
     fn test_sqlserver_sql_generation() {
         let plan = create_test_plan();
         let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        assert!(sql.raw_sql.contains("JSON_VALUE(dimensions, '$.category')"));
-        assert!(sql.raw_sql.contains("CAST(occurred_at AS DATE)"));
-        assert!(sql.raw_sql.contains("COUNT(*)"));
-        assert!(sql.raw_sql.contains("SUM(revenue)"));
+        assert!(sql.sql.contains("JSON_VALUE(dimensions, '$.category')"));
+        assert!(sql.sql.contains("CAST(occurred_at AS DATE)"));
+        assert!(sql.sql.contains("COUNT(*)"));
+        assert!(sql.sql.contains("SUM(revenue)"));
     }
 
     #[test]
@@ -1165,10 +1078,10 @@ mod tests {
         }];
 
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        assert!(sql.having.is_some());
-        assert!(sql.having.as_ref().unwrap().contains("HAVING SUM(revenue) > 1000"));
+        assert!(sql.sql.contains("HAVING SUM(revenue) > $1"));
+        assert_eq!(sql.params, vec![serde_json::json!(1000)]);
     }
 
     #[test]
@@ -1182,10 +1095,9 @@ mod tests {
         }];
 
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        assert!(sql.order_by.is_some());
-        assert!(sql.order_by.as_ref().unwrap().contains("ORDER BY \"revenue_sum\" DESC"));
+        assert!(sql.sql.contains("ORDER BY \"revenue_sum\" DESC"));
     }
 
     // ========================================
@@ -1351,10 +1263,10 @@ mod tests {
         });
 
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        assert!(sql.raw_sql.contains("ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)"));
-        assert!(sql.raw_sql.contains("STRING_AGG(product_name, ', ')"));
+        assert!(sql.sql.contains("ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)"));
+        assert!(sql.sql.contains("STRING_AGG(product_name, ', ')"));
     }
 
     // ========================================
@@ -1362,7 +1274,7 @@ mod tests {
     // ========================================
 
     #[test]
-    fn test_having_clause_escapes_single_quote_in_string() {
+    fn test_having_string_value_is_bound_not_escaped() {
         use crate::compiler::aggregate_types::AggregateFunction;
 
         let mut plan = create_test_plan();
@@ -1377,11 +1289,12 @@ mod tests {
         }];
 
         let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let sql = generator.generate(&plan).unwrap();
+        let sql = generator.generate_parameterized(&plan).unwrap();
 
-        // Single quote in the value must be doubled, not left bare.
-        let having = sql.having.unwrap();
-        assert!(having.contains("'O''Reilly'"), "expected doubled quote, got: {having}");
+        // Value must be a bind parameter — raw string must never appear in SQL.
+        assert!(sql.sql.contains("HAVING MAX(label) = $1"));
+        assert!(!sql.sql.contains("O'Reilly"), "raw string must not appear in SQL: {}", sql.sql);
+        assert_eq!(sql.params, vec![serde_json::json!("O'Reilly")]);
     }
 
     #[test]
@@ -1416,36 +1329,6 @@ mod tests {
         // Same for MySQL — null stripping happens before backslash/quote escaping.
         let mysql = AggregationSqlGenerator::new(DatabaseType::MySQL);
         assert_eq!(mysql.escape_sql_string("te\x00st\\"), "test\\\\");
-    }
-
-    #[test]
-    fn test_format_like_pattern_escapes_wildcards_for_contains() {
-        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let pattern = gen.format_like_pattern(&WhereOperator::Contains, "50%_off");
-        // % and _ must be escaped with '!'; ESCAPE clause required.
-        assert!(pattern.contains("!%"), "% must be escaped: {pattern}");
-        assert!(pattern.contains("!_"), "_ must be escaped: {pattern}");
-        assert!(pattern.contains("ESCAPE '!'"), "ESCAPE clause required: {pattern}");
-        // The LIKE anchors must still be present.
-        assert!(pattern.starts_with("'%"), "starts with wildcard anchor: {pattern}");
-        assert!(pattern.contains("%' ESCAPE"), "ends with wildcard anchor: {pattern}");
-    }
-
-    #[test]
-    fn test_format_like_pattern_like_operator_passes_wildcards_through() {
-        // The bare `like` operator is for explicit wildcard use — % and _ are intentional.
-        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        let pattern = gen.format_like_pattern(&WhereOperator::Like, "50%_off");
-        assert!(pattern.contains('%'), "% should be preserved for Like operator: {pattern}");
-        assert!(!pattern.contains("ESCAPE"), "no ESCAPE clause for Like: {pattern}");
-    }
-
-    #[test]
-    fn test_escape_like_value_escapes_escape_char_itself() {
-        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-        // A literal '!' in the value must be doubled so it is not mistaken for ESCAPE prefix.
-        let escaped = gen.escape_like_value("hello!world");
-        assert!(escaped.contains("!!"), "! must be escaped: {escaped}");
     }
 
     // ── jsonb_extract_sql injection tests ──────────────────────────────────────
@@ -1562,5 +1445,241 @@ mod tests {
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_string_agg_sql("product_name", ", ", None);
         assert_eq!(sql, "STRING_AGG(product_name, ', ')");
+    }
+
+    // =========================================================================
+    // Parameterized query generation tests
+    // =========================================================================
+
+    fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
+        let metadata = FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![FilterColumn {
+                name:     "status".to_string(),
+                sql_type: SqlType::Timestamp,
+                indexed:  true,
+            }],
+            calendar_dimensions:  vec![],
+        };
+
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: Some(WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!("test_value"),
+            }),
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
+                alias: "category".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::Count {
+                alias: "count".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
+    }
+
+    #[test]
+    fn test_generate_parameterized_where_string_becomes_placeholder() {
+        // PostgreSQL: string value must become $1, not an escaped literal
+        let plan = make_string_where_plan(DatabaseType::PostgreSQL);
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(
+            result.sql.contains("$1"),
+            "PostgreSQL placeholder must be $1: {}", result.sql
+        );
+        assert!(
+            !result.sql.contains("'test_value'"),
+            "String value must not appear as literal: {}", result.sql
+        );
+        assert_eq!(result.params.len(), 1);
+        assert_eq!(result.params[0], serde_json::json!("test_value"));
+    }
+
+    #[test]
+    fn test_generate_parameterized_having_string_becomes_placeholder() {
+        // MySQL: HAVING string value must become ? placeholder, not escaped inline
+        let injection = "test\\' injection";
+        // Build a base plan and then inject HAVING directly (like test_having_clause).
+        let mut plan = create_test_plan();
+        plan.having_conditions = vec![ValidatedHavingCondition {
+            aggregate: AggregateExpression::MeasureAggregate {
+                column:   "revenue".to_string(),
+                function: AggregateFunction::Sum,
+                alias:    "revenue_sum".to_string(),
+            },
+            operator:  HavingOperator::Eq,
+            value:     serde_json::json!(injection),
+        }];
+
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(
+            result.sql.contains("HAVING SUM(revenue) = ?"),
+            "SQL must use ? placeholder: {}", result.sql
+        );
+        assert_eq!(result.params.len(), 1);
+        assert_eq!(result.params[0], serde_json::json!(injection));
+        // injection string must NOT appear verbatim in the SQL
+        assert!(
+            !result.sql.contains("injection"),
+            "Injection string must not appear in SQL: {}", result.sql
+        );
+    }
+
+    #[test]
+    fn test_parameterized_postgres_placeholder_numbering() {
+        // WHERE uses $1, HAVING uses $2 (shared counter).
+        // Build a plan with a WHERE clause on a denormalized filter field,
+        // then inject a HAVING condition directly (like test_having_clause).
+        let injection = "risky";
+        let metadata = FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "revenue".to_string(),
+                sql_type: SqlType::Decimal,
+                nullable: false,
+            }],
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![
+                FilterColumn {
+                    name:     "occurred_at".to_string(),
+                    sql_type: SqlType::Timestamp,
+                    indexed:  true,
+                },
+                FilterColumn {
+                    name:     "channel".to_string(),
+                    sql_type: SqlType::Timestamp,
+                    indexed:  true,
+                },
+            ],
+            calendar_dimensions:  vec![],
+        };
+
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: Some(WhereClause::Field {
+                path:     vec!["channel".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!(injection),
+            }),
+            group_by:     vec![GroupBySelection::TemporalBucket {
+                column: "occurred_at".to_string(),
+                bucket: TemporalBucket::Day,
+                alias:  "day".to_string(),
+            }],
+            aggregates:   vec![AggregateSelection::MeasureAggregate {
+                measure:  "revenue".to_string(),
+                function: AggregateFunction::Sum,
+                alias:    "total".to_string(),
+            }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        let mut plan =
+            crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap();
+        // Inject HAVING directly to avoid navigating the unvalidated HavingCondition type.
+        plan.having_conditions = vec![ValidatedHavingCondition {
+            aggregate: AggregateExpression::MeasureAggregate {
+                column:   "revenue".to_string(),
+                function: AggregateFunction::Sum,
+                alias:    "total".to_string(),
+            },
+            operator:  HavingOperator::Gt,
+            value:     serde_json::json!("threshold"),
+        }];
+
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(result.sql.contains("WHERE channel = $1"), "SQL: {}", result.sql);
+        assert!(result.sql.contains("HAVING SUM(revenue) > $2"), "SQL: {}", result.sql);
+        assert_eq!(result.params.len(), 2);
+        assert_eq!(result.params[0], serde_json::json!(injection));
+        assert_eq!(result.params[1], serde_json::json!("threshold"));
+    }
+
+    #[test]
+    fn test_parameterized_mysql_uses_question_mark() {
+        let plan = make_string_where_plan(DatabaseType::MySQL);
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(result.sql.contains("WHERE status = ?"), "SQL: {}", result.sql);
+        assert_eq!(result.params.len(), 1);
+        assert_eq!(result.params[0], serde_json::json!("test_value"));
+    }
+
+    #[test]
+    fn test_parameterized_sqlserver_uses_at_p_placeholder() {
+        let plan = make_string_where_plan(DatabaseType::SQLServer);
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(result.sql.contains("WHERE status = @P1"), "SQL: {}", result.sql);
+        assert_eq!(result.params.len(), 1);
+        assert_eq!(result.params[0], serde_json::json!("test_value"));
+    }
+
+    #[test]
+    fn test_parameterized_in_array_expands_to_multiple_placeholders() {
+        // WHERE status IN ("a","b","c") → WHERE status IN ($1,$2,$3) with 3 params
+        let metadata = FactTableMetadata {
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn { name: "data".to_string(), paths: vec![] },
+            denormalized_filters: vec![FilterColumn {
+                name:     "status".to_string(),
+                sql_type: SqlType::Timestamp,
+                indexed:  true,
+            }],
+            calendar_dimensions:  vec![],
+        };
+        let request = AggregationRequest {
+            table_name:   "tf_sales".to_string(),
+            where_clause: Some(WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::In,
+                value:    serde_json::json!(["a", "b", "c"]),
+            }),
+            group_by:     vec![],
+            aggregates:   vec![AggregateSelection::Count { alias: "count".to_string() }],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+        let plan = crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(
+            result.sql.contains("status IN ($1, $2, $3)"),
+            "IN clause must expand to 3 placeholders: {}", result.sql
+        );
+        assert_eq!(result.params.len(), 3);
+        assert_eq!(result.params[0], serde_json::json!("a"));
+        assert_eq!(result.params[1], serde_json::json!("b"));
+        assert_eq!(result.params[2], serde_json::json!("c"));
     }
 }

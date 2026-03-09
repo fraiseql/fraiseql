@@ -339,6 +339,15 @@ impl DatabaseAdapter for FailingAdapter {
         Ok(vec![])
     }
 
+    async fn execute_parameterized_aggregate(
+        &self,
+        sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        self.check_failure(sql)?;
+        Ok(vec![])
+    }
+
     async fn execute_function_call(
         &self,
         function_name: &str,

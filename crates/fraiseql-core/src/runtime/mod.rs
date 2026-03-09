@@ -66,7 +66,7 @@ use std::sync::Arc;
 
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
-pub use aggregation::{AggregationSql, AggregationSqlGenerator};
+pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use executor::Executor;
 pub use executor_adapter::ExecutorAdapter;
 pub use executor::pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total};
