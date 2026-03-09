@@ -11,7 +11,7 @@ Constants and utilities about visitor keys to traverse AST.
 Use [npm] to install.
 
 ```bash
-$ npm install eslint-visitor-keys
+npm install eslint-visitor-keys
 ```
 
 ### Requirements
@@ -60,9 +60,9 @@ For example:
 
 ```js
 const node = {
-	type: "AssignmentExpression",
-	left: { type: "Identifier", name: "foo" },
-	right: { type: "Literal", value: 0 },
+ type: "AssignmentExpression",
+ left: { type: "Identifier", name: "foo" },
+ right: { type: "Literal", value: 0 },
 };
 console.log(evk.getKeys(node)); // → ["type", "left", "right"]
 ```
@@ -80,9 +80,9 @@ For example:
 
 ```js
 console.log(
-	evk.unionWith({
-		MethodDefinition: ["decorators"],
-	}),
+ evk.unionWith({
+  MethodDefinition: ["decorators"],
+ }),
 ); // → { ..., MethodDefinition: ["decorators", "key", "value"], ... }
 ```
 

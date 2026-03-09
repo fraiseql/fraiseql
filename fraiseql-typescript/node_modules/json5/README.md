@@ -42,31 +42,38 @@ across many other platforms.
 [ECMAScript 5.1]: https://www.ecma-international.org/ecma-262/5.1/
 
 ## Summary of Features
+
 The following ECMAScript 5.1 features, which are not supported in JSON, have
 been extended to JSON5.
 
 ### Objects
+
 - Object keys may be an ECMAScript 5.1 _[IdentifierName]_.
 - Objects may have a single trailing comma.
 
 ### Arrays
+
 - Arrays may have a single trailing comma.
 
 ### Strings
+
 - Strings may be single quoted.
 - Strings may span multiple lines by escaping new line characters.
 - Strings may include character escapes.
 
 ### Numbers
+
 - Numbers may be hexadecimal.
 - Numbers may have a leading or trailing decimal point.
 - Numbers may be [IEEE 754] positive infinity, negative infinity, and NaN.
 - Numbers may begin with an explicit plus sign.
 
 ### Comments
+
 - Single and multi-line comments are allowed.
 
 ### White Space
+
 - Additional white space characters are allowed.
 
 [IdentifierName]: https://www.ecma-international.org/ecma-262/5.1/#sec-7.6
@@ -74,6 +81,7 @@ been extended to JSON5.
 [IEEE 754]: http://ieeexplore.ieee.org/servlet/opac?punumber=4610933
 
 ## Example
+
 Kitchen-sink example:
 
 ```js
@@ -95,33 +103,41 @@ A more real-world example is [this config file](https://github.com/chromium/chro
 from the Chromium/Blink project.
 
 ## Specification
+
 For a detailed explanation of the JSON5 format, please read the [official
 specification](https://json5.github.io/json5-spec/).
 
 ## Installation and Usage
+
 ### Node.js
+
 ```sh
 npm install json5
 ```
 
 #### CommonJS
+
 ```js
 const JSON5 = require('json5')
 ```
 
 #### Modules
+
 ```js
 import JSON5 from 'json5'
 ```
 
 ### Browsers
+
 #### UMD
+
 ```html
 <!-- This will create a global `JSON5` variable. -->
 <script src="https://unpkg.com/json5@2/dist/index.min.js"></script>
 ```
 
 #### Modules
+
 ```html
 <script type="module">
   import JSON5 from 'https://unpkg.com/json5@2/dist/index.min.mjs'
@@ -129,37 +145,45 @@ import JSON5 from 'json5'
 ```
 
 ## API
+
 The JSON5 API is compatible with the [JSON API].
 
 [JSON API]:
 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
 
 ### JSON5.parse()
+
 Parses a JSON5 string, constructing the JavaScript value or object described by
 the string. An optional reviver function can be provided to perform a
 transformation on the resulting object before it is returned.
 
 #### Syntax
+
     JSON5.parse(text[, reviver])
 
 #### Parameters
+
 - `text`: The string to parse as JSON5.
 - `reviver`: If a function, this prescribes how the value originally produced by
   parsing is transformed, before being returned.
 
 #### Return value
+
 The object corresponding to the given JSON5 text.
 
 ### JSON5.stringify()
+
 Converts a JavaScript value to a JSON5 string, optionally replacing values if a
 replacer function is specified, or optionally including only the specified
 properties if a replacer array is specified.
 
 #### Syntax
+
     JSON5.stringify(value[, replacer[, space]])
     JSON5.stringify(value[, options])
 
 #### Parameters
+
 - `value`: The value to convert to a JSON5 string.
 - `replacer`: A function that alters the behavior of the stringification
   process, or an array of String and Number objects that serve as a whitelist
@@ -181,9 +205,11 @@ properties if a replacer array is specified.
     strings.
 
 #### Return value
+
 A JSON5 string representing the value.
 
 ### Node.js `require()` JSON5 files
+
 When using Node.js, you can `require()` JSON5 files by adding the following
 statement.
 
@@ -199,22 +225,26 @@ const config = require('./config.json5')
 ```
 
 ## CLI
+
 Since JSON is more widely used than JSON5, this package includes a CLI for
 converting JSON5 to JSON and for validating the syntax of JSON5 documents.
 
 ### Installation
+
 ```sh
 npm install --global json5
 ```
 
 ### Usage
+
 ```sh
 json5 [options] <file>
 ```
 
 If `<file>` is not provided, then STDIN is used.
 
-#### Options:
+#### Options
+
 - `-s`, `--space`: The number of spaces to indent or `t` for tabs
 - `-o`, `--out-file [file]`: Output to the specified file, otherwise STDOUT
 - `-v`, `--validate`: Validate JSON5 but do not output JSON
@@ -222,7 +252,9 @@ If `<file>` is not provided, then STDIN is used.
 - `-h`, `--help`: Output usage information
 
 ## Contributing
+
 ### Development
+
 ```sh
 git clone https://github.com/json5/json5
 cd json5
@@ -234,6 +266,7 @@ run lint` before submitting pull requests. Please use an editor that supports
 [EditorConfig](http://editorconfig.org/).
 
 ### Issues
+
 To report bugs or request features regarding the JSON5 **data format**,
 please submit an issue to the official
 **[_specification_ repository](https://github.com/json5/json5-spec)**.
@@ -245,13 +278,16 @@ To report bugs or request features regarding this **JavaScript implementation**
 of JSON5, please submit an issue to **_this_ repository**.
 
 ### Security Vulnerabilities and Disclosures
+
 To report a security vulnerability, please follow the follow the guidelines
 described in our [security policy](./SECURITY.md).
 
 ## License
+
 MIT. See [LICENSE.md](./LICENSE.md) for details.
 
 ## Credits
+
 [Aseem Kishore](https://github.com/aseemk) founded this project.
 He wrote a [blog post](https://aseemk.substack.com/p/ignore-the-f-ing-haters-json5)
 about the journey and lessons learned 10 years in.

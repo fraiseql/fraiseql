@@ -20,12 +20,14 @@ No ORM. Implement database-agnostic traits (`DatabaseConnection`, `QueryExecutor
 ## Consequences
 
 **Positive:**
+
 - Maximum performance and control
 - Backend-specific optimizations possible
 - Sub-millisecond time-to-first-byte streaming
 - No ORM overhead
 
 **Negative:**
+
 - More code per database backend
 - Higher implementation effort
 - Larger testing surface

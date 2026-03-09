@@ -22,7 +22,7 @@ An efficient Javascript implementation of the [Levenshtein algorithm](http://en.
 Install using [npm](http://npmjs.org/):
 
 ```bash
-$ npm install fast-levenshtein
+npm install fast-levenshtein
 ```
 
 ### Browser
@@ -30,7 +30,7 @@ $ npm install fast-levenshtein
 Using bower:
 
 ```bash
-$ bower install fast-levenshtein
+bower install fast-levenshtein
 ```
 
 If you are not using any module loader system then the API will then be accessible via the `window.Levenshtein` object.
@@ -62,9 +62,9 @@ levenshtein.get('mikailovitch', 'Mikhaïlovitch', { useCollator: true});
 To build the code and run the tests:
 
 ```bash
-$ npm install -g grunt-cli
-$ npm install
-$ npm run build
+npm install -g grunt-cli
+npm install
+npm run build
 ```
 
 ## Performance
@@ -88,9 +88,9 @@ Fastest test is fast-levenshtein at 4.2x faster than levenshtein-component
 You can run this benchmark yourself by doing:
 
 ```bash
-$ npm install
-$ npm run build
-$ npm run benchmark
+npm install
+npm run build
+npm run benchmark
 ```
 
 ## Contributing
