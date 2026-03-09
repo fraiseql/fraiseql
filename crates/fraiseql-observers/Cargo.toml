@@ -29,10 +29,10 @@ tabwriter = "1.4"
 thiserror = "2.0"
 # SQL Server Dependencies (tiberius - sqlx doesn't support MSSQL)
 tiberius = {version = "0.12", default-features = false, features = ["rustls", "chrono"], optional = true}
-tokio = {version = "1.45", features = ["full"]}
+tokio = {version = "1.50", features = ["full"]}
 tokio-util = {version = "0.7", features = ["compat"], optional = true}
 tracing = "0.1"
-uuid = {version = "1.0", features = ["v4", "serde"]}
+uuid = {version = "1.22", features = ["v4", "serde"]}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}

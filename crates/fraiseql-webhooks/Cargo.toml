@@ -12,8 +12,8 @@ sha2 = "0.10"
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio"]}
 subtle = "2.5"
 thiserror = "2.0"
-tokio = {version = "1.45", features = ["full"]}
-uuid = {version = "1.0", features = ["v4", "serde"]}
+tokio = {version = "1.50", features = ["full"]}
+uuid = {version = "1.22", features = ["v4", "serde"]}
 
 [dev-dependencies]
 tokio-test = "0.4"
