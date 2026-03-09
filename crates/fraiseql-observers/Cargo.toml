@@ -40,6 +40,7 @@ tokio-test = "0.4"
 
 [features]
 all-db = ["postgres", "mysql", "mssql"]
+analytics = ["macros", "arrow"]
 # Arrow Features
 arrow = ["fraiseql-arrow", "dep:arrow"]
 caching = ["redis"]
@@ -47,6 +48,8 @@ checkpoint = []
 dedup = ["redis"]
 # Default features (PostgreSQL for backward compatibility)
 default = ["postgres"]
+# Descriptive bundles — use these instead of the deprecated phase aliases below.
+enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
 # Macro Features
 macros = ["fraiseql-observers-macros"]
 metrics = ["prometheus"]
@@ -57,9 +60,6 @@ multi-db = ["postgres", "mysql"]
 mysql = ["sqlx/mysql"]
 # NATS Features
 nats = ["async-nats"]
-# Descriptive bundles — use these instead of the deprecated phase aliases below.
-enterprise = ["checkpoint", "dedup", "caching", "queue", "search", "metrics"]
-analytics = ["macros", "arrow"]
 # NOTE: phase8/phase9 are deprecated aliases from development. Use enterprise/analytics instead.
 # Will be removed in 2.3.0.
 phase8 = ["enterprise"]

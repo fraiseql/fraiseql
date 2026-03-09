@@ -29,7 +29,8 @@ members = [
   "crates/fraiseql-observers",
   "crates/fraiseql-observers-macros",
   "crates/fraiseql-secrets",
-  "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, files
+  "crates/fraiseql-server",
+  "crates/fraiseql-test-utils",  # HTTP server with runtime, files
   "crates/fraiseql-webhooks",
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
 ]
@@ -55,22 +56,22 @@ deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.1.0-dev"}
 fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.1.0-dev"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.1.0-dev"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.0-dev"}
 fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.1.0-dev"}
 fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0-dev", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0-dev"}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0-dev"}
 fraiseql-observers-macros = {path = "crates/fraiseql-observers-macros", version = "2.1.0-dev"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.1.0-dev"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0-dev"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.0-dev"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0-dev"}
 futures = "0.3"
-indexmap = {version = "2", features = ["serde"]}
 # GraphQL parsing
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
 hyper = {version = "1.0"}
+indexmap = {version = "2", features = ["serde"]}
 itertools = "0.13"
 jsonwebtoken = "9.2"
 linked-hash-map = "0.5"
@@ -123,9 +124,9 @@ all = {level = "deny", priority = -1}
 cargo = {level = "warn", priority = -1}  # Changed to warn - metadata errors not blocking
 cargo_common_metadata = "allow"  # Internal crates don't need all metadata
 if_not_else = "allow"  # Style preference
-multiple_crate_versions = "allow"  # Transitive dependencies cause this
-missing_errors_doc = "warn"   # Public fallible fns should document error variants
+missing_errors_doc = "warn"  # Public fallible fns should document error variants
 missing_panics_doc = "warn"  # Public fns that can panic should document when
+multiple_crate_versions = "allow"  # Transitive dependencies cause this
 must_use_candidate = "allow"  # We'll use this selectively
 nursery = {level = "warn", priority = -1}  # Nursery is experimental, keep as warn
 option_if_let_else = "allow"  # Style preference

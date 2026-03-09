@@ -182,7 +182,7 @@ def my_command(ctx: click.Context, fraise: str, verbose: bool) -> None:
     # implementation
 ```
 
-2. **Add tests in `tests/test_cli.py`:**
+1. **Add tests in `tests/test_cli.py`:**
 
 ```python
 def test_my_command(config, runner):
@@ -190,7 +190,7 @@ def test_my_command(config, runner):
     assert result.exit_code == 0
 ```
 
-3. **Document in README.md**
+1. **Document in README.md**
 
 ---
 
@@ -209,7 +209,7 @@ class MyTypeDeployer(BaseDeployer):
         # implementation
 ```
 
-2. **Register in `cli.py`:**
+1. **Register in `cli.py`:**
 
 ```python
 def _get_deployer(fraise_type: str, ...):
@@ -218,9 +218,9 @@ def _get_deployer(fraise_type: str, ...):
         return MyTypeDeployer(fraise_config)
 ```
 
-3. **Add tests in `tests/test_deployers.py`**
+1. **Add tests in `tests/test_deployers.py`**
 
-4. **Update `README.md`**
+2. **Update `README.md`**
 
 ---
 
@@ -241,7 +241,7 @@ class MyGitProvider(GitProvider):
         # implementation
 ```
 
-2. **Register in `git/registry.py`:**
+1. **Register in `git/registry.py`:**
 
 ```python
 from .my_provider import MyGitProvider
@@ -251,7 +251,7 @@ _PROVIDERS = {
 }
 ```
 
-3. **Add tests in `tests/test_git_providers.py`**
+1. **Add tests in `tests/test_git_providers.py`**
 
 ---
 

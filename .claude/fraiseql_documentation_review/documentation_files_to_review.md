@@ -9,23 +9,23 @@
 
 ## Priority 2: Development & Operations (SHOULD REVIEW)
 
-5. `/home/lionel/code/fraiseql/DEVELOPMENT.md` - Development setup
-6. `/home/lionel/code/fraiseql/CONTRIBUTING.md` - Contributing guidelines
-7. `/home/lionel/code/fraiseql/TESTING.md` - Testing documentation
-8. `/home/lionel/code/fraiseql/TROUBLESHOOTING.md` - Troubleshooting guide
-9. `/home/lionel/code/fraiseql/SECURITY.md` - Security policy
+1. `/home/lionel/code/fraiseql/DEVELOPMENT.md` - Development setup
+2. `/home/lionel/code/fraiseql/CONTRIBUTING.md` - Contributing guidelines
+3. `/home/lionel/code/fraiseql/TESTING.md` - Testing documentation
+4. `/home/lionel/code/fraiseql/TROUBLESHOOTING.md` - Troubleshooting guide
+5. `/home/lionel/code/fraiseql/SECURITY.md` - Security policy
 
 ## Priority 3: Release & Status (OPTIONAL BUT RECOMMENDED)
 
-10. `/home/lionel/code/fraiseql/RELEASE_NOTES_v2.1.0-agent.md` - Latest release notes
-11. `/home/lionel/code/fraiseql/DESIGN_QUALITY_VISION.md` - Design quality vision
+1. `/home/lionel/code/fraiseql/RELEASE_NOTES_v2.1.0-agent.md` - Latest release notes
+2. `/home/lionel/code/fraiseql/DESIGN_QUALITY_VISION.md` - Design quality vision
 
 ## Priority 4: Specialized Documentation (OPTIONAL)
 
-12. `/home/lionel/code/fraiseql/FRAISEQL_DESIGN_RULES.md` - Design rules
-13. `/home/lionel/code/fraiseql/ALPHA_RELEASE_NOTES.md` - Alpha release notes
-14. `/home/lionel/code/fraiseql/.claude/README.md` - Claude project README
-15. `/home/lionel/code/fraiseql/.github/SECRETS_SETUP.md` - Secrets setup
+1. `/home/lionel/code/fraiseql/FRAISEQL_DESIGN_RULES.md` - Design rules
+2. `/home/lionel/code/fraiseql/ALPHA_RELEASE_NOTES.md` - Alpha release notes
+3. `/home/lionel/code/fraiseql/.claude/README.md` - Claude project README
+4. `/home/lionel/code/fraiseql/.github/SECRETS_SETUP.md` - Secrets setup
 
 ---
 
