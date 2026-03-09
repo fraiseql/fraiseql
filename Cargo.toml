@@ -146,6 +146,10 @@ multiple_crate_versions = "allow"
 missing_errors_doc = "warn"
 # Reason: public functions that can panic should document when — same rationale as above.
 missing_panics_doc = "warn"
+# Reason: the `fraiseql-*` naming convention triggers this for every type in every crate
+#         (e.g., `fraiseql_core::FraiseQLError`, `fraiseql_server::ServerConfig`).
+#         Applying the rule project-wide would require renaming stable public API.
+module_name_repetitions = "allow"
 # Reason: builder methods and fluent APIs generate noise; applied selectively per crate.
 must_use_candidate = "allow"
 # Reason: explicit match is sometimes clearer than map_or_else for multi-line branches.

@@ -41,9 +41,9 @@ use crate::security::AuthenticatedUser;
 /// # Fields
 ///
 /// - `user_id`: Unique identifier for the authenticated user (from JWT 'sub' claim)
-/// - `roles`: User's roles (e.g., ["admin", "moderator"], from JWT 'roles' claim)
+/// - `roles`: User's roles (e.g., `["admin", "moderator"]`, from JWT 'roles' claim)
 /// - `tenant_id`: Organization/tenant identifier for multi-tenant systems
-/// - `scopes`: OAuth/permission scopes (e.g., ["read:user", "write:post"])
+/// - `scopes`: OAuth/permission scopes (e.g., `["read:user", "write:post"]`)
 /// - `attributes`: Custom claims from JWT (e.g., department, region, tier)
 /// - `request_id`: Correlation ID for audit logging and tracing
 /// - `ip_address`: Client IP address for geolocation and fraud detection
@@ -56,7 +56,7 @@ pub struct SecurityContext {
     /// User ID (from JWT 'sub' claim)
     pub user_id: String,
 
-    /// User's roles (e.g., ["admin", "moderator"])
+    /// User's roles (e.g., `["admin", "moderator"]`)
     ///
     /// Extracted from JWT 'roles' claim or derived from other claims.
     /// Used for role-based access control (RBAC) decisions.
@@ -180,7 +180,7 @@ impl SecurityContext {
             // Support wildcard matching: "admin:*" matches "admin:read"
             if s.ends_with(':') {
                 scope.starts_with(s)
-            } else if s.ends_with("*") {
+            } else if s.ends_with('*') {
                 let prefix = &s[..s.len() - 1];
                 scope.starts_with(prefix)
             } else {

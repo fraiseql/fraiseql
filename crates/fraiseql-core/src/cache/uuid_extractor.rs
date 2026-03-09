@@ -103,7 +103,7 @@ impl UUIDExtractor {
 
                 // If not found at top level, try nested structure
                 // (e.g., { user: { id: "uuid" } })
-                for (_key, value) in obj.iter() {
+                for (_key, value) in obj {
                     if let Value::Object(nested) = value {
                         if let Some(id_value) = nested.get("id") {
                             return extract_uuid_from_value(id_value);

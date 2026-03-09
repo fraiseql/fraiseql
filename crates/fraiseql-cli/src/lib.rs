@@ -778,7 +778,8 @@ pub async fn run() {
                     verbose: cli.verbose || gen_verbose,
                 };
 
-                commands::generate_views::run(config)
+                let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+                commands::generate_views::run(config, &formatter)
             },
             Err(e) => Err(anyhow::anyhow!(e)),
         },
@@ -825,7 +826,10 @@ pub async fn run() {
         Commands::Introspect { command } => match command {
             IntrospectCommands::Facts { database, format } => {
                 match commands::introspect_facts::OutputFormat::parse(&format) {
-                    Ok(fmt) => commands::introspect_facts::run(&database, fmt).await,
+                    Ok(fmt) => {
+                        let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+                        commands::introspect_facts::run(&database, fmt, &formatter).await
+                    },
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
@@ -982,6 +986,22 @@ fn init_logging(verbose: bool, debug: bool) {
         .init();
 }
 
+/// Serialize a value to a JSON `Value`, printing to stderr and exiting with code 2 on failure.
+fn serialize_or_exit<T: serde::Serialize>(value: &T, context: &str) -> serde_json::Value {
+    serde_json::to_value(value).unwrap_or_else(|e| {
+        eprintln!("fraiseql: failed to serialize {context}: {e}");
+        std::process::exit(2);
+    })
+}
+
+/// Serialize a value to pretty-printed JSON, printing to stderr and exiting with code 2 on failure.
+fn pretty_or_exit<T: serde::Serialize>(value: &T, context: &str) -> String {
+    serde_json::to_string_pretty(value).unwrap_or_else(|e| {
+        eprintln!("fraiseql: failed to format {context}: {e}");
+        std::process::exit(2);
+    })
+}
+
 fn handle_introspection_flags() -> Option<i32> {
     let args: Vec<String> = env::args().collect();
 
@@ -991,12 +1011,9 @@ fn handle_introspection_flags() -> Option<i32> {
         let help = crate::introspection::extract_cli_help(&cmd, version);
         let result = crate::output::CommandResult::success(
             "help",
-            serde_json::to_value(&help).expect("CliHelp is always serializable"),
+            serialize_or_exit(&help, "help output"),
         );
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
-        );
+        println!("{}", pretty_or_exit(&result, "command result"));
         return Some(0);
     }
 
@@ -1005,12 +1022,9 @@ fn handle_introspection_flags() -> Option<i32> {
         let commands = crate::introspection::list_commands(&cmd);
         let result = crate::output::CommandResult::success(
             "list-commands",
-            serde_json::to_value(&commands).expect("command list is always serializable"),
+            serialize_or_exit(&commands, "command list"),
         );
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
-        );
+        println!("{}", pretty_or_exit(&result, "command result"));
         return Some(0);
     }
 
@@ -1023,22 +1037,16 @@ fn handle_introspection_flags() -> Option<i32> {
             &format!("Missing command name. Available: {available}"),
             "MISSING_ARGUMENT",
         );
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
-        );
+        println!("{}", pretty_or_exit(&result, "command result"));
         return Some(1);
     };
 
     if let Some(schema) = crate::output_schemas::get_output_schema(cmd_name) {
         let result = crate::output::CommandResult::success(
             "show-output-schema",
-            serde_json::to_value(&schema).expect("output schema is always serializable"),
+            serialize_or_exit(&schema, "output schema"),
         );
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
-        );
+        println!("{}", pretty_or_exit(&result, "command result"));
         return Some(0);
     }
 
@@ -1047,9 +1055,6 @@ fn handle_introspection_flags() -> Option<i32> {
         &format!("Unknown command: {cmd_name}. Available: {available}"),
         "UNKNOWN_COMMAND",
     );
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&result).expect("CommandResult is always serializable")
-    );
+    println!("{}", pretty_or_exit(&result, "command result"));
     Some(1)
 }

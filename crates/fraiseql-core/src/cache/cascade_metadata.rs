@@ -81,7 +81,7 @@ impl CascadeMetadata {
 
         self.entity_mutations_map
             .entry(entity_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(mutation_name);
     }
 

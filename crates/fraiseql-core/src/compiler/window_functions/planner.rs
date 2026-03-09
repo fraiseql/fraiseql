@@ -107,14 +107,10 @@ impl WindowFunctionPlanner {
         let columns = select
             .iter()
             .filter_map(|col| {
-                if let Some(col_str) = col.as_str() {
-                    Some(SelectColumn {
+                col.as_str().map(|col_str| SelectColumn {
                         expression: col_str.to_string(),
                         alias:      col_str.to_string(),
                     })
-                } else {
-                    None
-                }
             })
             .collect();
 
@@ -125,7 +121,7 @@ impl WindowFunctionPlanner {
         let default_array = vec![];
         let windows = query.get("windows").and_then(|w| w.as_array()).unwrap_or(&default_array);
 
-        windows.iter().map(|window| Self::parse_single_window(window)).collect()
+        windows.iter().map(Self::parse_single_window).collect()
     }
 
     fn parse_single_window(window: &serde_json::Value) -> Result<WindowFunction> {
@@ -249,13 +245,12 @@ impl WindowFunctionPlanner {
         // Validate frame type supported by database
         for window in &plan.windows {
             if let Some(frame) = &window.frame {
-                if frame.frame_type == FrameType::Groups {
-                    if !matches!(database_target, DatabaseType::PostgreSQL) {
+                if frame.frame_type == FrameType::Groups
+                    && !matches!(database_target, DatabaseType::PostgreSQL) {
                         return Err(FraiseQLError::validation(
                             "GROUPS frame type only supported on PostgreSQL",
                         ));
                     }
-                }
 
                 // Validate frame exclusion (PostgreSQL only)
                 if frame.exclusion.is_some() && !matches!(database_target, DatabaseType::PostgreSQL)

@@ -117,6 +117,11 @@ impl PostgresProjectionGenerator {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if any field name contains characters
+    /// that cannot be safely included in a SQL projection.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             // No fields to project, return pass-through
@@ -162,6 +167,10 @@ impl PostgresProjectionGenerator {
     /// let sql = generator.generate_select_clause("t", &fields).unwrap();
     /// assert!(sql.contains("SELECT"));
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`Self::generate_projection_sql`].
     pub fn generate_select_clause(&self, table_alias: &str, fields: &[String]) -> Result<String> {
         let projection = self.generate_projection_sql(fields)?;
         Ok(format!(
@@ -249,6 +258,10 @@ impl MySqlProjectionGenerator {
     /// # Returns
     ///
     /// SQL fragment that can be used in a SELECT clause
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if any field name cannot be safely projected.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("`{}`", self.json_column));
@@ -340,6 +353,10 @@ impl SqliteProjectionGenerator {
     /// # Returns
     ///
     /// SQL fragment that can be used in a SELECT clause
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if any field name cannot be safely projected.
     pub fn generate_projection_sql(&self, fields: &[String]) -> Result<String> {
         if fields.is_empty() {
             return Ok(format!("\"{}\"", self.json_column));

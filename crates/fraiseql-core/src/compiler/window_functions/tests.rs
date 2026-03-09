@@ -524,7 +524,7 @@ fn test_window_function_spec_serialization() {
     let spec2 = WindowFunctionSpec::Ntile { n: 4 };
     let json2 = serialize_json(&spec2);
     assert!(json2.contains("ntile"));
-    assert!(json2.contains("4"));
+    assert!(json2.contains('4'));
 }
 
 /// `resolve_field_to_sql` must reject fields whose names contain characters outside the

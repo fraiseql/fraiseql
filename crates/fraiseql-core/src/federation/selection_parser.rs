@@ -47,7 +47,7 @@ impl FieldSelection {
 /// }
 /// ```
 ///
-/// Returns: FieldSelection { fields: ["__typename", "id", "name", "email"] }
+/// Returns: `FieldSelection { fields: ["__typename", "id", "name", "email"] }`
 ///
 /// # Errors
 ///

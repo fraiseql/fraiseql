@@ -276,7 +276,7 @@ impl SubscriptionManager {
         let mut matched = 0;
 
         // Find matching subscriptions
-        for subscription in self.subscriptions.iter() {
+        for subscription in &self.subscriptions {
             if self.matches_subscription(&event, &subscription) {
                 matched += 1;
 

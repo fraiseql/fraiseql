@@ -125,7 +125,7 @@ impl SchemaParser {
                         .collect()
                 },
             )?;
-        let enums = obj.get("enums").map_or(Ok(vec![]), |v| EnumValidator::parse_enums(v))?;
+        let enums = obj.get("enums").map_or(Ok(vec![]), EnumValidator::parse_enums)?;
         let interfaces =
             obj.get("interfaces").map_or(Ok(vec![]), |v| self.parse_interfaces(v))?;
         let unions = obj.get("unions").map_or(Ok(vec![]), |v| self.parse_unions(v))?;

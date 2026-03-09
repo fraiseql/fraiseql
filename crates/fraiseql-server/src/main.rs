@@ -24,6 +24,53 @@ fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
     }
 }
 
+/// Apply rate-limiting env var overrides to config.
+///
+/// Reads all four `FRAISEQL_RATE_LIMIT_*` environment variables up front and
+/// mutates `config.rate_limiting` exactly once, avoiding repeated
+/// `.take().unwrap_or(default)` constructions when multiple variables are set.
+fn apply_rate_limit_overrides(config: &mut ServerConfig) {
+    let enabled_raw = std::env::var("FRAISEQL_RATE_LIMITING_ENABLED").ok();
+    let rps_ip_raw = std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP").ok();
+    let rps_user_raw = std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER").ok();
+    let burst_raw = std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE").ok();
+
+    if enabled_raw.is_none() && rps_ip_raw.is_none() && rps_user_raw.is_none() && burst_raw.is_none() {
+        return;
+    }
+
+    let mut rate_config = config.rate_limiting.take().unwrap_or_else(|| RateLimitConfig {
+        enabled:               true,
+        rps_per_ip:            100,
+        rps_per_user:          1000,
+        burst_size:            500,
+        cleanup_interval_secs: 300,
+        trust_proxy_headers:   false,
+        trusted_proxy_cidrs:   Vec::new(),
+    });
+
+    if let Some(val) = enabled_raw {
+        rate_config.enabled = val == "true" || val == "1";
+    }
+    if let Some(val) = rps_ip_raw {
+        if let Ok(v) = val.parse() {
+            rate_config.rps_per_ip = v;
+        }
+    }
+    if let Some(val) = rps_user_raw {
+        if let Ok(v) = val.parse() {
+            rate_config.rps_per_user = v;
+        }
+    }
+    if let Some(val) = burst_raw {
+        if let Ok(v) = val.parse() {
+            rate_config.burst_size = v;
+        }
+    }
+
+    config.rate_limiting = Some(rate_config);
+}
+
 /// Validate that schema file exists.
 fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
     if !path.exists() {
@@ -36,6 +83,20 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Entry point.
+///
+/// Initialization sequence:
+/// 1. **Tracing** — set up `tracing_subscriber` with `RUST_LOG` env filter.
+/// 2. **Config** — load `ServerConfig` from file (via `FRAISEQL_CONFIG`) or defaults,
+///    then apply env var overrides for database URL, bind address, schema path,
+///    metrics, admin API, introspection, and rate limiting.
+/// 3. **Schema** — validate the compiled schema file exists and load it.
+/// 4. **Security** — (auth feature) initialize and validate security config from schema.
+/// 5. **Database** — create the PostgreSQL or Wire database adapter.
+/// 6. **Observers / Secrets** — optionally create sqlx pool for observers and
+///    initialize the secrets manager backend.
+/// 7. **Server** — construct `Server` (with optional Arrow Flight service),
+///    optionally attach secrets manager, then call `serve()` (or `serve_mcp_stdio()`).
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -94,68 +155,8 @@ async fn main() -> anyhow::Result<()> {
             introspection_require_auth != "false" && introspection_require_auth != "0";
     }
 
-    // Rate limiting configuration from environment
-    if let Ok(rate_limiting_enabled) = env::var("FRAISEQL_RATE_LIMITING_ENABLED") {
-        let enabled = rate_limiting_enabled == "true" || rate_limiting_enabled == "1";
-        if let Some(ref mut rate_limit) = config.rate_limiting {
-            rate_limit.enabled = enabled;
-        } else {
-            config.rate_limiting = Some(RateLimitConfig {
-                enabled,
-                rps_per_ip:            100,
-                rps_per_user:          1000,
-                burst_size:            500,
-                cleanup_interval_secs: 300,
-                trust_proxy_headers:   false,
-                trusted_proxy_cidrs:   Vec::new(),
-            });
-        }
-    }
-    if let Ok(rps_per_ip) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP") {
-        if let Ok(value) = rps_per_ip.parse() {
-            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitConfig {
-                enabled:               true,
-                rps_per_ip:            100,
-                rps_per_user:          1000,
-                burst_size:            500,
-                cleanup_interval_secs: 300,
-                trust_proxy_headers:   false,
-                trusted_proxy_cidrs:   Vec::new(),
-            });
-            rate_config.rps_per_ip = value;
-            config.rate_limiting = Some(rate_config);
-        }
-    }
-    if let Ok(rps_per_user) = env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER") {
-        if let Ok(value) = rps_per_user.parse() {
-            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitConfig {
-                enabled:               true,
-                rps_per_ip:            100,
-                rps_per_user:          1000,
-                burst_size:            500,
-                cleanup_interval_secs: 300,
-                trust_proxy_headers:   false,
-                trusted_proxy_cidrs:   Vec::new(),
-            });
-            rate_config.rps_per_user = value;
-            config.rate_limiting = Some(rate_config);
-        }
-    }
-    if let Ok(burst_size) = env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE") {
-        if let Ok(value) = burst_size.parse() {
-            let mut rate_config = config.rate_limiting.take().unwrap_or(RateLimitConfig {
-                enabled:               true,
-                rps_per_ip:            100,
-                rps_per_user:          1000,
-                burst_size:            500,
-                cleanup_interval_secs: 300,
-                trust_proxy_headers:   false,
-                trusted_proxy_cidrs:   Vec::new(),
-            });
-            rate_config.burst_size = value;
-            config.rate_limiting = Some(rate_config);
-        }
-    }
+    // Rate limiting configuration from environment — all four vars handled atomically.
+    apply_rate_limit_overrides(&mut config);
 
     // Validate configuration
     if let Err(e) = config.validate() {
@@ -313,7 +314,10 @@ async fn main() -> anyhow::Result<()> {
 
     #[cfg(not(feature = "arrow"))]
     {
+        #[cfg(feature = "secrets")]
         let mut server = Server::new(config, schema, adapter, db_pool).await?;
+        #[cfg(not(feature = "secrets"))]
+        let server = Server::new(config, schema, adapter, db_pool).await?;
 
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]

@@ -122,7 +122,7 @@ impl HttpEntityResolver {
             std::collections::HashMap::new();
 
         for rep in representations {
-            typename_fields.entry(rep.typename.clone()).or_insert_with(Vec::new);
+            typename_fields.entry(rep.typename.clone()).or_default();
         }
 
         // Build inline fragments for each type

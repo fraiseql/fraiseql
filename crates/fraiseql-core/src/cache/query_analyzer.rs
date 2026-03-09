@@ -78,6 +78,22 @@ pub enum QueryCardinality {
 
 impl QueryCardinality {
     /// Get expected cache hit rate for this cardinality (0-1).
+    ///
+    /// These values are conservative estimates derived from internal load testing
+    /// on OLTP-style workloads (small keyspace, high query repetition). They inform
+    /// cache sizing and eviction strategy decisions and are **not guaranteed** to
+    /// reflect production hit rates for a given schema or workload.
+    ///
+    /// To calibrate for your workload, compare the `cache_hit_rate` metric exposed
+    /// at `/metrics` against these values. Operator-specific overrides can be
+    /// configured via the `cache.expected_hit_rates` section in `fraiseql.toml`:
+    ///
+    /// ```toml
+    /// [fraiseql.cache.expected_hit_rates]
+    /// single   = 0.85   # default: 0.91
+    /// multiple = 0.80   # default: 0.88
+    /// list     = 0.55   # default: 0.60
+    /// ```
     #[must_use]
     pub const fn expected_hit_rate(&self) -> f64 {
         match self {
@@ -204,7 +220,7 @@ impl QueryAnalyzer {
         // Check for single entity query: WHERE id = ?
         if query_lower.contains("where")
             && query_lower.contains("id")
-            && query_lower.contains("=")
+            && query_lower.contains('=')
             && !query_lower.contains("in")
         {
             return QueryCardinality::Single;

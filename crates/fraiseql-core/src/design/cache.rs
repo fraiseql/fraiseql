@@ -40,7 +40,7 @@ fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
 
                     entity_ttls
                         .entry(entity_name)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push((subgraph_name.clone(), ttl));
                 }
             }

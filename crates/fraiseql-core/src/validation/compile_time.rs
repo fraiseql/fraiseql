@@ -163,7 +163,7 @@ impl CompileTimeValidator {
             errors.push(CompileTimeError {
                 field:      format!("{} {} {}", left_field, operator, right_field),
                 message:    format!("Cannot compare {:?} with {:?}", left_type, right_type),
-                suggestion: Some(format!("Ensure both fields have comparable types")),
+                suggestion: Some("Ensure both fields have comparable types".to_string()),
             });
             return CompileTimeValidationResult {
                 valid: false,
@@ -552,7 +552,7 @@ mod tests {
 
             assert!(result.valid);
             let sql = result.sql_constraint.unwrap();
-            assert!(sql.contains(op) || op == "==" && sql.contains("="));
+            assert!(sql.contains(op) || op == "==" && sql.contains('='));
         }
     }
 

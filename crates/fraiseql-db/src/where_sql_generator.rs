@@ -50,6 +50,11 @@ impl WhereSqlGenerator {
     /// let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
     /// assert_eq!(sql, "data->>'status' = 'active'");
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the clause contains an unsupported
+    /// operator or an invalid value for the given operator.
     pub fn to_sql(clause: &WhereClause) -> Result<String> {
         match clause {
             WhereClause::Field {

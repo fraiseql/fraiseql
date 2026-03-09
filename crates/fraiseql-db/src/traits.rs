@@ -178,10 +178,23 @@ pub struct RelayPageResult {
 /// - `RelayDatabaseAdapter` — Optional trait for keyset pagination
 /// - `DatabaseCapabilities` — Feature detection for the adapter
 /// - [Performance Guide](https://docs.fraiseql.rs/performance/database-adapters.md)
-// Reason: `DatabaseAdapter` is used both generically (`<A: DatabaseAdapter>` in axum
-// handlers) and dynamically (`Arc<dyn DatabaseAdapter + Send + Sync>` in federation).
-// `#[async_trait]` ensures the returned futures are `Send` (required by axum's Handler)
-// and makes the trait dyn-compatible via `Pin<Box<dyn Future + Send>>`.
+// POLICY: `#[async_trait]` placement for `DatabaseAdapter`
+//
+// `DatabaseAdapter` is used both generically (`Server<A: DatabaseAdapter>` in axum
+// handlers, zero overhead via static dispatch) and dynamically (`Arc<dyn
+// DatabaseAdapter + Send + Sync>` in federation, heap-boxed future per call).
+//
+// `#[async_trait]` is required on:
+// - The trait definition (generates `Pin<Box<dyn Future + Send>>` return types)
+// - Every `impl DatabaseAdapter for ConcreteType` block (generates the boxing)
+// NOT required on callers (they see `Pin<Box<dyn Future + Send>>` from macro output).
+//
+// Why not native `async fn in trait` (Rust 1.75+)?
+// Native dyn async trait does NOT propagate `+ Send` on generated futures. Tokio
+// requires futures spawned with `tokio::spawn` to be `Send`. Until Return Type
+// Notation (RFC 3425, tracking: github.com/rust-lang/rust/issues/109417) stabilises,
+// `async_trait` is the only ergonomic path to `dyn DatabaseAdapter + Send + Sync`.
+// Re-evaluate when Rust 1.90+ ships or when RTN is stabilised.
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a WHERE query against a view and return JSONB rows.
@@ -446,6 +459,25 @@ pub trait DatabaseAdapter: Send + Sync {
         })
     }
 
+    /// Returns `true` if this adapter supports GraphQL mutation operations.
+    ///
+    /// **This is the authoritative mutation gate.** The executor checks this method
+    /// before dispatching any mutation. Adapters that return `false` will cause
+    /// mutations to fail with a clear `FraiseQLError::Validation` diagnostic instead
+    /// of silently calling the unsupported `execute_function_call` default.
+    ///
+    /// Override to return `false` for read-only adapters (e.g., `SqliteAdapter`,
+    /// `FraiseWireAdapter`). The compile-time [`MutationCapable`] marker trait
+    /// complements this runtime check — see its documentation for the distinction.
+    ///
+    /// # Default
+    ///
+    /// Returns `true`. All adapters are assumed mutation-capable unless they override
+    /// this method.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     /// Bump fact table version counters after a successful mutation.
     ///
     /// Called by the executor when a mutation definition declares
@@ -692,8 +724,20 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 
 /// Marker trait for database adapters that support write operations via stored functions.
 ///
-/// Adapters that implement this trait can execute GraphQL mutations by calling stored
-/// database functions (e.g. `fn_create_user`, `fn_update_order`).
+/// Adapters that implement this trait signal that they can execute GraphQL mutations by
+/// calling stored database functions (e.g. `fn_create_user`, `fn_update_order`).
+///
+/// # Role: documentation and generic bound
+///
+/// This trait serves two purposes:
+/// 1. **Documentation**: it makes write-capable adapters self-describing at the type level.
+/// 2. **Generic bounds**: code that only accepts write-capable adapters can constrain on
+///    `A: MutationCapable` (e.g., `CachedDatabaseAdapter<A: MutationCapable>`).
+///
+/// **It does not provide compile-time mutation safety** for the current `execute()` API,
+/// which accepts raw GraphQL strings and determines the operation type at runtime.
+/// The actual runtime gate is [`DatabaseAdapter::supports_mutations()`], which the
+/// executor always calls before dispatching a mutation.
 ///
 /// # Which adapters implement this?
 ///
@@ -706,16 +750,10 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
 /// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` |
 ///
-/// # Compile-time enforcement
+/// # Future
 ///
-/// The mutation executor requires `A: MutationCapable`. Code that attempts to run mutations
-/// against a `SqliteAdapter` or `FraiseWireAdapter` will fail to compile, surfacing the
-/// limitation before any runtime behavior.
-///
-/// # Usage
-///
-/// SQLite is suitable for read-only development and testing. Use PostgreSQL, MySQL, or
-/// SQL Server when your schema includes mutations.
+/// When a dedicated `execute_mutation()` API is introduced, this trait will gain true
+/// compile-time enforcement. See ROADMAP.md.
 pub trait MutationCapable: DatabaseAdapter {}
 
 /// Type alias for boxed dynamic database adapters.
@@ -740,3 +778,17 @@ pub type BoxDatabaseAdapter = Box<dyn DatabaseAdapter>;
 /// let adapter: ArcDatabaseAdapter = Arc::new(postgres_adapter);
 /// ```
 pub type ArcDatabaseAdapter = std::sync::Arc<dyn DatabaseAdapter>;
+
+
+#[cfg(test)]
+mod tests {
+    #[allow(clippy::unwrap_used)] // Reason: test code
+    #[test]
+    fn database_adapter_is_send_sync() {
+        // Static assertion: `dyn DatabaseAdapter` must be `Send + Sync`.
+        // This test exists to catch accidental removal of `Send + Sync` bounds.
+        // It only needs to compile — no runtime assertion required.
+        fn assert_send_sync<T: Send + Sync + ?Sized>() {}
+        assert_send_sync::<dyn super::DatabaseAdapter>();
+    }
+}

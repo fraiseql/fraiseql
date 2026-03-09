@@ -307,7 +307,7 @@ mod tests {
     fn test_length_validator_error_message() {
         let validator = LengthValidator::new(Some(5), Some(10));
         let msg = validator.error_message();
-        assert!(msg.contains("5"));
+        assert!(msg.contains('5'));
         assert!(msg.contains("10"));
     }
 

@@ -298,6 +298,10 @@ impl DatabaseAdapter for SqliteAdapter {
         DatabaseType::SQLite
     }
 
+    fn supports_mutations(&self) -> bool {
+        false
+    }
+
     async fn health_check(&self) -> Result<()> {
         sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {

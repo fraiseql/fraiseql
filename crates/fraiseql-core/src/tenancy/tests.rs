@@ -44,7 +44,7 @@ fn test_tenant_has_creation_timestamp() {
 
     // Timestamp should be ISO 8601 format
     assert!(!timestamp.is_empty());
-    assert!(timestamp.contains("T")); // ISO 8601 includes T separator
+    assert!(timestamp.contains('T')); // ISO 8601 includes T separator
 }
 
 /// Test that different tenants have similar creation times

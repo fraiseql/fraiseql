@@ -107,7 +107,7 @@ pub(super) fn builtin_directives() -> Vec<IntrospectionDirective> {
 pub(super) fn build_custom_directives(
     directives: &[DirectiveDefinition],
 ) -> Vec<IntrospectionDirective> {
-    directives.iter().map(|d| build_custom_directive(d)).collect()
+    directives.iter().map(build_custom_directive).collect()
 }
 
 /// Build a single introspection directive from a custom directive definition.

@@ -112,7 +112,7 @@ pub fn build_insert_query(
                     message: format!("Field '{}' missing in variables", col),
                     path:    None,
                 })
-                .and_then(|v| value_to_sql_literal(v))
+                .and_then(value_to_sql_literal)
         })
         .collect();
 

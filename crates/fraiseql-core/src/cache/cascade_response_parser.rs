@@ -189,7 +189,7 @@ impl CascadeResponseParser {
             }
 
             // Try deeper nesting (mutation result contains cascade)
-            for (_key, value) in data.as_object().unwrap_or(&Default::default()).iter() {
+            for (_key, value) in data.as_object().unwrap_or(&Default::default()) {
                 if let Some(cascade) = value.get("cascade") {
                     return Ok(cascade.clone());
                 }
@@ -197,7 +197,7 @@ impl CascadeResponseParser {
         }
 
         // Try top-level mutation response
-        for (_key, value) in response.as_object().unwrap_or(&Default::default()).iter() {
+        for (_key, value) in response.as_object().unwrap_or(&Default::default()) {
             if let Some(cascade) = value.get("cascade") {
                 return Ok(cascade.clone());
             }
@@ -223,7 +223,7 @@ impl CascadeResponseParser {
                             Value::Number(_) => "number",
                             Value::Bool(_) => "boolean",
                             Value::Null => "null",
-                            _ => "unknown",
+                            Value::Array(_) => "unknown",
                         }
                     ),
                     path:    Some(format!("cascade.{}", field_name)),
@@ -233,7 +233,7 @@ impl CascadeResponseParser {
 
         let mut entities = Vec::new();
 
-        for entity_obj in entities_array.iter() {
+        for entity_obj in entities_array {
             let entity = self.parse_cascade_entity(entity_obj)?;
             entities.push(entity);
         }

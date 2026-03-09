@@ -88,6 +88,9 @@ tokio-test = "0.4"
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
 default = ["postgres", "rich-filters"]
+# Schema design-audit analysis (DesignAudit, federation anti-pattern detection, cost analysis).
+# Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
+design-audit = []
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]

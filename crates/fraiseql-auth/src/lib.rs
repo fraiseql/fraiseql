@@ -3,15 +3,13 @@
 //! Handles JWT validation, OAuth/OIDC flows, session management, and authorization.
 
 #![forbid(unsafe_code)]
-#![allow(clippy::module_name_repetitions)] // Reason: standard Rust API style
-#![allow(clippy::must_use_candidate)] // Reason: builder methods return Self but callers chain
+// module_name_repetitions, must_use_candidate, similar_names, unnecessary_wraps:
+// allowed at workspace level (Cargo.toml [workspace.lints.clippy]).
 #![allow(clippy::missing_errors_doc)] // Reason: error types are self-documenting
 #![allow(clippy::missing_panics_doc)] // Reason: panics are eliminated by design
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
 #![allow(clippy::unused_async)] // Reason: axum handler trait requires async fn
-#![allow(clippy::similar_names)] // Reason: domain terms are conventional pairs
 #![allow(clippy::unused_self)] // Reason: trait implementations require &self
-#![allow(clippy::unnecessary_wraps)] // Reason: handler signatures must return Result
 //  clippy::too_many_lines — removed from module level; applied per-function where warranted.
 //  clippy::wildcard_imports — removed from module level; applied per-site on `use super::*`.
 #![allow(clippy::struct_excessive_bools)] // Reason: config structs use bools for feature flags

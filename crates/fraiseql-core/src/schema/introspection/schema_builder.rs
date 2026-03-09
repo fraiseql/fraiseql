@@ -127,7 +127,7 @@ impl IntrospectionBuilder {
 /// Build Query root type.
 fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
     let mut fields: Vec<IntrospectionField> =
-        schema.queries.iter().map(|q| build_query_field(q)).collect();
+        schema.queries.iter().map(build_query_field).collect();
 
     // Inject synthetic `node(id: ID!): Node` field when relay types exist.
     let has_relay_types = schema.types.iter().any(|t| t.relay)
@@ -153,7 +153,7 @@ fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
 /// Build Mutation root type.
 fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
     let fields: Vec<IntrospectionField> =
-        schema.mutations.iter().map(|m| build_mutation_field(m)).collect();
+        schema.mutations.iter().map(build_mutation_field).collect();
 
     IntrospectionType {
         kind:               TypeKind::Object,
@@ -172,7 +172,7 @@ fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
 /// Build Subscription root type.
 fn build_subscription_type(schema: &CompiledSchema) -> IntrospectionType {
     let fields: Vec<IntrospectionField> =
-        schema.subscriptions.iter().map(|s| build_subscription_field(s)).collect();
+        schema.subscriptions.iter().map(build_subscription_field).collect();
 
     IntrospectionType {
         kind:               TypeKind::Object,

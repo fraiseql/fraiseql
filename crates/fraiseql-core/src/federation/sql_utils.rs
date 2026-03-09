@@ -76,7 +76,7 @@ pub fn value_to_string(value: &Value) -> Result<String> {
 /// assert_eq!(escape_sql_string("test"), "test");
 /// ```
 pub fn escape_sql_string(value: &str) -> String {
-    value.replace("'", "''")
+    value.replace('\'', "''")
 }
 
 /// Helper trait to get string representation of JSON value type for error messages.

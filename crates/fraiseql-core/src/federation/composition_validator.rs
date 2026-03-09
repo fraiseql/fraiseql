@@ -302,7 +302,7 @@ impl CrossSubgraphValidator {
                         let field_key = format!("{}.{}", ftype.name, field);
                         field_owners
                             .entry(field_key)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(sg_name.clone());
                     }
                 }
@@ -347,7 +347,7 @@ impl CrossSubgraphValidator {
                     let field_key = format!("{}.{}", ftype.name, field_name);
                     field_shareable
                         .entry(field_key)
-                        .or_insert_with(HashMap::new)
+                        .or_default()
                         .insert(sg_name.clone(), directives.shareable);
                 }
             }

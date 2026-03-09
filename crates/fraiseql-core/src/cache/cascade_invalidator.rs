@@ -140,11 +140,11 @@ impl CascadeInvalidator {
         // Add forward mapping: dependent → dependency
         self.view_dependencies
             .entry(dependent.clone())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(dependency.clone());
 
         // Add reverse mapping: dependency → dependent
-        self.dependents.entry(dependency).or_insert_with(HashSet::new).insert(dependent);
+        self.dependents.entry(dependency).or_default().insert(dependent);
 
         Ok(())
     }

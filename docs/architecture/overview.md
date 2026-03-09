@@ -10,7 +10,7 @@
 
 FraiseQL v2 achieves four goals simultaneously:
 
-1. **Best DX** - Simple setup, zero boilerplate, optional features
+1. **Best DX** - Simple setup, minimal boilerplate for development (production config via TOML), optional features
 2. **Best Performance** - Compiled schema, connection pooling, query caching
 3. **Most Simple** - Clean core with composable extensions
 4. **Most Complete** - Full-featured backend platform
@@ -285,26 +285,78 @@ Router::new()
 
 ## Entry Point Pattern
 
-**Simple 5-line setup:**
+### Development setup (5 lines)
+
+For local development and testing:
 
 ```rust
-// 1. Load compiled schema
 let schema = CompiledSchema::from_file("schema.compiled.json")?;
-
-// 2. Create database adapter
 let adapter = Arc::new(PostgresAdapter::new(&db_url).await?);
-
-// 3. Load configuration
-let config = ServerConfig::from_file("fraiseql.toml")?;
-
-// 4. Create server
+let config = ServerConfig::default();   // sensible dev defaults, no TLS
 let server = Server::new(config, schema, adapter, None).await?;
-
-// 5. Start serving
 server.serve().await?;
 ```
 
-**That's it.** This is a production-ready GraphQL server.
+This starts a fully functional GraphQL server on `127.0.0.1:4000` suitable for development.
+
+### Production setup
+
+Production deployments additionally require TLS, authentication, rate limiting, connection
+pool sizing, and structured logging. These are all configured via `fraiseql.toml`:
+
+```toml
+# fraiseql.toml
+
+[server]
+bind_addr = "0.0.0.0:4000"
+schema_path = "schema.compiled.json"
+shutdown_timeout_secs = 30   # drain in-flight requests on SIGTERM
+
+[tls]
+cert_path = "/etc/ssl/certs/server.crt"
+key_path = "/etc/ssl/private/server.key"
+
+[auth]
+issuer = "https://your-auth-provider.example.com"
+client_id_env = "OIDC_CLIENT_ID"
+audience = "your-api-audience"
+
+[security.rate_limiting]
+enabled = true
+auth_start_max_requests = 100
+auth_start_window_secs = 60
+
+[database]
+url_env = "DATABASE_URL"
+pool_min_size = 5
+pool_max_size = 20
+
+[logging]
+level = "info"
+format = "json"   # structured logs for log aggregation
+```
+
+The Rust entry point remains the same 5 substantive lines — `ServerConfig::from_file`
+loads TLS, auth, rate limiting, and pool sizing from the TOML file:
+
+```rust
+tracing_subscriber::fmt().json().with_env_filter(EnvFilter::from_env("FRAISEQL_LOG")).init();
+let config = ServerConfig::from_file("fraiseql.toml")?;
+let schema = CompiledSchema::from_file(&config.schema_path)?;
+let adapter = Arc::new(PostgresAdapter::new(&config.database.url()?).await?);
+let server = Server::new(config, schema, adapter, None).await?;
+server.serve().await?;
+```
+
+**Minimum production checklist:**
+
+- [ ] TLS configured (or terminated at load balancer with mTLS inside cluster)
+- [ ] Auth provider configured (`[auth]` section or `FRAISEQL_AUTH_*` env vars)
+- [ ] Rate limiting enabled on auth endpoints
+- [ ] `pool_max_size` sized for expected concurrency
+- [ ] `shutdown_timeout_secs` set (default 30 is usually appropriate)
+- [ ] Structured logging initialised and shipped to a log aggregator
+- [ ] Health check endpoints verified with your orchestrator (`/health`, `/readiness`)
 
 ---
 
@@ -563,10 +615,17 @@ parameters without query rewriting.
 | SQL Server | ✅ | ✅ | ✅ |
 | SQLite | ✅ | ❌ | ❌ |
 
-Mutation support is enforced at **compile time** via the `MutationCapable` marker trait.
-`SqliteAdapter` intentionally does not implement `MutationCapable` — code that tries to
-run mutations against SQLite will fail to compile. Use SQLite for read-only development
-and unit testing.
+Mutation support is gated by the `MutationCapable` marker trait.
+`SqliteAdapter` intentionally does not implement `MutationCapable` — attempting a mutation
+against `SqliteAdapter` returns `FraiseQLError::Validation` at runtime with a clear
+diagnostic message. Use SQLite for read-only development and unit testing.
+
+Adapters that support mutations: `PostgresAdapter`, `MySqlAdapter`, `SqlServerAdapter`,
+and `CachedDatabaseAdapter<A>` when `A: MutationCapable`.
+
+> **Note**: true compile-time enforcement would require a separate `execute_mutation()`
+> public API method. The current `execute()` entry point accepts raw GraphQL strings and
+> determines the operation type at runtime. This is a known limitation tracked in ROADMAP.md.
 
 ### Adding a New Database Backend
 
@@ -782,5 +841,5 @@ The layered optionality pattern allows users to start minimal and grow as needed
 **Architecture Status**: Production-ready (v2.1.0)
 **Last Updated**: March 8, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
 **Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
-**Test Coverage**: 2,400+ tests (unit, integration, E2E, chaos engineering)
+**Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
 **Unsafe Code**: Zero (forbidden at compile time)

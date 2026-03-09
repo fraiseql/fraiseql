@@ -75,7 +75,7 @@ pub fn group_entities_by_typename(
     let mut groups: HashMap<String, Vec<EntityRepresentation>> = HashMap::new();
 
     for rep in reps {
-        groups.entry(rep.typename.clone()).or_insert_with(Vec::new).push(rep.clone());
+        groups.entry(rep.typename.clone()).or_default().push(rep.clone());
     }
 
     groups
@@ -244,7 +244,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     }
 
     // Create or use provided trace context
-    let trace_ctx = trace_context.unwrap_or_else(FederationTraceContext::new);
+    let trace_ctx = trace_context.unwrap_or_default();
 
     // Create span for federation query
     let span = FederationSpan::new("federation.entities.batch_load", trace_ctx.clone())

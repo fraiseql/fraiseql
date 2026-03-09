@@ -284,6 +284,11 @@ impl PostgresAdapter {
     ///
     /// Returns `FraiseQLError::Database` on query execution failure.
     ///
+    /// # Panics
+    ///
+    /// Cannot panic in practice: the inner `expect` is guarded by an `is_none()` check
+    /// immediately above it.
+    ///
     /// # Example
     ///
     /// ```no_run

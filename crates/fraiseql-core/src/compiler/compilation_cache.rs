@@ -312,7 +312,7 @@ mod tests {
     fn test_hit_rate_no_compilations() {
         let cache = CompilationCache::new(CompilationCacheConfig::default());
         let rate = cache.hit_rate().expect("hit_rate should work");
-        assert_eq!(rate, 0.0);
+        assert!((rate - 0.0_f64).abs() < f64::EPSILON);
     }
 
     #[test]

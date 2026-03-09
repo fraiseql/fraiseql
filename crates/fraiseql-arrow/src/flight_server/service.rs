@@ -98,7 +98,8 @@ impl FraiseQLFlightService {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// // In production, create a real PostgresAdapter from fraiseql-core
     /// // and wrap it to implement the local DatabaseAdapter trait
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create from fraiseql_core::db::PostgresAdapter");
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     ///
     /// let service = FraiseQLFlightService::new_with_db(db_adapter);
     /// # Ok(())
@@ -140,7 +141,8 @@ impl FraiseQLFlightService {
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create adapter");
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
     /// # Ok(())
     /// # }
@@ -181,8 +183,9 @@ impl FraiseQLFlightService {
     /// use fraiseql_core::security::OidcValidator;
     /// use std::sync::Arc;
     ///
-    /// let db_adapter = todo!("Create adapter");
-    /// let validator = todo!("Create OidcValidator");
+    /// // Create your adapter and OIDC validator for JWT authentication
+    /// let db_adapter: Arc<dyn fraiseql_arrow::DatabaseAdapter> = Arc::new(postgres_adapter);
+    /// let validator: Arc<OidcValidator> = Arc::new(oidc_validator);
     /// let service = FraiseQLFlightService::new_with_auth(
     ///     Arc::new(db_adapter),
     ///     Some(60),
@@ -235,7 +238,8 @@ impl FraiseQLFlightService {
     /// use std::sync::Arc;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let db_adapter: Arc<dyn DatabaseAdapter> = todo!("Create adapter");
+    /// // Create your adapter — e.g. fraiseql_core::db::PostgresAdapter::new(connection_string).await?
+    /// let db_adapter: Arc<dyn DatabaseAdapter> = Arc::new(postgres_adapter);
     /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
     ///
     /// // Pre-load schemas from database at startup
@@ -334,7 +338,8 @@ impl FraiseQLFlightService {
     /// use std::sync::Arc;
     ///
     /// # fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService) {
-    /// let storage: Arc<dyn EventStorage> = todo!("Create storage");
+    /// // Provide your EventStorage implementation (e.g., backed by a database or Redis)
+    /// let storage: Arc<dyn EventStorage> = Arc::new(my_event_storage);
     /// service.set_event_storage(storage);
     /// # }
     /// ```

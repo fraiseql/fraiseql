@@ -2,6 +2,10 @@
 harness = false
 name = "performance_benchmarks"
 
+[[test]]
+name = "secrets_manager_integration_test"
+required-features = ["secrets"]
+
 [lints]
 workspace = true
 
@@ -31,7 +35,7 @@ fraiseql-arrow = {workspace = true, optional = true}
 # Authentication
 fraiseql-auth = {workspace = true, optional = true}
 # FraiseQL core
-fraiseql-core = {workspace = true, features = ["postgres"]}
+fraiseql-core = {workspace = true, features = ["postgres", "design-audit"]}
 # Secrets management and encryption
 fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks
@@ -129,7 +133,11 @@ auth = ["dep:fraiseql-auth"]
 aws-s3 = ["aws-sdk-s3", "aws-config"]
 cors = []
 database = []
-default = ["auth", "secrets", "webhooks"]
+# auth is included by default because auth middleware is wired into the core request pipeline.
+# secrets and webhooks are opt-in: add them to your dependency features when needed.
+# Note: `--no-default-features` currently fails to compile (some code paths are not yet gated).
+# Full `default = []` is a planned improvement (see ROADMAP.md).
+default = ["auth"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
@@ -137,6 +145,8 @@ metrics = ["dep:metrics", "metrics-exporter-prometheus"]
 observers = ["fraiseql-observers"]
 secrets = ["dep:fraiseql-secrets"]
 webhooks = ["dep:fraiseql-webhooks"]
+# observers-enterprise: high-availability features for multi-instance deployments.
+# Not a paid/commercial tier — the name reflects production HA requirements.
 observers-enterprise = ["observers", "fraiseql-observers/enterprise", "fraiseql-observers/nats"]
 observers-nats = ["observers", "fraiseql-observers/nats"]
 redis-apq = ["fraiseql-core/redis-apq"]

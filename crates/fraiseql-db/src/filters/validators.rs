@@ -62,6 +62,11 @@ pub enum ChecksumType {
 
 impl ValidationRule {
     /// Validate a string value against this rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the value fails the validation rule,
+    /// or if the pattern is an invalid regex.
     pub fn validate(&self, value: &str) -> Result<()> {
         match self {
             ValidationRule::Pattern(pattern) => {
@@ -144,6 +149,16 @@ impl ValidationRule {
     }
 
     /// Parse validation rules from JSON (compiled from TOML).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the JSON structure does not match any
+    /// known validation rule format.
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic: the internal `.expect("len checked == 1")` is only reached
+    /// after verifying `rules.len() == 1`.
     pub fn from_json(value: &Value) -> Result<Self> {
         match value {
             Value::String(s) => {

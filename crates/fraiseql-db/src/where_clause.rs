@@ -88,6 +88,11 @@ impl WhereClause {
     ///
     /// Returns `FraiseQLError::Validation` if the JSON structure is invalid or
     /// contains unknown operators.
+    ///
+    /// # Panics
+    ///
+    /// Cannot panic: the internal `.expect("checked len == 1")` is only reached
+    /// after verifying `conditions.len() == 1`.
     pub fn from_graphql_json(value: &serde_json::Value) -> Result<Self> {
         let Some(obj) = value.as_object() else {
             return Err(FraiseQLError::Validation {

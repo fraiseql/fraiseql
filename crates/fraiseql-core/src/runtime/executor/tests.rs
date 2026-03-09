@@ -81,6 +81,63 @@ impl DatabaseAdapter for MockAdapter {
 
 impl MutationCapable for MockAdapter {}
 
+/// Read-only adapter that returns false from supports_mutations() —
+/// used to test the runtime mutation guard in execute_mutation_query.
+struct ReadOnlyMockAdapter;
+
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // its transformed method signatures to satisfy the trait contract
+    #[async_trait]
+impl DatabaseAdapter for ReadOnlyMockAdapter {
+    async fn execute_with_projection(
+        &self,
+        view: &str,
+        _projection: Option<&crate::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.execute_where_query(view, where_clause, limit, None).await
+    }
+
+    async fn execute_where_query(
+        &self,
+        _view: &str,
+        _where_clause: Option<&WhereClause>,
+        _limit: Option<u32>,
+        _offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        Ok(vec![])
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn database_type(&self) -> DatabaseType {
+        DatabaseType::SQLite
+    }
+
+    fn pool_metrics(&self) -> PoolMetrics {
+        PoolMetrics {
+            total_connections:  1,
+            active_connections: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
+        }
+    }
+
+    async fn execute_raw_query(
+        &self,
+        _sql: &str,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Ok(vec![])
+    }
+
+    fn supports_mutations(&self) -> bool {
+        false
+    }
+}
+
 fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
@@ -741,6 +798,37 @@ async fn test_mutation_falls_back_to_operation_table_when_sql_source_none() {
     assert!(
         msg.contains("function returned no rows") || msg.contains("no rows"),
         "expected 'no rows' error after fallback, got: {msg}"
+    );
+}
+
+/// Mutations against a non-capable adapter must return FraiseQLError::Validation
+/// with a diagnostic message, not silently call execute_function_call.
+#[tokio::test]
+async fn test_mutation_rejected_by_non_capable_adapter() {
+    use crate::schema::MutationDefinition;
+
+    let mut schema = CompiledSchema::new();
+    schema.mutations.push(MutationDefinition {
+        sql_source: Some("fn_create_user".to_string()),
+        ..MutationDefinition::new("createUser", "User")
+    });
+
+    let adapter = Arc::new(ReadOnlyMockAdapter);
+    let executor = Executor::new(schema, adapter);
+
+    let err = executor
+        .execute("mutation { createUser { id } }", None)
+        .await
+        .unwrap_err();
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("does not support mutations"),
+        "expected 'does not support mutations' diagnostic, got: {msg}"
+    );
+    assert!(
+        msg.contains("createUser"),
+        "error message should name the mutation, got: {msg}"
     );
 }
 

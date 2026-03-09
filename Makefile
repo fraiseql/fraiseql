@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate
 
 # Default target
 help:
@@ -187,6 +187,19 @@ test-e2e:
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
+# Gate: ensure the number of crate-level clippy allows in fraiseql-core has not grown.
+# Target: ≤20 allows (currently 16 after B1 remediation).
+# Run `make lint-gate` in CI to detect regressions.
+lint-gate:
+	@ALLOW_COUNT=$$(grep -c '#!\[allow(clippy::' crates/fraiseql-core/src/lib.rs); \
+	echo "fraiseql-core lib.rs crate-level allow count: $$ALLOW_COUNT"; \
+	if [ "$$ALLOW_COUNT" -gt 20 ]; then \
+	  echo "ERROR: too many crate-level clippy allows ($$ALLOW_COUNT > 20)"; \
+	  echo "Fix the underlying code or justify each allow with a Reason: comment."; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$ALLOW_COUNT allows (≤20 threshold)"
+
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:
 	cargo +nightly fmt --all
@@ -355,6 +368,13 @@ security:
 	@echo "Checking vendored dependencies for upstream security fixes..."
 	@CI_VENDOR_WARN_ONLY=1 bash tools/check-vendor-security.sh
 	@echo "Security checks passed"
+
+# Report test counts — run this before each release and update overview.md if the order of magnitude changed
+test-count:
+	@echo "=== Test count report ==="
+	@echo "Unit tests (#[test]):         $$(grep -r '#\[test\]' crates/ --include='*.rs' | wc -l)"
+	@echo "Async tests (#[tokio::test]): $$(grep -r '#\[tokio::test\]' crates/ --include='*.rs' | wc -l)"
+	@echo "Property tests (proptest!):   $$(grep -r 'proptest!' crates/ --include='*.rs' | wc -l)"
 
 # Update dependencies
 update:

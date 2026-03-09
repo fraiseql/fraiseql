@@ -261,7 +261,7 @@ mod tests {
         assert_eq!(ctx.entity_count, 20);
         assert_eq!(ctx.entity_count_unique, Some(15));
         assert_eq!(ctx.resolved_count, Some(15));
-        assert_eq!(ctx.duration_ms, 25.5);
+        assert!((ctx.duration_ms - 25.5_f64).abs() < f64::EPSILON);
         assert!(matches!(ctx.status, OperationStatus::Success));
     }
 
@@ -276,7 +276,7 @@ mod tests {
 
         assert!(matches!(ctx.status, OperationStatus::Error));
         assert_eq!(ctx.error_message, Some("Connection refused".to_string()));
-        assert_eq!(ctx.duration_ms, 15.2);
+        assert!((ctx.duration_ms - 15.2_f64).abs() < f64::EPSILON);
     }
 
     #[test]

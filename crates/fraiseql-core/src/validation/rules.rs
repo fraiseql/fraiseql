@@ -259,7 +259,7 @@ mod tests {
             max: Some(10),
         };
         let desc = rule.description();
-        assert!(desc.contains("5"));
+        assert!(desc.contains('5'));
         assert!(desc.contains("10"));
     }
 

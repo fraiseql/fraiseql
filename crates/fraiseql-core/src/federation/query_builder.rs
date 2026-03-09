@@ -81,7 +81,7 @@ fn extract_key_values(
                     ),
                     path:    None,
                 })
-                .and_then(|v| value_to_string(v))
+                .and_then(value_to_string)
         })
         .collect()
 }

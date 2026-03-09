@@ -254,13 +254,13 @@ impl Compiler {
         tracing::debug!("Validating schema...");
         let validated_ir = self.validator.validate(ir)?;
 
-        // Lower IR → SQL templates
+        // Lower IR → SQL templates (validates SQL generation; templates currently unused by codegen)
         tracing::debug!("Generating SQL templates...");
-        let sql_templates = self.lowering.generate(&validated_ir)?;
+        let _sql_templates = self.lowering.generate(&validated_ir)?;
 
-        // Codegen SQL templates → CompiledSchema
+        // Codegen: IR → CompiledSchema
         tracing::debug!("Generating CompiledSchema...");
-        let compiled = self.codegen.generate(&validated_ir, &sql_templates)?;
+        let compiled = self.codegen.generate(&validated_ir)?;
 
         // Note: Fact table metadata will be added by external tools or
         // through explicit API calls (e.g., from authoring-language decorators)

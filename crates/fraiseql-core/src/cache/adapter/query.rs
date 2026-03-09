@@ -33,7 +33,7 @@ pub fn view_name_to_entity_type(view: &str) -> Option<String> {
     // Strip prefix: everything up to and including the first '_'.
     // Returns None if there is no '_' (not a typed view) or if the
     // remainder after the prefix is empty.
-    let after_prefix = view.splitn(2, '_').nth(1)?;
+    let after_prefix = view.split_once('_')?.1;
     if after_prefix.is_empty() {
         return None;
     }

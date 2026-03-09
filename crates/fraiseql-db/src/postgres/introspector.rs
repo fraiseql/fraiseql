@@ -195,6 +195,11 @@ impl PostgresIntrospector {
     ///
     /// Set of column names that match the indexed column naming conventions.
     ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::ConnectionPool` if a connection cannot be acquired,
+    /// or `FraiseQLError::Database` if the query fails.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -309,6 +314,11 @@ impl PostgresIntrospector {
     /// # Returns
     ///
     /// List of all column names in the view/table.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::ConnectionPool` if a connection cannot be acquired,
+    /// or `FraiseQLError::Database` if the query fails.
     pub async fn get_view_columns(&self, view_name: &str) -> Result<Vec<String>> {
         let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to acquire connection: {e}"),

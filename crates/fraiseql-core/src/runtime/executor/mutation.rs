@@ -60,6 +60,22 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        // Runtime guard: verify this adapter supports mutations.
+        // Note: this is a runtime check, not compile-time enforcement.
+        // The common execute() entry point accepts raw GraphQL strings and
+        // determines the operation type at runtime, which precludes compile-time
+        // mutation gating. A future API revision (separate execute_mutation() method)
+        // would move this to a compile-time bound (see ROADMAP.md).
+        if !self.adapter.supports_mutations() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Mutation '{mutation_name}' cannot be executed: the configured database \
+                     adapter does not support mutations. Use PostgresAdapter, MySqlAdapter, \
+                     or SqlServerAdapter for mutation operations."
+                ),
+                path: None,
+            });
+        }
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
     }
 
@@ -149,14 +165,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .iter()
             .map(|arg| {
                 let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-                match value {
-                    Some(v) => v,
-                    None => {
-                        if !arg.nullable && arg.default_value.is_none() {
-                            missing_required.push(&arg.name);
-                        }
-                        arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
-                    },
+                if let Some(v) = value { v } else {
+                    if !arg.nullable && arg.default_value.is_none() {
+                        missing_required.push(&arg.name);
+                    }
+                    arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
                 }
             })
             .collect();

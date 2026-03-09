@@ -51,7 +51,7 @@ fn check_type_circularity(schema: &Value, audit: &mut DesignAudit) {
                         if !is_scalar_type(&inner_type) {
                             type_refs
                                 .entry(type_name.clone())
-                                .or_insert_with(Vec::new)
+                                .or_default()
                                 .push(inner_type);
                         }
                     }
@@ -158,9 +158,7 @@ fn check_missing_primary_keys(schema: &Value, audit: &mut DesignAudit) {
                             "{} has no primary key marked - Compiler can't generate efficient JSONB batching",
                             type_name
                         ),
-                        suggestion: format!(
-                            "Mark the id field with isPrimaryKey: true so compiler knows the aggregation join key"
-                        ),
+                        suggestion: "Mark the id field with isPrimaryKey: true so compiler knows the aggregation join key".to_string(),
                         affected_type: Some(type_name.to_string()),
                     });
                 }
@@ -179,7 +177,7 @@ fn check_missing_cardinality_hints(schema: &Value, audit: &mut DesignAudit) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
                         // Check if field references a custom type
-                        if field_type.contains("[") && !field_type.contains("[") {
+                        if field_type.contains('[') && !field_type.contains('[') {
                             // Single object reference
                             let inner_type = field_type.trim_matches('!').to_string();
 

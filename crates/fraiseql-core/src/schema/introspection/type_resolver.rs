@@ -87,7 +87,7 @@ fn scalar_type_with_url(
 
 /// Build `__Type` for an object type definition.
 pub(super) fn build_object_type(type_def: &TypeDefinition) -> IntrospectionType {
-    let fields = type_def.fields.iter().map(|f| build_field(f)).collect();
+    let fields = type_def.fields.iter().map(build_field).collect();
 
     // Build interfaces that this type implements
     let interfaces: Vec<IntrospectionTypeRef> = type_def
@@ -144,7 +144,7 @@ pub(super) fn build_input_object_type(input_def: &InputObjectDefinition) -> Intr
         .iter()
         .map(|f| {
             let validation_rules =
-                f.validation_rules.iter().map(|rule| build_validation_rule(rule)).collect();
+                f.validation_rules.iter().map(build_validation_rule).collect();
 
             IntrospectionInputValue {
                 name:               f.name.clone(),
@@ -178,7 +178,7 @@ pub(super) fn build_interface_type(
     schema: &CompiledSchema,
 ) -> IntrospectionType {
     // Build fields for the interface
-    let fields = interface_def.fields.iter().map(|f| build_field(f)).collect();
+    let fields = interface_def.fields.iter().map(build_field).collect();
 
     // Find all types that implement this interface
     let possible_types: Vec<IntrospectionTypeRef> = schema

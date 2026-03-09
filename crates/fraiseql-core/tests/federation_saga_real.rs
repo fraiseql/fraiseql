@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-//! Real integration tests for the SagaCoordinator, SagaExecutor, and SagaCompensator.
+//! Real integration tests for the [`SagaCoordinator`], [`SagaExecutor`], and [`SagaCompensator`].
 //!
-//! All tests operate against the production API from fraiseql_core::federation.
+//! All tests operate against the production API from [`fraiseql_core::federation`].
 //! No mock harnesses are created here — the production types are used directly,
 //! exercising the store-less paths that all three components expose for testing.
 
@@ -314,7 +314,7 @@ async fn executor_execute_step_duration_is_measured() {
 
     // duration_ms should be a non-negative value (u64 is always non-negative, just verify the
     // field is accessible)
-    let _duration: u64 = result.duration_ms;
+    let _: u64 = result.duration_ms;
 }
 
 #[tokio::test]

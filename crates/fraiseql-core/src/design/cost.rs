@@ -55,7 +55,7 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") && field_type.contains("]") {
+                        if field_type.contains('[') && field_type.contains(']') {
                             // Extract inner type
                             let inner_type = field_type
                                 .trim_start_matches('[')
@@ -113,7 +113,7 @@ fn check_unbounded_pagination(schema: &Value, audit: &mut DesignAudit) {
                 for field in fields {
                     // Check if field is a list type
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") && field_type.contains("]") {
+                        if field_type.contains('[') && field_type.contains(']') {
                             // Check if it has a non-null default limit
                             // The key is that we must have an explicit, non-null default_limit
                             let has_default_limit =
@@ -155,10 +155,10 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") {
+                        if field_type.contains('[') {
                             type_map
                                 .entry(type_name.clone())
-                                .or_insert_with(Vec::new)
+                                .or_default()
                                 .push(field_type.to_string());
                         }
                     }
@@ -173,7 +173,7 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
             if let Some(fields) = type_def.get("fields").and_then(|v| v.as_array()) {
                 for field in fields {
                     if let Some(field_type) = field.get("type").and_then(|v| v.as_str()) {
-                        if field_type.contains("[") {
+                        if field_type.contains('[') {
                             // Extract the inner type name
                             let inner_type = field_type
                                 .trim_matches('[')

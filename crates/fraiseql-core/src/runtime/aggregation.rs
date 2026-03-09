@@ -459,17 +459,20 @@ impl AggregationSqlGenerator {
         delimiter: &str,
         order_by: Option<&Vec<OrderByClause>>,
     ) -> String {
+        // Escape the delimiter to prevent SQL injection via single-quote sequences.
+        // A delimiter like "O'Reilly" would otherwise break out of the string literal.
+        let safe_delimiter = self.escape_sql_string(delimiter);
         match self.database_type {
             DatabaseType::PostgreSQL => {
                 if let Some(order) = order_by {
                     format!(
                         "STRING_AGG({}, '{}' ORDER BY {})",
                         column,
-                        delimiter,
+                        safe_delimiter,
                         self.order_by_to_sql(order)
                     )
                 } else {
-                    format!("STRING_AGG({}, '{}')", column, delimiter)
+                    format!("STRING_AGG({}, '{}')", column, safe_delimiter)
                 }
             },
             DatabaseType::MySQL => {
@@ -477,16 +480,18 @@ impl AggregationSqlGenerator {
                 if let Some(order) = order_by {
                     sql.push_str(&format!(" ORDER BY {}", self.order_by_to_sql(order)));
                 }
-                sql.push_str(&format!(" SEPARATOR '{}')", delimiter));
+                sql.push_str(&format!(" SEPARATOR '{}')", safe_delimiter));
                 sql
             },
             DatabaseType::SQLite => {
                 // SQLite GROUP_CONCAT doesn't support ORDER BY in older versions
-                format!("GROUP_CONCAT({}, '{}')", column, delimiter)
+                format!("GROUP_CONCAT({}, '{}')", column, safe_delimiter)
             },
             DatabaseType::SQLServer => {
-                let mut sql =
-                    format!("STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')", column, delimiter);
+                let mut sql = format!(
+                    "STRING_AGG(CAST({} AS NVARCHAR(MAX)), '{}')",
+                    column, safe_delimiter
+                );
                 if let Some(order) = order_by {
                     sql.push_str(&format!(
                         " WITHIN GROUP (ORDER BY {})",
@@ -527,7 +532,7 @@ impl AggregationSqlGenerator {
             DatabaseType::SQLite => {
                 // SQLite doesn't have built-in STDDEV
                 // Return NULL to indicate unavailable
-                format!("NULL /* STDDEV not supported in SQLite */")
+                "NULL /* STDDEV not supported in SQLite */".to_string()
             },
             DatabaseType::SQLServer => format!("STDEV({})", column),
         }
@@ -547,7 +552,7 @@ impl AggregationSqlGenerator {
             DatabaseType::SQLite => {
                 // SQLite doesn't have built-in VARIANCE
                 // Return NULL to indicate unavailable
-                format!("NULL /* VARIANCE not supported in SQLite */")
+                "NULL /* VARIANCE not supported in SQLite */".to_string()
             },
             DatabaseType::SQLServer => format!("VAR({})", column),
         }
@@ -787,19 +792,16 @@ impl AggregationSqlGenerator {
             FraiseQLError::validation("Case-insensitive operators require string values")
         })?;
 
-        match self.database_type {
-            DatabaseType::PostgreSQL => {
-                // PostgreSQL has ILIKE
-                let op = self.operator_to_sql(operator);
-                let pattern = self.format_like_pattern(operator, value_str);
-                Ok(format!("{} {} {}", column, op, pattern))
-            },
-            _ => {
-                // Other databases: use UPPER() for case-insensitive comparison
-                let op = "LIKE";
-                let pattern = self.format_like_pattern(operator, &value_str.to_uppercase());
-                Ok(format!("UPPER({}) {} {}", column, op, pattern))
-            },
+        if self.database_type == DatabaseType::PostgreSQL {
+            // PostgreSQL has ILIKE
+            let op = self.operator_to_sql(operator);
+            let pattern = self.format_like_pattern(operator, value_str);
+            Ok(format!("{} {} {}", column, op, pattern))
+        } else {
+            // Other databases: use UPPER() for case-insensitive comparison
+            let op = "LIKE";
+            let pattern = self.format_like_pattern(operator, &value_str.to_uppercase());
+            Ok(format!("UPPER({}) {} {}", column, op, pattern))
         }
     }
 
@@ -901,13 +903,24 @@ impl AggregationSqlGenerator {
     /// MySQL treats backslash as an escape character in string literals by default
     /// (unless `NO_BACKSLASH_ESCAPES` sql_mode is set). Backslashes must be doubled
     /// before single-quote escaping to prevent injection via sequences like `\';`.
+    ///
+    /// Null bytes (`\x00`) are stripped before escaping. PostgreSQL rejects null
+    /// bytes in string literals with "invalid byte sequence for encoding", which
+    /// would surface as a confusing database error. Stripping them produces
+    /// deterministic SQL regardless of the database's null-byte handling.
     fn escape_sql_string(&self, s: &str) -> String {
+        // Strip null bytes — never valid in SQL string literals.
+        let without_nulls: std::borrow::Cow<str> = if s.contains('\0') {
+            s.replace('\0', "").into()
+        } else {
+            s.into()
+        };
         if matches!(self.database_type, DatabaseType::MySQL) {
             // Escape backslashes first, then single quotes.
-            s.replace('\\', "\\\\").replace('\'', "''")
+            without_nulls.replace('\\', "\\\\").replace('\'', "''")
         } else {
             // Standard SQL: only double single quotes.
-            s.replace('\'', "''")
+            without_nulls.replace('\'', "''")
         }
     }
 
@@ -1392,6 +1405,20 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_sql_string_strips_null_bytes() {
+        // Null bytes are never valid in SQL string literals.
+        // PostgreSQL rejects them with "invalid byte sequence"; stripping is safer than an error.
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        assert_eq!(gen.escape_sql_string("before\x00after"), "beforeafter");
+        assert_eq!(gen.escape_sql_string("\x00"), "");
+        assert_eq!(gen.escape_sql_string("no-null"), "no-null");
+
+        // Same for MySQL — null stripping happens before backslash/quote escaping.
+        let mysql = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        assert_eq!(mysql.escape_sql_string("te\x00st\\"), "test\\\\");
+    }
+
+    #[test]
     fn test_format_like_pattern_escapes_wildcards_for_contains() {
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let pattern = gen.format_like_pattern(&WhereOperator::Contains, "50%_off");
@@ -1477,5 +1504,63 @@ mod tests {
         let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
         let sql = gen.jsonb_extract_sql("dimensions", "user'name");
         assert!(sql.contains("user''name"), "Expected doubled quote in SQL Server: {sql}");
+    }
+
+    // ── STRING_AGG delimiter injection tests ───────────────────────────────────
+
+    #[test]
+    fn test_stringagg_delimiter_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_string_agg_sql("product_name", "O'Reilly", None);
+        assert!(sql.contains("'O''Reilly'"), "single quote must be doubled: {sql}");
+        assert!(!sql.contains("'O'Reilly'"), "unescaped quote must not appear");
+    }
+
+    #[test]
+    fn test_stringagg_delimiter_injection_payload_neutralised() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let payload = "'; DROP TABLE users; --";
+        let sql = gen.generate_string_agg_sql("product_name", payload, None);
+        // After escaping, the payload single quote is doubled — no free semicolon outside a literal.
+        assert!(sql.contains("''"), "single quotes must be doubled: {sql}");
+        // Verify the SQL starts and ends as a valid STRING_AGG call (no injected statements).
+        assert!(sql.starts_with("STRING_AGG("), "must remain a STRING_AGG call: {sql}");
+    }
+
+    #[test]
+    fn test_stringagg_delimiter_mysql_backslash_and_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        // MySQL also escapes backslashes; a trailing backslash could consume the closing quote.
+        let sql = gen.generate_string_agg_sql("col", r"a\b", None);
+        assert!(sql.contains(r"a\\b"), "backslash must be doubled for MySQL: {sql}");
+    }
+
+    #[test]
+    fn test_stringagg_delimiter_mysql_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = gen.generate_string_agg_sql("col", "O'Reilly", None);
+        assert!(sql.contains("O''Reilly"), "single quote must be doubled for MySQL: {sql}");
+    }
+
+    #[test]
+    fn test_stringagg_delimiter_sqlite_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
+        let sql = gen.generate_string_agg_sql("col", "it's", None);
+        assert!(sql.contains("it''s"), "single quote must be doubled for SQLite: {sql}");
+    }
+
+    #[test]
+    fn test_stringagg_delimiter_sqlserver_single_quote_escaped() {
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+        let sql = gen.generate_string_agg_sql("col", "O'Reilly", None);
+        assert!(sql.contains("O''Reilly"), "single quote must be doubled for SQL Server: {sql}");
+    }
+
+    #[test]
+    fn test_stringagg_delimiter_clean_value_unchanged() {
+        // A safe delimiter should pass through unchanged.
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_string_agg_sql("product_name", ", ", None);
+        assert_eq!(sql, "STRING_AGG(product_name, ', ')");
     }
 }

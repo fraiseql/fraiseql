@@ -437,7 +437,7 @@ impl EloExpressionEvaluator {
                 .replace("\\r", "\r")
                 .replace("\\\"", "\"")
                 .replace("\\'", "'")
-                .replace("\x00", "\\"); // Restore literal backslash
+                .replace('\x00', "\\"); // Restore literal backslash
             return Ok(Value::String(unescaped));
         }
 

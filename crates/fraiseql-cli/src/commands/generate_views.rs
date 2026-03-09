@@ -14,6 +14,8 @@ use std::{fs, path::Path};
 use anyhow::{Context, Result};
 use fraiseql_core::schema::CompiledSchema;
 
+use crate::output::OutputFormatter;
+
 /// Refresh strategy for view updates
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefreshStrategy {
@@ -80,13 +82,13 @@ pub struct GenerateViewsConfig {
 /// - Entity doesn't exist in schema
 /// - View name validation fails
 /// - Output file can't be written
-pub fn run(config: GenerateViewsConfig) -> Result<()> {
+pub fn run(config: GenerateViewsConfig, formatter: &OutputFormatter) -> Result<()> {
     if config.verbose {
-        eprintln!("Generating views...");
-        eprintln!("   Schema: {}", config.schema_path);
-        eprintln!("   Entity: {}", config.entity);
-        eprintln!("   View: {}", config.view);
-        eprintln!("   Refresh strategy: {}", config.refresh_strategy);
+        formatter.progress("Generating views...");
+        formatter.progress(&format!("   Schema: {}", config.schema_path));
+        formatter.progress(&format!("   Entity: {}", config.entity));
+        formatter.progress(&format!("   View: {}", config.view));
+        formatter.progress(&format!("   Refresh strategy: {}", config.refresh_strategy));
     }
 
     // 1. Load schema
@@ -99,29 +101,29 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
 
     // 2. Parse compiled schema
     if config.verbose {
-        eprintln!("   ✓ Reading schema...");
+        formatter.progress("   ok: Reading schema...");
     }
     let schema = CompiledSchema::from_json(&schema_json).context("Failed to parse schema.json")?;
 
     // 3. Validate entity exists in schema
     if config.verbose {
-        eprintln!("   ✓ Validating entity...");
+        formatter.progress("   ok: Validating entity...");
     }
     let sql_source = resolve_entity_sql_source(&schema, &config.entity)?;
 
     // 4. Validate view name
     if config.verbose {
-        eprintln!("   ✓ Validating view name...");
+        formatter.progress("   ok: Validating view name...");
     }
     let view_type = validate_view_name(&config.view)?;
 
     if config.verbose {
-        eprintln!("   ✓ View type: {view_type}");
+        formatter.progress(&format!("   ok: View type: {view_type}"));
     }
 
     // 5. Generate SQL DDL
     if config.verbose {
-        eprintln!("   ✓ Generating SQL DDL...");
+        formatter.progress("   ok: Generating SQL DDL...");
     }
     let sql = generate_view_sql(
         &config.entity,
@@ -146,7 +148,7 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
 
     // 7. Write output
     if config.verbose {
-        eprintln!("   ✓ Writing output...");
+        formatter.progress("   ok: Writing output...");
     }
     let output_path = config.output.unwrap_or_else(|| format!("{}.sql", config.view));
 
@@ -169,9 +171,9 @@ pub fn run(config: GenerateViewsConfig) -> Result<()> {
     }
 
     if config.verbose {
-        eprintln!("\nGenerated SQL preview (first 5 lines):");
+        formatter.progress("\nGenerated SQL preview (first 5 lines):");
         for line in sql.lines().take(5) {
-            eprintln!("  {line}");
+            formatter.progress(&format!("  {line}"));
         }
     }
 

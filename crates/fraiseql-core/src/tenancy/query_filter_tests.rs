@@ -79,8 +79,8 @@ fn test_parameterized_query_mysql() {
     let filtered =
         format!("{} WHERE {} AND active = ?", base_query, tenant.where_clause_parameterized());
 
-    assert!(filtered.contains("?"));
-    assert_eq!(filtered.matches("?").count(), 2); // Two parameter placeholders
+    assert!(filtered.contains('?'));
+    assert_eq!(filtered.matches('?').count(), 2); // Two parameter placeholders
 }
 
 // ============================================================================

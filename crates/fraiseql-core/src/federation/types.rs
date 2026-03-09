@@ -88,11 +88,11 @@ impl FieldFederationDirectives {
     }
 }
 
-/// Field path selection for @requires/@provides (e.g., ["profile", "age"] for "profile.age")
+/// Field path selection for @requires/@provides (e.g., `["profile", "age"]` for "profile.age")
 /// Note: This is distinct from selection_parser::FieldSelection which represents requested fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FieldPathSelection {
-    /// Path components: ["profile", "age"] for "profile.age"
+    /// Path components: `["profile", "age"]` for "profile.age"
     pub path: Vec<String>,
 
     /// The type this field belongs to (for context)
@@ -212,7 +212,7 @@ impl EntityRepresentation {
 
         // Convert object to HashMap for easier access
         let mut all_fields = HashMap::new();
-        for (key, val) in obj.iter() {
+        for (key, val) in obj {
             all_fields.insert(key.clone(), val.clone());
         }
 

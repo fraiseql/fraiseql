@@ -155,6 +155,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// SQL for "array contains this element".
     ///
     /// Default: returns `Err(UnsupportedOperator)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support array containment.
     fn array_contains_sql(
         &self,
         _lhs: &str,
@@ -164,6 +168,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// SQL for "element is contained by array".
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support array containment.
     fn array_contained_by_sql(
         &self,
         _lhs: &str,
@@ -173,6 +181,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// SQL for "arrays overlap".
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support array overlap.
     fn array_overlaps_sql(
         &self,
         _lhs: &str,
@@ -184,6 +196,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     // ── Full-text search (returns Err if not supported) ────────────────────────
 
     /// SQL for `to_tsvector(expr) @@ to_tsquery(param)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support full-text search.
     fn fts_matches_sql(
         &self,
         _expr: &str,
@@ -193,6 +209,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// SQL for plain-text full-text search.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support plain-text FTS.
     fn fts_plain_query_sql(
         &self,
         _expr: &str,
@@ -202,6 +222,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// SQL for phrase full-text search.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support phrase FTS.
     fn fts_phrase_query_sql(
         &self,
         _expr: &str,
@@ -211,6 +235,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// SQL for web-search full-text search.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support web-search FTS.
     fn fts_websearch_query_sql(
         &self,
         _expr: &str,
@@ -226,6 +254,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Default: returns `Err(UnsupportedOperator)`.
     /// PostgreSQL overrides with `~`, `~*`, `!~`, `!~*`.
     /// MySQL overrides with `REGEXP` / `NOT REGEXP`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support regex matching.
     fn regex_sql(
         &self,
         _lhs: &str,
@@ -245,6 +277,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     ///
     /// `pg_op` is one of `<=>`, `<->`, `<+>`, `<~>`, `<#>`.
     /// `lhs` / `rhs` are the field expression and the placeholder string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support vector distance.
     fn vector_distance_sql(
         &self,
         _pg_op: &str,
@@ -255,6 +291,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// Generate SQL for Jaccard distance (`::text[] <%> ::text[]`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support Jaccard distance.
     fn jaccard_distance_sql(
         &self,
         _lhs: &str,
@@ -266,6 +306,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Generate SQL for an INET unary check (IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback).
     ///
     /// `check_name` identifies the operator (passed to `UnsupportedOperator` on failure).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support INET checks.
     fn inet_check_sql(
         &self,
         _lhs: &str,
@@ -277,6 +321,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Generate SQL for an INET binary operation (InSubnet, ContainsSubnet, ContainsIP, Overlaps).
     ///
     /// `pg_op` is one of `<<`, `>>`, `&&`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support INET binary operations.
     fn inet_binary_sql(
         &self,
         _pg_op: &str,
@@ -290,6 +338,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     ///
     /// `pg_op` is one of `@>`, `<@`, `~`, `@`.
     /// `rhs_type` is the cast type for `rhs` (e.g., `"ltree"`, `"lquery"`, `"ltxtquery"`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support LTree operations.
     fn ltree_binary_sql(
         &self,
         _pg_op: &str,
@@ -304,6 +356,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     ///
     /// `placeholders` contains pre-formatted placeholder strings
     /// (e.g., `["$1::lquery", "$2::lquery"]`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support LTree lquery arrays.
     fn ltree_any_lquery_sql(
         &self,
         _lhs: &str,
@@ -313,6 +369,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     }
 
     /// Generate SQL for `nlevel(ltree) OP param` (depth comparison operators).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support LTree depth comparisons.
     fn ltree_depth_sql(
         &self,
         _op: &str,
@@ -326,6 +386,10 @@ pub trait SqlDialect: Send + Sync + 'static {
     ///
     /// `placeholders` contains pre-formatted placeholder strings
     /// (e.g., `["$1::ltree", "$2::ltree"]`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support LTree LCA.
     fn ltree_lca_sql(
         &self,
         _lhs: &str,
