@@ -20,7 +20,9 @@ load-tests/
 ## File Purposes
 
 ### config.js
+
 **Shared configuration and utilities**
+
 - Environment-based endpoint configuration
 - GraphQL request execution helpers
 - APQ (Automatic Persisted Query) support
@@ -29,7 +31,9 @@ load-tests/
 - Helper functions for common operations
 
 ### thresholds.js
+
 **Performance baseline definitions**
+
 - `defaultThresholds`: p50<10ms, p95<50ms, p99<200ms (queries)
 - `mutationThresholds`: Relaxed for write operations
 - `tightThresholds`: p50<5ms (authentication)
@@ -37,12 +41,15 @@ load-tests/
 - `apqThresholds`: Cache hit/miss tracking
 
 **Functions:**
+
 - `combineThresholds()`: Merge multiple threshold sets
 - `getThresholdsForTest()`: Select thresholds by test type
 - `createScenarioThresholds()`: Custom scenario thresholds
 
 ### graphql-queries.js
+
 **Read-heavy workload testing**
+
 - **Purpose**: Validate query performance and throughput
 - **Query Types**: simple (5ms), nested (10ms), complex (20ms), list
 - **Scenarios**:
@@ -51,7 +58,9 @@ load-tests/
 - **Metrics Focus**: Query parse/execute time, caching
 
 ### graphql-mutations.js
+
 **Write operation stress testing**
+
 - **Purpose**: Validate mutation throughput and database write performance
 - **Operations**: Create (40%), Update (40%), Delete (20%)
 - **Scenarios**:
@@ -60,7 +69,9 @@ load-tests/
 - **Metrics Focus**: Write latency, database transaction time
 
 ### mixed-workload.js
+
 **Realistic production traffic pattern**
+
 - **Purpose**: Validate system under realistic conditions
 - **Traffic Distribution**:
   - 80% Queries (reads)
@@ -72,7 +83,9 @@ load-tests/
 - **Metrics Focus**: Overall system behavior, scaling
 
 ### auth-flow.js
+
 **Authentication endpoint stress testing**
+
 - **Purpose**: Validate auth security and rate limiting
 - **Operations**:
   - 60% Session validation (cheapest)
@@ -85,7 +98,9 @@ load-tests/
 - **Metrics Focus**: Login latency, rate limit effectiveness
 
 ### apq-cache.js
+
 **Automatic Persisted Query cache effectiveness**
+
 - **Purpose**: Validate APQ implementation and bandwidth savings
 - **Query Distribution**: Weighted by frequency (40%, 35%, 20%, 5%)
 - **Scenarios**:
@@ -98,16 +113,19 @@ load-tests/
 ## Usage Quick Reference
 
 ### Run a single scenario
+
 ```bash
 k6 run load-tests/k6/scenarios/mixed-workload.js
 ```
 
 ### Run with custom endpoint
+
 ```bash
 ENDPOINT=http://localhost:8000/graphql k6 run load-tests/k6/scenarios/mixed-workload.js
 ```
 
 ### Run with authentication
+
 ```bash
 ENDPOINT=https://api.example.com/graphql \
 AUTH_TOKEN=eyJhbGc... \
@@ -115,6 +133,7 @@ k6 run load-tests/k6/scenarios/mixed-workload.js
 ```
 
 ### Output results as JSON for analysis
+
 ```bash
 k6 run \
   --out json=results.json \
@@ -122,6 +141,7 @@ k6 run \
 ```
 
 ### Run on Docker
+
 ```bash
 docker run -v $(pwd):/load-tests grafana/k6 run /load-tests/k6/scenarios/mixed-workload.js
 ```
@@ -131,26 +151,31 @@ docker run -v $(pwd):/load-tests grafana/k6 run /load-tests/k6/scenarios/mixed-w
 ### Recommended Test Order
 
 1. **Authentication** - Establish auth baseline
+
    ```bash
    k6 run load-tests/k6/scenarios/auth-flow.js
    ```
 
 2. **Queries** - Establish read baseline
+
    ```bash
    k6 run load-tests/k6/scenarios/graphql-queries.js
    ```
 
 3. **Mutations** - Establish write baseline
+
    ```bash
    k6 run load-tests/k6/scenarios/graphql-mutations.js
    ```
 
 4. **Mixed Workload** - Realistic scenario
+
    ```bash
    k6 run load-tests/k6/scenarios/mixed-workload.js
    ```
 
 5. **APQ Cache** - Optimization validation
+
    ```bash
    k6 run load-tests/k6/scenarios/apq-cache.js
    ```
@@ -171,11 +196,13 @@ docker run -v $(pwd):/load-tests grafana/k6 run /load-tests/k6/scenarios/mixed-w
 ## Key Features
 
 ### Configuration Management
+
 - Environment-based endpoint and auth token
 - Per-scenario threshold customization
 - Threshold presets for different test types
 
 ### Test Utilities
+
 - GraphQL request execution
 - APQ protocol support
 - Response validation
@@ -183,6 +210,7 @@ docker run -v $(pwd):/load-tests grafana/k6 run /load-tests/k6/scenarios/mixed-w
 - Timing extraction and analysis
 
 ### Scenario Coverage
+
 - Read-heavy workloads
 - Write-heavy workloads
 - Mixed realistic traffic
@@ -190,6 +218,7 @@ docker run -v $(pwd):/load-tests grafana/k6 run /load-tests/k6/scenarios/mixed-w
 - Cache effectiveness
 
 ### Metrics Tracking
+
 - Latency percentiles (p50, p95, p99)
 - Error rates and types
 - Throughput (rps)
@@ -199,7 +228,9 @@ docker run -v $(pwd):/load-tests grafana/k6 run /load-tests/k6/scenarios/mixed-w
 ## Integration Points
 
 ### Shared Configuration
+
 All scenarios import from `config.js`:
+
 ```javascript
 import {
   getEndpoint,
@@ -210,14 +241,18 @@ import {
 ```
 
 ### Threshold Selection
+
 All scenarios use `thresholds.js`:
+
 ```javascript
 import { defaultThresholds } from "../thresholds.js";
 export const options = { thresholds: defaultThresholds };
 ```
 
 ### Result Tracking
+
 Test setup/teardown functions log results:
+
 ```javascript
 export function setup() { /* logging */ }
 export function teardown(data) { /* results */ }

@@ -1,6 +1,6 @@
 [dependencies]
 # Encryption
-aes-gcm = { version = "0.10", features = ["zeroize"] }
+aes-gcm = {version = "0.10", features = ["zeroize"]}
 async-trait = "0.1"
 base64 = "0.22"
 chrono = {version = "0.4", features = ["serde"]}
@@ -23,8 +23,8 @@ tokio-test = "0.4"
 workspace = true
 
 [package]
-name = "fraiseql-secrets"
 description = "Secrets management and field-level encryption for FraiseQL"
+name = "fraiseql-secrets"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true
