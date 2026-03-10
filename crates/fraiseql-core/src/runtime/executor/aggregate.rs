@@ -208,8 +208,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_generator = super::super::WindowSqlGenerator::new(self.adapter.database_type());
         let sql = sql_generator.generate(&plan)?;
 
-        // 4. Execute SQL
-        let rows = self.adapter.execute_raw_query(&sql.raw_sql).await?;
+        // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so
+        //    WHERE clause values are passed as prepared-statement parameters, not inlined.
+        let rows = self
+            .adapter
+            .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)
+            .await?;
 
         // 5. Project results
         let projected = super::super::WindowProjector::project(rows, &plan)?;

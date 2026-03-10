@@ -37,6 +37,7 @@ use crate::error::Result;
 /// # }
 /// ```
 // Reason: used as dyn Trait (Arc<dyn StateStore>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait StateStore: Send + Sync {
     /// Store a state value with provider and expiration
@@ -124,6 +125,7 @@ impl Default for InMemoryStateStore {
 
 // Reason: StateStore is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl StateStore for InMemoryStateStore {
     async fn store(&self, state: String, provider: String, expiry_secs: u64) -> Result<()> {
@@ -198,6 +200,7 @@ impl RedisStateStore {
 #[cfg(feature = "redis-rate-limiting")]
 // Reason: StateStore is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl StateStore for RedisStateStore {
     async fn store(&self, state: String, provider: String, expiry_secs: u64) -> Result<()> {

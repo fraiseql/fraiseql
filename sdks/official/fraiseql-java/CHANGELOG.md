@@ -99,9 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- `INSTALL.md`: Installation and quick start guide
-- `API_GUIDE.md`: Complete API reference and examples
-- `EXAMPLES.md`: Real-world usage examples
+- `install.md`: Installation and quick start guide
+- `api-guide.md`: Complete API reference and examples
+- `examples.md`: Real-world usage examples
 - JavaDoc comments on all public classes and methods
 
 ### Test Coverage
@@ -139,9 +139,9 @@ fraiseql-java/
 │   ├── BasicSchema.java
 │   └── EcommerceSchema.java
 ├── pom.xml
-├── INSTALL.md
-├── API_GUIDE.md
-├── EXAMPLES.md
+├── install.md
+├── api-guide.md
+├── examples.md
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 └── README.md

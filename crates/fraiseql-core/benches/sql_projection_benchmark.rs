@@ -42,9 +42,7 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_core::{
     db::{
-        projection_generator::{
-            MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
-        },
+        MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
         types::JsonbValue,
     },
     runtime::ResultProjector,

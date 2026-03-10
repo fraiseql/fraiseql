@@ -80,6 +80,7 @@ pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
 /// - Emit errors via stream, not panic
 /// - ACK messages only after successful processing (at-least-once semantics)
 // Reason: designed for use as dyn Trait (Arc<dyn EventTransport>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait EventTransport: Send + Sync {
     /// Subscribe to events matching filter (returns async stream)

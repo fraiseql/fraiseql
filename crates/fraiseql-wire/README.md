@@ -258,7 +258,7 @@ Possible error sources include:
 
 Fatal errors terminate the stream.
 
-For detailed error diagnosis, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+For detailed error diagnosis, see [troubleshooting.md](troubleshooting.md).
 
 ---
 
@@ -290,7 +290,7 @@ fraiseql-wire uses **O(chunk_size)** memory while traditional drivers use **O(re
 | Throughput | 100K-500K rows/sec | 100K-500K rows/sec |
 | Time-to-first-row | 2-5 ms | 2-5 ms |
 
-**For detailed performance analysis**, see [PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md) and [benches/COMPARISON_GUIDE.md](benches/COMPARISON_GUIDE.md).
+**For detailed performance analysis**, see [performance-tuning.md](performance-tuning.md) and [benches/comparison-guide.md](benches/comparison-guide.md).
 
 ---
 
@@ -451,23 +451,23 @@ All core features implemented with comprehensive CI validation:
 
 | Document | Purpose |
 |----------|---------|
-| [TESTING_GUIDE.md](TESTING_GUIDE.md) | Running tests locally and in CI; release process |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Error diagnosis and common issues |
-| [PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md) | Tuning for production workloads |
-| [BENCHMARKING.md](BENCHMARKING.md) | How to run and interpret benchmarks |
-| [ADVANCED_FILTERING.md](ADVANCED_FILTERING.md) | Complex WHERE clause patterns |
-| [TYPED_STREAMING_GUIDE.md](TYPED_STREAMING_GUIDE.md) | Type-safe streaming setup |
-| [CONNECTION_POOLING.md](CONNECTION_POOLING.md) | Pool configuration and tuning |
-| [METRICS.md](METRICS.md) | All exposed Prometheus metrics |
-| [SECURITY_AUDIT.md](SECURITY_AUDIT.md) | Security assessment and findings |
-| [POSTGRES_COMPATIBILITY.md](POSTGRES_COMPATIBILITY.md) | PostgreSQL version compatibility |
+| [testing-guide.md](testing-guide.md) | Running tests locally and in CI; release process |
+| [troubleshooting.md](troubleshooting.md) | Error diagnosis and common issues |
+| [performance-tuning.md](performance-tuning.md) | Tuning for production workloads |
+| [benchmarking.md](benchmarking.md) | How to run and interpret benchmarks |
+| [advanced-filtering.md](advanced-filtering.md) | Complex WHERE clause patterns |
+| [typed-streaming-guide.md](typed-streaming-guide.md) | Type-safe streaming setup |
+| [connection-pooling.md](connection-pooling.md) | Pool configuration and tuning |
+| [metrics.md](metrics.md) | All exposed Prometheus metrics |
+| [security-audit.md](security-audit.md) | Security assessment and findings |
+| [postgres-compatibility.md](postgres-compatibility.md) | PostgreSQL version compatibility |
 | [SECURITY.md](SECURITY.md) | Security best practices and deployment hardening |
-| [DOCKER_SETUP.md](DOCKER_SETUP.md) | Docker development environment setup |
+| [docker-setup.md](docker-setup.md) | Docker development environment setup |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflows and contribution guidelines |
-| [docs/OPERATORS.md](docs/OPERATORS.md) | WHERE clause operator reference |
-| [docs/COLLATION.md](docs/COLLATION.md) | Sorting and collation reference |
-| [benches/COMPARISON_GUIDE.md](benches/COMPARISON_GUIDE.md) | Benchmark comparison guide |
-| [.github/PUBLISHING.md](.github/PUBLISHING.md) | crates.io publishing workflow |
+| [docs/operators.md](docs/operators.md) | WHERE clause operator reference |
+| [docs/collation.md](docs/collation.md) | Sorting and collation reference |
+| [benches/comparison-guide.md](benches/comparison-guide.md) | Benchmark comparison guide |
+| [.github/publishing.md](.github/publishing.md) | crates.io publishing workflow |
 
 ### Examples
 

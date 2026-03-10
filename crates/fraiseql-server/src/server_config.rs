@@ -342,10 +342,12 @@ pub struct ServerConfig {
     #[serde(default)]
     pub observers: Option<ObserverConfig>,
 
-    /// Adaptive connection pool auto-tuning configuration.
+    /// Connection pool pressure monitoring configuration.
     ///
     /// When `enabled = true`, the server spawns a background task that monitors
-    /// pool metrics and recommends (or applies) connection count adjustments.
+    /// pool metrics and emits scaling recommendations via Prometheus metrics and
+    /// log lines. **The pool is not resized at runtime** — act on
+    /// `fraiseql_pool_tuning_*` events by adjusting `max_connections` and restarting.
     ///
     /// # Example (TOML)
     ///
@@ -357,7 +359,7 @@ pub struct ServerConfig {
     /// tuning_interval_ms = 30000
     /// ```
     #[serde(default)]
-    pub pool_tuning: Option<crate::config::pool_tuning::PoolTuningConfig>,
+    pub pool_tuning: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,
 
     /// Admission control configuration.
     ///
@@ -520,7 +522,7 @@ impl Default for ServerConfig {
             rate_limiting: None, // Rate limiting uses defaults
             #[cfg(feature = "observers")]
             observers: None, // Observers disabled by default
-            pool_tuning: None,  // Pool auto-tuning disabled by default
+            pool_tuning: None,  // Pool pressure monitoring disabled by default
             admission_control: None, // Admission control disabled by default
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
         }

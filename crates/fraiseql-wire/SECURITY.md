@@ -46,7 +46,7 @@ let client = FraiseClient::connect("postgres:///mydb").await?;
 **Permanent Solution**:
 
 - TLS support will be added in future release
-- Watch ROADMAP.md for implementation status
+- Watch roadmap.md for implementation status
 
 ⚠️ **Do NOT** use fraiseql-wire with TCP connections in production until TLS is implemented.
 
@@ -347,8 +347,8 @@ Email: [maintainers@fraiseql.dev] (placeholder - update with real address)
 
 ## Further Reading
 
-- **SECURITY_AUDIT.md** - Detailed security audit findings
-- **ROADMAP.md** - Future security features (TLS, SCRAM, query timeouts)
+- **security-audit.md** - Detailed security audit findings
+- **roadmap.md** - Future security features (TLS, SCRAM, query timeouts)
 - **Postgres Security** - <https://www.postgresql.org/docs/current/sql-syntax.html>
 
 ---
@@ -358,6 +358,6 @@ Email: [maintainers@fraiseql.dev] (placeholder - update with real address)
 If you have security questions:
 
 1. Check this document first
-2. Review SECURITY_AUDIT.md for detailed findings
+2. Review security-audit.md for detailed findings
 3. Check GitHub Discussions
 4. Email maintainers for sensitive questions

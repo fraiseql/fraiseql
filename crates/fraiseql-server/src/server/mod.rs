@@ -103,6 +103,6 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "mcp")]
     pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,
 
-    /// Pool auto-tuning configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
-    pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolTuningConfig>,
+    /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
+    pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,
 }

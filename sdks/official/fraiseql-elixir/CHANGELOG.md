@@ -26,6 +26,6 @@
 
 ### Removed
 
-- `DEPRECATED.md` — no longer relevant
-- `ELIXIR_FEATURE_PARITY.md` — no longer relevant
+- `deprecated.md` — no longer relevant
+- `elixir-feature-parity.md` — no longer relevant
 - `test/fraiseql/scope_extraction_test.exs` — superseded by new test suite

@@ -22,6 +22,7 @@ use crate::{
 /// - Protected abstract methods (do_encrypt, do_decrypt, etc.) are implemented by concrete
 ///   providers
 // Reason: used as dyn Trait (Arc<dyn BaseKmsProvider>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait BaseKmsProvider: Send + Sync {
     /// Unique provider identifier (e.g., 'vault', 'aws', 'gcp').

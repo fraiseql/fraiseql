@@ -35,6 +35,7 @@ use serde_json::json;
 
     // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
     // its transformed method signatures to satisfy the trait contract
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for MockAdapter {
         async fn execute_with_projection(
@@ -1145,6 +1146,7 @@ use serde_json::json;
 
     // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
     // its transformed method signatures to satisfy the trait contract
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for BumpAdapter {
         async fn execute_where_query(

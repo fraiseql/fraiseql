@@ -411,6 +411,7 @@ pub mod mocks {
     // Reason: CheckpointStore is defined with #[async_trait]; all implementations must match
     // its transformed method signatures to satisfy the trait contract
     #[cfg(feature = "checkpoint")]
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl crate::checkpoint::CheckpointStore for MockCheckpointStore {
         async fn load(

@@ -11,36 +11,36 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
    - Learn about each Phase 8 feature
    - See how features work together
 
-2. **Ready to set up?** Follow: [Configuration Examples](CONFIGURATION_EXAMPLES.md)
+2. **Ready to set up?** Follow: [Configuration Examples](configuration-examples.md)
    - Choose your configuration profile (Production, Development, etc.)
    - Copy-paste ready code examples
    - Understand tuning parameters
 
-3. **Need help?** Check: [Troubleshooting Guide](TROUBLESHOOTING.md)
+3. **Need help?** Check: [Troubleshooting Guide](troubleshooting.md)
    - Common issues and solutions
    - Diagnostic procedures
    - Performance troubleshooting
 
 ### For Operations
 
-1. **Monitoring & Debugging** → [CLI Tools](CLI_TOOLS.md)
+1. **Monitoring & Debugging** → [CLI Tools](cli-tools.md)
    - Check system status: `fraiseql-observers status`
    - Debug events: `fraiseql-observers debug-event`
    - Manage failures: `fraiseql-observers dlq list`
 
-2. **Performance Issues** → [Performance Tuning Guide](PERFORMANCE_TUNING.md)
+2. **Performance Issues** → [Performance Tuning Guide](performance-tuning.md)
    - Identify bottlenecks
    - Apply optimizations
    - Benchmark improvements
 
-3. **Production Deployment** → [Migration Guide](MIGRATION_GUIDE.md)
+3. **Production Deployment** → [Migration Guide](migration-guide.md)
    - Gradual rollout strategies
    - Rollback procedures
    - Testing at each phase
 
 ### For Developers
 
-1. **Integration** → [Integration Guide](INTEGRATION_GUIDE.md)
+1. **Integration** → [Integration Guide](integration-guide.md)
    - Step-by-step feature integration
    - Code examples for each Phase 8 feature
    - Testing procedures
@@ -59,12 +59,12 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
 | Document | Purpose | Audience | Length |
 |----------|---------|----------|--------|
 | **[Architecture Overview](../../../../docs/architecture/overview.md)** | Understand Phase 8 design, features, and patterns | Everyone | 23 KB |
-| **[Configuration Examples](CONFIGURATION_EXAMPLES.md)** | Real-world configs for different scenarios | Operators, DevOps | 18 KB |
-| **[Integration Guide](INTEGRATION_GUIDE.md)** | Step-by-step feature integration | Developers | 22 KB |
-| **[CLI Tools](CLI_TOOLS.md)** | Command reference and workflows | Operators | 16 KB |
-| **[Troubleshooting](TROUBLESHOOTING.md)** | Problem diagnosis and solutions | Operators, Support | 18 KB |
-| **[Performance Tuning](PERFORMANCE_TUNING.md)** | Optimization strategies and benchmarking | DevOps, Developers | 13 KB |
-| **[Migration Guide](MIGRATION_GUIDE.md)** | Safe Phase 1-7 → Phase 8 migration | Operators, Tech Leads | 15 KB |
+| **[Configuration Examples](configuration-examples.md)** | Real-world configs for different scenarios | Operators, DevOps | 18 KB |
+| **[Integration Guide](integration-guide.md)** | Step-by-step feature integration | Developers | 22 KB |
+| **[CLI Tools](cli-tools.md)** | Command reference and workflows | Operators | 16 KB |
+| **[Troubleshooting](troubleshooting.md)** | Problem diagnosis and solutions | Operators, Support | 18 KB |
+| **[Performance Tuning](performance-tuning.md)** | Optimization strategies and benchmarking | DevOps, Developers | 13 KB |
+| **[Migration Guide](migration-guide.md)** | Safe Phase 1-7 → Phase 8 migration | Operators, Tech Leads | 15 KB |
 
 **Total Documentation**: 125 KB of comprehensive guides
 
@@ -124,8 +124,8 @@ For Production → All (recommended)
 **Steps**:
 
 1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.1](INTEGRATION_GUIDE.md#phase-81-persistent-checkpoints)
-3. Configure: [Configuration Examples](CONFIGURATION_EXAMPLES.md#production-setup)
+2. Follow: [Integration Guide - 8.1](integration-guide.md#phase-81-persistent-checkpoints)
+3. Configure: [Configuration Examples](configuration-examples.md#production-setup)
 
 **Expected Result**: Zero events lost on restart
 
@@ -140,8 +140,8 @@ For Production → All (recommended)
 **Steps**:
 
 1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.2](INTEGRATION_GUIDE.md#phase-82-concurrent-action-execution)
-3. Benchmark: [Performance Tuning](PERFORMANCE_TUNING.md)
+2. Follow: [Integration Guide - 8.2](integration-guide.md#phase-82-concurrent-action-execution)
+3. Benchmark: [Performance Tuning](performance-tuning.md)
 
 **Expected Result**: 3-5x latency improvement
 
@@ -156,8 +156,8 @@ For Production → All (recommended)
 **Steps**:
 
 1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.3](INTEGRATION_GUIDE.md#phase-83-event-deduplication)
-3. Monitor: [CLI Tools - DLQ](CLI_TOOLS.md#3-dlq-commands)
+2. Follow: [Integration Guide - 8.3](integration-guide.md#phase-83-event-deduplication)
+3. Monitor: [CLI Tools - DLQ](cli-tools.md#3-dlq-commands)
 
 **Expected Result**: No duplicate side effects
 
@@ -171,7 +171,7 @@ For Production → All (recommended)
 
 1. Enable caching for 100x cache hits
 2. Enable concurrent execution for parallelism
-3. Optimize configuration with [Performance Tuning](PERFORMANCE_TUNING.md)
+3. Optimize configuration with [Performance Tuning](performance-tuning.md)
 
 **Expected Result**: 10-100x overall improvement
 
@@ -189,7 +189,7 @@ For Production → All (recommended)
 2. View DLQ: `fraiseql-observers dlq stats`
 3. Debug event: `fraiseql-observers debug-event --event-id evt-123`
 4. View metrics: `fraiseql-observers metrics`
-5. Read: [Troubleshooting Guide](TROUBLESHOOTING.md)
+5. Read: [Troubleshooting Guide](troubleshooting.md)
 
 **Expected Result**: Complete visibility into system state
 
@@ -204,8 +204,8 @@ For Production → All (recommended)
 **Steps**:
 
 1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.8](INTEGRATION_GUIDE.md#phase-88-circuit-breaker)
-3. Configure: Circuit breaker thresholds in [Configuration Examples](CONFIGURATION_EXAMPLES.md)
+2. Follow: [Integration Guide - 8.8](integration-guide.md#phase-88-circuit-breaker)
+3. Configure: Circuit breaker thresholds in [Configuration Examples](configuration-examples.md)
 
 **Expected Result**: Fast-fail instead of cascading failures
 
@@ -215,7 +215,7 @@ For Production → All (recommended)
 
 **Issue**: Uncertain about migration path
 
-**Solution**: Follow [Migration Guide](MIGRATION_GUIDE.md)
+**Solution**: Follow [Migration Guide](migration-guide.md)
 
 **Key Points**:
 
@@ -339,12 +339,12 @@ Results + Dead Letter Queue (for failures)
 **Need to...** → **Read...**
 
 - Understand the system → [Architecture Overview](../../../../docs/architecture/overview.md)
-- Set up for your scenario → [Configuration Examples](CONFIGURATION_EXAMPLES.md)
-- Fix a problem → [Troubleshooting Guide](TROUBLESHOOTING.md)
-- Monitor/debug → [CLI Tools](CLI_TOOLS.md)
-- Make it faster → [Performance Tuning](PERFORMANCE_TUNING.md)
-- Migrate safely → [Migration Guide](MIGRATION_GUIDE.md)
-- Integrate a feature → [Integration Guide](INTEGRATION_GUIDE.md)
+- Set up for your scenario → [Configuration Examples](configuration-examples.md)
+- Fix a problem → [Troubleshooting Guide](troubleshooting.md)
+- Monitor/debug → [CLI Tools](cli-tools.md)
+- Make it faster → [Performance Tuning](performance-tuning.md)
+- Migrate safely → [Migration Guide](migration-guide.md)
+- Integrate a feature → [Integration Guide](integration-guide.md)
 
 ### Support Path
 
@@ -382,9 +382,9 @@ All documentation includes:
 ## Next Steps
 
 1. **New to the system?** Start with [Architecture Overview](../../../../docs/architecture/overview.md)
-2. **Setting up?** Use [Configuration Examples](CONFIGURATION_EXAMPLES.md)
-3. **Running into issues?** Check [Troubleshooting Guide](TROUBLESHOOTING.md)
-4. **Operating in production?** Use [CLI Tools](CLI_TOOLS.md) and set up [Performance Tuning](PERFORMANCE_TUNING.md)
+2. **Setting up?** Use [Configuration Examples](configuration-examples.md)
+3. **Running into issues?** Check [Troubleshooting Guide](troubleshooting.md)
+4. **Operating in production?** Use [CLI Tools](cli-tools.md) and set up [Performance Tuning](performance-tuning.md)
 
 ---
 

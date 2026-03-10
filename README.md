@@ -150,8 +150,8 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 
 - [Getting Started](docs/guides/getting-started.md) -- 5-minute quick start
 - [Architecture Documentation](docs/architecture/README.md) -- System design, compiler internals, security model
-- [Value Proposition](docs/VALUE_PROPOSITION.md) -- What FraiseQL does and does not do
-- [Roadmap](ROADMAP.md) -- Prioritized next steps
+- [Value Proposition](docs/value-proposition.md) -- What FraiseQL does and does not do
+- [Roadmap](roadmap.md) -- Prioritized next steps
 - [Changelog](CHANGELOG.md) -- User-facing changes per version
 - [SLA/SLO Targets](docs/sla.md) -- Availability and latency objectives
 - [Operational Runbooks](docs/runbooks/) -- Incident response procedures

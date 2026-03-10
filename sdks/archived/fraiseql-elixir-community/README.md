@@ -203,7 +203,7 @@ fraiseql-elixir/
 │       └── security_test.exs       # 44 comprehensive tests
 ├── mix.exs                         # Mix configuration
 ├── README.md                       # This file
-└── ELIXIR_FEATURE_PARITY.md        # Feature parity status
+└── elixir-feature-parity.md        # Feature parity status
 ```
 
 ## API Documentation
@@ -347,7 +347,7 @@ end
 
 ## Documentation
 
-- [ELIXIR_FEATURE_PARITY.md](./ELIXIR_FEATURE_PARITY.md) - Feature parity status
+- [elixir-feature-parity.md](./elixir-feature-parity.md) - Feature parity status
 - [Elixir Documentation](https://elixir-lang.org/)
 - [Mix Build Tool](https://hexdocs.pm/mix/)
 - [ExUnit Testing](https://hexdocs.pm/ex_unit/)

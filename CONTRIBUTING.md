@@ -263,6 +263,32 @@ All code must pass Clippy with no warnings:
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
+### New async traits
+
+New traits used as `dyn Trait` (object-safe, heap-allocated dispatch) **must** use
+`#[async_trait]` with the RFC 3425 tracking comment:
+
+```rust
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+pub trait MyTrait: Send + Sync {
+    async fn my_method(&self) -> Result<()>;
+}
+```
+
+New traits used only as `impl Trait` or `T: MyTrait` bounds **must not** use
+`#[async_trait]` — use RPITIT (return-position `impl Trait` in trait) instead:
+
+```rust
+pub trait MyStaticTrait {
+    async fn my_method(&self) -> Result<()>;  // RPITIT, no #[async_trait]
+}
+```
+
+The `make lint-async-trait` CI gate counts `#[async_trait]` usages and fails if the
+count grows above the Phase 0 baseline. When RTN + Send stabilises in Rust, all
+`#[async_trait]` usages will be migrated and the gate removed.
+
 ---
 
 ## Testing
@@ -306,13 +332,33 @@ git commit -m "test(sql): update SQL snapshots after compiler change"
 **Important**: Review every changed snapshot to verify the new SQL is correct,
 not just different.
 
-### Coverage
+### Code Coverage
 
-We aim for **85%+ test coverage**:
+Per-crate coverage floors are enforced in CI:
+
+| Crate | Floor | Rationale |
+|-------|-------|-----------|
+| `fraiseql-core` | 65% | SQL generation, RLS enforcement, field masking |
+| `fraiseql-db` | 65% | Dialect SQL output, injection escaping |
+| `fraiseql-auth` | 80% | Authentication paths |
+| `fraiseql-secrets` | 80% | Encryption, key management |
+| Workspace | 70% | Baseline floor |
+
+Floors are regression guards, not targets — aim for the highest coverage the code naturally
+supports, not just the minimum. When adding new code:
+
+- New public functions should have at least one test covering the success path.
+- Error branches should be tested where the error is actionable by a caller.
+
+To check coverage locally:
 
 ```bash
-make coverage
-# View report at target/llvm-cov/html/index.html
+# Per-crate HTML report
+cargo llvm-cov -p fraiseql-core --html
+open target/llvm-cov/html/index.html
+
+# Workspace summary
+cargo llvm-cov --workspace --summary-only
 ```
 
 ---

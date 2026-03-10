@@ -311,5 +311,5 @@ docker exec <service> env | grep DATABASE_URL
 ## Documentation
 
 - [Federation Guide](../../docs/FEDERATION.md) - Complete guide
-- [Deployment Guide](../../docs/FEDERATION_DEPLOYMENT.md) - Production setup
+- [Deployment Guide](../../docs/FEDERATION_deployment.md) - Production setup
 - [Performance Guide](../../docs/PERFORMANCE.md) - Optimization tips

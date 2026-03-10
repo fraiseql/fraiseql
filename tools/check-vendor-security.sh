@@ -4,7 +4,7 @@
 # Alerts when the vendored graphql-parser diverges from the upstream crates.io version.
 # Run as part of `make security` to catch upstream security fixes.
 #
-# See vendor/MAINTENANCE.md for the full maintenance protocol.
+# See vendor/maintenance.md for the full maintenance protocol.
 set -euo pipefail
 
 VENDORED_TOML="${BASH_SOURCE[0]%/*}/../vendor/graphql-parser/Cargo.toml"
@@ -32,7 +32,7 @@ else
     echo "         Upstream changelog: https://github.com/graphql-rust/graphql-parser/blob/master/CHANGELOG.md"
     echo "         Upstream releases:  https://github.com/graphql-rust/graphql-parser/releases"
     echo ""
-    echo "         If this is only a feature release (not a security fix), update vendor/MAINTENANCE.md"
+    echo "         If this is only a feature release (not a security fix), update vendor/maintenance.md"
     echo "         to document the version gap. If it is a security fix, port it immediately."
     echo ""
     # Non-zero exit to surface the warning in CI; treat as advisory (not hard failure)

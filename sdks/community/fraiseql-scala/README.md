@@ -211,7 +211,7 @@ fraiseql-scala/
 │       └── SecuritySpec.scala           # 44 comprehensive tests
 ├── build.sbt                            # SBT manifest
 ├── README.md                            # This file
-└── SCALA_FEATURE_PARITY.md             # Feature parity status
+└── scala-feature-parity.md             # Feature parity status
 ```
 
 ## API Documentation
@@ -291,7 +291,7 @@ new AuthzPolicyBuilder(name: String)
 
 ## Documentation
 
-- [SCALA_FEATURE_PARITY.md](./SCALA_FEATURE_PARITY.md) - Complete feature parity status
+- [scala-feature-parity.md](./scala-feature-parity.md) - Complete feature parity status
 - [Scala Documentation](https://docs.scala-lang.org/) - Language documentation
 - [SBT Guide](https://www.scala-sbt.org/1.x/docs/) - Build tool documentation
 

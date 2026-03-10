@@ -78,6 +78,7 @@ use crate::{
 /// 2. Applies Row-Level Security (RLS) policies based on `SecurityContext`
 /// 3. Returns JSON results that can be converted to Arrow `RecordBatches`
 // Reason: used as dyn Trait (Arc<dyn QueryExecutor>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait QueryExecutor: Send + Sync {
     /// Execute a GraphQL query with security context (RLS filtering).

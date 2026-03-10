@@ -78,6 +78,7 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 /// }
 /// ```
 // Reason: used as dyn Trait (Arc<dyn DatabaseAdapter>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a raw SQL query and return rows as JSON objects.

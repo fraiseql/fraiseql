@@ -350,8 +350,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SLA/SLO documentation with availability targets, latency percentiles, and recovery metrics
 - 8 Architecture Decision Records (ADRs) documenting key technical choices
 - Graceful degradation test suite (16 tests)
-- Value proposition document (`docs/VALUE_PROPOSITION.md`)
-- Prioritized roadmap (`ROADMAP.md`)
+- Value proposition document (`docs/value-proposition.md`)
+- Prioritized roadmap (`roadmap.md`)
 
 ### Changed
 

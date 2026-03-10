@@ -27,5 +27,5 @@
 ### Removed
 
 - Old v1 dictionary-based `Schema.RegisterType` API
-- Development archaeology files (`DEPRECATED.md`, `CSHARP_FEATURE_PARITY.md`,
+- Development archaeology files (`deprecated.md`, `CSHARP_feature-parity.md`,
   `Phase18Cycle15ScopeExtractionTests.cs`)

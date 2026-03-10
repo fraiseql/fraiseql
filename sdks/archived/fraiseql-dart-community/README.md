@@ -202,7 +202,7 @@ fraiseql-dart/
 │   └── fraiseql_security_test.dart # 44 comprehensive tests
 ├── pubspec.yaml                    # Package manifest
 ├── README.md                       # This file
-└── DART_FEATURE_PARITY.md          # Feature parity status
+└── dart-feature-parity.md          # Feature parity status
 ```
 
 ## API Documentation
@@ -326,7 +326,7 @@ assert(config1.hashCode == config2.hashCode);  // true
 
 ## Documentation
 
-- [DART_FEATURE_PARITY.md](./DART_FEATURE_PARITY.md) - Feature parity status
+- [dart-feature-parity.md](./dart-feature-parity.md) - Feature parity status
 - [Dart Documentation](https://dart.dev/guides)
 - [Pub Package Manager](https://pub.dev/)
 

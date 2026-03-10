@@ -157,6 +157,7 @@ pub struct QueueStats {
 /// Implementations handle durable storage and retrieval of jobs.
 /// This trait is object-safe and can be used as `Arc<dyn JobQueue>`.
 // Reason: used as dyn Trait (Arc<dyn JobQueue>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait JobQueue: Send + Sync + Clone {
     /// Enqueue a new job for processing.

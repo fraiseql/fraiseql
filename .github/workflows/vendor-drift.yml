@@ -35,9 +35,9 @@ jobs:
           echo "Upstream (crates.io): ${LATEST}"
 
           if [ -n "$LATEST" ] && [ "$LATEST" != "$PATCHED" ]; then
-            echo "::warning file=vendor/graphql-parser/PATCH.md::graphql-parser upstream \
+            echo "::warning file=vendor/graphql-parser/patch.md::graphql-parser upstream \
 (${LATEST}) differs from vendored (${PATCHED}). \
-Check vendor/graphql-parser/PATCH.md for unblock conditions."
+Check vendor/graphql-parser/patch.md for unblock conditions."
           else
             echo "No drift detected."
           fi

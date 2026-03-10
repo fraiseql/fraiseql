@@ -24,11 +24,14 @@ use crate::{
 /// Generated SQL for window function query
 #[derive(Debug, Clone)]
 pub struct WindowSql {
-    /// Assembled SQL with user values escaped via `escape_sql_string`.
-    /// Passed to `execute_raw_query`; not a parameterised query.
+    /// Parameterized SQL template. WHERE clause values use dialect-specific
+    /// placeholders (`$1`, `?`, `@P1`); column names are schema-derived and
+    /// allowlist-validated via [`crate::compiler::window_allowlist::WindowAllowlist`]
+    /// and are not user-controlled at runtime.
     pub raw_sql: String,
 
-    /// Parameterized values (for WHERE clause)
+    /// Bind parameters in placeholder order, passed to
+    /// `execute_parameterized_aggregate`.
     pub parameters: Vec<serde_json::Value>,
 }
 

@@ -313,7 +313,7 @@ FraiseQL::Security::AuthzPolicyBuilder.create(name: string)
 
 ## Documentation
 
-- [RUBY_FEATURE_PARITY.md](./RUBY_FEATURE_PARITY.md) - Complete feature parity status
+- [ruby-feature-parity.md](./ruby-feature-parity.md) - Complete feature parity status
 - [Ruby Documentation](https://ruby-doc.org/) - Language documentation
 - [RSpec Documentation](https://rspec.info/) - Testing framework
 

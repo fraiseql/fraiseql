@@ -157,4 +157,4 @@ psql -U postgres fraiseql_bench -c "SELECT COUNT(*) FROM v_test_100k"
 psql -U postgres -c "DROP DATABASE fraiseql_bench"
 ```
 
-See `BENCHMARKING.md` for full strategy.
+See `benchmarking.md` for full strategy.

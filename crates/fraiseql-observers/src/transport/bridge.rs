@@ -53,6 +53,7 @@ use crate::{
 /// crash recovery and exactly-once processing semantics (from the bridge's
 /// perspective).
 // Reason: used as dyn Trait (Arc<dyn CheckpointStore>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait CheckpointStore: Send + Sync {
     /// Get checkpoint for transport.
@@ -92,6 +93,7 @@ impl PostgresCheckpointStore {
 
 // Reason: CheckpointStore is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl CheckpointStore for PostgresCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {

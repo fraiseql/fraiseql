@@ -324,7 +324,7 @@ new AuthzPolicyBuilder(name: string)
 
 ## Documentation
 
-- [NODEJS_FEATURE_PARITY.md](./NODEJS_FEATURE_PARITY.md) - Complete feature parity status
+- [nodejs-feature-parity.md](./nodejs-feature-parity.md) - Complete feature parity status
 - [TypeScript Documentation](https://www.typescriptlang.org/) - Language documentation
 - [Jest Documentation](https://jestjs.io/) - Testing framework
 

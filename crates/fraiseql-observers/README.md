@@ -291,7 +291,7 @@ The observer system uses three main tables for reliability:
 - **observer_dlq_items**: Failed actions queue
 - **observer_dlq_history**: Retry attempt history
 
-See [SCHEMA.md](./SCHEMA.md) for complete schema documentation and maintenance procedures.
+See [schema.md](./schema.md) for complete schema documentation and maintenance procedures.
 
 ## Testing
 

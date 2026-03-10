@@ -112,7 +112,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // The common execute() entry point accepts raw GraphQL strings and
         // determines the operation type at runtime, which precludes compile-time
         // mutation gating. A future API revision (separate execute_mutation() method)
-        // would move this to a compile-time bound (see ROADMAP.md).
+        // would move this to a compile-time bound (see roadmap.md).
         if !self.adapter.supports_mutations() {
             return Err(FraiseQLError::Validation {
                 message: format!(

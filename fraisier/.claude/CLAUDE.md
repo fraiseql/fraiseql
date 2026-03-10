@@ -357,7 +357,7 @@ Fraisier has its own phase plan, independent from FraiseQL:
 - **Phase 3** (v1.0.0): Production hardening (error handling, monitoring)
 - **Phase 4** (v1.1.0): Multi-language implementations (TypeScript, Go, Rust)
 
-See `ROADMAP.md` for detailed breakdown.
+See `roadmap.md` for detailed breakdown.
 
 ---
 
@@ -463,7 +463,7 @@ Before submitting PRs, verify:
 ## Resources
 
 - **Framework**: See parent FraiseQL docs (crates/README.md, docs/)
-- **Architecture**: See `ROADMAP.md` for phase plan
+- **Architecture**: See `roadmap.md` for phase plan
 - **Design patterns**: See `docs/` for detailed architecture
 - **Examples**: See `fraises.example.yaml` for configuration reference
 

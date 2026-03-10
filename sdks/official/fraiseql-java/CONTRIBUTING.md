@@ -136,9 +136,9 @@ Use descriptive branch names:
 
 **Documentation**:
 
-- Update `INSTALL.md` for setup changes
-- Update `API_GUIDE.md` for API changes
-- Update `EXAMPLES.md` for new examples
+- Update `install.md` for setup changes
+- Update `api-guide.md` for API changes
+- Update `examples.md` for new examples
 - Update `CHANGELOG.md` for notable changes
 - Add JavaDoc to new public methods
 
@@ -158,7 +158,7 @@ git commit -m "feat(validation): Add support for interface types
 - Implement InterfaceInfo class
 - Update validator to check interface fields
 - Add 5 test cases for interface validation
-- Update API_GUIDE.md with interface examples
+- Update api-guide.md with interface examples
 
 Closes #123"
 ```
@@ -442,9 +442,9 @@ mvn jacoco:report
 When making changes, update:
 
 1. **CHANGELOG.md** - Add entry under "Unreleased" section
-2. **API_GUIDE.md** - Update API documentation
-3. **EXAMPLES.md** - Add/update examples
-4. **INSTALL.md** - Update setup if needed
+2. **api-guide.md** - Update API documentation
+3. **examples.md** - Add/update examples
+4. **install.md** - Update setup if needed
 5. **JavaDoc** - Update code documentation
 
 ### Documentation Format

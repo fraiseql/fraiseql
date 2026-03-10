@@ -38,6 +38,7 @@ pub struct TokenResponse {
 ///
 /// Implement this trait to add support for custom OAuth providers.
 // Reason: used as dyn Trait (Arc<dyn OAuthProvider>, Box<dyn OAuthProvider>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait OAuthProvider: Send + Sync + fmt::Debug {
     /// Provider name for logging/debugging

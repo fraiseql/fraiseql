@@ -218,7 +218,7 @@ fraiseql-swift/
 │       └── SecurityTests.swift        # 44 comprehensive tests
 ├── Package.swift                      # SPM manifest
 ├── README.md                          # This file
-└── SWIFT_FEATURE_PARITY.md           # Feature parity status
+└── swift-feature-parity.md           # Feature parity status
 ```
 
 ## API Documentation
@@ -297,7 +297,7 @@ let config: AuthzPolicyConfig = AuthzPolicyBuilder(name: String)
 
 ## Documentation
 
-- [SWIFT_FEATURE_PARITY.md](./SWIFT_FEATURE_PARITY.md) - Complete feature parity status
+- [swift-feature-parity.md](./swift-feature-parity.md) - Complete feature parity status
 - [Swift.org Documentation](https://www.swift.org/documentation/) - Language documentation
 - [SPM Guide](https://github.com/apple/swift-package-manager/tree/main/Documentation) - Package management
 

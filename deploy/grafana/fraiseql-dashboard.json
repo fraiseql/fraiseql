@@ -230,8 +230,8 @@
     },
     {
       "id": 9,
-      "title": "Pool Tuning Adjustments / sec",
-      "description": "Rate of auto-tuner pool resize recommendations or operations.",
+      "title": "Pool Pressure / Scaling Recommendations / sec",
+      "description": "Rate of pool scaling recommendations emitted by the pressure monitor (recommendation mode; pool is not resized at runtime).",
       "type": "timeseries",
       "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
@@ -265,7 +265,7 @@
     {
       "id": 11,
       "title": "Recommended vs Current Pool Size",
-      "description": "Auto-tuner recommended connection pool size vs current total.",
+      "description": "Pool pressure monitor recommended size vs current total. Adjust max_connections and restart to act on recommendations.",
       "type": "timeseries",
       "gridPos": { "x": 8, "y": 24, "w": 8, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },

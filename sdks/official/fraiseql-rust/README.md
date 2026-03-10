@@ -226,7 +226,7 @@ fraiseql-rust/
 │   └── integration_test.rs           # 44 integration tests
 ├── Cargo.toml                        # Manifest file
 ├── README.md                         # This file
-└── RUST_FEATURE_PARITY.md           # Feature parity status
+└── rust-feature-parity.md           # Feature parity status
 ```
 
 ## API Documentation
@@ -312,7 +312,7 @@ let config: AuthzPolicyConfig = AuthzPolicyBuilder::new(name: impl Into<String>)
 
 ## Documentation
 
-- [RUST_FEATURE_PARITY.md](./RUST_FEATURE_PARITY.md) - Complete feature parity status
+- [rust-feature-parity.md](./rust-feature-parity.md) - Complete feature parity status
 - [Rust Book](https://doc.rust-lang.org/book/) - Rust language documentation
 - [Cargo Documentation](https://doc.rust-lang.org/cargo/) - Package manager documentation
 

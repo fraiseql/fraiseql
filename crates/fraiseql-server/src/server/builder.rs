@@ -348,7 +348,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Returns an error string if the configuration fails validation (e.g. `min >= max`).
     pub fn with_pool_tuning(
         mut self,
-        config: crate::config::pool_tuning::PoolTuningConfig,
+        config: crate::config::pool_tuning::PoolPressureMonitorConfig,
     ) -> std::result::Result<Self, String> {
         config.validate()?;
         self.pool_tuning_config = Some(config);

@@ -69,6 +69,7 @@ impl Default for InMemoryApqStorage {
 
 // Reason: ApqStorage is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl ApqStorage for InMemoryApqStorage {
     async fn get(&self, hash: &str) -> Result<Option<String>, ApqError> {

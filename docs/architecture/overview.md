@@ -625,7 +625,7 @@ and `CachedDatabaseAdapter<A>` when `A: MutationCapable`.
 
 > **Note**: true compile-time enforcement would require a separate `execute_mutation()`
 > public API method. The current `execute()` entry point accepts raw GraphQL strings and
-> determines the operation type at runtime. This is a known limitation tracked in ROADMAP.md.
+> determines the operation type at runtime. This is a known limitation tracked in roadmap.md.
 
 ### Adding a New Database Backend
 

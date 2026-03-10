@@ -220,6 +220,22 @@ lint-expect:
 	fi; \
 	echo "OK: no empty .expect() calls"
 
+# Gate: ensure the number of #[async_trait] usages has not grown above the baseline.
+# async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425).
+# Phase 0 baseline: 128 (crates/*/src/ only, matching the convention used by lint-unwrap/lint-expect).
+# Run `make lint-async-trait` to detect regressions (e.g. a new dyn-dispatch trait added without tracking comment).
+ASYNC_TRAIT_LIMIT := 128
+.PHONY: lint-async-trait
+lint-async-trait:
+	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
+	if [ "$$count" -gt "$(ASYNC_TRAIT_LIMIT)" ]; then \
+	  echo "ERROR: async_trait count $$count exceeds baseline $(ASYNC_TRAIT_LIMIT)"; \
+	  echo "New dyn-dispatch traits must add:"; \
+	  echo "  // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)"; \
+	  exit 1; \
+	fi; \
+	echo "async_trait count OK ($$count ≤ $(ASYNC_TRAIT_LIMIT))"
+
 # Gate: ensure the number of crate-level clippy allows in fraiseql-core has not grown.
 # Target: ≤20 allows (currently 16 after B1 remediation).
 # Run `make lint-gate` in CI to detect regressions.

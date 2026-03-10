@@ -82,6 +82,7 @@ impl MSSQLCheckpointStore {
 #[cfg(feature = "mssql")]
 // Reason: CheckpointStore is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl CheckpointStore for MSSQLCheckpointStore {
     async fn get_checkpoint(&self, transport_name: &str) -> Result<Option<i64>> {

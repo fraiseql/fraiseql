@@ -74,7 +74,7 @@ See [docs/architecture/overview.md](../docs/architecture/overview.md) for detail
 git checkout -b feature/description
 
 # 2. Implement changes
-# See ROADMAP.md for feature implementation status
+# See roadmap.md for feature implementation status
 
 # 3. Verify build
 cargo check
@@ -441,7 +441,7 @@ RUST_LOG=debug cargo test
 
 ## Next Steps
 
-See `ROADMAP.md` (repository root) for detailed feature implementation status and priority order. Current focus areas:
+See `roadmap.md` (repository root) for detailed feature implementation status and priority order. Current focus areas:
 
 - Performance optimization and benchmarking
 - Additional database backend support

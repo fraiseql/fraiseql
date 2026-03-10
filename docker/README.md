@@ -416,7 +416,7 @@ docker push myregistry/fraiseql:v2.0.0
 
 ## Next Steps
 
-- **Getting Started**: [../docs/GETTING_STARTED.md](../docs/GETTING_STARTED.md)
+- **Getting Started**: [../docs/getting-started.md](../docs/getting-started.md)
 - **Docker Quick Start**: [../docs/docker-quickstart.md](../docs/docker-quickstart.md)
 - **Full Documentation**: [../docs/README.md](../docs/README.md)
 - **Examples**: [../examples/README.md](../examples/README.md)

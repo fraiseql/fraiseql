@@ -102,6 +102,7 @@ impl AsyncValidatorConfig {
 ///
 /// Implementers should handle timeout and error cases gracefully.
 // Reason: used as dyn Trait (Arc<dyn AsyncValidator>); async_trait ensures Send bounds and dyn-compatibility
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait AsyncValidator: Send + Sync {
     /// Validate a value asynchronously.
@@ -166,6 +167,7 @@ impl Default for EmailFormatValidator {
 
 // Reason: AsyncValidator is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl AsyncValidator for EmailFormatValidator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
@@ -230,6 +232,7 @@ impl Default for PhoneE164Validator {
 
 // Reason: AsyncValidator is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl AsyncValidator for PhoneE164Validator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {
@@ -279,6 +282,7 @@ impl ChecksumAsyncValidator {
 
 // Reason: AsyncValidator is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl AsyncValidator for ChecksumAsyncValidator {
     async fn validate_async(&self, value: &str, field: &str) -> AsyncValidatorResult {

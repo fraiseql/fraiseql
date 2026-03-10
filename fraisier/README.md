@@ -17,7 +17,7 @@ Fraisier is **independently versioned** from the FraiseQL engine.
 - A fraisier bug does **NOT** block a FraiseQL engine release, and vice versa.
 - Fraisier CI runs only on changes to `fraisier/**` paths.
 - It does **not** run on Rust engine changes (`crates/**`, `Cargo.toml`, etc.).
-- Fraisier follows its own `ROADMAP.md` and has its own semver version in `fraisier/pyproject.toml`.
+- Fraisier follows its own `roadmap.md` and has its own semver version in `fraisier/pyproject.toml`.
 
 ---
 

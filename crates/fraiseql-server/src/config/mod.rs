@@ -26,7 +26,8 @@ pub mod validation;
 pub use cors::CorsConfig;
 pub use error_sanitization::{ErrorSanitizationConfig, ErrorSanitizer};
 pub use metrics::{LatencyTargets, MetricsConfig, SloConfig};
-pub use pool_tuning::PoolTuningConfig;
+#[allow(deprecated)] // Re-export deprecated alias for backwards compatibility
+pub use pool_tuning::{PoolPressureMonitorConfig, PoolTuningConfig};
 pub use rate_limiting::{BackpressureConfig, RateLimitRule, RateLimitingConfig};
 pub use tracing::TracingConfig;
 

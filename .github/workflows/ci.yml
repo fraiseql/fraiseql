@@ -87,6 +87,11 @@ jobs:
       - name: Check empty expect() calls
         run: make lint-expect
 
+      - name: Check async_trait usage count
+        run: make lint-async-trait
+        # Prevents new dyn-dispatch traits from being added without the RFC 3425 tracking comment.
+        # Baseline: 128 usages (Phase 0 annotation complete). Only remove when RTN + Send is stable.
+
   # Build and test on multiple platforms
   test:
     name: Test Suite
@@ -412,6 +417,30 @@ jobs:
             -p fraiseql-auth \
             -p fraiseql-secrets \
             --fail-under-lines 80 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check fraiseql-core coverage
+        run: |
+          # fraiseql-core contains SQL generation, RLS enforcement, and field masking.
+          # Floor set at 65% (measured baseline − 5%); tighten as coverage improves.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-core \
+            --fail-under-lines 65 \
+            -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+
+      - name: Check fraiseql-db coverage
+        run: |
+          # fraiseql-db contains dialect SQL output and injection-escaping logic.
+          # Floor set at 65% (measured baseline − 5%); tighten as coverage improves.
+          cargo llvm-cov \
+            --all-features \
+            -p fraiseql-db \
+            --fail-under-lines 65 \
             -- --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql

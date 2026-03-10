@@ -13,7 +13,7 @@ use std::time::Duration;
 use fraiseql_core::db::traits::DatabaseAdapter;
 use fraiseql_core::db::types::PoolMetrics;
 
-use crate::config::pool_tuning::PoolTuningConfig;
+use crate::config::pool_tuning::PoolPressureMonitorConfig;
 
 /// Recommendation produced by [`PoolSizingAdvisor::evaluate`].
 ///
@@ -46,14 +46,18 @@ pub enum PoolSizingRecommendation {
     },
 }
 
-/// Adaptive connection pool auto-tuner.
+/// Connection pool pressure monitor with scaling recommendations.
 ///
 /// Call [`PoolSizingAdvisor::evaluate`] with current [`PoolMetrics`] to get a
 /// [`PoolSizingRecommendation`], or call [`PoolSizingAdvisor::start`] to launch a
 /// background task that polls the adapter automatically.
+///
+/// **Note**: This monitor operates in recommendation mode only. The pool is not
+/// resized at runtime — act on `fraiseql_pool_tuning_*` events by adjusting
+/// `max_connections` in `fraiseql.toml` and restarting the server.
 pub struct PoolSizingAdvisor {
-    /// Tuning configuration.
-    pub(crate) config: PoolTuningConfig,
+    /// Pressure monitoring configuration.
+    pub(crate) config: PoolPressureMonitorConfig,
     /// Consecutive samples with high queue depth.
     high_queue_samples: AtomicU32,
     /// Consecutive samples with high idle ratio.
@@ -65,8 +69,8 @@ pub struct PoolSizingAdvisor {
 }
 
 impl PoolSizingAdvisor {
-    /// Create a new auto-tuner with the given configuration.
-    pub const fn new(config: PoolTuningConfig) -> Self {
+    /// Create a new pool pressure monitor with the given configuration.
+    pub const fn new(config: PoolPressureMonitorConfig) -> Self {
         Self {
             config,
             high_queue_samples: AtomicU32::new(0),
@@ -176,11 +180,17 @@ impl PoolSizingAdvisor {
         let interval_ms = self.config.tuning_interval_ms;
 
         tokio::spawn(async move {
+            tracing::debug!(
+                "Pool pressure monitoring enabled (recommendation mode). \
+                 The pool cannot be resized at runtime; act on \
+                 fraiseql_pool_scaling_recommended events by adjusting \
+                 max_connections and restarting."
+            );
             if resize_fn.is_none() {
-                tracing::info!(
-                    "Pool sizing advisor running in advisory mode: \
-                     RecommendScaleUp/RecommendScaleDown recommendations will be logged \
-                     but not applied. Configure resize_fn to enable active pool management."
+                tracing::debug!(
+                    "No resize_fn configured — pool pressure monitor is in \
+                     pure advisory mode. Recommendations will appear in \
+                     fraiseql_pool_tuning_* metrics and WARN log lines."
                 );
             }
 
@@ -277,6 +287,7 @@ mod tests {
 
     // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
     // its transformed method signatures to satisfy the trait contract
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for MockAdapter {
         async fn execute_where_query(
@@ -311,7 +322,7 @@ mod tests {
     }
 
     fn make_tuner(min: u32, max: u32, target_queue: u32) -> PoolSizingAdvisor {
-        PoolSizingAdvisor::new(PoolTuningConfig {
+        PoolSizingAdvisor::new(PoolPressureMonitorConfig {
             enabled:               true,
             min_pool_size:         min,
             max_pool_size:         max,
@@ -384,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_consecutive_samples_required_before_action() {
-        let tuner = PoolSizingAdvisor::new(PoolTuningConfig {
+        let tuner = PoolSizingAdvisor::new(PoolPressureMonitorConfig {
             enabled:               true,
             min_pool_size:         5,
             max_pool_size:         50,
@@ -401,13 +412,13 @@ mod tests {
 
     #[test]
     fn test_auto_tuner_recommended_size_initialises_to_zero() {
-        let tuner = PoolSizingAdvisor::new(PoolTuningConfig::default());
+        let tuner = PoolSizingAdvisor::new(PoolPressureMonitorConfig::default());
         assert_eq!(tuner.recommended_size(), 0);
     }
 
     #[test]
     fn test_auto_tuner_adjustments_counter_starts_at_zero() {
-        let tuner = PoolSizingAdvisor::new(PoolTuningConfig::default());
+        let tuner = PoolSizingAdvisor::new(PoolPressureMonitorConfig::default());
         assert_eq!(tuner.adjustments_total(), 0);
     }
 
@@ -434,7 +445,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_task_samples_at_interval() {
-        let config = PoolTuningConfig {
+        let config = PoolPressureMonitorConfig {
             enabled:               true,
             tuning_interval_ms:    10,
             samples_before_action: 100, // never actually act

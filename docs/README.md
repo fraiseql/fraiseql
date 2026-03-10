@@ -4,7 +4,7 @@
 
 | If you want to… | Go to… |
 |-----------------|--------|
-| Understand the system at a glance | [`ARCHITECTURE.md`](../ARCHITECTURE.md) — framework map (crates, modules, data flow) |
+| Understand the system at a glance | [`architecture.md`](../architecture.md) — framework map (crates, modules, data flow) |
 | Read the conceptual architecture | [`docs/architecture/overview.md`](architecture/overview.md) |
 | Understand the SQL compiler | [`docs/architecture/compiler.md`](architecture/compiler.md) |
 | Read why design decisions were made | [`docs/adr/`](adr/) — 9 Architecture Decision Records |
@@ -17,7 +17,7 @@
 | Review the threat model | [`docs/security/`](security/) |
 | Check SLA commitments | [`docs/sla.md`](sla.md) |
 | Understand the test strategy | [`docs/testing.md`](testing.md) |
-| Why FraiseQL exists | [`docs/VALUE_PROPOSITION.md`](VALUE_PROPOSITION.md) |
+| Why FraiseQL exists | [`docs/value-proposition.md`](value-proposition.md) |
 
 ## Directory Map
 
@@ -51,5 +51,5 @@ docs/
 ├── linting.md                   ← Lint policy and rationale
 ├── sla.md                       ← Service level commitments
 ├── testing.md                   ← Testing strategy overview
-└── VALUE_PROPOSITION.md         ← Why FraiseQL exists
+└── value-proposition.md         ← Why FraiseQL exists
 ```

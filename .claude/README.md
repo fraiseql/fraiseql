@@ -7,7 +7,7 @@ This directory contains configuration and context for AI-assisted development se
 | File | Purpose |
 |------|---------|
 | `CLAUDE.md` | Project instructions for AI sessions (authoritative) |
-| `IMPLEMENTATION_ROADMAP.md` | Feature implementation status (authoritative) |
+| `IMPLEMENTATION_roadmap.md` | Feature implementation status (authoritative) |
 
 ## What Is NOT Committed Here
 
@@ -21,5 +21,5 @@ You do not need to read this directory. The relevant documentation lives in:
 
 - **Architecture**: [`docs/architecture/`](../docs/architecture/README.md)
 - **Development workflow**: [`CONTRIBUTING.md`](../CONTRIBUTING.md)
-- **Feature roadmap**: [`ROADMAP.md`](../ROADMAP.md)
+- **Feature roadmap**: [`roadmap.md`](../roadmap.md)
 - **Operational runbooks**: [`docs/runbooks/`](../docs/runbooks/)

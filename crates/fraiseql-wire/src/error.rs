@@ -127,7 +127,7 @@ impl Error {
         Error::InvalidSchema(format!(
             "query returned {} columns instead of 1. \
             fraiseql-wire supports only: SELECT data FROM <view>. \
-            See TROUBLESHOOTING.md#error-invalid-result-schema",
+            See troubleshooting.md#error-invalid-result-schema",
             num_columns
         ))
     }
