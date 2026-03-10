@@ -195,6 +195,21 @@ pub struct RelayPageResult {
 // Notation (RFC 3425, tracking: github.com/rust-lang/rust/issues/109417) stabilises,
 // `async_trait` is the only ergonomic path to `dyn DatabaseAdapter + Send + Sync`.
 // Re-evaluate when Rust 1.90+ ships or when RTN is stabilised.
+//
+// MIGRATION TRACKING: async-trait → native async fn in trait
+//
+// Current status: BLOCKED on RFC 3425 (Return Type Notation)
+// See: https://github.com/rust-lang/rfcs/pull/3425
+//      https://github.com/rust-lang/rust/issues/109417
+//
+// Migration is safe when ALL of the following are true:
+// 1. RTN with `+ Send` bounds is stable on rustc (e.g. `fn foo() -> impl Future + Send`)
+// 2. FraiseQL MSRV is updated to that stabilising version
+// 3. tokio::spawn() works with native dyn async trait objects (futures must be Send)
+//
+// Scope when criteria are met: 68 files (grep -rn "#\[async_trait\]" crates/)
+// Effort: Medium (mostly mechanical — remove macro from impls, adjust trait defs)
+// dynosaur was evaluated and rejected: does not propagate + Send (incompatible with Tokio)
 #[async_trait]
 pub trait DatabaseAdapter: Send + Sync {
     /// Execute a WHERE query against a view and return JSONB rows.
@@ -757,17 +772,19 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// Adapters that implement this trait signal that they can execute GraphQL mutations by
 /// calling stored database functions (e.g. `fn_create_user`, `fn_update_order`).
 ///
-/// # Role: documentation and generic bound
+/// # Role: documentation, generic bound, and compile-time enforcement
 ///
-/// This trait serves two purposes:
+/// This trait serves three purposes:
 /// 1. **Documentation**: it makes write-capable adapters self-describing at the type level.
 /// 2. **Generic bounds**: code that only accepts write-capable adapters can constrain on
 ///    `A: MutationCapable` (e.g., `CachedDatabaseAdapter<A: MutationCapable>`).
+/// 3. **Compile-time enforcement**: `Executor<A>::execute_mutation()` is only available
+///    when `A: MutationCapable`. Attempting to call it with `SqliteAdapter` produces a
+///    compiler error (`error[E0277]: SqliteAdapter does not implement MutationCapable`).
 ///
-/// **It does not provide compile-time mutation safety** for the current `execute()` API,
-/// which accepts raw GraphQL strings and determines the operation type at runtime.
-/// The actual runtime gate is [`DatabaseAdapter::supports_mutations()`], which the
-/// executor always calls before dispatching a mutation.
+/// The `execute()` method (which accepts raw GraphQL strings) still performs a runtime
+/// `supports_mutations()` check because it cannot know the operation type at compile time.
+/// For direct mutation dispatch, prefer `execute_mutation()` to get compile-time safety.
 ///
 /// # Which adapters implement this?
 ///
@@ -779,11 +796,6 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
 /// | [`SqliteAdapter`](crate::sqlite::SqliteAdapter) | ❌ No — SQLite does not support stored-function mutations |
 /// | [`FraiseWireAdapter`](crate::fraiseql_wire_adapter::FraiseWireAdapter) | ❌ No — read-only wire protocol |
 /// | [`CachedDatabaseAdapter<A>`](crate::cache::CachedDatabaseAdapter) | ✅ When `A: MutationCapable` |
-///
-/// # Future
-///
-/// When a dedicated `execute_mutation()` API is introduced, this trait will gain true
-/// compile-time enforcement. See ROADMAP.md.
 pub trait MutationCapable: DatabaseAdapter {}
 
 /// Type alias for boxed dynamic database adapters.

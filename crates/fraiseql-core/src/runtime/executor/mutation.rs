@@ -11,7 +11,54 @@ use crate::{
 };
 
 use super::{Executor, resolve_inject_value};
-use crate::db::traits::DatabaseAdapter;
+use crate::db::traits::{DatabaseAdapter, MutationCapable};
+
+/// Compile-time enforcement: `SqliteAdapter` must NOT implement `MutationCapable`.
+///
+/// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
+/// because `SqliteAdapter` does not implement the `MutationCapable` marker trait.
+///
+/// ```compile_fail
+/// use fraiseql_core::runtime::Executor;
+/// use fraiseql_core::db::sqlite::SqliteAdapter;
+/// use fraiseql_core::schema::CompiledSchema;
+/// use std::sync::Arc;
+/// async fn _wont_compile() {
+///     let adapter = Arc::new(SqliteAdapter::new_in_memory().await.unwrap());
+///     let executor = Executor::new(CompiledSchema::new(), adapter);
+///     executor.execute_mutation("createUser", None).await.unwrap();
+/// }
+/// ```
+impl<A: DatabaseAdapter + MutationCapable> Executor<A> {
+    /// Execute a GraphQL mutation directly, with compile-time capability enforcement.
+    ///
+    /// Unlike `execute()` (which accepts raw GraphQL strings and performs a runtime
+    /// `supports_mutations()` check), this method is only available on adapters that
+    /// implement [`MutationCapable`].  The capability is enforced at **compile time**:
+    /// attempting to call this method with `SqliteAdapter` results in a compiler error.
+    ///
+    /// # Arguments
+    ///
+    /// * `mutation_name` - The GraphQL mutation field name (e.g. `"createUser"`)
+    /// * `variables` - Optional JSON object of GraphQL variable values
+    ///
+    /// # Returns
+    ///
+    /// A JSON-encoded GraphQL response string on success.
+    ///
+    /// # Errors
+    ///
+    /// Same as `execute_mutation_query`, minus the adapter capability check.
+    pub async fn execute_mutation(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<String> {
+        // No runtime supports_mutations() check: the MutationCapable bound
+        // guarantees at compile time that this adapter supports mutations.
+        self.execute_mutation_query_with_security(mutation_name, variables, None).await
+    }
+}
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a GraphQL mutation by calling the configured database function.

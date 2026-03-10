@@ -155,29 +155,29 @@ with an adjusted `max_connections` value. A future migration to a pool library w
 runtime resize support (e.g. `bb8`) would unlock active tuning.
 
 
-### Compile-time MutationCapable enforcement
-The `MutationCapable` marker trait gates mutation support, but enforcement is currently
-at **runtime** (not compile time). The `execute()` entry point accepts raw GraphQL strings
-and determines the operation type by parsing at runtime, which precludes compile-time
-gating via the type system. True compile-time enforcement would require a separate
-`execute_mutation()` public API method on `impl<A: DatabaseAdapter + MutationCapable>`.
-This is a semver-minor API addition and a candidate for a future release. Until then,
-attempting a mutation against `SqliteAdapter` returns `FraiseQLError::Validation` with
-a clear diagnostic message.
-
 ### `async_trait` migration to native async-fn-in-trait
-67 files use `#[async_trait]`, which desugars `async fn` into
+68 files use `#[async_trait]`, which desugars `async fn` into
 `fn(...) -> Pin<Box<dyn Future + Send>>` — a heap allocation per call. This conflicts
 with the zero-overhead positioning of FraiseQL on the static-dispatch hot path.
 
 **Why blocked**: Rust's native `dyn async trait` (1.75+) does not propagate `+ Send`
 on generated futures. `Arc<dyn DatabaseAdapter + Send + Sync>` used in federation
 requires `Future: Send` when spawned via `tokio::spawn`. Until Return Type Notation
-(RFC 3425, tracking: https://github.com/rust-lang/rust/issues/109417) is stabilised,
-`async_trait` is the only ergonomic option.
+(RFC 3425) is stabilised, `async_trait` is the only ergonomic option.
+
+**Tracking**: RFC 3425 — https://github.com/rust-lang/rfcs/pull/3425 |
+             Rust issue — https://github.com/rust-lang/rust/issues/109417
+
+**Migration criteria** (all must be true):
+1. RTN with `+ Send` bounds is stable on rustc
+2. FraiseQL MSRV is updated to that stabilising version
+3. Tokio is compatible with native dyn async traits
 
 **When to revisit**: Rust 1.90+ (RTN may have stabilised), or `dynosaur` 0.2+ if it
 adds `Send` propagation on generated futures (previous attempt: see MEMORY.md).
+
+**Effort when ready**: Medium — 68 files, mostly mechanical (remove macro from impls,
+minor syntax change on trait defs). See migration comment in `fraiseql-db/src/traits.rs`.
 
 ---
 

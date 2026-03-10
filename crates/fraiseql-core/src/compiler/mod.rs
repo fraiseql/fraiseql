@@ -117,6 +117,7 @@ pub mod ir;
 mod lowering;
 pub mod parser;
 pub mod validator;
+pub mod window_allowlist;
 pub mod window_functions;
 
 pub use aggregate_types::{AggregateType, AggregateTypeGenerator, GroupByInput, HavingInput};

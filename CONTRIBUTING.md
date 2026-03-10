@@ -409,6 +409,28 @@ The mold linker is configured in `.cargo/config.toml` and used automatically.
 
 ---
 
+## Unwrap Policy
+
+Production code (`src/` files outside test modules) must not use `.unwrap()` directly.
+
+Instead:
+- Use `.expect("reason why this cannot fail")` — panics with context on failure
+- Use `#[allow(clippy::unwrap_used)] // Reason: <justification>` only when the
+  unwrap is in an infallible code path that clippy cannot statically prove safe
+
+All new `#[allow(clippy::unwrap_used)]` annotations **must** include a `// Reason:` comment.
+
+The CI gate (`make lint-unwrap`) enforces that the total count of production
+`allow(unwrap_used)` annotations does not exceed the established baseline (currently 1).
+
+To raise the baseline: update `UNWRAP_ALLOW_LIMIT` in the `Makefile` and include
+a PR comment explaining why each new allow is necessary.
+
+Empty or placeholder `.expect()` calls (`.expect("")`, `.expect("TODO")`) are also
+rejected by `make lint-expect` — they are functionally equivalent to `.unwrap()`.
+
+---
+
 ## Getting Help
 
 - **Questions**: Open a GitHub Discussion

@@ -1,3 +1,5 @@
+use crate::compiler::window_allowlist::WindowAllowlist;
+
 use super::*;
 
 /// Window function plan generator
@@ -48,8 +50,13 @@ impl WindowFunctionPlanner {
     /// ```
     pub fn plan(
         query: &serde_json::Value,
-        _metadata: &FactTableMetadata,
+        metadata: &FactTableMetadata,
     ) -> Result<WindowExecutionPlan> {
+        // Build schema-based allowlist from metadata (defence-in-depth on top of
+        // character-level validation).  Empty metadata → empty allowlist → no
+        // schema-constraint enforcement (character validation still applies).
+        let allowlist = WindowAllowlist::from_metadata(metadata);
+
         // Parse table name
         let table = query["table"]
             .as_str()
@@ -60,7 +67,7 @@ impl WindowFunctionPlanner {
         let select = Self::parse_select_columns(query)?;
 
         // Parse window functions
-        let windows = Self::parse_window_functions(query)?;
+        let windows = Self::parse_window_functions(query, &allowlist)?;
 
         // Parse WHERE clause (placeholder - full implementation would parse actual conditions)
         let where_clause = query.get("where").map(|_| WhereClause::And(vec![]));
@@ -117,14 +124,20 @@ impl WindowFunctionPlanner {
         Ok(columns)
     }
 
-    fn parse_window_functions(query: &serde_json::Value) -> Result<Vec<WindowFunction>> {
+    fn parse_window_functions(
+        query: &serde_json::Value,
+        allowlist: &WindowAllowlist,
+    ) -> Result<Vec<WindowFunction>> {
         let default_array = vec![];
         let windows = query.get("windows").and_then(|w| w.as_array()).unwrap_or(&default_array);
 
-        windows.iter().map(Self::parse_single_window).collect()
+        windows.iter().map(|w| Self::parse_single_window(w, allowlist)).collect()
     }
 
-    fn parse_single_window(window: &serde_json::Value) -> Result<WindowFunction> {
+    fn parse_single_window(
+        window: &serde_json::Value,
+        allowlist: &WindowAllowlist,
+    ) -> Result<WindowFunction> {
         let function = Self::parse_window_function_type(&window["function"])?;
         let alias = window["alias"]
             .as_str()
@@ -138,7 +151,10 @@ impl WindowFunctionPlanner {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|col| {
+                        // Layer 1: character-level validation (rejects SQL injection chars)
                         validate_sql_expression(col, "partitionBy")?;
+                        // Layer 2: schema-based allowlist (defence-in-depth)
+                        allowlist.validate(col, "PARTITION BY")?;
                         Ok(col.to_string())
                     })
                     .collect()
@@ -160,7 +176,10 @@ impl WindowFunctionPlanner {
                         Some((field, direction))
                     })
                     .map(|(field, direction)| {
+                        // Layer 1: character-level validation
                         validate_sql_expression(field, "orderBy.field")?;
+                        // Layer 2: schema-based allowlist (defence-in-depth)
+                        allowlist.validate(field, "ORDER BY")?;
                         Ok(OrderByClause { field: field.to_string(), direction })
                     })
                     .collect()

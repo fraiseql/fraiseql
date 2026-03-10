@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-unwrap lint-expect
 
 # Default target
 help:
@@ -186,6 +186,39 @@ test-e2e:
 # Run Clippy
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
+
+# Count #[allow(clippy::unwrap_used)] occurrences in production source files.
+# Excludes lines containing "test" (covers #![allow] in test modules and test-only src files).
+# Baseline: 1 (fraiseql-arrow/src/db_convert.rs — safe NaiveDate::from_ymd_opt call).
+# Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
+UNWRAP_ALLOW_LIMIT ?= 1
+.PHONY: lint-unwrap
+lint-unwrap:
+	@echo "=== Counting unwrap allows in production code ==="
+	@count=$$(grep -rn 'allow.*unwrap_used' crates/*/src/ --include="*.rs" \
+		| grep -v "test" | wc -l); \
+	echo "Current count: $$count / $(UNWRAP_ALLOW_LIMIT)"; \
+	if [ "$$count" -gt "$(UNWRAP_ALLOW_LIMIT)" ]; then \
+		echo "ERROR: $$count production unwrap allows exceeds limit of $(UNWRAP_ALLOW_LIMIT)"; \
+		echo "Review new additions or raise UNWRAP_ALLOW_LIMIT with justification."; \
+		exit 1; \
+	fi; \
+	echo "OK: $$count <= $(UNWRAP_ALLOW_LIMIT)"
+
+# Check for empty or placeholder .expect() messages in production code.
+# .expect("") or .expect("TODO") is functionally equivalent to .unwrap().
+.PHONY: lint-expect
+lint-expect:
+	@echo "=== Checking for empty/placeholder .expect() calls ==="
+	@count=$$(grep -rn '\.expect("")\|\.expect("TODO")\|\.expect("todo")\|\.expect("FIXME")\|\.expect("fixme")' \
+		crates/*/src/ --include="*.rs" | grep -v test | wc -l); \
+	if [ "$$count" -gt "0" ]; then \
+		echo "ERROR: $$count .expect() calls with empty/placeholder messages in production code:"; \
+		grep -rn '\.expect("")\|\.expect("TODO")\|\.expect("todo")\|\.expect("FIXME")\|\.expect("fixme")' \
+			crates/*/src/ --include="*.rs" | grep -v test; \
+		exit 1; \
+	fi; \
+	echo "OK: no empty .expect() calls"
 
 # Gate: ensure the number of crate-level clippy allows in fraiseql-core has not grown.
 # Target: ≤20 allows (currently 16 after B1 remediation).
