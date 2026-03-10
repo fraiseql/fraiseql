@@ -403,7 +403,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - #[non_exhaustive] annotations on APIs
   - #[must_use] on builders and constructors
 - ✅ Clean development practices
-  - All TODOs versioned with targets (v2.1.0, v2.2.0)
+  - All TODOs versioned with targets (v2.0.1, v2.2.0)
   - Zero untracked development markers
 
 ### Security

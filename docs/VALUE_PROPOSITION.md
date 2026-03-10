@@ -413,7 +413,7 @@ This enables:
 
 ## Roadmap & Future Direction
 
-### Planned (v2.1.0 - Q2 2026)
+### Planned (v2.0.1 - Q2 2026)
 
 - Fragment and introspection query optimization
 - Distributed query execution for federated deployments

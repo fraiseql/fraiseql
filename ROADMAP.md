@@ -1,15 +1,15 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.1.0 (Released March 2026)
+**Current Stable**: v2.0.1 (Released 2026-03-10)
 **In Development**: v2.2.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
 ---
 
-## v2.0.0 - Stability and Correctness ✅ Released March 2026
+## v2.0.0 - Stability and Correctness ✅ Released 2026-03-02
 
-**Released**: March 2026
+**Released**: 2026-03-02
 
 Beta.2 established a solid foundation across infrastructure, protocol safety, and dependency hygiene. v2.0.0 focuses on removing known limitations and hardening the server for production workloads.
 
@@ -51,11 +51,16 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 
 ---
 
-## v2.1.0 - Performance and Observability ✅ Released March 2026
+## v2.0.1 - Performance and Observability ✅ Released 2026-03-10
 
-**Released**: March 2026
+**Released**: 2026-03-10
 
-With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query optimization, and performance guarantees.
+> **Note**: v2.0.0 and v2.0.1 were developed concurrently on the `dev` branch and
+> released within 8 days of each other as a combined stability + observability milestone.
+> The brief gap reflects the initial launch phase. Future releases will follow the
+> minimum 6-week cadence defined in `RELEASING.md`.
+
+With stability locked in v2.0.0, v2.0.1 delivers enterprise observability, query optimization, and performance guarantees.
 
 ### Completed (in active development on `dev`)
 - **Automatic persisted queries (APQ)** - Redis-backed query caching with smart invalidation (`fraiseql-core/src/apq/`)
@@ -67,12 +72,13 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 - **MySQL RelayDatabaseAdapter** - Keyset cursor pagination with UUID support
 - **CheckpointStrategy enum** - `AtLeastOnce` and `EffectivelyOnce` delivery guarantees for observers
 - **PHP SDK** - Schema authoring and CLI integration
-- **C#, Elixir, F# SDK stubs** - Schema authoring support
+- **C# SDK** (`fraiseql-cli generate csharp`) - Enum, record type, and query generation implemented; integration tests pending
 - **Federation circuit breaker** - Per-entity-type thresholds with half-open recovery
 - **EXPLAIN introspection endpoint** - `POST /api/v1/admin/explain` runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` with caller-supplied parameters; returns `{query_name, sql_source, generated_sql, parameters, explain_output}` (`fraiseql-core/src/runtime/executor/explain.rs`)
 
-- **Connection pool auto-tuning** - Adaptive pool sizing based on queue depth; prevents starvation
-  spikes without exhausting `max_connections`; `fraiseql_pool_tuning_*` Prometheus metrics
+- **Pool pressure monitoring** - Emits `fraiseql_pool_tuning_*` Prometheus metrics and scaling
+  recommendations; operators act on recommendations by adjusting `max_connections` and restarting.
+  Active resizing requires a pool library with `resize()` API (tracked: migrate to `bb8` in v2.2.0 or later)
 - **Multi-root query pipelining** - Parallel execution of multi-root GraphQL queries via
   `try_join_all`; `fraiseql_multi_root_queries_total` counter
 - **Performance dashboard** - Pre-built 12-panel Grafana 10+ dashboard served from
@@ -84,11 +90,29 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 > from base tables). Statement caching is already provided by the `sqlx` driver layer.
 > DataLoader-style batching is irrelevant without N+1.
 
+### SDK Status
+
+| SDK | Status | Notes |
+|-----|--------|-------|
+| Python | Functional | Full decorator API (`@fraiseql.type`, `@fraiseql.query`, etc.) |
+| TypeScript | Functional | Full decorator API |
+| Go | Functional | Struct tag-based generation |
+| Java | Functional | Annotation-based generation |
+| Kotlin | Functional | Data class generation |
+| Scala | Functional | Case class generation |
+| Swift | Functional | Struct generation |
+| PHP | Functional | Schema authoring and CLI integration |
+| Rust | Functional | Derive macro-based generation |
+| C# | Functional | Enum, record type, and query generation; integration tests pending |
+| Elixir | Not started | No implementation; Mix task skeleton not yet created |
+| F# | Not started | No implementation; type providers not designed |
+
 ---
 
 ## v2.2.0 - Federation Maturity
 
 **Target**: Q1 2027
+**Minimum stabilisation**: 6 weeks on `dev` before release cut (earliest: 2026-04-21)
 
 Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes FraiseQL a production-grade federation participant.
 
@@ -147,12 +171,15 @@ Items considered valuable but not scheduled. Prioritized based on customer deman
 
 ## Known Limitations
 
-### Pool Auto-Tuner (recommendation mode)
-The pool auto-tuner (`PoolTuningConfig`) evaluates connection pool pressure and emits
-scaling decisions, but cannot resize the pool at runtime because `deadpool-postgres` has
-no `resize()` API. To act on tuner recommendations, operators must restart the server
-with an adjusted `max_connections` value. A future migration to a pool library with
-runtime resize support (e.g. `bb8`) would unlock active tuning.
+### Pool Pressure Monitor (recommendation mode only)
+`PoolPressureMonitorConfig` (formerly `PoolTuningConfig`, deprecated alias retained)
+evaluates connection pool pressure and emits scaling recommendations via Prometheus
+metrics and log lines, but **cannot resize the pool at runtime** — `deadpool-postgres`
+has no `resize()` API. Operators act on recommendations by adjusting `max_connections`
+in `fraiseql.toml` and restarting the server.
+
+**Future work**: migrate to `bb8` (which supports `pool.resize()`) to enable active
+pool resizing. Tracked as a v2.2.0 or v2.3.0 milestone.
 
 
 ### `async_trait` migration to native async-fn-in-trait
@@ -209,12 +236,14 @@ Maintaining multiple API versions is an organizational problem, not a technical 
 
 ### Release Cadence
 - **Major versions** (v3.0.0, v4.0.0): ~18 months, breaking changes allowed
-- **Minor versions** (v2.1.0, v2.2.0): ~4-6 months, new features, backward compatible
-- **Patch versions** (v2.0.1, v2.0.2): As needed, bug fixes only, backported to N-1 minor
+- **Minor versions** (v2.1.0, v2.2.0): minimum 6 weeks between releases, new features, backward compatible
+- **Patch versions** (v2.0.1, v2.0.2): As needed, bug fixes and improvements, backported to N-1 minor
+
+See `RELEASING.md` for the full cadence policy.
 
 ### Version Support
 - **LTS versions**: v1.x (through 2026), v2.x (through 2027)
-- **Current stable**: v2.0.0 (released March 2026); v2.1.0-dev active on `dev` branch
+- **Current stable**: v2.0.1 (released March 2026)
 - **EOL policy**: Previous major version supported for 12 months after new major release
 
 ### Breaking Changes
@@ -250,7 +279,7 @@ Breaking changes only in major versions. All minor and patch releases maintain b
 - **Standalone binary** - Static binary with embedded schema, zero external dependencies
 
 ### Observability
-- **Prometheus metrics** - Standard in v2.1.0 and beyond
+- **Prometheus metrics** - Standard in v2.0.1 and beyond
 - **Structured logging** - JSON output compatible with ELK, Datadog, CloudWatch
 - **Health checks** - `/health` endpoint for load balancers and orchestrators
 - **SLA dashboards** - Pre-built Grafana dashboards for operations teams

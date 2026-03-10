@@ -23,7 +23,7 @@ FraiseQL follows **semantic versioning** and publishes to multiple registries:
 
 ### Release Channels
 
-- **Stable**: `v2.0.0`, `v2.1.0` (production releases)
+- **Stable**: `v2.0.0`, `v2.0.1` (production releases)
 - **Pre-release**: `v2.0.0-alpha.5`, `v2.0.0-beta.1` (testing releases)
 
 ### Current Registries
@@ -33,6 +33,24 @@ FraiseQL follows **semantic versioning** and publishes to multiple registries:
 | crates.io | fraiseql* (9 crates) | cargo | CARGO_TOKEN |
 | PyPI | fraiseql | pip | PYPI_TOKEN |
 | GitHub | Binaries (5 platforms) | Manual | GITHUB_TOKEN |
+
+---
+
+## Release Cadence
+
+**Minor versions** (2.x.0): Minimum 6 weeks between releases. Each minor version should be
+available on crates.io for at least 6 weeks before the next minor is cut. ("Deployed to
+production" cannot be enforced for a library; crates.io availability is the observable
+equivalent.)
+
+**Patch versions** (2.x.y): As needed for security fixes or critical bugs. No minimum gap.
+
+**Major versions** (x.0.0): Require an explicit deprecation period for breaking changes.
+Announce breaking changes at least one minor version in advance.
+
+**Exception**: If two minor versions are developed concurrently (e.g. during initial
+launch), document the exception clearly in the CHANGELOG with a rationale. See the
+v2.0.0 / v2.0.1 note in `ROADMAP.md` for an example.
 
 ---
 

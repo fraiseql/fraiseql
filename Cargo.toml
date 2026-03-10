@@ -53,17 +53,17 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.1.0"}
-fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.1.0"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.1.0"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.0"}
-fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.1.0"}
-fraiseql-core = {path = "crates/fraiseql-core", version = "2.1.0", default-features = false}
-fraiseql-db = {path = "crates/fraiseql-db", version = "2.1.0", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.1.0", default-features = false}
-fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.1.0"}
-fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.0"}
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.0"}
+fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.0.1"}
+fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.0.1"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.0.1"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.0.1"}
+fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.0.1"}
+fraiseql-core = {path = "crates/fraiseql-core", version = "2.0.1", default-features = false}
+fraiseql-db = {path = "crates/fraiseql-db", version = "2.0.1", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.0.1", default-features = false}
+fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.0.1"}
+fraiseql-server = {path = "crates/fraiseql-server", version = "2.0.1"}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.0.1"}
 futures = "0.3"
 indexmap = {version = "2", features = ["serde"]}
 # GraphQL parsing — patched via vendor/graphql-parser to use thiserror 2.x.
@@ -205,7 +205,7 @@ keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.88"  # MSRV — driven by dependency requirements
-version = "2.1.0"
+version = "2.0.1"
 
 # ---------------------------------------------------------------------------
 # Crate size budgets (CA-4: Remediation Campaign 2)

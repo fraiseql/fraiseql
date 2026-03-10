@@ -1,22 +1,29 @@
-//! Connection pool auto-tuning configuration.
+//! Connection pool pressure monitoring configuration.
 
 use serde::{Deserialize, Serialize};
 
-/// Configuration for adaptive connection pool sizing.
+/// Configuration for connection pool pressure monitoring with scaling recommendations.
 ///
-/// The auto-tuner samples `PoolMetrics` at a
-/// configurable interval and adjusts the pool size (or emits a recommended size)
-/// based on queue depth and idle ratio.
+/// This monitor samples `PoolMetrics` at a configurable interval and emits
+/// scaling recommendations via `fraiseql_pool_tuning_*` Prometheus metrics and
+/// log lines. **It does not resize the pool at runtime** — the underlying
+/// `deadpool-postgres` library does not expose a `resize()` API.
 ///
-/// # Runtime resize
+/// To act on recommendations: adjust `max_connections` in `fraiseql.toml` and
+/// restart the server. Active pool resizing is tracked as future work (migration
+/// to `bb8` with `resize()` support).
 ///
-/// If a `resize_fn` is supplied to `PoolSizingAdvisor::start`, the advisor will call it
-/// to apply resizes in real time.  If no resize function is available (e.g. the
-/// database adapter does not expose pool mutation), the advisor operates in
-/// **advisory mode**: it still emits `fraiseql_pool_recommended_size` and
-/// logs at INFO level, but does not change the actual pool size.
+/// # Recommendation mode
+///
+/// All scaling decisions are advisory. When a recommendation fires, the monitor:
+/// - Updates `fraiseql_pool_tuning_adjustments_total` (Prometheus counter)
+/// - Logs the recommendation at `WARN` level
+/// - Updates `recommended_size()` for external inspection
+///
+/// To suppress the `WARN` noise in environments that already tune the pool
+/// manually, set `enabled = false` in `[pool_tuning]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PoolTuningConfig {
+pub struct PoolPressureMonitorConfig {
     /// Enable adaptive pool sizing.  Default: `false`.
     #[serde(default)]
     pub enabled: bool,
@@ -64,7 +71,7 @@ const fn default_scale_down_idle_ratio() -> f64 { 0.5 }
 const fn default_tuning_interval_ms() -> u64 { 30_000 }
 const fn default_samples_before_action() -> u32 { 3 }
 
-impl Default for PoolTuningConfig {
+impl Default for PoolPressureMonitorConfig {
     fn default() -> Self {
         Self {
             enabled:                false,
@@ -80,7 +87,15 @@ impl Default for PoolTuningConfig {
     }
 }
 
-impl PoolTuningConfig {
+/// Deprecated alias for [`PoolPressureMonitorConfig`].
+///
+/// This type was renamed in v2.0.1 to clarify that pool monitoring operates in
+/// recommendation mode only — the pool is not resized at runtime.
+/// Use [`PoolPressureMonitorConfig`] in new code.
+#[deprecated(since = "2.0.1", note = "Use PoolPressureMonitorConfig")]
+pub type PoolTuningConfig = PoolPressureMonitorConfig;
+
+impl PoolPressureMonitorConfig {
     /// Validate configuration invariants.
     ///
     /// # Errors
@@ -121,17 +136,18 @@ impl PoolTuningConfig {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::wildcard_imports)]
     use super::*;
 
     #[test]
     fn test_default_config_is_disabled() {
-        let cfg = PoolTuningConfig::default();
-        assert!(!cfg.enabled, "auto-tuning should be off by default");
+        let cfg = PoolPressureMonitorConfig::default();
+        assert!(!cfg.enabled, "pool pressure monitoring should be off by default");
     }
 
     #[test]
     fn test_default_bounds_are_sensible() {
-        let cfg = PoolTuningConfig::default();
+        let cfg = PoolPressureMonitorConfig::default();
         assert!(cfg.min_pool_size < cfg.max_pool_size);
         assert!(cfg.scale_up_step > 0);
         assert!(cfg.scale_down_step > 0);
@@ -140,48 +156,55 @@ mod tests {
 
     #[test]
     fn test_validate_passes_for_defaults() {
-        assert!(PoolTuningConfig::default().validate().is_ok(), "default pool tuning config should pass validation");
+        assert!(PoolPressureMonitorConfig::default().validate().is_ok(), "default pool monitor config should pass validation");
     }
 
     #[test]
     fn test_validate_min_lt_max() {
-        let cfg = PoolTuningConfig { min_pool_size: 10, max_pool_size: 5, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { min_pool_size: 10, max_pool_size: 5, ..Default::default() };
         assert!(cfg.validate().is_err(), "min >= max should be invalid");
     }
 
     #[test]
     fn test_validate_min_equals_max_is_invalid() {
-        let cfg = PoolTuningConfig { min_pool_size: 10, max_pool_size: 10, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { min_pool_size: 10, max_pool_size: 10, ..Default::default() };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_idle_ratio_above_one() {
-        let cfg = PoolTuningConfig { scale_down_idle_ratio: 1.5, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { scale_down_idle_ratio: 1.5, ..Default::default() };
         assert!(cfg.validate().is_err(), "idle ratio > 1.0 should be invalid");
     }
 
     #[test]
     fn test_validate_idle_ratio_negative() {
-        let cfg = PoolTuningConfig { scale_down_idle_ratio: -0.1, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { scale_down_idle_ratio: -0.1, ..Default::default() };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_zero_scale_up_step() {
-        let cfg = PoolTuningConfig { scale_up_step: 0, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { scale_up_step: 0, ..Default::default() };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_validate_zero_scale_down_step() {
-        let cfg = PoolTuningConfig { scale_down_step: 0, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { scale_down_step: 0, ..Default::default() };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
+    #[allow(deprecated)]
+    fn test_pool_tuning_config_alias_works() {
+        // PoolTuningConfig is a deprecated alias for PoolPressureMonitorConfig
+        let _cfg: PoolTuningConfig = PoolTuningConfig::default();
+    }
+
+    #[test]
     fn test_validate_interval_too_short() {
-        let cfg = PoolTuningConfig { tuning_interval_ms: 50, ..Default::default() };
+        let cfg = PoolPressureMonitorConfig { tuning_interval_ms: 50, ..Default::default() };
         assert!(cfg.validate().is_err());
     }
 }

@@ -2,7 +2,7 @@
 
 **Last Updated**: March 8, 2026
 **Architecture**: Layered Optionality with Feature Gates
-**Status**: v2.1.0 Production-Ready
+**Status**: v2.0.1 Production-Ready
 
 ---
 
@@ -766,7 +766,7 @@ accordingly and configure `max_concurrency`, `channel_capacity`, and
 ### Potential Extensions
 
 - Distributed tracing (OpenTelemetry integration for observability)
-- APQ over Redis backend (landed in v2.1.0; in-memory and Redis backends available)
+- APQ over Redis backend (landed in v2.0.1; in-memory and Redis backends available)
 - Schema registry integration (Confluent, AWS Glue)
 - More database backends (CockroachDB, YugabyteDB)
 - Configuration management enhancements (hierarchical config, expanded observability)
@@ -838,7 +838,7 @@ The layered optionality pattern allows users to start minimal and grow as needed
 
 ---
 
-**Architecture Status**: Production-ready (v2.1.0)
+**Architecture Status**: Production-ready (v2.0.1)
 **Last Updated**: March 8, 2026 (Enterprise features: encryption, secrets, auth, RBAC complete)
 **Lines of Code**: ~350,000 across workspace (hand-written source; excludes generated fuzz corpus and build artefacts)
 **Test Coverage**: 15,000+ tests (unit, async integration, property-based, snapshot)
