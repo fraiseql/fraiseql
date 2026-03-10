@@ -38,9 +38,9 @@
 
 use std::collections::HashMap;
 
-use tracing::{debug, info, warn};
+use ::tracing::{debug, info, warn};
 
-use crate::federation::types::{FederatedType, FederationMetadata};
+use crate::types::{FederatedType, FederationMetadata};
 
 /// Errors during schema composition
 ///

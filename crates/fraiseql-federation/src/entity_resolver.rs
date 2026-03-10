@@ -7,7 +7,7 @@ use std::{
 };
 
 use serde_json::Value;
-use tracing::info;
+use ::tracing::info;
 use uuid::Uuid;
 
 use super::{
@@ -18,10 +18,8 @@ use super::{
     tracing::{FederationSpan, FederationTraceContext},
     types::{EntityRepresentation, FederationResolver},
 };
-use crate::{
-    db::traits::DatabaseAdapter,
-    error::{FraiseQLError, Result},
-};
+use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_error::{FraiseQLError, Result};
 
 /// Maximum number of entity representations allowed in a single `_entities` query.
 ///

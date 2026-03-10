@@ -3,7 +3,8 @@
 //! Resolves entities from remote FraiseQL database instances via direct database connections,
 //! achieving <20ms latency by eliminating HTTP overhead.
 
-use crate::{error::Result, federation::connection_manager::ConnectionManager};
+use fraiseql_error::Result;
+use crate::connection_manager::ConnectionManager;
 
 /// Resolves entities from remote databases via direct connections
 pub struct DirectDatabaseResolver {

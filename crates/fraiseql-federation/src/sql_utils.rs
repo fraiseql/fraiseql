@@ -4,7 +4,18 @@
 
 use serde_json::Value;
 
-use crate::error::{FraiseQLError, Result};
+use fraiseql_error::{FraiseQLError, Result};
+
+/// Validates that a string is a safe SQL identifier.
+///
+/// Accepts only ASCII alphanumerics and underscores. Used to guard against
+/// SQL injection when schema-derived names (view names, entity type names)
+/// are interpolated into raw SQL strings.
+pub fn is_safe_sql_identifier(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 128
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
 
 /// Convert a JSON value to a SQL literal representation.
 ///
@@ -71,7 +82,7 @@ pub fn value_to_string(value: &Value) -> Result<String> {
 /// # Examples
 ///
 /// ```
-/// # use fraiseql_core::federation::sql_utils::escape_sql_string;
+/// # use fraiseql_federation::sql_utils::escape_sql_string;
 /// assert_eq!(escape_sql_string("O'Brien"), "O''Brien");
 /// assert_eq!(escape_sql_string("test"), "test");
 /// ```

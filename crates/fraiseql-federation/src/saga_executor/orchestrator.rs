@@ -35,12 +35,12 @@ impl SagaExecutor {
         })?;
 
         if saga.is_none() {
-            return Err(crate::federation::saga_store::SagaStoreError::SagaNotFound(saga_id));
+            return Err(crate::saga_store::SagaStoreError::SagaNotFound(saga_id));
         }
 
         // 2. Transition saga from Pending to Executing
         store
-            .update_saga_state(saga_id, &crate::federation::saga_store::SagaState::Executing)
+            .update_saga_state(saga_id, &crate::saga_store::SagaState::Executing)
             .await
             .map_err(|e| {
                 warn!(saga_id = %saga_id, error = ?e, "Failed to transition saga to Executing");
@@ -103,7 +103,7 @@ impl SagaExecutor {
                     if let Err(state_err) = store
                         .update_saga_state(
                             saga_id,
-                            &crate::federation::saga_store::SagaState::Failed,
+                            &crate::saga_store::SagaState::Failed,
                         )
                         .await
                     {
@@ -119,7 +119,7 @@ impl SagaExecutor {
         // 5. Update final saga state
         if !saga_failed {
             store
-                .update_saga_state(saga_id, &crate::federation::saga_store::SagaState::Completed)
+                .update_saga_state(saga_id, &crate::saga_store::SagaState::Completed)
                 .await
                 .map_err(|e| {
                     warn!(saga_id = %saga_id, error = ?e, "Failed to transition saga to Completed");
@@ -190,7 +190,7 @@ impl SagaExecutor {
                     steps.iter().filter(|s| s.state == StepState::Completed).count() as u32;
                 let current =
                     steps.iter().find(|s| s.state != StepState::Completed).map(|s| s.order as u32);
-                let is_failed = saga_data.state == crate::federation::saga_store::SagaState::Failed;
+                let is_failed = saga_data.state == crate::saga_store::SagaState::Failed;
 
                 (total, completed, is_failed, None, current)
             },

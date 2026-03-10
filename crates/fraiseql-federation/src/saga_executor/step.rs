@@ -91,7 +91,7 @@ impl SagaExecutor {
             })?;
 
             if saga.is_none() {
-                return Err(crate::federation::saga_store::SagaStoreError::SagaNotFound(saga_id));
+                return Err(crate::saga_store::SagaStoreError::SagaNotFound(saga_id));
             }
 
             // Load all steps for this saga
@@ -105,12 +105,12 @@ impl SagaExecutor {
             let saga_step = steps
                 .iter()
                 .find(|s| s.order == step_number as usize)
-                .ok_or(crate::federation::saga_store::SagaStoreError::StepNotFound(step_id))?;
+                .ok_or(crate::saga_store::SagaStoreError::StepNotFound(step_id))?;
 
             // 2. Check step state is Pending
             if saga_step.state != StepState::Pending {
                 return Err(
-                    crate::federation::saga_store::SagaStoreError::InvalidStateTransition {
+                    crate::saga_store::SagaStoreError::InvalidStateTransition {
                         from: format!("{:?}", saga_step.state),
                         to:   "Executing".to_string(),
                     },

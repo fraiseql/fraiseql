@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::federation::types::{FederationMetadata, FieldPathSelection};
+use crate::types::{FederationMetadata, FieldPathSelection};
 
 /// Dependency graph node representing a field with @requires directives
 #[derive(Debug, Clone)]

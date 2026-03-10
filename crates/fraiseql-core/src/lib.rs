@@ -131,9 +131,9 @@ pub mod graphql;
 pub mod apq;
 pub mod cache;
 pub use fraiseql_db as db;
-#[cfg(feature = "design-audit")]
+#[cfg(feature = "schema-lint")]
 pub mod design;
-pub mod federation;
+pub use fraiseql_federation as federation;
 pub mod filters;
 pub mod security;
 pub mod tenancy;

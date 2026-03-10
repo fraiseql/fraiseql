@@ -23,4 +23,6 @@ code archaeology.
 
 **Fact table dimensions are missing** → read [fact-table.md](fact-table.md) §"JSONB Dimension Extraction"
 
+**Fact table aggregation results are stale** → read [fact-table.md](fact-table.md) §"Aggregation Result Caching"
+
 **Window function fails on MySQL** → read [window-functions.md](window-functions.md) §"Database Dialect Differences"

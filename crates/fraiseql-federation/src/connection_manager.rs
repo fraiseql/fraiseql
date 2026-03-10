@@ -8,10 +8,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    db::ArcDatabaseAdapter,
-    error::{FraiseQLError, Result},
-};
+use fraiseql_db::ArcDatabaseAdapter;
+use fraiseql_error::{FraiseQLError, Result};
 
 /// Configuration for a remote database connection
 #[derive(Debug, Clone)]

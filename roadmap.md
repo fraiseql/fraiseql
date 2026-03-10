@@ -1,6 +1,6 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.0.1 (Released 2026-03-10)
+**Current Stable**: v2.1.0 (Released 2026-03-10)
 **In Development**: v2.2.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
@@ -51,16 +51,16 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 
 ---
 
-## v2.0.1 - Performance and Observability ✅ Released 2026-03-10
+## v2.1.0 - Performance and Observability ✅ Released 2026-03-10
 
 **Released**: 2026-03-10
 
-> **Note**: v2.0.0 and v2.0.1 were developed concurrently on the `dev` branch and
+> **Note**: v2.0.0 and v2.1.0 were developed concurrently on the `dev` branch and
 > released within 8 days of each other as a combined stability + observability milestone.
 > The brief gap reflects the initial launch phase. Future releases will follow the
 > minimum 6-week cadence defined in `releasing.md`.
 
-With stability locked in v2.0.0, v2.0.1 delivers enterprise observability, query optimization, and performance guarantees.
+With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query optimization, and performance guarantees.
 
 ### Completed (in active development on `dev`)
 - **Automatic persisted queries (APQ)** - Redis-backed query caching with smart invalidation (`fraiseql-core/src/apq/`)
@@ -243,7 +243,7 @@ See `releasing.md` for the full cadence policy.
 
 ### Version Support
 - **LTS versions**: v1.x (through 2026), v2.x (through 2027)
-- **Current stable**: v2.0.1 (released March 2026)
+- **Current stable**: v2.1.0 (released March 2026)
 - **EOL policy**: Previous major version supported for 12 months after new major release
 
 ### Breaking Changes
@@ -279,7 +279,7 @@ Breaking changes only in major versions. All minor and patch releases maintain b
 - **Standalone binary** - Static binary with embedded schema, zero external dependencies
 
 ### Observability
-- **Prometheus metrics** - Standard in v2.0.1 and beyond
+- **Prometheus metrics** - Standard in v2.1.0 and beyond
 - **Structured logging** - JSON output compatible with ELK, Datadog, CloudWatch
 - **Health checks** - `/health` endpoint for load balancers and orchestrators
 - **SLA dashboards** - Pre-built Grafana dashboards for operations teams

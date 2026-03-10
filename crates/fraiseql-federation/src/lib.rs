@@ -1,3 +1,23 @@
+// Allow list mirrors fraiseql-core — same code, same suppressions.
+// Reason: pedantic lints applied to existing federation module code.
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::should_implement_trait)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::default_trait_access)]
+#![allow(clippy::implicit_saturating_sub)]
+#![allow(clippy::enum_glob_use)]
+#![allow(clippy::large_stack_arrays)]
+
 //! Federation support for Apollo Federation v2.
 //!
 //! This module implements the Apollo Federation v2 specification, enabling
@@ -87,10 +107,10 @@ pub use saga_store::{
 pub use selection_parser::*;
 use serde_json::{Value, json};
 pub use service_sdl::*;
-pub use tracing::{FederationSpan, FederationTraceContext};
+pub use crate::tracing::{FederationSpan, FederationTraceContext};
 pub use types::*;
 
-use crate::error::{FraiseQLError, Result};
+use fraiseql_error::{FraiseQLError, Result};
 
 /// Handle federation queries (federation introspection)
 pub async fn handle_federation_query(

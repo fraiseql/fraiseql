@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_key_directives_emitted_inline() {
-        use crate::federation::types::{FederatedType, KeyDirective};
+        use crate::types::{FederatedType, KeyDirective};
 
         let metadata = FederationMetadata {
             enabled: true,

@@ -3,7 +3,7 @@
 //! Extracts which fields are requested in a GraphQL query so federation
 //! can project only necessary fields from the database.
 
-use crate::error::Result;
+use fraiseql_error::Result;
 
 /// Represents requested fields in a GraphQL selection set.
 #[derive(Debug, Clone, Default)]

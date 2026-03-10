@@ -6,20 +6,19 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use tracing::warn;
+use ::tracing::warn;
+
+use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
-    db::traits::DatabaseAdapter,
-    error::{FraiseQLError, Result},
-    federation::{
-        metadata_helpers::find_federation_type,
-        query_builder::construct_where_in_clause,
-        requires_provides_validator::RequiresProvidesRuntimeValidator,
-        selection_parser::FieldSelection,
-        tracing::FederationTraceContext,
-        types::{EntityRepresentation, FederatedType, FederationMetadata},
-    },
-    schema::is_safe_sql_identifier,
+    metadata_helpers::find_federation_type,
+    query_builder::construct_where_in_clause,
+    requires_provides_validator::RequiresProvidesRuntimeValidator,
+    selection_parser::FieldSelection,
+    sql_utils::is_safe_sql_identifier,
+    tracing::FederationTraceContext,
+    types::{EntityRepresentation, FederatedType, FederationMetadata},
 };
 
 /// Resolves federation entities from local databases.
@@ -160,7 +159,7 @@ fn project_results(
         let key_values: Result<Vec<String>> = fed_type
             .keys
             .first()
-            .ok_or_else(|| crate::error::FraiseQLError::Validation {
+            .ok_or_else(|| fraiseql_error::FraiseQLError::Validation {
                 message: format!("Type '{}' has no key fields", typename),
                 path:    None,
             })?
@@ -170,7 +169,7 @@ fn project_results(
                 row.get(field)
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
                     .or_else(|| row.get(field).map(|v| v.to_string()))
-                    .ok_or_else(|| crate::error::FraiseQLError::Validation {
+                    .ok_or_else(|| fraiseql_error::FraiseQLError::Validation {
                         message: format!("Key field '{}' not found in row", field),
                         path:    None,
                     })

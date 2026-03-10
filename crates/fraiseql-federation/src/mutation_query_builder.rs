@@ -6,13 +6,11 @@
 use fraiseql_db::quote_postgres_identifier;
 use serde_json::Value;
 
+use fraiseql_error::{FraiseQLError, Result};
 use crate::{
-    error::{FraiseQLError, Result},
-    federation::{
-        metadata_helpers::{find_federation_type, get_key_directive},
-        sql_utils::value_to_sql_literal,
-        types::FederationMetadata,
-    },
+    metadata_helpers::{find_federation_type, get_key_directive},
+    sql_utils::value_to_sql_literal,
+    types::FederationMetadata,
 };
 
 /// Quote a GraphQL typename as a SQL table name (lowercase, double-quoted).
@@ -168,7 +166,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::federation::types::{FederatedType, FederationMetadata, KeyDirective};
+    use crate::types::{FederatedType, FederationMetadata, KeyDirective};
 
     fn make_metadata(typename: &str, key_field: &str) -> FederationMetadata {
         FederationMetadata {

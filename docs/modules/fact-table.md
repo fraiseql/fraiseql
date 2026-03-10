@@ -211,3 +211,100 @@ class Sales:
 
 Explicit declarations override introspected metadata and are preferred in production
 deployments where sample-based discovery may be unreliable.
+
+---
+
+## Aggregation Result Caching
+
+Aggregation queries on fact tables are cached by `CachedDatabaseAdapter` using a
+version-aware key strategy. Source: `cache/fact_table_cache.rs` and
+`cache/fact_table_version.rs`.
+
+### Cache Key
+
+```
+agg:<SHA256(sql + schema_version + version_component)>
+```
+
+The `version_component` varies by strategy (see below).
+
+### Version Strategies
+
+Choose a strategy based on how the fact table is updated:
+
+| Strategy | Best For | Cache Invalidation |
+|----------|----------|--------------------|
+| `Disabled` | Real-time accuracy required | No caching |
+| `VersionTable` | ETL / batch loads with explicit version bumps | Read from `tf_versions` table; re-fetched at most every 1s |
+| `TimeBased { ttl_seconds }` | Dashboards tolerant of short lag | Time-bucketed key expires after `ttl_seconds` |
+| `SchemaVersion` | Immutable historical data | Cache cleared on schema deployment |
+
+### Version Table Setup (VersionTable strategy)
+
+```sql
+CREATE TABLE tf_versions (
+    table_name TEXT PRIMARY KEY,
+    version    BIGINT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE OR REPLACE FUNCTION bump_tf_version(p_table_name TEXT) RETURNS BIGINT AS $$
+DECLARE new_version BIGINT;
+BEGIN
+    INSERT INTO tf_versions (table_name, version, updated_at)
+    VALUES (p_table_name, 1, NOW())
+    ON CONFLICT (table_name) DO UPDATE
+    SET version = tf_versions.version + 1, updated_at = NOW()
+    RETURNING tf_versions.version INTO new_version;
+    RETURN new_version;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+After each ETL load:
+
+```sql
+SELECT bump_tf_version('tf_sales');
+```
+
+### Configuration
+
+```rust
+use fraiseql_core::cache::fact_table_version::{
+    FactTableCacheConfig, FactTableVersionStrategy,
+};
+
+let mut config = FactTableCacheConfig::default();
+
+// ETL-loaded: explicit version bump required
+config.set_strategy("tf_sales", FactTableVersionStrategy::VersionTable);
+
+// Dashboards: 5-minute staleness acceptable
+config.set_strategy(
+    "tf_page_views",
+    FactTableVersionStrategy::TimeBased { ttl_seconds: 300 },
+);
+
+// Historical rates: immutable until next deployment
+config.set_strategy(
+    "tf_historical_rates",
+    FactTableVersionStrategy::SchemaVersion,
+);
+```
+
+### Execution Flow
+
+```
+execute_aggregation_query(sql)
+  ↓ Extract table name (regex: "FROM tf_xxx")
+  ↓ If not a fact table → execute without cache
+  ↓ Look up strategy for table (falls back to default)
+  ↓ If Disabled → execute without cache
+  ↓ Compute version component from strategy
+  ↓ Generate SHA256 cache key
+  ↓ Cache hit  → return cached result
+    Cache miss → execute query, store result
+```
+
+The `FactTableVersionProvider` caches version lookups with a 1-second TTL to avoid
+hammering the `tf_versions` table on every query.

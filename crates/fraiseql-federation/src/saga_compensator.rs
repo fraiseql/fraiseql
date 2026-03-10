@@ -114,10 +114,10 @@
 
 use std::{sync::Arc, time::Instant};
 
-use tracing::{debug, info};
+use ::tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::federation::saga_store::{
+use crate::saga_store::{
     PostgresSagaStore, Result as SagaStoreResult, SagaState, StepState,
 };
 
@@ -337,7 +337,7 @@ impl SagaCompensator {
         })?;
 
         let Some(saga_data) = saga else {
-            return Err(crate::federation::saga_store::SagaStoreError::SagaNotFound(saga_id));
+            return Err(crate::saga_store::SagaStoreError::SagaNotFound(saga_id));
         };
 
         // 2. Verify saga is in Failed state
@@ -570,12 +570,12 @@ impl SagaCompensator {
         let saga_step =
             steps.iter().find(|s| s.order == step_number as usize).ok_or_else(|| {
                 let step_id = Uuid::new_v4();
-                crate::federation::saga_store::SagaStoreError::StepNotFound(step_id)
+                crate::saga_store::SagaStoreError::StepNotFound(step_id)
             })?;
 
         // Verify step is in Completed state (must have completed forward phase to compensate)
         if saga_step.state != StepState::Completed {
-            return Err(crate::federation::saga_store::SagaStoreError::InvalidStateTransition {
+            return Err(crate::saga_store::SagaStoreError::InvalidStateTransition {
                 from: format!("{:?}", saga_step.state),
                 to:   "Compensation".to_string(),
             });

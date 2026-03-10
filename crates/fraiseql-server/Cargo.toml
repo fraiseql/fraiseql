@@ -35,7 +35,7 @@ fraiseql-arrow = {workspace = true, optional = true}
 # Authentication
 fraiseql-auth = {workspace = true, optional = true}
 # FraiseQL core
-fraiseql-core = {workspace = true, features = ["postgres", "design-audit"]}
+fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 # Secrets management and encryption
 fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks

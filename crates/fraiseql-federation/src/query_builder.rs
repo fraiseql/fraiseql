@@ -3,13 +3,11 @@
 //! Builds WHERE IN clauses for batch entity queries, with SQL injection prevention
 //! through proper escaping and parameterization.
 
+use fraiseql_error::{FraiseQLError, Result};
 use crate::{
-    error::{FraiseQLError, Result},
-    federation::{
-        metadata_helpers::{find_federation_type, get_key_directive},
-        sql_utils::{escape_sql_string, value_to_string},
-        types::{EntityRepresentation, FederationMetadata},
-    },
+    metadata_helpers::{find_federation_type, get_key_directive},
+    sql_utils::{escape_sql_string, value_to_string},
+    types::{EntityRepresentation, FederationMetadata},
 };
 
 /// Build a WHERE IN clause for batch entity resolution.
@@ -126,7 +124,7 @@ mod tests {
     use super::*;
 
     fn make_test_metadata() -> FederationMetadata {
-        use crate::federation::types::{FederatedType, KeyDirective};
+        use crate::types::{FederatedType, KeyDirective};
 
         let types = vec![FederatedType {
             name:             "User".to_string(),

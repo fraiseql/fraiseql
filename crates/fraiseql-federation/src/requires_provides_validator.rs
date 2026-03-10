@@ -43,9 +43,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tracing::{debug, info, warn};
+use ::tracing::{debug, info, warn};
 
-use crate::federation::types::{
+use crate::types::{
     FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection,
 };
 

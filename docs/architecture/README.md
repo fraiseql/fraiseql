@@ -13,7 +13,8 @@ This directory contains the authoritative architecture documentation for FraiseQ
 | Understand the test strategy | [../testing.md](../testing.md) |
 | Understand cache sharding, TTL, and invalidation | [../modules/cache.md](../modules/cache.md) |
 | Understand window function compilation | [../modules/window-functions.md](../modules/window-functions.md) |
-| Understand analytics fact table design | [../modules/fact-table.md](../modules/fact-table.md) |
+| Understand analytics fact table design and caching | [../modules/fact-table.md](../modules/fact-table.md) |
+| Understand the streaming wire protocol engine | [wire-protocol.md](wire-protocol.md) |
 | Understand operational concerns (schema lifecycle, idempotency) | [../operations/](../operations/) |
 | See which features each database supports | [../database-compatibility.md](../database-compatibility.md) |
 
@@ -34,6 +35,9 @@ schema.json    +    fraiseql.toml      →    schema.compiled.json    →    Gra
 
 - **[compiler.md](compiler.md)** — The GraphQL→SQL compilation pipeline, AST representation,
   SQL template design, and query classification in detail.
+
+- **[wire-protocol.md](wire-protocol.md)** — The `fraiseql-wire` streaming engine: purpose,
+  how it differs from the database adapter, and when to use it.
 
 ## Module Orientation Guides
 

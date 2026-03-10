@@ -7,14 +7,12 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_error::Result;
 use crate::{
-    db::traits::DatabaseAdapter,
-    error::Result,
-    federation::{
-        metadata_helpers::find_federation_type,
-        mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
-        types::FederationMetadata,
-    },
+    metadata_helpers::find_federation_type,
+    mutation_query_builder::{build_delete_query, build_insert_query, build_update_query},
+    types::FederationMetadata,
 };
 
 /// Type of mutation being performed.

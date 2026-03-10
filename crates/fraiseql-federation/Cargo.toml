@@ -1,0 +1,28 @@
+[package]
+name = "fraiseql-federation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Apollo Federation v2 support for FraiseQL — entity resolution, saga orchestration, multi-subgraph composition"
+
+[dependencies]
+fraiseql-db = {workspace = true, default-features = false}
+fraiseql-error = {workspace = true, default-features = false}
+
+chrono = {workspace = true}
+deadpool = {workspace = true}
+deadpool-postgres = {workspace = true}
+reqwest = {workspace = true}
+serde = {workspace = true, features = ["derive"]}
+serde_json = {workspace = true}
+tokio = {workspace = true}
+tokio-postgres = {workspace = true}
+tracing = {workspace = true}
+uuid = {workspace = true}
+
+[dev-dependencies]
+tokio = {workspace = true, features = ["macros", "rt-multi-thread"]}
+
+[lints]
+workspace = true

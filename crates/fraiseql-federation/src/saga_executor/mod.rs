@@ -77,10 +77,10 @@
 
 use std::{sync::Arc, time::Instant};
 
-use tracing::{debug, info, warn};
+use ::tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::federation::saga_store::{PostgresSagaStore, Result as SagaStoreResult, StepState};
+use crate::saga_store::{PostgresSagaStore, Result as SagaStoreResult, StepState};
 
 mod orchestrator;
 mod requires;

@@ -7,10 +7,8 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use crate::{
-    error::{FraiseQLError, Result},
-    federation::{metadata_helpers::find_federation_type, types::FederationMetadata},
-};
+use fraiseql_error::{FraiseQLError, Result};
+use crate::{metadata_helpers::find_federation_type, types::FederationMetadata};
 
 /// Configuration for HTTP mutation client
 #[derive(Debug, Clone)]
@@ -110,7 +108,7 @@ impl HttpMutationClient {
         _typename: &str,
         mutation_name: &str,
         variables: &Value,
-        fed_type: &crate::federation::types::FederatedType,
+        fed_type: &crate::types::FederatedType,
     ) -> Result<GraphQLRequest> {
         // Get key fields for response projection
         let key_fields = if let Some(key_directive) = fed_type.keys.first() {

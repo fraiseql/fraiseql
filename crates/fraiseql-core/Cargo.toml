@@ -23,6 +23,8 @@ workspace = true
 fraiseql-error = {workspace = true}
 # Database abstraction layer (adapters, collation, introspector, filters)
 fraiseql-db = {workspace = true, default-features = false}
+# Federation support (Apollo Federation v2)
+fraiseql-federation = {workspace = true}
 # Arrow Flight integration (optional)
 # Note: fraiseql-arrow depends on fraiseql-core, not the other way around
 # to avoid circular dependency. fraiseql-arrow provides the Flight server
@@ -88,9 +90,9 @@ tokio-test = "0.4"
 # For Arrow Flight server, use fraiseql-arrow crate which depends on fraiseql-core[arrow].
 arrow = ["dep:arrow", "dep:arrow-array"]
 default = ["postgres", "rich-filters"]
-# Schema design-audit analysis (DesignAudit, federation anti-pattern detection, cost analysis).
+# Schema linting: anti-pattern detection, cost analysis, quality scoring.
 # Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
-design-audit = []
+schema-lint = []
 kafka = ["rdkafka"]
 mysql = ["fraiseql-db/mysql"]
 postgres = ["fraiseql-db/postgres"]

@@ -23,7 +23,7 @@ FraiseQL follows **semantic versioning** and publishes to multiple registries:
 
 ### Release Channels
 
-- **Stable**: `v2.0.0`, `v2.0.1` (production releases)
+- **Stable**: `v2.0.0`, `v2.1.0` (production releases)
 - **Pre-release**: `v2.0.0-alpha.5`, `v2.0.0-beta.1` (testing releases)
 
 ### Current Registries
@@ -50,7 +50,7 @@ Announce breaking changes at least one minor version in advance.
 
 **Exception**: If two minor versions are developed concurrently (e.g. during initial
 launch), document the exception clearly in the CHANGELOG with a rationale. See the
-v2.0.0 / v2.0.1 note in `roadmap.md` for an example.
+v2.0.0 / v2.1.0 note in `roadmap.md` for an example.
 
 ---
 

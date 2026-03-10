@@ -3,14 +3,14 @@
 //! Detects whether a GraphQL query is a mutation and extracts mutation information
 //! for routing to mutation handlers. Includes federation awareness for local vs extended mutations.
 
-use crate::federation::types::FederationMetadata;
+use crate::types::FederationMetadata;
 
 /// Check if a query is a GraphQL mutation.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use fraiseql_core::federation::mutation_detector::is_mutation;
+/// use fraiseql_federation::mutation_detector::is_mutation;
 /// assert!(is_mutation("mutation { updateUser { id } }"));
 /// assert!(!is_mutation("query { user { id } }"));
 /// ```
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_mutation_ownership_federation_disabled() {
-        let metadata = crate::federation::FederationMetadata::default();
+        let metadata = crate::FederationMetadata::default();
         // With federation disabled, all mutations are local
         assert!(is_local_mutation("updateUser", &metadata));
         assert!(!is_extended_mutation("updateUser", &metadata));
@@ -193,10 +193,10 @@ mod tests {
 
     #[test]
     fn test_mutation_ownership_local_type() {
-        let metadata = crate::federation::FederationMetadata {
+        let metadata = crate::FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types:   vec![crate::federation::FederatedType {
+            types:   vec![crate::FederatedType {
                 name:             "User".to_string(),
                 keys:             vec![],
                 is_extends:       false, // NOT extended = local
@@ -212,10 +212,10 @@ mod tests {
 
     #[test]
     fn test_mutation_ownership_extended_type() {
-        let metadata = crate::federation::FederationMetadata {
+        let metadata = crate::FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types:   vec![crate::federation::FederatedType {
+            types:   vec![crate::FederatedType {
                 name:             "User".to_string(),
                 keys:             vec![],
                 is_extends:       true, // Extended = remote

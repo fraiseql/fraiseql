@@ -8,12 +8,11 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+use fraiseql_error::Result;
 use crate::{
-    error::Result,
-    federation::{
-        selection_parser::FieldSelection, tracing::FederationTraceContext,
-        types::EntityRepresentation,
-    },
+    selection_parser::FieldSelection,
+    tracing::FederationTraceContext,
+    types::EntityRepresentation,
 };
 
 /// Configuration for HTTP client behavior
@@ -191,7 +190,7 @@ impl HttpEntityResolver {
             }
         }
 
-        Err(crate::error::FraiseQLError::Internal {
+        Err(fraiseql_error::FraiseQLError::Internal {
             message: format!(
                 "HTTP resolution failed after {} attempts: {}",
                 attempts,
@@ -209,7 +208,7 @@ impl HttpEntityResolver {
         // Check for GraphQL errors
         if let Some(errors) = &response.errors {
             let error_messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
-            return Err(crate::error::FraiseQLError::Internal {
+            return Err(fraiseql_error::FraiseQLError::Internal {
                 message: format!("GraphQL errors: {}", error_messages.join("; ")),
                 source:  None,
             });
@@ -225,7 +224,7 @@ impl HttpEntityResolver {
             .unwrap_or_default();
 
         if entities.len() != representations.len() {
-            return Err(crate::error::FraiseQLError::Internal {
+            return Err(fraiseql_error::FraiseQLError::Internal {
                 message: format!(
                     "Entity count mismatch: expected {}, got {}",
                     representations.len(),

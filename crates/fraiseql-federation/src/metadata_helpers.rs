@@ -2,10 +2,8 @@
 //!
 //! Provides common patterns for metadata lookups and error handling.
 
-use crate::{
-    error::{FraiseQLError, Result},
-    federation::types::{FederatedType, FederationMetadata, KeyDirective},
-};
+use fraiseql_error::{FraiseQLError, Result};
+use crate::types::{FederatedType, FederationMetadata, KeyDirective};
 
 /// Find a federation type by name in the metadata.
 ///
@@ -69,7 +67,7 @@ mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::*;
-    use crate::federation::types::KeyDirective;
+    use crate::types::KeyDirective;
 
     fn make_test_metadata() -> FederationMetadata {
         FederationMetadata {

@@ -78,10 +78,10 @@
 
 use std::sync::Arc;
 
-use tracing::{debug, info, warn};
+use ::tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::federation::saga_store::{Result as SagaStoreResult, SagaState};
+use crate::saga_store::{Result as SagaStoreResult, SagaState};
 
 /// Represents a saga step mutation to execute
 ///
@@ -280,7 +280,7 @@ impl SagaCoordinator {
         // Validate at least one step
         if steps.is_empty() {
             warn!("Saga creation failed: saga must have at least one step");
-            return Err(crate::federation::saga_store::SagaStoreError::Database(
+            return Err(crate::saga_store::SagaStoreError::Database(
                 "saga must have at least one step".to_string(),
             ));
         }
@@ -293,7 +293,7 @@ impl SagaCoordinator {
                     actual = step.number,
                     "Saga creation failed: steps must be in sequential order"
                 );
-                return Err(crate::federation::saga_store::SagaStoreError::Database(
+                return Err(crate::saga_store::SagaStoreError::Database(
                     "steps must be in sequential order".to_string(),
                 ));
             }

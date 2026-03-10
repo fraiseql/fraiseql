@@ -34,7 +34,7 @@
 //! ```no_run
 //! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
 //! // See: tests/integration/ for runnable examples.
-//! use fraiseql_core::federation::saga_recovery_manager::{
+//! use fraiseql_federation::saga_recovery_manager::{
 //!     SagaRecoveryManager, RecoveryConfig,
 //! };
 //! use std::sync::Arc;
@@ -71,9 +71,9 @@ use std::{
     time::Duration,
 };
 
-use tracing::{debug, info, warn};
+use ::tracing::{debug, info, warn};
 
-use crate::federation::saga_store::{
+use crate::saga_store::{
     PostgresSagaStore, Result as SagaStoreResult, Saga, SagaState, SagaStoreError,
 };
 
