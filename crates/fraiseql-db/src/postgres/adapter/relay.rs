@@ -218,7 +218,10 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             })?;
 
             let total: i64 = count_row.get(0);
-            Some(total as u64)
+            // cast_unsigned() is the clippy-recommended alternative to `as u64` for i64;
+            // it has the same bit-pattern semantics but makes the sign-loss intent explicit.
+            // Row counts from COUNT(*) are always non-negative so sign loss is impossible.
+            Some(total.cast_unsigned())
         } else {
             None
         };

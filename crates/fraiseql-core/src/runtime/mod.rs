@@ -92,7 +92,7 @@ pub use window::{WindowSql, WindowSqlGenerator};
 pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
-use crate::security::{FieldFilter, FieldFilterConfig, RLSPolicy};
+use crate::security::{FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy};
 
 /// Runtime configuration for the FraiseQL query executor.
 ///
@@ -157,6 +157,19 @@ pub struct RuntimeConfig {
 
     /// JSONB field optimization strategy options
     pub jsonb_optimization: JsonbOptimizationOptions,
+
+    /// Optional query validation config.
+    ///
+    /// When `Some`, `QueryValidator::validate()` runs at the start of every
+    /// `Executor::execute()` call, before any parsing or SQL dispatch.
+    /// This provides DoS protection for direct `fraiseql-core` embedders that
+    /// do not route through `fraiseql-server` (which already runs `RequestValidator`
+    /// at the HTTP layer). Enforces: query size, depth, complexity, and alias count
+    /// (alias amplification protection).
+    ///
+    /// Set `None` to disable (default) — useful when the caller applies
+    /// validation at a higher layer, or when `fraiseql-server` is in use.
+    pub query_validation: Option<QueryValidatorConfig>,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -170,6 +183,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("rls_policy", &self.rls_policy.is_some())
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
+            .field("query_validation", &self.query_validation)
             .finish()
     }
 }
@@ -185,6 +199,7 @@ impl Default for RuntimeConfig {
             rls_policy:           None,
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
+            query_validation:     None,
         }
     }
 }

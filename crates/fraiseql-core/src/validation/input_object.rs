@@ -182,7 +182,7 @@ fn validate_any_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
     if let Value::Object(obj) = input {
         let has_any = fields
             .iter()
-            .any(|name| obj.get(name).map(|v| !matches!(v, Value::Null)).unwrap_or(false));
+            .any(|name| obj.get(name).is_some_and(|v| !matches!(v, Value::Null)));
 
         if !has_any {
             return Err(FraiseQLError::Validation {
@@ -200,7 +200,7 @@ fn validate_one_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
     if let Value::Object(obj) = input {
         let present_count = fields
             .iter()
-            .filter(|name| obj.get(*name).map(|v| !matches!(v, Value::Null)).unwrap_or(false))
+            .filter(|name| obj.get(*name).is_some_and(|v| !matches!(v, Value::Null)))
             .count();
 
         if present_count != 1 {
@@ -227,12 +227,12 @@ fn validate_conditional_required(
     path: &str,
 ) -> Result<()> {
     if let Value::Object(obj) = input {
-        let condition_met = obj.get(if_field).map(|v| !matches!(v, Value::Null)).unwrap_or(false);
+        let condition_met = obj.get(if_field).is_some_and(|v| !matches!(v, Value::Null));
 
         if condition_met {
             let missing_fields: Vec<&String> = then_fields
                 .iter()
-                .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                 .collect();
 
             if !missing_fields.is_empty() {
@@ -263,12 +263,12 @@ fn validate_required_if_absent(
     path: &str,
 ) -> Result<()> {
     if let Value::Object(obj) = input {
-        let field_absent = obj.get(absent_field).map(|v| matches!(v, Value::Null)).unwrap_or(true);
+        let field_absent = obj.get(absent_field).is_none_or(|v| matches!(v, Value::Null));
 
         if field_absent {
             let missing_fields: Vec<&String> = then_fields
                 .iter()
-                .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                 .collect();
 
             if !missing_fields.is_empty() {

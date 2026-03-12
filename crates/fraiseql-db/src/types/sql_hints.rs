@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use fraiseql_error::{FraiseQLError, Result};
 
+use crate::types::db_types::DatabaseType;
+
 /// ORDER BY clause
 ///
 /// # Numeric field sorting
@@ -159,8 +161,9 @@ impl OrderByClause {
 /// and JSON deserialization overhead.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SqlProjectionHint {
-    /// Database type (e.g., "postgresql", "mysql", "sqlite").
-    pub database: String,
+    /// Database type — typed to prevent silent typos (e.g. `"postgresq"`) that
+    /// would cause adapters to silently ignore the hint.
+    pub database: DatabaseType,
 
     /// The projection SQL template.
     /// Example for PostgreSQL:

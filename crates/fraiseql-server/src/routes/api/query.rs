@@ -7,11 +7,15 @@
 
 use axum::{Json, extract::State};
 use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::graphql::DEFAULT_MAX_ALIASES;
 use serde::{Deserialize, Serialize};
 
-use crate::routes::{
-    api::types::{ApiError, ApiResponse},
-    graphql::AppState,
+use crate::{
+    routes::{
+        api::types::{ApiError, ApiResponse},
+        graphql::AppState,
+    },
+    validation::RequestValidator,
 };
 
 /// Request to explain a query.
@@ -47,14 +51,17 @@ pub struct ExplainResponse {
 }
 
 /// Complexity information for a query.
+///
+/// All metrics are computed via AST walking (not character scanning), so
+/// operation names, arguments, and directives are never miscounted as fields.
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct ComplexityInfo {
-    /// Maximum nesting depth of the query
+    /// Maximum selection-set nesting depth.
     pub depth:       usize,
-    /// Total number of fields requested
-    pub field_count: usize,
-    /// Combined complexity score (depth × field_count)
-    pub score:       usize,
+    /// Complexity score (accounts for pagination multipliers on list fields).
+    pub complexity:  usize,
+    /// Number of aliased fields (alias amplification indicator).
+    pub alias_count: usize,
 }
 
 /// Request to validate a query.
@@ -88,9 +95,9 @@ pub struct StatsResponse {
 
 /// Explain query execution plan and complexity.
 ///
-/// Analyzes a GraphQL query and returns:
+/// Analyzes a GraphQL query using AST-based validation and returns:
 /// - SQL equivalent
-/// - Complexity metrics (depth, field count, score)
+/// - Complexity metrics (depth, complexity score, alias count)
 /// - Warnings for potential performance issues
 /// - Estimated cost to execute
 ///
@@ -106,8 +113,17 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         return Err(ApiError::validation_error("Query cannot be empty"));
     }
 
-    // Calculate complexity metrics
-    let complexity = calculate_complexity(&req.query);
+    // Compute AST-based complexity metrics.
+    let validator = RequestValidator::default();
+    let metrics = validator.analyze(&req.query).map_err(|e| {
+        ApiError::validation_error(format!("Query parse error: {e}"))
+    })?;
+
+    let complexity = ComplexityInfo {
+        depth:       metrics.depth,
+        complexity:  metrics.complexity,
+        alias_count: metrics.alias_count,
+    };
 
     // Generate warnings for high complexity
     let warnings = generate_warnings(&complexity);
@@ -165,12 +181,12 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
 /// Validate GraphQL query syntax.
 ///
-/// Performs basic syntax validation on a GraphQL query.
+/// Performs full AST-based validation on a GraphQL query.
 /// Returns a list of any errors found.
 ///
 /// # Errors
 ///
-/// This handler currently always succeeds; validation errors are reported inside the response body.
+/// This handler always succeeds; validation errors are reported inside the response body.
 pub async fn validate_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
     Json(req): Json<ValidateRequest>,
@@ -185,9 +201,11 @@ pub async fn validate_handler<A: DatabaseAdapter>(
         }));
     }
 
-    // Basic syntax check
-    let errors = validate_query_syntax(&req.query);
-    let valid = errors.is_empty();
+    // Full AST parse: reports real syntax errors, not brace-matching heuristics.
+    let (valid, errors) = match graphql_parser::parse_query::<String>(&req.query) {
+        Ok(_) => (true, vec![]),
+        Err(e) => (false, vec![e.to_string()]),
+    };
 
     let response = ValidateResponse { valid, errors };
 
@@ -229,9 +247,9 @@ pub async fn stats_handler<A: DatabaseAdapter>(
     };
 
     let response = StatsResponse {
-        total_queries: total_queries as usize,
+        total_queries:      total_queries as usize,
         successful_queries: successful_queries as usize,
-        failed_queries: failed_queries as usize,
+        failed_queries:     failed_queries as usize,
         average_latency_ms,
     };
 
@@ -241,79 +259,12 @@ pub async fn stats_handler<A: DatabaseAdapter>(
     }))
 }
 
-// Helper functions
+// ── Internal helpers ──────────────────────────────────────────────────────────
 
-/// Calculate complexity metrics for a GraphQL query.
-fn calculate_complexity(query: &str) -> ComplexityInfo {
-    let depth = calculate_depth(query);
-    let field_count = count_fields(query);
-    let score = depth.saturating_mul(field_count);
-
-    ComplexityInfo {
-        depth,
-        field_count,
-        score,
-    }
-}
-
-/// Calculate maximum nesting depth of braces in a query.
-fn calculate_depth(query: &str) -> usize {
-    let mut max_depth: usize = 0;
-    let mut current_depth: usize = 0;
-
-    for ch in query.chars() {
-        match ch {
-            '{' => {
-                current_depth += 1;
-                max_depth = max_depth.max(current_depth);
-            },
-            '}' => {
-                current_depth = current_depth.saturating_sub(1);
-            },
-            _ => {},
-        }
-    }
-
-    max_depth
-}
-
-/// Count approximate number of fields in a GraphQL query.
-/// This is a simple heuristic that counts commas and newlines within braces.
-fn count_fields(query: &str) -> usize {
-    let mut count = 1; // Start with at least one field
-    let mut in_braces = 0;
-
-    for ch in query.chars() {
-        match ch {
-            '{' => in_braces += 1,
-            '}' => {
-                if in_braces > 0 {
-                    in_braces -= 1;
-                }
-            },
-            ',' => {
-                if in_braces > 0 {
-                    count += 1;
-                }
-            },
-            '\n' if in_braces > 0 => {
-                // Rough approximation: each line in field list is a field
-                if !query.contains(',') {
-                    count += 1;
-                }
-            },
-            _ => {},
-        }
-    }
-
-    count.max(1)
-}
-
-/// Generate warnings based on complexity metrics.
+/// Generate warnings based on AST-based complexity metrics.
 fn generate_warnings(complexity: &ComplexityInfo) -> Vec<String> {
     let mut warnings = vec![];
 
-    // Warn about deep nesting
     if complexity.depth > 10 {
         warnings.push(format!(
             "Query nesting depth is {} (threshold: 10). Consider using aliases or fragments.",
@@ -321,33 +272,30 @@ fn generate_warnings(complexity: &ComplexityInfo) -> Vec<String> {
         ));
     }
 
-    // Warn about high complexity score
-    if complexity.score > 500 {
+    if complexity.complexity > 100 {
         warnings.push(format!(
-            "Query complexity score is {} (threshold: 500). This may take longer to execute.",
-            complexity.score
+            "Query complexity score is {} (threshold: 100). This may take longer to execute.",
+            complexity.complexity
         ));
     }
 
-    // Warn about many fields
-    if complexity.field_count > 50 {
+    if complexity.alias_count > DEFAULT_MAX_ALIASES {
         warnings.push(format!(
-            "Query requests {} fields (threshold: 50). Consider requesting only necessary fields.",
-            complexity.field_count
+            "Query has {} aliases (threshold: {DEFAULT_MAX_ALIASES}). High alias counts may indicate amplification.",
+            complexity.alias_count
         ));
     }
 
     warnings
 }
 
-/// Estimate execution cost based on complexity.
+/// Estimate execution cost based on AST-based complexity metrics.
 const fn estimate_cost(complexity: &ComplexityInfo) -> usize {
-    // Simple cost model: base cost + scaling factor
     let base_cost = 50;
     let depth_cost = complexity.depth.saturating_mul(10);
-    let field_cost = complexity.field_count.saturating_mul(5);
+    let complexity_cost = complexity.complexity.saturating_mul(5);
 
-    base_cost + depth_cost + field_cost
+    base_cost + depth_cost + complexity_cost
 }
 
 /// Check whether DB-level EXPLAIN is enabled in the debug configuration.
@@ -355,63 +303,16 @@ fn is_db_explain_enabled(debug_config: Option<&fraiseql_core::schema::DebugConfi
     debug_config.is_some_and(|c| c.enabled && c.database_explain)
 }
 
-/// Validate GraphQL query syntax.
-/// Returns list of syntax errors found.
-fn validate_query_syntax(query: &str) -> Vec<String> {
-    let mut errors = vec![];
-
-    // Check for basic structure
-    if !query.contains('{') || !query.contains('}') {
-        errors.push("Query must contain opening and closing braces".to_string());
-    }
-
-    // Check brace matching
-    let open_braces = query.matches('{').count();
-    let close_braces = query.matches('}').count();
-    if open_braces != close_braces {
-        errors
-            .push(format!("Mismatched braces: {} opening, {} closing", open_braces, close_braces));
-    }
-
-    // Check for at least query/mutation/subscription keyword
-    let has_operation =
-        query.contains("query") || query.contains("mutation") || query.contains("subscription");
-
-    if !has_operation {
-        errors.push("Query must contain query, mutation, or subscription operation".to_string());
-    }
-
-    errors
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_calculate_depth_simple() {
-        let depth = calculate_depth("query { users { id } }");
-        assert_eq!(depth, 2);
-    }
-
-    #[test]
-    fn test_calculate_depth_nested() {
-        let depth = calculate_depth("query { users { posts { comments { text } } } }");
-        assert_eq!(depth, 4);
-    }
-
-    #[test]
-    fn test_count_fields_single() {
-        let count = count_fields("query { users { id } }");
-        assert!(count >= 1);
-    }
-
-    #[test]
     fn test_generate_warnings_deep() {
         let complexity = ComplexityInfo {
             depth:       15,
-            field_count: 5,
-            score:       75,
+            complexity:  10,
+            alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
         assert!(!warnings.is_empty());
@@ -419,11 +320,11 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_warnings_high_score() {
+    fn test_generate_warnings_high_complexity() {
         let complexity = ComplexityInfo {
             depth:       3,
-            field_count: 200,
-            score:       600,
+            complexity:  200,
+            alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
         assert!(!warnings.is_empty());
@@ -431,33 +332,25 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_warnings_high_alias_count() {
+        let complexity = ComplexityInfo {
+            depth:       2,
+            complexity:  5,
+            alias_count: 35,
+        };
+        let warnings = generate_warnings(&complexity);
+        assert!(warnings.iter().any(|w| w.contains("alias")));
+    }
+
+    #[test]
     fn test_estimate_cost() {
         let complexity = ComplexityInfo {
             depth:       2,
-            field_count: 3,
-            score:       6,
+            complexity:  3,
+            alias_count: 0,
         };
         let cost = estimate_cost(&complexity);
         assert!(cost > 0);
-    }
-
-    #[test]
-    fn test_validate_empty_query() {
-        let errors = validate_query_syntax("");
-        assert!(!errors.is_empty());
-    }
-
-    #[test]
-    fn test_validate_mismatched_braces() {
-        let errors = validate_query_syntax("query { users { id }");
-        assert!(!errors.is_empty());
-        assert!(errors[0].contains("Mismatched"));
-    }
-
-    #[test]
-    fn test_validate_valid_query() {
-        let errors = validate_query_syntax("query { users { id } }");
-        assert!(errors.is_empty());
     }
 
     #[test]
@@ -468,7 +361,6 @@ mod tests {
             failed_queries:     5,
             average_latency_ms: 42.5,
         };
-
         assert_eq!(response.total_queries, 100);
         assert_eq!(response.successful_queries, 95);
         assert_eq!(response.failed_queries, 5);
@@ -482,8 +374,8 @@ mod tests {
             sql:            Some("SELECT id FROM users".to_string()),
             complexity:     ComplexityInfo {
                 depth:       2,
-                field_count: 1,
-                score:       2,
+                complexity:  2,
+                alias_count: 0,
             },
             warnings:       vec![],
             estimated_cost: 50,
@@ -499,22 +391,10 @@ mod tests {
     }
 
     #[test]
-    fn test_complexity_info_score_calculation() {
-        let complexity = ComplexityInfo {
-            depth:       3,
-            field_count: 4,
-            score:       12,
-        };
-
-        assert_eq!(complexity.score, 3 * 4);
-    }
-
-    #[test]
     fn test_validate_request_structure() {
         let request = ValidateRequest {
             query: "query { users { id } }".to_string(),
         };
-
         assert!(!request.query.is_empty());
     }
 
@@ -524,7 +404,6 @@ mod tests {
             query:     "query { users { id } }".to_string(),
             variables: None,
         };
-
         assert!(!request.query.is_empty());
     }
 
@@ -532,10 +411,8 @@ mod tests {
     fn test_debug_disabled_no_db_explain() {
         use fraiseql_core::schema::DebugConfig;
 
-        // Default (no debug config) → DB explain disabled
         assert!(!is_db_explain_enabled(None));
 
-        // Enabled but database_explain false
         let config = DebugConfig { enabled: true, database_explain: false, ..Default::default() };
         assert!(!is_db_explain_enabled(Some(&config)));
     }
@@ -552,7 +429,6 @@ mod tests {
     fn test_debug_master_switch_required() {
         use fraiseql_core::schema::DebugConfig;
 
-        // database_explain true but master switch off → disabled
         let config = DebugConfig { enabled: false, database_explain: true, ..Default::default() };
         assert!(!is_db_explain_enabled(Some(&config)));
     }

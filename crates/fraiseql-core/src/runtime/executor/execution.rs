@@ -6,6 +6,7 @@ use super::{Executor, QueryType, pipeline};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
+    security::QueryValidator,
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -13,11 +14,33 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Applies the configured query timeout if one is set. Handles queries,
     /// mutations, introspection, federation, and node lookups.
+    ///
+    /// If `RuntimeConfig::query_validation` is set, `QueryValidator::validate()`
+    /// runs first (before parsing or SQL dispatch) to enforce size, depth, and
+    /// complexity limits. This protects direct `fraiseql-core` embedders that do
+    /// not route through `fraiseql-server`.
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Validation`] — query violates configured depth/complexity/alias limits
+    ///   (only when `RuntimeConfig::query_validation` is `Some`).
+    /// - [`FraiseQLError::Timeout`] — query exceeded `RuntimeConfig::query_timeout_ms`.
+    /// - Any error returned by [`Self::execute_internal`].
     pub async fn execute(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<String> {
+        // GATE 1: Query structure validation (DoS protection for direct embedders).
+        if let Some(ref cfg) = self.config.query_validation {
+            QueryValidator::from_config(cfg.clone())
+                .validate(query)
+                .map_err(|e| FraiseQLError::Validation {
+                    message: e.to_string(),
+                    path:    Some("query".to_string()),
+                })?;
+        }
+
         // Apply query timeout if configured
         if self.config.query_timeout_ms > 0 {
             let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
@@ -40,7 +63,15 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Internal execution logic (called by execute with timeout wrapper).
+    /// Internal execution logic (called by `execute` with the timeout wrapper).
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Parse`] — GraphQL query string is not valid GraphQL syntax.
+    /// - [`FraiseQLError::NotFound`] — the query name does not match any compiled query template.
+    /// - [`FraiseQLError::Database`] — the underlying database returned an error.
+    /// - [`FraiseQLError::Internal`] — response serialisation failed.
+    /// - [`FraiseQLError::Authorization`] — field-level access control denied a field.
     pub(super) async fn execute_internal(
         &self,
         query: &str,
@@ -55,7 +86,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Regular => {
                 // Detect multi-root queries and dispatch them in parallel.
                 // `maybe_parsed` is always Some for Regular queries (see classify_query_with_parse).
-                let parsed = maybe_parsed.expect("parsed present for Regular query type");
+                let parsed = maybe_parsed.ok_or_else(|| FraiseQLError::Internal {
+                    message: "classifier returned Regular without a parsed query — this is a bug"
+                        .to_string(),
+                    source:  None,
+                })?;
                 if pipeline::is_multi_root(&parsed) {
                     let pr = self.execute_parallel(&parsed, variables).await?;
                     let data = pr.merge_into_data_map();
@@ -135,26 +170,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 3. Route to appropriate handler (same as execute)
-        match query_type {
-            QueryType::Regular => self.execute_regular_query(query, variables).await,
-            QueryType::Aggregate(query_name) => {
-                self.execute_aggregate_dispatch(&query_name, variables).await
-            },
-            QueryType::Window(query_name) => {
-                self.execute_window_dispatch(&query_name, variables).await
-            },
-            QueryType::Federation(query_name) => {
-                self.execute_federation_query(&query_name, query, variables).await
-            },
-            QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
-            QueryType::IntrospectionType(type_name) => {
-                Ok(self.introspection.get_type_response(&type_name))
-            },
-            QueryType::Mutation(mutation_name) => {
-                self.execute_mutation_query(&mutation_name, variables).await
-            },
-            QueryType::NodeQuery => self.execute_node_query(query, variables).await,
-        }
+        // 3. Delegate to execute_internal — single source of routing truth.
+        //    Field-access validation (step 2) has already run for Regular queries;
+        //    all other query types (introspection, aggregate, federation, …) are
+        //    routed correctly via execute_internal without duplication.
+        self.execute_internal(query, variables).await
     }
 }

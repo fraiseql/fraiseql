@@ -10,6 +10,11 @@ required-features = ["postgres"]
 
 [[bench]]
 harness = false
+name = "design_analysis"
+required-features = ["schema-lint"]
+
+[[bench]]
+harness = false
 name = "sql_projection_benchmark"
 
 [[bench]]

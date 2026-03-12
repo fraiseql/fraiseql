@@ -77,22 +77,16 @@
 #![allow(clippy::missing_errors_doc)]
 // Reason: explicit duplicate arms can clarify intent in complex match expressions.
 #![allow(clippy::match_same_arms)]
-// Reason: many intentional u64→u32 casts in cache shard index computation
-//         where the value is always < 64.
-#![allow(clippy::cast_possible_truncation)]
-// Reason: intentional f64 conversions in latency histogram bucketing.
-#![allow(clippy::cast_precision_loss)]
-// Reason: intentional signed→unsigned conversions for offset/length calculations.
-#![allow(clippy::cast_sign_loss)]
 // Reason: schema compilation functions take type, context, config, security, and modifiers;
 //         splitting into builder structs is planned but not done.
 #![allow(clippy::too_many_arguments)]
 // Reason: `push_str(&format!(...))` is sometimes clearer than `write!` in SQL builders.
 #![allow(clippy::format_push_string)]
-// Reason: wildcard imports used intentionally for enum variants in local match blocks.
+// Reason: wildcard imports used intentionally — e.g. `use base64::prelude::*` in vault.rs,
+//         `use super::types::*` in subscription manager (module boundary wildcard).
 #![allow(clippy::wildcard_imports)]
 // Reason: fraiseql-core has ~300+ public functions; panic-doc coverage is
-//         a separate effort tracked in the backlog (see U3 remediation plan).
+//         a separate effort tracked in roadmap.md (v2.2.0 cleanup).
 #![allow(clippy::missing_panics_doc)]
 // Reason: `from_str` / `from_value` are intentionally named differently from `FromStr`
 //         to avoid confusion with the trait; they are schema-specific constructors.
@@ -100,18 +94,13 @@
 // Reason: some public API functions take owned values for ergonomics at call sites;
 //         those that implement traits cannot change their signature.
 #![allow(clippy::needless_pass_by_value)]
-// Reason: `.map(...).unwrap_or(...)` is kept where a separate map_or would be harder to read
-//         in multi-line chains; 31 call sites, cleaned up where straightforward.
-#![allow(clippy::map_unwrap_or)]
-// Reason: `HashMap::default()` is explicit about the concrete type at instantiation.
+// Reason: struct field initialisation uses `Default::default()` to keep fields aligned
+//         when the concrete type is long or inferred; both forms are clear.
+//         Sites: compiler/codegen.rs, validation/custom_type_registry/registry.rs.
 #![allow(clippy::default_trait_access)]
-// Reason: explicit `if a > b { a - b } else { 0 }` is clearer than implicit saturating.
-#![allow(clippy::implicit_saturating_sub)]
-// Reason: wildcard enum imports improve readability in heavily match-driven modules.
+// Reason: wildcard enum imports improve readability in heavily match-driven modules
+//         (e.g. `use AggregateFunction::*` in aggregation/expressions.rs).
 #![allow(clippy::enum_glob_use)]
-// Reason: test code legitimately allocates large test-data arrays on the stack;
-//         the lint cannot attribute this to a specific source location (reports .clippy.toml:1).
-#![allow(clippy::large_stack_arrays)]
 
 // Core modules
 pub mod config;

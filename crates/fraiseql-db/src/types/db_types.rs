@@ -8,12 +8,28 @@ use tokio_postgres::types::{IsNull, ToSql, Type};
 ///
 /// # Stability
 ///
-/// This enum is **not** marked `#[non_exhaustive]`. All match sites in the codebase
-/// are required to handle every variant explicitly, giving compile-time assurance that
+/// This enum is intentionally **not** `#[non_exhaustive]`. All match sites in the
+/// codebase must handle every variant explicitly, giving compile-time assurance that
 /// new database backends are fully integrated before release.
 ///
-/// Adding a new variant here requires updating every exhaustive `match` on `DatabaseType`.
+/// Adding a new variant is a **semver-breaking change** (minor version bump with
+/// migration guide), because downstream exhaustive `match` expressions will fail
+/// to compile. If you match on `DatabaseType` and want forward compatibility, add
+/// a wildcard arm:
+///
+/// ```rust
+/// # use fraiseql_db::DatabaseType;
+/// # let db_type = DatabaseType::PostgreSQL;
+/// match db_type {
+///     DatabaseType::PostgreSQL => { /* ... */ }
+///     DatabaseType::MySQL      => { /* ... */ }
+///     DatabaseType::SQLite     => { /* ... */ }
+///     DatabaseType::SQLServer  => { /* ... */ }
+///     // no wildcard needed — exhaustive by design
+/// }
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DatabaseType {
     /// PostgreSQL database (primary, full feature set).
     PostgreSQL,

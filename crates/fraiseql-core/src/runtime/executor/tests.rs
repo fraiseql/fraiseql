@@ -9,13 +9,30 @@ use crate::{
 };
 
 /// Mock database adapter for testing.
+///
+/// Supports both uniform mode (same results for every view) and per-view mode
+/// (`with_view()` builder) so tests can verify correct query routing.
 struct MockAdapter {
+    /// Default results returned for any view that has no specific override.
     mock_results: Vec<JsonbValue>,
+    /// Per-view result overrides. When present, `execute_where_query` returns
+    /// these instead of `mock_results`, enabling routing-correctness tests.
+    view_responses: std::collections::HashMap<String, Vec<JsonbValue>>,
 }
 
 impl MockAdapter {
+    /// Uniform mode: all views return the same results.
     fn new(mock_results: Vec<JsonbValue>) -> Self {
-        Self { mock_results }
+        Self {
+            mock_results,
+            view_responses: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Per-view mode builder: register a specific result set for a named view.
+    fn with_view(mut self, view: &str, results: Vec<JsonbValue>) -> Self {
+        self.view_responses.insert(view.to_string(), results);
+        self
     }
 }
 
@@ -37,11 +54,15 @@ impl DatabaseAdapter for MockAdapter {
 
     async fn execute_where_query(
         &self,
-        _view: &str,
+        view: &str,
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
+        // Return per-view override if registered, otherwise fall back to uniform results.
+        if let Some(results) = self.view_responses.get(view) {
+            return Ok(results.clone());
+        }
         Ok(self.mock_results.clone())
     }
 
@@ -237,6 +258,7 @@ async fn test_executor_with_config() {
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),
+        query_validation:     None,
     };
 
     let executor = Executor::with_config(schema, adapter, config);
@@ -549,6 +571,7 @@ fn test_jsonb_strategy_in_runtime_config() {
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),
+        query_validation:     None,
     };
 
     assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -572,6 +595,7 @@ fn test_jsonb_strategy_custom_config() {
         rls_policy:           None,
         query_timeout_ms:     30_000,
         jsonb_optimization:   custom_options,
+        query_validation:     None,
     };
 
     assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
@@ -878,4 +902,161 @@ async fn test_mutation_errors_when_both_sql_source_and_table_absent() {
         err.to_string().contains("has no sql_source configured"),
         "expected sql_source error, got: {err}"
     );
+}
+
+// =========================================================================
+// R9: SQLite/read-only adapter mutation guard — error type verification
+// =========================================================================
+
+/// Mutations against a read-only adapter must return `FraiseQLError::Validation`
+/// specifically — not `FraiseQLError::Database` or `FraiseQLError::Internal`.
+/// This pins the error type so a future refactor cannot silently change it.
+#[tokio::test]
+async fn test_mutation_guard_returns_validation_error_not_database_or_internal() {
+    use crate::schema::MutationDefinition;
+
+    let mut schema = CompiledSchema::new();
+    schema.mutations.push(MutationDefinition {
+        sql_source: Some("fn_create_user".to_string()),
+        ..MutationDefinition::new("createUser", "User")
+    });
+
+    let adapter = Arc::new(ReadOnlyMockAdapter);
+    let executor = Executor::new(schema, adapter);
+
+    let err = executor
+        .execute("mutation { createUser { id } }", None)
+        .await
+        .unwrap_err();
+
+    // Must be Validation — not Internal, Database, or any other variant.
+    assert!(
+        matches!(err, FraiseQLError::Validation { .. }),
+        "expected FraiseQLError::Validation for read-only adapter, got: {err:?}"
+    );
+}
+
+/// The error message from the mutation guard must mention the mutation name
+/// so the caller can identify which mutation triggered the guard.
+#[tokio::test]
+async fn test_mutation_guard_error_message_is_actionable() {
+    use crate::schema::MutationDefinition;
+
+    let mut schema = CompiledSchema::new();
+    schema.mutations.push(MutationDefinition {
+        sql_source: Some("fn_delete_account".to_string()),
+        ..MutationDefinition::new("deleteAccount", "User")
+    });
+
+    let adapter = Arc::new(ReadOnlyMockAdapter);
+    let executor = Executor::new(schema, adapter);
+
+    let err = executor
+        .execute("mutation { deleteAccount { id } }", None)
+        .await
+        .unwrap_err();
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("deleteAccount"),
+        "mutation guard message should name the mutation, got: {msg}"
+    );
+    assert!(
+        msg.contains("mutation") || msg.contains("does not support"),
+        "mutation guard message should explain the reason, got: {msg}"
+    );
+}
+
+// =========================================================================
+// R10: Alias limit enforced independently of depth/complexity flags
+// =========================================================================
+
+/// When both depth and complexity validation are disabled, the alias limit
+/// must still be enforced. This tests that the alias check is NOT inside
+/// a depth/complexity gate and will catch alias amplification attacks even
+/// when other limits are turned off.
+#[test]
+fn test_alias_limit_enforced_when_depth_and_complexity_disabled() {
+    use crate::graphql::complexity::{RequestValidator, ValidationError};
+
+    let validator = RequestValidator::new()
+        .with_depth_validation(false)
+        .with_complexity_validation(false)
+        .with_max_aliases(2);
+
+    // 3 aliases — exceeds limit of 2.
+    let query = "query { a: users { id } b: users { id } c: users { id } }";
+    let result = validator.validate_query(query);
+
+    assert!(
+        result.is_err(),
+        "alias limit must be enforced even when depth and complexity are disabled"
+    );
+    assert!(
+        matches!(result.unwrap_err(), ValidationError::TooManyAliases { actual_aliases: 3, .. }),
+        "error must be TooManyAliases with actual_aliases = 3"
+    );
+}
+
+/// When aliases are within the limit, the query must pass even with other
+/// limits disabled — verifying that alias-disable=false doesn't block valid queries.
+#[test]
+fn test_alias_within_limit_passes_when_depth_and_complexity_disabled() {
+    use crate::graphql::complexity::RequestValidator;
+
+    let validator = RequestValidator::new()
+        .with_depth_validation(false)
+        .with_complexity_validation(false)
+        .with_max_aliases(5);
+
+    // 2 aliases — within limit of 5.
+    let query = "query { a: users { id } b: users { id } }";
+    assert!(
+        validator.validate_query(query).is_ok(),
+        "query within alias limit must pass when depth and complexity are disabled"
+    );
+}
+
+// =========================================================================
+// R7: Per-view mock adapter routing verification
+// =========================================================================
+
+/// Multi-root queries dispatched to different views must return distinct results.
+/// This test would have silently passed before R7 because the old mock returned
+/// the same data for all views, masking routing bugs.
+#[tokio::test]
+async fn test_per_view_mock_returns_distinct_results() {
+    // Build a schema with two queries on different views.
+    let mut schema = CompiledSchema::new();
+    schema.queries.push(QueryDefinition {
+        name:         "users".to_string(),
+        return_type:  "User".to_string(),
+        returns_list: true,
+        nullable:     false,
+        arguments:    Vec::new(),
+        sql_source:   Some("v_user".to_string()),
+        description:  None,
+        auto_params:  AutoParams::default(),
+        deprecation:  None,
+        jsonb_column: "data".to_string(),
+        relay:               false,
+        relay_cursor_column: None,
+        relay_cursor_type:   Default::default(),
+        inject_params:       Default::default(),
+        cache_ttl_seconds:   None,
+        additional_views:    vec![],
+        requires_role:       None,
+    });
+
+    let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
+    let adapter = Arc::new(
+        MockAdapter::new(vec![])
+            .with_view("v_user", vec![user_row]),
+    );
+
+    let executor = Executor::new(schema, adapter);
+    let result = executor.execute("{ users { id type } }", None).await.unwrap();
+
+    // v_user must return the user row, not the empty default.
+    assert!(result.contains("\"type\":\"user\""), "expected user row from v_user, got: {result}");
 }

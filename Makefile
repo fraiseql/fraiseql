@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-unwrap lint-expect
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect
 
 # Default target
 help:
@@ -187,7 +187,10 @@ test-e2e:
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
-# Count #[allow(clippy::unwrap_used)] occurrences in production source files.
+# Secondary gate: count #[allow(clippy::unwrap_used)] annotations in production source files.
+# Primary enforcement: clippy::unwrap_used = "deny" in workspace lints — any new .unwrap() in
+# production code fails `cargo clippy --workspace -- -D warnings` before this gate runs.
+# This secondary gate limits annotation proliferation (each annotation is a deliberate exception).
 # Excludes lines containing "test" (covers #![allow] in test modules and test-only src files).
 # Baseline: 1 (fraiseql-arrow/src/db_convert.rs — safe NaiveDate::from_ymd_opt call).
 # Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
@@ -248,6 +251,60 @@ lint-gate:
 	  exit 1; \
 	fi; \
 	echo "OK: $$ALLOW_COUNT allows (≤20 threshold)"
+
+# Gate: ensure HIGH-risk cast allows are not re-added to fraiseql-db crate level.
+# cast_possible_truncation, cast_precision_loss, cast_sign_loss must not be global.
+# Current crate-level allows: 37 (target ≤40 after removing the 3 cast allows).
+FRAISEQL_DB_LIB_ALLOWS_MAX ?= 40
+.PHONY: lint-gate-db
+lint-gate-db:
+	@count=$$(grep -c '#!\[allow(clippy' crates/fraiseql-db/src/lib.rs); \
+	echo "fraiseql-db lib.rs crate-level allows: $$count (max: $(FRAISEQL_DB_LIB_ALLOWS_MAX))"; \
+	for lint in cast_possible_truncation cast_precision_loss cast_sign_loss; do \
+	  if grep -q "allow.*$$lint" crates/fraiseql-db/src/lib.rs; then \
+	    echo "ERROR: HIGH-risk cast lint $$lint must not be allowed at crate level"; \
+	    exit 1; \
+	  fi; \
+	done; \
+	if [ "$$count" -gt "$(FRAISEQL_DB_LIB_ALLOWS_MAX)" ]; then \
+	  echo "ERROR: too many crate-level clippy allows in fraiseql-db ($$count > $(FRAISEQL_DB_LIB_ALLOWS_MAX))"; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count allows (≤$(FRAISEQL_DB_LIB_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
+
+# Gate: ensure narrow cast allows in fraiseql-core do not proliferate beyond threshold.
+# Only narrow per-site #[allow(clippy::cast_*)] annotations are counted (not crate-level //!).
+FRAISEQL_CORE_CAST_ALLOWS_MAX ?= 20
+.PHONY: lint-gate-core
+lint-gate-core:
+	@count=$$(grep -r '#\[allow(clippy::cast' crates/fraiseql-core/src/ | wc -l); \
+	echo "fraiseql-core narrow cast allows: $$count (max: $(FRAISEQL_CORE_CAST_ALLOWS_MAX))"; \
+	for lint in cast_possible_truncation cast_precision_loss cast_sign_loss; do \
+	  if grep -r "^#!\[allow.*$$lint" crates/fraiseql-core/src/lib.rs 2>/dev/null | grep -q .; then \
+	    echo "ERROR: HIGH-risk cast lint $$lint must not be allowed at crate level in fraiseql-core"; \
+	    exit 1; \
+	  fi; \
+	done; \
+	if [ "$$count" -gt "$(FRAISEQL_CORE_CAST_ALLOWS_MAX)" ]; then \
+	  echo "ERROR: too many narrow cast allows in fraiseql-core ($$count > $(FRAISEQL_CORE_CAST_ALLOWS_MAX))"; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count narrow cast allows (≤$(FRAISEQL_CORE_CAST_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
+
+# Gate: ensure executor error-documentation coverage does not regress.
+# Counts "# Errors" doc sections in fraiseql-core/src/runtime/ as a progress floor.
+# v2.2.0 target: ≥60.  Current baseline: 35.
+FRAISEQL_CORE_ERRORS_DOC_MIN ?= 35
+.PHONY: lint-gate-errors-doc
+lint-gate-errors-doc:
+	@count=$$(grep -r "# Errors" crates/fraiseql-core/src/runtime/ | wc -l); \
+	echo "fraiseql-core runtime # Errors doc sections: $$count (min: $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
+	if [ "$$count" -lt "$(FRAISEQL_CORE_ERRORS_DOC_MIN)" ]; then \
+	  echo "ERROR: # Errors doc coverage regressed ($$count < $(FRAISEQL_CORE_ERRORS_DOC_MIN))"; \
+	  echo "  Add '# Errors' doc sections to public functions in crates/fraiseql-core/src/runtime/"; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count sections (≥$(FRAISEQL_CORE_ERRORS_DOC_MIN))"
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:

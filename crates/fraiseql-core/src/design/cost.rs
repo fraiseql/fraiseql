@@ -64,11 +64,13 @@ fn check_worst_case_complexity(schema: &Value, audit: &mut DesignAudit) {
                                 .to_string();
 
                             // Calculate compound complexity
-                            let base_multiplier = field
-                                .get("complexity_multiplier")
-                                .and_then(|v| v.as_u64())
-                                .unwrap_or(0)
-                                as u32;
+                            let base_multiplier = u32::try_from(
+                                field
+                                    .get("complexity_multiplier")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(0),
+                            )
+                            .unwrap_or(u32::MAX);
                             let inner_multiplier =
                                 type_multipliers.get(&inner_type).copied().unwrap_or(0);
                             let compound = u32::try_from(
@@ -117,7 +119,7 @@ fn check_unbounded_pagination(schema: &Value, audit: &mut DesignAudit) {
                             // Check if it has a non-null default limit
                             // The key is that we must have an explicit, non-null default_limit
                             let has_default_limit =
-                                field.get("default_limit").map(|v| !v.is_null()).unwrap_or(false);
+                                field.get("default_limit").is_some_and(|v| !v.is_null());
 
                             if !has_default_limit {
                                 let field_name =

@@ -325,7 +325,7 @@ impl QueryResultCache {
 
         // Enforce per-entry size limit: estimate entry size from serialized JSON.
         if let Some(max_entry) = self.config.max_entry_bytes {
-            let estimated = serde_json::to_vec(&result).map(|v| v.len()).unwrap_or(0);
+            let estimated = serde_json::to_vec(&result).map_or(0, |v| v.len());
             if estimated > max_entry {
                 return Ok(()); // silently skip oversized entries
             }
@@ -592,7 +592,9 @@ impl CacheMetrics {
         if total == 0 {
             return 0.0;
         }
-        self.hits as f64 / total as f64
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable here.
+        { self.hits as f64 / total as f64 }
     }
 
     /// Check if cache is performing well.

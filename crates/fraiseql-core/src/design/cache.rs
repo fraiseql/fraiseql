@@ -35,8 +35,10 @@ fn check_ttl_consistency(schema: &Value, audit: &mut DesignAudit) {
                         continue;
                     };
 
-                    let ttl = entity.get("cache_ttl_seconds").and_then(|v| v.as_u64()).unwrap_or(0)
-                        as u32;
+                    let ttl = u32::try_from(
+                        entity.get("cache_ttl_seconds").and_then(|v| v.as_u64()).unwrap_or(0),
+                    )
+                    .unwrap_or(u32::MAX);
 
                     entity_ttls
                         .entry(entity_name)

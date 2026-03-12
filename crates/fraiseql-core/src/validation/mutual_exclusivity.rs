@@ -35,7 +35,7 @@ impl OneOfValidator {
             .iter()
             .filter(|name| {
                 if let Value::Object(obj) = input {
-                    obj.get(*name).map(|v| !matches!(v, Value::Null)).unwrap_or(false)
+                    obj.get(*name).is_some_and(|v| !matches!(v, Value::Null))
                 } else {
                     false
                 }
@@ -81,7 +81,7 @@ impl AnyOfValidator {
 
         let has_any = field_names.iter().any(|name| {
             if let Value::Object(obj) = input {
-                obj.get(name).map(|v| !matches!(v, Value::Null)).unwrap_or(false)
+                obj.get(name).is_some_and(|v| !matches!(v, Value::Null))
             } else {
                 false
             }
@@ -123,13 +123,13 @@ impl ConditionalRequiredValidator {
         if let Value::Object(obj) = input {
             // Check if the condition field is present and non-null
             let condition_met =
-                obj.get(if_field_present).map(|v| !matches!(v, Value::Null)).unwrap_or(false);
+                obj.get(if_field_present).is_some_and(|v| !matches!(v, Value::Null));
 
             if condition_met {
                 // If condition is met, check that all required fields are present
                 let missing_fields: Vec<&String> = then_required
                     .iter()
-                    .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                    .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                     .collect();
 
                 if !missing_fields.is_empty() {
@@ -179,13 +179,13 @@ impl RequiredIfAbsentValidator {
         if let Value::Object(obj) = input {
             // Check if the condition field is absent or null
             let field_absent =
-                obj.get(absent_field).map(|v| matches!(v, Value::Null)).unwrap_or(true);
+                obj.get(absent_field).is_none_or(|v| matches!(v, Value::Null));
 
             if field_absent {
                 // If field is absent, check that all required fields are present
                 let missing_fields: Vec<&String> = then_required
                     .iter()
-                    .filter(|name| obj.get(*name).map(|v| matches!(v, Value::Null)).unwrap_or(true))
+                    .filter(|name| obj.get(*name).is_none_or(|v| matches!(v, Value::Null)))
                     .collect();
 
                 if !missing_fields.is_empty() {

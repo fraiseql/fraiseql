@@ -166,7 +166,8 @@ impl QueryTraceBuilder {
         error: Option<&str>,
         result_count: Option<usize>,
     ) -> Result<QueryExecutionTrace> {
-        let total_duration_us = self.start.elapsed().as_micros() as u64;
+        let total_duration_us =
+            u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX);
 
         Ok(QueryExecutionTrace {
             query_id: self.query_id.clone(),
@@ -186,7 +187,7 @@ impl QueryTraceBuilder {
 
     /// Get current elapsed time in microseconds.
     pub fn elapsed_us(&self) -> u64 {
-        self.start.elapsed().as_micros() as u64
+        u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
 }
 

@@ -466,11 +466,19 @@ Instead:
 
 All new `#[allow(clippy::unwrap_used)]` annotations **must** include a `// Reason:` comment.
 
-The CI gate (`make lint-unwrap`) enforces that the total count of production
-`allow(unwrap_used)` annotations does not exceed the established baseline (currently 1).
+**Enforcement**: `clippy::unwrap_used = "deny"` is set at the workspace level
+(`Cargo.toml [workspace.lints.clippy]`). Any new `.unwrap()` in production code —
+i.e. outside a `#[cfg(test)]` block or a test file — will **fail the build**.
+The `cargo clippy --workspace -- -D warnings` CI check catches this automatically.
 
-To raise the baseline: update `UNWRAP_ALLOW_LIMIT` in the `Makefile` and include
-a PR comment explaining why each new allow is necessary.
+The secondary gate (`make lint-unwrap`) counts `#[allow(clippy::unwrap_used)]` annotations
+in production code and enforces a maximum (currently 1). This prevents annotation
+proliferation: each annotation represents a deliberate exception rather than a
+suppressed violation. To raise the baseline, update `UNWRAP_ALLOW_LIMIT` in the
+`Makefile` and include a PR comment explaining why each new allow is necessary.
+
+Test code (`#[cfg(test)]` modules and `tests/` files) may use `.unwrap()` freely
+and must declare `#[allow(clippy::unwrap_used)] // Reason: test code` at the module level.
 
 Empty or placeholder `.expect()` calls (`.expect("")`, `.expect("TODO")`) are also
 rejected by `make lint-expect` — they are functionally equivalent to `.unwrap()`.

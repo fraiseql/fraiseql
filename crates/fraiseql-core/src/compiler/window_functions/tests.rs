@@ -19,7 +19,13 @@ fn create_test_metadata() -> FactTableMetadata {
         ],
         dimensions:           DimensionColumn {
             name:  "dimensions".to_string(),
-            paths: vec![],
+            paths: vec![
+                crate::compiler::fact_table::DimensionPath {
+                    name:      "category".to_string(),
+                    json_path: "dimensions->>'category'".to_string(),
+                    data_type: "text".to_string(),
+                },
+            ],
         },
         denormalized_filters: vec![
             FilterColumn {

@@ -635,15 +635,12 @@ impl CompiledSchema {
     /// ```
     #[must_use]
     pub fn has_rls_configured(&self) -> bool {
-        self.security
-            .as_ref()
-            .map(|s| {
-                !s.additional
-                    .get("policies")
-                    .and_then(|p: &serde_json::Value| p.as_array())
-                    .is_none_or(|a| a.is_empty())
-            })
-            .unwrap_or(false)
+        self.security.as_ref().is_some_and(|s| {
+            !s.additional
+                .get("policies")
+                .and_then(|p: &serde_json::Value| p.as_array())
+                .is_none_or(|a| a.is_empty())
+        })
     }
 
     /// Get raw GraphQL schema SDL.

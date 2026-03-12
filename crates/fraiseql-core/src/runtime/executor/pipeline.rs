@@ -138,8 +138,7 @@ fn arg_value_to_graphql(arg: &GraphQLArgument) -> String {
         "object" => {
             // JSON objects use quoted keys; GraphQL objects don't.
             serde_json::from_str::<serde_json::Value>(&arg.value_json)
-                .map(|v| json_value_to_graphql(&v))
-                .unwrap_or_else(|_| arg.value_json.clone())
+                .map_or_else(|_| arg.value_json.clone(), |v| json_value_to_graphql(&v))
         },
         "enum" => {
             // Strip surrounding JSON quotes from enum values.

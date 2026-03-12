@@ -92,6 +92,22 @@ jobs:
         # Prevents new dyn-dispatch traits from being added without the RFC 3425 tracking comment.
         # Baseline: 128 usages (Phase 0 annotation complete). Only remove when RTN + Send is stable.
 
+      - name: Check fraiseql-db cast lint scope
+        run: make lint-gate-db
+        # Ensures HIGH-risk cast lints (cast_possible_truncation, cast_precision_loss,
+        # cast_sign_loss) are never re-added at crate level in fraiseql-db.
+        # These must be at function or module level with a Reason: comment.
+
+      - name: Check fraiseql-core cast lint scope
+        run: make lint-gate-core
+        # Ensures narrow cast allows in fraiseql-core do not exceed 20 per-site annotations.
+        # All casts must have a Reason: comment explaining why truncation/precision loss is safe.
+
+      - name: Check executor error-doc coverage floor
+        run: make lint-gate-errors-doc
+        # Ratcheting floor: # Errors doc sections in runtime/ must not regress below 35.
+        # v2.2.0 target: ≥60. Add # Errors sections to new public functions as you go.
+
   # Build and test on multiple platforms
   test:
     name: Test Suite

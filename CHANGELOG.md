@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`ComplexityAnalyzer` replaced by AST-based `RequestValidator`** (BREAKING):
+  `fraiseql_core::graphql::ComplexityAnalyzer` and its `analyze_complexity()` method have been
+  removed. They used a character-scan that miscounted operation names, argument names, and
+  directive names as field selectors, producing incorrect depth and field-count metrics.
+  The replacement `RequestValidator::analyze()` walks the full GraphQL AST via `graphql-parser`
+  and is correct for all query shapes including fragments, inline fragments, and aliases.
+  **Migration**: replace `ComplexityAnalyzer::new().analyze_complexity(q)` with
+  `RequestValidator::default().analyze(q)?`. The returned `QueryMetrics` has fields
+  `depth`, `complexity`, and `alias_count` instead of the old `(depth, field_count, score)`
+  tuple. `fraiseql_server::validation` is now a thin re-export of
+  `fraiseql_core::graphql::complexity` — no server-level duplication.
+- **`fraiseql_server` admin `/explain` and `/validate` endpoints** now use AST-based analysis:
+  the `ComplexityInfo` JSON struct in the `/explain` response replaces `field_count` and `score`
+  with `complexity` (pagination-aware score) and `alias_count`; `/validate` now reports real
+  parser errors instead of brace-matching heuristics.
+
+- **`QueryValidator` wired into `Executor::execute()`**: `RuntimeConfig` now has an optional
+  `query_validation: Option<QueryValidatorConfig>` field. When set, `QueryValidator::validate()`
+  runs at the start of every `Executor::execute()` call — before any parsing or SQL dispatch —
+  enforcing size, depth, complexity, and alias-amplification limits. Direct `fraiseql-core`
+  embedders (without `fraiseql-server`) can now get automatic DoS protection by setting this
+  field. `fraiseql-server` leaves it `None` (default) since it already applies `RequestValidator`
+  at the HTTP handler level. Existing code using struct literal `RuntimeConfig { .. }` must add
+  `query_validation: None` (or use `..Default::default()`).
+
+- **`QueryValidatorConfig` gains `max_aliases: usize` field** (BREAKING struct literal):
+  `QueryValidatorConfig` now has a required `max_aliases` field for alias amplification
+  protection. Struct-literal construction must add `max_aliases: 30` (standard), `max_aliases:
+  100` (permissive), or `max_aliases: 10` (strict); or use `QueryValidatorConfig::standard()` etc.
+  **Presets**: permissive=100, standard=30, strict=10.
+
+- **`security::QueryMetrics` is replaced by `graphql::QueryMetrics`** (BREAKING for any code
+  using `QueryMetrics::field_count` or `QueryMetrics::size_bytes`):
+  The character-scan-based `security::QueryMetrics` struct has been removed. The
+  `fraiseql_core::security::QueryMetrics` path now re-exports `graphql::complexity::QueryMetrics`,
+  which has fields `depth`, `complexity`, and `alias_count`. The removed fields `field_count`
+  (was a character count, not a real field count) and `size_bytes` have no replacement.
+  **Migration**: remove any code referencing `.field_count` or `.size_bytes` on `QueryMetrics`.
+
+- **`QueryValidator` now uses AST-based analysis**: replaced the character-scan heuristic
+  (which counted every letter as a "field") with delegation to `RequestValidator`. Alias
+  amplification is now enforced correctly. `SecurityError::TooManyAliases` and
+  `SecurityError::MalformedQuery` are new variants — exhaustive `match` arms on `SecurityError`
+  must be updated.
+
+- **`FRAISEQL_INTROSPECTION_REQUIRE_AUTH` boolean parsing** (breaking for non-standard values):
+  This environment variable now uses the same consistent boolean parsing as all other
+  `FRAISEQL_*` bool variables: only `true`, `1`, `yes`, `on` (case-insensitive) enable the
+  setting. Previously, any value other than `false` or `0` was treated as `true`, so unusual
+  strings like `enabled` or `active` would silently enable auth enforcement.
+  **Migration**: replace non-standard truthy values with `true`. Deployments using `false`,
+  `0`, `true`, or `1` are unaffected. The server now logs a warning at startup if an
+  unrecognised value is supplied to any boolean env var.
+
 ### Added
 
 - **C# SDK v2.0.0** (`sdks/official/fraiseql-csharp`): complete rewrite replacing the old

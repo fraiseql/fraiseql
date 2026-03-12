@@ -12,7 +12,7 @@ use fraiseql_core::{
         projection_generator::{
             MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
         },
-        types::JsonbValue,
+        types::{DatabaseType, JsonbValue},
     },
     runtime::ResultProjector,
     schema::SqlProjectionHint,
@@ -23,13 +23,13 @@ use serde_json::json;
 #[test]
 fn test_sql_projection_hint_creation() {
     let hint = SqlProjectionHint {
-        database:                    "postgresql".to_string(),
+        database:                    DatabaseType::PostgreSQL,
         projection_template:
             "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
         estimated_reduction_percent: 65,
     };
 
-    assert_eq!(hint.database, "postgresql");
+    assert_eq!(hint.database, DatabaseType::PostgreSQL);
     assert_eq!(hint.estimated_reduction_percent, 65);
     assert!(hint.projection_template.contains("jsonb_build_object"));
 }
@@ -247,13 +247,13 @@ fn test_projection_field_escaping() {
 fn test_projection_hint_reduction_calculation() {
     // Create a hint that represents projecting 5 out of 20 fields
     let hint = SqlProjectionHint {
-        database: "postgresql".to_string(),
+        database: DatabaseType::PostgreSQL,
         projection_template: "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email', 'status', data->>'status', 'created_at', data->>'created_at')".to_string(),
         estimated_reduction_percent: 75, // 5/20 = 25% remain, so 75% reduction
     };
 
     assert_eq!(hint.estimated_reduction_percent, 75);
-    assert_eq!(hint.database, "postgresql");
+    assert_eq!(hint.database, DatabaseType::PostgreSQL);
 }
 
 /// Test `ResultProjector` wrapping response in data envelope
@@ -329,7 +329,7 @@ fn test_projection_with_nested_structure() {
 fn test_complete_projection_pipeline() {
     // Step 1: Create projection hint
     let _hint = SqlProjectionHint {
-        database:                    "postgresql".to_string(),
+        database:                    DatabaseType::PostgreSQL,
         projection_template:
             "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
         estimated_reduction_percent: 87,

@@ -190,8 +190,10 @@ impl AuditLogger {
         let variables_json = serde_json::to_value(&entry.variables)?;
 
         // Convert DateTime<Utc> to SystemTime for PostgreSQL
+        // timestamp() returns i64 seconds since epoch; audit events are always post-epoch.
+        let secs = u64::try_from(entry.timestamp.timestamp()).unwrap_or(0);
         let timestamp_system = SystemTime::UNIX_EPOCH
-            + std::time::Duration::from_secs(entry.timestamp.timestamp() as u64)
+            + std::time::Duration::from_secs(secs)
             + std::time::Duration::from_nanos(u64::from(entry.timestamp.timestamp_subsec_nanos()));
 
         let row = client

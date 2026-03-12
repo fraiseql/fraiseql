@@ -1,6 +1,47 @@
-//! # FraiseQL Webhook Runtime
+//! # fraiseql-webhooks
 //!
-//! Webhook processing with signature verification, idempotency, and event routing.
+//! **Inbound** webhook receiver for FraiseQL — receives, verifies, and routes HTTP
+//! callbacks from third-party services into your database.
+//!
+//! ## Inbound vs. Outbound
+//!
+//! FraiseQL has two webhook-related crates with complementary roles:
+//!
+//! | Crate | Direction | Purpose |
+//! |-------|-----------|---------|
+//! | `fraiseql-webhooks` | **Inbound** | Receive callbacks from Stripe, GitHub, Shopify, … |
+//! | `fraiseql-observers` | **Outbound** | Emit notifications when your data changes |
+//!
+//! Use `fraiseql-webhooks` when you want to react to events from external providers.
+//! Use `fraiseql-observers` when you want to push events to subscribers.
+//!
+//! ## Supported Providers
+//!
+//! Built-in signature verification for:
+//! - **Stripe** — HMAC-SHA256 on `Stripe-Signature` header with replay protection
+//! - **GitHub** — HMAC-SHA256 on `X-Hub-Signature-256` header
+//! - **Shopify** — HMAC-SHA256 on `X-Shopify-Hmac-Sha256` header
+//! - **SendGrid** — ECDSA on `X-Twilio-Email-Event-Webhook-Signature`
+//! - **Paddle** — RSA-SHA256 on `Paddle-Signature` header
+//! - Custom providers via the [`traits::WebhookProvider`] trait
+//!
+//! ## Security Properties
+//!
+//! - **Constant-time comparison** — prevents timing attacks on HMAC tokens
+//! - **Replay protection** — Stripe/Paddle timestamps validated within a 5-minute window
+//! - **Idempotency** — duplicate delivery is detected and silently discarded
+//! - **Transaction boundaries** — each webhook is processed inside a database transaction
+//!
+//! ## Quick Start
+//!
+//! ```no_run
+//! // See docs/architecture/webhooks.md for the full integration guide.
+//! ```
+//!
+//! ## See Also
+//!
+//! - [`docs/architecture/webhooks.md`](../../../../docs/architecture/webhooks.md) — full design doc
+//! - `fraiseql-observers` — outbound change notifications
 //!
 //! ## Features
 

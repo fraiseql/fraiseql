@@ -79,8 +79,7 @@ impl SchemaDependencyGraph {
                 .iter()
                 .enumerate()
                 .min_by_key(|(_, name)| *name)
-                .map(|(i, _)| i)
-                .unwrap_or(0);
+                .map_or(0, |(i, _)| i);
 
             // Rotate so minimum is first
             cycle.nodes.rotate_left(min_pos);
@@ -111,7 +110,7 @@ impl SchemaDependencyGraph {
 
             // Check if any type references this one
             let has_references =
-                self.incoming.get(type_name).map(|refs| !refs.is_empty()).unwrap_or(false);
+                self.incoming.get(type_name).is_some_and(|refs| !refs.is_empty());
 
             if !has_references {
                 unused.push(type_name.clone());

@@ -2,9 +2,10 @@
 //!
 //! This module provides query validation for GraphQL queries.
 //! It validates:
-//! - Query depth (maximum nesting levels)
-//! - Query complexity (weighted scoring of fields)
-//! - Query size (maximum bytes)
+//! - Query size (maximum bytes, O(1) check — no parsing required)
+//! - Query depth (maximum nesting levels) — via AST analysis
+//! - Query complexity (weighted scoring of fields) — via AST analysis
+//! - Alias count (alias amplification protection) — via AST analysis
 //!
 //! # Architecture
 //!
@@ -13,10 +14,12 @@
 //! GraphQL Query String
 //!     ↓
 //! QueryValidator::validate()
-//!     ├─ Check 1: Validate query size
-//!     ├─ Check 2: Parse and analyze query structure
+//!     ├─ Check 1: Validate query size (O(1) byte count)
+//!     ├─ Check 2: AST-based analysis (depth, complexity, alias count)
+//!     │           via `RequestValidator` from `graphql::complexity`
 //!     ├─ Check 3: Check query depth
-//!     └─ Check 4: Check query complexity
+//!     ├─ Check 4: Check query complexity
+//!     └─ Check 5: Check alias count (alias amplification protection)
 //!     ↓
 //! Result<QueryMetrics> (validation passed or error)
 //! ```
@@ -31,6 +34,7 @@
 //!     max_depth: 10,
 //!     max_complexity: 1000,
 //!     max_size_bytes: 100_000,
+//!     max_aliases: 30,
 //! };
 //! let validator = QueryValidator::from_config(config);
 //!
@@ -39,17 +43,18 @@
 //! let metrics = validator.validate(query).unwrap();
 //! println!("Query depth: {}", metrics.depth);
 //! println!("Query complexity: {}", metrics.complexity);
+//! println!("Query aliases: {}", metrics.alias_count);
 //! ```
-
-use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::graphql::complexity::{ComplexityConfig, RequestValidator};
+use crate::graphql::complexity::QueryMetrics;
 use crate::security::errors::{Result, SecurityError};
 
 /// Query validation configuration
 ///
-/// Defines limits for query depth, complexity, and size.
+/// Defines limits for query depth, complexity, size, and alias count.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueryValidatorConfig {
     /// Maximum nesting depth for queries
@@ -60,6 +65,9 @@ pub struct QueryValidatorConfig {
 
     /// Maximum query size in bytes
     pub max_size_bytes: usize,
+
+    /// Maximum number of field aliases per query (alias amplification protection).
+    pub max_aliases: usize,
 }
 
 impl QueryValidatorConfig {
@@ -68,12 +76,14 @@ impl QueryValidatorConfig {
     /// - Max depth: 20 levels
     /// - Max complexity: 5000
     /// - Max size: 1 MB
+    /// - Max aliases: 100
     #[must_use]
     pub const fn permissive() -> Self {
         Self {
             max_depth:      20,
             max_complexity: 5000,
             max_size_bytes: 1_000_000, // 1 MB
+            max_aliases:    100,
         }
     }
 
@@ -82,12 +92,14 @@ impl QueryValidatorConfig {
     /// - Max depth: 10 levels
     /// - Max complexity: 1000
     /// - Max size: 256 KB
+    /// - Max aliases: 30
     #[must_use]
     pub const fn standard() -> Self {
         Self {
             max_depth:      10,
             max_complexity: 1000,
             max_size_bytes: 256_000, // 256 KB
+            max_aliases:    30,
         }
     }
 
@@ -96,41 +108,15 @@ impl QueryValidatorConfig {
     /// - Max depth: 5 levels
     /// - Max complexity: 500
     /// - Max size: 64 KB (regulated environments)
+    /// - Max aliases: 10
     #[must_use]
     pub const fn strict() -> Self {
         Self {
             max_depth:      5,
             max_complexity: 500,
             max_size_bytes: 64_000, // 64 KB
+            max_aliases:    10,
         }
-    }
-}
-
-/// Query metrics computed during validation
-///
-/// Contains information about the query structure and complexity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QueryMetrics {
-    /// Maximum nesting depth found in the query
-    pub depth: usize,
-
-    /// Computed complexity score
-    pub complexity: usize,
-
-    /// Query size in bytes
-    pub size_bytes: usize,
-
-    /// Number of fields in the query
-    pub field_count: usize,
-}
-
-impl fmt::Display for QueryMetrics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "QueryMetrics(depth={}, complexity={}, size={}B, fields={})",
-            self.depth, self.complexity, self.size_bytes, self.field_count
-        )
     }
 }
 
@@ -138,6 +124,10 @@ impl fmt::Display for QueryMetrics {
 ///
 /// Validates incoming GraphQL queries against security policies.
 /// Acts as the third layer in the security middleware pipeline.
+///
+/// Delegates AST-based analysis to [`RequestValidator`] from
+/// `graphql::complexity` — the single source of truth for depth,
+/// complexity, and alias-amplification logic.
 #[derive(Debug, Clone)]
 pub struct QueryValidator {
     config: QueryValidatorConfig,
@@ -168,17 +158,19 @@ impl QueryValidator {
         Self::from_config(QueryValidatorConfig::strict())
     }
 
-    /// Validate a GraphQL query
+    /// Validate a GraphQL query, enforcing all configured limits.
     ///
-    /// Performs 4 validation checks:
-    /// 1. Check query size
-    /// 2. Parse and analyze structure
-    /// 3. Check query depth
-    /// 4. Check query complexity
+    /// Performs checks in order:
+    /// 1. Query size (O(1) — no parsing)
+    /// 2. AST parse (rejects malformed GraphQL)
+    /// 3. Query depth
+    /// 4. Query complexity
+    /// 5. Alias count (alias amplification protection)
     ///
-    /// Returns QueryMetrics if valid, Err if any check fails.
+    /// Returns [`QueryMetrics`] if all checks pass, or the first
+    /// [`SecurityError`] encountered.
     pub fn validate(&self, query: &str) -> Result<QueryMetrics> {
-        // Check 1: Validate query size
+        // Check 1: Validate query size (O(1) — pre-parse)
         let size_bytes = query.len();
         if size_bytes > self.config.max_size_bytes {
             return Err(SecurityError::QueryTooLarge {
@@ -187,10 +179,18 @@ impl QueryValidator {
             });
         }
 
-        // Check 2: Parse and analyze query
-        let metrics = self.analyze_query(query)?;
+        // Checks 2–5: AST-based analysis via RequestValidator
+        let rv = RequestValidator::from_config(ComplexityConfig {
+            max_depth:      self.config.max_depth,
+            max_complexity: self.config.max_complexity,
+            max_aliases:    self.config.max_aliases,
+        });
 
-        // Check 3: Check query depth
+        let metrics = rv.analyze(query).map_err(|e| {
+            SecurityError::MalformedQuery(e.to_string())
+        })?;
+
+        // Check 3: Query depth
         if metrics.depth > self.config.max_depth {
             return Err(SecurityError::QueryTooDeep {
                 depth:     metrics.depth,
@@ -198,7 +198,7 @@ impl QueryValidator {
             });
         }
 
-        // Check 4: Check query complexity
+        // Check 4: Query complexity
         if metrics.complexity > self.config.max_complexity {
             return Err(SecurityError::QueryTooComplex {
                 complexity:     metrics.complexity,
@@ -206,81 +206,15 @@ impl QueryValidator {
             });
         }
 
+        // Check 5: Alias count
+        if metrics.alias_count > self.config.max_aliases {
+            return Err(SecurityError::TooManyAliases {
+                alias_count: metrics.alias_count,
+                max_aliases: self.config.max_aliases,
+            });
+        }
+
         Ok(metrics)
-    }
-
-    /// Analyze query structure (without enforcing limits)
-    ///
-    /// Returns metrics about depth, complexity, size, and field count.
-    fn analyze_query(&self, query: &str) -> Result<QueryMetrics> {
-        // Simplified analysis: scan for braces and count nesting
-        // In production, this would parse the full GraphQL AST
-        let (depth, field_count) = self.calculate_depth_and_fields(query);
-        let complexity = self.calculate_complexity(depth, field_count);
-
-        Ok(QueryMetrics {
-            depth,
-            complexity,
-            size_bytes: query.len(),
-            field_count,
-        })
-    }
-
-    /// Calculate maximum nesting depth and field count
-    fn calculate_depth_and_fields(&self, query: &str) -> (usize, usize) {
-        let mut max_depth = 0;
-        let mut current_depth = 0;
-        let mut field_count = 0;
-        let mut in_string = false;
-        let mut escape_next = false;
-
-        for c in query.chars() {
-            if escape_next {
-                escape_next = false;
-                continue;
-            }
-
-            match c {
-                '\\' if in_string => escape_next = true,
-                '"' => in_string = !in_string,
-                '{' if !in_string => {
-                    current_depth += 1;
-                    if current_depth > max_depth {
-                        max_depth = current_depth;
-                    }
-                },
-                '}' if !in_string => {
-                    if current_depth > 0 {
-                        current_depth -= 1;
-                    }
-                },
-                _ if !in_string && (c.is_alphabetic() || c == '_') => {
-                    // Count alphanumeric field names (simplified)
-                    field_count += 1;
-                },
-                _ => {},
-            }
-        }
-
-        // Ensure reasonable bounds
-        if max_depth == 0 {
-            max_depth = 1;
-        }
-        if field_count == 0 {
-            field_count = 1;
-        }
-
-        (max_depth, field_count)
-    }
-
-    /// Calculate complexity score
-    ///
-    /// Simple heuristic: depth * field_count
-    /// In production, would use schema-aware field weights
-    const fn calculate_complexity(&self, depth: usize, field_count: usize) -> usize {
-        // Each field at each depth level contributes to complexity
-        // This is a simplified calculation
-        depth.saturating_mul(field_count)
     }
 
     /// Get the underlying configuration
@@ -297,74 +231,40 @@ mod tests {
     use super::*;
 
     // ============================================================================
-    // Helper Functions
+    // Check 1: Query Size Validation Tests
     // ============================================================================
-
-    fn simple_query() -> &'static str {
-        "{ user { id name } }"
-    }
-
-    fn deep_query() -> &'static str {
-        "{ user { posts { comments { author { name } } } } }"
-    }
 
     fn large_query(size: usize) -> String {
         "{ ".to_string() + &"field ".repeat(size) + "}"
     }
 
-    // ============================================================================
-    // Check 1: Query Size Validation Tests
-    // ============================================================================
-
     #[test]
     fn test_query_size_within_limit() {
         let validator = QueryValidator::standard();
-        let query = simple_query();
-
-        let result = validator.validate(query);
+        let result = validator.validate("{ user { id name } }");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_query_size_exceeds_limit() {
         let validator = QueryValidator::standard();
-        let large_query = large_query(100_000); // Create very large query
-
-        let result = validator.validate(&large_query);
+        let q = large_query(100_000);
+        let result = validator.validate(&q);
         assert!(matches!(result, Err(SecurityError::QueryTooLarge { .. })));
     }
 
-    #[test]
-    fn test_empty_query_accepted() {
-        let validator = QueryValidator::standard();
-        let empty = "";
-
-        let result = validator.validate(empty);
-        assert!(result.is_ok());
-    }
-
     // ============================================================================
-    // Check 2: Query Analysis Tests
+    // Check 2: Malformed query
     // ============================================================================
 
     #[test]
-    fn test_simple_query_analysis() {
+    fn test_malformed_query_returns_error() {
         let validator = QueryValidator::standard();
-        let metrics = validator.analyze_query(simple_query()).unwrap();
-
-        // Field counting is simplified - counts alphanumeric characters
-        assert!(metrics.field_count >= 3); // at least user, id, name
-        assert!(metrics.depth >= 2); // At least user and its fields
-        assert!(metrics.complexity > 0);
-    }
-
-    #[test]
-    fn test_deep_query_analysis() {
-        let validator = QueryValidator::standard();
-        let metrics = validator.analyze_query(deep_query()).unwrap();
-
-        assert!(metrics.depth >= 4); // user -> posts -> comments -> author
-        assert!(metrics.field_count >= 5);
+        let result = validator.validate("this is not graphql {{{}}}");
+        assert!(
+            matches!(result, Err(SecurityError::MalformedQuery(_))),
+            "malformed query must return MalformedQuery error, got {result:?}"
+        );
     }
 
     // ============================================================================
@@ -374,11 +274,8 @@ mod tests {
     #[test]
     fn test_valid_query_depth() {
         let validator = QueryValidator::standard();
-        let query = simple_query();
-
-        let result = validator.validate(query);
+        let result = validator.validate("{ user { id name } }");
         assert!(result.is_ok());
-
         let metrics = result.unwrap();
         assert!(metrics.depth <= validator.config().max_depth);
     }
@@ -386,23 +283,25 @@ mod tests {
     #[test]
     fn test_query_depth_exceeds_limit() {
         let validator = QueryValidator::strict(); // max_depth = 5
-        let query = deep_query(); // depth >= 4
-
-        // This should pass with strict (max=5) since depth is ~4
-        let result = validator.validate(query);
-        // The exact result depends on the depth calculation
-        let _ = result;
+        // depth = 7 (a→b→c→d→e→f→g)
+        let deep = "{ a { b { c { d { e { f { g } } } } } } }";
+        let result = validator.validate(deep);
+        assert!(
+            matches!(result, Err(SecurityError::QueryTooDeep { .. })),
+            "depth-7 query must be rejected with strict (max=5), got {result:?}"
+        );
     }
 
     #[test]
     fn test_very_deep_query_rejected() {
         let validator = QueryValidator::strict(); // max_depth = 5
-        // Create artificially deep query
-        let deep = "{ a { b { c { d { e { f { g } } } } } } }";
-
+        // depth = 8 (a→b→c→d→e→f→g→h)
+        let deep = "{ a { b { c { d { e { f { g { h } } } } } } } }";
         let result = validator.validate(deep);
-        // Should either pass or fail depending on depth parsing
-        let _ = result;
+        assert!(
+            matches!(result, Err(SecurityError::QueryTooDeep { .. })),
+            "depth-8 query must be rejected, got {result:?}"
+        );
     }
 
     // ============================================================================
@@ -412,11 +311,8 @@ mod tests {
     #[test]
     fn test_valid_query_complexity() {
         let validator = QueryValidator::standard();
-        let query = simple_query();
-
-        let result = validator.validate(query);
+        let result = validator.validate("{ user { id name } }");
         assert!(result.is_ok());
-
         let metrics = result.unwrap();
         assert!(metrics.complexity <= validator.config().max_complexity);
     }
@@ -424,10 +320,39 @@ mod tests {
     #[test]
     fn test_complexity_calculated() {
         let validator = QueryValidator::standard();
-        let query = "{ user { id } }";
-
-        let metrics = validator.validate(query).unwrap();
+        let metrics = validator.validate("{ user { id } }").unwrap();
         assert!(metrics.complexity > 0);
+    }
+
+    // ============================================================================
+    // Check 5: Alias amplification protection
+    // ============================================================================
+
+    #[test]
+    fn test_alias_amplification_rejected() {
+        let validator = QueryValidator::standard(); // max_aliases = 30
+        let aliases: String = (0..31).map(|i| ["a", &i.to_string(), ": user { id } "].concat()).collect();
+        let query = format!("{{ {aliases} }}");
+        let result = validator.validate(&query);
+        assert!(
+            matches!(
+                result,
+                Err(SecurityError::TooManyAliases {
+                    alias_count: 31,
+                    max_aliases: 30
+                })
+            ),
+            "31-alias query must be rejected with TooManyAliases, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_alias_within_limit_allowed() {
+        let validator = QueryValidator::standard(); // max_aliases = 30
+        let aliases: String = (0..5).map(|i| ["a", &i.to_string(), ": user { id } "].concat()).collect();
+        let query = format!("{{ {aliases} }}");
+        let result = validator.validate(&query);
+        assert!(result.is_ok(), "5 aliases should be allowed, got {result:?}");
     }
 
     // ============================================================================
@@ -440,6 +365,7 @@ mod tests {
         assert_eq!(config.max_depth, 20);
         assert_eq!(config.max_complexity, 5000);
         assert_eq!(config.max_size_bytes, 1_000_000);
+        assert_eq!(config.max_aliases, 100);
     }
 
     #[test]
@@ -448,6 +374,7 @@ mod tests {
         assert_eq!(config.max_depth, 10);
         assert_eq!(config.max_complexity, 1000);
         assert_eq!(config.max_size_bytes, 256_000);
+        assert_eq!(config.max_aliases, 30);
     }
 
     #[test]
@@ -456,6 +383,7 @@ mod tests {
         assert_eq!(config.max_depth, 5);
         assert_eq!(config.max_complexity, 500);
         assert_eq!(config.max_size_bytes, 64_000);
+        assert_eq!(config.max_aliases, 10);
     }
 
     #[test]
@@ -471,84 +399,24 @@ mod tests {
     }
 
     // ============================================================================
-    // QueryMetrics Tests
+    // Metrics Tests
     // ============================================================================
 
     #[test]
-    fn test_query_metrics_display() {
-        let metrics = QueryMetrics {
-            depth:       3,
-            complexity:  100,
-            size_bytes:  256,
-            field_count: 5,
-        };
-
-        let display_str = metrics.to_string();
-        assert!(display_str.contains("depth=3"));
-        assert!(display_str.contains("complexity=100"));
-        assert!(display_str.contains("size=256B"));
-        assert!(display_str.contains("fields=5"));
-    }
-
-    #[test]
-    fn test_query_metrics_equality() {
-        let m1 = QueryMetrics {
-            depth:       3,
-            complexity:  100,
-            size_bytes:  256,
-            field_count: 5,
-        };
-        let m2 = QueryMetrics {
-            depth:       3,
-            complexity:  100,
-            size_bytes:  256,
-            field_count: 5,
-        };
-
-        assert_eq!(m1, m2);
-    }
-
-    // ============================================================================
-    // Edge Cases
-    // ============================================================================
-
-    #[test]
-    fn test_query_with_strings_not_confused_with_braces() {
-        let validator = QueryValidator::standard();
-        let query = r#"{ user(name: "John {user} here") { id } }"#;
-
-        let result = validator.validate(query);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_query_with_escaped_quotes() {
-        let validator = QueryValidator::standard();
-        let query = r#"{ user(name: "John \"admin\" here") { id } }"#;
-
-        let result = validator.validate(query);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_query_with_comments() {
-        let validator = QueryValidator::standard();
-        // Note: This is a simplified test, as real GraphQL comments use #
-        let query = "{ user { id } }";
-
-        let result = validator.validate(query);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_query_metrics_match_analysis() {
+    fn test_metrics_returned_on_valid_query() {
         let validator = QueryValidator::standard();
         let query = "{ user { id name } }";
-
         let metrics = validator.validate(query).unwrap();
-        assert_eq!(metrics.size_bytes, query.len());
-        assert!(metrics.depth > 0);
-        assert!(metrics.field_count > 0);
+        assert!(metrics.depth >= 2); // user → (id, name)
         assert!(metrics.complexity > 0);
+        assert_eq!(metrics.alias_count, 0);
+    }
+
+    #[test]
+    fn test_alias_count_in_metrics() {
+        let validator = QueryValidator::standard();
+        let query = "{ a: user { id } b: user { id } }";
+        let metrics = validator.validate(query).unwrap();
+        assert_eq!(metrics.alias_count, 2);
     }
 }

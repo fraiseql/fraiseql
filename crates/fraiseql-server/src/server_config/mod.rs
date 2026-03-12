@@ -1,5 +1,14 @@
 //! Server configuration.
 
+pub mod tls;
+pub mod observers;
+pub(crate) mod defaults;
+
+pub use tls::{PlaygroundTool, TlsServerConfig, DatabaseTlsConfig};
+pub use observers::AdmissionConfig;
+#[cfg(feature = "observers")]
+pub use observers::ObserverConfig;
+
 use std::{net::SocketAddr, path::PathBuf};
 
 use fraiseql_core::security::OidcConfig;
@@ -7,89 +16,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::middleware::RateLimitConfig;
 
-/// GraphQL IDE/playground tool to use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
-pub enum PlaygroundTool {
-    /// GraphiQL - the classic GraphQL IDE.
-    GraphiQL,
-    /// Apollo Sandbox - Apollo's embeddable GraphQL IDE (default).
-    ///
-    /// Apollo Sandbox offers a better UX with features like:
-    /// - Query collections and history
-    /// - Schema documentation explorer
-    /// - Variables and headers panels
-    /// - Operation tracing
-    #[default]
-    ApolloSandbox,
-}
-
-/// TLS server configuration for HTTPS and secure connections.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TlsServerConfig {
-    /// Enable TLS for HTTP/gRPC endpoints.
-    pub enabled: bool,
-
-    /// Path to TLS certificate file (PEM format).
-    pub cert_path: PathBuf,
-
-    /// Path to TLS private key file (PEM format).
-    pub key_path: PathBuf,
-
-    /// Require client certificate (mTLS) for all connections.
-    #[serde(default)]
-    pub require_client_cert: bool,
-
-    /// Path to CA certificate for validating client certificates (for mTLS).
-    #[serde(default)]
-    pub client_ca_path: Option<PathBuf>,
-
-    /// Minimum TLS version ("1.2" or "1.3", default: "1.2").
-    #[serde(default = "default_tls_min_version")]
-    pub min_version: String,
-}
-
-/// Database TLS configuration for encrypted database connections.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseTlsConfig {
-    /// PostgreSQL SSL mode: disable, allow, prefer, require, verify-ca, verify-full.
-    #[serde(default = "default_postgres_ssl_mode")]
-    pub postgres_ssl_mode: String,
-
-    /// Enable TLS for Redis connections (use rediss:// protocol).
-    #[serde(default = "default_redis_ssl")]
-    pub redis_ssl: bool,
-
-    /// Enable HTTPS for ClickHouse connections.
-    #[serde(default = "default_clickhouse_https")]
-    pub clickhouse_https: bool,
-
-    /// Enable HTTPS for Elasticsearch connections.
-    #[serde(default = "default_elasticsearch_https")]
-    pub elasticsearch_https: bool,
-
-    /// Verify server certificates for HTTPS connections.
-    #[serde(default = "default_verify_certs")]
-    pub verify_certificates: bool,
-
-    /// Path to CA certificate bundle for verifying server certificates.
-    #[serde(default)]
-    pub ca_bundle_path: Option<PathBuf>,
-}
+use defaults::{
+    default_bind_addr, default_database_url, default_graphql_path, default_health_path,
+    default_introspection_path, default_max_request_body_bytes, default_metrics_json_path,
+    default_metrics_path, default_playground_path, default_pool_max_size, default_pool_min_size,
+    default_pool_timeout, default_readiness_path, default_schema_path,
+    default_shutdown_timeout_secs, default_subscription_path,
+};
 
 /// Server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     /// Path to compiled schema JSON file.
-    #[serde(default = "default_schema_path")]
+    #[serde(default = "defaults::default_schema_path")]
     pub schema_path: PathBuf,
 
     /// Database connection URL (PostgreSQL, MySQL, SQLite, SQL Server).
-    #[serde(default = "default_database_url")]
+    #[serde(default = "defaults::default_database_url")]
     pub database_url: String,
 
     /// Server bind address.
-    #[serde(default = "default_bind_addr")]
+    #[serde(default = "defaults::default_bind_addr")]
     pub bind_addr: SocketAddr,
 
     /// Arrow Flight gRPC bind address (requires `arrow` feature).
@@ -97,11 +44,11 @@ pub struct ServerConfig {
     /// Defaults to `0.0.0.0:50051`. Override with `FRAISEQL_FLIGHT_BIND_ADDR`
     /// environment variable or this field in the config file.
     #[cfg(feature = "arrow")]
-    #[serde(default = "default_flight_bind_addr")]
+    #[serde(default = "defaults::default_flight_bind_addr")]
     pub flight_bind_addr: SocketAddr,
 
     /// Enable CORS.
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub cors_enabled: bool,
 
     /// CORS allowed origins (if empty, allows all).
@@ -109,52 +56,52 @@ pub struct ServerConfig {
     pub cors_origins: Vec<String>,
 
     /// Enable compression.
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub compression_enabled: bool,
 
     /// Enable request tracing.
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub tracing_enabled: bool,
 
     /// Enable APQ (Automatic Persisted Queries).
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub apq_enabled: bool,
 
     /// Enable query caching.
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub cache_enabled: bool,
 
     /// GraphQL endpoint path.
-    #[serde(default = "default_graphql_path")]
+    #[serde(default = "defaults::default_graphql_path")]
     pub graphql_path: String,
 
     /// Health check endpoint path (liveness probe).
     ///
     /// Returns 200 as long as the process is alive, 503 if the database is down.
-    #[serde(default = "default_health_path")]
+    #[serde(default = "defaults::default_health_path")]
     pub health_path: String,
 
     /// Readiness probe endpoint path.
     ///
     /// Returns 200 when the server is ready to serve traffic (database reachable),
     /// 503 otherwise. Kubernetes `readinessProbe` should point here.
-    #[serde(default = "default_readiness_path")]
+    #[serde(default = "defaults::default_readiness_path")]
     pub readiness_path: String,
 
     /// Introspection endpoint path.
-    #[serde(default = "default_introspection_path")]
+    #[serde(default = "defaults::default_introspection_path")]
     pub introspection_path: String,
 
     /// Metrics endpoint path (Prometheus format).
-    #[serde(default = "default_metrics_path")]
+    #[serde(default = "defaults::default_metrics_path")]
     pub metrics_path: String,
 
     /// Metrics JSON endpoint path.
-    #[serde(default = "default_metrics_json_path")]
+    #[serde(default = "defaults::default_metrics_json_path")]
     pub metrics_json_path: String,
 
     /// Playground (GraphQL IDE) endpoint path.
-    #[serde(default = "default_playground_path")]
+    #[serde(default = "defaults::default_playground_path")]
     pub playground_path: String,
 
     /// Enable GraphQL playground/IDE (default: false for production safety).
@@ -176,14 +123,14 @@ pub struct ServerConfig {
     pub playground_tool: PlaygroundTool,
 
     /// WebSocket endpoint path for GraphQL subscriptions.
-    #[serde(default = "default_subscription_path")]
+    #[serde(default = "defaults::default_subscription_path")]
     pub subscription_path: String,
 
     /// Enable GraphQL subscriptions over WebSocket.
     ///
     /// When enabled, provides graphql-ws (graphql-transport-ws) protocol
     /// support for real-time subscription events.
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub subscriptions_enabled: bool,
 
     /// Enable metrics endpoints.
@@ -231,7 +178,7 @@ pub struct ServerConfig {
     ///
     /// When true and OIDC is configured, introspection requires same auth as GraphQL endpoint.
     /// When false, introspection is publicly accessible (use only in development).
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub introspection_require_auth: bool,
 
     /// Require authentication for design audit API endpoints (default: true).
@@ -239,19 +186,19 @@ pub struct ServerConfig {
     /// Design audit endpoints expose system architecture and optimization opportunities.
     /// When true and OIDC is configured, design endpoints require same auth as GraphQL endpoint.
     /// When false, design endpoints are publicly accessible (use only in development).
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub design_api_require_auth: bool,
 
     /// Database connection pool minimum size.
-    #[serde(default = "default_pool_min_size")]
+    #[serde(default = "defaults::default_pool_min_size")]
     pub pool_min_size: usize,
 
     /// Database connection pool maximum size.
-    #[serde(default = "default_pool_max_size")]
+    #[serde(default = "defaults::default_pool_max_size")]
     pub pool_max_size: usize,
 
     /// Database connection pool timeout in seconds.
-    #[serde(default = "default_pool_timeout")]
+    #[serde(default = "defaults::default_pool_timeout")]
     pub pool_timeout_secs: u64,
 
     /// OIDC authentication configuration (optional).
@@ -310,14 +257,14 @@ pub struct ServerConfig {
     ///
     /// CSRF protection: rejects POST requests with non-JSON Content-Type
     /// (e.g. `text/plain`, `application/x-www-form-urlencoded`) with 415.
-    #[serde(default = "default_true")]
+    #[serde(default = "defaults::default_true")]
     pub require_json_content_type: bool,
 
     /// Maximum request body size in bytes (default: 1 MB).
     ///
     /// Requests exceeding this limit receive 413 Payload Too Large.
     /// Set to 0 to use axum's default (no limit).
-    #[serde(default = "default_max_request_body_bytes")]
+    #[serde(default = "defaults::default_max_request_body_bytes")]
     pub max_request_body_bytes: usize,
 
     /// Rate limiting configuration for GraphQL requests.
@@ -388,95 +335,8 @@ pub struct ServerConfig {
     /// minus a small buffer (e.g., 25s when `terminationGracePeriodSeconds = 30`).
     ///
     /// Override with `FRAISEQL_SHUTDOWN_TIMEOUT_SECS`.
-    #[serde(default = "default_shutdown_timeout_secs")]
+    #[serde(default = "defaults::default_shutdown_timeout_secs")]
     pub shutdown_timeout_secs: u64,
-}
-
-#[cfg(feature = "observers")]
-fn default_observers_enabled() -> bool {
-    true
-}
-
-#[cfg(feature = "observers")]
-fn default_poll_interval_ms() -> u64 {
-    100
-}
-
-#[cfg(feature = "observers")]
-fn default_batch_size() -> usize {
-    100
-}
-
-#[cfg(feature = "observers")]
-fn default_channel_capacity() -> usize {
-    1000
-}
-
-#[cfg(feature = "observers")]
-fn default_auto_reload() -> bool {
-    true
-}
-
-#[cfg(feature = "observers")]
-fn default_reload_interval_secs() -> u64 {
-    60
-}
-
-/// Observer runtime configuration.
-#[cfg(feature = "observers")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ObserverConfig {
-    /// Enable observer runtime (default: true).
-    #[serde(default = "default_observers_enabled")]
-    pub enabled: bool,
-
-    /// Poll interval for change log in milliseconds (default: 100).
-    #[serde(default = "default_poll_interval_ms")]
-    pub poll_interval_ms: u64,
-
-    /// Batch size for fetching change log entries (default: 100).
-    #[serde(default = "default_batch_size")]
-    pub batch_size: usize,
-
-    /// Channel capacity for event buffering (default: 1000).
-    #[serde(default = "default_channel_capacity")]
-    pub channel_capacity: usize,
-
-    /// Auto-reload observers on changes (default: true).
-    #[serde(default = "default_auto_reload")]
-    pub auto_reload: bool,
-
-    /// Reload interval in seconds (default: 60).
-    #[serde(default = "default_reload_interval_secs")]
-    pub reload_interval_secs: u64,
-}
-
-/// Admission control configuration for backpressure limiting.
-///
-/// Pairs with [`crate::resilience::backpressure::AdmissionController`].
-/// See [`ServerConfig::admission_control`] for wiring instructions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdmissionConfig {
-    /// Maximum number of in-flight concurrent requests (semaphore permits).
-    ///
-    /// Defaults to 500.
-    #[serde(default = "default_admission_max_concurrent")]
-    pub max_concurrent: usize,
-
-    /// Maximum number of requests waiting for a permit (queue depth).
-    ///
-    /// When the queue is full, new requests are rejected with 503.
-    /// Defaults to 1000.
-    #[serde(default = "default_admission_max_queue_depth")]
-    pub max_queue_depth: u64,
-}
-
-const fn default_admission_max_concurrent() -> usize {
-    500
-}
-
-const fn default_admission_max_queue_depth() -> u64 {
-    1000
 }
 
 impl Default for ServerConfig {
@@ -486,7 +346,7 @@ impl Default for ServerConfig {
             database_url: default_database_url(),
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]
-            flight_bind_addr: default_flight_bind_addr(),
+            flight_bind_addr: defaults::default_flight_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: true,
@@ -707,108 +567,6 @@ impl ServerConfig {
         self.auth.is_some()
     }
 }
-
-fn default_schema_path() -> PathBuf {
-    PathBuf::from("schema.compiled.json")
-}
-
-fn default_database_url() -> String {
-    "postgresql://localhost/fraiseql".to_string()
-}
-
-#[cfg(feature = "arrow")]
-fn default_flight_bind_addr() -> SocketAddr {
-    std::env::var("FRAISEQL_FLIGHT_BIND_ADDR")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or_else(|| "0.0.0.0:50051".parse().expect("valid Flight bind address"))
-}
-
-fn default_bind_addr() -> SocketAddr {
-    "127.0.0.1:8000".parse().expect("hard-coded addr literal is always valid")
-}
-
-const fn default_true() -> bool {
-    true
-}
-
-/// 1 MB default body limit.
-const fn default_max_request_body_bytes() -> usize {
-    1_048_576
-}
-
-fn default_graphql_path() -> String {
-    "/graphql".to_string()
-}
-
-fn default_health_path() -> String {
-    "/health".to_string()
-}
-
-fn default_readiness_path() -> String {
-    "/readiness".to_string()
-}
-
-const fn default_shutdown_timeout_secs() -> u64 {
-    30
-}
-
-fn default_introspection_path() -> String {
-    "/introspection".to_string()
-}
-
-fn default_metrics_path() -> String {
-    "/metrics".to_string()
-}
-
-fn default_metrics_json_path() -> String {
-    "/metrics/json".to_string()
-}
-
-fn default_playground_path() -> String {
-    "/playground".to_string()
-}
-
-fn default_subscription_path() -> String {
-    "/ws".to_string()
-}
-
-const fn default_pool_min_size() -> usize {
-    5
-}
-
-const fn default_pool_max_size() -> usize {
-    20
-}
-
-const fn default_pool_timeout() -> u64 {
-    30
-}
-
-fn default_tls_min_version() -> String {
-    "1.2".to_string()
-}
-
-fn default_postgres_ssl_mode() -> String {
-    "prefer".to_string()
-}
-
-const fn default_redis_ssl() -> bool {
-    false
-}
-
-const fn default_clickhouse_https() -> bool {
-    false
-}
-
-const fn default_elasticsearch_https() -> bool {
-    false
-}
-
-const fn default_verify_certs() -> bool {
-    true
-}
-
 
 #[cfg(test)]
 mod tests {

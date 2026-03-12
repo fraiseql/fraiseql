@@ -335,8 +335,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                                 u.member_types.iter().find(|t| {
                                     self.schema
                                         .find_type(t)
-                                        .map(|td| !td.is_error)
-                                        .unwrap_or(true)
+                                        .is_none_or(|td| !td.is_error)
                                 })
                             })
                             .cloned()

@@ -50,7 +50,8 @@ fn apply_rate_limit_overrides(config: &mut ServerConfig) {
     });
 
     if let Some(val) = enabled_raw {
-        rate_config.enabled = val == "true" || val == "1";
+        warn_if_unrecognised_bool("FRAISEQL_RATE_LIMITING_ENABLED", &val);
+        rate_config.enabled = parse_bool_env(&val);
     }
     if let Some(val) = rps_ip_raw {
         if let Ok(v) = val.parse() {
@@ -69,6 +70,33 @@ fn apply_rate_limit_overrides(config: &mut ServerConfig) {
     }
 
     config.rate_limiting = Some(rate_config);
+}
+
+/// Parse a boolean environment variable value consistently.
+///
+/// Returns `true` for `"true"`, `"1"`, `"yes"`, `"on"` (case-insensitive);
+/// returns `false` for all other values including empty string and unrecognised inputs.
+fn parse_bool_env(val: &str) -> bool {
+    matches!(val.to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "on")
+}
+
+/// Emit a warning if `val` is neither a recognised truthy nor a recognised falsy boolean string.
+///
+/// Recognised values: `true`, `1`, `yes`, `on`, `false`, `0`, `no`, `off` (case-insensitive).
+/// Any other value (e.g. `"enabled"`, `"active"`) is silently treated as `false` by
+/// `parse_bool_env`; this warning surfaces that silent mis-configuration.
+fn warn_if_unrecognised_bool(var: &str, val: &str) {
+    if !matches!(
+        val.to_ascii_lowercase().as_str(),
+        "true" | "1" | "yes" | "on" | "false" | "0" | "no" | "off"
+    ) {
+        tracing::warn!(
+            variable = var,
+            value = val,
+            "Unrecognised boolean value; defaulting to false. \
+             Use true/false, 1/0, yes/no, or on/off."
+        );
+    }
 }
 
 /// Validate that schema file exists.
@@ -131,7 +159,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Metrics configuration from environment
     if let Ok(metrics_enabled) = env::var("FRAISEQL_METRICS_ENABLED") {
-        config.metrics_enabled = metrics_enabled == "true" || metrics_enabled == "1";
+        warn_if_unrecognised_bool("FRAISEQL_METRICS_ENABLED", &metrics_enabled);
+        config.metrics_enabled = parse_bool_env(&metrics_enabled);
     }
     if let Ok(metrics_token) = env::var("FRAISEQL_METRICS_TOKEN") {
         config.metrics_token = Some(metrics_token);
@@ -139,7 +168,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Admin API configuration from environment
     if let Ok(admin_enabled) = env::var("FRAISEQL_ADMIN_API_ENABLED") {
-        config.admin_api_enabled = admin_enabled == "true" || admin_enabled == "1";
+        warn_if_unrecognised_bool("FRAISEQL_ADMIN_API_ENABLED", &admin_enabled);
+        config.admin_api_enabled = parse_bool_env(&admin_enabled);
     }
     if let Ok(admin_token) = env::var("FRAISEQL_ADMIN_TOKEN") {
         config.admin_token = Some(admin_token);
@@ -147,12 +177,12 @@ async fn main() -> anyhow::Result<()> {
 
     // Introspection configuration from environment
     if let Ok(introspection_enabled) = env::var("FRAISEQL_INTROSPECTION_ENABLED") {
-        config.introspection_enabled =
-            introspection_enabled == "true" || introspection_enabled == "1";
+        warn_if_unrecognised_bool("FRAISEQL_INTROSPECTION_ENABLED", &introspection_enabled);
+        config.introspection_enabled = parse_bool_env(&introspection_enabled);
     }
     if let Ok(introspection_require_auth) = env::var("FRAISEQL_INTROSPECTION_REQUIRE_AUTH") {
-        config.introspection_require_auth =
-            introspection_require_auth != "false" && introspection_require_auth != "0";
+        warn_if_unrecognised_bool("FRAISEQL_INTROSPECTION_REQUIRE_AUTH", &introspection_require_auth);
+        config.introspection_require_auth = parse_bool_env(&introspection_require_auth);
     }
 
     // Rate limiting configuration from environment — all four vars handled atomically.
@@ -213,11 +243,9 @@ async fn main() -> anyhow::Result<()> {
             database_url = %config.database_url,
             pool_min_size = config.pool_min_size,
             pool_max_size = config.pool_max_size,
-            pool_timeout_secs = config.pool_timeout_secs,
             "Initializing PostgreSQL database adapter"
         );
     }
-
     #[cfg(feature = "wire-backend")]
     {
         tracing::info!(
@@ -235,13 +263,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?,
     );
-
     #[cfg(feature = "wire-backend")]
     let adapter = Arc::new(FraiseWireAdapter::new(&config.database_url));
 
     #[cfg(not(feature = "wire-backend"))]
     tracing::info!("PostgreSQL adapter initialized successfully with connection pooling");
-
     #[cfg(feature = "wire-backend")]
     tracing::info!("FraiseQL Wire adapter initialized successfully");
 
@@ -260,12 +286,11 @@ async fn main() -> anyhow::Result<()> {
     let db_pool: Option<sqlx::PgPool> = None;
 
     // Initialize secrets manager if configured via environment
-    // For development/testing, use ENV backend if FRAISEQL_SECRETS_BACKEND env var is set
     #[cfg(feature = "secrets")]
     let secrets_manager = if env::var("FRAISEQL_SECRETS_BACKEND").is_ok() {
         tracing::info!("Initializing secrets manager from environment configuration");
-        let config = fraiseql_server::secrets_manager::SecretsBackendConfig::Env;
-        match fraiseql_server::secrets_manager::create_secrets_manager(config).await {
+        let cfg = fraiseql_server::secrets_manager::SecretsBackendConfig::Env;
+        match fraiseql_server::secrets_manager::create_secrets_manager(cfg).await {
             Ok(manager) => Some(manager),
             Err(e) => {
                 tracing::error!(error = %e, "Failed to initialize secrets manager");
@@ -277,66 +302,83 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    // Create and start server
+    // Create server — arrow path adds an Arrow Flight gRPC endpoint.
     #[cfg(feature = "arrow")]
-    {
+    let server = {
         use fraiseql_server::arrow::create_flight_service;
-
-        // Create Flight service with real database adapter
         let flight_service = create_flight_service(adapter.clone());
         tracing::info!("Arrow Flight service initialized with real database adapter");
-
-        let mut server =
-            Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
-                .await?;
-
-        // Attach secrets manager if configured
-        #[cfg(feature = "secrets")]
-        if let Some(mgr) = secrets_manager {
-            server.set_secrets_manager(mgr);
-        }
-
-        // Serve MCP over stdio if requested, otherwise start HTTP server.
-        #[cfg(feature = "mcp")]
-        if env::var("FRAISEQL_MCP_STDIO").is_ok() {
-            tracing::info!("FraiseQL MCP stdio mode starting");
-            server.serve_mcp_stdio().await?;
-            return Ok(());
-        }
-
-        tracing::info!(
-            "FraiseQL Server {} starting (HTTP + Arrow Flight)",
-            env!("CARGO_PKG_VERSION")
-        );
-
-        server.serve().await?;
-    }
-
+        Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service)).await?
+    };
     #[cfg(not(feature = "arrow"))]
-    {
-        #[cfg(feature = "secrets")]
-        let mut server = Server::new(config, schema, adapter, db_pool).await?;
-        #[cfg(not(feature = "secrets"))]
-        let server = Server::new(config, schema, adapter, db_pool).await?;
+    let server = Server::new(config, schema, adapter, db_pool).await?;
 
-        // Attach secrets manager if configured
-        #[cfg(feature = "secrets")]
-        if let Some(mgr) = secrets_manager {
-            server.set_secrets_manager(mgr);
-        }
-
-        // Serve MCP over stdio if requested, otherwise start HTTP server.
-        #[cfg(feature = "mcp")]
-        if env::var("FRAISEQL_MCP_STDIO").is_ok() {
-            tracing::info!("FraiseQL MCP stdio mode starting");
-            server.serve_mcp_stdio().await?;
-            return Ok(());
-        }
-
-        tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
-
-        server.serve().await?;
+    // Attach secrets manager if configured.
+    #[cfg(feature = "secrets")]
+    let mut server = server;
+    #[cfg(feature = "secrets")]
+    if let Some(mgr) = secrets_manager {
+        server.set_secrets_manager(mgr);
     }
 
+    // Serve MCP over stdio if requested, otherwise start HTTP server.
+    #[cfg(feature = "mcp")]
+    if env::var("FRAISEQL_MCP_STDIO").is_ok() {
+        tracing::info!("FraiseQL MCP stdio mode starting");
+        server.serve_mcp_stdio().await?;
+        return Ok(());
+    }
+
+    #[cfg(feature = "arrow")]
+    tracing::info!(
+        "FraiseQL Server {} starting (HTTP + Arrow Flight)",
+        env!("CARGO_PKG_VERSION")
+    );
+    #[cfg(not(feature = "arrow"))]
+    tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
+
+    server.serve().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_bool_env, warn_if_unrecognised_bool};
+
+    #[test]
+    fn parse_bool_env_truthy_values() {
+        assert!(parse_bool_env("true"));
+        assert!(parse_bool_env("TRUE"));
+        assert!(parse_bool_env("True"));
+        assert!(parse_bool_env("1"));
+        assert!(parse_bool_env("yes"));
+        assert!(parse_bool_env("YES"));
+        assert!(parse_bool_env("on"));
+        assert!(parse_bool_env("ON"));
+    }
+
+    #[test]
+    fn parse_bool_env_falsy_values() {
+        assert!(!parse_bool_env("false"));
+        assert!(!parse_bool_env("FALSE"));
+        assert!(!parse_bool_env("0"));
+        assert!(!parse_bool_env("no"));
+        assert!(!parse_bool_env("off"));
+        assert!(!parse_bool_env(""));
+        assert!(!parse_bool_env("unexpected"));
+        assert!(!parse_bool_env("2"));
+    }
+
+    #[test]
+    fn warn_if_unrecognised_bool_does_not_panic_for_any_input() {
+        // All recognised values — function must be a no-op (no panic).
+        for val in &["true", "TRUE", "1", "yes", "YES", "on", "ON",
+                     "false", "FALSE", "0", "no", "NO", "off", "OFF"] {
+            warn_if_unrecognised_bool("TEST_VAR", val);
+        }
+        // Unrecognised values — function emits a warning but must not panic.
+        for val in &["enabled", "active", "2", "", "maybe"] {
+            warn_if_unrecognised_bool("TEST_VAR", val);
+        }
+    }
 }

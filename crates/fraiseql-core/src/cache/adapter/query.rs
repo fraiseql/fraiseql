@@ -73,7 +73,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         // Generate cache key including projection info
         let query_string = format!("query {{ {view} }}");
-        let projection_info = projection.map(|p| &p.projection_template[..]).unwrap_or("");
+        let projection_info = projection.map_or("", |p| &p.projection_template[..]);
         let variables = json!({
             "limit": limit,
             "projection": projection_info,

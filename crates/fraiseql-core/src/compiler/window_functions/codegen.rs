@@ -344,7 +344,7 @@ impl WindowPlanner {
     fn validate_field_identifier(field: &str) -> Result<()> {
         let mut chars = field.chars();
         let first_ok =
-            chars.next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false);
+            chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
         let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
         if first_ok && rest_ok {
             Ok(())

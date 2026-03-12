@@ -442,8 +442,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                 .first()
                 .and_then(|row| row.get("rls_setting"))
                 .and_then(serde_json::Value::as_str)
-                .map(|s| s == "on" || s == "force")
-                .unwrap_or(false),
+                .is_some_and(|s| s == "on" || s == "force"),
             Err(_) => false, // Non-PostgreSQL or query failure: RLS not active
         };
 

@@ -93,8 +93,14 @@ impl WindowFunctionPlanner {
             .unwrap_or_default();
 
         // Parse LIMIT/OFFSET
-        let limit = query.get("limit").and_then(|v| v.as_u64()).map(|n| n as u32);
-        let offset = query.get("offset").and_then(|v| v.as_u64()).map(|n| n as u32);
+        let limit = query
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        let offset = query
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
 
         Ok(WindowExecutionPlan {
             table,
@@ -234,18 +240,22 @@ impl WindowFunctionPlanner {
         match boundary["type"].as_str() {
             Some("unbounded_preceding") => Ok(FrameBoundary::UnboundedPreceding),
             Some("n_preceding") => {
-                let n = boundary["n"]
-                    .as_u64()
-                    .ok_or_else(|| FraiseQLError::validation("Missing 'n' in N PRECEDING"))?
-                    as u32;
+                let n = u32::try_from(
+                    boundary["n"]
+                        .as_u64()
+                        .ok_or_else(|| FraiseQLError::validation("Missing 'n' in N PRECEDING"))?,
+                )
+                .unwrap_or(u32::MAX);
                 Ok(FrameBoundary::NPreceding { n })
             },
             Some("current_row") => Ok(FrameBoundary::CurrentRow),
             Some("n_following") => {
-                let n = boundary["n"]
-                    .as_u64()
-                    .ok_or_else(|| FraiseQLError::validation("Missing 'n' in N FOLLOWING"))?
-                    as u32;
+                let n = u32::try_from(
+                    boundary["n"]
+                        .as_u64()
+                        .ok_or_else(|| FraiseQLError::validation("Missing 'n' in N FOLLOWING"))?,
+                )
+                .unwrap_or(u32::MAX);
                 Ok(FrameBoundary::NFollowing { n })
             },
             Some("unbounded_following") => Ok(FrameBoundary::UnboundedFollowing),

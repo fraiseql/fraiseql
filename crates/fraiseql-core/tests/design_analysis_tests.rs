@@ -1,12 +1,15 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
 //! Design Quality Analysis Tests
 //!
 //! Tests for the design quality enforcement engine that detects architectural
 //! anti-patterns and provides actionable recommendations.
+//!
+//! Requires the `schema-lint` feature: `cargo nextest run -p fraiseql-core --features schema-lint`
 
-#![allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
-#![allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
+#[cfg(feature = "schema-lint")]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#[allow(clippy::needless_collect)] // Reason: intermediate collect preserves ownership for later assertions
+#[allow(clippy::used_underscore_binding)] // Reason: test helper results prefixed with _ to suppress unused warnings
+mod design_tests {
 use fraiseql_core::design::{DesignAudit, IssueSeverity};
 
 // Helper function to create a minimal test schema
@@ -825,3 +828,4 @@ fn test_federation_many_duplicates_handling() {
         "Entity in 5 subgraphs should have federation issues"
     );
 }
+} // mod design_tests

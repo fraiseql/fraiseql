@@ -520,12 +520,12 @@ into SQL strings:
 execute("SELECT data FROM v_user WHERE (data->>'id')::bigint = $1", &[user_id])
 ```
 
-**Exception — aggregate and window queries**: These paths use
-`execute_raw_query` with pre-assembled SQL strings. All user-supplied values
-are escaped via `format_sql_value` / `escape_sql_string` before inclusion;
-the guarantee of fully parameterised execution does not extend to these paths.
-This is a known trade-off: aggregate SQL is too dynamic for prepared statement
-parameters without query rewriting.
+**Aggregate and window queries** (updated in v2.1.0): These paths use
+`execute_parameterized_aggregate` with `$N` / `?` / `@P1` bind parameters
+throughout. Column names in `PARTITION BY` / `ORDER BY` are schema-derived and
+validated against `WindowAllowlist` before SQL assembly; they are never taken
+directly from user input. The guarantee of fully parameterised execution
+extends to all query paths.
 
 ### 2. Authentication Layers
 

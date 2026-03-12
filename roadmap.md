@@ -206,6 +206,22 @@ adds `Send` propagation on generated futures (previous attempt: see MEMORY.md).
 **Effort when ready**: Medium — 68 files, mostly mechanical (remove macro from impls,
 minor syntax change on trait defs). See migration comment in `fraiseql-db/src/traits.rs`.
 
+### `# Errors` / `# Panics` doc coverage in `fraiseql-core`
+
+`fraiseql-core` has ~300 public fallible functions suppressed under
+`#![allow(clippy::missing_errors_doc)]` and `#![allow(clippy::missing_panics_doc)]`.
+All public API functions with `Result` returns should document the error variants
+they can produce in a `# Errors` section; public functions that can panic should have
+`# Panics`.
+
+**Effort**: Large (300+ functions). Recommend a dedicated sprint in v2.2.0.
+
+**Tracking**: CI gate `make lint-gate-errors-doc` counts `# Errors` sections in
+`crates/fraiseql-core/src/runtime/` and enforces a minimum floor (currently ≥35,
+targeting ≥60 by v2.2.0). The critical execution path (`Executor::execute()`,
+`execute_internal()`) is already documented. Remove the crate-level allows once
+coverage reaches 100%.
+
 ---
 
 ## Not Planned

@@ -44,13 +44,6 @@
 //         merging them with `|` would lose the explicit per-dialect annotation.
 #![allow(clippy::match_same_arms)]
 
-// Reason: Numeric casts in SQL parameter binding are bounded by database
-//         protocol constraints (row counts, column indices). Saturation or
-//         truncation at those boundaries is intentional and safe.
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_sign_loss)]
-
 // Reason: DatabaseAdapter implementations take many configuration parameters
 //         (view name, WHERE clause, projection, limit, offset, params…).
 //         Breaking them into per-call builder structs would add wrapper

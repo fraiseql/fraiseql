@@ -8,6 +8,7 @@ This directory contains the authoritative architecture documentation for FraiseQ
 |-------------|------|
 | Understand the big picture (3-layer model, design principles) | [overview.md](overview.md) |
 | Understand how GraphQL compiles to SQL | [compiler.md](compiler.md) |
+| **Write an SDK** (understand the schema.json contract) | [intermediate-schema.md](intermediate-schema.md) |
 | Add a new database backend | [overview.md](overview.md) — "Database Abstraction" section |
 | Understand auth, RLS, and the security model | [overview.md](overview.md) — "Security Model" section |
 | Understand the test strategy | [../testing.md](../testing.md) |
@@ -15,6 +16,7 @@ This directory contains the authoritative architecture documentation for FraiseQ
 | Understand window function compilation | [../modules/window-functions.md](../modules/window-functions.md) |
 | Understand analytics fact table design and caching | [../modules/fact-table.md](../modules/fact-table.md) |
 | Understand the streaming wire protocol engine | [wire-protocol.md](wire-protocol.md) |
+| Understand inbound webhooks vs. outbound observers | [webhooks.md](webhooks.md) |
 | Understand operational concerns (schema lifecycle, idempotency) | [../operations/](../operations/) |
 | See which features each database supports | [../database-compatibility.md](../database-compatibility.md) |
 
@@ -35,6 +37,10 @@ schema.json    +    fraiseql.toml      →    schema.compiled.json    →    Gra
 
 - **[compiler.md](compiler.md)** — The GraphQL→SQL compilation pipeline, AST representation,
   SQL template design, and query classification in detail.
+
+- **[intermediate-schema.md](intermediate-schema.md)** — The `schema.json` contract between
+  SDK authoring tools (Python, TypeScript, C#, Go, Rust) and `fraiseql-cli compile`. Reference
+  for SDK authors: all 32 structs, field semantics, versioning policy, and a minimal example.
 
 - **[wire-protocol.md](wire-protocol.md)** — The `fraiseql-wire` streaming engine: purpose,
   how it differs from the database adapter, and when to use it.

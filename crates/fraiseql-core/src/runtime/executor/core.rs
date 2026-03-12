@@ -1,6 +1,6 @@
 //! `Executor<A>` struct definition, constructors, and basic accessors.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use super::relay::{RelayDispatch, RelayDispatchImpl};
 use crate::{
@@ -79,6 +79,13 @@ pub struct Executor<A: DatabaseAdapter> {
     /// Pre-built introspection responses cached for `__schema` and `__type` queries
     /// Avoids recomputing schema introspection on every request
     pub(super) introspection: IntrospectionResponses,
+
+    /// O(1) lookup index for Relay `node(id)` queries: maps `return_type → sql_source`.
+    ///
+    /// Built once at `Executor::with_config()` from the compiled schema, so every
+    /// `execute_node_query()` call is a single `HashMap::get()` rather than an O(N)
+    /// linear scan over `schema.queries`.
+    pub(super) node_type_index: HashMap<String, Arc<str>>,
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -123,6 +130,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Build introspection responses at startup (zero-cost at runtime)
         let introspection = IntrospectionResponses::build(&schema);
 
+        // Build O(1) node-type index: return_type → sql_source.
+        // The first query with a matching return_type and a non-None sql_source wins
+        // (consistent with the previous linear-scan behaviour).
+        let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
+        for q in &schema.queries {
+            if let Some(src) = q.sql_source.as_deref() {
+                node_type_index
+                    .entry(q.return_type.clone())
+                    .or_insert_with(|| Arc::from(src));
+            }
+        }
+
         Self {
             schema,
             adapter,
@@ -131,6 +150,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             planner,
             config,
             introspection,
+            node_type_index,
         }
     }
 
@@ -199,6 +219,15 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
         let planner = QueryPlanner::new(config.cache_query_plans);
         let introspection = IntrospectionResponses::build(&schema);
 
+        let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
+        for q in &schema.queries {
+            if let Some(src) = q.sql_source.as_deref() {
+                node_type_index
+                    .entry(q.return_type.clone())
+                    .or_insert_with(|| Arc::from(src));
+            }
+        }
+
         Self {
             schema,
             adapter,
@@ -207,6 +236,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             planner,
             config,
             introspection,
+            node_type_index,
         }
     }
 }

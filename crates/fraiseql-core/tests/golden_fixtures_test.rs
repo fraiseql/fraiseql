@@ -12,9 +12,9 @@
 
 use std::path::{Path, PathBuf};
 
-use fraiseql_core::schema::{
-    CompiledSchema, CursorType, GraphQLValue, MutationOperation, RetryConfig,
-    SqlProjectionHint,
+use fraiseql_core::{
+    db::types::DatabaseType,
+    schema::{CompiledSchema, CursorType, GraphQLValue, MutationOperation, RetryConfig, SqlProjectionHint},
 };
 
 fn fixtures_dir() -> PathBuf {
@@ -60,7 +60,7 @@ fn golden_01_types_all_fields() {
     assert!(user.requires_role.is_none());
 
     let hint = user.sql_projection_hint.as_ref().expect("sql_projection_hint must be present");
-    assert_eq!(hint.database, "postgresql");
+    assert_eq!(hint.database, DatabaseType::PostgreSQL);
     assert!(hint.projection_template.contains("jsonb_build_object"));
     assert_eq!(hint.estimated_reduction_percent, 60);
 

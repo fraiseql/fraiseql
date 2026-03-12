@@ -29,7 +29,8 @@ members = [
   "crates/fraiseql-error",
   "crates/fraiseql-observers",
   "crates/fraiseql-secrets",
-  "crates/fraiseql-server", "crates/fraiseql-test-utils",  # HTTP server with runtime, files
+  "crates/fraiseql-server",
+  "crates/fraiseql-test-utils",
   "crates/fraiseql-webhooks",
   "crates/fraiseql-federation",  # Apollo Federation v2 support
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
@@ -210,25 +211,9 @@ rust-version = "1.88"  # MSRV — driven by dependency requirements
 version = "2.1.0"
 
 # ---------------------------------------------------------------------------
-# Crate size budgets (CA-4: Remediation Campaign 2)
-#
-# Enforced by tools/check-crate-sizes.sh in CI.
-# Limits are set at ~50% above current size for small crates, and at the
-# 150K "split threshold" for fraiseql-core (which is planned to be split
-# into fraiseql-db — see .remediation_2/batches/batch-5-crate-split.md).
-#
-# Current sizes (2026-03-05):
-#   fraiseql-core:            107,712 lines
-#   fraiseql-server:           34,010 lines
-#   fraiseql-observers:        27,504 lines
-#   fraiseql-cli:              26,070 lines
-#   fraiseql-auth:             15,761 lines
-#   fraiseql-secrets:          10,785 lines
-#   fraiseql-wire:             10,041 lines
-#   fraiseql-arrow:             8,076 lines
-#   fraiseql-webhooks:          2,139 lines
-#   fraiseql-test-utils:        1,248 lines
-#   fraiseql-error:               686 lines
+# Crate size budgets — enforced by tools/check-crate-sizes.sh in CI.
+# Limits are set at ~50% above current size for small crates. Crates that
+# exceed their budget must be split before merging.
 # ---------------------------------------------------------------------------
 [workspace.metadata.crate-size-budget]
 fraiseql-core             = 110_000  # post-split budget; fraiseql-db extracted (CS-3)

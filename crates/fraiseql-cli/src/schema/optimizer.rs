@@ -4,7 +4,10 @@
 //! This runs during compilation to precompute optimization strategies.
 
 use anyhow::Result;
-use fraiseql_core::schema::{CompiledSchema, QueryDefinition, SqlProjectionHint, TypeDefinition};
+use fraiseql_core::{
+    db::types::DatabaseType,
+    schema::{CompiledSchema, QueryDefinition, SqlProjectionHint, TypeDefinition},
+};
 use tracing::{debug, info};
 
 /// Schema optimizer that analyzes queries and adds SQL hints
@@ -170,7 +173,7 @@ impl SchemaOptimizer {
         let estimated_reduction = Self::estimate_reduction_percent(type_def.fields.len());
 
         SqlProjectionHint {
-            database:                    "postgresql".to_string(),
+            database:                    DatabaseType::PostgreSQL,
             projection_template:         Self::generate_postgresql_projection_template(type_def),
             estimated_reduction_percent: estimated_reduction,
         }
@@ -590,7 +593,7 @@ mod tests {
         // Type should have sql_projection_hint set
         assert!(schema.types[0].has_sql_projection());
         let hint = schema.types[0].sql_projection_hint.as_ref().unwrap();
-        assert_eq!(hint.database, "postgresql");
+        assert_eq!(hint.database, DatabaseType::PostgreSQL);
         assert!(hint.estimated_reduction_percent > 0);
     }
 

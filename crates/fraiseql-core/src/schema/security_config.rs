@@ -165,6 +165,6 @@ impl SecurityConfig {
     /// Check if a role has a specific scope.
     #[must_use]
     pub fn role_has_scope(&self, role_name: &str, scope: &str) -> bool {
-        self.find_role(role_name).map(|role| role.has_scope(scope)).unwrap_or(false)
+        self.find_role(role_name).is_some_and(|role| role.has_scope(scope))
     }
 }
