@@ -981,6 +981,85 @@ mod tests {
         );
     }
 
+    // --- renew_token mock tests (S11-1 / H7) ---
+
+    #[tokio::test]
+    async fn test_renew_token_success_updates_token_and_ttl() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{header, method, path},
+        };
+
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/token/renew-self"))
+            .and(header("X-Vault-Token", "old-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "auth": {
+                    "client_token": "new-rotated-token",
+                    "lease_duration": 7200,
+                    "renewable": true
+                }
+            })))
+            .mount(&mock)
+            .await;
+
+        let mut vault = VaultBackend::new_for_test(mock.uri(), "old-token");
+        vault.renew_token().await.expect("renewal should succeed");
+
+        assert_eq!(
+            vault.token(),
+            "new-rotated-token",
+            "token should be updated after renewal"
+        );
+        assert_eq!(
+            vault.token_ttl_secs,
+            Some(7200),
+            "TTL should be updated from renewal response"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_renew_token_missing_client_token_returns_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/token/renew-self"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "auth": {}  // client_token is absent
+            })))
+            .mount(&mock)
+            .await;
+
+        let mut vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+        let result = vault.renew_token().await;
+        assert!(
+            matches!(result, Err(SecretsError::ConnectionError(_))),
+            "missing client_token should return ConnectionError; got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_renew_token_403_returns_connection_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/token/renew-self"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&mock)
+            .await;
+
+        let mut vault = VaultBackend::new_for_test(mock.uri(), "expired-token");
+        // 403 response body is not valid JSON for the renewal struct → ConnectionError
+        let result = vault.renew_token().await;
+        assert!(
+            result.is_err(),
+            "403 renewal response should return an error; got: {result:?}"
+        );
+    }
+
     // --- validate_vault_addr SSRF tests (S9-2) ---
 
     #[test]

@@ -333,4 +333,87 @@ mod tests {
         let backend = HttpSearchBackend::new("http://elasticsearch:9200".to_string());
         assert_eq!(backend.es_url, "http://elasticsearch:9200");
     }
+
+    // --- S11-3: wiremock integration tests ---
+
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+    use super::super::SearchBackend as _;
+
+    #[tokio::test]
+    async fn test_health_check_200_returns_true() {
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock)
+            .await;
+
+        let backend = HttpSearchBackend::new(mock.uri());
+        let healthy = backend.health_check().await.unwrap();
+        assert!(healthy, "200 response should indicate healthy");
+    }
+
+    #[tokio::test]
+    async fn test_health_check_500_returns_false() {
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock)
+            .await;
+
+        let backend = HttpSearchBackend::new(mock.uri());
+        let healthy = backend.health_check().await.unwrap();
+        assert!(!healthy, "500 response should indicate unhealthy");
+    }
+
+    #[tokio::test]
+    async fn test_index_batch_empty_is_noop() {
+        // No mock registered — if an HTTP request is made this will fail with a
+        // connection error, proving the empty-batch guard is working.
+        let backend = HttpSearchBackend::new("http://localhost:19999".to_string());
+        let result = backend.index_batch(&[]).await;
+        assert!(result.is_ok(), "empty batch should return Ok without making any HTTP call");
+    }
+
+    #[tokio::test]
+    async fn test_search_parses_hits_from_response() {
+        use uuid::Uuid;
+        use super::super::IndexedEvent;
+
+        let mock = MockServer::start().await;
+
+        // Stub the index HEAD check (ensure_index → doesn't create on HEAD 200)
+        // and the search POST.
+        Mock::given(method("POST"))
+            .and(path("/_search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "hits": {
+                    "hits": [
+                        {
+                            "_source": {
+                                "event_type": "created",
+                                "entity_type": "Order",
+                                "entity_id": Uuid::nil().to_string(),
+                                "tenant_id": "tenant-1",
+                                "timestamp": 1_700_000_000_i64,
+                                "actions_executed": [],
+                                "success_count": 1,
+                                "failure_count": 0,
+                                "event_data": "{}",
+                                "search_text": "order created"
+                            }
+                        }
+                    ]
+                }
+            })))
+            .mount(&mock)
+            .await;
+
+        let backend = HttpSearchBackend::new(mock.uri());
+        let results = backend.search("order", "tenant-1", 10).await.unwrap();
+        assert_eq!(results.len(), 1, "one hit should be returned");
+        assert_eq!(results[0].entity_type, "Order");
+        assert_eq!(results[0].tenant_id, "tenant-1");
+    }
 }
