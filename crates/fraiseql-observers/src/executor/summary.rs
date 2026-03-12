@@ -1,5 +1,13 @@
 //! Execution summary for observer event processing.
 
+/// Maximum number of condition-evaluation error strings retained per event.
+///
+/// Prevents `errors` from growing without bound when many observers hold a
+/// condition string that fails at parse/evaluate time on every event.  Once
+/// the cap is reached, additional errors are silently dropped (they are still
+/// logged at ERROR level via the standard logging path in `mod.rs`).
+pub(super) const MAX_ERROR_STRINGS: usize = 100;
+
 /// Summary of event processing results
 #[derive(Debug, Clone, Default)]
 pub struct ExecutionSummary {

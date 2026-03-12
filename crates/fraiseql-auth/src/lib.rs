@@ -101,8 +101,8 @@ pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oauth::{
-    ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client, OAuth2ClientConfig,
-    OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig, PKCEChallenge,
+    AuthorizationRequest, ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client,
+    OAuth2ClientConfig, OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig, PKCEChallenge,
     ProviderFailoverManager, ProviderRegistry, ProviderType, StateParameter, TokenRefreshScheduler,
     TokenRefreshWorker, TokenRefresher,
 };

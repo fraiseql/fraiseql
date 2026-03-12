@@ -1,5 +1,7 @@
 //! Evaluator for the condition DSL — interprets a `ConditionAst` against an event.
 
+use std::cmp::Ordering;
+
 use serde_json::Value;
 
 use crate::{
@@ -28,10 +30,10 @@ impl ConditionParser {
         match op {
             "==" => Ok(event_value == &value_parsed),
             "!=" => Ok(event_value != &value_parsed),
-            ">" => self.compare_numeric(event_value, &value_parsed, |a, b| a > b),
-            "<" => self.compare_numeric(event_value, &value_parsed, |a, b| a < b),
-            ">=" => self.compare_numeric(event_value, &value_parsed, |a, b| a >= b),
-            "<=" => self.compare_numeric(event_value, &value_parsed, |a, b| a <= b),
+            ">" => self.compare_ordered(event_value, &value_parsed, Ordering::is_gt),
+            "<" => self.compare_ordered(event_value, &value_parsed, Ordering::is_lt),
+            ">=" => self.compare_ordered(event_value, &value_parsed, Ordering::is_ge),
+            "<=" => self.compare_ordered(event_value, &value_parsed, Ordering::is_le),
             _ => Err(ObserverError::InvalidCondition {
                 reason: format!("Unknown operator: {op}"),
             }),
@@ -42,18 +44,35 @@ impl ConditionParser {
         Ok(event.data.get(field).is_some())
     }
 
-    pub(super) fn compare_numeric<F>(&self, left: &Value, right: &Value, f: F) -> Result<bool>
+    /// Compare two JSON numeric values with exact integer semantics when possible.
+    ///
+    /// JSON integers are represented as `i64`/`u64` internally; converting them to
+    /// `f64` for comparison loses precision for values above 2^53 (e.g.
+    /// `9007199254740993` rounds to `9007199254740992.0`).  This method attempts
+    /// an exact `i64` comparison first and falls back to `f64` only when one of the
+    /// values is a JSON float (or does not fit in `i64`).
+    ///
+    /// `f` receives the `Ordering` and returns the Boolean result, e.g.
+    /// `|o| o.is_gt()` for `>`.
+    pub(super) fn compare_ordered<F>(&self, left: &Value, right: &Value, f: F) -> Result<bool>
     where
-        F: Fn(f64, f64) -> bool,
+        F: Fn(Ordering) -> bool,
     {
-        let left_num = left.as_f64().ok_or(ObserverError::InvalidCondition {
+        // Try exact integer comparison first.
+        if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+            return Ok(f(l.cmp(&r)));
+        }
+
+        // Fall back to f64 for floats and numbers that don't fit in i64.
+        let l = left.as_f64().ok_or(ObserverError::InvalidCondition {
             reason: "Left value is not a number".to_string(),
         })?;
-
-        let right_num = right.as_f64().ok_or(ObserverError::InvalidCondition {
+        let r = right.as_f64().ok_or(ObserverError::InvalidCondition {
             reason: "Right value is not a number".to_string(),
         })?;
-
-        Ok(f(left_num, right_num))
+        let ord = l.partial_cmp(&r).ok_or(ObserverError::InvalidCondition {
+            reason: "Cannot compare NaN values".to_string(),
+        })?;
+        Ok(f(ord))
     }
 }

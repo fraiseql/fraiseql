@@ -479,9 +479,47 @@ async fn test_verify_id_token_rejects_missing_kid() {
     )
     .unwrap();
 
-    let result = client.verify_id_token(&token, None).await;
+    let result = client.verify_id_token(&token, None, None).await;
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("kid"));
+}
+
+// --- OIDC nonce + max_age tests (H2/H3) ---
+
+#[test]
+fn test_oidc_authorization_url_includes_nonce() {
+    use crate::oauth::client::OIDCProviderConfig;
+    let config = OIDCProviderConfig::new(
+        "https://idp.example.com".to_string(),
+        "https://idp.example.com/auth".to_string(),
+        "https://idp.example.com/token".to_string(),
+        "https://idp.example.com/.well-known/jwks.json".to_string(),
+    );
+    let client = OIDCClient::new(config, "client_id", "secret");
+    let req = client.authorization_url("https://app.example.com/callback");
+
+    assert!(req.url.contains("nonce="), "auth URL must include nonce parameter");
+    assert!(req.nonce.is_some(), "AuthorizationRequest must carry the NonceParameter");
+    assert!(req.pkce.is_some(), "OIDC auth URL must use PKCE");
+}
+
+#[test]
+fn test_oidc_authorization_url_nonce_is_unique() {
+    use crate::oauth::client::OIDCProviderConfig;
+    let config = OIDCProviderConfig::new(
+        "https://idp.example.com".to_string(),
+        "https://idp.example.com/auth".to_string(),
+        "https://idp.example.com/token".to_string(),
+        "https://idp.example.com/.well-known/jwks.json".to_string(),
+    );
+    let client = OIDCClient::new(config, "client_id", "secret");
+    let r1 = client.authorization_url("https://app.example.com/callback");
+    let r2 = client.authorization_url("https://app.example.com/callback");
+    assert_ne!(
+        r1.nonce.unwrap().nonce,
+        r2.nonce.unwrap().nonce,
+        "consecutive nonces must be unique"
+    );
 }
 
 // --- TokenRefreshWorker tests ---

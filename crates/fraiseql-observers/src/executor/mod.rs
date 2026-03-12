@@ -237,7 +237,9 @@ impl ObserverExecutor {
                     },
                     Err(e) => {
                         error!("Condition evaluation error: {}", e);
-                        summary.errors.push(e.to_string());
+                        if summary.errors.len() < summary::MAX_ERROR_STRINGS {
+                            summary.errors.push(e.to_string());
+                        }
                         continue;
                     },
                 }
