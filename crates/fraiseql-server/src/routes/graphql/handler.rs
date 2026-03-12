@@ -62,6 +62,13 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     execute_graphql_request(state, request, trace_context, security_context, &headers).await
 }
 
+/// Maximum allowed byte length for a query string sent via GET.
+///
+/// GET queries are URL-encoded and passed as a query parameter. Very long
+/// query strings are either a DoS attempt or a sign the caller should be
+/// using POST instead. 100 KiB is generous for any legitimate GraphQL query.
+const MAX_GET_QUERY_BYTES: usize = 100_000;
+
 /// GraphQL HTTP handler for GET requests.
 ///
 /// Handles GET requests to the GraphQL endpoint per the GraphQL over HTTP spec.
@@ -79,7 +86,9 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 ///
 /// # Errors
 ///
-/// Returns appropriate HTTP status codes based on error type.
+/// Returns `413 Payload Too Large` (via `ErrorResponse`) when the query string
+/// exceeds [`MAX_GET_QUERY_BYTES`]. Returns other HTTP status codes for
+/// additional error conditions.
 ///
 /// # Note
 ///
@@ -92,6 +101,13 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
+    // Reject oversized GET queries early to prevent DoS via query parsing.
+    if params.query.len() > MAX_GET_QUERY_BYTES {
+        return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+            "GET query string exceeds maximum allowed length ({MAX_GET_QUERY_BYTES} bytes)"
+        ))));
+    }
+
     // Parse variables from JSON string
     let variables = if let Some(vars_str) = params.variables {
         match serde_json::from_str::<serde_json::Value>(&vars_str) {
@@ -513,6 +529,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
+    #[allow(unused_mut)] // Reason: `mut` is required by `decrypt_response(&mut …)` when the `secrets` feature is enabled
     let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,

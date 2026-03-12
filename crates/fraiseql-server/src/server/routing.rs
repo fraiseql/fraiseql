@@ -293,6 +293,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
                     .route("/api/v1/admin/explain", post(api::admin::explain_handler::<A>))
+                    // /api/v1/query/explain is here (not in the open api::routes()) so that
+                    // query-plan details are always protected by the admin bearer token (H13).
+                    .route("/api/v1/query/explain", post(api::query::explain_handler::<A>))
                     .route(
                         "/api/v1/admin/grafana-dashboard",
                         get(api::admin::grafana_dashboard_handler::<A>),

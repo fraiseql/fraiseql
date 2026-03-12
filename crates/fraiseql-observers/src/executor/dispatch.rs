@@ -49,27 +49,138 @@ pub(super) struct DefaultActionDispatcher {
     pub(super) cache_action:   Arc<CacheAction>,
 }
 
-/// Resolve a URL from an explicit value or an environment variable.
+/// Maximum byte length accepted for a webhook URL.
+const MAX_WEBHOOK_URL_LEN: usize = 2_048;
+
+/// Resolve a URL from an explicit value or an environment variable, then
+/// validate it against SSRF attack vectors.
 ///
 /// Returns `Ok(url)` if `explicit` is set, or falls back to reading `env_var`.
-/// Returns `Err(ObserverError::InvalidActionConfig)` if neither is set or the
-/// env var is missing.
+/// Returns `Err(ObserverError::InvalidActionConfig)` if neither is set, the
+/// env var is missing, or the URL fails SSRF validation.
 pub(super) fn resolve_url(
     explicit: Option<&str>,
     env_var: Option<&str>,
     action_name: &str,
 ) -> Result<String> {
-    if let Some(u) = explicit {
-        return Ok(u.to_owned());
-    }
-    if let Some(var_name) = env_var {
-        return std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
+    let url = if let Some(u) = explicit {
+        u.to_owned()
+    } else if let Some(var_name) = env_var {
+        std::env::var(var_name).map_err(|_| ObserverError::InvalidActionConfig {
             reason: format!("{action_name} URL env var {var_name} not found"),
+        })?
+    } else {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!("{action_name} URL not provided"),
+        });
+    };
+
+    validate_url_ssrf(&url)?;
+    Ok(url)
+}
+
+/// Validate a URL against Server-Side Request Forgery (SSRF) attack vectors.
+///
+/// Rejects:
+/// - Non-http/https schemes
+/// - URLs exceeding [`MAX_WEBHOOK_URL_LEN`] bytes
+/// - URLs with no host
+/// - `localhost` / `*.localhost` hostnames
+/// - Literal IP addresses that fall inside private, loopback, link-local,
+///   shared-address-space, or IPv4-mapped IPv6 ranges
+///
+/// # Note
+///
+/// DNS-based SSRF (where a public hostname resolves to a private IP) requires
+/// a connect-time check at the HTTP client level and is beyond the scope of
+/// this static validation.
+fn validate_url_ssrf(url: &str) -> Result<()> {
+    if url.len() > MAX_WEBHOOK_URL_LEN {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!(
+                "Webhook URL too long ({} bytes, max {MAX_WEBHOOK_URL_LEN})",
+                url.len()
+            ),
         });
     }
-    Err(ObserverError::InvalidActionConfig {
-        reason: format!("{action_name} URL not provided"),
-    })
+
+    // Require http or https scheme.
+    let rest = if let Some(r) = url.strip_prefix("https://") {
+        r
+    } else if let Some(r) = url.strip_prefix("http://") {
+        r
+    } else {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!("Webhook URL must use http:// or https:// scheme (got: {url})"),
+        });
+    };
+
+    // Extract the host, handling IPv6 bracket notation ([::1]:port or [::1]).
+    let authority = rest.split('/').next().unwrap_or("");
+    let host = if authority.starts_with('[') {
+        // IPv6 literal: strip surrounding brackets and any trailing :port.
+        authority
+            .split(']')
+            .next()
+            .unwrap_or("")
+            .trim_start_matches('[')
+    } else {
+        // IPv4 or hostname: strip optional :port.
+        authority.split(':').next().unwrap_or("")
+    };
+
+    if host.is_empty() {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: "Webhook URL has no host".to_string(),
+        });
+    }
+
+    // Block loopback hostnames before attempting IP parsing.
+    let lower_host = host.to_ascii_lowercase();
+    if lower_host == "localhost" || lower_host.ends_with(".localhost") {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!("Webhook URL targets a loopback host: {host}"),
+        });
+    }
+
+    // If the host is a literal IP address, block private / reserved ranges.
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        if is_ssrf_blocked_ip(&ip) {
+            return Err(ObserverError::InvalidActionConfig {
+                reason: format!("Webhook URL targets a private or reserved IP address: {ip}"),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+/// Returns `true` for IP addresses that outbound webhooks must never contact.
+///
+/// Covers: loopback (127/8, ::1), RFC 1918 private (10/8, 172.16/12, 192.168/16),
+/// link-local / APIPA (169.254/16, fe80::/10), shared address space (100.64/10,
+/// RFC 6598), IPv4-mapped IPv6 (::ffff:0:0/96), and ULA (fc00::/7).
+fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            let o = v4.octets();
+            o[0] == 127                                                // 127.0.0.0/8  loopback
+            || o[0] == 10                                              // 10.0.0.0/8   RFC 1918
+            || (o[0] == 172 && (16..=31).contains(&o[1]))             // 172.16.0.0/12 RFC 1918
+            || (o[0] == 192 && o[1] == 168)                           // 192.168.0.0/16 RFC 1918
+            || (o[0] == 169 && o[1] == 254)                           // 169.254.0.0/16 link-local
+            || (o[0] == 100 && (o[1] & 0b1100_0000) == 0b0100_0000)  // 100.64.0.0/10 RFC 6598
+            || o[0] == 0                                               // 0.0.0.0/8 this-network
+        },
+        std::net::IpAddr::V6(v6) => {
+            let s = v6.segments();
+            *v6 == std::net::Ipv6Addr::LOCALHOST                      // ::1 loopback
+            || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
+                && s[4] == 0 && s[5] == 0xffff)                      // ::ffff:0:0/96 IPv4-mapped
+            || (s[0] & 0xfe00) == 0xfc00                             // fc00::/7  ULA
+            || (s[0] & 0xffc0) == 0xfe80                             // fe80::/10 link-local
+        },
+    }
 }
 
 impl ActionDispatcher for DefaultActionDispatcher {
@@ -255,5 +366,64 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 },
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are intentional
+
+    use super::*;
+
+    #[test]
+    fn test_valid_urls_pass() {
+        assert!(resolve_url(Some("https://hooks.example.com/notify"), None, "Test").is_ok());
+        assert!(resolve_url(Some("http://api.example.org/webhook"), None, "Test").is_ok());
+    }
+
+    #[test]
+    fn test_invalid_scheme_rejected() {
+        assert!(resolve_url(Some("ftp://example.com/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("file:///etc/passwd"), None, "Test").is_err());
+    }
+
+    #[test]
+    fn test_localhost_rejected() {
+        assert!(resolve_url(Some("http://localhost/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("http://localhost.localdomain/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("https://subdomain.localhost/hook"), None, "Test").is_err());
+    }
+
+    #[test]
+    fn test_private_ipv4_rejected() {
+        // RFC 1918
+        assert!(resolve_url(Some("http://10.0.0.1/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("http://172.16.0.1/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("http://172.31.255.255/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("http://192.168.1.1/hook"), None, "Test").is_err());
+        // Loopback
+        assert!(resolve_url(Some("http://127.0.0.1/hook"), None, "Test").is_err());
+        // Link-local / AWS IMDS
+        assert!(
+            resolve_url(Some("http://169.254.169.254/latest/meta-data/"), None, "Test").is_err()
+        );
+    }
+
+    #[test]
+    fn test_private_ipv6_rejected() {
+        assert!(resolve_url(Some("http://[::1]/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("http://[fc00::1]/hook"), None, "Test").is_err());
+        assert!(resolve_url(Some("http://[fe80::1]/hook"), None, "Test").is_err());
+    }
+
+    #[test]
+    fn test_no_url_provided_error() {
+        assert!(resolve_url(None, None, "Test").is_err());
+    }
+
+    #[test]
+    fn test_url_too_long_rejected() {
+        let long_url = format!("https://example.com/{}", "a".repeat(2_100));
+        assert!(resolve_url(Some(&long_url), None, "Test").is_err());
     }
 }

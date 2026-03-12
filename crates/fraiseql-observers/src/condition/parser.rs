@@ -4,10 +4,17 @@ use crate::error::{ObserverError, Result};
 
 use super::{ConditionAst, ConditionParser, Token};
 
+/// Maximum nesting depth for condition expressions.
+///
+/// Prevents stack overflow from deeply-nested `NOT NOT NOT … expr` chains
+/// or deeply-parenthesised conditions. 50 levels is far beyond any legitimate
+/// condition authored by a human or a schema tool.
+const MAX_CONDITION_DEPTH: usize = 50;
+
 impl ConditionParser {
     pub(super) fn parse_tokens(&self, tokens: &[Token]) -> Result<ConditionAst> {
         let mut pos = 0;
-        let ast = self.parse_or(tokens, &mut pos)?;
+        let ast = self.parse_or(tokens, &mut pos, 0)?;
         if pos < tokens.len() {
             return Err(ObserverError::InvalidCondition {
                 reason: "Unexpected tokens after condition".to_string(),
@@ -16,13 +23,18 @@ impl ConditionParser {
         Ok(ast)
     }
 
-    fn parse_or(&self, tokens: &[Token], pos: &mut usize) -> Result<ConditionAst> {
-        let mut left = self.parse_and(tokens, pos)?;
+    fn parse_or(
+        &self,
+        tokens: &[Token],
+        pos: &mut usize,
+        depth: usize,
+    ) -> Result<ConditionAst> {
+        let mut left = self.parse_and(tokens, pos, depth)?;
 
         while *pos < tokens.len() {
             if matches!(tokens[*pos], Token::Or) {
                 *pos += 1;
-                let right = self.parse_and(tokens, pos)?;
+                let right = self.parse_and(tokens, pos, depth)?;
                 left = ConditionAst::Or {
                     left:  Box::new(left),
                     right: Box::new(right),
@@ -35,13 +47,18 @@ impl ConditionParser {
         Ok(left)
     }
 
-    fn parse_and(&self, tokens: &[Token], pos: &mut usize) -> Result<ConditionAst> {
-        let mut left = self.parse_not(tokens, pos)?;
+    fn parse_and(
+        &self,
+        tokens: &[Token],
+        pos: &mut usize,
+        depth: usize,
+    ) -> Result<ConditionAst> {
+        let mut left = self.parse_not(tokens, pos, depth)?;
 
         while *pos < tokens.len() {
             if matches!(tokens[*pos], Token::And) {
                 *pos += 1;
-                let right = self.parse_not(tokens, pos)?;
+                let right = self.parse_not(tokens, pos, depth)?;
                 left = ConditionAst::And {
                     left:  Box::new(left),
                     right: Box::new(right),
@@ -54,19 +71,38 @@ impl ConditionParser {
         Ok(left)
     }
 
-    fn parse_not(&self, tokens: &[Token], pos: &mut usize) -> Result<ConditionAst> {
+    fn parse_not(
+        &self,
+        tokens: &[Token],
+        pos: &mut usize,
+        depth: usize,
+    ) -> Result<ConditionAst> {
+        if depth > MAX_CONDITION_DEPTH {
+            return Err(ObserverError::InvalidCondition {
+                reason: format!(
+                    "Condition expression exceeds maximum nesting depth \
+                     ({MAX_CONDITION_DEPTH})"
+                ),
+            });
+        }
+
         if *pos < tokens.len() && matches!(tokens[*pos], Token::Not) {
             *pos += 1;
-            let expr = self.parse_not(tokens, pos)?;
+            let expr = self.parse_not(tokens, pos, depth + 1)?;
             return Ok(ConditionAst::Not {
                 expr: Box::new(expr),
             });
         }
 
-        self.parse_primary(tokens, pos)
+        self.parse_primary(tokens, pos, depth)
     }
 
-    fn parse_primary(&self, tokens: &[Token], pos: &mut usize) -> Result<ConditionAst> {
+    fn parse_primary(
+        &self,
+        tokens: &[Token],
+        pos: &mut usize,
+        depth: usize,
+    ) -> Result<ConditionAst> {
         if *pos >= tokens.len() {
             return Err(ObserverError::InvalidCondition {
                 reason: "Unexpected end of condition".to_string(),
@@ -76,7 +112,7 @@ impl ConditionParser {
         match &tokens[*pos] {
             Token::LParen => {
                 *pos += 1;
-                let ast = self.parse_or(tokens, pos)?;
+                let ast = self.parse_or(tokens, pos, depth + 1)?;
                 if *pos >= tokens.len() || !matches!(tokens[*pos], Token::RParen) {
                     return Err(ObserverError::InvalidCondition {
                         reason: "Expected closing parenthesis".to_string(),
