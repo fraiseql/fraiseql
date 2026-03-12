@@ -25,6 +25,82 @@ use crate::{
 /// manually via [`WebhookAction::with_timeout`].
 const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 
+/// Validate an outbound URL for SSRF risk before sending a request.
+///
+/// Rejects:
+/// - Non-HTTP(S) schemes (`file://`, `ftp://`, etc.)
+/// - Loopback addresses (`localhost`, `127.x.x.x`, `::1`)
+/// - RFC 1918 private ranges (10/8, 172.16/12, 192.168/16)
+/// - Link-local (169.254/16), CGNAT (100.64/10), ULA (fc00::/7)
+///
+/// Attacker-controlled observer configs could redirect outbound webhook
+/// calls to AWS EC2 metadata (`169.254.169.254`), internal Kubernetes
+/// services (`svc.cluster.local`), or any other SSRF target.
+///
+/// # Errors
+///
+/// Returns `ObserverError::ActionPermanentlyFailed` if the URL uses a
+/// non-HTTP(S) scheme or resolves to a blocked address range.
+fn validate_outbound_url(url: &str) -> Result<()> {
+    let lower = url.to_ascii_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err(ObserverError::ActionPermanentlyFailed {
+            reason: format!("Outbound URL must use http:// or https:// scheme: {url}"),
+        });
+    }
+
+    // Extract the host portion (strip scheme, then take up to the first / : ? #).
+    let after_scheme = if lower.starts_with("https://") { &url[8..] } else { &url[7..] };
+    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
+
+    if is_ssrf_blocked_host_obs(host) {
+        return Err(ObserverError::ActionPermanentlyFailed {
+            reason: format!(
+                "Outbound URL targets a private/loopback address (SSRF protection): {url}"
+            ),
+        });
+    }
+
+    Ok(())
+}
+
+/// Returns `true` for hostnames and literal IPs that are blocked as SSRF targets.
+fn is_ssrf_blocked_host_obs(host: &str) -> bool {
+    let lower = host.to_ascii_lowercase();
+    if lower == "localhost" || lower == "::1" || lower == "[::1]" {
+        return true;
+    }
+
+    // Literal IPv4
+    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
+        return addr.is_loopback()    // 127.0.0.0/8
+            || addr.is_private()     // 10/8, 172.16/12, 192.168/16
+            || addr.is_link_local()  // 169.254/16
+            || is_cgnat_v4_obs(addr); // 100.64/10
+    }
+
+    // Literal IPv6 (strip optional brackets)
+    let ipv6 = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(addr) = ipv6.parse::<std::net::Ipv6Addr>() {
+        return addr.is_loopback()       // ::1
+            || addr.is_unspecified()    // ::
+            || is_ula_v6_obs(addr);     // fc00::/7
+    }
+
+    false
+}
+
+/// Returns `true` for CGNAT range 100.64.0.0/10.
+fn is_cgnat_v4_obs(addr: std::net::Ipv4Addr) -> bool {
+    let [a, b, ..] = addr.octets();
+    a == 100 && (b & 0xC0) == 64
+}
+
+/// Returns `true` for ULA range fc00::/7.
+fn is_ula_v6_obs(addr: std::net::Ipv6Addr) -> bool {
+    (addr.segments()[0] & 0xFE00) == 0xFC00
+}
+
 /// Validate that no header name or value contains HTTP header injection characters.
 ///
 /// HTTP/1.1 forbids `\r` and `\n` inside field names and values (RFC 7230 §3.2).
@@ -99,6 +175,8 @@ impl WebhookAction {
         info!("  Headers: {:?}", headers);
         info!("  Body template: {:?}", body_template);
 
+        // SECURITY: Reject URLs that target private/loopback addresses (SSRF protection).
+        validate_outbound_url(url)?;
         // SECURITY: Reject headers that contain CR/LF to prevent header injection.
         validate_headers(headers)?;
 
@@ -239,6 +317,9 @@ impl SlackAction {
         if let Some(ch) = channel {
             payload["channel"] = Value::String(ch.to_string());
         }
+
+        // SECURITY: Reject URLs that target private/loopback addresses (SSRF protection).
+        validate_outbound_url(webhook_url)?;
 
         // Send request
         let response = self.client.post(webhook_url).json(&payload).send().await.map_err(|e| {
@@ -489,5 +570,39 @@ mod tests {
     #[test]
     fn test_webhook_action_with_timeout_creates_ok() {
         let _action = WebhookAction::with_timeout(Duration::from_secs(5));
+    }
+
+    // --- SSRF protection tests (C7) ---
+
+    #[test]
+    fn test_outbound_url_scheme_must_be_http() {
+        assert!(validate_outbound_url("file:///etc/passwd").is_err());
+        assert!(validate_outbound_url("ftp://example.com").is_err());
+        assert!(validate_outbound_url("example.com/hook").is_err());
+    }
+
+    #[test]
+    fn test_outbound_url_blocks_loopback() {
+        assert!(validate_outbound_url("http://localhost:8080").is_err());
+        assert!(validate_outbound_url("http://127.0.0.1/hook").is_err());
+        assert!(validate_outbound_url("http://[::1]/hook").is_err());
+    }
+
+    #[test]
+    fn test_outbound_url_blocks_private_ranges() {
+        assert!(validate_outbound_url("http://10.0.0.1/hook").is_err());
+        assert!(validate_outbound_url("http://172.16.0.1/hook").is_err());
+        assert!(validate_outbound_url("http://192.168.1.100/hook").is_err());
+        // AWS metadata endpoint
+        assert!(validate_outbound_url("http://169.254.169.254/latest/meta-data/").is_err());
+        // CGNAT range
+        assert!(validate_outbound_url("http://100.64.0.1/hook").is_err());
+    }
+
+    #[test]
+    fn test_outbound_url_allows_public_addresses() {
+        assert!(validate_outbound_url("https://hooks.slack.com/services/xxx").is_ok());
+        assert!(validate_outbound_url("https://api.example.com/webhook").is_ok());
+        assert!(validate_outbound_url("http://203.0.113.10/hook").is_ok());
     }
 }
