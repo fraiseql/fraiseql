@@ -17,11 +17,15 @@ pub struct ObserverRepository {
 
 impl ObserverRepository {
     /// Create a new observer repository.
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
     /// List observers with optional filters.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` on query failure.
     pub async fn list(
         &self,
         query: &ListObserversQuery,
@@ -103,6 +107,10 @@ impl ObserverRepository {
     }
 
     /// Get a single observer by ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` on query failure.
     pub async fn get_by_id(
         &self,
         id: Uuid,
@@ -133,6 +141,10 @@ impl ObserverRepository {
     }
 
     /// Create a new observer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` or `ServerError::Validation` on failure.
     pub async fn create(
         &self,
         request: &CreateObserverRequest,
@@ -190,6 +202,10 @@ impl ObserverRepository {
     }
 
     /// Update an existing observer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` or `ServerError::Validation` on failure.
     pub async fn update(
         &self,
         id: Uuid,
@@ -309,6 +325,10 @@ impl ObserverRepository {
     }
 
     /// Soft delete an observer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` on query failure.
     pub async fn delete(&self, id: Uuid, customer_org: Option<i64>) -> Result<bool, ServerError> {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> = sqlx::QueryBuilder::new(
             "UPDATE tb_observer SET deleted_at = NOW() WHERE id = ",
@@ -331,6 +351,10 @@ impl ObserverRepository {
     }
 
     /// Get observer statistics.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` on query failure.
     pub async fn get_stats(
         &self,
         observer_id: Option<Uuid>,
@@ -364,6 +388,10 @@ impl ObserverRepository {
     }
 
     /// List observer execution logs.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` on query failure.
     pub async fn list_logs(
         &self,
         query: &ListObserverLogsQuery,

@@ -43,7 +43,7 @@ impl Default for ObserverManagementConfig {
     }
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 
@@ -51,15 +51,15 @@ fn default_base_path() -> String {
     "/api/observers".to_string()
 }
 
-fn default_max_page_size() -> i64 {
+const fn default_max_page_size() -> i64 {
     100
 }
 
-fn default_log_retention_days() -> i64 {
+const fn default_log_retention_days() -> i64 {
     30
 }
 
-fn default_require_auth() -> bool {
+const fn default_require_auth() -> bool {
     true
 }
 

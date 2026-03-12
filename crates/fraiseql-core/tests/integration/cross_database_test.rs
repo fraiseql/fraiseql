@@ -32,7 +32,7 @@ use testcontainers_modules::{
 // Shared schema SQL (per database)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PG_SCHEMA: &str = r#"
+const PG_SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS tb_cross_item (
     id   CHAR(36) NOT NULL PRIMARY KEY,
     name TEXT     NOT NULL UNIQUE,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS tb_cross_item (
 );
 CREATE OR REPLACE VIEW v_cross_item AS
     SELECT data FROM tb_cross_item;
-"#;
+";
 
 const PG_SEED: &str = r#"
 INSERT INTO tb_cross_item (id, name, age, data) VALUES
@@ -54,7 +54,7 @@ INSERT INTO tb_cross_item (id, name, age, data) VALUES
 ON CONFLICT DO NOTHING;
 "#;
 
-const MYSQL_SCHEMA: &str = r#"
+const MYSQL_SCHEMA: &str = r"
 CREATE TABLE IF NOT EXISTS tb_cross_item (
     id   CHAR(36)     NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS tb_cross_item (
 );
 CREATE OR REPLACE VIEW v_cross_item AS
     SELECT data FROM tb_cross_item;
-"#;
+";
 
 const MYSQL_SEED: &str = r#"
 INSERT IGNORE INTO tb_cross_item (id, name, age, data) VALUES

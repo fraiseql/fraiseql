@@ -175,6 +175,10 @@ impl FraiseQLFlightService {
     /// * `cache_ttl_secs` - Query result cache TTL in seconds (optional)
     /// * `oidc_validator` - OIDC validator for JWT authentication
     ///
+    /// # Panics
+    ///
+    /// Panics if `FLIGHT_SESSION_SECRET` environment variable is not set.
+    ///
     /// # Example
     ///
     /// ```no_run

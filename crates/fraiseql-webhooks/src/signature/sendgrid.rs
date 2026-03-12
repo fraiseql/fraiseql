@@ -189,7 +189,7 @@ mod tests {
 
         // Export as SPKI PEM — same format SendGrid public keys use
         let public_key_pem = verifying_key
-            .to_public_key_pem(Default::default())
+            .to_public_key_pem(p256::pkcs8::der::pem::LineEnding::default())
             .expect("P-256 VerifyingKey serializes to SPKI PEM");
 
         let ts = fresh_timestamp();

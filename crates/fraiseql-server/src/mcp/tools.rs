@@ -152,6 +152,7 @@ fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     fn make_config(include: Vec<String>, exclude: Vec<String>) -> McpConfig {

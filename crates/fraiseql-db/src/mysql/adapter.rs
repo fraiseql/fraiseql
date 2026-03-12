@@ -293,6 +293,8 @@ impl DatabaseAdapter for MySqlAdapter {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: pool sizes are always ≪ u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();
         let idle = self.pool.num_idle();
@@ -661,7 +663,7 @@ impl MySqlAdapter {
 
         // COUNT(*) returns BIGINT UNSIGNED in MySQL; try i64 first (covers most real counts).
         let cnt: u64 = if let Ok(v) = row.try_get::<i64, _>(0) {
-            v as u64
+            v.cast_unsigned()
         } else {
             row.try_get::<u64, _>(0).unwrap_or_default()
         };

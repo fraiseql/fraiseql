@@ -211,7 +211,7 @@ impl KafkaAdapter {
 
     /// Get reference to the underlying producer for direct Kafka operations.
     #[must_use = "the producer reference should be used for Kafka operations"]
-    pub fn producer(&self) -> &rdkafka::producer::FutureProducer {
+    pub const fn producer(&self) -> &rdkafka::producer::FutureProducer {
         &self.producer
     }
 }

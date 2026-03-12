@@ -260,6 +260,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             },
             trusted_docs,
             mcp_config: None,
+            pool_tuning_config: None,
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]

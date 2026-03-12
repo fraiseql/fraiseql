@@ -450,7 +450,8 @@ pub struct PaginatedResponse<T> {
 
 impl<T> PaginatedResponse<T> {
     /// Construct a paginated response from a page of data and the total item count.
-    pub fn new(data: Vec<T>, page: i64, page_size: i64, total_count: i64) -> Self {
+    #[must_use]
+    pub const fn new(data: Vec<T>, page: i64, page_size: i64, total_count: i64) -> Self {
         let total_pages = (total_count + page_size - 1) / page_size;
         Self {
             data,
@@ -463,13 +464,13 @@ impl<T> PaginatedResponse<T> {
 }
 
 // Default value functions for serde
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
-fn default_priority() -> i32 {
+const fn default_priority() -> i32 {
     100
 }
-fn default_timeout() -> i32 {
+const fn default_timeout() -> i32 {
     30000
 }
 fn default_method() -> String {
@@ -478,21 +479,21 @@ fn default_method() -> String {
 fn default_log_level() -> String {
     "info".to_string()
 }
-fn default_max_attempts() -> i32 {
+const fn default_max_attempts() -> i32 {
     3
 }
 fn default_backoff() -> String {
     "exponential".to_string()
 }
-fn default_initial_delay() -> i64 {
+const fn default_initial_delay() -> i64 {
     1000
 }
-fn default_max_delay() -> i64 {
+const fn default_max_delay() -> i64 {
     60000
 }
-fn default_page() -> i64 {
+const fn default_page() -> i64 {
     1
 }
-fn default_page_size() -> i64 {
+const fn default_page_size() -> i64 {
     20
 }

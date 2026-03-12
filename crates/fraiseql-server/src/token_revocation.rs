@@ -156,6 +156,10 @@ impl RevocationStore for InMemoryRevocationStore {
 // Redis backend (optional)
 // ───────────────────────────────────────────────────────────────
 
+/// Redis-backed JWT revocation store.
+///
+/// Stores revoked JTI claims in Redis with automatic TTL-based expiry.
+/// Requires the `redis-rate-limiting` feature.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRevocationStore {
     client: redis::Client,

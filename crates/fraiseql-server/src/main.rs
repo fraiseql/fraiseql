@@ -275,6 +275,8 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(feature = "observers")]
     let db_pool = {
         use sqlx::postgres::PgPoolOptions;
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: pool sizes are always ≪ u32::MAX in practice
         let pool = PgPoolOptions::new()
             .min_connections(config.pool_min_size as u32)
             .max_connections(config.pool_max_size as u32)

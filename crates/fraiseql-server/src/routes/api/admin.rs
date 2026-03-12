@@ -79,9 +79,10 @@ pub struct AdminConfigResponse {
 ///
 /// Requires admin token authentication.
 pub async fn reload_schema_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+    State(state): State<AppState<A>>,
     Json(req): Json<ReloadSchemaRequest>,
 ) -> Result<Json<ApiResponse<ReloadSchemaResponse>>, ApiError> {
+    let _ = &state; // used conditionally by #[cfg(feature = "arrow")]
     if req.schema_path.is_empty() {
         return Err(ApiError::validation_error("schema_path cannot be empty"));
     }

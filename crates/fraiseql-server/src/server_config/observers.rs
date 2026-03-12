@@ -3,32 +3,32 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "observers")]
-fn default_observers_enabled() -> bool {
+const fn default_observers_enabled() -> bool {
     true
 }
 
 #[cfg(feature = "observers")]
-fn default_poll_interval_ms() -> u64 {
+const fn default_poll_interval_ms() -> u64 {
     100
 }
 
 #[cfg(feature = "observers")]
-fn default_batch_size() -> usize {
+const fn default_batch_size() -> usize {
     100
 }
 
 #[cfg(feature = "observers")]
-fn default_channel_capacity() -> usize {
+const fn default_channel_capacity() -> usize {
     1000
 }
 
 #[cfg(feature = "observers")]
-fn default_auto_reload() -> bool {
+const fn default_auto_reload() -> bool {
     true
 }
 
 #[cfg(feature = "observers")]
-fn default_reload_interval_secs() -> u64 {
+const fn default_reload_interval_secs() -> u64 {
     60
 }
 

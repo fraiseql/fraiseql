@@ -314,6 +314,8 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: pool sizes are always ≪ u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();
         let idle = self.pool.num_idle();
@@ -917,7 +919,7 @@ mod tests {
 
         let adapter = setup_user_table(3).await;
         let projection = SqlProjectionHint {
-            database:                    "sqlite".to_string(),
+            database:                    crate::DatabaseType::SQLite,
             projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
                 .to_string(),
             estimated_reduction_percent: 50,

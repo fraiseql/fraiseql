@@ -11,7 +11,7 @@
 //! - Postgres 17 running on localhost:5432
 //! - Test database and views created via SQL setup
 //!
-//! Run with: cargo bench --bench integration_benchmarks --features bench-with-postgres
+//! Run with: cargo bench --bench `integration_benchmarks` --features bench-with-postgres
 //!
 //! To set up test database:
 //! ```bash
@@ -60,7 +60,7 @@ fn throughput_benchmarks(c: &mut Criterion) {
     let row_counts = vec![1_000, 10_000, 100_000];
 
     for row_count in row_counts {
-        group.throughput(Throughput::Elements(row_count as u64));
+        group.throughput(Throughput::Elements(u64::try_from(row_count).unwrap_or(0)));
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_rows", row_count)),
             &row_count,
@@ -243,8 +243,10 @@ fn predicate_benchmarks(c: &mut Criterion) {
     ];
 
     for (name, total, ratio) in scenarios {
-        let filtered = (total as f64 * ratio) as i64;
-        group.throughput(Throughput::Elements(filtered as u64));
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: ratio is 0.0–1.0 × 100_000, result fits in i64
+        let filtered = (f64::from(total) * ratio) as i64;
+        group.throughput(Throughput::Elements(filtered.cast_unsigned()));
 
         group.bench_with_input(BenchmarkId::from_parameter(name), &filtered, |b, &count| {
             b.iter(|| {
@@ -325,7 +327,7 @@ fn json_parsing_load_benchmarks(c: &mut Criterion) {
     ];
 
     for (name, size) in payloads {
-        group.throughput(Throughput::Bytes(size as u64));
+        group.throughput(Throughput::Bytes(u64::try_from(size).unwrap_or(0)));
 
         group.bench_with_input(
             BenchmarkId::from_parameter(name),

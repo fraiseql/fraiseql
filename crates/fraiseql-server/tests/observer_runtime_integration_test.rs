@@ -40,6 +40,7 @@
 //! **Parallelism:** safe
 
 #![cfg(feature = "observers")]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 mod observer_test_helpers;
 
@@ -705,7 +706,7 @@ async fn test_high_throughput_processing() {
         .await
         .expect("Failed to query observer logs");
     assert!(
-        success_count as usize >= event_count * 90 / 100, // Allow 10% margin for retries
+        usize::try_from(success_count).unwrap_or(0) >= event_count * 90 / 100, // Allow 10% margin for retries
         "Expected at least 90% of events logged as success, got {}",
         success_count
     );
@@ -1193,7 +1194,7 @@ async fn test_with_longer_polling() {
     assert!(!requests.is_empty(), "No webhook calls received after 500ms");
 }
 
-/// Direct listener test - verify listener.next_batch() works
+/// Direct listener test - verify `listener.next_batch()` works
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn test_listener_direct() {

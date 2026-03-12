@@ -140,7 +140,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Get query cache if configured.
     #[cfg(feature = "arrow")]
-    pub fn cache(&self) -> Option<&Arc<fraiseql_arrow::cache::QueryCache>> {
+    pub const fn cache(&self) -> Option<&Arc<fraiseql_arrow::cache::QueryCache>> {
         self.cache.as_ref()
     }
 

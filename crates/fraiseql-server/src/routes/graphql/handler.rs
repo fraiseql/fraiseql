@@ -513,7 +513,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     );
 
     // Parse result as JSON
-    let response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
+    let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
         error!(
             error = %e,
             response_length = result.len(),

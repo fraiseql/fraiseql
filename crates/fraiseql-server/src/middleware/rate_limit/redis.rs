@@ -91,7 +91,7 @@ end
 /// logged. The cumulative error count is tracked in [`REDIS_RATE_LIMIT_ERRORS`]
 /// and exposed in the `/metrics` endpoint.
 #[cfg(feature = "redis-rate-limiting")]
-pub(super) struct RedisRateLimiter {
+pub struct RedisRateLimiter {
     pool:       redis::aio::ConnectionManager,
     config:     RateLimitConfig,
     path_rules: Vec<PathRateLimit>,
@@ -153,12 +153,12 @@ impl RedisRateLimiter {
     }
 
     /// Return the active rate limit configuration.
-    pub(super) fn config(&self) -> &RateLimitConfig {
+    pub(super) const fn config(&self) -> &RateLimitConfig {
         &self.config
     }
 
     /// Number of per-path rate limit rules registered.
-    pub(super) fn path_rule_count(&self) -> usize {
+    pub(super) const fn path_rule_count(&self) -> usize {
         self.path_rules.len()
     }
 
@@ -176,7 +176,8 @@ impl RedisRateLimiter {
 
     /// Load the Lua script into Redis and cache its SHA for subsequent calls.
     async fn load_script(&self) -> Result<String, redis::RedisError> {
-        if let Some(sha) = self.script_sha.read().await.as_ref().cloned() {
+        let cached_sha = self.script_sha.read().await.as_ref().cloned();
+        if let Some(sha) = cached_sha {
             return Ok(sha);
         }
         let mut conn = self.pool.clone();

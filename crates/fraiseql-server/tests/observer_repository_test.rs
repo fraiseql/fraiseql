@@ -1,4 +1,5 @@
 //! Observer repository integration tests.
+#![allow(clippy::doc_markdown)]
 //!
 //! These tests verify the SQL layer end-to-end against a real PostgreSQL
 //! database spun up via testcontainers: correct row returns, pagination,
@@ -23,7 +24,7 @@
 mod observer_test_helpers;
 
 use fraiseql_server::observers::{
-    CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
+    ListObserverLogsQuery, ListObserversQuery, ObserverRepository,
 };
 use observer_test_helpers::setup_observer_schema;
 use sqlx::PgPool;

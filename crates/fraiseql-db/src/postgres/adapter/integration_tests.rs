@@ -1,4 +1,5 @@
 //! PostgreSQL integration tests.
+#![allow(clippy::unwrap_used)]
 //!
 //! These tests require a running PostgreSQL database with test data.
 //!

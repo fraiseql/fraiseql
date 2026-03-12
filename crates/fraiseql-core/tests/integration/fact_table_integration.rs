@@ -4,12 +4,13 @@
 //!
 //! To run:
 //!   1. Start test database: docker compose -f docker-compose.test.yml up -d
-//!   2. Wait for DB: docker compose -f docker-compose.test.yml exec postgres-test pg_isready
+//!   2. Wait for DB: docker compose -f docker-compose.test.yml exec postgres-test `pg_isready`
 //!   3. Run tests: cargo test -p fraiseql-core --features test-postgres --test
-//!      fact_table_integration
+//!      `fact_table_integration`
 //!   4. Stop database: docker compose -f docker-compose.test.yml down
 
 #![cfg(feature = "test-postgres")]
+#![allow(clippy::unwrap_used)]
 
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
 use fraiseql_core::{

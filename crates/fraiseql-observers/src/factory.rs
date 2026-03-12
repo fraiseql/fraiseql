@@ -498,6 +498,7 @@ mod tests {
             overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
             shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());

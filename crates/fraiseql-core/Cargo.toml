@@ -80,9 +80,11 @@ deadpool-postgres.workspace = true
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
+fraiseql-wire = {workspace = true}
 insta = {version = "1.38", features = ["yaml"]}
 proptest = {workspace = true}
 serial_test = "3"
+sqlx = {workspace = true, features = ["mysql"]}
 temp-env = {workspace = true}
 tempfile = {workspace = true}
 testcontainers = {version = "0.26", features = ["watchdog"]}
