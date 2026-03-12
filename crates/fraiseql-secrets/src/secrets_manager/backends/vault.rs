@@ -236,10 +236,14 @@ impl SecretsBackend for VaultBackend {
 
         // Calculate expiry: now + lease_duration
         let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
-        let cache_expiry = Utc::now()
-            + chrono::Duration::seconds(
-                (response.lease_duration as f64 * CACHE_TTL_PERCENTAGE) as i64,
-            );
+        // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic to
+        // avoid the f64→i64 precision loss that occurs for large TTLs (> 2^53 seconds).
+        // Saturating multiplication prevents overflow if Vault returns an extreme TTL.
+        let cache_ttl_secs = response
+            .lease_duration
+            .saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64)
+            / 100;
+        let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
 
         // Extract secret from response data
         let secret_str = Self::extract_secret_from_response(&response, name)?;
@@ -402,7 +406,10 @@ impl VaultBackend {
         };
 
         let elapsed_secs = (Utc::now() - obtained_at).num_seconds();
-        let renewal_threshold_secs = (ttl_secs as f64 * TOKEN_RENEWAL_THRESHOLD) as i64;
+        // Use integer arithmetic to avoid f64 precision loss for large TTL values.
+        let renewal_threshold_secs = ttl_secs
+            .saturating_mul((TOKEN_RENEWAL_THRESHOLD * 100.0) as i64)
+            / 100;
         elapsed_secs >= renewal_threshold_secs
     }
 

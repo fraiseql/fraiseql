@@ -49,6 +49,13 @@ pub struct ObserverExecutor {
     pub(super) matcher:          Arc<EventMatcher>,
     /// Condition parser and evaluator
     pub(super) condition_parser: Arc<crate::condition::ConditionParser>,
+    /// Pre-parsed condition AST cache (condition string → compiled AST).
+    ///
+    /// Condition strings are deterministic: the same string always produces the
+    /// same AST, so we can safely cache the parse result indefinitely.  This
+    /// avoids re-lexing and re-parsing the condition on every incoming event,
+    /// which was the dominant cost at high event throughput.
+    pub(super) condition_cache:  dashmap::DashMap<String, crate::condition::ConditionAst>,
     /// Action dispatcher (production or mock)
     pub(super) dispatcher:       Arc<dyn ActionDispatcher>,
     /// Dead letter queue for failed actions
@@ -86,6 +93,7 @@ impl ObserverExecutor {
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
+            condition_cache:  dashmap::DashMap::new(),
             dispatcher,
             dlq,
             max_dlq_size: None,
@@ -133,6 +141,7 @@ impl ObserverExecutor {
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
+            condition_cache:  dashmap::DashMap::new(),
             dispatcher,
             dlq,
             max_dlq_size: None,
@@ -156,6 +165,7 @@ impl ObserverExecutor {
         Self {
             matcher: Arc::new(matcher),
             condition_parser: Arc::new(crate::condition::ConditionParser::new()),
+            condition_cache:  dashmap::DashMap::new(),
             dispatcher,
             dlq,
             max_dlq_size: None,
@@ -196,9 +206,27 @@ impl ObserverExecutor {
         debug!("Found {} matching observers for this event", matching_observers.len());
 
         for observer in matching_observers {
-            // Skip if condition is not met
+            // Skip if condition is not met.
+            // The parsed AST is cached in `condition_cache` so we only lex/parse
+            // the condition string once per unique condition across all events.
             if let Some(condition) = &observer.condition {
-                match self.condition_parser.parse_and_evaluate(condition, event) {
+                let evaluate_result = {
+                    if let Some(ast) = self.condition_cache.get(condition.as_str()) {
+                        self.condition_parser.evaluate(&ast, event)
+                    } else {
+                        // Parse, cache, then evaluate.
+                        match self.condition_parser.parse(condition) {
+                            Ok(ast) => {
+                                let result = self.condition_parser.evaluate(&ast, event);
+                                self.condition_cache.insert(condition.clone(), ast);
+                                result
+                            },
+                            Err(e) => Err(e),
+                        }
+                    }
+                };
+
+                match evaluate_result {
                     Ok(true) => {
                         debug!("Condition passed for observer");
                     },

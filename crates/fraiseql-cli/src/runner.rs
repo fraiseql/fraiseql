@@ -94,11 +94,11 @@ pub async fn run() {
 
         Commands::Lint {
             schema,
-            federation: _,
-            cost: _,
-            cache: _,
-            auth: _,
-            compilation: _,
+            federation,
+            cost,
+            cache,
+            auth,
+            compilation,
             fail_on_critical,
             fail_on_warning,
             verbose: _,
@@ -106,6 +106,13 @@ pub async fn run() {
             let opts = commands::lint::LintOptions {
                 fail_on_critical,
                 fail_on_warning,
+                filter: commands::lint::LintCategoryFilter {
+                    federation,
+                    cost,
+                    cache,
+                    auth,
+                    compilation,
+                },
             };
             match commands::lint::run(&schema, opts) {
                 Ok(result) => {

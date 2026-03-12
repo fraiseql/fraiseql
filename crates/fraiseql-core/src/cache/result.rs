@@ -430,6 +430,13 @@ impl QueryResultCache {
             .map(|(k, _)| k.clone())
             .collect();
 
+        // Estimate freed bytes using the same formula as put(): size_of::<CachedResult>()
+        // + key.len() * 2 (key stored twice in the LRU map).
+        let freed_bytes: usize = keys_to_remove
+            .iter()
+            .map(|k| std::mem::size_of::<CachedResult>() + k.len() * 2)
+            .sum();
+
         for key in &keys_to_remove {
             cache.pop(key);
         }
@@ -440,6 +447,9 @@ impl QueryResultCache {
 
         self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
         self.size.store(new_size, Ordering::Relaxed);
+        // Decrement memory counter; saturating to guard against any accounting skew.
+        let prev = self.memory_bytes.load(Ordering::Relaxed);
+        self.memory_bytes.store(prev.saturating_sub(freed_bytes), Ordering::Relaxed);
 
         Ok(invalidated_count)
     }
@@ -479,6 +489,11 @@ impl QueryResultCache {
             .map(|(k, _)| k.clone())
             .collect();
 
+        let freed_bytes: usize = keys_to_remove
+            .iter()
+            .map(|k| std::mem::size_of::<CachedResult>() + k.len() * 2)
+            .sum();
+
         for key in &keys_to_remove {
             cache.pop(key);
         }
@@ -489,6 +504,8 @@ impl QueryResultCache {
 
         self.invalidations.fetch_add(invalidated_count, Ordering::Relaxed);
         self.size.store(new_size, Ordering::Relaxed);
+        let prev = self.memory_bytes.load(Ordering::Relaxed);
+        self.memory_bytes.store(prev.saturating_sub(freed_bytes), Ordering::Relaxed);
 
         Ok(invalidated_count)
     }
