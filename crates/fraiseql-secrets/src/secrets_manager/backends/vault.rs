@@ -270,17 +270,21 @@ impl SecretsBackend for VaultBackend {
 }
 
 impl VaultBackend {
-    /// Create new VaultBackend with server address and authentication token
+    /// Create new VaultBackend with server address and authentication token.
     ///
     /// # Panics
     ///
     /// Panics if the HTTP client cannot be built (this should never happen in
-    /// practice — only invalid TLS configuration can trigger this path).
+    /// practice — only invalid TLS configuration can trigger this path), or if
+    /// `addr` targets a private/loopback address (SSRF protection).
     #[must_use]
     pub fn new<S: Into<String>>(addr: S, token: S) -> Self {
+        let addr_str: String = addr.into();
+        // SECURITY: Reject Vault addresses that target private/loopback ranges (SSRF).
+        validate_vault_addr(&addr_str).expect("Vault address failed SSRF validation");
         let client = build_http_client(true).expect("Failed to build Vault HTTP client");
         VaultBackend {
-            addr:               addr.into(),
+            addr:               addr_str,
             token:              Zeroizing::new(token.into()),
             namespace:          None,
             tls_verify:         true,
@@ -691,6 +695,62 @@ impl VaultBackend {
     }
 }
 
+/// Validate the Vault server address against SSRF-prone destinations.
+///
+/// Rejects:
+/// - Non-HTTP(S) schemes
+/// - Loopback addresses (`127.0.0.0/8`, `::1`, `localhost`)
+/// - RFC 1918 private ranges (`10/8`, `172.16/12`, `192.168/16`)
+/// - Link-local addresses (`169.254/16`) — includes AWS IMDSv1/v2
+/// - CGNAT range (`100.64/10`)
+/// - IPv6 ULA (`fc00::/7`)
+fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
+    let lower = addr.to_ascii_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err(SecretsError::ValidationError(format!(
+            "Vault address must use http:// or https:// scheme: {addr}"
+        )));
+    }
+    let after_scheme =
+        if lower.starts_with("https://") { &addr[8..] } else { &addr[7..] };
+    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
+    if is_ssrf_blocked_host_vault(host) {
+        return Err(SecretsError::ValidationError(format!(
+            "Vault address targets a private/loopback address (SSRF protection): {addr}"
+        )));
+    }
+    Ok(())
+}
+
+fn is_ssrf_blocked_host_vault(host: &str) -> bool {
+    let lower = host.to_ascii_lowercase();
+    if lower == "localhost" || lower == "::1" || lower == "[::1]" {
+        return true;
+    }
+    if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
+        return addr.is_loopback()
+            || addr.is_private()
+            || addr.is_link_local()
+            || is_cgnat_v4_vault(addr);
+    }
+    let ipv6 = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(addr) = ipv6.parse::<std::net::Ipv6Addr>() {
+        return addr.is_loopback() || addr.is_unspecified() || is_ula_v6_vault(addr);
+    }
+    false
+}
+
+fn is_cgnat_v4_vault(addr: std::net::Ipv4Addr) -> bool {
+    // 100.64.0.0/10
+    let octets = addr.octets();
+    octets[0] == 100 && (octets[1] & 0xC0) == 64
+}
+
+fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
+    // fc00::/7
+    (addr.segments()[0] & 0xFE00) == 0xFC00
+}
+
 /// Validate Vault secret name format
 fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
@@ -747,5 +807,68 @@ mod tests {
 
         assert_eq!(vault1.addr(), vault2.addr());
         assert_eq!(vault1.token(), vault2.token());
+    }
+
+    // --- validate_vault_secret_name tests (S9-1) ---
+
+    #[test]
+    fn test_secret_name_empty_rejected() {
+        assert!(validate_vault_secret_name("").is_err());
+    }
+
+    #[test]
+    fn test_secret_name_valid_paths() {
+        assert!(validate_vault_secret_name("db/creds").is_ok());
+        assert!(validate_vault_secret_name("secret/app_name/db-password").is_ok());
+        assert!(validate_vault_secret_name("kv/prod/postgres").is_ok());
+    }
+
+    #[test]
+    fn test_secret_name_dot_rejected() {
+        // `.` is not in the allowed character set — prevents `../` path traversal.
+        assert!(validate_vault_secret_name("../etc/passwd").is_err());
+        assert!(validate_vault_secret_name("secret/../../etc").is_err());
+        assert!(validate_vault_secret_name("secret/app.name").is_err());
+    }
+
+    #[test]
+    fn test_secret_name_special_chars_rejected() {
+        assert!(validate_vault_secret_name("secret/app name").is_err()); // space
+        assert!(validate_vault_secret_name("secret/app\0name").is_err()); // null byte
+        assert!(validate_vault_secret_name("secret/app;name").is_err()); // semicolon
+    }
+
+    // --- validate_vault_addr SSRF tests (S9-2) ---
+
+    #[test]
+    fn test_vault_addr_scheme_must_be_http() {
+        assert!(validate_vault_addr("file:///etc/passwd").is_err());
+        assert!(validate_vault_addr("ftp://vault.example.com:8200").is_err());
+        assert!(validate_vault_addr("vault.example.com:8200").is_err());
+    }
+
+    #[test]
+    fn test_vault_addr_blocks_loopback() {
+        assert!(validate_vault_addr("http://localhost:8200").is_err());
+        assert!(validate_vault_addr("http://127.0.0.1:8200").is_err());
+        assert!(validate_vault_addr("http://[::1]:8200").is_err());
+    }
+
+    #[test]
+    fn test_vault_addr_blocks_private_ranges() {
+        assert!(validate_vault_addr("http://10.0.0.1:8200").is_err());
+        assert!(validate_vault_addr("http://172.16.0.1:8200").is_err());
+        assert!(validate_vault_addr("http://192.168.1.1:8200").is_err());
+        // AWS metadata service
+        assert!(validate_vault_addr("http://169.254.169.254:8200").is_err());
+        // CGNAT range
+        assert!(validate_vault_addr("http://100.64.0.1:8200").is_err());
+    }
+
+    #[test]
+    fn test_vault_addr_allows_public_addresses() {
+        assert!(validate_vault_addr("https://vault.example.com:8200").is_ok());
+        assert!(validate_vault_addr("https://203.0.113.10:8200").is_ok());
+        assert!(validate_vault_addr("http://vault.local:8200").is_ok());
     }
 }

@@ -279,6 +279,19 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Conditionally add admin routes (protected by bearer token)
         if self.config.admin_api_enabled {
             if let Some(ref token) = self.config.admin_token {
+                // SECURITY (H14): The admin bearer token grants access to both
+                // destructive operations (reload-schema, cache/clear) and read-only
+                // endpoints (config, explain, cache/stats, grafana-dashboard) under a
+                // single shared secret.  There is currently no per-operation token
+                // scoping.  Operators should rotate the admin token if it is ever
+                // logged or transmitted over an unencrypted channel.
+                warn!(
+                    admin_routes = "reload-schema, cache/clear, cache/stats, config, explain, \
+                                    query/explain, grafana-dashboard",
+                    "Admin API enabled: single bearer token grants access to ALL admin \
+                     operations including destructive ones (reload-schema, cache/clear). \
+                     Use a high-entropy secret and restrict access at the network layer."
+                );
                 info!("Admin API endpoints enabled (bearer token required)");
 
                 let auth_state = BearerAuthState::new(token.clone());
