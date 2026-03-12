@@ -162,9 +162,28 @@ pub struct ServerConfig {
     /// `Authorization: Bearer <token>`
     ///
     /// **Security**: Use a strong, random token (minimum 32 characters).
-    /// This token grants access to sensitive operations like schema reloading.
+    /// This token grants access to **destructive** admin operations:
+    /// `reload-schema`, `cache/clear`.
+    ///
+    /// If `admin_readonly_token` is set, this token is restricted to write
+    /// operations only. If `admin_readonly_token` is not set, this token
+    /// also grants access to read-only endpoints (backwards-compatible).
     #[serde(default)]
     pub admin_token: Option<String>,
+
+    /// Optional separate bearer token for read-only admin operations.
+    ///
+    /// When set, restricts `admin_token` to destructive operations only
+    /// (`reload-schema`, `cache/clear`) and uses this token for read-only
+    /// endpoints (`config`, `cache/stats`, `explain`, `grafana-dashboard`).
+    ///
+    /// Operators and monitoring tools can use this token without gaining
+    /// the ability to modify server state or reload the schema.
+    ///
+    /// **Security**: Must be different from `admin_token` and at least 32
+    /// characters. Requires `admin_api_enabled = true` and `admin_token` set.
+    #[serde(default)]
+    pub admin_readonly_token: Option<String>,
 
     /// Enable introspection endpoint (default: false for production safety).
     ///
@@ -368,6 +387,7 @@ impl Default for ServerConfig {
             metrics_token: None,
             admin_api_enabled: false, // Disabled by default for security
             admin_token: None,
+            admin_readonly_token: None,
             introspection_enabled: false, // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
             design_api_require_auth: true, // Require auth for design endpoints
@@ -457,6 +477,21 @@ impl ServerConfig {
                     );
                 },
                 Some(_) => {},
+            }
+
+            // Validate the optional read-only token when provided.
+            if let Some(ref ro_token) = self.admin_readonly_token {
+                if ro_token.len() < 32 {
+                    return Err(
+                        "admin_readonly_token must be at least 32 characters for security."
+                            .to_string(),
+                    );
+                }
+                if Some(ro_token) == self.admin_token.as_ref() {
+                    return Err(
+                        "admin_readonly_token must differ from admin_token.".to_string()
+                    );
+                }
             }
         }
 
@@ -925,6 +960,66 @@ mod tests {
         let config = ServerConfig {
             admin_api_enabled: true,
             admin_token: Some("a-very-secure-admin-token-that-is-long-enough".to_string()),
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    // --- admin_readonly_token validation tests (S10-1) ---
+
+    #[test]
+    fn test_validate_admin_readonly_token_short_fails() {
+        let config = ServerConfig {
+            admin_api_enabled: true,
+            admin_token: Some("a-very-secure-admin-token-that-is-long-enough".to_string()),
+            admin_readonly_token: Some("short".to_string()),
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.contains("admin_readonly_token must be at least 32"),
+            "expected length error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_validate_admin_readonly_token_same_as_admin_token_fails() {
+        let token = "a-very-secure-admin-token-that-is-long-enough".to_string();
+        let config = ServerConfig {
+            admin_api_enabled: true,
+            admin_token: Some(token.clone()),
+            admin_readonly_token: Some(token),
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.contains("must differ from admin_token"),
+            "expected differ error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_validate_admin_readonly_token_valid_passes() {
+        let config = ServerConfig {
+            admin_api_enabled: true,
+            admin_token: Some("admin-write-token-that-is-long-enough-1234".to_string()),
+            admin_readonly_token: Some("admin-readonly-token-that-is-long-enough-5678".to_string()),
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_admin_readonly_token_without_admin_enabled_is_ignored() {
+        // admin_readonly_token with admin_api_enabled=false — validation skipped entirely.
+        let config = ServerConfig {
+            admin_api_enabled: false,
+            admin_token: None,
+            admin_readonly_token: Some("short".to_string()), // would fail if admin_api_enabled=true
             cors_enabled: false,
             ..ServerConfig::default()
         };

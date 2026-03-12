@@ -276,47 +276,76 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
-        // Conditionally add admin routes (protected by bearer token)
+        // Conditionally add admin routes (protected by bearer token).
+        //
+        // When `admin_readonly_token` is configured the admin surface is split:
+        //   • Write router  (admin_token)           — reload-schema, cache/clear
+        //   • Read router   (admin_readonly_token)  — config, cache/stats, explain,
+        //                                             query/explain, grafana-dashboard
+        //
+        // When only `admin_token` is set every route uses that single token
+        // (backwards-compatible, but logged as a security advisory).
         if self.config.admin_api_enabled {
-            if let Some(ref token) = self.config.admin_token {
-                // SECURITY (H14): The admin bearer token grants access to both
-                // destructive operations (reload-schema, cache/clear) and read-only
-                // endpoints (config, explain, cache/stats, grafana-dashboard) under a
-                // single shared secret.  There is currently no per-operation token
-                // scoping.  Operators should rotate the admin token if it is ever
-                // logged or transmitted over an unencrypted channel.
-                warn!(
-                    admin_routes = "reload-schema, cache/clear, cache/stats, config, explain, \
-                                    query/explain, grafana-dashboard",
-                    "Admin API enabled: single bearer token grants access to ALL admin \
-                     operations including destructive ones (reload-schema, cache/clear). \
-                     Use a high-entropy secret and restrict access at the network layer."
-                );
-                info!("Admin API endpoints enabled (bearer token required)");
-
-                let auth_state = BearerAuthState::new(token.clone());
-
-                // Create a separate admin router with auth middleware applied
-                let admin_router = Router::new()
+            if let Some(ref write_token) = self.config.admin_token {
+                // Destructive-operation router — always uses admin_token.
+                let write_auth = BearerAuthState::new(write_token.clone());
+                let admin_write_router = Router::new()
                     .route(
                         "/api/v1/admin/reload-schema",
                         post(api::admin::reload_schema_handler::<A>),
                     )
                     .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
+                    .route_layer(middleware::from_fn_with_state(
+                        write_auth,
+                        bearer_auth_middleware,
+                    ))
+                    .with_state(state.clone());
+                app = app.merge(admin_write_router);
+
+                // Read-only router — uses admin_readonly_token when configured, otherwise
+                // falls back to admin_token (single-token mode, logs a warning).
+                let read_token = self
+                    .config
+                    .admin_readonly_token
+                    .as_ref()
+                    .unwrap_or(write_token);
+
+                if self.config.admin_readonly_token.is_none() {
+                    // SECURITY (H14): single token grants destructive + read-only access.
+                    warn!(
+                        admin_write_routes = "reload-schema, cache/clear",
+                        admin_read_routes =
+                            "cache/stats, config, explain, query/explain, grafana-dashboard",
+                        "Admin API running in single-token mode: admin_token grants ALL operations \
+                         including destructive ones. Set admin_readonly_token to scope access."
+                    );
+                } else {
+                    info!(
+                        "Admin API running in split-token mode: \
+                         admin_token=write-only, admin_readonly_token=read-only"
+                    );
+                }
+
+                let read_auth = BearerAuthState::new(read_token.clone());
+                let admin_read_router = Router::new()
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
                     .route("/api/v1/admin/explain", post(api::admin::explain_handler::<A>))
                     // /api/v1/query/explain is here (not in the open api::routes()) so that
-                    // query-plan details are always protected by the admin bearer token (H13).
+                    // query-plan details are always protected by an admin token (H13).
                     .route("/api/v1/query/explain", post(api::query::explain_handler::<A>))
                     .route(
                         "/api/v1/admin/grafana-dashboard",
                         get(api::admin::grafana_dashboard_handler::<A>),
                     )
-                    .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
+                    .route_layer(middleware::from_fn_with_state(
+                        read_auth,
+                        bearer_auth_middleware,
+                    ))
                     .with_state(state.clone());
+                app = app.merge(admin_read_router);
 
-                app = app.merge(admin_router);
+                info!("Admin API endpoints enabled (bearer token required)");
             } else {
                 warn!(
                     "admin_api_enabled is true but admin_token is not set - admin endpoints disabled"

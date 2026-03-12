@@ -393,6 +393,26 @@ impl VaultBackend {
         self.tls_verify
     }
 
+    /// Create a `VaultBackend` pointing at a loopback address for unit/integration tests.
+    ///
+    /// **This constructor bypasses SSRF validation** — it exists solely so that tests
+    /// can point the backend at a `wiremock::MockServer` bound to `127.0.0.1`.
+    /// Do NOT use in production code.
+    #[cfg(test)]
+    fn new_for_test(addr: impl Into<String>, token: impl Into<String>) -> Self {
+        let client = build_http_client(false).expect("Failed to build test Vault HTTP client");
+        VaultBackend {
+            addr:              addr.into(),
+            token:             Zeroizing::new(token.into()),
+            namespace:         None,
+            tls_verify:        false,
+            client,
+            cache:             Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            token_obtained_at: None,
+            token_ttl_secs:    None,
+        }
+    }
+
     /// Returns `true` if the Vault auth token should be renewed.
     ///
     /// Returns `false` for static tokens (created via `new()`). For AppRole tokens
@@ -836,6 +856,129 @@ mod tests {
         assert!(validate_vault_secret_name("secret/app name").is_err()); // space
         assert!(validate_vault_secret_name("secret/app\0name").is_err()); // null byte
         assert!(validate_vault_secret_name("secret/app;name").is_err()); // semicolon
+    }
+
+    // --- extract_secret_from_response unit tests (S10-3) ---
+
+    fn make_vault_response(data: serde_json::Value) -> VaultResponse {
+        VaultResponse {
+            request_id:     "req-1234".to_string(),
+            lease_id:       "lease-5678".to_string(),
+            lease_duration: 3600,
+            renewable:      true,
+            data:           serde_json::from_value(data).unwrap(),
+        }
+    }
+
+    #[test]
+    fn test_extract_secret_kv2_nested_data() {
+        // KV v2: response.data.data contains the actual secret map.
+        let response = make_vault_response(serde_json::json!({
+            "data": {"username": "admin", "password": "s3cr3t"}
+        }));
+        let result = VaultBackend::extract_secret_from_response(&response, "kv/myapp").unwrap();
+        // Should serialize the inner data object.
+        assert!(result.contains("admin") && result.contains("s3cr3t"), "got: {result}");
+    }
+
+    #[test]
+    fn test_extract_secret_dynamic_credentials() {
+        // Dynamic creds (database engine, etc.): no nested "data" key.
+        let response = make_vault_response(serde_json::json!({
+            "username": "v-root-abc123",
+            "password": "A1B2C3"
+        }));
+        let result =
+            VaultBackend::extract_secret_from_response(&response, "database/creds/my-role")
+                .unwrap();
+        assert!(result.contains("v-root-abc123") && result.contains("A1B2C3"), "got: {result}");
+    }
+
+    // --- Vault HTTP mock integration tests (S10-2) ---
+
+    #[tokio::test]
+    async fn test_vault_fetch_secret_success() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{header, method, path},
+        };
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/secret/db-password"))
+            .and(header("X-Vault-Token", "test-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "request_id": "abc-123",
+                "lease_id": "",
+                "lease_duration": 3600,
+                "renewable": false,
+                "data": {"value": "supersecret"}
+            })))
+            .mount(&mock)
+            .await;
+
+        let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+        let result = vault.get_secret("secret/db-password").await.unwrap();
+        assert!(result.contains("supersecret"), "expected secret value in result; got: {result}");
+    }
+
+    #[tokio::test]
+    async fn test_vault_fetch_secret_not_found_returns_not_found_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/secret/missing"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock)
+            .await;
+
+        let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+        let result = vault.get_secret("secret/missing").await;
+        assert!(
+            matches!(result, Err(SecretsError::NotFound(_))),
+            "expected NotFound error; got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_vault_fetch_secret_403_returns_backend_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/secret/restricted"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&mock)
+            .await;
+
+        let vault = VaultBackend::new_for_test(mock.uri(), "bad-token");
+        let result = vault.get_secret("secret/restricted").await;
+        assert!(
+            matches!(result, Err(SecretsError::BackendError(_))),
+            "expected BackendError for 403; got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_vault_fetch_secret_invalid_json_returns_backend_error() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/secret/badjson"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("this is not valid json"),
+            )
+            .mount(&mock)
+            .await;
+
+        let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+        let result = vault.get_secret("secret/badjson").await;
+        assert!(
+            matches!(result, Err(SecretsError::BackendError(_))),
+            "expected BackendError for invalid JSON; got: {result:?}"
+        );
     }
 
     // --- validate_vault_addr SSRF tests (S9-2) ---
