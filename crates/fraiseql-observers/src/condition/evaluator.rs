@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 
 use serde_json::Value;
+use tracing::warn;
 
 use crate::{
     error::{ObserverError, Result},
@@ -23,9 +24,18 @@ impl ConditionParser {
             reason: format!("Field not found: {field}"),
         })?;
 
-        // Try to parse value as number first, then as string
-        let value_parsed: Value =
-            serde_json::from_str(value).unwrap_or_else(|_| Value::String(value.to_string()));
+        // Try to parse value as number first, then as string.
+        // Warn when falling back to string: numeric operators (>, <, >=, <=) will
+        // subsequently fail with a type mismatch, and == / != may compare
+        // a numeric field against a string literal silently.
+        let value_parsed: Value = serde_json::from_str(value).unwrap_or_else(|_| {
+            warn!(
+                condition_value = %value,
+                "Condition DSL: value is not valid JSON; treating as string literal. \
+                 Numeric comparisons (>, <, >=, <=) will fail with a type mismatch."
+            );
+            Value::String(value.to_string())
+        });
 
         match op {
             "==" => Ok(event_value == &value_parsed),

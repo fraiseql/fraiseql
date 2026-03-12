@@ -26,6 +26,14 @@ use crate::{
 
 /// Code generator.
 pub struct CodeGenerator {
+    /// Enable SQL template optimization.
+    ///
+    /// **Reserved for a future SQL optimization pass** (constant folding,
+    /// predicate push-down, redundant-join elimination, etc.).  The flag is
+    /// stored and exposed via [`CodeGenerator::optimize`] so callers can
+    /// configure it today; it is not yet branched upon inside
+    /// [`CodeGenerator::generate`].  `sql_projection_hint` on each
+    /// [`TypeDefinition`] is the placeholder populated by that future pass.
     optimize: bool,
 }
 

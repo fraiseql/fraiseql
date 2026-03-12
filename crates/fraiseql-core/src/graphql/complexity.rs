@@ -191,8 +191,10 @@ impl RequestValidator {
             return Err(ValidationError::MalformedQuery("Empty query".to_string()));
         }
 
-        // Skip AST parsing if all validations are disabled.
-        if !self.validate_depth && !self.validate_complexity {
+        // Skip AST parsing only when depth, complexity, AND alias checks are all disabled.
+        // The alias amplification check is a distinct DoS vector: it must run even when
+        // depth and complexity validation are both turned off.
+        if !self.validate_depth && !self.validate_complexity && self.max_aliases_per_query == 0 {
             return Ok(());
         }
 

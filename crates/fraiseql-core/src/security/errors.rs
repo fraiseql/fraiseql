@@ -287,7 +287,14 @@ impl fmt::Display for SecurityError {
     }
 }
 
-impl std::error::Error for SecurityError {}
+impl std::error::Error for SecurityError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // All SecurityError variants carry textual descriptions only;
+        // none wrap a boxed source error, so the causal chain terminates here.
+        // If a variant is added that wraps a cause, add a match arm returning it.
+        None
+    }
+}
 
 impl PartialEq for SecurityError {
     fn eq(&self, other: &Self) -> bool {
