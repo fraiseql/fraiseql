@@ -154,7 +154,8 @@ impl ScramClient {
         })?;
 
         // Calculate expected server signature
-        let expected_signature = calculate_server_signature(&state.server_key, &state.auth_message);
+        let expected_signature =
+            calculate_server_signature(&state.server_key, &state.auth_message)?;
 
         // Constant-time comparison
         if constant_time_compare(&server_signature, &expected_signature) {
@@ -248,10 +249,14 @@ fn calculate_server_key(
 }
 
 /// Calculate server signature for verification
-fn calculate_server_signature(server_key: &[u8], auth_message: &[u8]) -> Vec<u8> {
-    let mut hmac = HmacSha256::new_from_slice(server_key).expect("HMAC key should be valid");
+fn calculate_server_signature(
+    server_key: &[u8],
+    auth_message: &[u8],
+) -> Result<Vec<u8>, ScramError> {
+    let mut hmac = HmacSha256::new_from_slice(server_key)
+        .map_err(|_| ScramError::Utf8Error("invalid HMAC key for server signature".to_string()))?;
     hmac.update(auth_message);
-    hmac.finalize().into_bytes().to_vec()
+    Ok(hmac.finalize().into_bytes().to_vec())
 }
 
 /// Constant-time comparison to prevent timing attacks.

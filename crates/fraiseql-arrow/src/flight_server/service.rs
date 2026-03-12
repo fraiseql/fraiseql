@@ -203,6 +203,16 @@ impl FraiseQLFlightService {
 
         let cache = cache_ttl_secs.map(|ttl| Arc::new(QueryCache::new(ttl)));
 
+        // Fail fast: authenticated Flight services require FLIGHT_SESSION_SECRET.
+        // Without it, every handshake will fail with an opaque internal error at
+        // request time.  Panicking here gives a clear startup message instead.
+        let session_secret = read_flight_session_secret().unwrap_or_else(|| {
+            panic!(
+                "FLIGHT_SESSION_SECRET must be set when using authenticated Arrow Flight. \
+                 Generate one with: openssl rand -hex 32"
+            )
+        });
+
         Self {
             schema_registry,
             db_adapter: Some(db_adapter),
@@ -213,7 +223,7 @@ impl FraiseQLFlightService {
             event_storage: None,
             subscription_manager: Arc::new(SubscriptionManager::new()),
             allow_raw_sql: false,
-            session_secret: read_flight_session_secret(),
+            session_secret: Some(session_secret),
             stream_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_STREAMS)),
         }
     }

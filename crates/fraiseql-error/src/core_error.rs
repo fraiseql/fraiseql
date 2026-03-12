@@ -453,8 +453,8 @@ impl FraiseQLError {
     }
 
     fn levenshtein_distance(s1: &str, s2: &str) -> usize {
-        let len1 = s1.len();
-        let len2 = s2.len();
+        let len1 = s1.chars().count();
+        let len2 = s2.chars().count();
 
         if len1 == 0 {
             return len2;
@@ -723,5 +723,24 @@ mod tests {
         assert_eq!(field_err.field, "user.email");
         assert_eq!(field_err.rule_type, "pattern");
         assert_eq!(field_err.message, "Invalid email format");
+    }
+
+    #[test]
+    fn test_levenshtein_ascii() {
+        // Basic sanity
+        assert_eq!(FraiseQLError::levenshtein_distance("kitten", "sitting"), 3);
+        assert_eq!(FraiseQLError::levenshtein_distance("", "abc"), 3);
+        assert_eq!(FraiseQLError::levenshtein_distance("abc", ""), 3);
+        assert_eq!(FraiseQLError::levenshtein_distance("same", "same"), 0);
+    }
+
+    #[test]
+    fn test_levenshtein_multibyte_utf8() {
+        // "café" is 4 chars but 5 bytes — previously the byte-length bug returned
+        // matrix[5][5] instead of matrix[4][4], which was an unmodified zero cell.
+        assert_eq!(FraiseQLError::levenshtein_distance("café", "cafe"), 1);
+        assert_eq!(FraiseQLError::levenshtein_distance("naïve", "naive"), 1);
+        // Two multi-byte strings: distance should equal number of differing chars
+        assert_eq!(FraiseQLError::levenshtein_distance("café", "café"), 0);
     }
 }

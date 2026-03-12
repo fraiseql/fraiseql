@@ -35,12 +35,20 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
-                let path = info.unix_socket.as_ref().expect("Unix requires path");
+                let path = info
+                    .unix_socket
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("Unix transport requires a socket path".into()))?;
                 Transport::connect_unix(path).await?
             }
         };
@@ -83,8 +91,13 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {
@@ -136,12 +149,20 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
-                let path = info.unix_socket.as_ref().expect("Unix requires path");
+                let path = info
+                    .unix_socket
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("Unix transport requires a socket path".into()))?;
                 Transport::connect_unix(path).await?
             }
         };
@@ -201,8 +222,13 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info.host.as_ref().expect("TCP requires host");
-                let port = info.port.expect("TCP requires port");
+                let host = info
+                    .host
+                    .as_ref()
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a host".into()))?;
+                let port = info
+                    .port
+                    .ok_or_else(|| crate::Error::Config("TCP transport requires a port".into()))?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {

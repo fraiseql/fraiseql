@@ -172,4 +172,43 @@ mod tests {
         let result = verifier.verify(b"body", "sig", "", Some(&ts), None);
         assert!(matches!(result, Err(SignatureError::Crypto(_))));
     }
+
+    /// Round-trip test: generate a P-256 key pair, sign, and verify.
+    ///
+    /// This is the only acceptance-path test — all other tests cover rejection.
+    /// It proves that the message construction (`timestamp_bytes + body_bytes`)
+    /// matches what a real SendGrid webhook would produce.
+    #[test]
+    fn test_valid_signature_round_trip() {
+        use p256::ecdsa::{DerSignature, Signature, SigningKey, signature::Signer as _};
+        use p256::pkcs8::EncodePublicKey;
+        use rand_core::OsRng;
+
+        let signing_key = SigningKey::random(&mut OsRng);
+        let verifying_key = *signing_key.verifying_key();
+
+        // Export as SPKI PEM — same format SendGrid public keys use
+        let public_key_pem = verifying_key
+            .to_public_key_pem(Default::default())
+            .expect("P-256 VerifyingKey serializes to SPKI PEM");
+
+        let ts = fresh_timestamp();
+        let body = b"[{\"event\":\"delivered\",\"email\":\"user@example.com\"}]";
+
+        // Build the exact message the verifier reconstructs
+        let mut message = ts.as_bytes().to_vec();
+        message.extend_from_slice(body);
+
+        // Sign and encode as DER (the format SendGrid sends)
+        let sig: Signature = signing_key.sign(&message);
+        let sig_der: DerSignature = sig.to_der();
+        let sig_b64 = general_purpose::STANDARD.encode(sig_der.as_ref());
+
+        let verifier = SendGridVerifier::new();
+        let result = verifier.verify(body, &sig_b64, &public_key_pem, Some(&ts), None);
+        assert!(
+            matches!(result, Ok(true)),
+            "valid ECDSA P-256 signature must verify successfully"
+        );
+    }
 }
