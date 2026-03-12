@@ -28,8 +28,6 @@ fn test_rate_limiter_handles_many_unique_keys() {
 
 #[test]
 fn test_rate_limiter_memory_bounded_by_entry_count() {
-    // Documents current behavior: no eviction, so entry count equals unique keys.
-    // If eviction is added in the future, this test should be updated.
     let limiter = KeyedRateLimiter::new(high_limit_config());
 
     let n = 10_000;
@@ -37,8 +35,38 @@ fn test_rate_limiter_memory_bounded_by_entry_count() {
         limiter.check(&format!("user-{i}")).unwrap();
     }
 
-    // Without eviction, all entries are retained
     assert_eq!(limiter.active_limiters(), n);
+}
+
+#[test]
+fn test_rate_limiter_cap_rejects_new_keys_when_full() {
+    // Build a limiter with a tiny cap to verify that new keys are denied once full.
+    let limiter = KeyedRateLimiter::with_max_entries(high_limit_config(), 3);
+
+    limiter.check("ip-1").unwrap();
+    limiter.check("ip-2").unwrap();
+    limiter.check("ip-3").unwrap();
+    assert_eq!(limiter.active_limiters(), 3);
+
+    // 4th unique key must be rejected
+    let err = limiter.check("ip-4").unwrap_err();
+    assert!(
+        matches!(err, fraiseql_auth::AuthError::RateLimited { .. }),
+        "expected RateLimited, got: {err:?}"
+    );
+    // Existing keys must still be accepted
+    limiter.check("ip-1").unwrap();
+}
+
+#[test]
+fn test_rate_limiter_cap_zero_disables_limit() {
+    // cap = 0 means unbounded
+    let limiter = KeyedRateLimiter::with_max_entries(high_limit_config(), 0);
+
+    for i in 0..10_000 {
+        limiter.check(&format!("ip-{i}")).unwrap();
+    }
+    assert_eq!(limiter.active_limiters(), 10_000);
 }
 
 #[test]

@@ -34,9 +34,14 @@ impl PaddleVerifier {
     }
 
     /// Set a custom timestamp tolerance (in seconds).
+    ///
+    /// Values that exceed [`i64::MAX`] are clamped to [`i64::MAX`] (≈ 292 billion years —
+    /// effectively infinite tolerance).  A raw `seconds as i64` cast would silently wrap
+    /// for large inputs, potentially yielding a *negative* tolerance that rejects every
+    /// timestamp, disabling replay protection in an unexpected direction.
     #[must_use]
     pub fn with_tolerance(mut self, seconds: u64) -> Self {
-        self.tolerance_secs = seconds as i64;
+        self.tolerance_secs = i64::try_from(seconds).unwrap_or(i64::MAX);
         self
     }
 }
@@ -216,5 +221,31 @@ mod tests {
         let (ts, h1) = parse_paddle_signature("ts=111;h2=ignored;h1=abc").unwrap();
         assert_eq!(ts, "111");
         assert_eq!(h1, "abc");
+    }
+
+    #[test]
+    fn test_with_tolerance_u64_max_clamps_not_wraps() {
+        // u64::MAX as i64 wraps to -1, making (now - ts).abs() > -1 always true (rejects
+        // every timestamp).  with_tolerance must clamp to i64::MAX instead.
+        let verifier = PaddleVerifier::new().with_tolerance(u64::MAX);
+        let payload = br#"{"event":"test"}"#;
+        let secret = "secret";
+        let timestamp = fresh_timestamp();
+        let sig = make_signature(&timestamp, payload, secret);
+
+        // A fresh timestamp with an effectively-infinite tolerance must be accepted.
+        assert!(verifier.verify(payload, &sig, secret, None, None).unwrap());
+    }
+
+    #[test]
+    fn test_with_tolerance_large_value_clamps() {
+        // Any value > i64::MAX should clamp, not panic or wrap.
+        let large = (i64::MAX as u64) + 1;
+        let verifier = PaddleVerifier::new().with_tolerance(large);
+        let payload = b"body";
+        let secret = "sec";
+        let timestamp = fresh_timestamp();
+        let sig = make_signature(&timestamp, payload, secret);
+        assert!(verifier.verify(payload, &sig, secret, None, None).unwrap());
     }
 }

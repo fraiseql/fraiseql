@@ -7,7 +7,7 @@
 //!
 //! Each action handles template rendering, retry logic, and error handling.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use reqwest::Client;
 use serde_json::{Value, json};
@@ -18,6 +18,43 @@ use crate::{
     event::EntityEvent,
 };
 
+/// Default HTTP request timeout for outbound webhook calls.
+///
+/// Prevents a slow or non-responsive endpoint from blocking the executor
+/// indefinitely.  Operators can override this by constructing the client
+/// manually via [`WebhookAction::with_timeout`].
+const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
+
+/// Validate that no header name or value contains HTTP header injection characters.
+///
+/// HTTP/1.1 forbids `\r` and `\n` inside field names and values (RFC 7230 §3.2).
+/// An attacker who can supply custom observer headers could otherwise inject
+/// arbitrary headers into the outbound request.
+///
+/// # Errors
+///
+/// Returns `ObserverError::ActionPermanentlyFailed` if any name or value
+/// contains a CR (`\r`) or LF (`\n`) byte.
+fn validate_headers(headers: &HashMap<String, String>) -> Result<()> {
+    for (name, value) in headers {
+        if name.contains('\r') || name.contains('\n') {
+            return Err(ObserverError::ActionPermanentlyFailed {
+                reason: format!(
+                    "Invalid webhook header name — contains CR/LF (header injection): {name:?}"
+                ),
+            });
+        }
+        if value.contains('\r') || value.contains('\n') {
+            return Err(ObserverError::ActionPermanentlyFailed {
+                reason: format!(
+                    "Invalid webhook header value for '{name}' — contains CR/LF (header injection)"
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Webhook action executor
 pub struct WebhookAction {
     /// HTTP client for making requests
@@ -25,11 +62,25 @@ pub struct WebhookAction {
 }
 
 impl WebhookAction {
-    /// Create a new webhook action executor
+    /// Create a new webhook action executor with the default 30-second timeout.
     #[must_use]
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
+        }
+    }
+
+    /// Create a webhook action executor with a custom request timeout.
+    #[must_use]
+    pub fn with_timeout(timeout: Duration) -> Self {
+        Self {
+            client: Client::builder()
+                .timeout(timeout)
+                .build()
+                .unwrap_or_else(|_| Client::new()),
         }
     }
 
@@ -48,6 +99,9 @@ impl WebhookAction {
         info!("  Headers: {:?}", headers);
         info!("  Body template: {:?}", body_template);
 
+        // SECURITY: Reject headers that contain CR/LF to prevent header injection.
+        validate_headers(headers)?;
+
         // Prepare request body
         let body = if let Some(template) = body_template {
             // Simple template substitution: replace {{ field }} with event.data[field]
@@ -65,7 +119,7 @@ impl WebhookAction {
         // Build request
         let mut request = self.client.post(url);
 
-        // Add headers
+        // Add headers (already validated above)
         for (key, value) in headers {
             request = request.header(key, value);
         }
@@ -91,7 +145,13 @@ impl WebhookAction {
                 success: true,
                 duration_ms,
             })
+        } else if status.is_client_error() {
+            // 4xx: permanent failure — retrying will not help; route directly to DLQ.
+            Err(ObserverError::ActionPermanentlyFailed {
+                reason: format!("HTTP {status} (client error — will not retry)"),
+            })
         } else {
+            // 5xx / other: transient failure — eligible for retry backoff.
             Err(ObserverError::ActionExecutionFailed {
                 reason: format!("HTTP {status} response"),
             })
@@ -195,6 +255,10 @@ impl SlackAction {
                 status_code: status.as_u16(),
                 success: true,
                 duration_ms,
+            })
+        } else if status.is_client_error() {
+            Err(ObserverError::ActionPermanentlyFailed {
+                reason: format!("Slack HTTP {status} (client error — will not retry)"),
             })
         } else {
             Err(ObserverError::ActionExecutionFailed {
@@ -379,5 +443,51 @@ mod tests {
         assert_eq!(result.action_type, "webhook");
         assert!(result.success);
         assert_eq!(result.duration_ms, 42.5);
+    }
+
+    // --- Header injection tests (H11) ---
+
+    #[test]
+    fn test_validate_headers_clean_passes() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+        headers.insert("Authorization".to_string(), "Bearer token".to_string());
+        assert!(validate_headers(&headers).is_ok());
+    }
+
+    #[test]
+    fn test_validate_headers_lf_in_name_rejected() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Evil\nInjected".to_string(), "value".to_string());
+        let err = validate_headers(&headers).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("header injection"), "expected injection message, got: {msg}");
+    }
+
+    #[test]
+    fn test_validate_headers_cr_in_name_rejected() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Evil\rInjected".to_string(), "value".to_string());
+        assert!(validate_headers(&headers).is_err());
+    }
+
+    #[test]
+    fn test_validate_headers_lf_in_value_rejected() {
+        let mut headers = HashMap::new();
+        headers.insert(
+            "X-Legit".to_string(),
+            "value\r\nX-Injected: malicious".to_string(),
+        );
+        assert!(validate_headers(&headers).is_err());
+    }
+
+    #[test]
+    fn test_validate_headers_empty_map_passes() {
+        assert!(validate_headers(&HashMap::new()).is_ok());
+    }
+
+    #[test]
+    fn test_webhook_action_with_timeout_creates_ok() {
+        let _action = WebhookAction::with_timeout(Duration::from_secs(5));
     }
 }

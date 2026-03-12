@@ -99,19 +99,31 @@ struct RequestRecord {
 /// whose window has elapsed, bounding the HashMap's memory footprint.
 const PURGE_INTERVAL: u64 = 1_000;
 
+/// Default maximum number of unique keys the limiter will track simultaneously.
+///
+/// When the cap is reached, new keys are denied immediately and a warning is logged.
+/// This prevents an attacker from exhausting memory by sending requests from millions
+/// of unique IP addresses. The cap is conservative: 100k entries × ~100 bytes ≈ 10 MB.
+const DEFAULT_MAX_ENTRIES: usize = 100_000;
+
 /// Per-key sliding-window rate limiter backed by a `Mutex<HashMap>`.
 ///
 /// Each unique key (IP address, user ID, etc.) gets its own independent counter.
 /// The check-and-update sequence is atomic: no TOCTOU race can allow more requests
 /// than `max_requests` in any single window, even under high concurrency.
 ///
+/// The map is capped at [`DEFAULT_MAX_ENTRIES`] keys to prevent unbounded memory
+/// growth under distributed attacks that rotate through large numbers of source IPs.
+/// New keys that arrive when the map is full are denied immediately.
+///
 /// # Constructors
 ///
 /// - [`KeyedRateLimiter::new`] — use the system wall clock (production).
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 pub struct KeyedRateLimiter {
-    records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
-    config:      AuthRateLimitConfig,
+    records:    Arc<Mutex<HashMap<String, RequestRecord>>>,
+    config:     AuthRateLimitConfig,
+    max_entries: usize,
     /// Monotonically increasing call counter for triggering periodic sweeps.
     check_count: AtomicU64,
     /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
@@ -150,6 +162,22 @@ impl KeyedRateLimiter {
         Self {
             records:     Arc::new(Mutex::new(HashMap::new())),
             config,
+            max_entries: DEFAULT_MAX_ENTRIES,
+            check_count: AtomicU64::new(0),
+            clock:       Box::new(system_clock),
+        }
+    }
+
+    /// Create a rate limiter with a custom entry cap.
+    ///
+    /// Use this when the deployment context calls for a tighter or looser bound
+    /// than [`DEFAULT_MAX_ENTRIES`].  Setting `max_entries = 0` disables the cap
+    /// (unbounded — not recommended in production).
+    pub fn with_max_entries(config: AuthRateLimitConfig, max_entries: usize) -> Self {
+        Self {
+            records:     Arc::new(Mutex::new(HashMap::new())),
+            config,
+            max_entries,
             check_count: AtomicU64::new(0),
             clock:       Box::new(system_clock),
         }
@@ -166,6 +194,7 @@ impl KeyedRateLimiter {
         Self {
             records:     Arc::new(Mutex::new(HashMap::new())),
             config,
+            max_entries: DEFAULT_MAX_ENTRIES,
             check_count: AtomicU64::new(0),
             clock:       Box::new(clock),
         }
@@ -219,6 +248,21 @@ impl KeyedRateLimiter {
         let count = self.check_count.fetch_add(1, Ordering::Relaxed);
         if count.is_multiple_of(PURGE_INTERVAL) {
             records.retain(|_, r| now < r.window_start.saturating_add(self.config.window_secs));
+        }
+
+        // Enforce max-entries cap to prevent unbounded memory growth under distributed attacks.
+        // A cap of 0 disables the limit (opt-in unbounded mode).
+        if self.max_entries > 0
+            && !records.contains_key(key)
+            && records.len() >= self.max_entries
+        {
+            tracing::warn!(
+                max_entries = self.max_entries,
+                "Rate limiter at capacity — denying new key; possible distributed brute-force attack"
+            );
+            return Err(AuthError::RateLimited {
+                retry_after_secs: self.config.window_secs,
+            });
         }
 
         // Get or create record for this key (first request from this key)
