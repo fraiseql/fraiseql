@@ -231,10 +231,14 @@ impl HttpMutationClient {
             }
 
             if attempts < self.config.max_retries {
-                tokio::time::sleep(Duration::from_millis(
-                    self.config.retry_delay_ms * u64::from(attempts),
-                ))
-                .await;
+                // Exponential backoff: base_delay * 2^(attempt-1).
+                // Consistent with http_resolver.rs; avoids thundering-herd on
+                // transient subgraph failures.
+                let backoff = self
+                    .config
+                    .retry_delay_ms
+                    .saturating_mul(2_u64.saturating_pow(attempts - 1));
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
             }
         }
 
@@ -453,5 +457,25 @@ mod tests {
 
         assert!(result.is_ok(), "valid mutation response must be accepted: {result:?}");
         assert!(result.unwrap().data.is_some());
+    }
+
+    // ── S27-H2: Exponential backoff ───────────────────────────────────────────
+
+    #[test]
+    fn exponential_backoff_grows_correctly() {
+        let base: u64 = 100;
+        // attempt=1 → delay = 100 * 2^0 = 100
+        // attempt=2 → delay = 100 * 2^1 = 200
+        // attempt=3 → delay = 100 * 2^2 = 400
+        assert_eq!(base.saturating_mul(2_u64.saturating_pow(1 - 1)), 100);
+        assert_eq!(base.saturating_mul(2_u64.saturating_pow(2 - 1)), 200);
+        assert_eq!(base.saturating_mul(2_u64.saturating_pow(3 - 1)), 400);
+    }
+
+    #[test]
+    fn exponential_backoff_does_not_overflow() {
+        // Very large attempt count must not panic (saturating_pow + saturating_mul).
+        let base: u64 = 1000;
+        let _ = base.saturating_mul(2_u64.saturating_pow(63));
     }
 }
