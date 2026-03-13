@@ -11,6 +11,13 @@ use serde::Deserialize;
 use crate::security::errors::{Result, SecurityError};
 use crate::security::oidc::token::OidcValidator;
 
+/// Maximum byte length accepted from a JWKS endpoint response.
+///
+/// A legitimate JWKS document (a few RSA/EC public keys) is well under 64 KiB.
+/// A 1 MiB cap prevents a malicious or compromised OIDC provider from sending
+/// a response large enough to exhaust server memory.
+const MAX_JWKS_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
 // ============================================================================
 // OIDC Discovery Response
 // ============================================================================
@@ -171,7 +178,20 @@ impl OidcValidator {
             )));
         }
 
-        let jwks: Jwks = response.json().await.map_err(|e| {
+        // Cap the response body before deserialising to prevent memory exhaustion
+        // from a malicious or compromised OIDC provider sending an oversized payload.
+        let body_bytes = response.bytes().await.map_err(|e| {
+            SecurityError::SecurityConfigError(format!("Failed to read JWKS response body: {e}"))
+        })?;
+
+        if body_bytes.len() > MAX_JWKS_RESPONSE_BYTES {
+            return Err(SecurityError::SecurityConfigError(format!(
+                "JWKS response body too large ({} bytes, max {MAX_JWKS_RESPONSE_BYTES})",
+                body_bytes.len()
+            )));
+        }
+
+        let jwks: Jwks = serde_json::from_slice(&body_bytes).map_err(|e| {
             SecurityError::SecurityConfigError(format!("Invalid JWKS response: {e}"))
         })?;
 

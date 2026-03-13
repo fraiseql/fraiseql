@@ -17,6 +17,13 @@ use std::{
     },
 };
 
+/// Maximum byte size accepted for a trusted-documents manifest file.
+///
+/// A manifest with 50 000 pre-registered queries at ~200 bytes each is roughly
+/// 10 MiB — already an unusually large deployment.  Capping at 10 MiB prevents
+/// accidental or malicious loading of a gigabyte-sized file at server startup.
+const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
+
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -56,6 +63,22 @@ impl TrustedDocumentStore {
         path: &Path,
         mode: TrustedDocumentMode,
     ) -> Result<Self, TrustedDocumentError> {
+        // Reject oversized files before reading into memory.
+        let file_size = std::fs::metadata(path)
+            .map_err(|e| {
+                TrustedDocumentError::ManifestLoad(format!(
+                    "Failed to stat manifest {}: {e}",
+                    path.display()
+                ))
+            })?
+            .len();
+        if file_size > MAX_MANIFEST_BYTES {
+            return Err(TrustedDocumentError::ManifestLoad(format!(
+                "Manifest {} is too large ({file_size} bytes, max {MAX_MANIFEST_BYTES})",
+                path.display()
+            )));
+        }
+
         let contents = std::fs::read_to_string(path).map_err(|e| {
             TrustedDocumentError::ManifestLoad(format!(
                 "Failed to read manifest {}: {e}",
@@ -352,5 +375,44 @@ mod tests {
         assert_eq!(store.document_count().await, 2);
         let result = store.resolve(Some("sha256:aaa"), None).await;
         assert_eq!(result.unwrap(), "{ users { id } }");
+    }
+
+    // ── Manifest size-cap tests ────────────────────────────────────────────────
+
+    #[test]
+    fn manifest_file_exceeding_size_limit_is_rejected() {
+        use std::io::Write as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("huge-manifest.json");
+
+        // Write MAX_MANIFEST_BYTES + 1 bytes.
+        let mut f = std::fs::File::create(&path).unwrap();
+        // Write a JSON object start, then pad with spaces to exceed the limit.
+        f.write_all(b"{\"version\":1,\"documents\":{}}").unwrap();
+        let padding = vec![b' '; (MAX_MANIFEST_BYTES + 1) as usize];
+        f.write_all(&padding).unwrap();
+        drop(f);
+
+        let result =
+            TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Strict);
+        assert!(result.is_err(), "oversized manifest must be rejected");
+        let msg = result.err().unwrap().to_string();
+        assert!(
+            msg.contains("too large") || msg.contains("10485760"),
+            "error must mention size limit: {msg}"
+        );
+    }
+
+    #[test]
+    fn manifest_file_at_size_limit_is_accepted_if_valid() {
+        // A file well under the limit with a valid manifest must still work.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("small-manifest.json");
+        let manifest = serde_json::json!({"version": 1, "documents": {}});
+        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
+        let result =
+            TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Permissive);
+        assert!(result.is_ok(), "small valid manifest must be accepted");
     }
 }

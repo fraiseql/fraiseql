@@ -103,8 +103,16 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         ))));
     }
 
-    // Parse variables from JSON string
+    // Parse variables from JSON string.
+    // Apply the same size cap as the query string — the URL-length limit imposed
+    // by reverse proxies/OS is real but not enforced by axum itself, so we guard
+    // explicitly to prevent parser DoS from a very large variables value.
     let variables = if let Some(vars_str) = params.variables {
+        if vars_str.len() > max_get_bytes {
+            return Err(ErrorResponse::from_error(GraphQLError::request(format!(
+                "GET variables string exceeds maximum allowed length ({max_get_bytes} bytes)"
+            ))));
+        }
         match serde_json::from_str::<serde_json::Value>(&vars_str) {
             Ok(v) => Some(v),
             Err(e) => {

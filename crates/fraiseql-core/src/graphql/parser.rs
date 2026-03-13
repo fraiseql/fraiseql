@@ -25,7 +25,18 @@ pub enum GraphQLParseError {
     /// Selection set has no fields.
     #[error("No fields in selection set")]
     EmptySelection,
+
+    /// GraphQL value nesting exceeds the allowed depth limit.
+    #[error("GraphQL value nesting exceeds maximum depth ({0} levels)")]
+    ValueNestingTooDeep(usize),
 }
+
+/// Maximum nesting depth for `serialize_value` recursion.
+///
+/// Real-world GraphQL variables rarely exceed 5-10 levels of nesting.  A cap
+/// of 64 is generous while preventing stack-exhaustion from a crafted payload
+/// like `[[[[…]]]]` with tens-of-thousands of levels.
+const MAX_SERIALIZE_DEPTH: usize = 64;
 
 /// Parse GraphQL query string into Rust AST.
 ///
@@ -265,8 +276,16 @@ fn value_type_string(value: &query::Value<String>) -> String {
 }
 
 /// Serialize GraphQL value to JSON string.
-fn serialize_value(value: &query::Value<String>) -> String {
-    match value {
+///
+/// Returns `None` when the recursion depth exceeds `MAX_SERIALIZE_DEPTH`.
+/// The public wrapper `serialize_value` returns a fallback `"null"` in that case;
+/// callers that need to surface the error can call `try_serialize_value` directly.
+fn serialize_value_inner(value: &query::Value<String>, depth: usize) -> Option<String> {
+    if depth > MAX_SERIALIZE_DEPTH {
+        return None;
+    }
+
+    let s = match value {
         query::Value::String(s) => format!("\"{}\"", s.replace('"', "\\\"")),
         query::Value::Int(i) => {
             // Use the safe as_i64() method from graphql-parser
@@ -277,16 +296,32 @@ fn serialize_value(value: &query::Value<String>) -> String {
         query::Value::Null => "null".to_string(),
         query::Value::Enum(e) => format!("\"{e}\""),
         query::Value::List(items) => {
-            let serialized: Vec<_> = items.iter().map(serialize_value).collect();
-            format!("[{}]", serialized.join(","))
+            let mut parts = Vec::with_capacity(items.len());
+            for item in items {
+                parts.push(serialize_value_inner(item, depth + 1)?);
+            }
+            format!("[{}]", parts.join(","))
         },
         query::Value::Object(obj) => {
-            let pairs: Vec<_> =
-                obj.iter().map(|(k, v)| format!("\"{}\":{}", k, serialize_value(v))).collect();
+            let mut pairs = Vec::with_capacity(obj.len());
+            for (k, v) in obj {
+                let serialized = serialize_value_inner(v, depth + 1)?;
+                pairs.push(format!("\"{}\":{serialized}", k));
+            }
             format!("{{{}}}", pairs.join(","))
         },
         query::Value::Variable(v) => format!("\"${v}\""),
-    }
+    };
+
+    Some(s)
+}
+
+/// Serialize a GraphQL value to a JSON string.
+///
+/// Returns `"null"` if the value is nested more than `MAX_SERIALIZE_DEPTH` levels deep,
+/// preventing stack exhaustion from adversarially crafted variable payloads.
+fn serialize_value(value: &query::Value<String>) -> String {
+    serialize_value_inner(value, 0).unwrap_or_else(|| "null".to_string())
 }
 
 /// Parse GraphQL directive from graphql-parser Directive.
@@ -515,5 +550,55 @@ mod tests {
         assert_eq!(user_fields[1].name, "...on Admin");
         assert_eq!(user_fields[1].nested_fields.len(), 1);
         assert_eq!(user_fields[1].nested_fields[0].name, "permissions");
+    }
+
+    // ── serialize_value depth guard ────────────────────────────────────────────
+
+    #[test]
+    fn test_serialize_value_flat_list_accepted() {
+        // A flat list of scalars is well within the depth limit.
+        let value = query::Value::List(vec![
+            query::Value::Int(graphql_parser::query::Number::from(1_i32)),
+            query::Value::String("hello".to_string()),
+            query::Value::Boolean(true),
+        ]);
+        let result = serialize_value(&value);
+        assert_eq!(result, r#"[1,"hello",true]"#);
+    }
+
+    #[test]
+    fn test_serialize_value_nested_at_limit_accepted() {
+        // Build a list nested exactly MAX_SERIALIZE_DEPTH levels — must serialize.
+        let mut v: query::Value<String> = query::Value::Boolean(true);
+        for _ in 0..MAX_SERIALIZE_DEPTH {
+            v = query::Value::List(vec![v]);
+        }
+        let result = serialize_value(&v);
+        // Verify it didn't fall back to "null" — it should contain "true".
+        assert!(result.contains("true"), "value at limit should serialize correctly: {result}");
+    }
+
+    #[test]
+    fn test_serialize_value_exceeds_depth_returns_null() {
+        // Build a list nested MAX_SERIALIZE_DEPTH + 1 levels — must return "null".
+        let mut v: query::Value<String> = query::Value::Boolean(true);
+        for _ in 0..=MAX_SERIALIZE_DEPTH {
+            v = query::Value::List(vec![v]);
+        }
+        let result = serialize_value(&v);
+        assert_eq!(result, "null", "over-limit value must fall back to null: {result}");
+    }
+
+    #[test]
+    fn test_serialize_value_deeply_nested_object_returns_null() {
+        // Deeply nested object should also hit the depth cap.
+        let mut v: query::Value<String> = query::Value::Boolean(false);
+        for i in 0..=MAX_SERIALIZE_DEPTH {
+            let mut map = std::collections::BTreeMap::new();
+            map.insert(format!("k{i}"), v);
+            v = query::Value::Object(map);
+        }
+        let result = serialize_value(&v);
+        assert_eq!(result, "null", "over-limit object must fall back to null: {result}");
     }
 }

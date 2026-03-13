@@ -731,9 +731,22 @@ fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
             "Vault address must use http:// or https:// scheme: {addr}"
         )));
     }
-    let after_scheme =
-        if lower.starts_with("https://") { &addr[8..] } else { &addr[7..] };
-    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
+
+    // Use a real URL parser to extract the host — manual `split('/')` / `split(':')`
+    // is fragile for IPv6 literals like `[::1]` and produces an empty first segment.
+    let parsed = reqwest::Url::parse(addr).map_err(|e| {
+        SecretsError::ValidationError(format!("Vault address is not a valid URL ({addr}): {e}"))
+    })?;
+
+    let host_raw = parsed.host_str().unwrap_or("");
+    // The `url` crate wraps IPv6 literals in brackets in `host_str()`.
+    // Strip them so the IP address can be parsed by `IpAddr::from_str`.
+    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+        &host_raw[1..host_raw.len() - 1]
+    } else {
+        host_raw
+    };
+
     if is_ssrf_blocked_host_vault(host) {
         return Err(SecretsError::ValidationError(format!(
             "Vault address targets a private/loopback address (SSRF protection): {addr}"
@@ -744,7 +757,7 @@ fn validate_vault_addr(addr: &str) -> Result<(), SecretsError> {
 
 fn is_ssrf_blocked_host_vault(host: &str) -> bool {
     let lower = host.to_ascii_lowercase();
-    if lower == "localhost" || lower == "::1" || lower == "[::1]" {
+    if lower == "localhost" {
         return true;
     }
     if let Ok(addr) = host.parse::<std::net::Ipv4Addr>() {
@@ -753,8 +766,7 @@ fn is_ssrf_blocked_host_vault(host: &str) -> bool {
             || addr.is_link_local()
             || is_cgnat_v4_vault(addr);
     }
-    let ipv6 = host.trim_start_matches('[').trim_end_matches(']');
-    if let Ok(addr) = ipv6.parse::<std::net::Ipv6Addr>() {
+    if let Ok(addr) = host.parse::<std::net::Ipv6Addr>() {
         return addr.is_loopback() || addr.is_unspecified() || is_ula_v6_vault(addr);
     }
     false
@@ -771,10 +783,24 @@ fn is_ula_v6_vault(addr: std::net::Ipv6Addr) -> bool {
     (addr.segments()[0] & 0xFE00) == 0xFC00
 }
 
+/// Maximum byte length for a Vault secret name / path.
+///
+/// Vault's own internal key-value paths top out at a few hundred characters in
+/// practice; 1 024 bytes is generous while preventing cache-key DoS from a
+/// caller that passes a megabyte-sized string.
+const MAX_VAULT_SECRET_NAME_BYTES: usize = 1_024;
+
 /// Validate Vault secret name format
 fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
         return Err(SecretsError::ValidationError("Vault secret name cannot be empty".to_string()));
+    }
+
+    if name.len() > MAX_VAULT_SECRET_NAME_BYTES {
+        return Err(SecretsError::ValidationError(format!(
+            "Vault secret name is too long ({} bytes, max {MAX_VAULT_SECRET_NAME_BYTES})",
+            name.len()
+        )));
     }
 
     // Vault paths typically contain slashes and lowercase alphanumeric
@@ -790,6 +816,8 @@ fn validate_vault_secret_name(name: &str) -> Result<(), SecretsError> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     /// Test VaultBackend creation
@@ -856,6 +884,37 @@ mod tests {
         assert!(validate_vault_secret_name("secret/app name").is_err()); // space
         assert!(validate_vault_secret_name("secret/app\0name").is_err()); // null byte
         assert!(validate_vault_secret_name("secret/app;name").is_err()); // semicolon
+    }
+
+    // ── Length-guard tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_secret_name_exactly_max_length_accepted() {
+        // MAX_VAULT_SECRET_NAME_BYTES exactly — must be accepted.
+        let name = "a".repeat(MAX_VAULT_SECRET_NAME_BYTES);
+        assert!(
+            validate_vault_secret_name(&name).is_ok(),
+            "name at max length must be accepted"
+        );
+    }
+
+    #[test]
+    fn test_secret_name_exceeds_max_length_rejected() {
+        // MAX + 1 bytes — must be rejected by the length guard.
+        let name = "a".repeat(MAX_VAULT_SECRET_NAME_BYTES + 1);
+        let err = validate_vault_secret_name(&name).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("too long") || msg.contains("1024"),
+            "error must mention length limit: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_secret_name_very_long_rejected_before_char_scan() {
+        // A 1 MiB string — length guard must fire without scanning every character.
+        let name = "a/".repeat(512 * 1024); // 1 MiB of valid-char data
+        assert!(validate_vault_secret_name(&name).is_err(), "1 MiB name must be rejected");
     }
 
     // --- extract_secret_from_response unit tests (S10-3) ---
