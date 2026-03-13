@@ -1,0 +1,11 @@
+require:
+  - rubocop-rspec
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+
+# Gemspec placeholders are intentionally minimal
+Gemspec/DevelopmentDependencies:
+  Enabled: false

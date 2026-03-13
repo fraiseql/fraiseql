@@ -44,6 +44,11 @@ repos:
     hooks:
       - id: pretty-format-toml
         args: [--autofix]
+        # Cargo.toml files have strict semantic ordering requirements (e.g. [package]
+        # must precede [[bin]], and workspace-inherited fields must stay in [package]
+        # not [package.metadata.*] subsections). The generic TOML formatter breaks
+        # these invariants by sorting table headers alphabetically.
+        exclude: '(^|/)Cargo\.toml$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
