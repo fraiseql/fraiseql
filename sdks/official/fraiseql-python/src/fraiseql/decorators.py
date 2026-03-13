@@ -96,7 +96,9 @@ class FieldConfig(Generic[T]):
         ...     salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
         ...     ssn: Annotated[str, fraiseql.field(requires_scope="hr:view_pii")]
         ...     # Protected field with masking (returns null instead of rejecting)
-        ...     email: Annotated[str, fraiseql.field(requires_scope="read:User.email", on_deny="mask")]
+        ...     email: Annotated[
+        ...         str, fraiseql.field(requires_scope="read:User.email", on_deny="mask")
+        ...     ]
 
     Attributes:
         requires_scope: Scope required to access this field (e.g., "read:User.salary")
@@ -152,7 +154,9 @@ def field(
         ...     # Requires specific scope to access (default: reject)
         ...     salary: Annotated[int, fraiseql.field(requires_scope="read:User.salary")]
         ...     # Mask mode: returns null for unauthorized users
-        ...     email: Annotated[str, fraiseql.field(requires_scope="read:User.email", on_deny="mask")]
+        ...     email: Annotated[
+        ...         str, fraiseql.field(requires_scope="read:User.email", on_deny="mask")
+        ...     ]
         ...     # Deprecated field
         ...     old_email: Annotated[str, fraiseql.field(deprecated="Use email instead")]
     """

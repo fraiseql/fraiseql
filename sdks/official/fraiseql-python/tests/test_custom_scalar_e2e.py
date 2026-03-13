@@ -83,7 +83,7 @@ class TestCustomScalarRegistration:
         assert len(SchemaRegistry.get_custom_scalars()) == 0
 
         # Register Email
-        registered_email = scalar(Email)
+        scalar(Email)
 
         # After registration, Email is in registry
         assert "Email" in SchemaRegistry.get_custom_scalars()
@@ -118,7 +118,7 @@ class TestCustomScalarRegistration:
                 return value
 
             def parse_literal(self, ast):
-                return value
+                return ast
 
         with pytest.raises(ValueError, match="must have a 'name'"):
             scalar(NoNameScalar)
@@ -136,7 +136,7 @@ class TestCustomScalarRegistration:
                 return value
 
             def parse_literal(self, ast):
-                return value
+                return ast
 
         with pytest.raises(ValueError, match="must be a non-empty string"):
             scalar(BadNameScalar)
@@ -155,7 +155,7 @@ class TestCustomScalarRegistration:
                 return value
 
             def parse_literal(self, ast):
-                return value
+                return ast
 
         with pytest.raises(ValueError, match="already registered"):
             scalar(AnotherEmail)
