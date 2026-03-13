@@ -6,7 +6,7 @@ path = "src/main.rs"
 # Error handling
 anyhow = "1.0"
 # CLI framework
-clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
+clap = {version = "4.6", features = ["derive", "cargo", "color", "suggestions"]}
 # Database connection (for introspect/validate commands)
 deadpool-postgres = {workspace = true}
 # Workspace dependencies
@@ -23,7 +23,7 @@ serde_json = "1.0"
 sha2 = {workspace = true}
 thiserror = "2.0"
 # Async runtime
-tokio = {version = "1.42", features = ["full"]}
+tokio = {version = "1.50", features = ["full"]}
 tokio-postgres = {workspace = true, features = ["with-serde_json-1"]}
 toml = "0.8"
 # Logging
@@ -34,7 +34,7 @@ walkdir = "2"
 
 [dev-dependencies]
 temp-env = {workspace = true}
-tempfile = "3.25"
+tempfile = "3.27"
 
 [features]
 default = []
