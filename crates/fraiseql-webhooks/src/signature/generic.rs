@@ -21,15 +21,13 @@ pub struct HmacSha256Verifier;
 impl HmacSha256Verifier {
     /// Create a new verifier.
     ///
-    /// # Ignored arguments
-    ///
-    /// The `name` and `header` arguments are **silently ignored** because the
-    /// [`SignatureVerifier`] trait returns `&'static str`, making runtime
-    /// configuration impossible. Both `name()` and `signature_header()` always
-    /// return `"hmac-sha256"` and `"X-Signature"` respectively. Prefer
-    /// [`Default::default()`] to make the intention explicit.
+    /// Use [`Default::default()`] instead — this constructor exists only for
+    /// backward compatibility. `name()` always returns `"hmac-sha256"` and
+    /// `signature_header()` always returns `"X-Signature"` regardless of
+    /// arguments, because the [`SignatureVerifier`] trait requires `&'static str`
+    /// returns.
     #[must_use]
-    pub fn new(_name: &str, _header: &str) -> Self {
+    pub fn new() -> Self {
         Self
     }
 }
@@ -82,11 +80,10 @@ pub struct HmacSha1Verifier;
 impl HmacSha1Verifier {
     /// Create a new verifier.
     ///
-    /// # Ignored arguments
-    ///
-    /// See [`HmacSha256Verifier::new`] for the same limitation.
+    /// Use [`Default::default()`] instead. `name()` always returns `"hmac-sha1"` and
+    /// `signature_header()` always returns `"X-Signature"`.
     #[must_use]
-    pub fn new(_name: &str, _header: &str) -> Self {
+    pub fn new() -> Self {
         Self
     }
 }

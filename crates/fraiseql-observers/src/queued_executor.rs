@@ -67,7 +67,10 @@ impl QueuedObserverExecutor {
             condition_parser: Arc::new(ConditionParser::new()),
             job_queue,
             #[cfg(feature = "metrics")]
-            metrics: MetricsRegistry::global().unwrap_or_default(),
+            metrics: MetricsRegistry::global().unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "MetricsRegistry::global() failed; metrics disabled");
+                MetricsRegistry::default()
+            }),
         }
     }
 

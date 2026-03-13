@@ -100,7 +100,7 @@ impl Clock for SystemClock {
     fn now(&self) -> i64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system clock is always past UNIX epoch")
+            .unwrap_or(std::time::Duration::ZERO)
             .as_secs() as i64
     }
 }

@@ -39,11 +39,17 @@ fn test_backoff_exponential() {
         backoff_strategy: BackoffStrategy::Exponential,
     };
 
-    assert_eq!(executor.calculate_backoff(1, &config).as_millis(), 100);
-    assert_eq!(executor.calculate_backoff(2, &config).as_millis(), 200);
-    assert_eq!(executor.calculate_backoff(3, &config).as_millis(), 400);
-    assert_eq!(executor.calculate_backoff(4, &config).as_millis(), 800);
-    assert_eq!(executor.calculate_backoff(5, &config).as_millis(), 1600);
+    // Jitter: ±25% of base delay — check inclusive range.
+    let d = executor.calculate_backoff(1, &config).as_millis();
+    assert!(d >= 75 && d <= 125, "attempt 1: expected ~100 ms (±25%), got {d}");
+    let d = executor.calculate_backoff(2, &config).as_millis();
+    assert!(d >= 150 && d <= 250, "attempt 2: expected ~200 ms (±25%), got {d}");
+    let d = executor.calculate_backoff(3, &config).as_millis();
+    assert!(d >= 300 && d <= 500, "attempt 3: expected ~400 ms (±25%), got {d}");
+    let d = executor.calculate_backoff(4, &config).as_millis();
+    assert!(d >= 600 && d <= 1000, "attempt 4: expected ~800 ms (±25%), got {d}");
+    let d = executor.calculate_backoff(5, &config).as_millis();
+    assert!(d >= 1200 && d <= 2000, "attempt 5: expected ~1600 ms (±25%), got {d}");
 }
 
 #[test]
@@ -90,8 +96,9 @@ fn test_backoff_exponential_cap() {
         backoff_strategy: BackoffStrategy::Exponential,
     };
 
-    // Should be capped at 1000
-    assert_eq!(executor.calculate_backoff(10, &config).as_millis(), 1000);
+    // Cap is at 1000; jitter ±25% gives [750, 1250]
+    let d = executor.calculate_backoff(10, &config).as_millis();
+    assert!(d >= 750 && d <= 1250, "capped attempt: expected ~1000 ms (±25%), got {d}");
 }
 
 #[test]
@@ -248,14 +255,13 @@ fn test_exponential_backoff_calculation() {
     let delay2 = executor.calculate_backoff(2, &config);
     let delay3 = executor.calculate_backoff(3, &config);
 
-    // 2^0 * 100 = 100
-    assert_eq!(delay1.as_millis(), 100);
-
-    // 2^1 * 100 = 200
-    assert_eq!(delay2.as_millis(), 200);
-
-    // 2^2 * 100 = 400
-    assert_eq!(delay3.as_millis(), 400);
+    // Jitter ±25%: 100 ms → [75, 125], 200 ms → [150, 250], 400 ms → [300, 500]
+    assert!(delay1.as_millis() >= 75 && delay1.as_millis() <= 125,
+        "delay1 expected ~100 ms (±25%), got {}", delay1.as_millis());
+    assert!(delay2.as_millis() >= 150 && delay2.as_millis() <= 250,
+        "delay2 expected ~200 ms (±25%), got {}", delay2.as_millis());
+    assert!(delay3.as_millis() >= 300 && delay3.as_millis() <= 500,
+        "delay3 expected ~400 ms (±25%), got {}", delay3.as_millis());
 }
 
 #[test]
@@ -272,9 +278,11 @@ fn test_exponential_backoff_cap() {
     let delay8 = executor.calculate_backoff(8, &config);
     let delay9 = executor.calculate_backoff(9, &config);
 
-    // Both should be at max (1000)
-    assert!(delay8.as_millis() <= 1000);
-    assert!(delay9.as_millis() <= 1000);
+    // Both should be near max (1000); jitter ±25% gives [750, 1250]
+    assert!(delay8.as_millis() >= 750 && delay8.as_millis() <= 1250,
+        "delay8 expected ~1000 ms (±25%), got {}", delay8.as_millis());
+    assert!(delay9.as_millis() >= 750 && delay9.as_millis() <= 1250,
+        "delay9 expected ~1000 ms (±25%), got {}", delay9.as_millis());
 }
 
 #[tokio::test]

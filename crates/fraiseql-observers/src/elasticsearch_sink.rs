@@ -261,8 +261,11 @@ impl ElasticsearchSink {
                         last_error = Some(e);
 
                         if attempt < self.config.max_retries {
-                            let backoff =
-                                std::time::Duration::from_millis(100 * (2_u64.pow(attempt as u32)));
+                            let backoff = std::time::Duration::from_millis(
+                                100_u64
+                                    .saturating_mul(2_u64.saturating_pow(attempt as u32))
+                                    .min(30_000),
+                            );
                             tokio::time::sleep(backoff).await;
                         }
                     } else {

@@ -2,6 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
+use rand::{Rng, rngs::OsRng};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
@@ -87,11 +88,21 @@ impl ObserverExecutor {
                 // 2^(attempt-1) * initial_delay, capped at max_delay.
                 // saturating_mul + saturating_pow prevent overflow when
                 // initial_delay_ms is large or attempt is high.
+                // ±25% jitter prevents thundering-herd retry storms across
+                // multiple observer instances sharing the same endpoint.
                 let exponent = attempt - 1;
                 let base_delay = config
                     .initial_delay_ms
-                    .saturating_mul(2_u64.saturating_pow(exponent));
-                base_delay.min(config.max_delay_ms)
+                    .saturating_mul(2_u64.saturating_pow(exponent))
+                    .min(config.max_delay_ms);
+                // jitter: ±25% of base_delay
+                let jitter_range = base_delay / 4;
+                if jitter_range > 0 {
+                    let jitter = OsRng.gen_range(0..=jitter_range.saturating_mul(2));
+                    base_delay.saturating_add(jitter).saturating_sub(jitter_range)
+                } else {
+                    base_delay
+                }
             },
             BackoffStrategy::Linear => {
                 // attempt * initial_delay, capped at max_delay
@@ -371,24 +382,30 @@ mod tests {
         ObserverExecutor::new(EventMatcher::new(), Arc::new(MockDeadLetterQueue::new()))
     }
 
+    fn within_jitter(actual_ms: u128, base_ms: u64) -> bool {
+        let lo = base_ms.saturating_sub(base_ms / 4) as u128;
+        let hi = base_ms.saturating_add(base_ms / 4) as u128;
+        actual_ms >= lo && actual_ms <= hi
+    }
+
     #[test]
     fn exponential_backoff_normal_case() {
         let executor = make_executor();
         let cfg = make_retry_config(100, 30_000, BackoffStrategy::Exponential);
-        // attempt 1 → 2^0 * 100 = 100 ms
-        assert_eq!(executor.calculate_backoff(1, &cfg), Duration::from_millis(100));
-        // attempt 2 → 2^1 * 100 = 200 ms
-        assert_eq!(executor.calculate_backoff(2, &cfg), Duration::from_millis(200));
-        // attempt 4 → 2^3 * 100 = 800 ms
-        assert_eq!(executor.calculate_backoff(4, &cfg), Duration::from_millis(800));
+        // attempt 1 → base 100 ms ± 25% → [75, 125]
+        assert!(within_jitter(executor.calculate_backoff(1, &cfg).as_millis(), 100));
+        // attempt 2 → base 200 ms ± 25% → [150, 250]
+        assert!(within_jitter(executor.calculate_backoff(2, &cfg).as_millis(), 200));
+        // attempt 4 → base 800 ms ± 25% → [600, 1000]
+        assert!(within_jitter(executor.calculate_backoff(4, &cfg).as_millis(), 800));
     }
 
     #[test]
     fn exponential_backoff_caps_at_max_delay() {
         let executor = make_executor();
         let cfg = make_retry_config(100, 1_000, BackoffStrategy::Exponential);
-        // attempt 5 → 2^4 * 100 = 1600 ms → capped at 1000 ms
-        assert_eq!(executor.calculate_backoff(5, &cfg), Duration::from_millis(1_000));
+        // attempt 5 → base capped at 1000 ms ± 25% → [750, 1250]
+        assert!(within_jitter(executor.calculate_backoff(5, &cfg).as_millis(), 1_000));
     }
 
     #[test]
@@ -397,10 +414,13 @@ mod tests {
         // initial_delay_ms near u64::MAX / 2 and a high attempt — without saturating_mul
         // this would overflow and produce a tiny delay instead of the intended max.
         let cfg = make_retry_config(u64::MAX / 2, 60_000, BackoffStrategy::Exponential);
-        // Regardless of overflow, the result must be capped at max_delay_ms.
+        // Regardless of overflow, the result must be near max_delay_ms (±25%).
         let result = executor.calculate_backoff(10, &cfg);
-        assert_eq!(result, Duration::from_millis(60_000),
-            "overflow must not produce a delay smaller than max_delay_ms");
+        assert!(
+            within_jitter(result.as_millis(), 60_000),
+            "overflow must not produce a delay far from max_delay_ms; got {} ms",
+            result.as_millis()
+        );
     }
 
     #[test]

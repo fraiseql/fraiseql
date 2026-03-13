@@ -153,6 +153,11 @@ pub enum WebhookError {
     /// The inner string is the provider name.
     #[error("Provider not configured: {0}")]
     ProviderNotConfigured(String),
+
+    /// A configuration field contains an invalid value.
+    /// The inner string describes the validation failure.
+    #[error("Configuration error: {0}")]
+    Configuration(String),
 }
 
 impl From<sqlx::Error> for WebhookError {

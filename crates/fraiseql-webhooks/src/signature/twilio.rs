@@ -26,12 +26,37 @@ use crate::{
 /// Twilio includes the full request URL in the signed payload.
 pub struct TwilioVerifier;
 
+/// Percent-decode a URL-encoded string (RFC 3986).
+///
+/// Decodes `%XX` sequences to their byte values. `+` is left as-is (form-encoded
+/// bodies that use `+` for space are handled by the caller). Returns the decoded
+/// string; invalid `%XX` sequences are left verbatim.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut result = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = (bytes[i + 1] as char).to_digit(16);
+            let lo = (bytes[i + 2] as char).to_digit(16);
+            if let (Some(h), Some(l)) = (hi, lo) {
+                result.push(char::from(((h << 4) | l) as u8));
+                i += 3;
+                continue;
+            }
+        }
+        result.push(char::from(bytes[i]));
+        i += 1;
+    }
+    result
+}
+
 /// Build the Twilio signing string: URL + sorted form params (if any).
 ///
 /// For form-encoded payloads (`application/x-www-form-urlencoded`), parse the
-/// body, sort parameters alphabetically, and append each `name + value` pair
-/// (no delimiter between pairs) to the URL. For other content types, sign the
-/// URL alone.
+/// body, sort parameters alphabetically by their **decoded** key (Twilio spec),
+/// and append each decoded `name + value` pair (no delimiter between pairs) to
+/// the URL. For other content types, sign the URL alone.
 fn build_signing_string(url: &str, payload: &[u8]) -> String {
     // Attempt to parse body as form-urlencoded (key=value&...)
     let body_str = match std::str::from_utf8(payload) {
@@ -49,13 +74,14 @@ fn build_signing_string(url: &str, payload: &[u8]) -> String {
         .split('&')
         .filter_map(|pair| {
             let mut kv = pair.splitn(2, '=');
-            let k = kv.next()?.to_string();
-            let v = kv.next().unwrap_or("").to_string();
-            Some((k, v))
+            let raw_k = kv.next()?;
+            let raw_v = kv.next().unwrap_or("");
+            // Decode key and value per Twilio's signing algorithm
+            Some((percent_decode(raw_k), percent_decode(raw_v)))
         })
         .collect();
 
-    // Sort alphabetically by key (Twilio requirement)
+    // Sort alphabetically by decoded key (Twilio requirement)
     params.sort_by(|a, b| a.0.cmp(&b.0));
 
     let mut signing = url.to_string();

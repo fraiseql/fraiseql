@@ -74,7 +74,9 @@ where
         },
         Err(e) => {
             // Explicit rollback (also happens on drop, but be explicit)
-            let _ = tx.rollback().await;
+            if let Err(rb_err) = tx.rollback().await {
+                tracing::error!(rollback_error = %rb_err, "Transaction rollback failed");
+            }
             Err(e)
         },
     }

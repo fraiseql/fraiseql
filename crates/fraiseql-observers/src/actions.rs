@@ -194,23 +194,27 @@ impl WebhookAction {
     /// Create a new webhook action executor with the default 30-second timeout.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
-                .build()
-                .unwrap_or_default(),
-        }
+        let client = Client::builder()
+            .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
+            .build()
+            .unwrap_or_else(|e| {
+                tracing::error!(error = %e, "Failed to build HTTP client for WebhookAction; falling back to no-timeout client");
+                Client::default()
+            });
+        Self { client }
     }
 
     /// Create a webhook action executor with a custom request timeout.
     #[must_use]
     pub fn with_timeout(timeout: Duration) -> Self {
-        Self {
-            client: Client::builder()
-                .timeout(timeout)
-                .build()
-                .unwrap_or_default(),
-        }
+        let client = Client::builder()
+            .timeout(timeout)
+            .build()
+            .unwrap_or_else(|e| {
+                tracing::error!(error = %e, "Failed to build HTTP client for WebhookAction; falling back to no-timeout client");
+                Client::default()
+            });
+        Self { client }
     }
 
     /// Execute webhook action
@@ -318,12 +322,14 @@ impl SlackAction {
     /// Create a new Slack action executor
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
-                .build()
-                .unwrap_or_default(),
-        }
+        let client = Client::builder()
+            .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
+            .build()
+            .unwrap_or_else(|e| {
+                tracing::error!(error = %e, "Failed to build HTTP client for SlackAction; falling back to no-timeout client");
+                Client::default()
+            });
+        Self { client }
     }
 
     /// Execute Slack action
