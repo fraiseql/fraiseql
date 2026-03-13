@@ -194,16 +194,17 @@ cargo build --all-features
 **All behavior controlled by configuration, not code.**
 
 ```rust
-// Construct config (defaults + environment variable overrides)
-let config = ServerConfig::from_file("fraiseql.toml")?;
-// Or use defaults for development:
-// let config = ServerConfig::default();
+// Construct config — always load from file in production.
 // FRAISEQL_DATABASE_URL, FRAISEQL_BIND_ADDR, etc. override any field
+let config = ServerConfig::from_file("fraiseql.toml")?;
 
 // Start server
 let server = Server::new(config, schema, adapter, db_pool).await?;
 server.serve().await?;
 ```
+
+> **Never use `ServerConfig::default()` in production.** It disables TLS,
+> authentication, and rate limiting. It exists for unit tests and local development only.
 
 > **Note on TOML configuration**: `ServerConfig::from_file` loads a `fraiseql.toml`
 > file directly. When using the `fraiseql-server` binary, pass `--config fraiseql.toml`;
@@ -567,9 +568,17 @@ extends to all query paths.
 - **RBAC Management API**: Role-based access control with a built-in REST management API
   - Endpoints: `POST /api/rbac/roles`, `GET /api/rbac/roles`, `POST /api/rbac/permissions`,
     `GET /api/rbac/permissions`, `POST /api/rbac/assignments`, `GET /api/rbac/assignments`
-  - **Authentication**: All RBAC endpoints require admin-level authentication. Requests without
-    valid credentials receive `401 Unauthorized`. The OIDC middleware must be configured and the
-    principal must hold a scope that grants admin access (default: `fraiseql:admin`).
+  - **Authentication**: RBAC endpoints are protected by an admin bearer token (`admin_token`
+    in `ServerConfig`, or `FRAISEQL_ADMIN_TOKEN` env var). Requests without a valid bearer
+    token receive `401 Unauthorized`. This is independent of OIDC configuration.
+
+    > **Important**: RBAC endpoints are only mounted when `admin_token` is set. If the
+    > server starts without `admin_token` configured, the RBAC management API is disabled
+    > entirely — a startup error is logged and the endpoints are not registered. This means
+    > the guard is all-or-nothing: either the endpoints exist and are protected, or they do
+    > not exist. For production, always set `admin_token` to a strong random value (≥ 32
+    > characters). Consider network-level controls (VPC rules, `allowedCidrs`) as a
+    > defence-in-depth layer.
   - **Schema initialization**: `RbacDbBackend::ensure_schema()` is called automatically at
     server startup; no manual migration is required.
   - **Tenant isolation**: All RBAC tables include a `tenant_id` column. Every query is
