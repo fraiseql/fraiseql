@@ -9,3 +9,8 @@ AllCops:
 # Gemspec placeholders are intentionally minimal
 Gemspec/DevelopmentDependencies:
   Enabled: false
+
+# Placeholder module FraiseQL maps to fraise_ql under RuboCop's inflection rules,
+# but the gem name is fraiseql (no underscore). Disable path format check.
+RSpec/SpecFilePathFormat:
+  Enabled: false
