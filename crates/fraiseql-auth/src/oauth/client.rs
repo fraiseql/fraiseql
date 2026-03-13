@@ -2,6 +2,9 @@
 
 use std::{sync::Arc, time::Duration as StdDuration};
 
+/// Timeout for all outbound OAuth2 / OIDC HTTP requests.
+const OAUTH_REQUEST_TIMEOUT: StdDuration = StdDuration::from_secs(30);
+
 use serde::{Deserialize, Serialize};
 
 use super::super::jwks::JwksCache;
@@ -112,7 +115,10 @@ impl OAuth2Client {
                 "email".to_string(),
             ],
             use_pkce:               false,
-            http_client:            reqwest::Client::new(),
+            http_client:            reqwest::Client::builder()
+                .timeout(OAUTH_REQUEST_TIMEOUT)
+                .build()
+                .unwrap_or_default(),
         }
     }
 
@@ -264,7 +270,10 @@ impl OIDCClient {
             client_id: client_id.into(),
             client_secret: client_secret.into(),
             jwks_cache,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .timeout(OAUTH_REQUEST_TIMEOUT)
+                .build()
+                .unwrap_or_default(),
         }
     }
 
@@ -280,7 +289,10 @@ impl OIDCClient {
             client_id: client_id.into(),
             client_secret: client_secret.into(),
             jwks_cache,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .timeout(OAUTH_REQUEST_TIMEOUT)
+                .build()
+                .unwrap_or_default(),
         }
     }
 
@@ -443,5 +455,39 @@ mod tests {
         let capped = &oversized[..oversized.len().min(cap)];
         let text = String::from_utf8_lossy(capped).into_owned();
         assert_eq!(text.len(), cap, "body must be capped at MAX_OAUTH_RESPONSE_BYTES");
+    }
+
+    // ── S25-H1: OAuth2/OIDC client timeout ────────────────────────────────────
+
+    #[test]
+    fn oauth_request_timeout_is_set() {
+        let secs = OAUTH_REQUEST_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 120, "OAuth timeout should be 1–120 s, got {secs}");
+    }
+
+    #[test]
+    fn oauth2_client_new_creates_instance() {
+        let client = OAuth2Client::new(
+            "client_id",
+            "client_secret",
+            "https://example.com/auth",
+            "https://example.com/token",
+        );
+        assert_eq!(client.client_id, "client_id");
+    }
+
+    #[test]
+    fn oidc_client_new_creates_instance() {
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "client_secret");
+        assert_eq!(client.client_id, "client_id");
     }
 }

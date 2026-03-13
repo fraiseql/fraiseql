@@ -408,7 +408,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             let auth_state = Arc::new(AuthPkceState {
                 pkce_store:              Arc::clone(store),
                 oidc_client:             Arc::clone(client),
-                http_client:             Arc::new(reqwest::Client::new()),
+                http_client:             Arc::new(
+                    reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(30))
+                        .build()
+                        .unwrap_or_default(),
+                ),
                 post_login_redirect_uri: None,
             });
             let auth_router = Router::new()

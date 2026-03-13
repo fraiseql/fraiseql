@@ -198,7 +198,7 @@ impl WebhookAction {
             client: Client::builder()
                 .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
                 .build()
-                .unwrap_or_else(|_| Client::new()),
+                .unwrap_or_default(),
         }
     }
 
@@ -209,7 +209,7 @@ impl WebhookAction {
             client: Client::builder()
                 .timeout(timeout)
                 .build()
-                .unwrap_or_else(|_| Client::new()),
+                .unwrap_or_default(),
         }
     }
 

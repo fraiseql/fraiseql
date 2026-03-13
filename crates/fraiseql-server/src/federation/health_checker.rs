@@ -12,6 +12,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Timeout for subgraph health-check HTTP requests.
+///
+/// Kept short so a slow subgraph doesn't block the health-check loop.
+const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -171,7 +176,10 @@ impl SubgraphHealthChecker {
 
         Self {
             subgraphs,
-            http_client: reqwest::Client::new(),
+            http_client: reqwest::Client::builder()
+                .timeout(HEALTH_CHECK_TIMEOUT)
+                .build()
+                .unwrap_or_default(),
             error_windows: Arc::new(Mutex::new(error_windows)),
             status_cache: Arc::new(Mutex::new(Vec::new())),
         }
@@ -356,5 +364,22 @@ mod tests {
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains("test-subgraph"));
         assert!(json.contains("true"));
+    }
+
+    // ── S25-H3: SubgraphHealthChecker client timeout ──────────────────────────
+
+    #[test]
+    fn health_check_timeout_is_set() {
+        let secs = HEALTH_CHECK_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 60, "Health-check timeout should be 1–60 s, got {secs}");
+    }
+
+    #[test]
+    fn health_checker_new_creates_instance() {
+        let checker = SubgraphHealthChecker::new(vec![SubgraphConfig {
+            name:     "test".to_string(),
+            endpoint: "https://test.example.com/graphql".to_string(),
+        }]);
+        assert_eq!(checker.subgraphs.len(), 1);
     }
 }

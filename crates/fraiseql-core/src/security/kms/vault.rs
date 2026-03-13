@@ -1,6 +1,9 @@
 //! HashiCorp Vault Transit secrets engine provider.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
+
+/// Timeout for all outbound Vault API requests.
+const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -98,7 +101,12 @@ pub struct VaultKmsProvider {
 impl VaultKmsProvider {
     /// Create a new Vault KMS provider.
     pub fn new(config: VaultConfig) -> KmsResult<Self> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(VAULT_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|e| KmsError::InvalidConfiguration {
+                message: format!("Failed to build HTTP client: {e}"),
+            })?;
         Ok(Self { config, client })
     }
 
@@ -466,5 +474,21 @@ mod tests {
         let encoded = base64_encode(data);
         let decoded = base64_decode(&encoded).unwrap();
         assert_eq!(decoded, data);
+    }
+
+    // ── S25-H2: VaultKmsProvider client timeout ───────────────────────────────
+
+    #[test]
+    fn vault_request_timeout_is_set() {
+        let secs = VAULT_REQUEST_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 120, "Vault timeout should be 1–120 s, got {secs}");
+    }
+
+    #[test]
+    fn vault_provider_new_succeeds() {
+        let config =
+            VaultConfig::new("https://vault.example.com".to_string(), "token".to_string());
+        let provider = VaultKmsProvider::new(config);
+        assert!(provider.is_ok(), "VaultKmsProvider::new() must succeed with valid config");
     }
 }
