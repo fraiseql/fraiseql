@@ -139,7 +139,11 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let raw = resp.bytes().await.unwrap_or_default();
+                let raw = resp
+                    .bytes()
+                    .await
+                    .inspect_err(|e| warn!(url = %url, error = %e, "Failed to read on_connect webhook response body"))
+                    .unwrap_or_default();
                 let capped = &raw[..raw.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
                 let text = String::from_utf8_lossy(capped).into_owned();
                 warn!(
@@ -197,7 +201,11 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let raw = resp.bytes().await.unwrap_or_default();
+                let raw = resp
+                    .bytes()
+                    .await
+                    .inspect_err(|e| warn!(url = %url, error = %e, "Failed to read on_subscribe webhook response body"))
+                    .unwrap_or_default();
                 let capped = &raw[..raw.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
                 let text = String::from_utf8_lossy(capped).into_owned();
                 warn!(

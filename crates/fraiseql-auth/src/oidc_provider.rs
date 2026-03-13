@@ -341,11 +341,20 @@ impl OAuthProvider for OidcProvider {
                 ("client_secret", &self.client_secret),
             ];
 
-            self.client.post(revocation_endpoint).form(&params).send().await.map_err(|e| {
-                AuthError::OAuthError {
-                    message: format!("Failed to revoke token: {}", e),
-                }
-            })?;
+            let resp =
+                self.client.post(revocation_endpoint).form(&params).send().await.map_err(
+                    |e| AuthError::OAuthError {
+                        message: format!("Failed to revoke token: {}", e),
+                    },
+                )?;
+            if !resp.status().is_success() {
+                return Err(AuthError::OAuthError {
+                    message: format!(
+                        "Token revocation returned HTTP {}",
+                        resp.status()
+                    ),
+                });
+            }
         }
         Ok(())
     }
@@ -502,5 +511,82 @@ mod tests {
         assert!(url.contains("state=state123"));
         assert!(url.contains("response_type=code"));
         assert!(url.contains("scope=openid"));
+    }
+
+    // ── S29-H1: revoke_token HTTP status check ────────────────────────────────
+
+    #[tokio::test]
+    async fn revoke_token_non_success_status_is_rejected() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/revoke"))
+            .respond_with(ResponseTemplate::new(400))
+            .mount(&mock_server)
+            .await;
+
+        let provider = OidcProvider {
+            name:          "test".to_string(),
+            issuer_url:    mock_server.uri(),
+            client_id:     "client_id".to_string(),
+            client_secret: "secret".to_string(),
+            redirect_uri:  "http://localhost/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 mock_server.uri(),
+                authorization_endpoint: format!("{}/auth", mock_server.uri()),
+                token_endpoint:         format!("{}/token", mock_server.uri()),
+                userinfo_endpoint:      format!("{}/userinfo", mock_server.uri()),
+                jwks_uri:               None,
+                revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
+            },
+            client: reqwest::Client::new(),
+        };
+
+        let result = provider.revoke_token("some_token").await;
+        assert!(result.is_err(), "non-2xx revocation response must be rejected");
+        let msg = result.err().unwrap().to_string();
+        assert!(
+            msg.contains("400") || msg.contains("revocation"),
+            "error must mention HTTP status or revocation failure: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn revoke_token_success_returns_ok() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/revoke"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let provider = OidcProvider {
+            name:          "test".to_string(),
+            issuer_url:    mock_server.uri(),
+            client_id:     "client_id".to_string(),
+            client_secret: "secret".to_string(),
+            redirect_uri:  "http://localhost/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 mock_server.uri(),
+                authorization_endpoint: format!("{}/auth", mock_server.uri()),
+                token_endpoint:         format!("{}/token", mock_server.uri()),
+                userinfo_endpoint:      format!("{}/userinfo", mock_server.uri()),
+                jwks_uri:               None,
+                revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
+            },
+            client: reqwest::Client::new(),
+        };
+
+        let result = provider.revoke_token("some_token").await;
+        assert!(result.is_ok(), "200 revocation response must return Ok: {result:?}");
     }
 }
