@@ -286,6 +286,36 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_max_request_body_bytes")]
     pub max_request_body_bytes: usize,
 
+    /// Per-request processing timeout in seconds (default: `None` — no timeout).
+    ///
+    /// When set, each HTTP request must complete within this many seconds or
+    /// the server returns **408 Request Timeout**.  This is a defence-in-depth
+    /// measure against slow or runaway database queries.
+    ///
+    /// **Recommendation**: set to `60` for production deployments.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// request_timeout_secs = 60
+    /// ```
+    #[serde(default)]
+    pub request_timeout_secs: Option<u64>,
+
+    /// Maximum byte length for a query string delivered via HTTP GET.
+    ///
+    /// GET queries are URL-encoded and passed as a query parameter. Very long
+    /// strings are either a DoS attempt or a sign that the caller should use
+    /// POST instead. Default: `100_000` (100 KiB).
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// max_get_query_bytes = 50000
+    /// ```
+    #[serde(default = "defaults::default_max_get_query_bytes")]
+    pub max_get_query_bytes: usize,
+
     /// Rate limiting configuration for GraphQL requests.
     ///
     /// When configured, enables per-IP and per-user rate limiting with token bucket algorithm.
@@ -405,6 +435,8 @@ impl Default for ServerConfig {
             pool_tuning: None,  // Pool pressure monitoring disabled by default
             admission_control: None, // Admission control disabled by default
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
+            request_timeout_secs: None,
+            max_get_query_bytes: defaults::default_max_get_query_bytes(),
         }
     }
 }

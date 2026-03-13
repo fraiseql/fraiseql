@@ -155,6 +155,31 @@ pub struct ObserverDefinition {
     pub on_failure: FailurePolicy,
 }
 
+impl ObserverDefinition {
+    /// Pre-compile the observer's condition string into a `ConditionAst`.
+    ///
+    /// Calling this at registration time surfaces DSL syntax errors early —
+    /// before any events arrive — so misconfigured observers fail at startup
+    /// rather than silently at runtime.
+    ///
+    /// Returns `None` when the observer has no condition.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidCondition` if the condition string cannot
+    /// be parsed (e.g. syntax error or depth limit exceeded).
+    pub fn compile_condition(
+        &self,
+    ) -> crate::error::Result<Option<crate::condition::ConditionAst>> {
+        if let Some(condition) = &self.condition {
+            let parser = crate::condition::ConditionParser::new();
+            Ok(Some(parser.parse(condition)?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 // ============================================================================
 // Retry Configuration
 // ============================================================================

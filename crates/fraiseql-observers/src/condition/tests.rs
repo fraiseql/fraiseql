@@ -510,3 +510,43 @@ fn test_evaluate_field_changed_to_combined_false_when_not_changed() {
         .parse_and_evaluate("field_changed_to('status', 'shipped') && total > 100", &event);
     assert!(!result.unwrap(), "condition should be false when field_changed_to mismatch");
 }
+
+// ── Depth limit tests (14-1) ─────────────────────────────────────────────
+
+#[test]
+fn test_depth_64_is_accepted() {
+    // 64 nested parentheses wrapping a simple comparison — should succeed.
+    let parser = ConditionParser::new();
+    let open: String = "(".repeat(64);
+    let close: String = ")".repeat(64);
+    let condition = format!("{open}total == 100{close}");
+    assert!(
+        parser.parse(&condition).is_ok(),
+        "64 levels of nesting must be accepted (== MAX_CONDITION_DEPTH)"
+    );
+}
+
+#[test]
+fn test_depth_65_returns_max_depth_error() {
+    // 65 nested parentheses — one beyond the limit — must fail.
+    let parser = ConditionParser::new();
+    let open: String = "(".repeat(65);
+    let close: String = ")".repeat(65);
+    let condition = format!("{open}total == 100{close}");
+    let result = parser.parse(&condition);
+    assert!(result.is_err(), "65 levels of nesting must be rejected");
+    assert!(
+        result.unwrap_err().to_string().contains("nesting depth"),
+        "error message must mention nesting depth"
+    );
+}
+
+#[test]
+fn test_deeply_nested_not_operators_limited() {
+    // 65 consecutive `!` operators — must fail with depth exceeded.
+    let parser = ConditionParser::new();
+    let nots: String = "!".repeat(65);
+    let condition = format!("{nots}has_field('x')");
+    let result = parser.parse(&condition);
+    assert!(result.is_err(), "65 nested NOT operators must be rejected");
+}

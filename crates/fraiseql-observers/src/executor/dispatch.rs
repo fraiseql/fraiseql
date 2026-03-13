@@ -136,8 +136,13 @@ fn validate_url_ssrf(url: &str) -> Result<()> {
     }
 
     // Block loopback hostnames before attempting IP parsing.
+    // Covers: `localhost`, `subdomain.localhost`, `localhost.localdomain`,
+    // and other `localhost.*` aliases common in /etc/hosts configurations.
     let lower_host = host.to_ascii_lowercase();
-    if lower_host == "localhost" || lower_host.ends_with(".localhost") {
+    if lower_host == "localhost"
+        || lower_host.ends_with(".localhost")
+        || lower_host.starts_with("localhost.")
+    {
         return Err(ObserverError::InvalidActionConfig {
             reason: format!("Webhook URL targets a loopback host: {host}"),
         });

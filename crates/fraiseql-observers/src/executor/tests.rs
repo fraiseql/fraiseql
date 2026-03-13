@@ -1354,3 +1354,105 @@ async fn test_dlq_size_limit_none_allows_unbounded_pushes() {
 
     assert_eq!(dlq.item_count(), 5, "all 5 entries should be in the DLQ");
 }
+
+// ── AST cache tests (14-2) ────────────────────────────────────────────────
+
+#[test]
+fn test_compile_condition_returns_ast_for_valid_condition() {
+    use crate::config::runtime::ObserverDefinition;
+    let observer = ObserverDefinition {
+        event_type: "INSERT".to_string(),
+        entity:     "Order".to_string(),
+        condition:  Some("total > 100".to_string()),
+        actions:    vec![],
+        retry:      crate::config::RetryConfig::default(),
+        on_failure: crate::config::FailurePolicy::Log,
+    };
+    let result = observer.compile_condition();
+    assert!(result.is_ok(), "valid condition must compile without error");
+    assert!(result.unwrap().is_some(), "compile_condition must return Some(ast)");
+}
+
+#[test]
+fn test_compile_condition_returns_none_when_no_condition() {
+    use crate::config::runtime::ObserverDefinition;
+    let observer = ObserverDefinition {
+        event_type: "INSERT".to_string(),
+        entity:     "Order".to_string(),
+        condition:  None,
+        actions:    vec![],
+        retry:      crate::config::RetryConfig::default(),
+        on_failure: crate::config::FailurePolicy::Log,
+    };
+    let result = observer.compile_condition();
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none(), "compile_condition must return None when no condition");
+}
+
+#[test]
+fn test_compile_condition_returns_error_for_invalid_dsl() {
+    use crate::config::runtime::ObserverDefinition;
+    let observer = ObserverDefinition {
+        event_type: "INSERT".to_string(),
+        entity:     "Order".to_string(),
+        condition:  Some("@@@invalid$$$".to_string()),
+        actions:    vec![],
+        retry:      crate::config::RetryConfig::default(),
+        on_failure: crate::config::FailurePolicy::Log,
+    };
+    let result = observer.compile_condition();
+    assert!(result.is_err(), "invalid DSL must return an error from compile_condition");
+}
+
+// ── Action timeout tests (14-5) ───────────────────────────────────────────
+
+#[tokio::test]
+async fn test_action_timeout_fires_when_dispatcher_is_slow() {
+    use std::time::Duration;
+
+    use crate::executor::ActionDispatcher;
+    use crate::traits::ActionResult;
+
+    struct SlowDispatcher;
+
+    impl ActionDispatcher for SlowDispatcher {
+        fn dispatch<'a>(
+            &'a self,
+            action: &'a ActionConfig,
+            _event: &'a EntityEvent,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = crate::error::Result<ActionResult>> + Send + 'a>,
+        > {
+            let action_type = action.action_type().to_string();
+            Box::pin(async move {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                Ok(ActionResult {
+                    action_type,
+                    success:     true,
+                    message:     "slow ok".to_string(),
+                    duration_ms: 200.0,
+                })
+            })
+        }
+    }
+
+    let dlq = Arc::new(MockDeadLetterQueue::new());
+    let dlq_dyn: Arc<dyn crate::traits::DeadLetterQueue> = Arc::clone(&dlq) as _;
+    let mut executor = ObserverExecutor::with_dispatcher(
+        EventMatcher::new(),
+        dlq_dyn,
+        Arc::new(SlowDispatcher),
+    );
+    // Set a 10 ms timeout — the dispatcher sleeps 200 ms, so it must time out.
+    executor.action_timeout_ms = Some(10);
+
+    let action = webhook_action();
+    let event = test_event();
+    let result = executor.execute_action_internal(&action, &event).await;
+    assert!(result.is_err(), "slow action must be interrupted by timeout");
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("timed out"),
+        "error must mention timeout, got: {err}"
+    );
+}

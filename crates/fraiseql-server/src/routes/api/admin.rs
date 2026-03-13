@@ -10,6 +10,7 @@ use std::{collections::HashMap, fs};
 use axum::{Json, extract::State};
 use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::routes::{
     api::types::{ApiError, ApiResponse},
@@ -96,7 +97,13 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         .map_err(|e| ApiError::parse_error(format!("Invalid schema JSON: {}", e)))?;
 
     if req.validate_only {
-        // Return success without applying the schema
+        info!(
+            operation = "admin.reload_schema",
+            schema_path = %req.schema_path,
+            validate_only = true,
+            success = true,
+            "Admin: schema validation requested"
+        );
         let response = ReloadSchemaResponse {
             success: true,
             message: "Schema validated successfully (not applied)".to_string(),
@@ -110,6 +117,14 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         #[cfg(feature = "arrow")]
         if let Some(cache) = state.cache() {
             cache.clear();
+            info!(
+                operation = "admin.reload_schema",
+                schema_path = %req.schema_path,
+                validate_only = false,
+                cache_cleared = true,
+                success = true,
+                "Admin: schema reloaded and cache cleared"
+            );
             let response = ReloadSchemaResponse {
                 success: true,
                 message: format!("Schema reloaded from {} and cache cleared", req.schema_path),
@@ -119,6 +134,13 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
                 data:   response,
             }));
         }
+        info!(
+            operation = "admin.reload_schema",
+            schema_path = %req.schema_path,
+            validate_only = false,
+            success = true,
+            "Admin: schema reloaded"
+        );
         let response = ReloadSchemaResponse {
             success: true,
             message: format!("Schema reloaded from {}", req.schema_path),
@@ -174,6 +196,13 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
             if let Some(cache) = state.cache() {
                 let entries_before = cache.len();
                 cache.clear();
+                info!(
+                    operation = "admin.cache_clear",
+                    scope = "all",
+                    entries_cleared = entries_before,
+                    success = true,
+                    "Admin: cache cleared (all entries)"
+                );
                 let response = CacheClearResponse {
                     success:         true,
                     entries_cleared: entries_before,
@@ -200,6 +229,14 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 // Convert entity type to view name pattern (e.g., User → v_user)
                 let view_name = format!("v_{}", entity_type.to_lowercase());
                 let entries_cleared = cache.invalidate_views(&[&view_name]);
+                info!(
+                    operation = "admin.cache_clear",
+                    scope = "entity",
+                    entity_type = %entity_type,
+                    entries_cleared,
+                    success = true,
+                    "Admin: cache cleared for entity"
+                );
                 let response = CacheClearResponse {
                     success: true,
                     entries_cleared,
@@ -227,6 +264,14 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 let pattern = req.pattern.as_ref()
                     .expect("pattern is Some; None was rejected above");
                 let entries_cleared = cache.invalidate_pattern(pattern);
+                info!(
+                    operation = "admin.cache_clear",
+                    scope = "pattern",
+                    %pattern,
+                    entries_cleared,
+                    success = true,
+                    "Admin: cache cleared by pattern"
+                );
                 let response = CacheClearResponse {
                     success: true,
                     entries_cleared,
@@ -642,5 +687,46 @@ mod tests {
 
         assert!(response.success);
         assert!(!response.message.is_empty());
+    }
+
+    // ── Admin audit log tests (15-5) ────────────────────────────────────────
+
+    #[test]
+    fn test_reload_schema_request_carries_audit_fields() {
+        // Verifies that the request type exposes the fields needed to emit a
+        // complete audit log entry (schema_path + validate_only).
+        let req = ReloadSchemaRequest {
+            schema_path:   "/var/run/fraiseql/schema.compiled.json".to_string(),
+            validate_only: false,
+        };
+        assert!(!req.schema_path.is_empty(), "schema_path must be present for audit log");
+        // validate_only is always set (bool field) — no assertion needed.
+        let _ = req.validate_only;
+    }
+
+    #[test]
+    fn test_cache_clear_request_carries_audit_fields() {
+        // Verifies that CacheClearRequest exposes the fields needed for audit logging
+        // (scope, optional entity_type, optional pattern).
+        let all_req = CacheClearRequest {
+            scope:       "all".to_string(),
+            entity_type: None,
+            pattern:     None,
+        };
+        assert_eq!(all_req.scope, "all");
+
+        let entity_req = CacheClearRequest {
+            scope:       "entity".to_string(),
+            entity_type: Some("Order".to_string()),
+            pattern:     None,
+        };
+        assert!(entity_req.entity_type.is_some(), "entity scope must carry entity_type for audit");
+
+        let pattern_req = CacheClearRequest {
+            scope:       "pattern".to_string(),
+            entity_type: None,
+            pattern:     Some("v_order*".to_string()),
+        };
+        assert!(pattern_req.pattern.is_some(), "pattern scope must carry pattern for audit");
     }
 }

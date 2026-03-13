@@ -31,6 +31,11 @@ pub const fn default_max_request_body_bytes() -> usize {
     1_048_576
 }
 
+/// 100 KiB default GET query size limit.
+pub const fn default_max_get_query_bytes() -> usize {
+    100_000
+}
+
 pub fn default_graphql_path() -> String {
     "/graphql".to_string()
 }

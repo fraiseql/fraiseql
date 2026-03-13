@@ -70,6 +70,13 @@ pub struct ObserverExecutor {
     pub(super) max_dlq_size:     Option<usize>,
     /// Monotonically-increasing count of pushes sent to the DLQ.
     pub(super) dlq_push_count:   Arc<AtomicUsize>,
+    /// Per-action dispatch timeout in milliseconds.
+    ///
+    /// When set, each call to `execute_action_internal` is wrapped in a
+    /// `tokio::time::timeout`.  A slow or hung action is interrupted and
+    /// returns a transient `ActionExecutionFailed` error so the retry loop
+    /// can back off and retry.  `None` disables the timeout (default).
+    pub(super) action_timeout_ms: Option<u64>,
     /// Optional cache backend for action result caching
     #[cfg(feature = "caching")]
     pub(super) cache_backend:    Option<Arc<dyn CacheBackendDyn>>,
@@ -98,6 +105,7 @@ impl ObserverExecutor {
             dlq,
             max_dlq_size: None,
             dlq_push_count: Arc::new(AtomicUsize::new(0)),
+            action_timeout_ms: None,
             #[cfg(feature = "caching")]
             cache_backend: None,
             #[cfg(feature = "metrics")]
@@ -146,6 +154,7 @@ impl ObserverExecutor {
             dlq,
             max_dlq_size: None,
             dlq_push_count: Arc::new(AtomicUsize::new(0)),
+            action_timeout_ms: None,
             cache_backend,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
@@ -170,6 +179,7 @@ impl ObserverExecutor {
             dlq,
             max_dlq_size: None,
             dlq_push_count: Arc::new(AtomicUsize::new(0)),
+            action_timeout_ms: None,
             #[cfg(feature = "caching")]
             cache_backend: None,
             #[cfg(feature = "metrics")]

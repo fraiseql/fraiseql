@@ -109,6 +109,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Attach debug config from compiled schema
         state.debug_config.clone_from(&self.executor.schema().debug_config);
 
+        // Apply GET query size limit from server config.
+        state.max_get_query_bytes = self.config.max_get_query_bytes;
+
         // Attach APQ store if configured
         if let Some(ref store) = self.apq_store {
             state = state.with_apq_store(store.clone());
@@ -560,6 +563,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 "Request body size limit enabled"
             );
             app = app.layer(DefaultBodyLimit::max(self.config.max_request_body_bytes));
+        }
+
+        // Add per-request timeout (optional — defence against runaway DB queries).
+        if let Some(timeout_secs) = self.config.request_timeout_secs {
+            use std::time::Duration;
+            use tower_http::timeout::TimeoutLayer;
+
+            info!(timeout_secs, "Request timeout enabled");
+            app = app.layer(TimeoutLayer::with_status_code(
+                axum::http::StatusCode::REQUEST_TIMEOUT,
+                Duration::from_secs(timeout_secs),
+            ));
         }
 
         // Add rate limiting middleware if configured.

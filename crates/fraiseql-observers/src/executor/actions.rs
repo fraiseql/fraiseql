@@ -1,6 +1,6 @@
 //! Per-action execution and failure handling.
 
-use std::sync::atomic::Ordering;
+use std::{sync::atomic::Ordering, time::Duration};
 
 use tracing::{error, info, warn};
 
@@ -28,7 +28,23 @@ impl ObserverExecutor {
             }
         }
 
-        let result = self.dispatcher.dispatch(action, event).await;
+        let result = if let Some(timeout_ms) = self.action_timeout_ms {
+            tokio::time::timeout(
+                Duration::from_millis(timeout_ms),
+                self.dispatcher.dispatch(action, event),
+            )
+            .await
+            .unwrap_or_else(|_| {
+                Err(crate::error::ObserverError::ActionExecutionFailed {
+                    reason: format!(
+                        "action '{}' timed out after {timeout_ms} ms",
+                        action.action_type()
+                    ),
+                })
+            })
+        } else {
+            self.dispatcher.dispatch(action, event).await
+        };
 
         // Cache successful results before returning
         #[cfg(feature = "caching")]

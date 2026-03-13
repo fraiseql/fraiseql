@@ -7,9 +7,10 @@ use super::{ConditionAst, ConditionParser, Token};
 /// Maximum nesting depth for condition expressions.
 ///
 /// Prevents stack overflow from deeply-nested `NOT NOT NOT … expr` chains
-/// or deeply-parenthesised conditions. 50 levels is far beyond any legitimate
-/// condition authored by a human or a schema tool.
-const MAX_CONDITION_DEPTH: usize = 50;
+/// or deeply-parenthesised conditions. 64 levels is far beyond any legitimate
+/// condition authored by a human or a schema tool, while still leaving enough
+/// headroom for machine-generated conditions from schema linters.
+const MAX_CONDITION_DEPTH: usize = 64;
 
 impl ConditionParser {
     pub(super) fn parse_tokens(&self, tokens: &[Token]) -> Result<ConditionAst> {

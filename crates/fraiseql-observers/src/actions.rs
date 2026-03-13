@@ -50,8 +50,20 @@ fn validate_outbound_url(url: &str) -> Result<()> {
     }
 
     // Extract the host portion (strip scheme, then take up to the first / : ? #).
+    // IPv6 literals use bracket notation [addr]:port — handle separately so we
+    // don't split on the `:` inside the brackets and miss the closing `]`.
     let after_scheme = if lower.starts_with("https://") { &url[8..] } else { &url[7..] };
-    let host = after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("");
+    let host = if after_scheme.starts_with('[') {
+        // IPv6 bracket notation: extract everything up to and including the `]`.
+        after_scheme
+            .find(']')
+            .map_or_else(
+                || after_scheme.split(['/', '?', '#']).next().unwrap_or(""),
+                |end| &after_scheme[..=end],
+            )
+    } else {
+        after_scheme.split(['/', ':', '?', '#']).next().unwrap_or("")
+    };
 
     if is_ssrf_blocked_host_obs(host) {
         return Err(ObserverError::ActionPermanentlyFailed {
@@ -103,32 +115,73 @@ fn is_ula_v6_obs(addr: std::net::Ipv6Addr) -> bool {
 
 /// Validate that no header name or value contains HTTP header injection characters.
 ///
-/// HTTP/1.1 forbids `\r` and `\n` inside field names and values (RFC 7230 §3.2).
+/// HTTP/1.1 forbids:
+/// - `\r` and `\n` inside field names and values (RFC 7230 §3.2, header injection)
+/// - `\0` (NUL byte) which can truncate strings in C-based HTTP stacks
+/// - `:` in header *names* (RFC 7230 §3.2 token rule; colons are the name/value separator)
+///
 /// An attacker who can supply custom observer headers could otherwise inject
-/// arbitrary headers into the outbound request.
+/// arbitrary headers or corrupt the HTTP request.
 ///
 /// # Errors
 ///
 /// Returns `ObserverError::ActionPermanentlyFailed` if any name or value
-/// contains a CR (`\r`) or LF (`\n`) byte.
+/// contains a disallowed byte.
 fn validate_headers(headers: &HashMap<String, String>) -> Result<()> {
     for (name, value) in headers {
-        if name.contains('\r') || name.contains('\n') {
+        if name.contains('\r') || name.contains('\n') || name.contains('\0') {
             return Err(ObserverError::ActionPermanentlyFailed {
                 reason: format!(
-                    "Invalid webhook header name — contains CR/LF (header injection): {name:?}"
+                    "Invalid webhook header name — contains CR/LF/NUL (header injection): {name:?}"
                 ),
             });
         }
-        if value.contains('\r') || value.contains('\n') {
+        if name.contains(':') {
             return Err(ObserverError::ActionPermanentlyFailed {
                 reason: format!(
-                    "Invalid webhook header value for '{name}' — contains CR/LF (header injection)"
+                    "Invalid webhook header name — contains colon (name/value separator): {name:?}"
+                ),
+            });
+        }
+        if value.contains('\r') || value.contains('\n') || value.contains('\0') {
+            return Err(ObserverError::ActionPermanentlyFailed {
+                reason: format!(
+                    "Invalid webhook header value for '{name}' — contains CR/LF/NUL (header injection)"
                 ),
             });
         }
     }
     Ok(())
+}
+
+/// Map an HTTP response status to a `WebhookResponse` (success) or the
+/// appropriate `ObserverError` variant (failure).
+///
+/// - 2xx → `Ok(WebhookResponse { success: true, … })`
+/// - 4xx except 429 → `Err(ActionPermanentlyFailed)` — retrying will not help
+/// - 429, 5xx, other → `Err(ActionExecutionFailed)` — transient, eligible for retry
+///
+/// 429 Too Many Requests is transient because the server indicated it *can*
+/// accept the request after a retry window; routing it to DLQ immediately would
+/// discard actionable work.
+fn classify_http_status(status: reqwest::StatusCode, duration_ms: f64) -> Result<WebhookResponse> {
+    if status.is_success() {
+        Ok(WebhookResponse {
+            status_code: status.as_u16(),
+            success: true,
+            duration_ms,
+        })
+    } else if status.is_client_error() && status != reqwest::StatusCode::TOO_MANY_REQUESTS {
+        // 4xx (except 429): permanent failure — retrying will not help; route directly to DLQ.
+        Err(ObserverError::ActionPermanentlyFailed {
+            reason: format!("HTTP {status} (client error — will not retry)"),
+        })
+    } else {
+        // 5xx / 429 / other: transient failure — eligible for retry backoff.
+        Err(ObserverError::ActionExecutionFailed {
+            reason: format!("HTTP {status} response"),
+        })
+    }
 }
 
 /// Webhook action executor
@@ -217,23 +270,7 @@ impl WebhookAction {
         let status = response.status();
         let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
-        if status.is_success() {
-            Ok(WebhookResponse {
-                status_code: status.as_u16(),
-                success: true,
-                duration_ms,
-            })
-        } else if status.is_client_error() {
-            // 4xx: permanent failure — retrying will not help; route directly to DLQ.
-            Err(ObserverError::ActionPermanentlyFailed {
-                reason: format!("HTTP {status} (client error — will not retry)"),
-            })
-        } else {
-            // 5xx / other: transient failure — eligible for retry backoff.
-            Err(ObserverError::ActionExecutionFailed {
-                reason: format!("HTTP {status} response"),
-            })
-        }
+        classify_http_status(status, duration_ms)
     }
 
     fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
@@ -570,6 +607,81 @@ mod tests {
     #[test]
     fn test_webhook_action_with_timeout_creates_ok() {
         let _action = WebhookAction::with_timeout(Duration::from_secs(5));
+    }
+
+    // --- Additional header injection tests (14-3) ---
+
+    #[test]
+    fn test_validate_headers_nul_in_name_rejected() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Evil\0Null".to_string(), "value".to_string());
+        let err = validate_headers(&headers).unwrap_err();
+        assert!(
+            err.to_string().contains("NUL") || err.to_string().contains("injection"),
+            "expected injection message, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_validate_headers_nul_in_value_rejected() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Legit".to_string(), "value\0payload".to_string());
+        let err = validate_headers(&headers).unwrap_err();
+        assert!(err.to_string().contains("injection"), "got: {err}");
+    }
+
+    #[test]
+    fn test_validate_headers_colon_in_name_rejected() {
+        let mut headers = HashMap::new();
+        // A colon in a header name is the name/value separator — disallowed.
+        headers.insert("X-Forged: X-Real-IP".to_string(), "value".to_string());
+        let err = validate_headers(&headers).unwrap_err();
+        assert!(err.to_string().contains("colon"), "expected colon message, got: {err}");
+    }
+
+    #[test]
+    fn test_validate_headers_colon_in_value_is_allowed() {
+        // Colons are valid in header *values* (e.g. "Bearer tok:en", URLs, etc.)
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer abc:xyz".to_string());
+        assert!(validate_headers(&headers).is_ok());
+    }
+
+    // --- HTTP status classification tests (14-4) ---
+
+    #[test]
+    fn test_200_ok_is_success() {
+        let result = classify_http_status(reqwest::StatusCode::OK, 10.0);
+        assert!(result.is_ok());
+        assert!(result.unwrap().success);
+    }
+
+    #[test]
+    fn test_404_is_permanent_failure() {
+        let result = classify_http_status(reqwest::StatusCode::NOT_FOUND, 5.0);
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })));
+    }
+
+    #[test]
+    fn test_400_is_permanent_failure() {
+        let result = classify_http_status(reqwest::StatusCode::BAD_REQUEST, 5.0);
+        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })));
+    }
+
+    #[test]
+    fn test_429_is_transient_failure() {
+        // 429 must NOT be permanent — it should be eligible for retry.
+        let result = classify_http_status(reqwest::StatusCode::TOO_MANY_REQUESTS, 5.0);
+        assert!(
+            matches!(result, Err(ObserverError::ActionExecutionFailed { .. })),
+            "429 must be treated as transient (retryable), not permanent"
+        );
+    }
+
+    #[test]
+    fn test_500_is_transient_failure() {
+        let result = classify_http_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR, 5.0);
+        assert!(matches!(result, Err(ObserverError::ActionExecutionFailed { .. })));
     }
 
     // --- SSRF protection tests (C7) ---

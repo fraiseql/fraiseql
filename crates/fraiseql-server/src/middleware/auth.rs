@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+use subtle::ConstantTimeEq as _;
+
 use axum::{
     body::Body,
     extract::State,
@@ -108,18 +110,15 @@ pub fn extract_bearer_token(header_value: &str) -> Option<&str> {
 
 /// Constant-time string comparison to prevent timing attacks.
 ///
-/// Returns true if both strings are equal, false otherwise.
-/// The comparison time is constant regardless of where strings differ.
+/// Uses [`subtle::ConstantTimeEq`] to compare the byte representations of
+/// both strings, preventing the compiler from optimising the comparison into
+/// an early-exit branch that would leak information about where the strings
+/// differ (timing oracle, RFC 6749 §10.12).
+///
+/// Strings of different lengths return `false` without inspecting bytes;
+/// token lengths are considered non-secret (administrators choose them).
 fn constant_time_compare(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let mut result = 0u8;
-    for (x, y) in a.bytes().zip(b.bytes()) {
-        result |= x ^ y;
-    }
-    result == 0
+    a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
 #[cfg(test)]
@@ -248,5 +247,29 @@ mod tests {
     fn test_constant_time_compare_different_lengths() {
         assert!(!constant_time_compare("short", "longer-string"));
         assert!(!constant_time_compare("", "notempty"));
+    }
+
+    // ── subtle-based comparison tests (15-1) ────────────────────────────────
+
+    #[test]
+    fn test_subtle_compare_identical_tokens() {
+        // Verify the subtle-based helper accepts identical tokens of various lengths.
+        assert!(constant_time_compare("x", "x"));
+        assert!(constant_time_compare("super-secret-32-char-admin-token", "super-secret-32-char-admin-token"));
+    }
+
+    #[test]
+    fn test_subtle_compare_off_by_one_byte() {
+        // A single byte difference anywhere must be rejected.
+        assert!(!constant_time_compare("token-abc", "token-abd")); // last byte differs
+        assert!(!constant_time_compare("Aoken-abc", "token-abc")); // first byte differs
+    }
+
+    #[test]
+    fn test_subtle_compare_empty_strings() {
+        // Two empty strings are equal; empty vs non-empty is not.
+        assert!(constant_time_compare("", ""));
+        assert!(!constant_time_compare("", "a"));
+        assert!(!constant_time_compare("a", ""));
     }
 }

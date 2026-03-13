@@ -58,6 +58,11 @@ pub struct AppState<A: DatabaseAdapter> {
     pub validator:    crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
     pub debug_config: Option<fraiseql_core::schema::DebugConfig>,
+    /// Maximum byte length for a query string delivered via HTTP GET.
+    ///
+    /// Defaults to `100_000` (100 KiB).  Configurable via
+    /// `ServerConfig::max_get_query_bytes`.
+    pub max_get_query_bytes: usize,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
     pub pool_tuner:   Option<Arc<crate::pool::PoolSizingAdvisor>>,
 }
@@ -91,6 +96,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             validator: crate::validation::RequestValidator::new(),
             debug_config: None,
             pool_tuner: None,
+            max_get_query_bytes: 100_000,
         }
     }
 
