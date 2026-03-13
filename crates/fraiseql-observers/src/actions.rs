@@ -319,7 +319,10 @@ impl SlackAction {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
+                .build()
+                .unwrap_or_default(),
         }
     }
 
@@ -716,5 +719,19 @@ mod tests {
         assert!(validate_outbound_url("https://hooks.slack.com/services/xxx").is_ok());
         assert!(validate_outbound_url("https://api.example.com/webhook").is_ok());
         assert!(validate_outbound_url("http://203.0.113.10/hook").is_ok());
+    }
+
+    // ── S24-H2: SlackAction client timeout ────────────────────────────────────
+
+    #[test]
+    fn slack_action_default_timeout_is_set() {
+        // Verify the shared timeout constant is non-zero and in a sane range.
+        const { assert!(DEFAULT_WEBHOOK_TIMEOUT_SECS > 0 && DEFAULT_WEBHOOK_TIMEOUT_SECS <= 120) }
+    }
+
+    #[test]
+    fn slack_action_new_creates_instance() {
+        // SlackAction::new() must succeed — no panics allowed from Client::builder().
+        let _slack = SlackAction::new();
     }
 }

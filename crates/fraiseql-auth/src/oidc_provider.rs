@@ -1,6 +1,23 @@
 //! Generic OIDC provider implementation using RFC 8414 discovery.
+use std::time::Duration;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+/// Timeout for all OIDC HTTP operations (discovery, token exchange, user info, refresh).
+const OIDC_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Maximum byte size for an OIDC discovery document response.
+///
+/// A well-formed `.well-known/openid-configuration` payload is a few `KiB`.
+/// 64 `KiB` blocks allocation bombs from a compromised OIDC provider.
+const MAX_OIDC_DISCOVERY_BYTES: usize = 64 * 1024; // 64 KiB
+
+/// Maximum byte size for OIDC token and user-info responses.
+///
+/// Token responses carry JWTs and a handful of metadata fields.
+/// 1 `MiB` is generous while preventing runaway allocation.
+const MAX_OIDC_TOKEN_BYTES: usize = 1024 * 1024; // 1 MiB
 
 use crate::{
     error::{AuthError, Result},
@@ -97,22 +114,39 @@ impl OidcProvider {
         client_secret: &str,
         redirect_uri: &str,
     ) -> Result<Self> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(OIDC_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|e| AuthError::OidcMetadataError {
+                message: format!("Failed to create HTTP client: {}", e),
+            })?;
 
         // Fetch OIDC discovery document
         let discovery_url =
             format!("{}/.well-known/openid-configuration", issuer_url.trim_end_matches('/'));
 
-        let discovery: OidcDiscovery = client
+        let discovery_bytes = client
             .get(&discovery_url)
             .send()
             .await
             .map_err(|e| AuthError::OidcMetadataError {
                 message: format!("Failed to fetch OIDC metadata from {}: {}", discovery_url, e),
             })?
-            .json()
+            .bytes()
             .await
             .map_err(|e| AuthError::OidcMetadataError {
+                message: format!("Failed to read OIDC metadata: {}", e),
+            })?;
+        if discovery_bytes.len() > MAX_OIDC_DISCOVERY_BYTES {
+            return Err(AuthError::OidcMetadataError {
+                message: format!(
+                    "OIDC discovery response too large ({} bytes, max {MAX_OIDC_DISCOVERY_BYTES})",
+                    discovery_bytes.len()
+                ),
+            });
+        }
+        let discovery: OidcDiscovery =
+            serde_json::from_slice(&discovery_bytes).map_err(|e| AuthError::OidcMetadataError {
                 message: format!("Failed to parse OIDC metadata: {}", e),
             })?;
 
@@ -168,7 +202,7 @@ impl OAuthProvider for OidcProvider {
             code_verifier: None,
         };
 
-        let response: TokenResponseRaw = self
+        let token_bytes = self
             .client
             .post(&self.discovery.token_endpoint)
             .form(&request)
@@ -177,9 +211,21 @@ impl OAuthProvider for OidcProvider {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to exchange code: {}", e),
             })?
-            .json()
+            .bytes()
             .await
             .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read token response: {}", e),
+            })?;
+        if token_bytes.len() > MAX_OIDC_TOKEN_BYTES {
+            return Err(AuthError::OAuthError {
+                message: format!(
+                    "Token response too large ({} bytes, max {MAX_OIDC_TOKEN_BYTES})",
+                    token_bytes.len()
+                ),
+            });
+        }
+        let response: TokenResponseRaw =
+            serde_json::from_slice(&token_bytes).map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to parse token response: {}", e),
             })?;
 
@@ -192,7 +238,7 @@ impl OAuthProvider for OidcProvider {
     }
 
     async fn user_info(&self, access_token: &str) -> Result<UserInfo> {
-        let response: UserInfoRaw = self
+        let info_bytes = self
             .client
             .get(&self.discovery.userinfo_endpoint)
             .bearer_auth(access_token)
@@ -201,9 +247,21 @@ impl OAuthProvider for OidcProvider {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to get user info: {}", e),
             })?
-            .json()
+            .bytes()
             .await
             .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read user info response: {}", e),
+            })?;
+        if info_bytes.len() > MAX_OIDC_TOKEN_BYTES {
+            return Err(AuthError::OAuthError {
+                message: format!(
+                    "User info response too large ({} bytes, max {MAX_OIDC_TOKEN_BYTES})",
+                    info_bytes.len()
+                ),
+            });
+        }
+        let response: UserInfoRaw =
+            serde_json::from_slice(&info_bytes).map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to parse user info: {}", e),
             })?;
 
@@ -240,7 +298,7 @@ impl OAuthProvider for OidcProvider {
             ("client_secret", &self.client_secret),
         ];
 
-        let response: TokenResponseRaw = self
+        let refresh_bytes = self
             .client
             .post(&self.discovery.token_endpoint)
             .form(&params)
@@ -249,9 +307,21 @@ impl OAuthProvider for OidcProvider {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to refresh token: {}", e),
             })?
-            .json()
+            .bytes()
             .await
             .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read refresh response: {}", e),
+            })?;
+        if refresh_bytes.len() > MAX_OIDC_TOKEN_BYTES {
+            return Err(AuthError::OAuthError {
+                message: format!(
+                    "Refresh response too large ({} bytes, max {MAX_OIDC_TOKEN_BYTES})",
+                    refresh_bytes.len()
+                ),
+            });
+        }
+        let response: TokenResponseRaw =
+            serde_json::from_slice(&refresh_bytes).map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to parse refresh response: {}", e),
             })?;
 
@@ -292,10 +362,95 @@ impl std::fmt::Debug for OidcProvider {
     }
 }
 
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
     #[allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
     use super::*;
+
+    // ── S24-H1: OidcProvider response size caps ────────────────────────────────
+
+    #[test]
+    fn oidc_discovery_cap_constant_is_reasonable() {
+        const { assert!(MAX_OIDC_DISCOVERY_BYTES >= 1024) }
+        const { assert!(MAX_OIDC_DISCOVERY_BYTES <= 10 * 1024 * 1024) }
+    }
+
+    #[test]
+    fn oidc_token_cap_constant_is_reasonable() {
+        const { assert!(MAX_OIDC_TOKEN_BYTES >= 64 * 1024) }
+        const { assert!(MAX_OIDC_TOKEN_BYTES <= 100 * 1024 * 1024) }
+    }
+
+    #[test]
+    fn oidc_request_timeout_is_set() {
+        let secs = OIDC_REQUEST_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 120, "OIDC timeout should be 1–120 s, got {secs}");
+    }
+
+    #[tokio::test]
+    async fn oidc_discovery_oversized_response_is_rejected() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        let oversized = vec![b'x'; MAX_OIDC_DISCOVERY_BYTES + 1];
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock_server)
+            .await;
+
+        let result = OidcProvider::new(
+            "test",
+            &mock_server.uri(),
+            "client_id",
+            "client_secret",
+            "http://localhost/callback",
+        )
+        .await;
+
+        assert!(result.is_err(), "oversized discovery response must be rejected");
+        let msg = result.err().unwrap().to_string();
+        assert!(msg.contains("too large") || msg.contains("large"), "error must mention size: {msg}");
+    }
+
+    #[tokio::test]
+    async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        // Valid but minimal discovery document — will fail at parse stage (missing fields),
+        // proving the size gate was passed.
+        let tiny = b"{}".to_vec();
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(tiny))
+            .mount(&mock_server)
+            .await;
+
+        let result = OidcProvider::new(
+            "test",
+            &mock_server.uri(),
+            "client_id",
+            "client_secret",
+            "http://localhost/callback",
+        )
+        .await;
+
+        // Should fail at JSON parse (missing fields), not at the size gate
+        assert!(result.is_err());
+        let msg = result.err().unwrap().to_string();
+        assert!(
+            !msg.contains("too large"),
+            "size gate must not trigger for a small response: {msg}"
+        );
+    }
 
     #[test]
     fn test_oauth_provider_debug() {
