@@ -312,6 +312,7 @@ impl ElasticsearchSink {
                 reason: format!("Elasticsearch bulk request failed: {e}"),
             })?;
 
+        let http_status = response.status();
         let body_bytes = response.bytes().await.map_err(|e| ObserverError::DatabaseError {
             reason: format!("Failed to read Elasticsearch bulk response: {e}"),
         })?;
@@ -323,6 +324,12 @@ impl ElasticsearchSink {
                 ),
             });
         }
+        if !http_status.is_success() {
+            return Err(ObserverError::DatabaseError {
+                reason: format!("Elasticsearch bulk request returned HTTP {http_status}"),
+            });
+        }
+
         let response_body: Value =
             serde_json::from_slice(&body_bytes).map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to parse Elasticsearch response: {e}"),

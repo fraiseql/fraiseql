@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::Deserialize;
+use tracing::warn;
 
 /// Timeout for all GitHub API HTTP requests.
 const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -138,7 +139,7 @@ impl GitHubOAuth {
             .unwrap_or_default();
 
         // Get user info
-        let user_bytes = client
+        let user_resp = client
             .get("https://api.github.com/user")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -146,12 +147,16 @@ impl GitHubOAuth {
             .await
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub user: {}", e),
-            })?
-            .bytes()
-            .await
-            .map_err(|e| AuthError::OAuthError {
-                message: format!("Failed to read GitHub user response: {}", e),
             })?;
+        let user_status = user_resp.status();
+        let user_bytes = user_resp.bytes().await.map_err(|e| AuthError::OAuthError {
+            message: format!("Failed to read GitHub user response: {}", e),
+        })?;
+        if !user_status.is_success() {
+            return Err(AuthError::OAuthError {
+                message: format!("GitHub user API returned HTTP {user_status}"),
+            });
+        }
         if user_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
             return Err(AuthError::OAuthError {
                 message: format!(
@@ -166,7 +171,7 @@ impl GitHubOAuth {
             })?;
 
         // Get teams (organizations membership)
-        let teams_bytes = client
+        let teams_resp = client
             .get("https://api.github.com/user/teams")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -174,16 +179,22 @@ impl GitHubOAuth {
             .await
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub teams: {}", e),
-            })?
-            .bytes()
-            .await
-            .map_err(|e| AuthError::OAuthError {
-                message: format!("Failed to read GitHub teams response: {}", e),
             })?;
-        let teams: Vec<GitHubTeam> = if teams_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
-            Vec::new() // oversized — treat as empty, same as the prior unwrap_or_default()
+        let teams_status = teams_resp.status();
+        let teams_bytes = teams_resp.bytes().await.map_err(|e| AuthError::OAuthError {
+            message: format!("Failed to read GitHub teams response: {}", e),
+        })?;
+        let teams: Vec<GitHubTeam> = if !teams_status.is_success() {
+            warn!(status = %teams_status, "GitHub teams API returned non-success — treating as empty");
+            Vec::new()
+        } else if teams_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+            warn!("GitHub teams response too large — treating as empty");
+            Vec::new()
         } else {
-            serde_json::from_slice(&teams_bytes).unwrap_or_default()
+            serde_json::from_slice(&teams_bytes).unwrap_or_else(|e| {
+                warn!(error = %e, "Failed to parse GitHub teams response — treating as empty");
+                Vec::new()
+            })
         };
 
         let team_strings: Vec<String> =
@@ -231,7 +242,7 @@ impl OAuthProvider for GitHubOAuth {
             .timeout(GITHUB_REQUEST_TIMEOUT)
             .build()
             .unwrap_or_default();
-        let user_bytes = client
+        let user_resp = client
             .get("https://api.github.com/user")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -239,12 +250,16 @@ impl OAuthProvider for GitHubOAuth {
             .await
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub user: {}", e),
-            })?
-            .bytes()
-            .await
-            .map_err(|e| AuthError::OAuthError {
-                message: format!("Failed to read GitHub user response: {}", e),
             })?;
+        let user_status = user_resp.status();
+        let user_bytes = user_resp.bytes().await.map_err(|e| AuthError::OAuthError {
+            message: format!("Failed to read GitHub user response: {}", e),
+        })?;
+        if !user_status.is_success() {
+            return Err(AuthError::OAuthError {
+                message: format!("GitHub user API returned HTTP {user_status}"),
+            });
+        }
         if user_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
             return Err(AuthError::OAuthError {
                 message: format!(
@@ -259,7 +274,7 @@ impl OAuthProvider for GitHubOAuth {
             })?;
 
         // Get teams
-        let teams_bytes = client
+        let teams_resp = client
             .get("https://api.github.com/user/teams")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -267,16 +282,22 @@ impl OAuthProvider for GitHubOAuth {
             .await
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub teams: {}", e),
-            })?
-            .bytes()
-            .await
-            .map_err(|e| AuthError::OAuthError {
-                message: format!("Failed to read GitHub teams response: {}", e),
             })?;
-        let teams: Vec<GitHubTeam> = if teams_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+        let teams_status = teams_resp.status();
+        let teams_bytes = teams_resp.bytes().await.map_err(|e| AuthError::OAuthError {
+            message: format!("Failed to read GitHub teams response: {}", e),
+        })?;
+        let teams: Vec<GitHubTeam> = if !teams_status.is_success() {
+            warn!(status = %teams_status, "GitHub teams API returned non-success — treating as empty");
+            Vec::new()
+        } else if teams_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+            warn!("GitHub teams response too large — treating as empty");
             Vec::new()
         } else {
-            serde_json::from_slice(&teams_bytes).unwrap_or_default()
+            serde_json::from_slice(&teams_bytes).unwrap_or_else(|e| {
+                warn!(error = %e, "Failed to parse GitHub teams response — treating as empty");
+                Vec::new()
+            })
         };
 
         let team_strings: Vec<String> =

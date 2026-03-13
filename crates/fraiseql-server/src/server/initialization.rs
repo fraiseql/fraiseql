@@ -373,36 +373,47 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 const MAX_TRUSTED_DOCS_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
 
                 match client.get(&url).send().await {
-                    Ok(resp) => match resp.bytes().await {
-                        Ok(body_bytes) => {
-                            if body_bytes.len() > MAX_TRUSTED_DOCS_RESPONSE_BYTES {
-                                warn!(
-                                    bytes = body_bytes.len(),
-                                    max = MAX_TRUSTED_DOCS_RESPONSE_BYTES,
-                                    "Trusted documents manifest response too large — skipping reload"
-                                );
-                            } else {
-                                #[derive(serde::Deserialize)]
-                                struct Manifest {
-                                    documents: std::collections::HashMap<String, String>,
-                                }
-                                match serde_json::from_slice::<Manifest>(&body_bytes) {
-                                    Ok(manifest) => {
-                                        let count = manifest.documents.len();
-                                        store.replace_documents(manifest.documents).await;
-                                        info!(
-                                            count,
-                                            "Trusted documents manifest reloaded"
+                    Ok(resp) => {
+                        let status = resp.status();
+                        if status.is_success() {
+                            match resp.bytes().await {
+                                Ok(body_bytes) => {
+                                    if body_bytes.len() > MAX_TRUSTED_DOCS_RESPONSE_BYTES {
+                                        warn!(
+                                            bytes = body_bytes.len(),
+                                            max = MAX_TRUSTED_DOCS_RESPONSE_BYTES,
+                                            "Trusted documents manifest response too large — skipping reload"
                                         );
+                                    } else {
+                                        #[derive(serde::Deserialize)]
+                                        struct Manifest {
+                                            documents: std::collections::HashMap<String, String>,
+                                        }
+                                        match serde_json::from_slice::<Manifest>(&body_bytes) {
+                                            Ok(manifest) => {
+                                                let count = manifest.documents.len();
+                                                store.replace_documents(manifest.documents).await;
+                                                info!(
+                                                    count,
+                                                    "Trusted documents manifest reloaded"
+                                                );
+                                            }
+                                            Err(e) => {
+                                                warn!(error = %e, "Failed to parse trusted documents manifest");
+                                            }
+                                        }
                                     }
-                                    Err(e) => {
-                                        warn!(error = %e, "Failed to parse trusted documents manifest");
-                                    }
+                                }
+                                Err(e) => {
+                                    warn!(error = %e, "Failed to read trusted documents manifest response");
                                 }
                             }
-                        }
-                        Err(e) => {
-                            warn!(error = %e, "Failed to read trusted documents manifest response");
+                        } else {
+                            warn!(
+                                %status,
+                                %url,
+                                "Trusted documents manifest fetch returned non-success — skipping reload"
+                            );
                         }
                     },
                     Err(e) => {
