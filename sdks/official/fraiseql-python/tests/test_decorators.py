@@ -696,13 +696,13 @@ def test_query_cache_ttl_zero_passes_through() -> None:
 
 
 def test_query_cache_ttl_negative_raises() -> None:
-    """Negative cache_ttl_seconds raises TypeError."""
+    """Negative cache_ttl_seconds raises ValueError."""
 
     @fraiseql.type
     class Gizmo:
         id: int
 
-    with pytest.raises(TypeError, match="non-negative integer"):
+    with pytest.raises(ValueError, match="non-negative integer"):  # noqa: PT011
 
         @fraiseql.query(sql_source="v_gizmo", cache_ttl_seconds=-1)
         def gizmos() -> list[Gizmo]:
