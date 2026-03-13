@@ -45,6 +45,9 @@ edition.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [package.metadata.binstall]
 bin-dir = "fraiseql{ binary-ext }"
@@ -53,6 +56,3 @@ pkg-url = "{ repo }/releases/download/v{ version }/fraiseql-{ target }.tar.gz"
 
 [package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
 pkg-fmt = "zip"
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
