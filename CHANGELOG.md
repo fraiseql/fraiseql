@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!-- next release notes go here -->
+
+## [2.1.0] — 2026-03-13
+
 ### Changed
 
 - **`ComplexityAnalyzer` replaced by AST-based `RequestValidator`** (BREAKING):
