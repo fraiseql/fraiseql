@@ -17,10 +17,43 @@
 //!
 //! Rules are compiled into schema.compiled.json and applied at runtime.
 
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 
 use fraiseql_error::{FraiseQLError, Result};
+
+/// Maximum byte length for a validation regex pattern.
+///
+/// Long patterns with nested quantifiers can cause catastrophic backtracking
+/// (ReDoS). Rejecting patterns above this threshold is a defence-in-depth
+/// measure on top of the DFA size cap applied in [`compile_pattern`].
+const MAX_PATTERN_BYTES: usize = 1024;
+
+/// Compile a regex pattern with ReDoS defence-in-depth guards.
+///
+/// # Guards
+/// 1. Rejects patterns longer than [`MAX_PATTERN_BYTES`] before compilation.
+/// 2. Caps the DFA state-machine size at 1 MiB via [`RegexBuilder::size_limit`].
+///    Patterns that require a larger DFA are rejected rather than executed.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if the pattern is too long, contains
+/// invalid syntax, or exceeds the DFA size limit.
+fn compile_pattern(pattern: &str) -> Result<Regex> {
+    if pattern.len() > MAX_PATTERN_BYTES {
+        return Err(FraiseQLError::validation(format!(
+            "Validation pattern too long ({} bytes, max {MAX_PATTERN_BYTES})",
+            pattern.len()
+        )));
+    }
+    RegexBuilder::new(pattern)
+        .size_limit(1 << 20) // 1 MiB DFA cap
+        .build()
+        .map_err(|e| {
+            FraiseQLError::validation(format!("Invalid validation pattern '{pattern}': {e}"))
+        })
+}
 
 /// Validation rule for an operator parameter.
 #[derive(Debug, Clone)]
@@ -159,9 +192,7 @@ impl ValidationRule {
         match value {
             Value::String(s) => {
                 // Simple case: just a pattern — compile at parse time
-                let re = Regex::new(s).map_err(|e| {
-                    FraiseQLError::validation(format!("Invalid validation pattern '{s}': {e}"))
-                })?;
+                let re = compile_pattern(s)?;
                 Ok(ValidationRule::Pattern(re))
             },
 
@@ -170,12 +201,7 @@ impl ValidationRule {
 
                 // Pattern rule — compile at parse time
                 if let Some(Value::String(pattern)) = map.get("pattern") {
-                    let re = Regex::new(pattern).map_err(|e| {
-                        FraiseQLError::validation(format!(
-                            "Invalid validation pattern '{pattern}': {e}"
-                        ))
-                    })?;
-                    rules.push(ValidationRule::Pattern(re));
+                    rules.push(ValidationRule::Pattern(compile_pattern(pattern)?));
                 }
 
                 // Length rule

@@ -307,6 +307,10 @@ impl DatabaseAdapter for MySqlAdapter {
         }
     }
 
+    /// # Security
+    ///
+    /// `sql` **must** be compiler-generated. Never pass user-supplied strings
+    /// directly — doing so would open SQL-injection vulnerabilities.
     async fn execute_raw_query(
         &self,
         sql: &str,
