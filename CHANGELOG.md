@@ -170,9 +170,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Cross-SDK parity test suite** (phases 01–13): 5100+ tests across Rust, Python, TypeScript,
-  Go, Java, and PHP validating that all six SDKs produce identical compiled schema output for
-  types, queries, mutations, and decorators.
+- **Cross-SDK parity test suite** (phases 01–13): 1,595 tests across Python, TypeScript, Go,
+  Java, PHP, C#, F#, Elixir, and Rust SDK validating that all nine SDKs produce identical
+  compiled schema output for types, queries, mutations, and decorators.
 - **Golden fixture regression guards**: `tests/fixtures/golden/` contains 10 reference JSON
   fixtures verified against every SDK's `exportSchema()`. Any SDK divergence in field names,
   types, or structure is caught before merge.

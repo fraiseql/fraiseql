@@ -68,39 +68,39 @@
 // `#![allow(...)]` which are still needed for legitimate per-crate overrides.
 //
 // Per-crate overrides for workspace pedantic denials.
-// Each entry documents the trade-off rather than being a silent suppression.
+// Each entry documents the trade-off. Crate-level allows are used only where the
+// issue spans 300+ sites and inlining would create more noise than it removes.
+// Targeted single-site suppressions use inline #[allow] — see the noted files.
+//
 // Reason: ~300+ existing doc comments use backticks without code fencing; converting
-//         all of them is a separate cleanup effort, not blocking current development.
+//         all of them is a separate cleanup tracked in the v2.2.0 backlog.
 #![allow(clippy::doc_markdown)]
-// Reason: fraiseql-core has ~300+ public fallible functions; error-doc coverage is
-//         a separate effort tracked in the backlog.
+// Reason: ~300+ public fallible functions lack `# Errors` sections; doc coverage
+//         is a separate effort tracked in the v2.2.0 backlog.
 #![allow(clippy::missing_errors_doc)]
-// Reason: explicit duplicate arms can clarify intent in complex match expressions.
+// Reason: explicit duplicate match arms clarify intent in complex match expressions
+//         throughout the compiler; collapsing them would harm readability.
 #![allow(clippy::match_same_arms)]
-// Reason: schema compilation functions take type, context, config, security, and modifiers;
-//         splitting into builder structs is planned but not done.
+// Reason: schema compilation functions take type, context, config, security, and
+//         modifier arguments; refactoring to builder structs is planned (v2.2.0).
 #![allow(clippy::too_many_arguments)]
-// Reason: `push_str(&format!(...))` is sometimes clearer than `write!` in SQL builders.
+// Reason: `push_str(&format!(...))` is used in ~12 SQL builder sites (window.rs,
+//         aggregation/, explain.rs, schema.rs) where it is clearer than `write!`.
 #![allow(clippy::format_push_string)]
-// Reason: wildcard imports used intentionally — e.g. `use base64::prelude::*` in vault.rs,
-//         `use super::types::*` in subscription manager (module boundary wildcard).
-#![allow(clippy::wildcard_imports)]
-// Reason: fraiseql-core has ~300+ public functions; panic-doc coverage is
-//         a separate effort tracked in roadmap.md (v2.2.0 cleanup).
+// Reason: ~300+ public functions lack `# Panics` sections; doc coverage is
+//         tracked in roadmap.md (v2.2.0 cleanup).
 #![allow(clippy::missing_panics_doc)]
-// Reason: `from_str` / `from_value` are intentionally named differently from `FromStr`
-//         to avoid confusion with the trait; they are schema-specific constructors.
+// Reason: `from_str`/`from_value` are schema-specific constructors intentionally
+//         named to avoid confusion with the `FromStr` standard trait.
 #![allow(clippy::should_implement_trait)]
-// Reason: some public API functions take owned values for ergonomics at call sites;
-//         those that implement traits cannot change their signature.
+// Reason: several public API functions take owned values for ergonomics; trait
+//         implementations cannot change their signature to use references.
 #![allow(clippy::needless_pass_by_value)]
-// Reason: struct field initialisation uses `Default::default()` to keep fields aligned
-//         when the concrete type is long or inferred; both forms are clear.
-//         Sites: compiler/codegen.rs, validation/custom_type_registry/registry.rs.
+// Reason: struct field initialisation uses `Default::default()` for alignment in
+//         long struct literals (compiler/codegen.rs, validation/custom_type_registry/).
 #![allow(clippy::default_trait_access)]
-// Reason: wildcard enum imports improve readability in heavily match-driven modules
-//         (e.g. `use AggregateFunction::*` in aggregation/expressions.rs).
-#![allow(clippy::enum_glob_use)]
+// NOTE: clippy::wildcard_imports and clippy::enum_glob_use are suppressed inline
+//       at their specific sites (vault.rs, subscription/manager.rs, aggregation/expressions.rs).
 
 // Core modules
 pub mod config;

@@ -39,7 +39,7 @@ Beta.2 established a solid foundation across infrastructure, protocol safety, an
 - Federation circuit breaker with per-entity thresholds and half-open recovery
 - NATS URL plumbing in ObserversConfig
 - Cache key correctness and per-entry TTL overrides
-- Cross-SDK parity test suite (5100+ tests across Rust, Python, TypeScript, Go, Java, PHP)
+- Cross-SDK parity test suite (1,595 tests across Python, TypeScript, Go, Java, PHP, C#, F#, Elixir, Rust SDK)
 - Full CI integration test infrastructure (Redis, NATS, TLS, Vault, PostgreSQL)
 
 ### Exit Criteria

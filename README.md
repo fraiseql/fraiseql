@@ -3,7 +3,7 @@
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/fraiseql.svg)](https://crates.io/crates/fraiseql)
-[![Test Coverage](https://img.shields.io/badge/tests-5100%2B-brightgreen.svg)](./crates/fraiseql-core/tests/)
+[![Test Coverage](https://img.shields.io/badge/tests-10000%2B-brightgreen.svg)](./crates/fraiseql-core/tests/)
 ![Build](https://github.com/fraiseql/fraiseql/actions/workflows/ci.yml/badge.svg)
 
 **Compiled GraphQL execution engine.** Define schemas in Python or TypeScript, compile to optimized SQL at build time, execute with predictable sub-10ms latency.
@@ -160,8 +160,8 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 
 ## Quality
 
-- 5,100+ tests (unit, integration, E2E, property-based, fuzz)
-- Cross-SDK parity suite: all 6 authoring SDKs (Python, TypeScript, Go, Java, PHP, Rust) produce identical schema JSON
+- 10,000+ tests (unit, integration, E2E, property-based, fuzz)
+- Cross-SDK parity suite: all 9 authoring SDKs (Python, TypeScript, Go, Java, PHP, C#, F#, Elixir, Rust SDK) produce identical schema JSON
 - Golden fixture regression guards for every field in the compiled schema contract (protects against issue-#53-class bugs)
 - Zero unsafe code (forbidden at compile time)
 - Clippy pedantic as deny with justified suppressions
@@ -176,9 +176,11 @@ sdks/official/        # Official authoring SDKs (Python, TypeScript, Java, Go, R
 sdks/community/       # Community-maintained SDKs
 docs/                 # Architecture docs, guides, runbooks
 vendor/               # Vendored Rust patch dependencies ([patch.crates-io])
-fraisier/             # Deployment orchestrator — separate product, co-located for convenience
 tutorial/             # Interactive tutorial platform — separate product, co-located for convenience
 ```
+
+**Fraisier** (deployment orchestration tool) has been moved to its own repository at
+[`github.com/fraiseql/fraisier`](https://github.com/fraiseql/fraisier).
 
 See [`sdks/official/README.md`](sdks/official/README.md) for the full SDK inventory.
 

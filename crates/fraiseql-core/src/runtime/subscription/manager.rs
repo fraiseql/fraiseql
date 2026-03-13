@@ -6,6 +6,7 @@ use std::sync::{
 use dashmap::DashMap;
 use tokio::sync::broadcast;
 
+#[allow(clippy::wildcard_imports)] // Reason: types::* re-exports the subscription type vocabulary used throughout this module
 use super::{SubscriptionError, types::*};
 use crate::schema::CompiledSchema;
 
