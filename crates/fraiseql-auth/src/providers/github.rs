@@ -1,6 +1,18 @@
 //! GitHub OAuth provider implementation (uses GitHub's non-OIDC OAuth 2.0 API).
+use std::time::Duration;
+
 use async_trait::async_trait;
 use serde::Deserialize;
+
+/// Timeout for all GitHub API HTTP requests.
+const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Maximum byte size for a GitHub API response.
+///
+/// GitHub user and team responses are small JSON documents (< 10 `KiB`).
+/// 5 `MiB` is a generous cap that blocks allocation bombs from network
+/// intermediaries while accommodating any legitimate response size.
+const MAX_GITHUB_RESPONSE_BYTES: usize = 5 * 1024 * 1024; // 5 MiB
 
 use crate::{
     error::{AuthError, Result},
@@ -120,10 +132,13 @@ impl GitHubOAuth {
         &self,
         access_token: &str,
     ) -> Result<(GitHubUser, Vec<String>)> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(GITHUB_REQUEST_TIMEOUT)
+            .build()
+            .unwrap_or_default();
 
         // Get user info
-        let user: GitHubUser = client
+        let user_bytes = client
             .get("https://api.github.com/user")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -132,14 +147,26 @@ impl GitHubOAuth {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub user: {}", e),
             })?
-            .json()
+            .bytes()
             .await
             .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read GitHub user response: {}", e),
+            })?;
+        if user_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+            return Err(AuthError::OAuthError {
+                message: format!(
+                    "GitHub user response too large ({} bytes)",
+                    user_bytes.len()
+                ),
+            });
+        }
+        let user: GitHubUser =
+            serde_json::from_slice(&user_bytes).map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to parse GitHub user: {}", e),
             })?;
 
         // Get teams (organizations membership)
-        let teams: Vec<GitHubTeam> = client
+        let teams_bytes = client
             .get("https://api.github.com/user/teams")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -148,9 +175,16 @@ impl GitHubOAuth {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub teams: {}", e),
             })?
-            .json()
+            .bytes()
             .await
-            .unwrap_or_default();
+            .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read GitHub teams response: {}", e),
+            })?;
+        let teams: Vec<GitHubTeam> = if teams_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+            Vec::new() // oversized — treat as empty, same as the prior unwrap_or_default()
+        } else {
+            serde_json::from_slice(&teams_bytes).unwrap_or_default()
+        };
 
         let team_strings: Vec<String> =
             teams.iter().map(|t| format!("{}:{}", t.organization.login, t.slug)).collect();
@@ -193,8 +227,11 @@ impl OAuthProvider for GitHubOAuth {
         let user_info = self.oidc.user_info(access_token).await?;
 
         // Fetch additional GitHub-specific data
-        let client = reqwest::Client::new();
-        let github_user: GitHubUser = client
+        let client = reqwest::Client::builder()
+            .timeout(GITHUB_REQUEST_TIMEOUT)
+            .build()
+            .unwrap_or_default();
+        let user_bytes = client
             .get("https://api.github.com/user")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -203,14 +240,26 @@ impl OAuthProvider for GitHubOAuth {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub user: {}", e),
             })?
-            .json()
+            .bytes()
             .await
             .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read GitHub user response: {}", e),
+            })?;
+        if user_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+            return Err(AuthError::OAuthError {
+                message: format!(
+                    "GitHub user response too large ({} bytes)",
+                    user_bytes.len()
+                ),
+            });
+        }
+        let github_user: GitHubUser =
+            serde_json::from_slice(&user_bytes).map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to parse GitHub user: {}", e),
             })?;
 
         // Get teams
-        let teams: Vec<GitHubTeam> = client
+        let teams_bytes = client
             .get("https://api.github.com/user/teams")
             .header("Authorization", format!("token {}", access_token))
             .header("User-Agent", "FraiseQL")
@@ -219,9 +268,16 @@ impl OAuthProvider for GitHubOAuth {
             .map_err(|e| AuthError::OAuthError {
                 message: format!("Failed to fetch GitHub teams: {}", e),
             })?
-            .json()
+            .bytes()
             .await
-            .unwrap_or_default();
+            .map_err(|e| AuthError::OAuthError {
+                message: format!("Failed to read GitHub teams response: {}", e),
+            })?;
+        let teams: Vec<GitHubTeam> = if teams_bytes.len() > MAX_GITHUB_RESPONSE_BYTES {
+            Vec::new()
+        } else {
+            serde_json::from_slice(&teams_bytes).unwrap_or_default()
+        };
 
         let team_strings: Vec<String> =
             teams.iter().map(|t| format!("{}:{}", t.organization.login, t.slug)).collect();
@@ -291,5 +347,20 @@ mod tests {
         let teams = vec!["org:unknown-team".to_string(), "org:other".to_string()];
         let roles = GitHubOAuth::map_teams_to_roles(teams);
         assert!(roles.is_empty());
+    }
+
+    // ── S23-H3: GitHub API response size caps ─────────────────────────────────
+
+    #[test]
+    fn github_response_cap_constant_is_reasonable() {
+        const { assert!(MAX_GITHUB_RESPONSE_BYTES >= 1024 * 1024) }
+        const { assert!(MAX_GITHUB_RESPONSE_BYTES <= 100 * 1024 * 1024) }
+    }
+
+    #[test]
+    fn github_request_timeout_is_set() {
+        // Verify the timeout is non-zero (non-const value, evaluated at runtime).
+        let secs = GITHUB_REQUEST_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 120, "GitHub timeout should be 1–120 s, got {secs}");
     }
 }

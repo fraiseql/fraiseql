@@ -17,9 +17,18 @@
 //!     └─ Bulk index to ES
 //! ```
 
-use std::{env, sync::Arc};
+use std::{env, sync::Arc, time::Duration};
 
 use reqwest::Client;
+
+/// Timeout for all Elasticsearch HTTP requests.
+const ES_SINK_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Maximum byte size for an Elasticsearch bulk API response.
+///
+/// Bulk responses contain per-item status entries. 50 `MiB` is generous for
+/// large batches while blocking allocation bombs from a compromised node.
+const MAX_ES_BULK_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
@@ -140,8 +149,12 @@ impl ElasticsearchSink {
             "Creating Elasticsearch sink"
         );
 
+        let client = Client::builder()
+            .timeout(ES_SINK_REQUEST_TIMEOUT)
+            .build()
+            .unwrap_or_default();
         Ok(Self {
-            client: Arc::new(Client::new()),
+            client: Arc::new(client),
             config,
         })
     }
@@ -299,8 +312,19 @@ impl ElasticsearchSink {
                 reason: format!("Elasticsearch bulk request failed: {e}"),
             })?;
 
+        let body_bytes = response.bytes().await.map_err(|e| ObserverError::DatabaseError {
+            reason: format!("Failed to read Elasticsearch bulk response: {e}"),
+        })?;
+        if body_bytes.len() > MAX_ES_BULK_RESPONSE_BYTES {
+            return Err(ObserverError::DatabaseError {
+                reason: format!(
+                    "Elasticsearch bulk response too large ({} bytes, max {MAX_ES_BULK_RESPONSE_BYTES})",
+                    body_bytes.len()
+                ),
+            });
+        }
         let response_body: Value =
-            response.json().await.map_err(|e| ObserverError::DatabaseError {
+            serde_json::from_slice(&body_bytes).map_err(|e| ObserverError::DatabaseError {
                 reason: format!("Failed to parse Elasticsearch response: {e}"),
             })?;
 
@@ -451,5 +475,62 @@ mod tests {
             max_retries:         5,
         };
         assert!(config.validate().is_ok());
+    }
+
+    // ── S23-H4: Elasticsearch sink timeout + bulk response cap ────────────────
+
+    #[test]
+    fn es_sink_timeout_is_set() {
+        let secs = ES_SINK_REQUEST_TIMEOUT.as_secs();
+        assert!(secs > 0 && secs <= 120, "ES sink timeout should be 1–120 s, got {secs}");
+    }
+
+    #[test]
+    fn es_sink_bulk_response_cap_is_reasonable() {
+        const { assert!(MAX_ES_BULK_RESPONSE_BYTES >= 1024 * 1024) }
+        const { assert!(MAX_ES_BULK_RESPONSE_BYTES <= 500 * 1024 * 1024) }
+    }
+
+    #[tokio::test]
+    async fn es_sink_oversized_bulk_response_is_rejected() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        let mock = MockServer::start().await;
+        let oversized = vec![b'x'; MAX_ES_BULK_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/_bulk"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock)
+            .await;
+
+        let config = ElasticsearchSinkConfig {
+            url:                 mock.uri(),
+            index_prefix:        "test".to_string(),
+            bulk_size:           10,
+            flush_interval_secs: 5,
+            max_retries:         1,
+        };
+        let sink = ElasticsearchSink::new(config).unwrap();
+
+        // Drive the private try_bulk_index path via flush_buffer through a mock event.
+        // We create a minimal event buffer and call the internal path indirectly.
+        let event = crate::event::EntityEvent {
+            id:          uuid::Uuid::nil(),
+            event_type:  crate::event::EventKind::Created,
+            entity_type: "Order".to_string(),
+            entity_id:   uuid::Uuid::nil(),
+            timestamp:   chrono::Utc::now(),
+            data:        serde_json::json!({}),
+            changes:     None,
+            user_id:     None,
+            tenant_id:   Some("tenant-1".to_string()),
+        };
+        let result = sink.try_bulk_index(&[event]).await;
+        assert!(result.is_err(), "oversized bulk response must be rejected");
+        let reason = match result.unwrap_err() {
+            ObserverError::DatabaseError { reason } => reason,
+            e => panic!("expected DatabaseError, got {e:?}"),
+        };
+        assert!(reason.contains("too large"), "error must mention size limit: {reason}");
     }
 }

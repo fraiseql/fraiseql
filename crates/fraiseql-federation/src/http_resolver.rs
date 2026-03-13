@@ -4,6 +4,13 @@
 //! to their `_entities` endpoint. Includes retry logic, timeout handling,
 //! and error recovery.
 
+/// Maximum byte size for a federation entity resolution response.
+///
+/// `_entities` responses contain resolved entity fields, not bulk data.
+/// 50 `MiB` is generous while preventing allocation-bomb payloads from
+/// a compromised or misconfigured subgraph.
+const MAX_ENTITY_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
+
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -328,10 +335,21 @@ impl HttpEntityResolver {
 
             match self.client.post(url).json(request).send().await {
                 Ok(response) if response.status().is_success() => {
-                    match response.json::<GraphQLResponse>().await {
-                        Ok(gql_response) => return Ok(gql_response),
+                    match response.bytes().await {
+                        Ok(body) if body.len() > MAX_ENTITY_RESPONSE_BYTES => {
+                            last_error = Some(format!(
+                                "Entity response too large ({} bytes, max {MAX_ENTITY_RESPONSE_BYTES})",
+                                body.len()
+                            ));
+                        },
+                        Ok(body) => match serde_json::from_slice::<GraphQLResponse>(&body) {
+                            Ok(gql_response) => return Ok(gql_response),
+                            Err(e) => {
+                                last_error = Some(format!("Failed to parse response: {}", e));
+                            },
+                        },
                         Err(e) => {
-                            last_error = Some(format!("Failed to parse response: {}", e));
+                            last_error = Some(format!("Failed to read response: {}", e));
                         },
                     }
                 },
@@ -662,5 +680,88 @@ mod tests {
         // 2606:4700:4700::1111 is Cloudflare DNS — public, non-reserved.
         let result = validate_subgraph_url("https://[2606:4700:4700::1111]/graphql");
         assert!(result.is_ok(), "public IPv6 address must be accepted: {result:?}");
+    }
+
+    // ── S23-H1: Entity resolver response body cap ─────────────────────────────
+
+    #[test]
+    fn entity_response_cap_constant_is_reasonable() {
+        const { assert!(MAX_ENTITY_RESPONSE_BYTES >= 1024 * 1024) }
+        const { assert!(MAX_ENTITY_RESPONSE_BYTES <= 500 * 1024 * 1024) }
+    }
+
+    #[tokio::test]
+    async fn entity_resolver_oversized_response_is_rejected() {
+        use std::collections::HashMap;
+
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        use crate::selection_parser::FieldSelection;
+        use crate::types::EntityRepresentation;
+
+        let mock = MockServer::start().await;
+        let oversized = vec![b'x'; MAX_ENTITY_RESPONSE_BYTES + 1];
+        Mock::given(method("POST"))
+            .and(path("/_entities"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock)
+            .await;
+
+        let config = HttpClientConfig {
+            timeout_ms:     5000,
+            max_retries:    1,
+            retry_delay_ms: 0,
+        };
+        // new_for_test bypasses SSRF guard so we can reach the loopback mock server.
+        let resolver = HttpEntityResolver::new_for_test(config).unwrap();
+        let url = format!("{}/_entities", mock.uri());
+        let repr = EntityRepresentation {
+            typename:   "Order".to_string(),
+            key_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
+            all_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
+        };
+        let selection = FieldSelection::new(vec!["id".to_string()]);
+
+        let result = resolver.resolve_entities(&url, &[repr], &selection).await;
+
+        assert!(result.is_err(), "oversized entity response must be rejected");
+        let msg = result.err().unwrap().to_string();
+        assert!(msg.contains("too large"), "error must mention size limit: {msg}");
+    }
+
+    #[tokio::test]
+    async fn entity_resolver_valid_response_is_parsed() {
+        use std::collections::HashMap;
+
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers::{method, path}};
+
+        use crate::selection_parser::FieldSelection;
+        use crate::types::EntityRepresentation;
+
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/_entities"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": { "_entities": [{ "id": "1", "__typename": "Order" }] }
+            })))
+            .mount(&mock)
+            .await;
+
+        let config = HttpClientConfig {
+            timeout_ms:     5000,
+            max_retries:    1,
+            retry_delay_ms: 0,
+        };
+        let resolver = HttpEntityResolver::new_for_test(config).unwrap();
+        let url = format!("{}/_entities", mock.uri());
+        let repr = EntityRepresentation {
+            typename:   "Order".to_string(),
+            key_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
+            all_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
+        };
+        let selection = FieldSelection::new(vec!["id".to_string()]);
+
+        let result = resolver.resolve_entities(&url, &[repr], &selection).await;
+        assert!(result.is_ok(), "valid entity response must be accepted");
     }
 }
