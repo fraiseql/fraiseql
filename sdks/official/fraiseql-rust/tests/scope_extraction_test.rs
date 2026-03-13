@@ -8,7 +8,6 @@
 /// - Scope pattern validation (action:resource format)
 /// - SchemaRegistry for type tracking
 /// - JSON export with scope metadata
-
 use fraiseql_rust::field::Field;
 use fraiseql_rust::schema::{SchemaRegistry, validate_scope};
 
@@ -60,8 +59,8 @@ fn test_field_with_metadata_preservation() {
 
 #[test]
 fn test_field_with_single_scope_format() {
-    let field = Field::new("email", "String")
-        .with_requires_scope(Some("read:user.email".to_string()));
+    let field =
+        Field::new("email", "String").with_requires_scope(Some("read:user.email".to_string()));
 
     assert_eq!(field.requires_scope, Some("read:user.email".to_string()));
     assert_eq!(field.requires_scopes, None);
@@ -69,16 +68,15 @@ fn test_field_with_single_scope_format() {
 
 #[test]
 fn test_field_with_wildcard_resource_scope() {
-    let field = Field::new("profile", "Object")
-        .with_requires_scope(Some("read:User.*".to_string()));
+    let field =
+        Field::new("profile", "Object").with_requires_scope(Some("read:User.*".to_string()));
 
     assert_eq!(field.requires_scope, Some("read:User.*".to_string()));
 }
 
 #[test]
 fn test_field_with_global_wildcard_scope() {
-    let field = Field::new("secret", "String")
-        .with_requires_scope(Some("admin:*".to_string()));
+    let field = Field::new("secret", "String").with_requires_scope(Some("admin:*".to_string()));
 
     assert_eq!(field.requires_scope, Some("admin:*".to_string()));
 }
@@ -89,9 +87,11 @@ fn test_field_with_global_wildcard_scope() {
 
 #[test]
 fn test_field_with_multiple_scopes_array() {
-    let scopes = vec!["read:user.email".to_string(), "write:user.email".to_string()];
-    let field = Field::new("email", "String")
-        .with_requires_scopes(Some(scopes.clone()));
+    let scopes = vec![
+        "read:user.email".to_string(),
+        "write:user.email".to_string(),
+    ];
+    let field = Field::new("email", "String").with_requires_scopes(Some(scopes.clone()));
 
     assert_eq!(field.requires_scopes, Some(scopes));
     assert_eq!(field.requires_scope, None);
@@ -100,8 +100,7 @@ fn test_field_with_multiple_scopes_array() {
 #[test]
 fn test_field_with_single_element_scopes_array() {
     let scopes = vec!["read:user.profile".to_string()];
-    let field = Field::new("profile", "Object")
-        .with_requires_scopes(Some(scopes.clone()));
+    let field = Field::new("profile", "Object").with_requires_scopes(Some(scopes.clone()));
 
     assert_eq!(field.requires_scopes, Some(scopes));
     assert_eq!(field.requires_scopes.as_ref().unwrap().len(), 1);
@@ -114,8 +113,7 @@ fn test_field_with_complex_scopes_array() {
         "write:user.*".to_string(),
         "admin:*".to_string(),
     ];
-    let field = Field::new("data", "String")
-        .with_requires_scopes(Some(scopes.clone()));
+    let field = Field::new("data", "String").with_requires_scopes(Some(scopes.clone()));
 
     assert_eq!(field.requires_scopes, Some(scopes));
 }
@@ -164,8 +162,7 @@ fn test_schema_registry_register_type() {
 
     let user_fields = vec![
         Field::new("id", "Int"),
-        Field::new("email", "String")
-            .with_requires_scope(Some("read:user.email".to_string())),
+        Field::new("email", "String").with_requires_scope(Some("read:user.email".to_string())),
     ];
 
     registry.register_type("User", user_fields);
@@ -181,8 +178,7 @@ fn test_schema_registry_extract_scoped_fields() {
 
     let user_fields = vec![
         Field::new("id", "Int"),
-        Field::new("email", "String")
-            .with_requires_scope(Some("read:user.email".to_string())),
+        Field::new("email", "String").with_requires_scope(Some("read:user.email".to_string())),
         Field::new("password", "String")
             .with_requires_scope(Some("admin:user.password".to_string())),
     ];
@@ -202,14 +198,12 @@ fn test_schema_registry_multiple_types() {
 
     let user_fields = vec![
         Field::new("id", "Int"),
-        Field::new("email", "String")
-            .with_requires_scope(Some("read:user.email".to_string())),
+        Field::new("email", "String").with_requires_scope(Some("read:user.email".to_string())),
     ];
 
     let post_fields = vec![
         Field::new("id", "Int"),
-        Field::new("content", "String")
-            .with_requires_scope(Some("read:post.content".to_string())),
+        Field::new("content", "String").with_requires_scope(Some("read:post.content".to_string())),
     ];
 
     registry.register_type("User", user_fields);
@@ -245,8 +239,7 @@ fn test_schema_registry_export_to_json() {
 
     let user_fields = vec![
         Field::new("id", "Int"),
-        Field::new("email", "String")
-            .with_requires_scope(Some("read:user.email".to_string())),
+        Field::new("email", "String").with_requires_scope(Some("read:user.email".to_string())),
     ];
 
     registry.register_type("User", user_fields);

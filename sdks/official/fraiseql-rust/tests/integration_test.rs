@@ -1,12 +1,11 @@
 //! Integration tests for FraiseQL Rust security module
 
-use std::str::FromStr;
-use fraiseql_rust::{
-    AuthorizeBuilder, RoleRequiredBuilder, AuthzPolicyBuilder,
-    RoleMatchStrategy, AuthzPolicyType,
-};
 use fraiseql_rust::field::Field;
 use fraiseql_rust::schema::{SchemaRegistry, ScopeValidationError, validate_scope};
+use fraiseql_rust::{
+    AuthorizeBuilder, AuthzPolicyBuilder, AuthzPolicyType, RoleMatchStrategy, RoleRequiredBuilder,
+};
+use std::str::FromStr;
 
 // ============================================================================
 // AUTHORIZATION TESTS (11 tests)
@@ -94,10 +93,7 @@ fn test_authorize_operation_specific() {
 
 #[test]
 fn test_authorize_to_map() {
-    let config = AuthorizeBuilder::new()
-        .rule("testRule")
-        .description("Test")
-        .build();
+    let config = AuthorizeBuilder::new().rule("testRule").description("Test").build();
 
     let map = config.to_map();
 
@@ -107,22 +103,16 @@ fn test_authorize_to_map() {
 
 #[test]
 fn test_authorize_multiple_configs() {
-    let config1 = AuthorizeBuilder::new()
-        .rule("rule1")
-        .build();
+    let config1 = AuthorizeBuilder::new().rule("rule1").build();
 
-    let config2 = AuthorizeBuilder::new()
-        .rule("rule2")
-        .build();
+    let config2 = AuthorizeBuilder::new().rule("rule2").build();
 
     assert_ne!(config1.rule, config2.rule);
 }
 
 #[test]
 fn test_authorize_default_cache_settings() {
-    let config = AuthorizeBuilder::new()
-        .rule("test")
-        .build();
+    let config = AuthorizeBuilder::new().rule("test").build();
 
     assert!(config.cacheable);
     assert_eq!(config.cache_duration_seconds, 300);
@@ -152,9 +142,7 @@ fn test_authorize_all_options() {
 
 #[test]
 fn test_single_role_requirement() {
-    let config = RoleRequiredBuilder::new()
-        .roles(vec!["admin"])
-        .build();
+    let config = RoleRequiredBuilder::new().roles(vec!["admin"]).build();
 
     assert_eq!(config.roles.len(), 1);
     assert_eq!(config.roles[0], "admin");
@@ -162,9 +150,7 @@ fn test_single_role_requirement() {
 
 #[test]
 fn test_multiple_role_requirements() {
-    let config = RoleRequiredBuilder::new()
-        .roles(vec!["manager", "director"])
-        .build();
+    let config = RoleRequiredBuilder::new().roles(vec!["manager", "director"]).build();
 
     assert_eq!(config.roles.len(), 2);
     assert!(config.roles.contains(&"manager".to_string()));
@@ -321,9 +307,7 @@ fn test_role_description() {
 
 #[test]
 fn test_role_default_values() {
-    let config = RoleRequiredBuilder::new()
-        .roles(vec!["user"])
-        .build();
+    let config = RoleRequiredBuilder::new().roles(vec!["user"]).build();
 
     assert!(!config.hierarchy);
     assert!(!config.inherit);
@@ -564,17 +548,11 @@ fn test_hybrid_policy() {
 
 #[test]
 fn test_multiple_policies() {
-    let policy1 = AuthzPolicyBuilder::new("policy1")
-        .policy_type(AuthzPolicyType::Rbac)
-        .build();
+    let policy1 = AuthzPolicyBuilder::new("policy1").policy_type(AuthzPolicyType::Rbac).build();
 
-    let policy2 = AuthzPolicyBuilder::new("policy2")
-        .policy_type(AuthzPolicyType::Abac)
-        .build();
+    let policy2 = AuthzPolicyBuilder::new("policy2").policy_type(AuthzPolicyType::Abac).build();
 
-    let policy3 = AuthzPolicyBuilder::new("policy3")
-        .policy_type(AuthzPolicyType::Custom)
-        .build();
+    let policy3 = AuthzPolicyBuilder::new("policy3").policy_type(AuthzPolicyType::Custom).build();
 
     assert_eq!(policy1.name, "policy1");
     assert_eq!(policy2.name, "policy2");
@@ -987,7 +965,10 @@ fn field_to_json_includes_type_and_nullable() {
 
 #[test]
 fn field_to_json_with_requires_scopes_array() {
-    let scopes = vec!["read:user.email".to_string(), "write:user.email".to_string()];
+    let scopes = vec![
+        "read:user.email".to_string(),
+        "write:user.email".to_string(),
+    ];
     let field = Field::new("email", "String").with_requires_scopes(Some(scopes));
     let json = field.to_json();
 
@@ -998,8 +979,8 @@ fn field_to_json_with_requires_scopes_array() {
 
 #[test]
 fn field_to_json_with_description() {
-    let field = Field::new("email", "String")
-        .with_description(Some("Primary contact email".to_string()));
+    let field =
+        Field::new("email", "String").with_description(Some("Primary contact email".to_string()));
     let json = field.to_json();
 
     assert!(json.contains("\"description\""));

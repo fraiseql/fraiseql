@@ -259,6 +259,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 None
             },
             trusted_docs,
+            #[cfg(feature = "mcp")]
             mcp_config: None,
             pool_tuning_config: None,
             #[cfg(feature = "observers")]

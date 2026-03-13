@@ -98,10 +98,7 @@ impl RoleRequiredConfig {
         map.insert("operations".to_string(), self.operations.clone());
         map.insert("inherit".to_string(), self.inherit.to_string());
         map.insert("cacheable".to_string(), self.cacheable.to_string());
-        map.insert(
-            "cacheDurationSeconds".to_string(),
-            self.cache_duration_seconds.to_string(),
-        );
+        map.insert("cacheDurationSeconds".to_string(), self.cache_duration_seconds.to_string());
         map
     }
 }
@@ -226,9 +223,7 @@ mod tests {
 
     #[test]
     fn test_single_role_requirement() {
-        let config = RoleRequiredBuilder::new()
-            .roles(vec!["admin"])
-            .build();
+        let config = RoleRequiredBuilder::new().roles(vec!["admin"]).build();
 
         assert_eq!(config.roles.len(), 1);
         assert_eq!(config.roles[0], "admin");
@@ -236,9 +231,7 @@ mod tests {
 
     #[test]
     fn test_multiple_roles() {
-        let config = RoleRequiredBuilder::new()
-            .roles(vec!["manager", "director"])
-            .build();
+        let config = RoleRequiredBuilder::new().roles(vec!["manager", "director"]).build();
 
         assert_eq!(config.roles.len(), 2);
         assert!(config.roles.contains(&"manager".to_string()));
@@ -269,9 +262,7 @@ mod tests {
 
     #[test]
     fn test_default_values() {
-        let config = RoleRequiredBuilder::new()
-            .roles(vec!["user"])
-            .build();
+        let config = RoleRequiredBuilder::new().roles(vec!["user"]).build();
 
         assert!(!config.hierarchy);
         assert!(!config.inherit);

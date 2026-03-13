@@ -17,7 +17,7 @@ jobs:
           - ""                                                                        # no features (--no-default-features)
           - "auth,secrets"
           - "observers,redis-rate-limiting"
-          - "observers-nats-enterprise,redis-rate-limiting,tracing-opentelemetry"
+          - "observers-enterprise,redis-rate-limiting,tracing-opentelemetry"
           - "arrow,wire-backend"
           - "mcp,auth,cors"
           - "observers-enterprise,redis-apq,redis-pkce"

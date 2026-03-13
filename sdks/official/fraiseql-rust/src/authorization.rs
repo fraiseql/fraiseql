@@ -165,10 +165,7 @@ mod tests {
             .description("Ownership check")
             .build();
 
-        assert_eq!(
-            config.rule,
-            "isOwner($context.userId, $field.ownerId)"
-        );
+        assert_eq!(config.rule, "isOwner($context.userId, $field.ownerId)");
         assert_eq!(config.description, "Ownership check");
     }
 
@@ -210,10 +207,7 @@ mod tests {
 
     #[test]
     fn test_to_map_serialization() {
-        let config = AuthorizeBuilder::new()
-            .rule("testRule")
-            .description("Test")
-            .build();
+        let config = AuthorizeBuilder::new().rule("testRule").description("Test").build();
 
         let map = config.to_map();
 

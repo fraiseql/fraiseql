@@ -5,8 +5,8 @@
 //! - `validate_scope()` for validating scope format (action:resource)
 //! - JSON export of schema with scope metadata
 
-use std::collections::HashMap;
 use crate::field::Field;
+use std::collections::HashMap;
 
 /// Error type for scope validation failures.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,7 +117,9 @@ fn is_valid_resource(resource: &str) -> bool {
     }
 
     // Remaining characters can be alphanumeric, underscore, dot, or asterisk
-    resource.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.' || c == '*')
+    resource
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '.' || c == '*')
 }
 
 /// Registry for GraphQL schema types and their field scope requirements.
@@ -281,8 +283,7 @@ mod tests {
         let mut registry = SchemaRegistry::new();
         let fields = vec![
             Field::new("id", "Int"),
-            Field::new("email", "String")
-                .with_requires_scope(Some("read:user.email".to_string())),
+            Field::new("email", "String").with_requires_scope(Some("read:user.email".to_string())),
         ];
         registry.register_type("User", fields);
 

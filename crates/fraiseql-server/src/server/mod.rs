@@ -15,7 +15,7 @@ use fraiseql_core::{
     security::OidcValidator,
 };
 use tokio::net::TcpListener;
-#[cfg(any(feature = "observers", feature = "redis-rate-limiting", feature = "redis-pkce"))]
+#[cfg(any(feature = "mcp", feature = "observers", feature = "redis-rate-limiting", feature = "redis-pkce"))]
 use tracing::error;
 use tracing::{info, warn};
 #[cfg(feature = "observers")]
@@ -87,6 +87,8 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "auth")]
     pub(super) oidc_server_client:   Option<Arc<crate::auth::OidcServerClient>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
+    #[allow(dead_code)]
     pub(super) revocation_manager:   Option<Arc<crate::token_revocation::TokenRevocationManager>>,
     pub(super) apq_store:            Option<fraiseql_core::apq::ArcApqStorage>,
     pub(super) trusted_docs:         Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,

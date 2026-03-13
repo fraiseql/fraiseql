@@ -166,6 +166,7 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 /// spoofable by attackers to bypass rate limiting. Returns "unknown" as a safe
 /// fallback — callers requiring real IPs should use `ConnectInfo<SocketAddr>`
 /// or `ProxyConfig::extract_client_ip()` with validated proxy chains.
+#[cfg(feature = "auth")]
 pub(crate) fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
     // SECURITY: Spoofable headers removed. Use ConnectInfo<SocketAddr> or
     // ProxyConfig::extract_client_ip() for validated IP extraction.

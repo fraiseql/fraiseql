@@ -155,11 +155,8 @@ impl Field {
         }
 
         if let Some(scopes) = &self.requires_scopes {
-            let scopes_json = scopes
-                .iter()
-                .map(|s| format!("\"{s}\""))
-                .collect::<Vec<_>>()
-                .join(",");
+            let scopes_json =
+                scopes.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(",");
             fields.push(format!("\"requiresScopes\":[{scopes_json}]"));
         }
 
