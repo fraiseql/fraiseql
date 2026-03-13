@@ -78,6 +78,11 @@ impl VinValidator {
     ///
     /// Note: This validates format only, not checksum (different per manufacturer).
     pub fn validate(value: &str) -> bool {
+        // VINs are always exactly 17 characters — reject anything else before
+        // allocating the uppercase copy and running the regex.
+        if value.len() != 17 {
+            return false;
+        }
         let value_upper = value.to_uppercase();
         VIN_REGEX.is_match(&value_upper)
     }
@@ -435,6 +440,30 @@ mod tests {
         assert!(!VinValidator::validate("3G1FB1E30D110918I")); // Contains I
         assert!(!VinValidator::validate("3G1FB1E30D110918O")); // Contains O
         assert!(!VinValidator::validate("3G1FB1E30D110918Q")); // Contains Q
+    }
+
+    #[test]
+    fn test_vin_empty_rejected_by_length_guard() {
+        assert!(!VinValidator::validate(""), "empty string rejected before regex");
+    }
+
+    #[test]
+    fn test_vin_16_chars_rejected_by_length_guard() {
+        // One char short — should be rejected by the length guard, not the regex.
+        assert!(!VinValidator::validate("3G1FB1E30D110918"), "16-char VIN rejected");
+    }
+
+    #[test]
+    fn test_vin_18_chars_rejected_by_length_guard() {
+        // One char too long.
+        assert!(!VinValidator::validate("3G1FB1E30D11091862"), "18-char VIN rejected");
+    }
+
+    #[test]
+    fn test_vin_very_long_string_rejected_by_length_guard() {
+        // 100-char input — the guard must reject this before allocating uppercase.
+        let long_input = "A".repeat(100);
+        assert!(!VinValidator::validate(&long_input), "100-char string rejected");
     }
 
     // Country code tests

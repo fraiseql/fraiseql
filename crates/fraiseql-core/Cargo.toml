@@ -64,6 +64,7 @@ reqwest = {workspace = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
 sha2 = {workspace = true}
+subtle = "2.5"  # Constant-time comparison for hash verification (APQ)
 thiserror = {workspace = true}
 tokio = {workspace = true}
 # Database - PostgreSQL (kept for non-db modules: audit, federation, security)

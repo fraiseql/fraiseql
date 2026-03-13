@@ -88,6 +88,17 @@ impl FieldMasker {
             || lower.contains("database_url")
             || lower.contains("connection_string")
             || lower.contains("access_token")
+            // JWT and OAuth credentials
+            || lower == "jwt"
+            || lower.starts_with("jwt_")
+            || lower.ends_with("_jwt")
+            || lower == "nonce"
+            || lower.starts_with("nonce_")
+            || lower.ends_with("_nonce")
+            || lower == "bearer"
+            || lower.starts_with("bearer_")
+            || lower == "client_secret"
+            || lower.contains("client_secret")
         {
             return FieldSensitivity::Secret;
         }
@@ -377,6 +388,46 @@ mod tests {
     #[test]
     fn test_auth_token_is_secret() {
         assert_eq!(FieldMasker::detect_sensitivity("auth_token"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_jwt_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("jwt"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_jwt_prefixed_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("jwt_token"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_id_jwt_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("id_jwt"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_nonce_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("nonce"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_nonce_value_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("nonce_value"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_bearer_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("bearer"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_client_secret_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("client_secret"), FieldSensitivity::Secret);
+    }
+
+    #[test]
+    fn test_oauth_client_secret_is_secret() {
+        assert_eq!(FieldMasker::detect_sensitivity("oauth_client_secret"), FieldSensitivity::Secret);
     }
 
     #[test]

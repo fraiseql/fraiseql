@@ -13,6 +13,7 @@
 
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq as _;
 
 /// Compute SHA-256 hash of a GraphQL query
 ///
@@ -41,16 +42,21 @@ pub fn hash_query(query: &str) -> String {
     hex::encode(result)
 }
 
-/// Verify that a query matches the provided hash
+/// Verify that a query matches the provided hash.
+///
+/// Uses constant-time comparison (`subtle::ConstantTimeEq`) to prevent timing
+/// oracles that could leak information about the hash value.
 ///
 /// # Arguments
 ///
 /// * `query` - The GraphQL query string
-/// * `expected_hash` - The expected SHA-256 hash (hexadecimal)
+/// * `expected_hash` - The expected SHA-256 hash (hexadecimal, 64 chars)
 ///
 /// # Returns
 ///
-/// `true` if the query hash matches the expected hash, `false` otherwise
+/// `true` if the query hash matches the expected hash, `false` otherwise.
+/// Returns `false` immediately (without hashing) if `expected_hash` is not
+/// exactly 64 hex characters — an invalid hash can never match.
 ///
 /// # Examples
 ///
@@ -64,7 +70,13 @@ pub fn hash_query(query: &str) -> String {
 /// ```
 #[must_use]
 pub fn verify_hash(query: &str, expected_hash: &str) -> bool {
-    hash_query(query) == expected_hash
+    // SHA-256 hex is always exactly 64 characters — reject anything else early.
+    if expected_hash.len() != 64 {
+        return false;
+    }
+    let computed = hash_query(query);
+    // Constant-time comparison prevents timing oracles.
+    computed.as_bytes().ct_eq(expected_hash.as_bytes()).into()
 }
 
 /// Compute combined hash of query + variables for response caching
@@ -153,15 +165,19 @@ fn normalize_json_value(value: JsonValue) -> JsonValue {
     }
 }
 
-/// Verify that query + variables match the provided combined hash
+/// Verify that query + variables match the provided combined hash.
 ///
 /// **SECURITY CRITICAL**: Use this to validate APQ response cache hits.
+///
+/// Uses constant-time comparison (`subtle::ConstantTimeEq`) to prevent timing
+/// oracles. Returns `false` immediately if `expected_hash` is not exactly 64
+/// hex characters.
 ///
 /// # Arguments
 ///
 /// * `query` - The GraphQL query string
 /// * `variables` - GraphQL variables as JSON object
-/// * `expected_hash` - The expected combined hash (hexadecimal)
+/// * `expected_hash` - The expected combined hash (hexadecimal, 64 chars)
 ///
 /// # Returns
 ///
@@ -180,7 +196,11 @@ fn normalize_json_value(value: JsonValue) -> JsonValue {
 /// ```
 #[must_use]
 pub fn verify_hash_with_variables(query: &str, variables: &JsonValue, expected_hash: &str) -> bool {
-    hash_query_with_variables(query, variables) == expected_hash
+    if expected_hash.len() != 64 {
+        return false;
+    }
+    let computed = hash_query_with_variables(query, variables);
+    computed.as_bytes().ct_eq(expected_hash.as_bytes()).into()
 }
 
 #[cfg(test)]
@@ -227,6 +247,27 @@ mod tests {
     fn test_verify_hash_invalid() {
         let query = "{ users { id name } }";
         assert!(!verify_hash(query, "invalid_hash"));
+    }
+
+    #[test]
+    fn test_verify_hash_rejects_wrong_length_hash() {
+        // A hash that is not exactly 64 hex chars must be rejected immediately.
+        let query = "{ users { id } }";
+        assert!(!verify_hash(query, ""), "empty string rejected");
+        assert!(!verify_hash(query, "abc123"), "short string rejected");
+        // 65 chars — one too long
+        let too_long = "a".repeat(65);
+        assert!(!verify_hash(query, &too_long), "65-char string rejected");
+    }
+
+    #[test]
+    fn test_verify_hash_with_variables_rejects_wrong_length_hash() {
+        use serde_json::json;
+        let query = "{ users { id } }";
+        let vars = json!({"limit": 10});
+        assert!(!verify_hash_with_variables(query, &vars, "tooshort"));
+        let too_long = "b".repeat(65);
+        assert!(!verify_hash_with_variables(query, &vars, &too_long));
     }
 
     #[test]
