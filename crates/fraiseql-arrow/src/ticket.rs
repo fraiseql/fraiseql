@@ -7,6 +7,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{ArrowFlightError, Result};
 
+/// Maximum byte size accepted for a Flight ticket payload.
+///
+/// A well-formed ticket (query string + variables JSON) is at most a few `KiB`.
+/// 256 `KiB` is a generous cap that still prevents a client from sending a
+/// pathologically deep JSON structure that exhausts the parser's stack/heap.
+const MAX_FLIGHT_TICKET_BYTES: usize = 256 * 1024; // 256 KiB
+
 /// Flight ticket identifying what data to fetch.
 ///
 /// Tickets are serialized as JSON for human readability during development.
@@ -143,8 +150,15 @@ impl FlightTicket {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the bytes are not valid JSON or don't match the ticket schema.
+    /// Returns `Err` if the bytes exceed `MAX_FLIGHT_TICKET_BYTES`, are not valid
+    /// JSON, or don't match the ticket schema.
     pub fn decode(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() > MAX_FLIGHT_TICKET_BYTES {
+            return Err(ArrowFlightError::InvalidTicket(format!(
+                "Ticket too large ({} bytes, max {MAX_FLIGHT_TICKET_BYTES})",
+                bytes.len()
+            )));
+        }
         serde_json::from_slice(bytes)
             .map_err(|e| ArrowFlightError::InvalidTicket(format!("Failed to parse ticket: {e}")))
     }
@@ -443,5 +457,36 @@ mod tests {
         let bytes = ticket.encode().unwrap();
         let decoded = FlightTicket::decode(&bytes).unwrap();
         assert_eq!(ticket, decoded);
+    }
+
+    #[test]
+    fn test_ticket_exactly_at_size_limit_is_accepted() {
+        // A payload of MAX_FLIGHT_TICKET_BYTES is accepted (boundary value).
+        let bytes = vec![b'{'; MAX_FLIGHT_TICKET_BYTES];
+        // This will fail JSON parsing but NOT the size check.
+        let result = FlightTicket::decode(&bytes);
+        assert!(result.is_err());
+        // The error must be an InvalidTicket (parse error), not a size error.
+        if let Err(ArrowFlightError::InvalidTicket(msg)) = result {
+            assert!(
+                !msg.contains("too large"),
+                "Should fail JSON parsing, not size limit: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ticket_exceeding_size_limit_is_rejected() {
+        let oversized = vec![b'x'; MAX_FLIGHT_TICKET_BYTES + 1];
+        let result = FlightTicket::decode(&oversized);
+        assert!(result.is_err());
+        if let Err(ArrowFlightError::InvalidTicket(msg)) = result {
+            assert!(
+                msg.contains("too large"),
+                "Expected size-limit error, got: {msg}"
+            );
+        } else {
+            panic!("Expected InvalidTicket error");
+        }
     }
 }

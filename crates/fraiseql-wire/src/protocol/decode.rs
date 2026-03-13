@@ -12,6 +12,30 @@ use std::io;
 /// from triggering a huge `Vec::with_capacity` before any bounds are checked.
 const MAX_FIELD_COUNT: usize = 2048;
 
+/// Maximum byte length of a single error/notice field string (severity, message, etc.).
+///
+/// A 64 KiB cap is generous for any human-readable error message. Without this limit a
+/// malicious server can send a single oversized field and drive unbounded allocation
+/// in `String::from_utf8_lossy` before the string is ever stored.
+const MAX_ERROR_FIELD_BYTES: usize = 64 * 1024; // 64 KiB
+
+/// Maximum number of SASL mechanism names accepted in an Authentication message.
+///
+/// Real providers offer one or two mechanisms (e.g. SCRAM-SHA-256).  Capping at 32
+/// prevents a rogue server from flooding the `Vec<String>` until memory is exhausted.
+const MAX_SASL_MECHANISMS: usize = 32;
+
+/// Maximum byte length of a ParameterStatus name (e.g. `"server_version"`).
+///
+/// PostgreSQL parameter names are short identifiers; 256 bytes is more than enough.
+const MAX_PARAMETER_NAME_BYTES: usize = 256;
+
+/// Maximum byte length of a ParameterStatus value.
+///
+/// 64 KiB covers realistic values (long `TimeZone` strings, etc.) while preventing
+/// a malicious server from inflating memory with an oversized value string.
+const MAX_PARAMETER_VALUE_BYTES: usize = 64 * 1024; // 64 KiB
+
 /// Decode a backend message from `BytesMut` without cloning
 ///
 /// This version decodes in-place from a mutable `BytesMut` buffer and returns
@@ -110,6 +134,9 @@ fn decode_authentication(data: &[u8]) -> io::Result<BackendMessage> {
                         let mechanism =
                             String::from_utf8_lossy(&remaining[offset..offset + end]).to_string();
                         if mechanism.is_empty() {
+                            break;
+                        }
+                        if mechanisms.len() >= MAX_SASL_MECHANISMS {
                             break;
                         }
                         mechanisms.push(mechanism);
@@ -252,6 +279,12 @@ fn decode_error_fields(data: &[u8]) -> io::Result<ErrorFields> {
                 "missing null terminator in error field",
             )
         })?;
+        if end > MAX_ERROR_FIELD_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Error field too large ({end} bytes, max {MAX_ERROR_FIELD_BYTES})"),
+            ));
+        }
         let value = String::from_utf8_lossy(&data[offset..offset + end]).to_string();
         offset += end + 1;
 
@@ -278,6 +311,12 @@ fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
             "missing null terminator in parameter name",
         )
     })?;
+    if name_end > MAX_PARAMETER_NAME_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Parameter name too long ({name_end} bytes, max {MAX_PARAMETER_NAME_BYTES})"),
+        ));
+    }
     let name = String::from_utf8_lossy(&data[offset..offset + name_end]).to_string();
     offset += name_end + 1;
 
@@ -293,6 +332,14 @@ fn decode_parameter_status(data: &[u8]) -> io::Result<BackendMessage> {
             "missing null terminator in parameter value",
         )
     })?;
+    if value_end > MAX_PARAMETER_VALUE_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "Parameter value too long ({value_end} bytes, max {MAX_PARAMETER_VALUE_BYTES})"
+            ),
+        ));
+    }
     let value = String::from_utf8_lossy(&data[offset..offset + value_end]).to_string();
 
     Ok(BackendMessage::ParameterStatus { name, value })
@@ -512,5 +559,135 @@ mod tests {
         assert!(result.is_ok(), "3-field RowDescription must be accepted: {result:?}");
         let (msg, _) = result.unwrap();
         assert!(matches!(msg, BackendMessage::RowDescription(fields) if fields.len() == 3));
+    }
+
+    // ── Error-field size cap tests (S21-H1) ───────────────────────────────────
+
+    fn make_error_response(field_type: u8, field_value: &[u8]) -> BytesMut {
+        // ErrorResponse: tag 'E', length (4 bytes), then fields.
+        // Each field: 1-byte type + value bytes + null terminator, then a final null byte.
+        let body_len = 1 + field_value.len() + 1 + 1; // type + value + null + terminator
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(b"E");
+        buf.extend_from_slice(&(body_len as u32 + 4).to_be_bytes());
+        buf.extend_from_slice(&[field_type]);
+        buf.extend_from_slice(field_value);
+        buf.extend_from_slice(&[0]); // null terminator for field value
+        buf.extend_from_slice(&[0]); // terminating null byte
+        buf
+    }
+
+    #[test]
+    fn error_field_within_limit_is_accepted() {
+        let value = vec![b'x'; 1024]; // 1 KiB — well within 64 KiB limit
+        let mut buf = make_error_response(b'M', &value);
+        let result = decode_message(&mut buf);
+        assert!(result.is_ok(), "small error field must be accepted: {result:?}");
+    }
+
+    #[test]
+    fn error_field_exceeding_limit_is_rejected() {
+        let value = vec![b'x'; MAX_ERROR_FIELD_BYTES + 1]; // one byte over the cap
+        let mut buf = make_error_response(b'M', &value);
+        let result = decode_message(&mut buf);
+        assert!(result.is_err(), "oversized error field must be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        let msg = err.to_string();
+        assert!(
+            msg.contains("too large") || msg.contains("65536"),
+            "error must mention size limit: {msg}"
+        );
+    }
+
+    // ── SASL mechanism cap tests (S21-H2) ─────────────────────────────────────
+
+    fn make_sasl_auth(mechanisms: &[&str]) -> BytesMut {
+        // Authentication SASL: tag 'R', length, auth type (10 = SASL), mechanism list.
+        let mut mechanism_bytes: Vec<u8> = Vec::new();
+        for m in mechanisms {
+            mechanism_bytes.extend_from_slice(m.as_bytes());
+            mechanism_bytes.push(0);
+        }
+        mechanism_bytes.push(0); // final double-null terminator
+        let body_len = 4 + mechanism_bytes.len(); // auth type (4) + mechanisms
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(b"R");
+        buf.extend_from_slice(&(body_len as u32 + 4).to_be_bytes());
+        buf.extend_from_slice(&10u32.to_be_bytes()); // SASL auth type
+        buf.extend_from_slice(&mechanism_bytes);
+        buf
+    }
+
+    #[test]
+    fn sasl_mechanisms_within_limit_are_accepted() {
+        let mechanisms: Vec<&str> = (0..MAX_SASL_MECHANISMS).map(|_| "SCRAM-SHA-256").collect();
+        let mut buf = make_sasl_auth(&mechanisms);
+        let result = decode_message(&mut buf);
+        assert!(result.is_ok(), "SASL with {MAX_SASL_MECHANISMS} mechanisms must be accepted");
+    }
+
+    #[test]
+    fn sasl_mechanisms_exceeding_limit_are_truncated_not_rejected() {
+        // The guard breaks out of the loop rather than erroring; verify it still succeeds
+        // with at most MAX_SASL_MECHANISMS entries.
+        let mechanisms: Vec<&str> = (0..MAX_SASL_MECHANISMS + 5).map(|_| "SCRAM-SHA-256").collect();
+        let mut buf = make_sasl_auth(&mechanisms);
+        let result = decode_message(&mut buf);
+        assert!(result.is_ok(), "SASL with excess mechanisms must still parse successfully");
+        if let Ok((BackendMessage::Authentication(AuthenticationMessage::Sasl { mechanisms: parsed }), _)) = result {
+            assert!(
+                parsed.len() <= MAX_SASL_MECHANISMS,
+                "parsed mechanisms must not exceed cap: {} > {MAX_SASL_MECHANISMS}",
+                parsed.len()
+            );
+        }
+    }
+
+    // ── Parameter name/value cap tests (S21-H3) ───────────────────────────────
+
+    fn make_parameter_status(name: &[u8], value: &[u8]) -> BytesMut {
+        let body_len = name.len() + 1 + value.len() + 1; // name + null + value + null
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(b"S");
+        buf.extend_from_slice(&(body_len as u32 + 4).to_be_bytes());
+        buf.extend_from_slice(name);
+        buf.extend_from_slice(&[0]);
+        buf.extend_from_slice(value);
+        buf.extend_from_slice(&[0]);
+        buf
+    }
+
+    #[test]
+    fn parameter_status_normal_is_accepted() {
+        let mut buf = make_parameter_status(b"server_version", b"16.0");
+        let result = decode_message(&mut buf);
+        assert!(result.is_ok(), "normal ParameterStatus must be accepted: {result:?}");
+    }
+
+    #[test]
+    fn parameter_name_exceeding_limit_is_rejected() {
+        let long_name = vec![b'a'; MAX_PARAMETER_NAME_BYTES + 1];
+        let mut buf = make_parameter_status(&long_name, b"value");
+        let result = decode_message(&mut buf);
+        assert!(result.is_err(), "oversized parameter name must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("too long") || msg.contains("256"),
+            "error must mention the name limit: {msg}"
+        );
+    }
+
+    #[test]
+    fn parameter_value_exceeding_limit_is_rejected() {
+        let long_value = vec![b'v'; MAX_PARAMETER_VALUE_BYTES + 1];
+        let mut buf = make_parameter_status(b"timezone", &long_value);
+        let result = decode_message(&mut buf);
+        assert!(result.is_err(), "oversized parameter value must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("too long") || msg.contains("65536"),
+            "error must mention the value limit: {msg}"
+        );
     }
 }

@@ -6,6 +6,13 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Maximum byte size accepted for a `do_exchange` message payload.
+///
+/// Exchange messages carry GraphQL queries and variables in `app_metadata`.
+/// 256 `KiB` matches the Flight ticket cap and prevents deeply-nested JSON from
+/// exhausting parser memory in `serde_json::from_slice`.
+const MAX_EXCHANGE_MESSAGE_BYTES: usize = 256 * 1024; // 256 KiB
+
 /// Exchange message wrapper for `do_exchange()` streaming.
 ///
 /// Encapsulates requests, responses, and control messages with correlation IDs
@@ -99,8 +106,15 @@ impl ExchangeMessage {
     ///
     /// # Errors
     ///
-    /// Returns error if JSON deserialization fails or format is invalid.
+    /// Returns error if the bytes exceed `MAX_EXCHANGE_MESSAGE_BYTES`, JSON
+    /// deserialization fails, or the format is invalid.
     pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, String> {
+        if bytes.len() > MAX_EXCHANGE_MESSAGE_BYTES {
+            return Err(format!(
+                "Exchange message too large ({} bytes, max {MAX_EXCHANGE_MESSAGE_BYTES})",
+                bytes.len()
+            ));
+        }
         serde_json::from_slice(bytes)
             .map_err(|e| format!("Failed to deserialize exchange message: {}", e))
     }
@@ -108,6 +122,8 @@ impl ExchangeMessage {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
 
     #[test]
@@ -258,5 +274,30 @@ mod tests {
             },
             _ => panic!("Expected Query request with variables"),
         }
+    }
+
+    #[test]
+    fn test_exchange_message_at_size_limit_is_rejected_as_json_not_size() {
+        // Exactly at MAX_EXCHANGE_MESSAGE_BYTES: size check passes, JSON parse fails.
+        let bytes = vec![b'{'; MAX_EXCHANGE_MESSAGE_BYTES];
+        let result = ExchangeMessage::from_json_bytes(&bytes);
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(
+            !msg.contains("too large"),
+            "Should fail JSON parsing, not size limit: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_exchange_message_exceeding_size_limit_is_rejected() {
+        let oversized = vec![b'x'; MAX_EXCHANGE_MESSAGE_BYTES + 1];
+        let result = ExchangeMessage::from_json_bytes(&oversized);
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("too large"),
+            "Expected size-limit error, got: {msg}"
+        );
     }
 }
