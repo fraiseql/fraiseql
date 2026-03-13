@@ -8,11 +8,17 @@
 //! - async_validation_errors: Async validator failures
 
 use std::{
-    collections::HashMap,
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
 };
 
+use lru::LruCache;
+
 use crate::{error::FraiseQLError, utils::clock::{Clock, SystemClock}};
+
+/// Maximum number of distinct keys (IPs, user IDs) tracked per rate-limiter
+/// dimension. Prevents unbounded memory growth from IP rotation attacks.
+const MAX_RATE_LIMITER_ENTRIES: usize = 100_000;
 
 /// Rate limit configuration for a single dimension
 #[derive(Debug, Clone)]
@@ -85,7 +91,7 @@ struct RequestRecord {
 
 /// Single dimension rate limiter
 struct DimensionRateLimiter {
-    records:   Arc<Mutex<HashMap<String, RequestRecord>>>,
+    records:   Arc<Mutex<LruCache<String, RequestRecord>>>,
     dimension: RateLimitDimension,
     clock:     Arc<dyn Clock>,
 }
@@ -97,8 +103,12 @@ impl DimensionRateLimiter {
     }
 
     fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
+        #[allow(clippy::expect_used)]
+        // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant.
+        let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)
+            .expect("MAX_RATE_LIMITER_ENTRIES must be > 0");
         Self {
-            records:   Arc::new(Mutex::new(HashMap::new())),
+            records:   Arc::new(Mutex::new(LruCache::new(cap))),
             dimension: RateLimitDimension {
                 max_requests,
                 window_secs,
@@ -115,7 +125,9 @@ impl DimensionRateLimiter {
         let mut records = self.records.lock().expect("records mutex poisoned");
         let now = self.clock.now_secs();
 
-        let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
+        // `get_or_insert` promotes the entry to most-recently-used, evicting the
+        // least-recently-used entry when the cache is at capacity.
+        let record = records.get_or_insert_mut(key.to_string(), || RequestRecord {
             count:        0,
             window_start: now,
         });

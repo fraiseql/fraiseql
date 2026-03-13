@@ -13,6 +13,12 @@ use crate::schema::CompiledSchema;
 // Subscription Manager
 // =============================================================================
 
+/// Maximum number of active subscriptions a single connection may hold.
+///
+/// Prevents a single authenticated connection from exhausting server memory by
+/// calling `subscribe()` in a loop.
+const MAX_SUBSCRIPTIONS_PER_CONNECTION: usize = 100;
+
 /// Manages active subscriptions and event routing.
 ///
 /// The `SubscriptionManager` is the central hub for:
@@ -126,14 +132,23 @@ impl SubscriptionManager {
 
         let id = active.id;
 
+        // Enforce per-connection subscription cap before inserting.
+        {
+            let mut conn_subs = self
+                .subscriptions_by_connection
+                .entry(connection_id.to_string())
+                .or_default();
+            if conn_subs.len() >= MAX_SUBSCRIPTIONS_PER_CONNECTION {
+                return Err(SubscriptionError::Internal(format!(
+                    "Connection '{connection_id}' has reached the maximum of \
+                     {MAX_SUBSCRIPTIONS_PER_CONNECTION} concurrent subscriptions"
+                )));
+            }
+            conn_subs.push(id);
+        }
+
         // Store subscription
         self.subscriptions.insert(id, active);
-
-        // Index by connection
-        self.subscriptions_by_connection
-            .entry(connection_id.to_string())
-            .or_default()
-            .push(id);
 
         tracing::info!(
             subscription_id = %id,

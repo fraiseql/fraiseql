@@ -132,23 +132,37 @@ impl ApqStorage for RedisApqStorage {
     }
 
     async fn clear(&self) -> Result<(), ApqError> {
-        // Clearing all APQ keys in Redis requires a SCAN + DEL loop.
-        // For safety and simplicity, we use SCAN with the prefix pattern.
+        // Use cursor-based SCAN to avoid blocking the Redis server with O(N) KEYS.
         let mut conn = self.pool.clone();
         let pattern = format!("{KEY_PREFIX}*");
-        let keys: Vec<String> = match redis::cmd("KEYS")
-            .arg(&pattern)
-            .query_async(&mut conn)
-            .await
-        {
-            Ok(k) => k,
-            Err(e) => return Self::fail_open(e, "KEYS"),
-        };
-        if !keys.is_empty() {
-            if let Err(e) = conn.del::<_, ()>(&keys[..]).await {
-                return Self::fail_open(e, "DEL (clear)");
+        let mut cursor: u64 = 0;
+
+        loop {
+            let (next_cursor, keys): (u64, Vec<String>) = match redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(&pattern)
+                .arg("COUNT")
+                .arg(100u64)
+                .query_async(&mut conn)
+                .await
+            {
+                Ok(result) => result,
+                Err(e) => return Self::fail_open(e, "SCAN"),
+            };
+
+            if !keys.is_empty() {
+                if let Err(e) = conn.del::<_, ()>(&keys[..]).await {
+                    return Self::fail_open(e, "DEL (clear)");
+                }
+            }
+
+            cursor = next_cursor;
+            if cursor == 0 {
+                break;
             }
         }
+
         Ok(())
     }
 }
