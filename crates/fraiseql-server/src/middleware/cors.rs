@@ -129,6 +129,8 @@ pub async fn security_headers_middleware(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
 
     #[test]

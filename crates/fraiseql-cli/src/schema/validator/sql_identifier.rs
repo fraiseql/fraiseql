@@ -93,6 +93,8 @@ pub fn validate_sql_identifier(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
     use super::*;
 
     #[test]

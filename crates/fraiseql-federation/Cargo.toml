@@ -6,6 +6,19 @@ license.workspace = true
 repository.workspace = true
 description = "Apollo Federation v2 support for FraiseQL — entity resolution, saga orchestration, multi-subgraph composition"
 
+[features]
+## Enable modules that are not yet production-ready.
+##
+## The following modules require the `unstable` feature:
+## - `ConnectionManager::get_or_create_connection` — direct DB connection (not yet implemented)
+##
+## These APIs may change without semver guarantees.
+unstable = []
+
+## Exposes test-helper constructors (e.g. `HttpEntityResolver::new_for_test`).
+## Never enable in production — these bypass security checks.
+test-utils = []
+
 [dependencies]
 fraiseql-db = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true, default-features = false}
@@ -22,7 +35,9 @@ tracing = {workspace = true}
 uuid = {workspace = true}
 
 [dev-dependencies]
+serde_json = {workspace = true}
 tokio = {workspace = true, features = ["macros", "rt-multi-thread"]}
+wiremock = "0.6"
 
 [lints]
 workspace = true

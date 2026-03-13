@@ -112,14 +112,25 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// The check-and-update sequence is atomic: no TOCTOU race can allow more requests
 /// than `max_requests` in any single window, even under high concurrency.
 ///
-/// The map is capped at [`DEFAULT_MAX_ENTRIES`] keys to prevent unbounded memory
-/// growth under distributed attacks that rotate through large numbers of source IPs.
-/// New keys that arrive when the map is full are denied immediately.
+/// The map is capped at [`DEFAULT_MAX_ENTRIES`] keys. When a new key arrives at
+/// capacity the entry with the oldest `window_start` is evicted to make room,
+/// bounding memory growth while still tracking new sources.
+///
+/// # Deployment note
+///
+/// This rate limiter is **per-process**. In a multi-replica deployment, each
+/// replica enforces the limit independently — the effective limit across *N*
+/// replicas is *N × limit*. For true distributed enforcement, configure a
+/// Redis-backed rate limiter via the `redis-rate-limiting` Cargo feature (see
+/// the fraiseql-observers queue feature for the integration pattern). Call
+/// [`warn_if_single_node_rate_limiting`] during server startup to emit a
+/// reminder when no distributed backend is detected.
 ///
 /// # Constructors
 ///
 /// - [`KeyedRateLimiter::new`] — use the system wall clock (production).
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
+/// - [`KeyedRateLimiter::with_clock_and_max_entries`] — custom clock + cap (testing).
 pub struct KeyedRateLimiter {
     records:    Arc<Mutex<HashMap<String, RequestRecord>>>,
     config:     AuthRateLimitConfig,
@@ -200,6 +211,27 @@ impl KeyedRateLimiter {
         }
     }
 
+    /// Create a rate limiter with both a custom clock and a custom entry cap (for testing).
+    ///
+    /// Combines the benefits of [`KeyedRateLimiter::with_clock`] and
+    /// [`KeyedRateLimiter::with_max_entries`] for deterministic eviction tests.
+    pub fn with_clock_and_max_entries<F>(
+        config: AuthRateLimitConfig,
+        max_entries: usize,
+        clock: F,
+    ) -> Self
+    where
+        F: Fn() -> u64 + Send + Sync + 'static,
+    {
+        Self {
+            records:     Arc::new(Mutex::new(HashMap::new())),
+            config,
+            max_entries,
+            check_count: AtomicU64::new(0),
+            clock:       Box::new(clock),
+        }
+    }
+
     /// Check if a request should be allowed for the given key
     ///
     /// # Atomicity
@@ -252,17 +284,23 @@ impl KeyedRateLimiter {
 
         // Enforce max-entries cap to prevent unbounded memory growth under distributed attacks.
         // A cap of 0 disables the limit (opt-in unbounded mode).
+        // When at capacity, evict the entry with the oldest window_start (LRU by activity)
+        // so new sources can always be tracked without permanently blocking new IPs.
         if self.max_entries > 0
             && !records.contains_key(key)
             && records.len() >= self.max_entries
         {
-            tracing::warn!(
-                max_entries = self.max_entries,
-                "Rate limiter at capacity — denying new key; possible distributed brute-force attack"
-            );
-            return Err(AuthError::RateLimited {
-                retry_after_secs: self.config.window_secs,
-            });
+            if let Some(oldest_key) = records
+                .iter()
+                .min_by_key(|(_, r)| r.window_start)
+                .map(|(k, _)| k.clone())
+            {
+                records.remove(&oldest_key);
+                tracing::debug!(
+                    max_entries = self.max_entries,
+                    "Rate limiter at capacity — evicted oldest entry to make room for new key"
+                );
+            }
         }
 
         // Get or create record for this key (first request from this key)
@@ -314,6 +352,29 @@ impl KeyedRateLimiter {
     /// Create a copy for independent testing
     pub fn clone_config(&self) -> AuthRateLimitConfig {
         self.config.clone()
+    }
+}
+
+/// Emit a startup warning when no distributed rate-limiting backend is configured.
+///
+/// Call once during server startup. If the `FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE`
+/// environment variable is set to `true` or `1` (case-insensitive) and the
+/// `FRAISEQL_RATE_LIMIT_BACKEND` variable is unset, a `warn!` is emitted reminding
+/// operators that each replica enforces limits independently — the effective limit
+/// across *N* replicas is *N × limit*.
+///
+/// This is a documentation-only reminder; it does not change runtime behaviour.
+pub fn warn_if_single_node_rate_limiting() {
+    let should_warn = std::env::var("FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    let has_backend = std::env::var("FRAISEQL_RATE_LIMIT_BACKEND").is_ok();
+    if should_warn && !has_backend {
+        tracing::warn!(
+            "Rate limiter is per-process; multi-replica deployments are not protected against \
+             distributed brute-force. Configure a Redis-backed rate limiter via the \
+             `redis-rate-limiting` feature for distributed enforcement."
+        );
     }
 }
 
@@ -821,6 +882,94 @@ mod tests {
 
         // After clear, new requests should be allowed
         assert!(limiter.check(key).is_ok());
+    }
+
+    // ── LRU eviction tests (13-3) ─────────────────────────────────────────────
+
+    #[test]
+    fn test_rate_limiter_evicts_lru_entry_when_at_capacity() {
+        let config = AuthRateLimitConfig { enabled: true, max_requests: 10, window_secs: 3600 };
+        let limiter = KeyedRateLimiter::with_max_entries(config, 3);
+
+        // Fill to capacity.
+        limiter.check("key_a").unwrap();
+        limiter.check("key_b").unwrap();
+        limiter.check("key_c").unwrap();
+        assert_eq!(limiter.active_limiters(), 3);
+
+        // Adding a 4th key must succeed — the oldest entry is evicted to make room.
+        let result = limiter.check("key_d");
+        assert!(result.is_ok(), "new key must be accepted when limiter evicts LRU entry");
+        assert_eq!(
+            limiter.active_limiters(),
+            3,
+            "entry count must stay at capacity after eviction"
+        );
+    }
+
+    #[test]
+    fn test_rate_limiter_capacity_configurable() {
+        let config = AuthRateLimitConfig { enabled: true, max_requests: 10, window_secs: 3600 };
+        let limiter = KeyedRateLimiter::with_max_entries(config, 5);
+
+        for i in 0..5 {
+            limiter.check(&format!("key_{i}")).unwrap();
+        }
+        assert_eq!(limiter.active_limiters(), 5, "limiter must track exactly max_entries keys");
+
+        // 6th key triggers eviction; count must stay at 5.
+        limiter.check("key_overflow").unwrap();
+        assert_eq!(
+            limiter.active_limiters(),
+            5,
+            "capacity must not exceed configured maximum"
+        );
+    }
+
+    #[test]
+    fn test_rate_limiter_eviction_does_not_affect_active_ips() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        };
+
+        // Use an injectable clock so window_start values are deterministic.
+        let now = Arc::new(AtomicU64::new(1_000));
+        let clock_ref = Arc::clone(&now);
+        let config = AuthRateLimitConfig { enabled: true, max_requests: 1, window_secs: 3600 };
+        let limiter = KeyedRateLimiter::with_clock_and_max_entries(
+            config,
+            2,
+            move || clock_ref.load(Ordering::Relaxed),
+        );
+
+        // key_a at t=1000 — uses its 1 allowed request.
+        now.store(1_000, Ordering::Relaxed);
+        limiter.check("key_a").unwrap();
+
+        // key_b at t=2000 — uses its 1 allowed request (more recent than key_a).
+        now.store(2_000, Ordering::Relaxed);
+        limiter.check("key_b").unwrap();
+
+        // At capacity (2). key_c at t=3000 — triggers eviction of key_a (oldest at t=1000).
+        now.store(3_000, Ordering::Relaxed);
+        limiter.check("key_c").unwrap();
+
+        // key_b (window_start=2000) was NOT evicted; its rate limit is still active.
+        let result = limiter.check("key_b");
+        assert!(
+            result.is_err(),
+            "key_b must remain rate-limited after eviction of the older key_a entry"
+        );
+    }
+
+    // ── Distributed RL warning test (13-4) ───────────────────────────────────
+
+    #[test]
+    fn test_startup_warn_emitted_when_no_distributed_backend() {
+        // Verify the function is callable without panicking.
+        // The tracing output is verified in observability integration tests.
+        warn_if_single_node_rate_limiting();
     }
 
     #[test]

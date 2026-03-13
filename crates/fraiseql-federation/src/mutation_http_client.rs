@@ -65,14 +65,24 @@ pub struct HttpMutationClient {
 }
 
 impl HttpMutationClient {
-    /// Create a new HTTP mutation client
-    pub fn new(config: HttpMutationConfig) -> Self {
+    /// Create a new HTTP mutation client.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised.
+    pub fn new(config: HttpMutationConfig) -> Result<Self> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
-            .ok();
+            .map_err(|e| FraiseQLError::Internal {
+                message: format!("HTTP client initialisation failed for mutation client: {e}"),
+                source:  None,
+            })?;
 
-        Self { client, config }
+        Ok(Self {
+            client: Some(client),
+            config,
+        })
     }
 
     /// Execute a mutation on a remote subgraph
@@ -84,6 +94,9 @@ impl HttpMutationClient {
         variables: &Value,
         metadata: &FederationMetadata,
     ) -> Result<Value> {
+        // SECURITY: Validate URL before any network contact to prevent SSRF.
+        crate::http_resolver::validate_subgraph_url(subgraph_url)?;
+
         let client = self.client.as_ref().ok_or_else(|| FraiseQLError::Internal {
             message: "HTTP client not initialized".to_string(),
             source:  None,
@@ -252,8 +265,7 @@ mod tests {
     #[test]
     fn test_http_mutation_client_creation() {
         let config = HttpMutationConfig::default();
-        let _client = HttpMutationClient::new(config);
-        // Should not panic
+        let _client = HttpMutationClient::new(config).unwrap();
     }
 
     #[test]
@@ -328,7 +340,7 @@ mod tests {
     #[test]
     fn test_variable_definition_building() {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let variables = json!({
             "id": "123",
@@ -345,7 +357,7 @@ mod tests {
     #[test]
     fn test_variable_definition_with_numbers() {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let variables = json!({
             "count": 42,

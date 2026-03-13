@@ -356,24 +356,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .timeout(MANIFEST_FETCH_TIMEOUT)
                     .build()
                     .expect("reqwest client with timeout should always build");
+                /// Maximum byte size accepted for a hot-reloaded trusted-documents manifest.
+                /// Matches the cap enforced for file-based manifests in `trusted_documents.rs`.
+                const MAX_TRUSTED_DOCS_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+
                 match client.get(&url).send().await {
-                    Ok(resp) => match resp.text().await {
-                        Ok(body) => {
-                            #[derive(serde::Deserialize)]
-                            struct Manifest {
-                                documents: std::collections::HashMap<String, String>,
-                            }
-                            match serde_json::from_str::<Manifest>(&body) {
-                                Ok(manifest) => {
-                                    let count = manifest.documents.len();
-                                    store.replace_documents(manifest.documents).await;
-                                    info!(
-                                        count,
-                                        "Trusted documents manifest reloaded"
-                                    );
+                    Ok(resp) => match resp.bytes().await {
+                        Ok(body_bytes) => {
+                            if body_bytes.len() > MAX_TRUSTED_DOCS_RESPONSE_BYTES {
+                                warn!(
+                                    bytes = body_bytes.len(),
+                                    max = MAX_TRUSTED_DOCS_RESPONSE_BYTES,
+                                    "Trusted documents manifest response too large — skipping reload"
+                                );
+                            } else {
+                                #[derive(serde::Deserialize)]
+                                struct Manifest {
+                                    documents: std::collections::HashMap<String, String>,
                                 }
-                                Err(e) => {
-                                    warn!(error = %e, "Failed to parse trusted documents manifest");
+                                match serde_json::from_slice::<Manifest>(&body_bytes) {
+                                    Ok(manifest) => {
+                                        let count = manifest.documents.len();
+                                        store.replace_documents(manifest.documents).await;
+                                        info!(
+                                            count,
+                                            "Trusted documents manifest reloaded"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        warn!(error = %e, "Failed to parse trusted documents manifest");
+                                    }
                                 }
                             }
                         }

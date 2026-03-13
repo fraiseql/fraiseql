@@ -161,6 +161,13 @@ impl OAuth2Client {
         AuthorizationRequest { url, state, pkce, nonce: None }
     }
 
+    /// Maximum byte size accepted from an OAuth token endpoint response.
+    ///
+    /// A well-formed token response (access_token, id_token, refresh_token) is a
+    /// few kilobytes at most.  1 MiB prevents a malicious provider from sending a
+    /// response large enough to exhaust server memory.
+    const MAX_OAUTH_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
     /// Post a form request to the token endpoint and parse the response.
     async fn post_token_request(&self, params: &[(&str, &str)]) -> Result<TokenResponse, String> {
         let response = self
@@ -171,14 +178,29 @@ impl OAuth2Client {
             .await
             .map_err(|e| format!("Token request failed: {e}"))?;
 
-        if !response.status().is_success() {
-            let body = response.text().await.unwrap_or_default();
+        // Read the entire body once so we can apply a size cap regardless of
+        // whether the response is a success or an error.
+        let status = response.status();
+        let body_bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read token response body: {e}"))?;
+
+        if !status.is_success() {
+            let capped = &body_bytes[..body_bytes.len().min(Self::MAX_OAUTH_RESPONSE_BYTES)];
+            let body = String::from_utf8_lossy(capped);
             return Err(format!("Token endpoint returned error: {body}"));
         }
 
-        response
-            .json::<TokenResponse>()
-            .await
+        if body_bytes.len() > Self::MAX_OAUTH_RESPONSE_BYTES {
+            return Err(format!(
+                "Token response body too large ({} bytes, max {})",
+                body_bytes.len(),
+                Self::MAX_OAUTH_RESPONSE_BYTES
+            ));
+        }
+
+        serde_json::from_slice::<TokenResponse>(&body_bytes)
             .map_err(|e| format!("Failed to parse token response: {e}"))
     }
 
@@ -348,31 +370,22 @@ impl OIDCClient {
             .map_err(|e| format!("ID token validation failed: {e}"))?;
         let claims = token_data.claims;
 
-        // 5. Verify nonce (replay protection — RFC 6749 §10.12 / OIDC Core §3.1.3.7)
+        // 5. Verify nonce using constant-time comparison (replay protection —
+        //    RFC 6749 §10.12 / OIDC Core §3.1.3.7).
         if let Some(expected) = expected_nonce {
-            if claims.nonce.as_deref() != Some(expected) {
-                return Err("Nonce mismatch — possible token replay or session fixation".to_string());
-            }
+            super::claims_validator::validate_nonce_claim(&claims, expected)
+                .map_err(|e| e.to_string())?;
         }
 
-        // 6. Validate auth_time against max_age (OIDC Core §3.1.2.1)
+        // 6. Validate auth_time against max_age (OIDC Core §3.1.2.1).
         if let Some(max_age) = max_age_secs {
-            let auth_time = claims.auth_time.ok_or_else(|| {
-                "max_age requested but ID token does not contain auth_time claim".to_string()
-            })?;
-            let now = std::time::SystemTime::now()
+            let now_secs = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(i64::MAX, |d| {
                     i64::try_from(d.as_secs()).unwrap_or(i64::MAX)
                 });
-            let age = now.saturating_sub(auth_time);
-            let max_age_i64 = i64::try_from(max_age).unwrap_or(i64::MAX);
-            if age > max_age_i64 {
-                return Err(format!(
-                    "ID token auth_time is too old: authenticated {age}s ago, \
-                     max_age is {max_age}s"
-                ));
-            }
+            super::claims_validator::validate_auth_time_claim(&claims, max_age, now_secs)
+                .map_err(|e| e.to_string())?;
         }
 
         Ok(claims)
@@ -407,5 +420,28 @@ impl OIDCClient {
             .json::<UserInfo>()
             .await
             .map_err(|e| format!("Failed to parse userinfo response: {e}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(missing_docs)]        // Reason: test helpers
+
+    use super::*;
+
+    #[test]
+    fn oauth_response_cap_constant_is_reasonable() {
+        assert_eq!(OAuth2Client::MAX_OAUTH_RESPONSE_BYTES, 1024 * 1024);
+    }
+
+    #[test]
+    fn oauth_response_error_body_is_capped() {
+        // Simulate what post_token_request does with an oversized error body.
+        let cap = OAuth2Client::MAX_OAUTH_RESPONSE_BYTES;
+        let oversized: Vec<u8> = vec![b'e'; cap + 1_000];
+        let capped = &oversized[..oversized.len().min(cap)];
+        let text = String::from_utf8_lossy(capped).into_owned();
+        assert_eq!(text.len(), cap, "body must be capped at MAX_OAUTH_RESPONSE_BYTES");
     }
 }

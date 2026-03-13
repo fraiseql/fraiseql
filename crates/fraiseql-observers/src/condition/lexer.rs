@@ -4,6 +4,19 @@ use crate::error::{ObserverError, Result};
 
 use super::ConditionParser;
 
+/// Maximum byte length of a condition expression.
+///
+/// A 4 KiB limit is generous for any real observer rule while preventing an
+/// attacker-supplied condition string from driving the lexer through millions
+/// of iterations and allocating unbounded token storage.
+const MAX_CONDITION_INPUT_BYTES: usize = 4096;
+
+/// Maximum number of arguments accepted in a single condition function call.
+///
+/// Functions like `in_set('a', 'b', ...)` with thousands of arguments would
+/// cause unbounded `Vec` growth; 32 arguments covers all realistic use-cases.
+const MAX_CONDITION_FUNCTION_ARGS: usize = 32;
+
 /// Token types produced by the lexer.
 #[derive(Debug, Clone)]
 pub(super) enum Token {
@@ -25,6 +38,14 @@ pub(super) enum Token {
 
 impl ConditionParser {
     pub(super) fn tokenize(&self, condition: &str) -> Result<Vec<Token>> {
+        if condition.len() > MAX_CONDITION_INPUT_BYTES {
+            return Err(ObserverError::InvalidCondition {
+                reason: format!(
+                    "Condition expression too long ({} bytes, max {MAX_CONDITION_INPUT_BYTES})",
+                    condition.len()
+                ),
+            });
+        }
         let mut tokens = Vec::new();
         let mut chars = condition.chars().peekable();
 
@@ -118,6 +139,13 @@ impl ConditionParser {
                                     }
                                     arg.push(c);
                                     chars.next();
+                                }
+                                if args.len() >= MAX_CONDITION_FUNCTION_ARGS {
+                                    return Err(ObserverError::InvalidCondition {
+                                        reason: format!(
+                                            "Too many function arguments (max {MAX_CONDITION_FUNCTION_ARGS})"
+                                        ),
+                                    });
                                 }
                                 args.push(arg);
                             } else {

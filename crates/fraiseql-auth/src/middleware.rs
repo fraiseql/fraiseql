@@ -192,6 +192,16 @@ impl IntoResponse for AuthError {
                 "rate_limited",
                 format!("Too many requests. Retry after {} seconds", retry_after_secs),
             ),
+            // OIDC replay-protection errors: return 401 without revealing
+            // which specific claim was invalid to avoid oracle attacks.
+            AuthError::MissingNonce | AuthError::NonceMismatch => {
+                warn!("OIDC nonce validation failed: {}", self);
+                (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
+            },
+            AuthError::MissingAuthTime | AuthError::SessionTooOld { .. } => {
+                warn!("OIDC auth_time validation failed: {}", self);
+                (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
+            },
         };
 
         let body = serde_json::json!({

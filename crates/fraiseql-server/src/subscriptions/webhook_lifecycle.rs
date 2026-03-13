@@ -11,6 +11,14 @@ use tracing::{error, warn};
 
 use super::lifecycle::SubscriptionLifecycle;
 
+/// Maximum byte size accepted from a webhook response body.
+///
+/// Webhook responses are used only as rejection error messages, so 64 KiB is
+/// more than sufficient for any human-readable reason string.  Capping here
+/// prevents a misbehaving or malicious webhook server from sending a multi-GB
+/// body that exhausts server memory.
+const MAX_WEBHOOK_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
+
 /// Subscription lifecycle hooks that call external HTTP endpoints.
 pub struct WebhookLifecycle {
     client:             reqwest::Client,
@@ -131,10 +139,9 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let text = resp
-                    .text()
-                    .await
-                    .unwrap_or_else(|e| format!("(error reading response body: {e})"));
+                let raw = resp.bytes().await.unwrap_or_default();
+                let capped = &raw[..raw.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
+                let text = String::from_utf8_lossy(capped).into_owned();
                 warn!(
                     url = %url,
                     status = %status,
@@ -190,10 +197,9 @@ impl SubscriptionLifecycle for WebhookLifecycle {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) => {
                 let status = resp.status();
-                let text = resp
-                    .text()
-                    .await
-                    .unwrap_or_else(|e| format!("(error reading response body: {e})"));
+                let raw = resp.bytes().await.unwrap_or_default();
+                let capped = &raw[..raw.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
+                let text = String::from_utf8_lossy(capped).into_owned();
                 warn!(
                     url = %url,
                     status = %status,
@@ -279,5 +285,20 @@ mod tests {
         });
         let wh = WebhookLifecycle::from_schema_json(&json).unwrap();
         assert_eq!(wh.timeout, Duration::from_millis(500));
+    }
+
+    #[test]
+    fn webhook_response_cap_constant_is_reasonable() {
+        // 64 KiB: large enough for any human-readable error, small enough to prevent OOM.
+        assert_eq!(MAX_WEBHOOK_RESPONSE_BYTES, 64 * 1024);
+    }
+
+    #[test]
+    fn webhook_response_body_is_capped_at_limit() {
+        // Simulate what on_connect / on_subscribe do: bytes → cap → lossy UTF-8.
+        let oversized: Vec<u8> = vec![b'x'; MAX_WEBHOOK_RESPONSE_BYTES + 100];
+        let capped = &oversized[..oversized.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
+        let text = String::from_utf8_lossy(capped).into_owned();
+        assert_eq!(text.len(), MAX_WEBHOOK_RESPONSE_BYTES);
     }
 }

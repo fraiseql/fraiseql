@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -198,16 +199,25 @@ pub struct EntityRepresentation {
 }
 
 impl EntityRepresentation {
-    /// Parse from _Any scalar input
-    pub fn from_any(value: &Value) -> Result<Self, String> {
-        let obj = value
-            .as_object()
-            .ok_or_else(|| "Entity representation must be object".to_string())?;
+    /// Parse from _Any scalar input.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the value is not a JSON object or is
+    /// missing the required `__typename` field.
+    pub fn from_any(value: &Value) -> Result<Self> {
+        let obj = value.as_object().ok_or_else(|| FraiseQLError::Validation {
+            message: "Entity representation must be a JSON object".to_string(),
+            path:    None,
+        })?;
 
         let typename = obj
             .get("__typename")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| "__typename field required".to_string())?
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: "__typename field is required in entity representation".to_string(),
+                path:    None,
+            })?
             .to_string();
 
         // Convert object to HashMap for easier access
@@ -314,11 +324,17 @@ impl FederationResolver {
         }
     }
 
-    /// Get or determine resolution strategy for type
-    pub fn get_or_determine_strategy(&self, typename: &str) -> Result<ResolutionStrategy, String> {
+    /// Get or determine resolution strategy for type.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the strategy cache lock is poisoned, or
+    /// `FraiseQLError::Validation` if the type is not found in federation metadata.
+    pub fn get_or_determine_strategy(&self, typename: &str) -> Result<ResolutionStrategy> {
         // Check cache
         {
-            let cache = self.strategy_cache.lock().map_err(|e| format!("Lock error: {}", e))?;
+            let cache =
+                self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(strategy) = cache.get(typename) {
                 return Ok(strategy.clone());
             }
@@ -330,7 +346,10 @@ impl FederationResolver {
             .types
             .iter()
             .find(|t| t.name == typename)
-            .ok_or_else(|| format!("Type {} not found in federation metadata", typename))?;
+            .ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Type {typename} not found in federation metadata"),
+                path:    None,
+            })?;
 
         // Determine strategy
         let strategy = if fed_type.is_extends {
@@ -351,7 +370,8 @@ impl FederationResolver {
 
         // Cache the strategy
         {
-            let mut cache = self.strategy_cache.lock().map_err(|e| format!("Lock error: {}", e))?;
+            let mut cache =
+                self.strategy_cache.lock().unwrap_or_else(|e| e.into_inner());
             cache.insert(typename.to_string(), strategy.clone());
         }
 

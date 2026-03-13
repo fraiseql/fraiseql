@@ -5,6 +5,8 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use fraiseql_error::{FraiseQLError, Result};
+
 use crate::types::{FederationMetadata, FieldPathSelection};
 
 /// Dependency graph node representing a field with @requires directives
@@ -44,8 +46,9 @@ impl DependencyGraph {
     ///
     /// # Errors
     ///
-    /// Returns error if graph construction fails (should not happen in normal operation).
-    pub fn build(metadata: &FederationMetadata) -> Result<Self, String> {
+    /// Returns `FraiseQLError::Internal` if graph construction fails (should not happen in
+    /// normal operation).
+    pub fn build(metadata: &FederationMetadata) -> Result<Self> {
         let mut nodes: HashMap<String, DependencyNode> = HashMap::new();
         let mut edges = Vec::new();
 
@@ -159,12 +162,15 @@ impl DependencyGraph {
     ///
     /// # Errors
     ///
-    /// Returns error if cycles are detected in the graph.
-    pub fn topological_sort(&self) -> Result<Vec<String>, String> {
+    /// Returns `FraiseQLError::Validation` if cycles are detected in the graph.
+    pub fn topological_sort(&self) -> Result<Vec<String>> {
         // First check for cycles
         let cycles = self.detect_cycles();
         if !cycles.is_empty() {
-            return Err(format!("Circular dependencies detected: {:?}", cycles));
+            return Err(FraiseQLError::Validation {
+                message: format!("Circular dependencies detected: {:?}", cycles),
+                path:    None,
+            });
         }
 
         // Compute in-degree for each node

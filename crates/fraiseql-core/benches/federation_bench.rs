@@ -94,7 +94,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("build_variable_definitions", |b| {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let variables = json!({
             "id": "user123",
@@ -110,7 +110,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("parse_graphql_response", |b| {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let response = fraiseql_core::federation::mutation_http_client::GraphQLResponse {
             data:   Some(json!({
@@ -131,7 +131,7 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
 
     c.bench_function("build_mutation_query", |b| {
         let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config);
+        let client = HttpMutationClient::new(config).unwrap();
 
         let metadata = create_test_metadata();
         let fed_type = &metadata.types[1]; // Order (extended)

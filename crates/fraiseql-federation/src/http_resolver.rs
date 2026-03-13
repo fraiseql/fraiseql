@@ -104,7 +104,7 @@ pub(crate) fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
             message: format!("Subgraph URL must use https:// scheme (got: {url})"),
             source: None,
         });
-    };
+    }
 
     // When insecure mode is enabled, skip IP/hostname checks too (dev/test only).
     if allow_insecure {

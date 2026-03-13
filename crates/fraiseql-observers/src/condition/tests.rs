@@ -550,3 +550,58 @@ fn test_deeply_nested_not_operators_limited() {
     let result = parser.parse(&condition);
     assert!(result.is_err(), "65 nested NOT operators must be rejected");
 }
+
+// ── Size-cap tests (S20-H3 / S20-H4) ─────────────────────────────────────
+
+#[test]
+fn condition_input_at_limit_is_accepted() {
+    // A short well-formed condition must still parse (size cap not triggered).
+    let parser = ConditionParser::new();
+    assert!(parser.parse("total == 100").is_ok());
+}
+
+#[test]
+fn condition_input_exceeding_size_limit_is_rejected() {
+    // Build a condition string longer than MAX_CONDITION_INPUT_BYTES (4096).
+    let parser = ConditionParser::new();
+    // Pad with spaces so the string is > 4096 bytes but would otherwise tokenize.
+    let long_condition = format!("total == 1{}", " ".repeat(4100));
+    let result = parser.parse(&long_condition);
+    assert!(result.is_err(), "oversized condition must be rejected");
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("too long") || msg.contains("4096"),
+        "error must mention size limit: {msg}"
+    );
+}
+
+#[test]
+fn condition_function_exceeding_arg_limit_is_rejected() {
+    // Build in_set('a', 'b', ...) with 33 args — exceeds MAX_CONDITION_FUNCTION_ARGS=32.
+    let parser = ConditionParser::new();
+    let args: Vec<String> = (0_u8..33).map(|i| format!("'{i}'")).collect();
+    let condition = format!("in_set({})", args.join(","));
+    let result = parser.parse(&condition);
+    assert!(result.is_err(), "too many function arguments must be rejected");
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("Too many") || msg.contains("32"),
+        "error must mention argument limit: {msg}"
+    );
+}
+
+#[test]
+fn condition_function_at_arg_limit_is_accepted() {
+    // Exactly MAX_CONDITION_FUNCTION_ARGS=32 args must succeed.
+    let parser = ConditionParser::new();
+    let args: Vec<String> = (0_u8..32).map(|i| format!("'arg{i}'")).collect();
+    let condition = format!("in_set({})", args.join(","));
+    // We don't assert Ok because in_set may not be a recognised function;
+    // the key property is that it must NOT fail with the arg-limit error.
+    if let Err(e) = parser.parse(&condition) {
+        assert!(
+            !e.to_string().contains("Too many"),
+            "32 args must not trigger arg limit: {e}"
+        );
+    }
+}

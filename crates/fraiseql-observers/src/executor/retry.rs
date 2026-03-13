@@ -84,9 +84,13 @@ impl ObserverExecutor {
     pub(crate) fn calculate_backoff(&self, attempt: u32, config: &RetryConfig) -> Duration {
         let delay_ms = match config.backoff_strategy {
             BackoffStrategy::Exponential => {
-                // 2^(attempt-1) * initial_delay, capped at max_delay
+                // 2^(attempt-1) * initial_delay, capped at max_delay.
+                // saturating_mul + saturating_pow prevent overflow when
+                // initial_delay_ms is large or attempt is high.
                 let exponent = attempt - 1;
-                let base_delay = config.initial_delay_ms * (2_u64.pow(exponent));
+                let base_delay = config
+                    .initial_delay_ms
+                    .saturating_mul(2_u64.saturating_pow(exponent));
                 base_delay.min(config.max_delay_ms)
             },
             BackoffStrategy::Linear => {
@@ -337,5 +341,82 @@ impl ObserverExecutor {
         mut listener: crate::listener::ChangeLogListener,
     ) -> tokio::task::JoinHandle<Result<()>> {
         tokio::spawn(async move { self.run_listener_loop(&mut listener, None).await })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(missing_docs)]        // Reason: test helpers
+
+    use super::*;
+    use crate::config::{BackoffStrategy, RetryConfig};
+
+    fn make_retry_config(
+        initial_delay_ms: u64,
+        max_delay_ms: u64,
+        strategy: BackoffStrategy,
+    ) -> RetryConfig {
+        RetryConfig {
+            max_attempts: 10,
+            initial_delay_ms,
+            max_delay_ms,
+            backoff_strategy: strategy,
+        }
+    }
+
+    fn make_executor() -> ObserverExecutor {
+        use std::sync::Arc;
+        use crate::{EventMatcher, testing::mocks::MockDeadLetterQueue};
+        ObserverExecutor::new(EventMatcher::new(), Arc::new(MockDeadLetterQueue::new()))
+    }
+
+    #[test]
+    fn exponential_backoff_normal_case() {
+        let executor = make_executor();
+        let cfg = make_retry_config(100, 30_000, BackoffStrategy::Exponential);
+        // attempt 1 → 2^0 * 100 = 100 ms
+        assert_eq!(executor.calculate_backoff(1, &cfg), Duration::from_millis(100));
+        // attempt 2 → 2^1 * 100 = 200 ms
+        assert_eq!(executor.calculate_backoff(2, &cfg), Duration::from_millis(200));
+        // attempt 4 → 2^3 * 100 = 800 ms
+        assert_eq!(executor.calculate_backoff(4, &cfg), Duration::from_millis(800));
+    }
+
+    #[test]
+    fn exponential_backoff_caps_at_max_delay() {
+        let executor = make_executor();
+        let cfg = make_retry_config(100, 1_000, BackoffStrategy::Exponential);
+        // attempt 5 → 2^4 * 100 = 1600 ms → capped at 1000 ms
+        assert_eq!(executor.calculate_backoff(5, &cfg), Duration::from_millis(1_000));
+    }
+
+    #[test]
+    fn exponential_backoff_does_not_overflow_with_large_initial_delay() {
+        let executor = make_executor();
+        // initial_delay_ms near u64::MAX / 2 and a high attempt — without saturating_mul
+        // this would overflow and produce a tiny delay instead of the intended max.
+        let cfg = make_retry_config(u64::MAX / 2, 60_000, BackoffStrategy::Exponential);
+        // Regardless of overflow, the result must be capped at max_delay_ms.
+        let result = executor.calculate_backoff(10, &cfg);
+        assert_eq!(result, Duration::from_millis(60_000),
+            "overflow must not produce a delay smaller than max_delay_ms");
+    }
+
+    #[test]
+    fn linear_backoff_normal_case() {
+        let executor = make_executor();
+        let cfg = make_retry_config(200, 30_000, BackoffStrategy::Linear);
+        assert_eq!(executor.calculate_backoff(1, &cfg), Duration::from_millis(200));
+        assert_eq!(executor.calculate_backoff(3, &cfg), Duration::from_millis(600));
+    }
+
+    #[test]
+    fn fixed_backoff_always_returns_initial_delay() {
+        let executor = make_executor();
+        let cfg = make_retry_config(500, 30_000, BackoffStrategy::Fixed);
+        for attempt in 1..=5 {
+            assert_eq!(executor.calculate_backoff(attempt, &cfg), Duration::from_millis(500));
+        }
     }
 }

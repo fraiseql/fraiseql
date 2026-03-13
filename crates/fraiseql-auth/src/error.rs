@@ -138,6 +138,43 @@ pub enum AuthError {
         /// How many seconds the client must wait before retrying.
         retry_after_secs: u64,
     },
+
+    /// The OIDC ID token is missing the required `nonce` claim.
+    ///
+    /// Returned when an expected nonce was provided for comparison but the token
+    /// does not carry a `nonce` claim. May indicate a misconfigured provider or
+    /// a token replay attempt using a stripped token.
+    /// See RFC 6749 §10.12 / OpenID Connect Core §3.1.3.7.
+    #[error("ID token is missing the required nonce claim")]
+    MissingNonce,
+
+    /// The `nonce` claim in the ID token does not match the expected value.
+    ///
+    /// Indicates a possible token replay or session fixation attack.
+    /// See RFC 6749 §10.12 / OpenID Connect Core §3.1.3.7.
+    #[error("ID token nonce mismatch — possible replay attack")]
+    NonceMismatch,
+
+    /// The OIDC ID token is missing the `auth_time` claim when `max_age` was requested.
+    ///
+    /// When `max_age` is sent in the authorization request, the provider MUST include
+    /// `auth_time` in the ID token. Its absence indicates a non-conformant provider.
+    /// See OpenID Connect Core §3.1.3.7.
+    #[error("ID token is missing auth_time claim (required when max_age is used)")]
+    MissingAuthTime,
+
+    /// The session authentication time exceeds the allowed `max_age`.
+    ///
+    /// The provider authenticated the user too long ago for this request's `max_age`
+    /// constraint. The user must re-authenticate to obtain a fresh session.
+    /// See OpenID Connect Core §3.1.3.7.
+    #[error("Session is too old: authenticated {age}s ago, max_age is {max_age_secs}s")]
+    SessionTooOld {
+        /// How many seconds ago the session was authenticated.
+        age:          i64,
+        /// Maximum allowed authentication age in seconds (from the authorization request).
+        max_age_secs: u64,
+    },
 }
 
 /// Convenience alias for `Result<T, AuthError>`.

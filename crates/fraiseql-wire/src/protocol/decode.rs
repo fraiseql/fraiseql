@@ -435,7 +435,7 @@ mod tests {
         // Each null field is represented by length -1 (i32: 0xFF FF FF FF).
         let body_len: u32 = 2 + 4 * u32::from(count.unsigned_abs());
         let mut buf = BytesMut::new();
-        buf.extend_from_slice(&[b'D']);
+        buf.extend_from_slice(b"D");
         buf.extend_from_slice(&(body_len + 4).to_be_bytes()); // length includes itself
         buf.extend_from_slice(&count.to_be_bytes());
         for _ in 0..count {
@@ -449,7 +449,7 @@ mod tests {
         // Each descriptor: name (1 null byte) + 18 bytes of OID/size info = 19 bytes.
         let body_len: u32 = 2 + 19 * u32::from(count.unsigned_abs());
         let mut buf = BytesMut::new();
-        buf.extend_from_slice(&[b'T']);
+        buf.extend_from_slice(b"T");
         buf.extend_from_slice(&(body_len + 4).to_be_bytes());
         buf.extend_from_slice(&count.to_be_bytes());
         for _ in 0..count {
@@ -474,7 +474,7 @@ mod tests {
         // any field data is read.
         let count: i16 = (MAX_FIELD_COUNT + 1) as i16; // 2049
         let mut buf = BytesMut::new();
-        buf.extend_from_slice(&[b'D']);
+        buf.extend_from_slice(b"D");
         // body = 2 (count) + 4 (padding); length field includes itself: 2+4+4 = 10
         buf.extend_from_slice(&10u32.to_be_bytes());
         buf.extend_from_slice(&count.to_be_bytes());
@@ -492,7 +492,7 @@ mod tests {
     fn test_row_description_field_count_exceeds_max_is_rejected() {
         let count: i16 = (MAX_FIELD_COUNT + 1) as i16; // 2049
         let mut buf = BytesMut::new();
-        buf.extend_from_slice(&[b'T']);
+        buf.extend_from_slice(b"T");
         buf.extend_from_slice(&10u32.to_be_bytes());
         buf.extend_from_slice(&count.to_be_bytes());
         buf.extend_from_slice(&[0u8; 4]);

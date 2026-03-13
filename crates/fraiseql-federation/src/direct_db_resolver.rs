@@ -3,7 +3,6 @@
 //! Resolves entities from remote FraiseQL database instances via direct database connections,
 //! achieving <20ms latency by eliminating HTTP overhead.
 
-use fraiseql_error::Result;
 use crate::connection_manager::ConnectionManager;
 
 /// Resolves entities from remote databases via direct connections
@@ -27,25 +26,23 @@ impl DirectDatabaseResolver {
     }
 
     /// Get the number of cached remote connections
-    pub fn connection_count(&self) -> Result<usize> {
+    pub fn connection_count(&self) -> usize {
         self.connection_manager.connection_count()
     }
 
     /// Close a specific remote connection
-    pub fn close_connection(&self, connection_string: &str) -> Result<()> {
-        self.connection_manager.close_connection(connection_string)
+    pub fn close_connection(&self, connection_string: &str) {
+        self.connection_manager.close_connection(connection_string);
     }
 
     /// Close all remote connections
-    pub fn close_all(&self) -> Result<()> {
-        self.connection_manager.close_all()
+    pub fn close_all(&self) {
+        self.connection_manager.close_all();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
     use super::*;
 
     #[test]
@@ -56,18 +53,18 @@ mod tests {
     #[test]
     fn test_connection_count_empty() {
         let resolver = DirectDatabaseResolver::new();
-        assert_eq!(resolver.connection_count().unwrap(), 0);
+        assert_eq!(resolver.connection_count(), 0);
     }
 
     #[test]
     fn test_close_all() {
         let resolver = DirectDatabaseResolver::new();
-        assert!(resolver.close_all().is_ok());
+        resolver.close_all();
     }
 
     #[test]
     fn test_close_connection() {
         let resolver = DirectDatabaseResolver::new();
-        assert!(resolver.close_connection("postgresql://localhost/db").is_ok());
+        resolver.close_connection("postgresql://localhost/db");
     }
 }

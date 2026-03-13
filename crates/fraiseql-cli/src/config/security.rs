@@ -410,6 +410,9 @@ impl SecurityConfig {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]                 // Reason: test code, panics acceptable
+    #![allow(clippy::field_reassign_with_default)] // Reason: test code, mutate-after-default is clearer
+
     use super::*;
 
     #[test]

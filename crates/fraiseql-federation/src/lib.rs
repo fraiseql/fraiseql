@@ -20,11 +20,28 @@
 
 //! Federation support for Apollo Federation v2.
 //!
-//! This module implements the Apollo Federation v2 specification, enabling
+//! This crate implements the Apollo Federation v2 specification, enabling
 //! multi-subgraph GraphQL composition with:
 //! - Entity resolution via `_entities` query
 //! - Service SDL via `_service` query
 //! - Multiple resolution strategies (local, direct DB, HTTP)
+//!
+//! # Production-ready vs unstable APIs
+//!
+//! | Component | Status | Notes |
+//! |-----------|--------|-------|
+//! | Subgraph mode — `HttpEntityResolver` (`_entities` HTTP resolution) | ✅ Production | SSRF-protected, retry, tracing |
+//! | Composition validation — `CompositionValidator` | ✅ Production | compile-time only |
+//! | Saga orchestration — `SagaExecutor` / `SagaCompensator` | ✅ Production | requires `PostgresSagaStore` |
+//! | HTTP mutation propagation — `HttpMutationClient` | ✅ Production | SSRF-protected |
+//! | Gateway mode — `ConnectionManager::get_or_create_connection` | 🚧 Unstable | requires `unstable` feature |
+//! | Direct-DB federation — `DirectDbResolver` | 🚧 Unstable | stub only; not yet implemented |
+//!
+//! To enable unstable APIs:
+//! ```toml
+//! [dependencies]
+//! fraiseql-federation = { version = "…", features = ["unstable"] }
+//! ```
 //!
 //! # Architecture
 //!

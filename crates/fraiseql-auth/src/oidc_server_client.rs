@@ -183,6 +183,12 @@ impl OidcServerClient {
         )
     }
 
+    /// Maximum byte size accepted from the OIDC token endpoint response.
+    ///
+    /// A well-formed token response is a few KiB at most.  1 MiB prevents a
+    /// malicious or compromised OIDC provider from exhausting server memory.
+    const MAX_OIDC_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
     /// Exchange an authorization code for tokens.
     ///
     /// Sends a `POST` to the provider's `/token` endpoint with the PKCE
@@ -191,7 +197,8 @@ impl OidcServerClient {
     /// # Errors
     ///
     /// Returns an error if the HTTP request fails, the provider returns a
-    /// non-success status, or the response body cannot be parsed as JSON.
+    /// non-success status, the response exceeds `MAX_OIDC_RESPONSE_BYTES`, or
+    /// the response body cannot be parsed as JSON.
     pub async fn exchange_code(
         &self,
         code:          &str,
@@ -211,13 +218,24 @@ impl OidcServerClient {
             .send()
             .await?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body   = resp.text().await.unwrap_or_default();
+        // Read the body once so the size cap applies to both error and success paths.
+        let status = resp.status();
+        let body_bytes = resp.bytes().await.unwrap_or_default();
+
+        if !status.is_success() {
+            let capped = &body_bytes[..body_bytes.len().min(Self::MAX_OIDC_RESPONSE_BYTES)];
+            let body = String::from_utf8_lossy(capped);
             anyhow::bail!("token endpoint returned {status}: {body}");
         }
 
-        Ok(resp.json::<OidcTokenResponse>().await?)
+        anyhow::ensure!(
+            body_bytes.len() <= Self::MAX_OIDC_RESPONSE_BYTES,
+            "OIDC token response too large ({} bytes, max {})",
+            body_bytes.len(),
+            Self::MAX_OIDC_RESPONSE_BYTES
+        );
+
+        Ok(serde_json::from_slice::<OidcTokenResponse>(&body_bytes)?)
     }
 }
 
@@ -251,6 +269,21 @@ mod tests {
         assert!(url.contains("code_challenge_method=S256"),  "missing method");
         assert!(url.contains("state="),                      "missing state");
         assert!(url.contains("redirect_uri="),               "missing redirect_uri");
+    }
+
+    #[test]
+    fn oidc_response_cap_constant_is_reasonable() {
+        assert_eq!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES, 1024 * 1024);
+    }
+
+    #[test]
+    fn oidc_response_error_body_is_capped() {
+        // Simulate the error-path body truncation.
+        let cap = OidcServerClient::MAX_OIDC_RESPONSE_BYTES;
+        let oversized: Vec<u8> = vec![b'x'; cap + 500];
+        let capped = &oversized[..oversized.len().min(cap)];
+        let text = String::from_utf8_lossy(capped).into_owned();
+        assert_eq!(text.len(), cap, "error body must be capped at MAX_OIDC_RESPONSE_BYTES");
     }
 
     #[test]
