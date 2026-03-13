@@ -22,6 +22,19 @@ use std::{
 };
 
 use chrono::{DateTime, Duration, Utc};
+use thiserror::Error;
+
+/// Error type for all credential rotation and key lifecycle operations.
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum RotationError {
+    /// A Mutex was poisoned (another thread panicked while holding the lock).
+    #[error("Lock poisoned: {0}")]
+    LockPoisoned(String),
+
+    /// The requested key version does not exist in the version registry.
+    #[error("Key version {0} not found")]
+    VersionNotFound(u16),
+}
 
 /// Key version identifier (0 = unversioned/legacy, 1-65535 = versioned)
 pub type KeyVersion = u16;
@@ -314,9 +327,9 @@ impl VersionedKeyStorage {
     }
 
     /// Add a new key version
-    pub fn add_version(&self, metadata: KeyVersionMetadata) -> Result<KeyVersion, String> {
+    pub fn add_version(&self, metadata: KeyVersionMetadata) -> Result<KeyVersion, RotationError> {
         let mut versions =
-            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
+            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
 
         let version = metadata.version;
         versions.insert(version, metadata);
@@ -324,42 +337,42 @@ impl VersionedKeyStorage {
     }
 
     /// Set current version
-    pub fn set_current_version(&self, version: KeyVersion) -> Result<(), String> {
+    pub fn set_current_version(&self, version: KeyVersion) -> Result<(), RotationError> {
         let versions =
-            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
+            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
 
         if !versions.contains_key(&version) {
-            return Err(format!("Version {} not found", version));
+            return Err(RotationError::VersionNotFound(version));
         }
 
         let mut current = self
             .current_version
             .lock()
-            .map_err(|e| format!("Failed to lock current version: {}", e))?;
+            .map_err(|e| RotationError::LockPoisoned(format!("current_version mutex: {e}")))?;
         *current = version;
         Ok(())
     }
 
     /// Get current version
-    pub fn get_current_version(&self) -> Result<KeyVersion, String> {
+    pub fn get_current_version(&self) -> Result<KeyVersion, RotationError> {
         let current = self
             .current_version
             .lock()
-            .map_err(|e| format!("Failed to lock current version: {}", e))?;
+            .map_err(|e| RotationError::LockPoisoned(format!("current_version mutex: {e}")))?;
         Ok(*current)
     }
 
     /// Get version metadata by ID
-    pub fn get_version(&self, version: KeyVersion) -> Result<Option<KeyVersionMetadata>, String> {
+    pub fn get_version(&self, version: KeyVersion) -> Result<Option<KeyVersionMetadata>, RotationError> {
         let versions =
-            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
+            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
         Ok(versions.get(&version).cloned())
     }
 
     /// Get all versions sorted by issue date (newest first)
-    pub fn get_all_versions(&self) -> Result<Vec<KeyVersionMetadata>, String> {
+    pub fn get_all_versions(&self) -> Result<Vec<KeyVersionMetadata>, RotationError> {
         let versions =
-            self.versions.lock().map_err(|e| format!("Failed to lock versions: {}", e))?;
+            self.versions.lock().map_err(|e| RotationError::LockPoisoned(format!("versions mutex: {e}")))?;
 
         let mut all_versions: Vec<_> = versions.values().cloned().collect();
         all_versions.sort_by_key(|v| std::cmp::Reverse(v.issued_at));
@@ -401,7 +414,7 @@ impl CredentialRotationManager {
     }
 
     /// Initialize with first key version
-    pub fn initialize_key(&self) -> Result<KeyVersion, String> {
+    pub fn initialize_key(&self) -> Result<KeyVersion, RotationError> {
         let version = self.storage.next_version_number();
         let metadata = KeyVersionMetadata::new(version, self.config.ttl_days);
         self.storage.add_version(metadata)?;
@@ -429,7 +442,7 @@ impl CredentialRotationManager {
     ///
     /// If step 3 crashes mid-flight, rows will be in a mixed state. Resume by
     /// re-querying all rows still carrying the old version marker.
-    pub fn rotate_key(&self) -> Result<KeyVersion, String> {
+    pub fn rotate_key(&self) -> Result<KeyVersion, RotationError> {
         let start = std::time::Instant::now();
 
         let new_version = self.storage.next_version_number();
@@ -447,12 +460,12 @@ impl CredentialRotationManager {
     }
 
     /// Get current version number
-    pub fn get_current_version(&self) -> Result<KeyVersion, String> {
+    pub fn get_current_version(&self) -> Result<KeyVersion, RotationError> {
         self.storage.get_current_version()
     }
 
     /// Check if refresh is needed for any version
-    pub fn needs_refresh(&self) -> Result<bool, String> {
+    pub fn needs_refresh(&self) -> Result<bool, RotationError> {
         let current_version = self.storage.get_current_version()?;
         if let Some(metadata) = self.storage.get_version(current_version)? {
             Ok(metadata.should_refresh())
@@ -462,13 +475,13 @@ impl CredentialRotationManager {
     }
 
     /// Get current version metadata
-    pub fn get_current_metadata(&self) -> Result<Option<KeyVersionMetadata>, String> {
+    pub fn get_current_metadata(&self) -> Result<Option<KeyVersionMetadata>, RotationError> {
         let current_version = self.storage.get_current_version()?;
         self.storage.get_version(current_version)
     }
 
     /// Check if version exists and is usable for decryption
-    pub fn can_decrypt_with_version(&self, version: KeyVersion) -> Result<bool, String> {
+    pub fn can_decrypt_with_version(&self, version: KeyVersion) -> Result<bool, RotationError> {
         if let Some(metadata) = self.storage.get_version(version)? {
             // Can decrypt with any non-compromised version
             Ok(metadata.status != KeyVersionStatus::Compromised)
@@ -483,12 +496,12 @@ impl CredentialRotationManager {
     }
 
     /// Get all version history
-    pub fn get_version_history(&self) -> Result<Vec<KeyVersionMetadata>, String> {
+    pub fn get_version_history(&self) -> Result<Vec<KeyVersionMetadata>, RotationError> {
         self.storage.get_all_versions()
     }
 
     /// Check if any version needs attention (expiring or expired)
-    pub fn has_versions_needing_attention(&self) -> Result<bool, String> {
+    pub fn has_versions_needing_attention(&self) -> Result<bool, RotationError> {
         let history = self.get_version_history()?;
         Ok(history
             .iter()
@@ -496,25 +509,25 @@ impl CredentialRotationManager {
     }
 
     /// Get active versions count
-    pub fn active_versions_count(&self) -> Result<usize, String> {
+    pub fn active_versions_count(&self) -> Result<usize, RotationError> {
         let history = self.get_version_history()?;
         Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Active).count())
     }
 
     /// Get expired versions count
-    pub fn expired_versions_count(&self) -> Result<usize, String> {
+    pub fn expired_versions_count(&self) -> Result<usize, RotationError> {
         let history = self.get_version_history()?;
         Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Expired).count())
     }
 
     /// Get compromised versions count
-    pub fn compromised_versions_count(&self) -> Result<usize, String> {
+    pub fn compromised_versions_count(&self) -> Result<usize, RotationError> {
         let history = self.get_version_history()?;
         Ok(history.iter().filter(|m| m.status == KeyVersionStatus::Compromised).count())
     }
 
     /// Check if current version needs refresh
-    pub fn current_version_needs_refresh(&self) -> Result<bool, String> {
+    pub fn current_version_needs_refresh(&self) -> Result<bool, RotationError> {
         let current_version = self.get_current_version()?;
         if let Some(metadata) = self.storage.get_version(current_version)? {
             Ok(metadata.should_refresh())
@@ -524,7 +537,7 @@ impl CredentialRotationManager {
     }
 
     /// Perform emergency rotation due to compromise
-    pub fn emergency_rotate(&self, reason: impl Into<String>) -> Result<KeyVersion, String> {
+    pub fn emergency_rotate(&self, reason: impl Into<String>) -> Result<KeyVersion, RotationError> {
         let current_version = self.get_current_version()?;
         if let Some(mut metadata) = self.storage.get_version(current_version)? {
             metadata.mark_compromised(reason);
@@ -550,19 +563,19 @@ impl CredentialRotationManager {
         &self,
         version: KeyVersion,
         reason: impl Into<String>,
-    ) -> Result<(), String> {
+    ) -> Result<(), RotationError> {
         if let Some(mut metadata) = self.storage.get_version(version)? {
             metadata.mark_compromised(reason);
             // Update in storage
             self.storage.add_version(metadata)?;
             Ok(())
         } else {
-            Err(format!("Version {} not found", version))
+            Err(RotationError::VersionNotFound(version))
         }
     }
 
     /// Check compliance for HIPAA (annual rotation)
-    pub fn check_hipaa_compliance(&self) -> Result<bool, String> {
+    pub fn check_hipaa_compliance(&self) -> Result<bool, RotationError> {
         let metadata = self.get_current_metadata()?;
         if let Some(m) = metadata {
             // HIPAA requires rotation at least annually
@@ -573,7 +586,7 @@ impl CredentialRotationManager {
     }
 
     /// Check compliance for PCI-DSS (annual rotation)
-    pub fn check_pci_compliance(&self) -> Result<bool, String> {
+    pub fn check_pci_compliance(&self) -> Result<bool, RotationError> {
         let metadata = self.get_current_metadata()?;
         if let Some(m) = metadata {
             // PCI-DSS requires rotation at least annually

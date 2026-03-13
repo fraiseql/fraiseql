@@ -10,6 +10,7 @@ use std::{
 };
 
 use chrono::{DateTime, Timelike, Utc};
+use tracing;
 
 /// Status of refresh job
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -449,18 +450,42 @@ impl RefreshManager {
         self.job.request_shutdown();
     }
 
-    /// Get time since last check
+    /// Get time since last check.
+    ///
+    /// Returns `None` if no check has occurred yet.  Returns `Duration::ZERO`
+    /// and logs a warning if the system clock appears to have gone backwards,
+    /// which would otherwise cause the refresh timer to stall indefinitely.
     pub fn time_since_last_check(&self) -> Option<std::time::Duration> {
-        self.trigger
-            .last_check_time()
-            .map(|last| (Utc::now() - last).to_std().unwrap_or_default())
+        self.trigger.last_check_time().map(|last| {
+            let delta = Utc::now() - last;
+            delta.to_std().unwrap_or_else(|_| {
+                tracing::warn!(
+                    delta_ns = delta.num_nanoseconds().unwrap_or(i64::MIN),
+                    "Clock appears to have gone backwards since last refresh check; \
+                     forcing immediate re-check"
+                );
+                std::time::Duration::ZERO
+            })
+        })
     }
 
-    /// Get time since last refresh
+    /// Get time since last refresh.
+    ///
+    /// Returns `None` if no refresh has occurred yet.  Returns `Duration::ZERO`
+    /// and logs a warning on clock regression (same rationale as
+    /// [`Self::time_since_last_check`]).
     pub fn time_since_last_refresh(&self) -> Option<std::time::Duration> {
-        self.trigger
-            .last_refresh_time()
-            .map(|last| (Utc::now() - last).to_std().unwrap_or_default())
+        self.trigger.last_refresh_time().map(|last| {
+            let delta = Utc::now() - last;
+            delta.to_std().unwrap_or_else(|_| {
+                tracing::warn!(
+                    delta_ns = delta.num_nanoseconds().unwrap_or(i64::MIN),
+                    "Clock appears to have gone backwards since last refresh; \
+                     forcing immediate re-refresh"
+                );
+                std::time::Duration::ZERO
+            })
+        })
     }
 
     /// Check if job is currently running

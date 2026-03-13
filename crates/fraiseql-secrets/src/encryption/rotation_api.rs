@@ -104,6 +104,25 @@ pub struct ManualRotationRequest {
     pub dry_run: Option<bool>,
 }
 
+/// Outcome of a single manual rotation attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManualRotationStatus {
+    /// The rotation completed successfully.
+    Success,
+    /// The rotation failed; see `ManualRotationResponse::error` for details.
+    Failed,
+}
+
+impl std::fmt::Display for ManualRotationStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Success => write!(f, "success"),
+            Self::Failed => write!(f, "failed"),
+        }
+    }
+}
+
 /// Manual rotation response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManualRotationResponse {
@@ -111,8 +130,8 @@ pub struct ManualRotationResponse {
     pub new_version: u16,
     /// Old version number
     pub old_version: u16,
-    /// Rotation status: "success" or "failed"
-    pub status:      String,
+    /// Whether the rotation succeeded or failed.
+    pub status:      ManualRotationStatus,
     /// Rotation duration in milliseconds
     pub duration_ms: u64,
     /// Error message if failed
@@ -125,7 +144,7 @@ impl ManualRotationResponse {
         Self {
             new_version,
             old_version,
-            status: "success".to_string(),
+            status: ManualRotationStatus::Success,
             duration_ms,
             error: None,
         }
@@ -136,7 +155,7 @@ impl ManualRotationResponse {
         Self {
             new_version: old_version,
             old_version,
-            status: "failed".to_string(),
+            status: ManualRotationStatus::Failed,
             duration_ms: 0,
             error: Some(error.into()),
         }

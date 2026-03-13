@@ -2773,6 +2773,7 @@ dependencies = [
  "serde_json",
  "temp-env",
  "tempfile",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-test",
  "tracing",

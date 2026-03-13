@@ -249,7 +249,7 @@ impl FieldEncryptionService {
                 let version = rm.rotate_key().map_err(|e| {
                     SecretsError::EncryptionError(format!("Key rotation failed: {}", e))
                 })?;
-                // Invalidate cipher cache so new key is fetched on next operation
+                // Invalidate cipher cache so new key is fetched on next operation.
                 let adapter = Arc::clone(&self.adapter);
                 tokio::spawn(async move {
                     adapter.invalidate_cache().await;

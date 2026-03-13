@@ -71,10 +71,29 @@ impl Default for EnvBackend {
     }
 }
 
-/// Validate secret name format
+/// Validate secret name format.
+///
+/// Accepts only names matching the POSIX environment variable charset
+/// `[A-Z_][A-Z0-9_]*` (case-insensitive first letter also accepted for
+/// portability). Rejects `=` and NUL bytes, which are OS-undefined.
 fn validate_secret_name(name: &str) -> Result<(), SecretsError> {
     if name.is_empty() {
         return Err(SecretsError::ValidationError("Secret name cannot be empty".to_string()));
+    }
+    let mut chars = name.chars();
+    let first = chars.next().expect("non-empty; checked above");
+    if !first.is_ascii_alphabetic() && first != '_' {
+        return Err(SecretsError::ValidationError(format!(
+            "Secret name '{name}' must start with a letter or underscore (POSIX env var charset)"
+        )));
+    }
+    for ch in chars {
+        if !ch.is_ascii_alphanumeric() && ch != '_' {
+            return Err(SecretsError::ValidationError(format!(
+                "Secret name '{name}' contains invalid character '{ch}' \
+                 (only [A-Za-z0-9_] allowed)"
+            )));
+        }
     }
     Ok(())
 }
