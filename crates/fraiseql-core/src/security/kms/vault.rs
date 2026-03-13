@@ -23,7 +23,7 @@ use crate::security::kms::{
 ///   2. Vault Agent with auto-auth for token management
 ///   3. AppRole authentication with response wrapping
 ///   4. Kubernetes auth method in K8s environments
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct VaultConfig {
     /// Vault server address (e.g., `https://vault.example.com`)
     pub vault_addr: String,
@@ -37,6 +37,19 @@ pub struct VaultConfig {
     pub verify_tls: bool,
     /// Request timeout in seconds (default: 30)
     pub timeout:    u64,
+}
+
+impl std::fmt::Debug for VaultConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VaultConfig")
+            .field("vault_addr", &self.vault_addr)
+            .field("token", &"[REDACTED]")
+            .field("mount_path", &self.mount_path)
+            .field("namespace", &self.namespace)
+            .field("verify_tls", &self.verify_tls)
+            .field("timeout", &self.timeout)
+            .finish()
+    }
 }
 
 impl VaultConfig {

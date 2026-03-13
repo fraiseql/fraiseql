@@ -65,7 +65,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     db::WhereClause,
-    error::Result,
+    error::{FraiseQLError, Result},
     security::SecurityContext,
     utils::clock::{Clock, SystemClock},
 };
@@ -508,9 +508,11 @@ fn evaluate_rls_expression(
         }
     }
 
-    // If no pattern matched or couldn't evaluate, return None (no filter)
-    // In production, this should probably return an error for unparseable expressions
-    Ok(None)
+    // Unrecognised expression: fail closed to prevent silent cross-tenant access.
+    Err(FraiseQLError::Validation {
+        message: format!("Unrecognised RLS expression: '{expr}'"),
+        path:    None,
+    })
 }
 
 /// Extract a value from user context by field name

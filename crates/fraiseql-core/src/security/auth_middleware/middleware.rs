@@ -19,27 +19,36 @@ pub struct AuthMiddleware {
 }
 
 impl AuthMiddleware {
-    /// Create a new authentication middleware from configuration
+    /// Create a new authentication middleware from configuration.
+    ///
+    /// Emits a warning when `required = true` but no signing key is configured,
+    /// because JWT signature verification will be disabled in that case.
     #[must_use]
-    pub const fn from_config(config: AuthConfig) -> Self {
+    pub fn from_config(config: AuthConfig) -> Self {
+        if config.required && config.signing_key.is_none() {
+            tracing::warn!(
+                "AuthMiddleware: required=true but no signing_key configured — \
+                 JWT signatures will NOT be verified"
+            );
+        }
         Self { config }
     }
 
     /// Create middleware with permissive settings (authentication optional)
     #[must_use]
-    pub const fn permissive() -> Self {
+    pub fn permissive() -> Self {
         Self::from_config(AuthConfig::permissive())
     }
 
     /// Create middleware with standard settings (authentication required)
     #[must_use]
-    pub const fn standard() -> Self {
+    pub fn standard() -> Self {
         Self::from_config(AuthConfig::standard())
     }
 
     /// Create middleware with strict settings (authentication required, short expiry)
     #[must_use]
-    pub const fn strict() -> Self {
+    pub fn strict() -> Self {
         Self::from_config(AuthConfig::strict())
     }
 

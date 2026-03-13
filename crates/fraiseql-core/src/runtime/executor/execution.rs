@@ -159,10 +159,20 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         user_scopes: &[String],
     ) -> Result<String> {
-        // 1. Classify query type
+        // GATE 1: Query structure validation (mirrors execute() — DoS protection).
+        if let Some(ref cfg) = self.config.query_validation {
+            QueryValidator::from_config(cfg.clone())
+                .validate(query)
+                .map_err(|e| FraiseQLError::Validation {
+                    message: e.to_string(),
+                    path:    Some("query".to_string()),
+                })?;
+        }
+
+        // 2. Classify query type
         let query_type = self.classify_query(query)?;
 
-        // 2. Validate field access if filter is configured
+        // 3. Validate field access if filter is configured
         if let Some(ref filter) = self.config.field_filter {
             // Only validate for regular queries (not introspection)
             if matches!(query_type, QueryType::Regular) {
@@ -170,8 +180,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // 3. Delegate to execute_internal — single source of routing truth.
-        //    Field-access validation (step 2) has already run for Regular queries;
+        // 4. Delegate to execute_internal — single source of routing truth.
+        //    Field-access validation (step 3) has already run for Regular queries;
         //    all other query types (introspection, aggregate, federation, …) are
         //    routed correctly via execute_internal without duplication.
         self.execute_internal(query, variables).await
