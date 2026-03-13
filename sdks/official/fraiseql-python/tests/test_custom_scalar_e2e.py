@@ -179,9 +179,7 @@ class TestCustomScalarValidation:
 
     def test_validate_serialize(self):
         """validate_custom_scalar with serialize context."""
-        serialized = validate_custom_scalar(
-            Email, "user@example.com", context="serialize"
-        )
+        serialized = validate_custom_scalar(Email, "user@example.com", context="serialize")
         assert serialized == "user@example.com"
 
     def test_validate_parse_literal(self):
@@ -328,6 +326,7 @@ class TestSchemaExport:
 
     def test_schema_export_without_custom_scalars(self):
         """Can export schema without custom scalars."""
+
         @fraiseql.type
         class User:
             id: int

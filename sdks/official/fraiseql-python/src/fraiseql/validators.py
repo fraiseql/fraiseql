@@ -12,9 +12,7 @@ class ScalarValidationError(Exception):
     def __init__(self, scalar_name: str, context: str, message: str) -> None:
         self.scalar_name = scalar_name
         self.context = context
-        super().__init__(
-            f"Scalar {scalar_name!r} validation failed in {context}: {message}"
-        )
+        super().__init__(f"Scalar {scalar_name!r} validation failed in {context}: {message}")
 
 
 def validate_custom_scalar(
@@ -69,9 +67,7 @@ def validate_custom_scalar(
     except ValueError as e:
         raise ScalarValidationError(scalar_name, context, str(e)) from e
     except Exception as e:
-        raise ScalarValidationError(
-            scalar_name, context, f"{type(e).__name__}: {str(e)}"
-        ) from e
+        raise ScalarValidationError(scalar_name, context, f"{type(e).__name__}: {str(e)}") from e
 
 
 def get_all_custom_scalars() -> dict[str, type[CustomScalar]]:
