@@ -2,20 +2,52 @@
 
 use serde_json::Value;
 
+use fraiseql_error::{FraiseQLError, Result};
+
+/// Maximum number of entity representations accepted in a single `_entities` call.
+///
+/// Each representation is parsed, validated against the schema, and resolved.
+/// An uncapped batch lets a single request trigger unbounded work; 1 000 entries
+/// is well above any legitimate use case while preventing accidental or intentional
+/// runaway.
+const MAX_ENTITIES_BATCH_SIZE: usize = 1_000;
+
 use super::types::{EntityRepresentation, FederationMetadata};
 
-/// Parse entity representations from _entities input
+/// Parse entity representations from _entities input.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the input is not an array or any
+/// representation is missing the `__typename` field.
 pub fn parse_representations(
     input: &Value,
     metadata: &FederationMetadata,
-) -> Result<Vec<EntityRepresentation>, String> {
-    let array = input.as_array().ok_or_else(|| "Representations must be array".to_string())?;
+) -> Result<Vec<EntityRepresentation>> {
+    let array = input.as_array().ok_or_else(|| FraiseQLError::Validation {
+        message: "Representations must be an array".to_string(),
+        path:    None,
+    })?;
+
+    if array.len() > MAX_ENTITIES_BATCH_SIZE {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Too many entity representations: {} (max {MAX_ENTITIES_BATCH_SIZE})",
+                array.len()
+            ),
+            path: None,
+        });
+    }
 
     let mut reps = Vec::new();
 
     for (idx, item) in array.iter().enumerate() {
-        let mut rep = EntityRepresentation::from_any(item)
-            .map_err(|e| format!("Representation {}: {}", idx, e))?;
+        let mut rep = EntityRepresentation::from_any(item).map_err(|e| {
+            FraiseQLError::Validation {
+                message: format!("Representation {idx}: {e}"),
+                path:    None,
+            }
+        })?;
 
         // Extract key fields based on metadata
         if let Some(fed_type) = metadata.types.iter().find(|t| t.name == rep.typename) {
@@ -30,11 +62,16 @@ pub fn parse_representations(
     Ok(reps)
 }
 
-/// Validate entity representations
+/// Validate entity representations.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if any representation references an unknown
+/// type or is missing required key fields.
 pub fn validate_representations(
     reps: &[EntityRepresentation],
     metadata: &FederationMetadata,
-) -> Result<(), Vec<String>> {
+) -> Result<()> {
     let mut errors = Vec::new();
 
     for rep in reps {
@@ -62,7 +99,10 @@ pub fn validate_representations(
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(errors)
+        Err(FraiseQLError::Validation {
+            message: format!("Invalid representations: {}", errors.join("; ")),
+            path:    None,
+        })
     }
 }
 
@@ -109,5 +149,37 @@ mod tests {
         let result = parse_representations(&input, &metadata);
 
         assert!(result.is_err());
+    }
+
+    // ── Batch-size guard tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_representations_at_max_accepted() {
+        // MAX_ENTITIES_BATCH_SIZE items must be accepted.
+        let items: Vec<_> = (0..MAX_ENTITIES_BATCH_SIZE)
+            .map(|i| json!({"__typename": "User", "id": i.to_string()}))
+            .collect();
+        let input = Value::Array(items);
+        let metadata = FederationMetadata::default();
+        let result = parse_representations(&input, &metadata);
+        assert!(result.is_ok(), "exactly MAX_ENTITIES_BATCH_SIZE reps must be accepted");
+        assert_eq!(result.unwrap().len(), MAX_ENTITIES_BATCH_SIZE);
+    }
+
+    #[test]
+    fn test_parse_representations_exceeding_max_rejected() {
+        // MAX_ENTITIES_BATCH_SIZE + 1 items must be rejected before any parsing.
+        let items: Vec<_> = (0..=MAX_ENTITIES_BATCH_SIZE)
+            .map(|i| json!({"__typename": "User", "id": i.to_string()}))
+            .collect();
+        let input = Value::Array(items);
+        let metadata = FederationMetadata::default();
+        let result = parse_representations(&input, &metadata);
+        assert!(result.is_err(), "batch exceeding max must be rejected");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("1000") || msg.contains("1001"),
+            "error must mention the count: {msg}"
+        );
     }
 }

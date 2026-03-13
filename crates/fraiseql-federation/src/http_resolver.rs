@@ -39,8 +39,11 @@ impl Default for HttpClientConfig {
 /// HTTP entity resolver
 #[derive(Clone)]
 pub struct HttpEntityResolver {
-    client: reqwest::Client,
-    config: HttpClientConfig,
+    client:     reqwest::Client,
+    config:     HttpClientConfig,
+    /// When `true`, URL validation is skipped. Only settable in test code.
+    #[cfg(any(test, feature = "test-utils"))]
+    skip_ssrf:  bool,
 }
 
 #[derive(serde::Serialize)]
@@ -63,7 +66,8 @@ struct GraphQLError {
 /// Validate that a subgraph URL is safe to contact.
 ///
 /// Blocks SSRF attacks by:
-/// 1. Requiring `http` or `https` scheme.
+/// 1. Requiring `https://` scheme by default; `http://` is allowed only when the
+///    environment variable `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` is set.
 /// 2. Blocking `localhost` and `.localhost` hostnames.
 /// 3. Blocking literal private/reserved IP addresses (RFC 1918, loopback,
 ///    link-local, CGNAT, ULA, IPv4-mapped IPv6).
@@ -75,36 +79,61 @@ struct GraphQLError {
 /// # Errors
 ///
 /// Returns `FraiseQLError::Internal` if the scheme, host, or IP is forbidden.
-fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
-    // Require http or https scheme.
-    let rest = if let Some(r) = url.strip_prefix("https://") {
-        r
-    } else if let Some(r) = url.strip_prefix("http://") {
-        r
+pub(crate) fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
+    // When `FRAISEQL_FEDERATION_ALLOW_INSECURE=true` all SSRF guards are disabled.
+    // This is intended for local development and testing only — never set in production.
+    let allow_insecure = std::env::var("FRAISEQL_FEDERATION_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+
+    // Require https:// by default; allow http:// only when insecure mode is opt-in.
+    if url.starts_with("https://") {
+        // always allowed
+    } else if url.starts_with("http://") {
+        if !allow_insecure {
+            return Err(fraiseql_error::FraiseQLError::Internal {
+                message: "Subgraph URL must use https:// scheme (got http://). \
+                          Set FRAISEQL_FEDERATION_ALLOW_INSECURE=true to permit plain HTTP \
+                          in development environments."
+                    .to_string(),
+                source: None,
+            });
+        }
     } else {
         return Err(fraiseql_error::FraiseQLError::Internal {
-            message: format!(
-                "Subgraph URL must use http:// or https:// scheme (got: {url})"
-            ),
+            message: format!("Subgraph URL must use https:// scheme (got: {url})"),
             source: None,
         });
     };
 
-    // Extract the authority (host[:port]), handling IPv6 bracket notation.
-    let authority = rest.split('/').next().unwrap_or("");
-    let host = if authority.starts_with('[') {
-        // IPv6 literal: strip brackets and optional trailing :port.
-        authority.split(']').next().unwrap_or("").trim_start_matches('[')
-    } else {
-        authority.split(':').next().unwrap_or("")
-    };
+    // When insecure mode is enabled, skip IP/hostname checks too (dev/test only).
+    if allow_insecure {
+        return Ok(());
+    }
 
-    if host.is_empty() {
+    // Parse the full URL to extract the host safely — manual string splitting
+    // is fragile in the presence of IPv6 literals and non-standard authority forms.
+    let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
+        message: format!("Subgraph URL is not a valid URL ({url}): {e}"),
+        source:  None,
+    })?;
+
+    let host_raw = parsed.host_str().unwrap_or("");
+
+    if host_raw.is_empty() {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL has no host: {url}"),
             source: None,
         });
     }
+
+    // The `url` crate wraps IPv6 literals in brackets in `host_str()` (e.g. "[::1]").
+    // Strip them before parsing to `IpAddr` so IPv6 SSRF checks work correctly.
+    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+        &host_raw[1..host_raw.len() - 1]
+    } else {
+        host_raw
+    };
 
     // Block loopback hostnames.
     let lower_host = host.to_ascii_lowercase();
@@ -136,7 +165,7 @@ fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
 /// Covers: loopback (127/8, ::1), RFC 1918 (10/8, 172.16/12, 192.168/16),
 /// link-local (169.254/16, fe80::/10), CGNAT (100.64/10), unspecified (0.0.0.0),
 /// IPv4-mapped IPv6 (::ffff:0:0/96), and ULA (fc00::/7).
-fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
+pub(crate) fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {
             let o = v4.octets();
@@ -160,21 +189,46 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
 }
 
 impl HttpEntityResolver {
-    /// Create a new HTTP entity resolver
-    pub fn new(config: HttpClientConfig) -> Self {
+    /// Create a new HTTP entity resolver.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised
+    /// (e.g., invalid TLS configuration).
+    pub fn new(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(config.timeout_ms))
             .build()
-            .unwrap_or_else(|e| {
-                tracing::warn!(
-                    error = %e,
-                    "Failed to build reqwest client for federation HTTP resolver; \
-                     using default client. Configured timeout will not be applied."
-                );
-                reqwest::Client::default()
-            });
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+                message: format!("HTTP client initialisation failed for federation resolver: {e}"),
+                source:  None,
+            })?;
 
-        Self { client, config }
+        Ok(Self {
+            client,
+            config,
+            #[cfg(any(test, feature = "test-utils"))]
+            skip_ssrf: false,
+        })
+    }
+
+    /// Create a resolver that skips SSRF URL validation.
+    ///
+    /// **Only available with the `test-utils` feature or in unit-test builds.**
+    /// Use to contact loopback/mock servers in integration tests without setting
+    /// process-global environment variables.
+    ///
+    /// **Never use in production** — this bypasses all SSRF protections.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_test(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(config.timeout_ms))
+            .build()
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+                message: format!("HTTP client init failed: {e}"),
+                source:  None,
+            })?;
+        Ok(Self { client, config, skip_ssrf: true })
     }
 
     /// Resolve entities via HTTP _entities query
@@ -201,7 +255,13 @@ impl HttpEntityResolver {
         }
 
         // SECURITY: Validate URL before any network contact to prevent SSRF.
+        // In test/test-utils builds, `skip_ssrf` allows contacting local mock servers.
+        #[cfg(not(any(test, feature = "test-utils")))]
         validate_subgraph_url(subgraph_url)?;
+        #[cfg(any(test, feature = "test-utils"))]
+        if !self.skip_ssrf {
+            validate_subgraph_url(subgraph_url)?;
+        }
 
         // Build GraphQL _entities query
         let query = self.build_entities_query(representations, selection)?;
@@ -363,21 +423,95 @@ mod tests {
         }
     }
 
+    // ── SSRF / URL validation ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_subgraph_url_allows_public_https() {
+        assert!(validate_subgraph_url("https://api.example.com/graphql").is_ok());
+        assert!(validate_subgraph_url("https://subgraph.mycompany.io/").is_ok());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_http_scheme_by_default() {
+        // http:// must be rejected unless FRAISEQL_FEDERATION_ALLOW_INSECURE=true
+        let result = validate_subgraph_url("http://api.example.com/graphql");
+        assert!(result.is_err());
+        let msg = format!("{}", result.unwrap_err());
+        assert!(msg.contains("https://") || msg.contains("FRAISEQL_FEDERATION_ALLOW_INSECURE"));
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_non_http_scheme() {
+        assert!(validate_subgraph_url("ftp://example.com/graphql").is_err());
+        assert!(validate_subgraph_url("file:///etc/passwd").is_err());
+        assert!(validate_subgraph_url("no-scheme-at-all").is_err());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_loopback() {
+        assert!(validate_subgraph_url("https://localhost/graphql").is_err());
+        assert!(validate_subgraph_url("https://localhost:8080/graphql").is_err());
+        assert!(validate_subgraph_url("https://sub.localhost/graphql").is_err());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_loopback_ip() {
+        assert!(validate_subgraph_url("https://127.0.0.1/graphql").is_err());
+        assert!(validate_subgraph_url("https://127.255.255.255/graphql").is_err());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_private_ranges() {
+        assert!(validate_subgraph_url("https://10.0.0.1/graphql").is_err());
+        assert!(validate_subgraph_url("https://172.16.0.1/graphql").is_err());
+        assert!(validate_subgraph_url("https://172.31.255.255/graphql").is_err());
+        assert!(validate_subgraph_url("https://192.168.1.1/graphql").is_err());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_link_local() {
+        assert!(validate_subgraph_url("https://169.254.0.1/graphql").is_err());
+        assert!(validate_subgraph_url("https://169.254.169.254/graphql").is_err()); // AWS metadata
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_cgnat() {
+        assert!(validate_subgraph_url("https://100.64.0.1/graphql").is_err());
+        assert!(validate_subgraph_url("https://100.127.255.255/graphql").is_err());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_ipv6_loopback() {
+        assert!(validate_subgraph_url("https://[::1]/graphql").is_err());
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_ipv6_ula() {
+        assert!(validate_subgraph_url("https://[fc00::1]/graphql").is_err());
+        assert!(validate_subgraph_url("https://[fd00::1]/graphql").is_err());
+    }
+
+    // ── Existing tests (updated for new() returning Result) ───────────────────
+
     #[test]
     fn test_http_resolver_creation() {
         let config = HttpClientConfig::default();
-        let _resolver = HttpEntityResolver::new(config);
-        // Should not panic
+        let _resolver = HttpEntityResolver::new(config).unwrap();
     }
 
     #[test]
     fn test_empty_representations() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default());
+        // Empty representations return early (no URL contact) — https:// check not triggered.
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(async {
             let result = resolver
-                .resolve_entities("http://example.com/graphql", &[], &FieldSelection::default())
+                .resolve_entities(
+                    "https://example.com/graphql",
+                    &[],
+                    &FieldSelection::default(),
+                )
                 .await;
 
             assert!(result.is_ok());
@@ -387,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_graphql_query_building() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default());
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
         let reps = vec![mock_representation("User", "123")];
         let selection = FieldSelection {
             fields: vec!["id".to_string(), "email".to_string()],
@@ -404,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_multiple_types_in_query() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default());
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
         let reps = vec![
             mock_representation("User", "123"),
             mock_representation("Order", "456"),
@@ -421,7 +555,7 @@ mod tests {
 
     #[test]
     fn test_response_parsing_success() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default());
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
@@ -443,7 +577,7 @@ mod tests {
 
     #[test]
     fn test_response_parsing_with_errors() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default());
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
@@ -459,7 +593,7 @@ mod tests {
 
     #[test]
     fn test_response_parsing_entity_count_mismatch() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default());
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
         let representations = vec![
             mock_representation("User", "123"),
             mock_representation("User", "456"),
@@ -496,5 +630,37 @@ mod tests {
         assert_eq!(config.timeout_ms, 10000);
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.retry_delay_ms, 200);
+    }
+
+    // ── URL-parser-based SSRF host extraction ─────────────────────────────────
+
+    #[test]
+    fn test_subgraph_url_rejects_ipv6_loopback_via_brackets() {
+        // An attacker crafted URL with IPv6 loopback — the old split-based parser
+        // was fragile against bracket notation; the url-crate parser is not.
+        let result = validate_subgraph_url("https://[::1]/endpoint");
+        assert!(result.is_err(), "IPv6 loopback must be rejected: {result:?}");
+    }
+
+    #[test]
+    fn test_subgraph_url_rejects_ipv6_private() {
+        // fc00::/7 ULA — private range.
+        let result = validate_subgraph_url("https://[fc00::1]/endpoint");
+        assert!(result.is_err(), "IPv6 ULA must be rejected: {result:?}");
+    }
+
+    #[test]
+    fn test_subgraph_url_malformed_is_rejected() {
+        let result = validate_subgraph_url("https://");
+        assert!(result.is_err(), "URL with empty host must be rejected");
+    }
+
+    #[test]
+    fn test_subgraph_url_accepts_public_ipv6() {
+        // 2001:db8::/32 is documentation range; real public addresses should pass.
+        // Using a known-public, non-reserved address for test purposes.
+        // 2606:4700:4700::1111 is Cloudflare DNS — public, non-reserved.
+        let result = validate_subgraph_url("https://[2606:4700:4700::1111]/graphql");
+        assert!(result.is_ok(), "public IPv6 address must be accepted: {result:?}");
     }
 }

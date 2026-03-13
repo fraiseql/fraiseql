@@ -5,6 +5,13 @@ use super::message::{AuthenticationMessage, BackendMessage, ErrorFields, FieldDe
 use bytes::{Bytes, BytesMut};
 use std::io;
 
+/// Maximum number of fields accepted in a single DataRow or RowDescription message.
+///
+/// PostgreSQL's protocol allows up to 1600 columns per table (hard limit enforced by
+/// the server), so 2048 is a generous cap that prevents an attacker-supplied message
+/// from triggering a huge `Vec::with_capacity` before any bounds are checked.
+const MAX_FIELD_COUNT: usize = 2048;
+
 /// Decode a backend message from `BytesMut` without cloning
 ///
 /// This version decodes in-place from a mutable `BytesMut` buffer and returns
@@ -172,6 +179,12 @@ fn decode_data_row(data: &[u8]) -> io::Result<BackendMessage> {
         ));
     }
     let field_count = field_count_i16 as usize;
+    if field_count > MAX_FIELD_COUNT {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("DataRow field count {field_count} exceeds maximum {MAX_FIELD_COUNT}"),
+        ));
+    }
     let mut fields = Vec::with_capacity(field_count);
     let mut offset = 2;
 
@@ -305,6 +318,12 @@ fn decode_row_description(data: &[u8]) -> io::Result<BackendMessage> {
         ));
     }
     let field_count = field_count_i16 as usize;
+    if field_count > MAX_FIELD_COUNT {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("RowDescription field count {field_count} exceeds maximum {MAX_FIELD_COUNT}"),
+        ));
+    }
     let mut fields = Vec::with_capacity(field_count);
     let mut offset = 2;
 
@@ -407,5 +426,91 @@ mod tests {
             _ => panic!("expected ReadyForQuery"),
         }
         assert_eq!(consumed, 6); // 1 tag + 4 len + 1 status
+    }
+
+    // ── Field-count guard tests ────────────────────────────────────────────────
+
+    fn make_data_row_with_count(count: i16) -> BytesMut {
+        // DataRow: tag 'D', length (4 bytes), field_count (2 bytes), then `count` null fields.
+        // Each null field is represented by length -1 (i32: 0xFF FF FF FF).
+        let body_len: u32 = 2 + 4 * u32::from(count.unsigned_abs());
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(&[b'D']);
+        buf.extend_from_slice(&(body_len + 4).to_be_bytes()); // length includes itself
+        buf.extend_from_slice(&count.to_be_bytes());
+        for _ in 0..count {
+            buf.extend_from_slice(&(-1i32).to_be_bytes()); // NULL field
+        }
+        buf
+    }
+
+    fn make_row_description_with_count(count: i16) -> BytesMut {
+        // RowDescription: tag 'T', length, field_count, then `count` minimal field descriptors.
+        // Each descriptor: name (1 null byte) + 18 bytes of OID/size info = 19 bytes.
+        let body_len: u32 = 2 + 19 * u32::from(count.unsigned_abs());
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(&[b'T']);
+        buf.extend_from_slice(&(body_len + 4).to_be_bytes());
+        buf.extend_from_slice(&count.to_be_bytes());
+        for _ in 0..count {
+            buf.extend_from_slice(&[0u8]); // empty name (null terminator)
+            buf.extend_from_slice(&[0u8; 18]); // table_oid(4) + col_attr(2) + type_oid(4) + type_size(2) + type_mod(4) + format(2)
+        }
+        buf
+    }
+
+    #[test]
+    fn test_data_row_zero_fields_accepted() {
+        let mut buf = make_data_row_with_count(0);
+        let result = decode_message(&mut buf);
+        assert!(result.is_ok(), "zero-field DataRow must be accepted");
+        let (msg, _) = result.unwrap();
+        assert!(matches!(msg, BackendMessage::DataRow(fields) if fields.is_empty()));
+    }
+
+    #[test]
+    fn test_data_row_field_count_exceeds_max_is_rejected() {
+        // MAX_FIELD_COUNT + 1 = 2049 fields — must trigger the guard before
+        // any field data is read.
+        let count: i16 = (MAX_FIELD_COUNT + 1) as i16; // 2049
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(&[b'D']);
+        // body = 2 (count) + 4 (padding); length field includes itself: 2+4+4 = 10
+        buf.extend_from_slice(&10u32.to_be_bytes());
+        buf.extend_from_slice(&count.to_be_bytes());
+        buf.extend_from_slice(&[0u8; 4]);
+
+        let result = decode_message(&mut buf);
+        assert!(result.is_err(), "DataRow with 2049 fields must be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        let msg = err.to_string();
+        assert!(msg.contains("2048"), "error must mention the limit: {msg}");
+    }
+
+    #[test]
+    fn test_row_description_field_count_exceeds_max_is_rejected() {
+        let count: i16 = (MAX_FIELD_COUNT + 1) as i16; // 2049
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(&[b'T']);
+        buf.extend_from_slice(&10u32.to_be_bytes());
+        buf.extend_from_slice(&count.to_be_bytes());
+        buf.extend_from_slice(&[0u8; 4]);
+
+        let result = decode_message(&mut buf);
+        assert!(result.is_err(), "RowDescription with 2049 fields must be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        let msg = err.to_string();
+        assert!(msg.contains("2048"), "error must mention the limit: {msg}");
+    }
+
+    #[test]
+    fn test_row_description_small_field_count_accepted() {
+        let mut buf = make_row_description_with_count(3);
+        let result = decode_message(&mut buf);
+        assert!(result.is_ok(), "3-field RowDescription must be accepted: {result:?}");
+        let (msg, _) = result.unwrap();
+        assert!(matches!(msg, BackendMessage::RowDescription(fields) if fields.len() == 3));
     }
 }

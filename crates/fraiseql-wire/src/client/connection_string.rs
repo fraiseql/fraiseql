@@ -7,8 +7,46 @@
 
 use crate::connection::ConnectionConfig;
 use crate::{Error, Result};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use zeroize::Zeroizing;
+
+/// Maximum byte length for a Unix socket directory path.
+///
+/// Linux's `sun_path` field is 108 bytes; 4096 is the broader POSIX PATH_MAX.
+/// Any path longer than this cannot be a valid socket directory.
+const MAX_SOCKET_DIR_BYTES: usize = 4096;
+
+/// Validate a Unix socket directory path supplied via the `host` query parameter.
+///
+/// # Errors
+///
+/// Returns `Error::Config` if:
+/// - `dir` is longer than `MAX_SOCKET_DIR_BYTES`
+/// - `dir` is not an absolute path (does not start with `/`)
+/// - `dir` contains a `..` component (path traversal)
+fn validate_socket_dir(dir: &str) -> Result<()> {
+    if dir.len() > MAX_SOCKET_DIR_BYTES {
+        return Err(Error::Config(format!(
+            "Unix socket directory path is too long ({} bytes, max {MAX_SOCKET_DIR_BYTES})",
+            dir.len()
+        )));
+    }
+
+    let p = Path::new(dir);
+    if !p.is_absolute() {
+        return Err(Error::Config(format!(
+            "Unix socket directory must be an absolute path (got {dir:?})"
+        )));
+    }
+
+    if p.components().any(|c| c == Component::ParentDir) {
+        return Err(Error::Config(format!(
+            "Unix socket directory must not contain '..' components (got {dir:?})"
+        )));
+    }
+
+    Ok(())
+}
 
 /// Parsed connection info
 #[derive(Debug, Clone)]
@@ -122,7 +160,8 @@ impl ConnectionInfo {
 
         // Determine socket directory
         let socket_dir = if let Some(custom_dir) = parse_query_param(query_string, "host") {
-            // Use explicitly specified directory
+            // Validate before use: must be absolute, no traversal, within length limit.
+            validate_socket_dir(&custom_dir)?;
             custom_dir
         } else {
             // Use default socket directory
@@ -312,5 +351,52 @@ mod tests {
         // Verify password field exists and is properly handled (and zeroed on drop)
         let info = ConnectionInfo::parse("postgres://user:secret@localhost/db").unwrap();
         assert_eq!(info.password.as_ref().map(|p| p.as_str()), Some("secret"));
+    }
+
+    // ── Socket-dir validation tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_valid_socket_dir_accepted() {
+        assert!(validate_socket_dir("/run/postgresql").is_ok());
+        assert!(validate_socket_dir("/tmp").is_ok());
+        assert!(validate_socket_dir("/var/run/postgresql").is_ok());
+    }
+
+    #[test]
+    fn test_relative_socket_dir_rejected() {
+        let err = validate_socket_dir("run/postgresql").unwrap_err();
+        assert!(matches!(err, Error::Config(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("absolute"), "error must say 'absolute': {msg}");
+    }
+
+    #[test]
+    fn test_dot_dot_in_socket_dir_rejected() {
+        let err = validate_socket_dir("/run/../etc").unwrap_err();
+        assert!(matches!(err, Error::Config(_)));
+        let msg = err.to_string();
+        assert!(msg.contains(".."), "error must mention '..': {msg}");
+    }
+
+    #[test]
+    fn test_socket_dir_too_long_rejected() {
+        // 4097-byte path must be rejected by the length guard.
+        let long = format!("/{}", "a".repeat(4096));
+        let err = validate_socket_dir(&long).unwrap_err();
+        assert!(matches!(err, Error::Config(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("4096"), "error must mention the limit: {msg}");
+    }
+
+    #[test]
+    fn test_connection_string_rejects_traversal_in_host_param() {
+        let result = ConnectionInfo::parse("postgres:///mydb?host=/run/../etc");
+        assert!(result.is_err(), "path traversal in host must be rejected");
+    }
+
+    #[test]
+    fn test_connection_string_rejects_relative_host_param() {
+        let result = ConnectionInfo::parse("postgres:///mydb?host=relative/path");
+        assert!(result.is_err(), "relative host param must be rejected");
     }
 }
