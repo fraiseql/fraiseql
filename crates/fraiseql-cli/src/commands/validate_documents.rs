@@ -23,6 +23,12 @@ struct EntryResult {
 
 const SUPPORTED_MANIFEST_VERSION: u32 = 1;
 
+/// Maximum manifest file size accepted (10 MiB).
+///
+/// Manifests larger than this limit are rejected before reading into memory to
+/// prevent trivial OOM attacks via a crafted large file.
+const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024;
+
 #[derive(Deserialize)]
 struct Manifest {
     version:   u32,
@@ -32,6 +38,19 @@ struct Manifest {
 /// Run the `validate-documents` command.
 pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     let path = Path::new(manifest_path);
+
+    // Reject oversized files before reading into memory.
+    let metadata = std::fs::metadata(path)
+        .context(format!("Failed to read manifest: {manifest_path}"))?;
+    if metadata.len() > MAX_MANIFEST_BYTES {
+        anyhow::bail!(
+            "Manifest file {manifest_path} is too large ({} bytes); \
+             the maximum accepted size is {} bytes (10 MiB)",
+            metadata.len(),
+            MAX_MANIFEST_BYTES,
+        );
+    }
+
     let contents = std::fs::read_to_string(path)
         .context(format!("Failed to read manifest: {manifest_path}"))?;
 
@@ -111,6 +130,22 @@ mod tests {
 
     use super::*;
     use crate::output::OutputFormatter;
+
+    #[test]
+    fn test_rejects_manifest_exceeding_size_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.json");
+
+        // Write a file of MAX_MANIFEST_BYTES + 1 bytes (just over the limit).
+        let size = usize::try_from(MAX_MANIFEST_BYTES).unwrap() + 1;
+        std::fs::write(&path, vec![b'x'; size]).unwrap();
+
+        let formatter = OutputFormatter::new(false, false);
+        let result = run(path.to_str().unwrap(), &formatter);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("too large"), "expected size error, got: {msg}");
+    }
 
     #[test]
     fn test_rejects_unknown_version() {

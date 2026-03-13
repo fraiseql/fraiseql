@@ -13,11 +13,18 @@ static SAFE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
         .expect("static regex is valid")
 });
 
+/// PostgreSQL's `NAMEDATALEN - 1`: the maximum byte length of a single identifier segment.
+const PG_MAX_IDENTIFIER_BYTES: usize = 63;
+
 /// Validates that `value` is a safe SQL identifier.
 ///
 /// Accepts `[A-Za-z_][A-Za-z0-9_]*` with an optional single schema dot
 /// (e.g. `"v_user"` or `"public.v_user"`). Rejects anything that could be
 /// SQL injection or cause a runtime syntax error.
+///
+/// Each dot-separated segment is limited to 63 bytes (PostgreSQL `NAMEDATALEN - 1`).
+/// Identifiers exceeding this limit are silently truncated by PostgreSQL, which can
+/// cause confusing "relation not found" errors at runtime.
 ///
 /// # Arguments
 /// - `value`: The string to validate (e.g. `"v_user"` or `"public.v_user"`)
@@ -26,8 +33,8 @@ static SAFE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
 ///
 /// # Errors
 ///
-/// Returns a `ValidationError` if `value` is empty or does not match the safe
-/// identifier pattern.
+/// Returns a `ValidationError` if `value` is empty, exceeds the PostgreSQL identifier
+/// length limit, or does not match the safe identifier pattern.
 pub fn validate_sql_identifier(
     value: &str,
     field: &str,
@@ -44,6 +51,27 @@ pub fn validate_sql_identifier(
             suggestion: None,
         });
     }
+
+    // Check each segment against PostgreSQL's NAMEDATALEN limit.
+    for segment in value.split('.') {
+        if segment.len() > PG_MAX_IDENTIFIER_BYTES {
+            return Err(ValidationError {
+                message:    format!(
+                    "`{field}` segment {segment:?} at `{path}` is {} bytes, \
+                     which exceeds the PostgreSQL maximum of {PG_MAX_IDENTIFIER_BYTES} bytes. \
+                     PostgreSQL silently truncates longer identifiers, causing \
+                     \"relation not found\" errors at runtime.",
+                    segment.len(),
+                ),
+                path:       path.to_string(),
+                severity:   ErrorSeverity::Error,
+                suggestion: Some(
+                    "Shorten the identifier to 63 characters or fewer.".to_string(),
+                ),
+            });
+        }
+    }
+
     if !SAFE_IDENTIFIER.is_match(value) {
         return Err(ValidationError {
             message:    format!(
@@ -61,4 +89,68 @@ pub fn validate_sql_identifier(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_simple_identifier() {
+        assert!(validate_sql_identifier("v_user", "sql_source", "Query.users").is_ok());
+    }
+
+    #[test]
+    fn test_valid_schema_qualified_identifier() {
+        assert!(validate_sql_identifier("public.v_user", "sql_source", "Query.users").is_ok());
+    }
+
+    #[test]
+    fn test_empty_identifier_rejected() {
+        let err = validate_sql_identifier("", "sql_source", "Query.users").unwrap_err();
+        assert!(err.message.contains("must not be empty"));
+    }
+
+    #[test]
+    fn test_identifier_exactly_63_bytes_accepted() {
+        let ident = "a".repeat(63);
+        assert!(validate_sql_identifier(&ident, "sql_source", "Query.x").is_ok());
+    }
+
+    #[test]
+    fn test_identifier_64_bytes_rejected() {
+        let ident = "a".repeat(64);
+        let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+        assert!(err.message.contains("63 bytes"));
+    }
+
+    #[test]
+    fn test_schema_segment_64_bytes_rejected() {
+        // The schema part (before the dot) is 64 chars — should fail on that segment.
+        let schema_part = "a".repeat(64);
+        let ident = format!("{schema_part}.v_user");
+        let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+    }
+
+    #[test]
+    fn test_name_segment_64_bytes_rejected() {
+        // The name part (after the dot) is 64 chars — should fail on that segment.
+        let name_part = "a".repeat(64);
+        let ident = format!("public.{name_part}");
+        let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+    }
+
+    #[test]
+    fn test_injection_attempt_rejected() {
+        let err = validate_sql_identifier(
+            "v_user; DROP TABLE users",
+            "sql_source",
+            "Query.users",
+        )
+        .unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
 }
