@@ -256,6 +256,12 @@ pub struct OIDCClient {
 }
 
 impl OIDCClient {
+    /// Maximum byte size for a userinfo endpoint response.
+    ///
+    /// Userinfo payloads carry a small set of JWT-derived claims.
+    /// 1 `MiB` is generous while blocking allocation-bomb responses.
+    const MAX_USERINFO_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
     /// Create new OIDC client with JWKS caching.
     ///
     /// The JWKS cache TTL defaults to 1 hour.
@@ -428,9 +434,18 @@ impl OIDCClient {
             return Err(format!("Userinfo endpoint returned {}", response.status()));
         }
 
-        response
-            .json::<UserInfo>()
+        let body = response
+            .bytes()
             .await
+            .map_err(|e| format!("Failed to read userinfo response: {e}"))?;
+        if body.len() > Self::MAX_USERINFO_RESPONSE_BYTES {
+            return Err(format!(
+                "Userinfo response too large ({} bytes, max {})",
+                body.len(),
+                Self::MAX_USERINFO_RESPONSE_BYTES
+            ));
+        }
+        serde_json::from_slice::<UserInfo>(&body)
             .map_err(|e| format!("Failed to parse userinfo response: {e}"))
     }
 }
@@ -489,5 +504,79 @@ mod tests {
         };
         let client = OIDCClient::new(config, "client_id", "client_secret");
         assert_eq!(client.client_id, "client_id");
+    }
+
+    // ── S26: OIDCClient userinfo response size cap ────────────────────────────
+
+    #[test]
+    fn oidc_userinfo_cap_constant_is_reasonable() {
+        const { assert!(OIDCClient::MAX_USERINFO_RESPONSE_BYTES >= 64 * 1024) }
+        const { assert!(OIDCClient::MAX_USERINFO_RESPONSE_BYTES <= 100 * 1024 * 1024) }
+    }
+
+    #[tokio::test]
+    async fn oidc_userinfo_oversized_response_is_rejected() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        let oversized = vec![b'x'; OIDCClient::MAX_USERINFO_RESPONSE_BYTES + 1];
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
+            .mount(&mock_server)
+            .await;
+
+        let config = OIDCProviderConfig {
+            issuer:                   mock_server.uri(),
+            authorization_endpoint:   format!("{}/auth", mock_server.uri()),
+            token_endpoint:           format!("{}/token", mock_server.uri()),
+            userinfo_endpoint:        Some(format!("{}/userinfo", mock_server.uri())),
+            jwks_uri:                 format!("{}/.well-known/jwks.json", mock_server.uri()),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "secret");
+
+        let result = client.get_userinfo("dummy_token").await;
+        assert!(result.is_err(), "oversized userinfo response must be rejected");
+        let msg = result.unwrap_err();
+        assert!(msg.contains("too large"), "error must mention size limit: {msg}");
+    }
+
+    #[tokio::test]
+    async fn oidc_userinfo_within_limit_proceeds_to_parse() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+
+        let mock_server = MockServer::start().await;
+        // Valid but minimal payload — will fail at JSON parse (missing fields),
+        // proving the size gate was passed.
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"{}".to_vec()))
+            .mount(&mock_server)
+            .await;
+
+        let config = OIDCProviderConfig {
+            issuer:                   mock_server.uri(),
+            authorization_endpoint:   format!("{}/auth", mock_server.uri()),
+            token_endpoint:           format!("{}/token", mock_server.uri()),
+            userinfo_endpoint:        Some(format!("{}/userinfo", mock_server.uri())),
+            jwks_uri:                 format!("{}/.well-known/jwks.json", mock_server.uri()),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "secret");
+
+        let result = client.get_userinfo("dummy_token").await;
+        // Must fail at JSON parse (missing required fields), not at size gate
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(!msg.contains("too large"), "size gate must not trigger for small payload: {msg}");
     }
 }
