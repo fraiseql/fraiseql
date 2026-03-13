@@ -14,6 +14,34 @@ use crate::{
 
 use super::{build_where_select_sql, PostgresAdapter};
 
+/// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
+///
+/// Tries each PostgreSQL type in priority order; falls back to `Null` for
+/// types that cannot be represented as JSON.
+fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value> {
+    let mut map = std::collections::HashMap::new();
+    for (idx, column) in row.columns().iter().enumerate() {
+        let column_name = column.name().to_string();
+        let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, String>(idx) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, bool>(idx) {
+            serde_json::json!(v)
+        } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+            v
+        } else {
+            serde_json::Value::Null
+        };
+        map.insert(column_name, value);
+    }
+    map
+}
+
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
@@ -135,39 +163,8 @@ impl DatabaseAdapter for PostgresAdapter {
         })?;
 
         // Convert each row to HashMap<String, Value>
-        let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
-            .into_iter()
-            .map(|row| {
-                let mut map = std::collections::HashMap::new();
-
-                // Iterate over all columns in the row
-                for (idx, column) in row.columns().iter().enumerate() {
-                    let column_name = column.name().to_string();
-
-                    // Try to extract value based on PostgreSQL type
-                    let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, String>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
-                        v
-                    } else {
-                        // Fallback: NULL
-                        serde_json::Value::Null
-                    };
-
-                    map.insert(column_name, value);
-                }
-
-                map
-            })
-            .collect();
+        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+            rows.iter().map(row_to_map).collect();
 
         Ok(results)
     }
@@ -191,32 +188,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
-        let results = rows
-            .into_iter()
-            .map(|row| {
-                let mut map = std::collections::HashMap::new();
-                for (idx, column) in row.columns().iter().enumerate() {
-                    let column_name = column.name().to_string();
-                    let value: serde_json::Value = if let Ok(v) = row.try_get::<_, i32>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, String>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
-                        v
-                    } else {
-                        serde_json::Value::Null
-                    };
-                    map.insert(column_name, value);
-                }
-                map
-            })
-            .collect();
+        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+            rows.iter().map(row_to_map).collect();
 
         Ok(results)
     }
@@ -254,33 +227,8 @@ impl DatabaseAdapter for PostgresAdapter {
                 }
             })?;
 
-        let results = rows
-            .into_iter()
-            .map(|row| {
-                let mut map = std::collections::HashMap::new();
-                for (idx, column) in row.columns().iter().enumerate() {
-                    let column_name = column.name().to_string();
-                    let value: serde_json::Value =
-                        if let Ok(v) = row.try_get::<_, i32>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, i64>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, f64>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
-                            v
-                        } else if let Ok(v) = row.try_get::<_, String>(idx) {
-                            serde_json::json!(v)
-                        } else {
-                            serde_json::Value::Null
-                        };
-                    map.insert(column_name, value);
-                }
-                map
-            })
-            .collect();
+        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+            rows.iter().map(row_to_map).collect();
 
         Ok(results)
     }

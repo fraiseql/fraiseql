@@ -135,7 +135,7 @@ impl OidcValidator {
         let http_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .unwrap_or_default();
+            .expect("TLS backend should always be available for reqwest HTTP client");
         Self {
             config,
             http_client,

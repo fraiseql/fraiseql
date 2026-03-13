@@ -25,8 +25,8 @@ use fraiseql_error::{FraiseQLError, Result};
 /// Validation rule for an operator parameter.
 #[derive(Debug, Clone)]
 pub enum ValidationRule {
-    /// Pattern matching (regex)
-    Pattern(String),
+    /// Pattern matching (pre-compiled regex)
+    Pattern(Regex),
     /// Exact length
     Length(usize),
     /// Min and max length
@@ -69,15 +69,11 @@ impl ValidationRule {
     /// or if the pattern is an invalid regex.
     pub fn validate(&self, value: &str) -> Result<()> {
         match self {
-            ValidationRule::Pattern(pattern) => {
-                let re = Regex::new(pattern).map_err(|e| {
-                    FraiseQLError::validation(format!("Invalid validation pattern: {}", e))
-                })?;
-
+            ValidationRule::Pattern(re) => {
                 if !re.is_match(value) {
                     return Err(FraiseQLError::validation(format!(
                         "Value '{}' does not match pattern '{}'",
-                        value, pattern
+                        value, re.as_str()
                     )));
                 }
                 Ok(())
@@ -162,16 +158,24 @@ impl ValidationRule {
     pub fn from_json(value: &Value) -> Result<Self> {
         match value {
             Value::String(s) => {
-                // Simple case: just a pattern
-                Ok(ValidationRule::Pattern(s.clone()))
+                // Simple case: just a pattern — compile at parse time
+                let re = Regex::new(s).map_err(|e| {
+                    FraiseQLError::validation(format!("Invalid validation pattern '{s}': {e}"))
+                })?;
+                Ok(ValidationRule::Pattern(re))
             },
 
             Value::Object(map) => {
                 let mut rules = Vec::new();
 
-                // Pattern rule
+                // Pattern rule — compile at parse time
                 if let Some(Value::String(pattern)) = map.get("pattern") {
-                    rules.push(ValidationRule::Pattern(pattern.clone()));
+                    let re = Regex::new(pattern).map_err(|e| {
+                        FraiseQLError::validation(format!(
+                            "Invalid validation pattern '{pattern}': {e}"
+                        ))
+                    })?;
+                    rules.push(ValidationRule::Pattern(re));
                 }
 
                 // Length rule
@@ -334,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_pattern_validation() {
-        let rule = ValidationRule::Pattern("^[a-z]+$".to_string());
+        let rule = ValidationRule::Pattern(Regex::new("^[a-z]+$").unwrap());
         assert!(rule.validate("hello").is_ok());
         assert!(rule.validate("Hello").is_err());
     }
