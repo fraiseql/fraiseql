@@ -225,7 +225,9 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 
             if let Some(cache) = state.cache() {
                 let entity_type = req.entity_type.as_ref()
-                    .expect("entity_type is Some; None was rejected above");
+                    .ok_or_else(|| ApiError::internal_error(
+                        "entity_type was None after validation — this is a bug",
+                    ))?;
                 // Convert entity type to view name pattern (e.g., User → v_user)
                 let view_name = format!("v_{}", entity_type.to_lowercase());
                 let entries_cleared = cache.invalidate_views(&[&view_name]);
@@ -262,7 +264,9 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 
             if let Some(cache) = state.cache() {
                 let pattern = req.pattern.as_ref()
-                    .expect("pattern is Some; None was rejected above");
+                    .ok_or_else(|| ApiError::internal_error(
+                        "pattern was None after validation — this is a bug",
+                    ))?;
                 let entries_cleared = cache.invalidate_pattern(pattern);
                 info!(
                     operation = "admin.cache_clear",
