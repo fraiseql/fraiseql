@@ -27,6 +27,9 @@ use crate::{
     },
 };
 
+#[cfg(feature = "nats")]
+use crate::ssrf::validate_nats_url;
+
 /// Configuration for NATS `JetStream` transport.
 #[derive(Debug, Clone)]
 pub struct NatsConfig {
@@ -149,6 +152,9 @@ impl NatsTransport {
     ///
     /// Returns `TransportConnectionError` if connection fails.
     pub async fn new(config: NatsConfig) -> Result<Self> {
+        // Reject private/loopback NATS URLs before attempting a network connection.
+        validate_nats_url(&config.url)?;
+
         // Connect to NATS server
         let client = async_nats::connect(&config.url).await.map_err(|e| {
             ObserverError::TransportConnectionFailed {
@@ -451,6 +457,7 @@ impl EventTransport for NatsTransport {
 #[cfg(feature = "nats")]
 mod tests {
     use super::*;
+    use crate::ssrf::validate_nats_url;
 
     #[test]
     fn test_nats_config_default() {
@@ -469,4 +476,22 @@ mod tests {
     // Note: Integration tests with an embedded NATS server live in the tests/ directory.
     // Unit tests for NatsTransport require a running NATS server and are therefore
     // deferred to integration tests.
+
+    #[test]
+    fn validate_nats_url_rejects_loopback() {
+        let result = validate_nats_url("nats://127.0.0.1:4222");
+        assert!(result.is_err(), "loopback NATS URL must be rejected");
+    }
+
+    #[test]
+    fn validate_nats_url_rejects_private_ip() {
+        let result = validate_nats_url("nats://10.0.0.1:4222");
+        assert!(result.is_err(), "private-IP NATS URL must be rejected");
+    }
+
+    #[test]
+    fn validate_nats_url_rejects_wrong_scheme() {
+        let result = validate_nats_url("http://nats.example.com:4222");
+        assert!(result.is_err(), "non-nats:// scheme must be rejected");
+    }
 }

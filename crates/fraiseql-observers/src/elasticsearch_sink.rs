@@ -36,6 +36,7 @@ use tracing::{error, info, warn};
 use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
+    ssrf::validate_outbound_url,
 };
 
 /// Elasticsearch sink configuration
@@ -104,13 +105,17 @@ impl ElasticsearchSinkConfig {
         self
     }
 
-    /// Validate configuration
+    /// Validate configuration.
+    ///
+    /// In addition to field sanity checks, validates the URL for SSRF risks:
+    /// private/loopback/link-local addresses are rejected.
     pub fn validate(&self) -> Result<()> {
         if self.url.is_empty() {
             return Err(ObserverError::InvalidConfig {
                 message: "elasticsearch.url cannot be empty".to_string(),
             });
         }
+        validate_outbound_url(&self.url)?;
         if self.index_prefix.is_empty() {
             return Err(ObserverError::InvalidConfig {
                 message: "elasticsearch.index_prefix cannot be empty".to_string(),
@@ -149,6 +154,19 @@ impl ElasticsearchSink {
             "Creating Elasticsearch sink"
         );
 
+        let client = Client::builder()
+            .timeout(ES_SINK_REQUEST_TIMEOUT)
+            .build()
+            .unwrap_or_default();
+        Ok(Self {
+            client: Arc::new(client),
+            config,
+        })
+    }
+
+    /// Create a sink without SSRF validation — for use in tests only.
+    #[cfg(test)]
+    pub(crate) fn new_unchecked(config: ElasticsearchSinkConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(ES_SINK_REQUEST_TIMEOUT)
             .build()
@@ -418,13 +436,19 @@ mod tests {
 
     #[test]
     fn test_config_validate_valid() {
-        let config = ElasticsearchSinkConfig::default();
+        let config = ElasticsearchSinkConfig {
+            url: "https://es.example.com:9200".to_string(),
+            ..ElasticsearchSinkConfig::default()
+        };
         assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_is_transient_error() {
-        let config = ElasticsearchSinkConfig::default();
+        let config = ElasticsearchSinkConfig {
+            url: "https://es.example.com:9200".to_string(),
+            ..ElasticsearchSinkConfig::default()
+        };
         let sink = ElasticsearchSink::new(config).unwrap();
 
         assert!(sink.is_transient_error("Connection refused"));
@@ -436,7 +460,10 @@ mod tests {
 
     #[test]
     fn test_is_transient_error_connection_reset() {
-        let config = ElasticsearchSinkConfig::default();
+        let config = ElasticsearchSinkConfig {
+            url: "https://es.example.com:9200".to_string(),
+            ..ElasticsearchSinkConfig::default()
+        };
         let sink = ElasticsearchSink::new(config).unwrap();
         assert!(sink.is_transient_error("connection reset by peer"));
         assert!(!sink.is_transient_error("404 Not Found"));
@@ -454,6 +481,7 @@ mod tests {
 
         // 100_000 is the maximum valid value
         let config = ElasticsearchSinkConfig {
+            url: "https://es.example.com:9200".to_string(),
             bulk_size: 100_000,
             ..Default::default()
         };
@@ -465,7 +493,11 @@ mod tests {
         // with_env_overrides() is callable and produces a consistent config.
         // Full override behaviour is tested via env-var integration; here we
         // verify the function compiles, returns Self, and produces a valid result.
-        let after = ElasticsearchSinkConfig::default().with_env_overrides();
+        let base = ElasticsearchSinkConfig {
+            url: "https://es.example.com:9200".to_string(),
+            ..ElasticsearchSinkConfig::default()
+        };
+        let after = base.with_env_overrides();
         assert!(
             after.validate().is_ok(),
             "config after with_env_overrides must still be valid"
@@ -517,7 +549,7 @@ mod tests {
             flush_interval_secs: 5,
             max_retries:         1,
         };
-        let sink = ElasticsearchSink::new(config).unwrap();
+        let sink = ElasticsearchSink::new_unchecked(config).unwrap();
 
         // Drive the private try_bulk_index path via flush_buffer through a mock event.
         // We create a minimal event buffer and call the internal path indirectly.

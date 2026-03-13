@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 
 use super::{IndexedEvent, SearchBackend};
 use crate::error::{ObserverError, Result};
+use crate::ssrf::validate_outbound_url;
 
 /// Default timeout for all Elasticsearch HTTP requests.
 const ES_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -37,9 +38,27 @@ impl HttpSearchBackend {
     ///
     /// # Arguments
     ///
-    /// * `es_url` - Elasticsearch base URL (e.g., "<http://localhost:9200>")
-    #[must_use]
-    pub fn new(es_url: String) -> Self {
+    /// * `es_url` - Elasticsearch base URL (e.g., `http://es.example.com:9200`)
+    ///
+    /// # Errors
+    ///
+    /// Returns `ObserverError::InvalidConfig` if the URL targets a private/loopback
+    /// address (SSRF protection) or if the HTTP client cannot be built (e.g., TLS
+    /// initialisation failure).
+    pub fn new(es_url: String) -> Result<Self> {
+        validate_outbound_url(&es_url)?;
+        let client = Client::builder()
+            .timeout(ES_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|e| ObserverError::InvalidConfig {
+                message: format!("Failed to build HTTP client: {e}"),
+            })?;
+        Ok(Self { client, es_url })
+    }
+
+    /// Create a backend without SSRF validation — for use in tests only.
+    #[cfg(test)]
+    fn new_unchecked(es_url: String) -> Self {
         let client = Client::builder()
             .timeout(ES_REQUEST_TIMEOUT)
             .build()
@@ -89,11 +108,18 @@ impl HttpSearchBackend {
                 }
             });
 
-            self.client.put(&url).json(&mapping).send().await.map_err(|e| {
-                ObserverError::DatabaseError {
+            self.client
+                .put(&url)
+                .json(&mapping)
+                .send()
+                .await
+                .map_err(|e| ObserverError::DatabaseError {
                     reason: format!("Failed to create Elasticsearch index: {e}"),
-                }
-            })?;
+                })?
+                .error_for_status()
+                .map_err(|e| ObserverError::DatabaseError {
+                    reason: format!("Elasticsearch rejected index creation: {e}"),
+                })?;
         }
 
         Ok(())
@@ -373,15 +399,27 @@ mod tests {
 
     #[test]
     fn test_http_search_backend_clone() {
-        let backend = HttpSearchBackend::new("http://localhost:9200".to_string());
+        let backend = HttpSearchBackend::new_unchecked("http://localhost:9200".to_string());
         let _cloned = backend;
         // If this compiles, Clone is working
     }
 
     #[test]
     fn test_http_search_backend_url() {
-        let backend = HttpSearchBackend::new("http://elasticsearch:9200".to_string());
+        let backend = HttpSearchBackend::new_unchecked("http://elasticsearch:9200".to_string());
         assert_eq!(backend.es_url, "http://elasticsearch:9200");
+    }
+
+    #[test]
+    fn test_new_rejects_private_url() {
+        let result = HttpSearchBackend::new("http://10.0.0.1:9200".to_string());
+        assert!(result.is_err(), "private IP must be rejected");
+    }
+
+    #[test]
+    fn test_new_rejects_loopback_url() {
+        let result = HttpSearchBackend::new("http://localhost:9200".to_string());
+        assert!(result.is_err(), "loopback must be rejected");
     }
 
     // --- S11-3: wiremock integration tests ---
@@ -398,7 +436,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let backend = HttpSearchBackend::new(mock.uri());
+        let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let healthy = backend.health_check().await.unwrap();
         assert!(healthy, "200 response should indicate healthy");
     }
@@ -412,7 +450,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let backend = HttpSearchBackend::new(mock.uri());
+        let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let healthy = backend.health_check().await.unwrap();
         assert!(!healthy, "500 response should indicate unhealthy");
     }
@@ -421,7 +459,7 @@ mod tests {
     async fn test_index_batch_empty_is_noop() {
         // No mock registered — if an HTTP request is made this will fail with a
         // connection error, proving the empty-batch guard is working.
-        let backend = HttpSearchBackend::new("http://localhost:19999".to_string());
+        let backend = HttpSearchBackend::new_unchecked("http://localhost:19999".to_string());
         let result = backend.index_batch(&[]).await;
         assert!(result.is_ok(), "empty batch should return Ok without making any HTTP call");
     }
@@ -460,7 +498,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let backend = HttpSearchBackend::new(mock.uri());
+        let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let results = backend.search("order", "tenant-1", 10).await.unwrap();
         assert_eq!(results.len(), 1, "one hit should be returned");
         assert_eq!(results[0].entity_type, "Order");
@@ -496,7 +534,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let backend = HttpSearchBackend::new(mock.uri());
+        let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let result = backend.search("query", "tenant", 10).await;
         assert!(result.is_err(), "oversized search response must be rejected");
         let reason = match result.unwrap_err() {
@@ -520,7 +558,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let backend = HttpSearchBackend::new(mock.uri());
+        let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let result = backend.search_entity("Order", "entity-1", "tenant").await;
         assert!(result.is_err(), "oversized entity search response must be rejected");
     }
@@ -536,7 +574,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let backend = HttpSearchBackend::new(mock.uri());
+        let backend = HttpSearchBackend::new_unchecked(mock.uri());
         let result = backend.search_time_range(0, 1_000_000, "tenant", 10).await;
         assert!(result.is_err(), "oversized time-range response must be rejected");
     }

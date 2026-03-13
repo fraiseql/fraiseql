@@ -107,6 +107,7 @@ pub mod queued_executor;
 pub mod resilience;
 #[cfg(feature = "search")]
 pub mod search;
+pub(crate) mod ssrf;
 pub mod storage;
 pub mod traits;
 pub mod transport;
